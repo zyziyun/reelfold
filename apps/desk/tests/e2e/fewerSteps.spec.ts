@@ -191,7 +191,15 @@ test('the AI’s calls on the clip are shown as made, with Undo / Change; changi
   await expect
     .poll(async () => (await api<{ items: { id: string; live?: { state?: string } }[] }>('/api/history')).items.find((i) => i.id === id)?.live?.state, { timeout: 240000, intervals: [2000] })
     .toBe('done');
-  // 然后 is gone (while the clip is re-made its export can be missing for a moment: a slow runner polls into that)
-  await expect.poll(() => (fs.existsSync(exportFile()) ? dur(exportFile()) : Infinity), { timeout: 60000 }).toBeLessThan(before - 0.2);
+  // 然后 is gone (while the clip is re-made its export is missing or half-written for a moment: a slow runner polls
+  // into that, so a file ffprobe cannot read yet counts as not there)
+  const durNow = () => {
+    try {
+      return dur(exportFile());
+    } catch {
+      return Infinity;
+    }
+  };
+  await expect.poll(durNow, { timeout: 60000 }).toBeLessThan(before - 0.2);
   await shot('F4-decided-changed');
 });
