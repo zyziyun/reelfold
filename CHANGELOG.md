@@ -8,6 +8,20 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-11
+
+### Added
+
+- Every split in the Studio and the editor resizes: drag (or arrow keys on a focused divider), double-click to reset,
+  sizes kept on this Mac; the video list folds to a strip (⌘B) and the list's groups fold.
+
+### Changed
+
+- The clip header has room: project · position · length above a larger title, the full title on hover, buttons that
+  shrink to icons in narrow windows; the clip page stacks below 700px; one left edge for every section.
+- Switching videos returns each column to where it was; the clip page shows its own skeleton while loading and a
+  Try again when a clip does not open; the AI panel slides in and out.
+
 ## [0.2.5] - 2026-10-11
 
 ### Added
@@ -288,7 +302,8 @@ in the commit log (formerly `video-studio` and `Daycut`).
 - API keys in the OS keychain; every IPC call validated; the local engine needs a per-session token.
 - No silent mock engine or demo mode in the product: a packaged app always runs the real engine.
 
-[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/zyziyun/reelfold/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/zyziyun/reelfold/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/zyziyun/reelfold/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/zyziyun/reelfold/compare/v0.2.1...v0.2.3
