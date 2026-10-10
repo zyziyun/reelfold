@@ -8,7 +8,7 @@
 // her (Settings: ask before applying AI edits), else 导出 - or, for a take from Record yourself, Finish — make my video.
 // Pickups (ux/record/pickups): select words in the transcript -> Re-record (R) / Add after (⇧R) -> the player turns
 // into the camera (PickupStage) -> the pickup is spliced in as one undo step and marked in the transcript.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CalendarClock, ChevronDown, ChevronRight, Contrast, GanttChart, Music, PanelRight, Redo2, Scissors, SkipForward, SlidersHorizontal, Sparkle, Sparkles, Square, Trash2, Type, Undo2, Upload, X, ZoomIn } from 'lucide-react';
 import type { ChatDoc } from '../../../shared/chatEdit';
 import { EngineError } from '../../../shared/engineClient';
@@ -24,7 +24,9 @@ import { href, useRouteQuery } from '../lib/router';
 import { markers, type Primary } from '../lib/chatEdit';
 import { AutoCommit, COMMIT_DELAY_MS, draftKey, draftsKey, loadDrafts, storeCommitted, subtractDrafts, useTextCuts } from '../lib/textCuts';
 import { defaultTab, draftOps, draftSpans, fixInCue, hasDrafts, joinWords, keepToCuts, keptSeconds, segments, wordRuns, type Drafts } from '../lib/transcript';
-import { useSplit, type LowerTab } from '../lib/useSplit';
+import { CHAT_MAX, CHAT_MIN, MIN_LOWER, MIN_STAGE, PRESETS, useSplit, type LowerTab } from '../lib/useSplit';
+import { useBox, usePane } from '../lib/panes';
+import { Splitter } from './Splitter';
 import { ChatPanel, type ChatApi } from './chat/ChatPanel';
 import { Empty, media, Sk } from './kit';
 import { LowerPane } from './LowerPane';
@@ -62,6 +64,11 @@ const TABS: [Tab, MessageKey][] = [
 
 /** saves still running per clip (an editor that was left): a reopened editor waits for them (never cuts twice) */
 const INFLIGHT = new Map<string, Promise<Drafts | null>>();
+
+/** the clip page's scroll positions per clip (this session): coming back to a video lands where she was */
+const SCROLL = new Map<string, { l: number; r: number }>();
+/** the clip page's right column (transcript, post) keeps at least this much width next to the player column */
+const RIGHT_MIN = 340;
 
 function fixedKey(id: string, clip: string) {
   return `ce.fixed.${id}/${clip}`;
@@ -114,6 +121,14 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     }
   });
   const split = useSplit();
+  // every other split of the page: the player column, the AI conversation's width, the editor's info above the chat
+  const [bodyRef, body] = useBox<HTMLDivElement>();
+  const [rightRef, rightBox] = useBox<HTMLDivElement>();
+  const playerPane = usePane('studio.player', body.w ? body.w - 1 - RIGHT_MIN : undefined);
+  const aiPane = usePane('studio.ai', body.w ? body.w - 160 : undefined);
+  const infoPane = usePane('editor.info', rightBox.h ? rightBox.h - 220 : undefined);
+  const leftCol = useRef<HTMLElement | null>(null);
+  const rightCol = useRef<HTMLElement | null>(null);
   const cuts = useTextCuts(draftKey(id, clip));
   const pl = useRef<PlayerApi | null>(null);
   const chat = useRef<ChatApi | null>(null);
@@ -658,9 +673,33 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [odoc]);
   const marks = useMemo(() => (odoc ? markers(odoc, drafts) : []), [odoc, drafts]);
+  // the Studio page: back on a video, its columns scroll to where she left them
+  const hasDoc = !!doc;
+  useLayoutEffect(() => {
+    if (!studio || !hasDoc) return;
+    const k = `${id}/${clip}`;
+    const l = leftCol.current;
+    const r = rightCol.current;
+    const at = SCROLL.get(k);
+    if (at && l) l.scrollTop = at.l;
+    if (at && r) r.scrollTop = at.r;
+    const on = () => SCROLL.set(k, { l: l?.scrollTop ?? 0, r: r?.scrollTop ?? 0 });
+    l?.addEventListener('scroll', on, { passive: true });
+    r?.addEventListener('scroll', on, { passive: true });
+    return () => {
+      l?.removeEventListener('scroll', on);
+      r?.removeEventListener('scroll', on);
+    };
+  }, [studio, hasDoc, id, clip]);
   const project = hist.data?.items.find((x) => x.id === id);
   const pinItem = (q.item ? inbox.all.find((x) => x.key === q.item) : null) ?? (studio ? ask : null);
   const triageItem = triage ? inbox.items.find((x) => x.key === triage.keys[triage.i]) ?? null : null;
+  if (err && !doc && studio)
+    return (
+      <div className="cs cs-state" data-testid="editor-error">
+        <Empty title={t('st.pageFailed')} hint={err} action={<button className="btn" onClick={() => (setErr(null), reload())} data-testid="editor-retry">{t('c.retry')}</button>} />
+      </div>
+    );
   if (err && !doc)
     return (
       <div className="pg">
@@ -669,6 +708,34 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
           {t('c.back')}
         </a>
         <Empty title={err} />
+      </div>
+    );
+  if ((!doc || !view || !odoc) && studio)
+    return (
+      <div className="cs" aria-busy="true" aria-label={t('c.loading')} data-testid="editor-loading">
+        <header className="cs-top">
+          <div className="cs-title">
+            <Sk h={12} w={120} />
+            <Sk h={22} w={320} />
+          </div>
+        </header>
+        <div className="cs-body" style={{ ['--cs-player' as string]: `${playerPane.size}px` }}>
+          <section className="cs-left">
+            <div className="ce-stage">
+              <div className="sk" style={{ aspectRatio: '3 / 4', maxHeight: '46vh', margin: '0 auto', borderRadius: 10 }} />
+            </div>
+          </section>
+          <span className="splitter col" aria-hidden />
+          <section className="cs-right" style={{ padding: 'var(--s2) var(--s3)', gap: 12 }}>
+            <Sk h={28} w={220} />
+            <Sk h={16} />
+            <Sk h={16} w="80%" />
+            <Sk h={16} w="60%" />
+          </section>
+        </div>
+        <footer className="cs-ai">
+          <Sk h={36} />
+        </footer>
       </div>
     );
   if (!doc || !view || !odoc)
@@ -714,7 +781,9 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   const compare = before ? (sameTimeline ? { effects: before.effects, captions: before.captions, labels } : null) : preview.compare && !holdC && preview.ops ? { effects: odoc.effects, labels } : null;
   const canFix = !!doc.caps.caption_text && doc.captions.some((c) => !c.added);
   const cutNote = doc.mode === 'flattened' && doc.caps.cut_strategy === 'snap_captions' ? t('te.note.snap') : null;
-  const stageRows = `minmax(0, ${split.stage}fr) 8px minmax(${180}px, ${1 - split.stage}fr)`;
+  const stageRows = `minmax(0, ${split.stage}fr) 1px minmax(${MIN_LOWER}px, ${1 - split.stage}fr)`;
+  // the player's share of the editor's height, as a pane: min / max from the min sizes, steps of 4 %
+  const stageSpec = split.height > MIN_STAGE + MIN_LOWER ? { def: PRESETS.balanced, min: MIN_STAGE / split.height, max: 1 - MIN_LOWER / split.height } : { def: PRESETS.balanced, min: 0.15, max: 0.85 };
 
   const stageEl = (
     <section className="ce-stage">
@@ -972,62 +1041,64 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     const projClips = (hist.data?.items.find((x) => x.id === id) ? place?.pos?.[1] : null) ?? null;
     return (
       <div className={`cs ${ai.open ? 'ai-open' : ''}`} data-testid="editor" data-layout="studio">
-        <header className="cs-top">
+        <header className="cs-top" data-testid="studio-header">
           <div className="cs-title">
             <span className="cs-where muted clamp1" data-testid="studio-where">
               <a href={href({ name: 'project', id, tab: 'clips' })} title={t('st.details')} data-testid="studio-details">
                 {place?.project ?? project?.name}
               </a>
               {place?.pos ? ` · ${place.pos[0]}/${place.pos[1]}` : ''}
+              <span className="cs-len num" data-testid="editor-length">
+                {' · '}
+                {pending && Math.abs(durNow - durAfter) > 0.05 ? (
+                  <>
+                    {fmtClock(durNow)} <span className="arrow">→ {fmtClock(durAfter)}</span>
+                  </>
+                ) : (
+                  fmtClock(durNow || doc.duration)
+                )}
+              </span>
             </span>
-            <span className="row" style={{ gap: 8, minWidth: 0 }}>
+            <span className="cs-name">
               <ClipTitle item={id} clip={clip} title={doc.title} custom={doc.title_custom} onSaved={reload} />
               {pinItem && <span className="cs-ask" data-testid="studio-ask-chip">{t('st.askChip')}</span>}
+              <RenderPill s={auto.state} onRetry={auto.now} />
             </span>
           </div>
-          <span className="meta" data-testid="editor-length">
-            {pending && Math.abs(durNow - durAfter) > 0.05 ? (
-              <>
-                {fmtClock(durNow)} <span className="arrow">→ {fmtClock(durAfter)}</span>
-              </>
+          <div className="cs-actions">
+            <div className="grp">
+              <button className="btn ghost icon" disabled={!doc.undo && !(pending && cuts.canUndo)} onClick={() => (pending && cuts.canUndo ? cuts.undo() : void undo())} aria-label={t('c.undo')} data-tip={`${t('c.undo')} · ${keyHint('⌘Z')}`} data-tip-below data-testid="editor-undo">
+                <Undo2 className="ico" />
+              </button>
+              <button className="btn ghost icon" disabled={!doc.redo && !cuts.canRedo} onClick={() => (cuts.canRedo ? cuts.redo() : void undo(1, true))} aria-label={t('c.redo')} data-tip={`${t('c.redo')} · ${keyHint('⇧⌘Z')}`} data-tip-below data-testid="editor-redo">
+                <Redo2 className="ico" />
+              </button>
+            </div>
+            <button className={`btn ghost ${drawer ? 'toggle on' : ''}`} onClick={() => setDrawer(!drawer)} aria-pressed={drawer} aria-label={t('ce.precise')} data-tip={`${t('ce.preciseTip')} · E`} data-tip-below data-testid="toggle-precise">
+              <SlidersHorizontal className="ico" />
+              <span className="lbl">{t('ce.precise')}</span>
+            </button>
+            {doc.recording && <FinishButton item={id} clip={clip} flush={flushCuts} primary={false} />}
+            <button className="btn" onClick={() => (setAi((a) => ({ ...a, open: true, all: false })), window.setTimeout(() => chat.current?.openCard('export'), 30))} disabled={doc.caps.export === false} aria-label={t('st.exportFile')} data-tip={t('st.exportFile')} data-tip-below data-testid="editor-export">
+              <Upload className="ico" />
+              <span className="lbl">{t('st.exportFile')}</span>
+            </button>
+            {sched.g ? (
+              <button className="btn" onClick={() => document.querySelector('[data-testid=ci-schedule]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })} title={sched.scheduledWhen ?? undefined} data-testid="studio-scheduled">
+                <CalendarClock className="ico" />
+                <span className="clamp1">{sched.scheduledWhen}</span>
+              </button>
             ) : (
-              fmtClock(durNow || doc.duration)
+              // one filled button: the question's answer while one waits, else Schedule
+              <button className={`btn ${pinItem ? '' : 'primary'}`} disabled={!sched.loaded || !sched.pfs.length} onClick={() => void sched.scheduleNow()} title={sched.when ? t('ci.schedule', { when: sched.when }) : t('ci.noPlatforms')} data-testid="studio-schedule">
+                <CalendarClock className="ico" />
+                {t('st.schedule')}
+              </button>
             )}
-          </span>
-          <RenderPill s={auto.state} onRetry={auto.now} />
-          <span className="sp" />
-          <div className="grp">
-            <button className="btn ghost icon sm" disabled={!doc.undo && !(pending && cuts.canUndo)} onClick={() => (pending && cuts.canUndo ? cuts.undo() : void undo())} aria-label={t('c.undo')} data-tip={`${t('c.undo')} · ${keyHint('⌘Z')}`} data-testid="editor-undo">
-              <Undo2 className="ico" />
-            </button>
-            <button className="btn ghost icon sm" disabled={!doc.redo && !cuts.canRedo} onClick={() => (cuts.canRedo ? cuts.redo() : void undo(1, true))} aria-label={t('c.redo')} data-tip={`${t('c.redo')} · ${keyHint('⇧⌘Z')}`} data-testid="editor-redo">
-              <Redo2 className="ico" />
-            </button>
           </div>
-          <button className={`btn ghost ${drawer ? 'toggle on' : ''}`} onClick={() => setDrawer(!drawer)} aria-pressed={drawer} data-tip={`${t('ce.preciseTip')} · E`} data-testid="toggle-precise">
-            <SlidersHorizontal className="ico" />
-            {t('ce.precise')}
-          </button>
-          {doc.recording && <FinishButton item={id} clip={clip} flush={flushCuts} primary={false} />}
-          <button className="btn" onClick={() => (setAi((a) => ({ ...a, open: true, all: false })), window.setTimeout(() => chat.current?.openCard('export'), 30))} disabled={doc.caps.export === false} data-testid="editor-export">
-            <Upload className="ico" />
-            {t('st.exportFile')}
-          </button>
-          {sched.g ? (
-            <button className="btn" onClick={() => document.querySelector('[data-testid=ci-schedule]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })} data-testid="studio-scheduled">
-              <CalendarClock className="ico" />
-              {sched.scheduledWhen}
-            </button>
-          ) : (
-            // one filled button: the question's answer while one waits, else Schedule
-            <button className={`btn ${pinItem ? '' : 'primary'}`} disabled={!sched.loaded || !sched.pfs.length} onClick={() => void sched.scheduleNow()} title={sched.when ? t('ci.schedule', { when: sched.when }) : t('ci.noPlatforms')} data-testid="studio-schedule">
-              <CalendarClock className="ico" />
-              {t('st.schedule')}
-            </button>
-          )}
         </header>
-        <div className="cs-body">
-          <section className="cs-left">
+        <div className="cs-body" ref={bodyRef} style={{ ['--cs-player' as string]: `${playerPane.size}px`, ['--cs-ai' as string]: `${aiPane.size}px` }}>
+          <section className="cs-left" ref={leftCol} aria-label={t('st.playerCol')}>
             {stageEl}
             <div className="ci cs-media">
               <div className="ci-sec">
@@ -1044,7 +1115,19 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               </div>
             </div>
           </section>
-          <section className="cs-right">
+          <Splitter
+            orient="col"
+            sign={1}
+            state={{ size: playerPane.size, collapsed: false }}
+            spec={playerPane.spec}
+            room={body.w ? body.w - 1 - RIGHT_MIN : undefined}
+            onChange={playerPane.set}
+            onReset={playerPane.reset}
+            label={t('st.playerResize')}
+            tip={t('lay.dragTip')}
+            testId="studio-player-split"
+          />
+          <section className="cs-right" ref={rightCol}>
             {pinEl && <div className="cs-ask-card" data-testid="studio-question">{pinEl}</div>}
             <div className="cs-made">{madeEl}</div>
             <div className="cs-lower">{lowerEl}</div>
@@ -1052,7 +1135,19 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               <ClipScheduleView s={sched} compact />
             </div>
           </section>
-          <aside className="cs-ai-pane" aria-hidden={!ai.open} data-testid="studio-ai-pane">
+          <aside className="cs-ai-pane" aria-hidden={!ai.open} inert={!ai.open} data-testid="studio-ai-pane">
+            <Splitter
+              orient="col"
+              sign={-1}
+              state={{ size: aiPane.size, collapsed: false }}
+              spec={aiPane.spec}
+              room={body.w ? body.w - 160 : undefined}
+              onChange={aiPane.set}
+              onReset={aiPane.reset}
+              label={t('st.aiResize')}
+              tip={t('lay.dragTip')}
+              testId="studio-ai-split"
+            />
             <div className="cs-ai-hd">
               <div className="seg" role="radiogroup" aria-label={t('st.ai.scope')}>
                 <button role="radio" aria-checked={!ai.all} className={!ai.all ? 'on' : ''} onClick={() => setAi((a) => ({ ...a, all: false }))} data-testid="studio-ai-one">
@@ -1154,44 +1249,40 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         </header>
         <main className="ce-main ce-split3" ref={split.ref} style={{ gridTemplateRows: stageRows }}>
           {stageEl}
-          <div
+          <Splitter
+            orient="row"
+            sign={1}
             className="ce-hsplit"
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label={t('te.dividerTip', { key: keyHint('⌘2') })}
-            data-tip={t('te.dividerTip', { key: keyHint('⌘2') })}
-            onPointerDown={split.dragDivider}
-            onDoubleClick={split.reset}
-            data-testid="split-divider"
-          >
-            <i />
-          </div>
+            state={{ size: split.stage, collapsed: false }}
+            spec={stageSpec}
+            perPx={split.height ? 1 / split.height : 0.002}
+            step={0.04}
+            bigStep={0.12}
+            onChange={(x) => split.setStage(x.size)}
+            onReset={split.reset}
+            label={t('te.dividerTip', { key: keyHint('⌘2') })}
+            tip={t('te.dividerTip', { key: keyHint('⌘2') })}
+            testId="split-divider"
+          />
           {lowerEl}
         </main>
-        <div
-          className="ce-split"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t('ce.resize')}
-          onPointerDown={(e) => {
-            if (split.collapsed) return;
-            const x0 = e.clientX;
-            const w0 = split.layout.chatW;
-            const el = e.currentTarget;
-            el.classList.add('on');
-            const mv = (ev: PointerEvent) => split.setChatW(w0 - (ev.clientX - x0));
-            const up = () => {
-              el.classList.remove('on');
-              window.removeEventListener('pointermove', mv);
-              window.removeEventListener('pointerup', up);
-            };
-            window.addEventListener('pointermove', mv);
-            window.addEventListener('pointerup', up);
-          }}
-          onDoubleClick={() => split.setChatW(400)}
-          data-testid="chat-resize"
-        />
-        <div className="ce-right">
+        {split.collapsed ? (
+          <span className="ce-split-line" aria-hidden />
+        ) : (
+          <Splitter
+            orient="col"
+            sign={-1}
+            className="ce-split"
+            state={{ size: split.layout.chatW, collapsed: false }}
+            spec={{ def: 400, min: CHAT_MIN, max: CHAT_MAX }}
+            onChange={(x) => split.setChatW(x.size)}
+            onReset={() => split.setChatW(400)}
+            label={t('ce.resize')}
+            tip={t('lay.dragTip')}
+            testId="chat-resize"
+          />
+        )}
+        <div className="ce-right" ref={rightRef} style={{ ['--ci-h' as string]: `${infoPane.size}px` }}>
           {!split.collapsed && (
             <button className="ci-toggle" onClick={() => setInfo((v) => !v)} aria-expanded={info} data-testid="clip-info-toggle">
               {info ? <ChevronDown className="ico" /> : <ChevronRight className="ico" />}
@@ -1199,7 +1290,21 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             </button>
           )}
           {!split.collapsed && info && <ClipInfoPanel doc={odoc} strip={strip} time={time} edit={edit} sched={sched} />}
-        {chatEl}
+          {!split.collapsed && info && (
+            <Splitter
+              orient="row"
+              sign={1}
+              state={{ size: infoPane.size, collapsed: false }}
+              spec={infoPane.spec}
+              room={rightBox.h ? rightBox.h - 220 : undefined}
+              onChange={infoPane.set}
+              onReset={infoPane.reset}
+              label={t('ce.infoResize')}
+              tip={t('lay.dragTip')}
+              testId="info-split"
+            />
+          )}
+          {chatEl}
         </div>
         {drawerEl}
       </div>

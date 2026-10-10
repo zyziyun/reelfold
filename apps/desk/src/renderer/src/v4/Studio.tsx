@@ -4,7 +4,7 @@
 // one AI bar). A request still being planned or a project with no clips yet opens its own detail; a question about a
 // whole project opens the question itself. ＋ New video (⌘N) starts the next one from here; ↑ ↓ and ⌘1–9 switch.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Plus, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles } from 'lucide-react';
 import type { CalendarPost, InboxItem } from '../../../shared/v04';
 import { fmtClock, fmtDate, fmtMinutes, t } from '../i18n';
 import { useHistory } from '../lib/history';
@@ -24,9 +24,25 @@ import { ProjectDetail, RequestDetail, stateLine } from './Hub';
 import { itemPipeline } from '../lib/pipeline';
 import { Composer } from './Composer';
 import { isTyping } from './ui';
+import { useBox, usePane } from '../lib/panes';
+import { Splitter } from './Splitter';
 import './studio.css';
 
 const FKEY = 'studio.filter';
+const GKEY = 'studio.folded';
+/** the clip page keeps this much room next to the list (its own columns stack below ~700 px) */
+export const PAGE_MIN = 560;
+/** the list's scroll position while she is elsewhere in the app (Calendar, Settings) */
+let listScroll = 0;
+
+function loadFolded(): StudioGroup[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(GKEY) ?? '[]') as unknown;
+    return Array.isArray(v) ? (v.filter((x) => typeof x === 'string') as StudioGroup[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 /** 「连着看」: clips waiting for her review play one after another (space approves, X sends back - Focus); other
  * questions come one after another on their clips' pages. */
@@ -86,6 +102,12 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   keys.current = (e: KeyboardEvent) => {
     if (document.querySelector('.scrim, .ctx, .palette')) return;
     const mod = e.metaKey || e.ctrlKey;
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b' && !isTyping(e.target)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      togglePane.current();
+      return;
+    }
     if (mod && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -94,7 +116,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     }
     if (isTyping(e.target) || mod || e.altKey || e.shiftKey) return;
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    if ((e.target as HTMLElement | null)?.closest?.('[data-testid=transcript-body], .tl, [role=slider]')) return;
+    if ((e.target as HTMLElement | null)?.closest?.('[data-testid=transcript-body], .tl, [role=slider], [role=separator]')) return;
     const k = cur ? list.findIndex((r) => r.key === cur.key) : -1;
     const next = list[Math.max(0, Math.min(list.length - 1, k + (e.key === 'ArrowDown' ? 1 : -1)))];
     if (next && next.key !== cur?.key) {
@@ -110,14 +132,61 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   }, []);
 
   const count = (g: StudioFilter) => (g === 'all' ? rows.length : groups[g].length);
+  // the list: resizable, folds to the edge (⌘B, its button, or dragged past its min); saved on this Mac
+  const [boxRef, box] = useBox<HTMLDivElement>();
+  const pane = usePane('studio.list', box.w ? box.w - PAGE_MIN : undefined);
+  const folded = pane.collapsed;
+  const togglePane = useRef(pane.toggle);
+  togglePane.current = pane.toggle;
+  const [foldedGroups, setFoldedGroups] = useState<StudioGroup[]>(loadFolded);
+  const foldGroup = (g: StudioGroup) =>
+    setFoldedGroups((x) => {
+      const n = x.includes(g) ? x.filter((y) => y !== g) : [...x, g];
+      localStorage.setItem(GKEY, JSON.stringify(n));
+      return n;
+    });
+  const rowsEl = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = rowsEl.current;
+    if (!el || folded) return;
+    el.scrollTop = listScroll;
+    const on = () => (listScroll = el.scrollTop);
+    el.addEventListener('scroll', on, { passive: true });
+    return () => el.removeEventListener('scroll', on);
+  }, [folded, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ⌘N with the list folded: it opens with the composer
+  useEffect(() => {
+    if (composer && folded) pane.set({ size: pane.size, collapsed: false });
+  }, [composer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listTip = `${folded ? t('st.listShow') : t('st.listHide')} · ${keyHint('⌘B')}`;
   return (
-    <div className="studio" data-testid="studio">
-      <aside className="st-list" aria-label={t('st.list')}>
-        <button className={`st-new ${composer ? 'on' : ''}`} onClick={() => setComposer((v) => !v)} aria-expanded={composer} data-testid="studio-new">
-          <Plus className="ico" />
-          <span className="tx">{composer ? t('st.new') : t('st.newHint')}</span>
-          <span className="kbd">{keyHint('⌘N')}</span>
-        </button>
+    <div className={`studio ${folded ? 'list-folded' : ''}`} data-testid="studio" ref={boxRef} style={{ ['--st-list' as string]: `${pane.size}px` }}>
+      {folded ? (
+        <aside className="st-rail" aria-label={t('st.list')} data-testid="studio-rail">
+          <button className="btn ghost icon" onClick={pane.toggle} aria-label={listTip} data-tip={listTip} data-tip-x="start" aria-expanded={false} data-testid="studio-list-toggle">
+            <PanelLeftOpen className="ico" />
+          </button>
+          <button className="btn ghost icon" onClick={() => setComposer(true)} aria-label={t('st.new')} data-tip={`${t('st.new')} · ${keyHint('⌘N')}`} data-tip-x="start" data-testid="studio-rail-new">
+            <Plus className="ico" />
+          </button>
+          {needsYou(rows) > 0 && (
+            <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(rows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
+              <i className="dot you" /> {needsYou(rows)}
+            </button>
+          )}
+        </aside>
+      ) : (
+      <aside className="st-list" aria-label={t('st.list')} id="studio-list">
+        <div className="st-head">
+          <button className={`st-new ${composer ? 'on' : ''}`} onClick={() => setComposer((v) => !v)} aria-expanded={composer} data-testid="studio-new">
+            <Plus className="ico" />
+            <span className="tx">{composer ? t('st.new') : t('st.newHint')}</span>
+            <span className="kbd">{keyHint('⌘N')}</span>
+          </button>
+          <button className="btn ghost icon st-fold" onClick={pane.toggle} aria-label={listTip} data-tip={listTip} aria-expanded aria-controls="studio-list" data-testid="studio-list-toggle">
+            <PanelLeftClose className="ico" />
+          </button>
+        </div>
         {composer && (
           <div className="st-composer" data-testid="studio-composer">
             <Composer compact autoFocus onSent={(rid) => (setComposer(false), (location.hash = `${href({ name: 'studio' })}?sel=${rid}`))} onClose={() => setComposer(false)} />
@@ -131,19 +200,21 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
             </button>
           ))}
         </div>
-        <div className="st-rows" data-testid="studio-rows">
+        <div className="st-rows" data-testid="studio-rows" ref={rowsEl}>
           {!rows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
           {rows.length > 0 && !list.length && <p className="st-empty muted">{t('st.empty')}</p>}
           {order.map((g) => {
             const l = groups[g];
             if (!l.length) return null;
             const left = g === 'run' ? timeLeft(l) : null;
+            const shut = foldedGroups.includes(g) && !l.some((r) => r.key === cur?.key);
             return (
-              <section key={g} className="st-group" data-testid={`studio-group-${g}`}>
+              <section key={g} className={`st-group ${shut ? 'shut' : ''}`} data-testid={`studio-group-${g}`}>
                 <h3>
-                  <span>
+                  <button className="st-gtoggle" onClick={() => foldGroup(g)} aria-expanded={!shut} data-testid={`studio-group-toggle-${g}`}>
+                    {shut ? <ChevronRight className="ico" /> : <ChevronDown className="ico" />}
                     {t(VIDEO_STATUS_KEY[g])} · {l.length}
-                  </span>
+                  </button>
                   <span className="sp" />
                   {g === 'you' && inbox.items.length > 0 && (
                     <button className="st-inrow" onClick={() => inRow(inbox.items)} data-testid="studio-in-row">
@@ -152,9 +223,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                   )}
                   {left ? <span className="muted">{t('st.left', { t: fmtMinutes(Math.max(1, Math.round(left / 60))) })}</span> : null}
                 </h3>
-                {l.map((r) => (
-                  <StudioListRow key={r.key} r={r} on={cur?.key === r.key} n={list.indexOf(r) + 1} />
-                ))}
+                {!shut && l.map((r) => <StudioListRow key={r.key} r={r} on={cur?.key === r.key} n={list.indexOf(r) + 1} />)}
               </section>
             );
           })}
@@ -169,6 +238,23 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           )}
         </footer>
       </aside>
+      )}
+      {folded ? (
+        <span className="st-rail-line" aria-hidden />
+      ) : (
+        <Splitter
+          orient="col"
+          sign={1}
+          state={{ size: pane.size, collapsed: false }}
+          spec={pane.spec}
+          room={box.w ? box.w - PAGE_MIN : undefined}
+          onChange={pane.set}
+          onReset={pane.reset}
+          label={t('st.listResize')}
+          tip={`${t('lay.dragTip')} · ${listTip}`}
+          testId="studio-list-split"
+        />
+      )}
       <section className="st-page" data-testid="studio-page">
         {cur ? <Page key={cur.key} r={cur} posts={posts} /> : <Empty title={rows.length ? t('st.pick') : t('st.emptyAll')} />}
       </section>

@@ -533,6 +533,56 @@ test('split presets: ⌘3 / ⌘1 / ⌘2, drag + double-click reset, saved across
   expect(Math.abs((await stageH()) / (await mainH()) - 0.5)).toBeLessThan(0.05);
 });
 
+test('every editor divider: arrows on the focused divider, the chat column and the clip info resize by mouse and keys, saved across a reload', async () => {
+  const stageH = () => page.locator('.ce-stage').evaluate((el) => el.getBoundingClientRect().height);
+  const mainH = () => page.locator('.ce-split3').evaluate((el) => el.getBoundingClientRect().height);
+  const w = (sel: string) => page.locator(sel).first().evaluate((el) => Math.round(el.getBoundingClientRect().width));
+  const h = (sel: string) => page.locator(sel).first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  await expect(page.getByTestId('editor')).toBeVisible();
+  // the player / lower split: ↓ gives the player 4 % more, ⇧↑ takes 12 %, End the most it can have
+  await page.getByTestId('split-divider').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => (await stageH()) / (await mainH())).toBeGreaterThan(0.55);
+  await expect(page.getByTestId('split-divider')).toHaveAttribute('aria-valuenow', '58');
+  await page.keyboard.press('Shift+ArrowUp');
+  await expect(page.getByTestId('split-divider')).toHaveAttribute('aria-valuenow', '46');
+  await page.getByTestId('split-divider').dblclick();
+  await expect(page.getByTestId('preset-balanced')).toHaveAttribute('aria-pressed', 'true');
+  // the chat column: its left edge, a real drag (left = wider), then the keys
+  const chat = '.ce-right';
+  const c0 = await w(chat);
+  const b = (await page.getByTestId('chat-resize').boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 - 60, b.y + 200, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => w(chat)).toBe(Math.min(560, c0 + 60));
+  await page.getByTestId('chat-resize').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => w(chat)).toBe(Math.min(560, c0 + 60) - 16);
+  // the clip info above the chat: drag its bottom edge
+  if ((await page.getByTestId('clip-info-toggle').getAttribute('aria-expanded')) !== 'true') await page.getByTestId('clip-info-toggle').click();
+  const info = '.ce-right > .ci';
+  await expect(page.getByTestId('info-split')).toBeVisible();
+  const i0 = await h(info);
+  const ib = (await page.getByTestId('info-split').boundingBox())!;
+  await page.mouse.move(ib.x + 100, ib.y + ib.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(ib.x + 100, ib.y - 80, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => h(info)).toBeLessThan(i0 - 40);
+  const i1 = await h(info);
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
+  await expect.poll(() => w(chat)).toBe(Math.min(560, c0 + 60) - 16);
+  await expect.poll(() => h(info)).toBe(i1);
+  await page.getByTestId('chat-resize').dblclick();
+  await expect.poll(() => w(chat)).toBe(400);
+  await page.getByTestId('info-split').dblclick();
+});
+
 test('zh-CN + dark: Home, Inbox, the transcript', async () => {
   await setLook('zh-CN');
   await hash('#/');

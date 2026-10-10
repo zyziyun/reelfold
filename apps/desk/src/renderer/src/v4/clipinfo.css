@@ -31,7 +31,7 @@
 .ci .pb-ctabs { margin-top: 2px; }
 /* the editor's right column (layout B): the clip's info above the chat */
 .ce-right { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
-.ce-right > .ci { flex: 0 1 auto; max-height: 66%; }
+.ce-right > .ci { flex: 0 1 auto; max-height: var(--ci-h, 66%); border-bottom: 0; }
 .ci .pb-cbox textarea { min-height: 84px; }
 .ci .pb-cback, .ci .pb-cbox textarea { font-size: 14px; padding: 10px 12px; }
 .ci .pb-ctabs button { font-size: 13px; }

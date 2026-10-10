@@ -1,7 +1,7 @@
 /* Chat-first clip editor (direction C): the video is the hero, the chat is a fixed column on the right
    (360-520 px, resizable), the timeline is a compact strip under the video. One filled button on screen. Motion
    150-200 ms ease-out; skeletons, not spinners. */
-.ce { display: grid; grid-template-columns: minmax(0, 1fr) 6px var(--ce-chat, 420px); grid-template-rows: 52px minmax(0, 1fr); height: 100%; min-height: 0; position: relative; }
+.ce { display: grid; grid-template-columns: minmax(0, 1fr) 1px var(--ce-chat, 420px); grid-template-rows: 52px minmax(0, 1fr); height: 100%; min-height: 0; position: relative; }
 .ce-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 var(--s2) 0 12px; border-bottom: 1px solid var(--border); min-width: 0; }
 .ce-top h1 { font-size: var(--fs-2); font-weight: 500; margin: 0; min-width: 0; }
 .ce-top .meta { color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -16,9 +16,8 @@
 .ce-stage .pl .scrub2 { margin-top: 6px; }
 .ce-tl { border-top: 1px solid var(--border); padding: 6px var(--s3) 12px; position: relative; }
 
-.ce-split { grid-column: 2; grid-row: 2; cursor: col-resize; position: relative; }
-.ce-split::after { content: ''; position: absolute; top: 0; bottom: 0; left: 2px; width: 1px; background: var(--border); transition: background var(--t) var(--ease); }
-.ce-split:hover::after, .ce-split.on::after { background: var(--accent); width: 2px; }
+.ce-split, .ce-split-line { grid-column: 2; grid-row: 2; }
+.ce-split-line { background: var(--border); }
 
 /* ---------------------------------------------------------------- chat column */
 .cc { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
@@ -187,7 +186,7 @@
 .pl .fxov { font-weight: 800; transition: font-size var(--t) var(--ease); }
 
 /* the 精确编辑 drawer: today's tabs, optional */
-.ce-drawer { position: absolute; top: 52px; bottom: 0; right: calc(var(--ce-chat, 400px) + 6px); width: 360px; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 6; display: flex; flex-direction: column; animation: ce-slide 180ms var(--ease); }
+.ce-drawer { position: absolute; top: 52px; bottom: 0; right: calc(var(--ce-chat, 400px) + 1px); width: 360px; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 6; display: flex; flex-direction: column; animation: ce-slide 180ms var(--ease); }
 .ce-drawer .dh { display: flex; align-items: center; gap: 8px; padding: 0 var(--s2); height: 44px; }
 .ce-drawer .dh b { font-weight: 500; }
 .ce-drawer .tabs4 { padding: 0 var(--s2); margin-bottom: 0; gap: var(--s2); overflow-x: auto; }

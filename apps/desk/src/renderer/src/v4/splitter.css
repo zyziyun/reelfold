@@ -1,0 +1,24 @@
+/* One divider for every split (Splitter.tsx): a hairline in its own 1px track, a 12px grab area over its
+   neighbours, the line lights up (2px accent + a grip) after a short hover so passing over it does not flicker. */
+.splitter { position: relative; z-index: 4; flex: none; outline: none; touch-action: none; background: var(--border); }
+.splitter.col { width: 1px; cursor: col-resize; align-self: stretch; }
+.splitter.row { height: 1px; cursor: row-resize; justify-self: stretch; }
+.splitter::before { content: ''; position: absolute; inset: 0 -6px; }
+.splitter.row::before { inset: -6px 0; }
+.splitter::after { content: ''; position: absolute; inset: 0; background: transparent; transition: background var(--t) var(--ease) 0ms, inset var(--t) var(--ease) 0ms; }
+.splitter:hover::after, .splitter.on::after, .splitter:focus-visible::after { background: var(--accent); transition-delay: 120ms; }
+.splitter.col:hover::after, .splitter.col.on::after, .splitter.col:focus-visible::after { inset: 0 -1px; }
+.splitter.row:hover::after, .splitter.row.on::after, .splitter.row:focus-visible::after { inset: -1px 0; }
+.splitter.on::after, .splitter:focus-visible::after { transition-delay: 0ms; }
+.splitter > i { position: absolute; top: 50%; left: 50%; z-index: 1; border-radius: 3px; background: var(--accent); opacity: 0; transform: translate(-50%, -50%); transition: opacity var(--t) var(--ease); pointer-events: none; }
+.splitter.col > i { width: 5px; height: 28px; }
+.splitter.row > i { width: 28px; height: 5px; }
+.splitter:hover > i, .splitter.on > i, .splitter:focus-visible > i { opacity: 1; transition-delay: 120ms; }
+.splitter:focus-visible { outline: none; }
+/* while one is dragged: its cursor everywhere, no text selection, no hover tips, no iframe / video stealing the pointer */
+body.resizing { user-select: none; -webkit-user-select: none; }
+body.resizing-col, body.resizing-col * { cursor: col-resize !important; }
+body.resizing-row, body.resizing-row * { cursor: row-resize !important; }
+body.resizing iframe, body.resizing video, body.resizing [data-tip]::after { pointer-events: none; }
+body.resizing [data-tip]:hover::after { display: none; }
+@media (prefers-reduced-motion: reduce) { .splitter::after, .splitter > i { transition: none; } }

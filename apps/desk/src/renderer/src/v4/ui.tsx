@@ -484,6 +484,7 @@ export const SHORTCUTS: [MessageKey, string][] = [
   ['keys.help', '?'],
   ['keys.go', keyHint('⌘1 – ⌘4')],
   ['keys.studioPick', `${keyHint('⌘1 – ⌘9')} · ↑ ↓`],
+  ['keys.studioList', keyHint('⌘B')],
   ['keys.newPrompt', keyHint('⌘N')],
   ['keys.search', '/'],
   ['keys.play', 'Space · K'],

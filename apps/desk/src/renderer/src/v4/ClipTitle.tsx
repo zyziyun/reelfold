@@ -76,7 +76,7 @@ export function ClipTitle({ item, clip, title, custom, onSaved }: { item: string
     );
   return (
     <>
-      <h1 className="clamp1" lang="zh-CN" data-testid="editor-title" data-custom={custom ? '1' : undefined} onDoubleClick={open} title={t('ct.hint')}>
+      <h1 className="clamp1" lang="zh-CN" data-testid="editor-title" data-custom={custom ? '1' : undefined} onDoubleClick={open} title={`${shown}\n${t('ct.hint')}`}>
         {shown}
       </h1>
       <button className="btn ghost icon sm ct-edit" onClick={open} aria-label={t('ct.label')} data-tip={t('ct.hint')} data-testid="editor-title-edit">

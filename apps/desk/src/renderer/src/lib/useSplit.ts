@@ -1,7 +1,7 @@
 // The clip editor's layout (ux/text-edit §2.1): the player / lower pane split (presets 70 / 50 / 34 % for the player:
 // ⌘1 watch, ⌘2 balanced (default), ⌘3 edit), divider drag with min sizes (player 240 px, lower pane 180 px) and
 // double-click back to balanced; the AI column's width (320-560 px) and collapsed state (⌘\, auto under 1280 px);
-// the lower pane's tab. Saved on this Mac for every clip (localStorage `ce.layout`; the old `ce.chatW` is read once).
+// the lower pane's tab. The dividers themselves are Splitter (arrows, Home / End, double-click). Saved on this Mac for every clip (localStorage `ce.layout`; the old `ce.chatW` is read once).
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type Preset = 'watch' | 'balanced' | 'edit';
@@ -72,7 +72,6 @@ export function useSplit() {
   const [winW, setWinW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
   // under 1280 px the AI column folds by itself; opening it there sticks for this window only
   const [forceOpen, setForceOpen] = useState(false);
-  const box = useRef<HTMLElement | null>(null);
   useEffect(() => saveLayout(layout), [layout]);
   useEffect(() => {
     const on = () => setWinW(window.innerWidth);
@@ -83,7 +82,6 @@ export function useSplit() {
   const ref = useCallback((el: HTMLElement | null) => {
     ro.current?.disconnect();
     ro.current = null;
-    box.current = el;
     if (!el) return;
     setHeight(el.clientHeight);
     ro.current = new ResizeObserver(() => setHeight(el.clientHeight));
@@ -112,27 +110,5 @@ export function useSplit() {
     setLayout((l) => ({ ...l, chatCollapsed: false }));
     if (narrow) setForceOpen(true);
   }, [collapsed, narrow]);
-  /** pointer-drag on the divider (pointer capture), clamped to the min sizes */
-  const dragDivider = useCallback(
-    (e: React.PointerEvent) => {
-      const el = box.current;
-      if (!el) return;
-      e.preventDefault();
-      const top = el.getBoundingClientRect().top;
-      const h = el.clientHeight;
-      const target = e.currentTarget as HTMLElement;
-      target.setPointerCapture?.(e.pointerId);
-      target.classList.add('on');
-      const mv = (ev: PointerEvent) => setStage(clampStage((ev.clientY - top) / h, h));
-      const up = () => {
-        target.classList.remove('on');
-        window.removeEventListener('pointermove', mv);
-        window.removeEventListener('pointerup', up);
-      };
-      window.addEventListener('pointermove', mv);
-      window.addEventListener('pointerup', up);
-    },
-    [setStage],
-  );
-  return { layout, stage, height, collapsed, narrow, ref, setPreset, setStage, setTab, setChatW, toggleChat, openChat, dragDivider, reset: () => setPreset('balanced') };
+  return { layout, stage, height, collapsed, narrow, ref, setPreset, setStage, setTab, setChatW, toggleChat, openChat, reset: () => setPreset('balanced') };
 }

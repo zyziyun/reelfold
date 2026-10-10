@@ -11,9 +11,6 @@
 .ce-split3 > .ce-stage { min-height: 0; position: relative; padding: 12px var(--s3) 6px; }
 .ce-split3 .ce-stage .pl .stage { container-type: size; min-height: 120px; background: transparent; }
 .ce-split3 .ce-stage .pl .frame video { max-height: 100cqh; max-width: 100cqw; min-height: 0; }
-.ce-hsplit { position: relative; cursor: row-resize; display: flex; align-items: center; justify-content: center; border-top: 1px solid var(--border); touch-action: none; }
-.ce-hsplit i { width: 40px; height: 4px; border-radius: 2px; background: var(--border-strong); transition: background var(--t) var(--ease), width var(--t) var(--ease); }
-.ce-hsplit:hover i, .ce-hsplit.on i { background: var(--accent); width: 56px; }
 .ce-flash { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 17px; background: rgba(20, 18, 16, 0.78); color: #fff; font-size: 14px; font-weight: 500; pointer-events: none; animation: ce-flash 1.2s var(--ease) forwards; z-index: 3; }
 @keyframes ce-flash { 0% { opacity: 0; transform: translate(-50%, 4px); } 12% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; } }
 .ce.cc-folded .ce-split { pointer-events: none; }
