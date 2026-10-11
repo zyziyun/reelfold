@@ -429,7 +429,7 @@ def material_recipes(analysis):
         r = {"call": "call-clips", "lecture": "longform-to-short", "screen-recording": "longform-to-short",
              "talking-head": "talkinghead", "finished-edit": "polish", "script": "ai-video", "slides": "explainer",
              "doc": "explainer", "notes": "preproduction", "podcast-audio": None, "voice": None,
-             "subtitles": None, "music": None, "other": None}.get(role)
+             "subtitles": None, "telemetry": None, "music": None, "other": None}.get(role)
         if role in ("photo", "footage"):
             r = "photo-story" if "photo" in has and (len(_by_kind(analysis, "image")) >= len(_files(analysis, "footage"))) \
                 else "vlog"
@@ -687,7 +687,8 @@ def _fmt_dur(s):
 
 ROLE_ZH = {"call": "多人通话/播客录屏", "lecture": "长录播/课程", "screen-recording": "录屏", "talking-head": "口播素材",
            "finished-edit": "已剪成片", "footage": "空镜/素材", "podcast-audio": "播客音频", "voice": "人声音频", "music": "音乐",
-           "photo": "照片", "script": "剧本", "slides": "幻灯片", "doc": "文档", "notes": "笔记", "subtitles": "字幕", "other": "其他"}
+           "photo": "照片", "script": "剧本", "slides": "幻灯片", "doc": "文档", "notes": "笔记", "subtitles": "字幕",
+           "telemetry": "拍摄参数（无人机/相机）", "other": "其他"}
 
 
 def _role_zh(r):

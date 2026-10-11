@@ -427,6 +427,16 @@ def test_docs_extract(tmp_path):
     srt.write_text("1\n00:00:01,000 --> 00:00:03,500\n大家好\n\n2\n00:01:00,000 --> 00:01:02,000\n再见\n", encoding="utf-8")
     s = D.analyze(str(srt))
     assert s["shape"] == "subtitles" and s["duration"] == 62.0
+    # a DJI drone's per-frame telemetry .SRT (beside DJI_0001.MP4): shooting metadata, never captions / a script
+    dji = tmp_path / "DJI_20261012143201_0001_D.SRT"
+    dji.write_text("".join(
+        f"{i}\n00:00:00,{i * 33:03d} --> 00:00:00,{i * 33 + 33:03d}\n<font size=\"28\">FrameCnt: {i}, DiffTime: 33ms\n"
+        f"2026-10-12 14:32:01.{i:03d}\n[iso: 100] [shutter: 1/500.0] [fnum: 1.7] [ev: 0] [focal_len: 24.00] "
+        f"[latitude: 47.6290] [longitude: -122.3110] [rel_alt: 30.000 abs_alt: 50.100] [ct: 5500] </font>\n\n"
+        for i in range(1, 9)), encoding="utf-8")
+    t = D.analyze(str(dji))
+    assert t["shape"] == "telemetry" and "excerpt" not in t and "lang" not in t
+    assert I.material_role(dict(kind="text", shape=t["shape"])) == "telemetry"
     script = tmp_path / "s.txt"
     script.write_text("第1集\n第一场 海边 日\n小林：你来了。\n阿月：嗯。\n第二场 屋内 夜\n小林：明天走吗？\n阿月：不走了。\n"
                       "第三场 车站\n小林：保重。\n第2集\n阿月：我回来了。\n", encoding="utf-8")

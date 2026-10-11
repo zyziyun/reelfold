@@ -197,10 +197,26 @@ def urls(text, limit=20):
     return out
 
 
+# drone / action-camera telemetry written as a subtitle track (DJI ``DJI_0001.SRT``: frame count, time, ISO, shutter,
+# GPS, altitude per frame): shooting metadata, never captions or a script
+TELEMETRY_RE = re.compile(r"FrameCnt\s*:|\[(?:iso|shutter|fnum|ev|focal_len|latitude|longitude|rel_alt|abs_alt|ct)\s*:|"
+                          r"\bHOME\s*\(|\bGPS\s*\(|\bF/\d.*\bSS\s*\d|\bISO\s*:?\s*\d+.*\b(?:Shutter|EV)\b", re.I)
+
+
+def is_telemetry(text):
+    """A subtitle track that is camera telemetry (most cues carry exposure / GPS fields), not spoken words."""
+    lines = [ln for ln in (text or "").splitlines() if ln.strip()][:200]
+    if not lines:
+        return False
+    hits = sum(1 for ln in lines if TELEMETRY_RE.search(ln))
+    return hits >= max(2, len(lines) // 4)
+
+
 def shape_of(text, ext, extra):
-    """What kind of text this is: script (剧本: scenes + dialogue), subtitles, slides, outline, notes, article."""
+    """What kind of text this is: script (剧本: scenes + dialogue), subtitles, telemetry (drone / camera metadata in
+    a subtitle file), slides, outline, notes, article."""
     if ext in SUB_EXT:
-        return "subtitles"
+        return "telemetry" if is_telemetry(text) else "subtitles"
     if ext == ".pptx":
         return "slides"
     scenes = len(SCENE_RE.findall(text))
@@ -237,8 +253,12 @@ def analyze(path):
         return dict(note=f"text extraction failed: {type(e).__name__}: {str(e)[:120]}", chars=None)
     eps = sorted({int(m.group(2) or m.group(3)) if (m.group(2) or m.group(3)) else _cn_num(m.group(1))
                   for m in EPISODE_RE.finditer(text)} - {None})
+    shape = shape_of(text, ext, extra)
+    if shape == "telemetry":            # metadata of the video beside it: no words, title or excerpt to plan from
+        return dict(chars=len(text), shape=shape, title=os.path.splitext(os.path.basename(path))[0],
+                    **{k: v for k, v in extra.items() if k == "duration"})
     out = dict(chars=len(text), lang=lang_of(text), title=_title(text, path), headings=headings(text),
-               excerpt=excerpt(text), shape=shape_of(text, ext, extra), urls=urls(text), **extra)
+               excerpt=excerpt(text), shape=shape, urls=urls(text), **extra)
     if eps:
         out["episodes"] = len(eps)
     if not text.strip():

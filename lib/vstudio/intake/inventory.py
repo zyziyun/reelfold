@@ -657,7 +657,8 @@ def _groups(out_files, files):
 # --------------------------------------------------------------------------- compact view (for the planner / UI)
 def material_role(f):
     """One-word role guess per file (the rule planner's input): call, screen-recording, talking-head, finished-edit,
-    lecture, footage, podcast-audio, music, photo, script, slides, doc, subtitles, notes."""
+    lecture, footage, podcast-audio, music, photo, script, slides, doc, subtitles, telemetry (a drone / camera's
+    per-frame metadata in a .SRT beside its video: never captions), notes."""
     k = f["kind"]
     hints = set(f.get("name_hints") or [])
     if k == "video":
@@ -683,7 +684,7 @@ def material_role(f):
         return "photo"
     if k == "text":
         sh = f.get("shape")
-        return {"script": "script", "slides": "slides", "subtitles": "subtitles", "notes": "notes",
+        return {"script": "script", "slides": "slides", "subtitles": "subtitles", "telemetry": "telemetry", "notes": "notes",
                 "outline": "notes"}.get(sh, "doc")
     return "other"
 
