@@ -83,6 +83,8 @@ const api = <T,>(p: string, body?: unknown) =>
     [p, body] as const,
   ) as Promise<T>;
 const row = (key: string) => page.locator(`[data-testid=studio-row][data-row="${key}"]`);
+/** the project chat (beside a project's page) */
+const CHAT = '[data-testid=project-chat-wrap] [data-testid=ai-panel]';
 const noMissingWords = () => expect(page.locator('body')).not.toContainText('⟦');
 
 test('a finished vlog is Ready to post with its cover; it opens in the editor, timeline first', async () => {
@@ -119,7 +121,7 @@ test('the details page: Ready to post, 1 clip, the chat beside it; a version ope
   await expect(card).toHaveAttribute('data-state', 'done');
   await expect(card.locator('img')).toBeVisible();
   // the chat is back on Details
-  await expect(page.getByTestId('project-chat')).toBeVisible();
+  await expect(page.locator(CHAT)).toBeVisible();
   await expect(page.getByTestId('project-chat-split')).toBeVisible();
   // "how it was made": the pieces, folded once it is done
   await expect(page.getByTestId('work-pieces')).toHaveAttribute('data-live', '0', { timeout: 15000 });
@@ -127,9 +129,9 @@ test('the details page: Ready to post, 1 clip, the chat beside it; a version ope
   await shot('P2-details-chat');
   // the chat folds to its edge and opens again
   await page.getByTestId('project-chat-fold').click();
-  await expect(page.getByTestId('project-chat')).toHaveCount(0);
+  await expect(page.locator(CHAT)).toHaveCount(0);
   await page.getByTestId('project-chat-open').click();
-  await expect(page.getByTestId('project-chat')).toBeVisible();
+  await expect(page.locator(CHAT)).toBeVisible();
   // a version chip opens the clip in the editor on that version
   await card.getByTestId('clip-size-9:16').click();
   await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
@@ -149,12 +151,12 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   await expect(pr).toHaveAttribute('data-group', 'run', { timeout: 60000 });
   await expect(pr).toContainText('Not started');
   await pr.click();
-  await expect(page.getByTestId('project-chat')).toBeVisible({ timeout: 30000 }); // not started yet: the chat is there
+  await expect(page.locator(CHAT)).toBeVisible({ timeout: 30000 }); // not started yet: the chat is there
   await api(`/api/history/item/${fresh}/resume`, {});
   // the run page: its pieces in recipe order, updating while it runs
   const run = page.locator('[data-testid=hub-project][data-run=project]');
   await expect(run).toBeVisible({ timeout: 60000 });
-  await expect(page.getByTestId('project-chat')).toBeVisible();
+  await expect(page.locator(CHAT)).toBeVisible();
   const wp = page.getByTestId('work-pieces');
   await expect(wp).toHaveAttribute('data-live', '1', { timeout: 60000 });
   await expect(page.locator('[data-testid=work-piece][data-stage=sheets]').first()).toBeVisible({ timeout: 60000 });
@@ -169,12 +171,12 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   await expect(page.getByTestId('piece-actions')).toBeVisible();
   await shot('P5-piece-open');
   await page.getByTestId('piece-ask').click();
-  await expect(page.locator('[data-testid=project-chat] [data-testid=ai-input]')).toHaveValue(/Contact sheet 1/);
+  await expect(page.locator(`${CHAT} [data-testid=ai-input]`)).toHaveValue(/Contact sheet 1/);
   // the chat acts on the run: pause it ...
-  const input = page.locator('[data-testid=project-chat] [data-testid=ai-input]');
+  const input = page.locator(`${CHAT} [data-testid=ai-input]`);
   await input.fill('pause it');
   await input.press('Enter');
-  const stop = page.locator('[data-testid=project-chat] [data-testid=pai-project-action][data-kind=stop]');
+  const stop = page.locator(`${CHAT} [data-testid=pai-project-action][data-kind=stop]`);
   await expect(stop).toBeVisible({ timeout: 15000 });
   await stop.click();
   await expect.poll(async () => !!(await api<Hist>('/api/history')).items.find((i) => i.id === fresh)?.stopped, { timeout: 30000 }).toBe(true);
@@ -182,7 +184,7 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   // ... and run it on
   await input.fill('继续');
   await input.press('Enter');
-  const go = page.locator('[data-testid=project-chat] [data-testid=pai-project-action][data-kind=resume]');
+  const go = page.locator(`${CHAT} [data-testid=pai-project-action][data-kind=resume]`);
   await expect(go).toBeVisible({ timeout: 15000 });
   await go.click();
   await expect

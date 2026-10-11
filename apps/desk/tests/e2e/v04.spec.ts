@@ -103,7 +103,7 @@ test('a fuye-like folder: large player, full screen with F / Esc, frame stepping
   const card = page.getByTestId('clip-card');
   await expect(card).toHaveCount(1);
   await expect(page.getByTestId('post-copy')).toContainText('思路越窄');
-  await card.click();
+  await card.getByTestId('clip-play').click(); // ▶ plays it big; a click on the card opens it in the editor
   const player = page.getByTestId('player');
   await expect(page.getByTestId('player-overlay')).toBeVisible();
   await page.waitForFunction(() => ((document.querySelector('[data-testid=player-video]') as HTMLVideoElement | null)?.readyState ?? 0) >= 1);

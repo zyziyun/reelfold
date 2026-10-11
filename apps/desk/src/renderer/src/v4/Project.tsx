@@ -461,7 +461,7 @@ function ClipCard({ c, on, aspect, onAspect, onPick, onPlay, onEdit, onContext, 
               {t('project.caption')}
             </button>
           )}
-          <button className="btn ghost icon sm" onClick={onPlay} aria-label={t('clip.play')} data-tip={t('clip.play')}>
+          <button className="btn ghost icon sm" onClick={onPlay} aria-label={t('clip.play')} data-tip={t('clip.play')} data-testid="clip-play">
             <Play className="ico" />
           </button>
         </div>

@@ -68,7 +68,7 @@ export function WithProjectChat({
             testId="project-chat-split"
           />
           <div className="pchat-side">
-            <ProjectAIPanel item={item} clips={clips} selected={selected} running={running} liveText={liveText} onApplied={onApplied} onFold={pane.toggle} testId="project-chat" />
+            <ProjectAIPanel item={item} clips={clips} selected={selected} running={running} liveText={liveText} onApplied={onApplied} onFold={pane.toggle} />
           </div>
         </>
       )}
