@@ -44,7 +44,7 @@ import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import { CreateClient } from './create';
 
@@ -556,6 +556,10 @@ export class EngineClient {
   }
   applyIntake(id: string, body: { plan?: IntakePlan; run?: boolean } = {}) {
     return this.req<{ ok: boolean; projects: { dir: string; name: string; recipe: string }[] }>('POST', `/api/intake/${pid(id)}/apply`, body);
+  }
+  /** Home's chips from her own signals: requests sent more than once, fresh recordings in a watched folder */
+  homeSuggestions() {
+    return this.req<HomeSuggestions>('GET', '/api/home/suggestions');
   }
   recentPrompts() {
     return this.req<{ id: string; prompt: string; at: string }[]>('GET', '/api/intake/recent');

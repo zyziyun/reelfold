@@ -108,6 +108,8 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
        POST .../change {checkpoint, item, answer}; POST .../remake {item, do {checkpoint: choice | null}}
        (a finished clip's vertical framing / post copy made again, older projects too)   (autopilot.py)
+  GET  /api/home/suggestions               Home's chips from her own signals (homesuggest.py): requests sent more
+                                           than once, fresh recordings in a watched folder no project uses yet
   GET  /api/sample                         the built-in sample recording (copied out of the app) -> {available, path, ...};
        POST /api/sample/remove {dir}       delete a project made from it (sample.py)
   POST /api/pilot/retry {item, provider?}  re-run a failed pilot (provider: every model task on it, e.g. codex)
@@ -605,6 +607,9 @@ class Api:
                     return self.outputs.undo(parts[1], clip, b.get("steps", 1), redo=verb == "redo")
                 if verb == "title":
                     return self.outputs.set_title(parts[1], clip, b.get("title"))
+        if parts == ["home", "suggestions"] and method == "GET":
+            from .homesuggest import suggestions
+            return suggestions(self.history, self.intake)
         if parts[:1] == ["intake"]:
             if parts == ["intake"] and method == "POST":
                 prompt = b.get("prompt") or ""

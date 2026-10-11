@@ -847,3 +847,11 @@ export interface LiveDoc {
   more: boolean;
   running: boolean;
 }
+
+/** GET /api/home/suggestions (engine/desk_engine/homesuggest.py): Home's chips, from her own signals only. */
+export interface HomeSuggestions {
+  /** requests she sent more than once (the newest wording), the most repeated first */
+  recurring: { prompt: string; n: number; at: number | null }[];
+  /** fresh recordings in a watched folder that no project or request uses yet, newest first */
+  recordings: { path: string; name: string; folder: string; at: number; size: number }[];
+}
