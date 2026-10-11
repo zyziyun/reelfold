@@ -171,22 +171,26 @@ test('Stop ends a plan: nothing is made and her words are back in New video', as
 
 test('two projects running: their live panes tiled in Watch all; a tile opens its run page', async () => {
   test.setTimeout(240000);
+  // a longer one (6 clips) and a shorter one (3): both still being made while she watches, and the long one still
+  // running when its page opens (the first request's project may still be finishing: wait for these two by name)
+  await send('剪 6 条 YouTube Shorts 切片');
   await send('再剪 3 条抖音切片');
-  await send('剪 3 条 YouTube Shorts 切片');
   // both requests become projects and run side by side (two run slots)
   const running = page.locator('[data-testid=studio-group-run] [data-testid=studio-row][data-kind=project][data-tone=run]');
-  await expect(running).toHaveCount(2, { timeout: 120000 });
+  await expect(running.filter({ hasText: '6 条切片' })).toHaveCount(1, { timeout: 120000 });
+  await expect(running.filter({ hasText: '3 条切片' })).toHaveCount(1, { timeout: 120000 });
   await expect(page.getByTestId('studio-watch')).toBeVisible();
   await page.getByTestId('studio-watch').click();
   const tiles = page.getByTestId('watch-tile');
   await expect(tiles).toHaveCount(2);
-  for (const k of [0, 1]) {
-    await expect(tiles.nth(k).getByTestId('live-line').filter({ hasText: 'stage-start' }).first()).toBeVisible({ timeout: 15000 });
-    await expect(tiles.nth(k).locator('[data-src=agent][data-kind=turn]').first()).toContainText('cleanup · claude-code', { timeout: 15000 });
+  for (const name of ['6 条切片', '3 条切片']) {
+    const tile = tiles.filter({ hasText: name });
+    await expect(tile.getByTestId('live-line').filter({ hasText: 'stage-start' }).first()).toBeVisible({ timeout: 15000 });
+    await expect(tile.locator('[data-src=agent][data-kind=turn]').first()).toContainText('cleanup · claude-code', { timeout: 15000 });
   }
   await shot('03-watch-all');
-  // a tile's title opens that project's run page (one of the two just started: still running when it opens)
-  await tiles.filter({ hasText: '3 条切片' }).first().getByTestId('live-open').click();
+  // a tile's title opens that project's run page (the 6-clip one: still running when it opens)
+  await tiles.filter({ hasText: '6 条切片' }).getByTestId('live-open').click();
   await expect(page.getByTestId('watch-all')).toHaveCount(0);
   const run = page.locator('[data-testid=hub-project][data-run=project]');
   await expect(run).toBeVisible();
