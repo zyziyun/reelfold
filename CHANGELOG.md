@@ -22,6 +22,15 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **Live run page**: one calm view of a planning or running project — what it is doing in one sentence, % and time
+  left, what happened per step (files, minutes, decisions, tokens) — and a terminal-style Live pane with the real
+  Claude Code / Codex stream and the engine log (secrets redacted; copy, search, filter). "Watch all" tiles every
+  running job.
+- **Row actions in the Studio**: ⋯ / right-click on any row — Archive (undo), Delete (requests; projects to the
+  Trash, recordings kept), Rename, Show in Finder, Stop, Try again; multi-select; an Archived filter with Restore.
+
+### Added
+
 - **Course videos from notes**: explainers narrate in Chinese end to end (voice, checks, captions, timing); lecture
   notes or exported Notion pages are drafted into an episode for the requested length instead of being locked as
   the script, with a rules fallback when no model is available.
@@ -39,6 +48,11 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   again really re-runs the step.
 - Lecture notes were taken for a screenplay or asked for recordings; drafts read the whole source.
 - The folder watcher no longer shows Reelfold's own work folders as "Waiting its turn".
+- Colour grades failed to render in the app (its LGPL ffmpeg has no `eq`): grades are built from LGPL filters, old
+  `eq=` settings are translated, and CI checks every filter exists; ffmpeg errors are worded as app bugs, not as an
+  unreadable file.
+- One Studio row per video (a project's question joins its clip); many attached files collapse into one row; DJI .SRT
+  files are read as shooting data; very short clips say so; parallel status writes no longer race.
 
 ## [0.2.6] - 2026-10-11
 
