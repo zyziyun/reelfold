@@ -8,6 +8,28 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-11
+
+### Added
+
+- **Course videos from notes**: explainers narrate in Chinese end to end (voice, checks, captions, timing); lecture
+  notes or exported Notion pages are drafted into an episode for the requested length instead of being locked as
+  the script, with a rules fallback when no model is available.
+- **AI presenter (Hedra)**: an optional talking presenter behind the spend gate; the key lives in the keychain
+  (Settings › Video generation).
+
+### Changed
+
+- The composer's platform chip applies to this request only, with "Make this my default".
+- After sending a request the Studio opens it.
+
+### Fixed
+
+- A course request stopped at "no '## Line N' blocks in SCRIPT.md"; the reason is now said in plain words and Try
+  again really re-runs the step.
+- Lecture notes were taken for a screenplay or asked for recordings; drafts read the whole source.
+- The folder watcher no longer shows Reelfold's own work folders as "Waiting its turn".
+
 ## [0.2.6] - 2026-10-11
 
 ### Added
@@ -302,7 +324,8 @@ in the commit log (formerly `video-studio` and `Daycut`).
 - API keys in the OS keychain; every IPC call validated; the local engine needs a per-session token.
 - No silent mock engine or demo mode in the product: a packaged app always runs the real engine.
 
-[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/zyziyun/reelfold/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/zyziyun/reelfold/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/zyziyun/reelfold/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/zyziyun/reelfold/compare/v0.2.3...v0.2.4
