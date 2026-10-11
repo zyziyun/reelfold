@@ -271,7 +271,9 @@ def render(cfg, out, segdir, prof, a):
     # stabilize chains, joins use the configurable "transition", and silent masters have no audio
     # streams; xfade_assemble has one global vf, fixed "fade" and always maps [i:a]. See PORT_NOTES.
     fc, prev, aprev, L = [], "0:v", "0:a", durs[0]
+    joins = []
     for k in range(1, len(segs)):
+        joins.append([round(L - D, 3), round(L, 3)])
         fc.append(f"[{prev}][{k}:v]xfade=transition={cfg.get('transition', 'fade')}"
                   f":duration={D}:offset={L - D:.3f}[x{k}]")
         prev = f"x{k}"
@@ -297,6 +299,9 @@ def render(cfg, out, segdir, prof, a):
         print("  " + " ".join(cmd))
         return
     run_ffmpeg(cmd, "final crossfade render")
+    # the shot changes are crossfades a frame difference cannot see: the export's subject reframe reads them here
+    with open(os.path.splitext(out)[0] + ".shots.json", "w") as f:
+        json.dump(dict(transitions=joins, duration=round(L, 3), segments=len(segs)), f)
     print(f"DONE -> {out}", flush=True)
     if prof is not None:
         from vstudio import platform as P

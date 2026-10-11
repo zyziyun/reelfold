@@ -162,7 +162,13 @@ python3 -m vstudio.export work/master.mp4 --platforms x,instagram,instagram:feed
 Keep the **master caption-free** and the cues separate (`subs.Cue.to_dict` JSON or SRT). Each export then gets
 captions placed and sized for that platform's UI. Text burned into a 16:9 master gets cropped off on 3:4 / 9:16.
 Reframe: `face` mode follows the main face inside the safe box. If no face is found it uses a blurred fill
-(`pad-blur`). A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest says `scale`).
+(`pad-blur`). `subject` (alias `follow`; the vlog recipe's default) is for travel / drone footage: per shot it
+frames a sizeable face, else what stands out (`vstudio.saliency`), with a smooth path that anticipates the subject,
+holds still on static shots, resets on hard cuts and eases through the crossfades named by `--shots` (the vlog
+build writes `<master>.shots.json`); the subject sits mid safe box above the caption band. A shot that cannot be
+cropped meaningfully (two subjects too far apart, a featureless panorama) is shown whole on the blurred fill - that
+shot only; the manifest's `reframe.shots` counts follow / hold / face / pad-blur shots. `blur` = `pad-blur`.
+A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest says `scale`).
 
 - **Masters with burned overlays** (记笔记 panels, stamps, hook titles): put `keepouts` in cues.json -
   `{"cues": [...], "keepouts": [{"t0", "t1", "box": [x, y, w, h], "kind"}], "size": [W, H]}`, boxes in master

@@ -7,7 +7,9 @@
 Per target (vstudio.platform profile):
   1. reframe the master to the profile canvas (vstudio.reframe): same aspect -> plain scale (no face
      tracking; reported as ``scale``); otherwise ``--mode`` (default face, keeping the face in the
-     profile's safe box; no face -> pad-blur);
+     profile's safe box; no face -> pad-blur; ``subject`` / ``follow`` for travel and drone footage: the camera
+     follows what stands out in each shot, kept in the safe box above the caption band, a shot that cannot be
+     cropped shown whole on a blurred fill; ``--shots`` names the master's crossfades);
   2. burn captions (if cues are given and not --no-captions) in the profile's caption box at a fitted
      size (PIL, no libass), keyword markup 【】 / ``hl`` spans in brand.highlight. ``keepouts`` in
      cues.json ([{t0, t1, box: [x, y, w, h]}] in master px - or 0..1 fractions - and final seconds:
@@ -133,12 +135,12 @@ def map_box(pl, box, i=0):
     x, y, w, h = box
     tw, th = pl["target"]
     sw, sh = pl["src_w"], pl["src_h"]
-    if pl["mode_used"] in ("pad-blur", "letterbox"):
+    r = R.rect_at(pl, i)
+    if r is None:                                  # shown whole (pad-blur / letterbox / a subject plan's wide shot)
         s = min(tw / sw, th / sh)
         ox, oy = (tw - sw * s) / 2, (th - sh * s) / 2
         return (ox + x * s, oy + y * s, ox + (x + w) * s, oy + (y + h) * s)
-    rects = pl.get("rects")
-    cx, cy, cw, ch = pl.get("fixed") if rects is None else rects[min(i, len(rects) - 1)]
+    cx, cy, cw, ch = r
     s = tw / cw
     return ((x - cx) * s, (y - cy) * s, (x + w - cx) * s, (y + h - cy) * s)
 
@@ -483,6 +485,27 @@ def cover_crop_check(path, prof, write_previews=False, threshold=0.15):
 
 
 # ----------------------------------------------------------------------------------- export
+MODE_ALIASES = {"follow": "subject", "blur": "pad-blur"}     # the creator's words (recipe param ``reframe``)
+
+
+def shot_summary(pl):
+    """{kind: number of shots} of a subject plan (follow / hold / face / pad-blur)."""
+    out = {}
+    for x in pl.get("shots") or []:
+        out[x["kind"]] = out.get(x["kind"], 0) + 1
+    return out
+
+
+def load_shots(path):
+    """``<master>.shots.json`` (vlog build: {transitions: [[t0, t1], ...]}) -> the transitions list (seconds)."""
+    if not path:
+        return None
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    tr = d.get("transitions") if isinstance(d, dict) else d
+    return [[float(a), float(b)] for a, b in tr or []]
+
+
 def _publish_platform(prof):
     return "youtube" if prof.name == "youtube-shorts" else prof.name
 
@@ -514,6 +537,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
     never drawn when none is set up)."""
     from . import audio
+    mode = MODE_ALIASES.get(mode, mode)
     info = media.probe(master)
     stem = f"{prof.name}-{prof.orientation}"
     out_mp4 = os.path.join(out_dir, stem + ".mp4")
@@ -532,11 +556,15 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     else:
         m = "letterbox" if same_aspect else mode   # same aspect: a fit == a plain scale, no face tracking
     pl = R.plan(master, prof.w, prof.h, mode=m, safe=P.safe_box(prof), start=start, dur=dur,
-                fallback=fallback, **reframe_opts)
+                fallback=fallback, caption=P.caption_box(prof), **reframe_opts)
     if band:
         same_aspect = False
     if pl["mode_used"] != m:
         warnings.append(f"reframe fell back to {pl['mode_used']}: {pl.get('fallback_reason')}")
+    wide = [x for x in pl.get("shots") or [] if x["kind"] == "pad-blur"]
+    if wide and pl["mode_used"] == "subject":
+        warnings.append(f"{len(wide)} of {len(pl['shots'])} shots shown whole on a blurred fill: "
+                        + "; ".join(dict.fromkeys(x["reason"] for x in wide)))
     cue_list = load_cues(cues) if (cues is not None and captions) else []
     kos = load_keepouts(cues, (info["display_w"], info["display_h"])) if cue_list else []
     if start:
@@ -625,7 +653,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                      mode="scale" if same_aspect else pl["mode"], mode_used="scale" if same_aspect else pl["mode_used"],
                      hit_rate=pl.get("hit_rate"), cuts=len(pl.get("cuts") or []),
                      switches=pl.get("switches"), stats=pl.get("stats"), plan=os.path.basename(crop_json),
-                     **({"band": band} if band else {})),
+                     **({"band": band} if band else {}), **({"shots": shot_summary(pl)} if pl.get("shots") else {})),
                  captions=len(cue_list), keepouts=len(kos), captions_moved_frames=cap_report.get("moved", 0),
                  cover=os.path.basename(cover_path), cover_size=list(P.cover_size(prof)),
                  notes=notes, safe_box=list(P.safe_box(prof)), caption_box=list(P.caption_box(prof)),
@@ -641,7 +669,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         body, copy = publish.platform_post(post, _publish_platform(prof), content_lang=content_lang,
                                            lang=post.get("_lang"), bilingual=post.get("_bilingual"), warn=msgs.append)
         warnings += msgs
-        warnings += P.check_text(prof, body=body, tags=copy.get("tags"))   # title already checked by post_body
+        ttl = publish.fit_title(copy["title"], _publish_platform(prof))[0] if copy.get("title") else None
+        warnings += P.check_text(prof, title=ttl, body=body, tags=copy.get("tags"))   # the title as post_body fit it
         if copy.get("chapters") and not prof.chapters.get("supported") and prof.name not in publish.NO_TITLE:
             entry["notes"].append(f"{prof.label} has no native chapters; timeline kept as plain text")
         pp = os.path.join(out_dir, stem + ".post.md")
@@ -714,7 +743,11 @@ def main(argv=None):
                     "detected from the cues (English content -> English copy on X / Instagram / TikTok / YouTube)")
     ap.add_argument("--bilingual", action="store_true", help="post copy in English + Chinese (post.json en + zh blocks)")
     ap.add_argument("--account", default=None, help="account tier for limits, e.g. premium (X: longer videos/posts)")
-    ap.add_argument("--mode", default="face", choices=R.MODES, help="reframe mode when the aspect changes")
+    ap.add_argument("--mode", default="face", choices=list(R.MODES) + list(MODE_ALIASES),
+                    help="reframe mode when the aspect changes: face (talking head), subject / follow (travel, "
+                    "drone: follow what stands out per shot), pad-blur / blur, center, letterbox")
+    ap.add_argument("--shots", help="shots.json {transitions: [[t0, t1], ...]} of the master (crossfades) for "
+                    "--mode subject")
     ap.add_argument("--fallback", default="pad-blur", choices=R.MODES[1:])
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--dur", type=float, default=None)
@@ -740,7 +773,7 @@ def main(argv=None):
     if post is not None and (a.lang or a.bilingual):
         post = dict(post, _lang=a.lang, _bilingual=a.bilingual or None)
     man = export(a.master, targets, a.out, cues=a.cues, covers=a.cover, post=post, account=a.account,
-                 mode=a.mode, fallback=a.fallback,
+                 mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
                  start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions=not a.no_captions,
                  watermark=None if a.watermark == "auto" else a.watermark == "on")
     for e in man["exports"]:

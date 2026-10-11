@@ -88,7 +88,10 @@ The effect catalogue (92 effects, 197 counting named variants, generated from `l
 | `effects` | effect registry (92 entries, 197 with variants) → generated `references/EFFECTS.md`; `--list`, `--show`, `find()` |
 | `beats` | beat grid, tempo check, downbeats, energy, sections, `snap`, `cut_plan`, `verify` |
 | `platform` | profiles: canvas, safe box, caption box, keep-outs, loudness, encode, length, cover, text limits |
-| `reframe` | face-tracked / centre / pad-blur / letterbox reframe between aspects (`python -m vstudio.reframe`) |
+| `reframe` | face-tracked / subject-following (travel, drone: per shot, hold / follow / blurred fill) / centre / pad-blur / letterbox reframe between aspects (`python -m vstudio.reframe`) |
+| `saliency` | where the eye goes without a face (spectral residual, colour, vividness, own motion vs the drone's, MediaPipe person mask): the maps the `subject` reframe follows |
+| `places` | offline place names from DJI flight logs (`.SRT` beside the clip): the nearest well-known city, en / zh, never coordinates |
+| `postcopy` | post copy for videos without speech (vlog, drone, photo story): title / hook, 2-4 line body, YouTube description, topic hashtags within each platform's limit, place, music credit, per-platform language; routed AI + rules fallback |
 | `export` | one clean master → per-platform files, captions (cues.json `keepouts`, 【kw】/`hl` colour, `--no-captions`), covers (`--cover platform=path`), manifest (`python -m vstudio.export`) |
 | `publish` | title checks, chapter lines, post bodies for 小红书 / YouTube / B站 / X (280 weighted) / Instagram (≤ 5 tags), `platform_post` (en/zh/bilingual copy per platform), `generate_copy`; `use_persona_tags=False` / `tag_set=` (persona `publish.tag_sets`) |
 | `formats` | recurring formats (口播, promo, call clips, lecture slices, vlog, explainer, photo story, AI skit): first-pass defaults + the one-line summary to state before rendering; `python -m vstudio.formats list / show / detect` |
