@@ -52,7 +52,7 @@ export function defaultChoice(caps: EditionCaps = CAPS): RouteChoice {
 }
 
 /** API keys kept in the OS keychain (Electron safeStorage) and handed to the engine as these variables only. */
-export const KEY_NAMES = ['anthropic', 'openai', 'deepseek', 'qwen', 'kimi', 'glm', 'openrouter', 'minimax', 'gemini', 'ark', 'kling'] as const;
+export const KEY_NAMES = ['anthropic', 'openai', 'deepseek', 'qwen', 'kimi', 'glm', 'openrouter', 'minimax', 'gemini', 'ark', 'kling', 'hedra'] as const;
 export type KeyName = (typeof KEY_NAMES)[number];
 export const KEY_ENV: Record<KeyName, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
@@ -68,6 +68,8 @@ export const KEY_ENV: Record<KeyName, string> = {
   gemini: 'GEMINI_API_KEY',
   ark: 'ARK_API_KEY',
   kling: 'KLING_MCP_TOKEN',
+  // the AI presenter (talking head from her own photo + the narration): her Hedra plan's API key
+  hedra: 'HEDRA_API_KEY',
 };
 
 /** The desk's AI tasks -> the engine's routing task names. */

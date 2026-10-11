@@ -20,8 +20,8 @@ interface Svc {
   key: SecretName | null;
   glyph: string;
   color: string;
-  name: 'create.set.kling' | 'create.set.minimax' | 'create.set.jimeng' | 'create.set.veo' | 'create.set.ark';
-  sub: 'create.set.klingSub' | 'create.set.minimaxSub' | 'create.set.jimengSub' | 'create.set.veoSub' | 'create.set.arkSub';
+  name: 'create.set.kling' | 'create.set.minimax' | 'create.set.jimeng' | 'create.set.veo' | 'create.set.ark' | 'create.set.hedra';
+  sub: 'create.set.klingSub' | 'create.set.minimaxSub' | 'create.set.jimengSub' | 'create.set.veoSub' | 'create.set.arkSub' | 'create.set.hedraSub';
 }
 
 const SERVICES: Svc[] = [
@@ -30,6 +30,7 @@ const SERVICES: Svc[] = [
   { id: 'jimeng', key: null, glyph: 'J', color: 'var(--src-seed)', name: 'create.set.jimeng', sub: 'create.set.jimengSub' },
   { id: 'veo', key: 'gemini', glyph: 'G', color: 'var(--src-veo)', name: 'create.set.veo', sub: 'create.set.veoSub' },
   { id: 'seedance-ark', key: 'ark', glyph: 'S', color: '#5c6b8a', name: 'create.set.ark', sub: 'create.set.arkSub' },
+  { id: 'hedra', key: 'hedra', glyph: 'P', color: '#7a5c8a', name: 'create.set.hedra', sub: 'create.set.hedraSub' },
 ];
 
 export function VideoGenSection({ onSettings }: { onSettings?: (s: SettingsMsg) => void }) {
