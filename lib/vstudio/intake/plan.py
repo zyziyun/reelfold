@@ -84,7 +84,8 @@ def context(client=None):
                 cleanup=(eff.get("cleanup_profile") or (P.get("cleanup") or {}).get("profile") or "standard"),
                 cleanup_client=bool(eff.get("cleanup_profile")),
                 language=eff.get("language") or (P.get("creator") or {}).get("language") or "zh",
-                style=eff.get("style") or "", source="client" if client else "persona")
+                style=eff.get("style") or "", source="client" if client else "persona",
+                tts_engine=(P.get("tts") or {}).get("engine") or None)
 
 
 # --------------------------------------------------------------------------- recipe catalog (for the model)
@@ -689,6 +690,8 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
         lang = (src or {}).get("language") or ctx["language"]
         if lang in (props["language"].get("enum") or [lang]):
             params["language"], sources["language"] = lang, "material" if (src or {}).get("language") else ctx["source"]
+    if "tts_engine" in props and "tts_engine" not in params and ctx.get("tts_engine") not in (None, "", "auto"):
+        params["tts_engine"], sources["tts_engine"] = ctx["tts_engine"], ctx["source"]   # her voice (persona tts.engine)
     if m["id"] == "longform-to-short" and "layout_mode" not in params and src:
         params["layout_mode"], sources["layout_mode"] = ("split" if src.get("screen_share") else "reframe"), "material"
 

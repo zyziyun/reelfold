@@ -30,6 +30,9 @@ SIDE = ".draft.json"
 TEXT_EXT = (".yaml", ".yml", ".json", ".md", ".txt", ".html", ".htm")
 DOC_CHARS = 9000
 TEMPLATE_CHARS = 12000
+# her source documents (lecture notes, a Notion export, an article): enough of each that a script is written from
+# the whole lesson, not its first page; capped in total so an API-routed draft stays cheap
+MATERIAL_CHARS, MATERIALS_TOTAL = 40000, 100000
 LANGS = {"en": "English", "zh": "Simplified Chinese", "fr": "French"}
 
 
@@ -232,13 +235,15 @@ def _read(path, n):
 
 
 def _materials_text(ctx):
-    out = []
+    out, left = [], MATERIALS_TOTAL
     for k, v in ctx.inputs.items():
         for p in (v if isinstance(v, list) else [v]):
             if isinstance(p, str):
                 out.append(f"{k}: {os.path.basename(p)}")
-                if p.lower().endswith((".md", ".txt")) and os.path.isfile(p):
-                    out.append(_read(p, 4000))
+                if p.lower().endswith((".md", ".txt")) and os.path.isfile(p) and left > 0:
+                    text = _read(p, min(MATERIAL_CHARS, left))
+                    left -= len(text)
+                    out.append(text)
     return "\n".join(out[:80])
 
 
@@ -287,7 +292,10 @@ def generic(ctx, cp, path, template=None, instruction=None, complete=None, templ
     if complete is None:
         from vstudio import llm
         complete = llm.complete
-    r = complete("planner", GENERIC_SYSTEM, body, schema=True, max_tokens=8000, timeout=240, cli_timeout=240,
+    # a whole lecture as materials (tens of thousands of characters) takes a subscription CLI several minutes to
+    # condense: the time limit grows with what it has to read (240 s for a short request, at most 10 min)
+    limit = min(600.0, 240.0 + len(body) / 300.0)
+    r = complete("planner", GENERIC_SYSTEM, body, schema=True, max_tokens=8000, timeout=limit, cli_timeout=limit,
                  retries=1)
     if not isinstance(r, dict) or r.get("provider") == "none":
         return None

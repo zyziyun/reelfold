@@ -236,7 +236,7 @@ CHECKPOINTS = {
     "filler-confirm": ("Confirm filler cuts", "确认去口癖", "Filler cuts need your yes", "有口癖剪辑等你确认"),
     "hook-pick": ("Pick the hook", "选开头", "Pick the cold open", "从候选里选开场"),
     "segment-approval": ("Approve the segments", "确认选段", "Check the proposed segments", "看一下选段"),
-    "script-lock": ("Lock the script", "锁定剧本", "Lock the script before generating", "生成前先锁定剧本"),
+    "script-lock": ("Lock the script", "锁定脚本", "Lock the script before generating", "生成前先锁定脚本"),
     "storyboard-approval": ("Approve the storyboard", "确认分镜", "Check the storyboard", "看一下分镜"),
     "budget-approval": ("Approve the budget", "批准预算", "Approve the spend before anything paid runs",
                         "付费生成前请批准预算"),

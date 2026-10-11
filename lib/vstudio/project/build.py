@@ -18,6 +18,7 @@ workflow script through the generic script adapter with templated argv (workflow
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -396,6 +397,18 @@ def _probe_dur(path):
 VIDEO_KINDS = ("video",)
 
 
+def _same_shape(given, template):
+    """Is ``given`` already written in the template's format? A template made of "## Line N" blocks (the explainer
+    SCRIPT.md) only takes a file that has them; lecture notes stay materials and the drafter writes the file."""
+    def lines_of(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return re.findall(r"(?m)^## Line \d+", f.read(200000))
+        except (OSError, UnicodeDecodeError):
+            return []
+    return bool(lines_of(given)) or not lines_of(template)
+
+
 def seed_author_files(m, params, job_id):
     t = static_tctx(m, params, job_id)
     for cp in m["checkpoints"]:
@@ -407,9 +420,10 @@ def seed_author_files(m, params, job_id):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             given = (params.get("_inputs") or {}).get("script")
             given = given[0] if isinstance(given, list) and given else given
-            if given and dst.endswith(".md") and os.path.isfile(str(given)):
+            tpl = os.path.join(M.ROOT, a["template"])
+            if given and dst.endswith(".md") and os.path.isfile(str(given)) and _same_shape(str(given), tpl):
                 shutil.copy(given, dst)              # the item's own draft seeds its script file
-            else:
+            else:                                    # source notes (a Notion export, a 讲稿) are materials, not the file
                 shutil.copy(os.path.join(M.ROOT, a["template"]), dst)
 
 

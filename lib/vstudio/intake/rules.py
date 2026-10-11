@@ -405,6 +405,8 @@ def _resolve(r, sc, intent, present, clause):
         return "call-clips"
     if r == "explainer" and not (present & {"doc", "slides", "notes", "script"}) and "讲解" not in text:
         return r
+    if r == "longform-course" and not (present & RECORDING_ROLES) and (present & {"doc", "slides", "notes", "script"}):
+        return "explainer"          # "做成课程视频" from lecture notes / a script, no recording: a course explainer
     if r == "photo-story" and "photo" not in present and "footage" in present:
         return "vlog"
     if r == "vlog" and "photo" in present and "footage" not in present:
@@ -412,6 +414,10 @@ def _resolve(r, sc, intent, present, clause):
     if r == "preproduction" and re.search(r"剧本", text) and "短剧" in text:
         return "ai-video"
     return r
+
+
+RECORDING_ROLES = {"lecture", "screen-recording", "talking-head", "finished-edit", "call", "footage", "podcast-audio",
+                   "voice"}
 
 
 def material_recipes(analysis):
