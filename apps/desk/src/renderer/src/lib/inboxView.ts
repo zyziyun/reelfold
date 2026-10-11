@@ -37,7 +37,7 @@ export function authorHelp(x: Pick<InboxItem, 'author'>): string {
   const a = x.author;
   if (!a) return t('draft.lead.any');
   if (a.drafting) return t('draft.lead.drafting');
-  if (a.state === 'missing' || a.state === 'template' || !a.review) return t('draft.lead.none');
+  if (a.state === 'missing' || a.state === 'template' || a.state === 'notes' || !a.review) return t('draft.lead.none');
   if (a.review.kind === 'keep-spans') return a.review.by === 'rules' ? t('draft.lead.keepRules') : t('draft.lead.keep');
   if (a.review.kind === 'package') return t('draft.lead.package');
   return t('draft.lead.any');

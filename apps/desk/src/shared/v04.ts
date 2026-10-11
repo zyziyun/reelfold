@@ -613,7 +613,7 @@ export interface InboxAuthor {
   recipe?: string | null;
   checkpoint?: string | null;
   /** missing | template (the seeded example: not a draft) | drafted | hers */
-  state?: 'missing' | 'template' | 'drafted' | 'hers';
+  state?: 'missing' | 'template' | 'notes' | 'drafted' | 'hers';
   review?: DraftReview | null;
   /** the engine can draft it ("Draft it for me", "ask in plain words") */
   can_draft?: boolean;
