@@ -4,6 +4,7 @@
 //
 //   node capture.mjs --shots shots.yaml|json --out DIR [--electron APP_DIR [--env K=V ...] [--env-json env.json]]
 //                    [--url URL] [--size 1440x900] [--scale 2] [--fps 30] [--only id,id] [--format jpeg|png]
+//                    [--keep-going]
 //
 // Targets: --electron APP_DIR (Playwright _electron.launch; the window is driven hidden: Chromium keeps painting a
 // hidden BrowserWindow, so the screencast still gets frames and nothing covers your screen) or --url URL (system
@@ -30,6 +31,7 @@
 //   wait: ms                         waitFor: SEL [, timeout: ms, state: visible|hidden|attached]
 //   scroll: SEL, dy: 400             focus: SEL (a region of interest, no click)      still: true (the poster frame)
 //   drag: SEL, to: SEL               (press on one element, glide, release on another: text / range selection)
+//   drop: SEL, files: [path, ...]    (drop real files / folders on an element, as from Finder: CDP drag events)
 //   eval: "js in the page"   electron: "js in the main process ({app, BrowserWindow} in scope)"   sh: "shell command"
 //                                    (these three in setup only; sh runs on this machine with the app's env, must exit 0)
 // SEL: a Playwright selector; "testid=x" -> [data-testid="x"]. Optional on any SEL action: has_text, nth, at
@@ -40,6 +42,8 @@
 //   {size: [W, H], scale, fps, shots: [{id, title, caption, file, still, w, h, duration,
 //     focus: [{t, x, y, w, h, kind: click|type|focus}]}]}      (focus boxes normalised 0..1, t = seconds into the clip)
 // Any action that fails or times out exits non-zero with the shot id and selector; nothing is skipped silently.
+// --keep-going: a failed shot is reported (_failed-<id>.png, what it recorded so far as <id>.partial.mp4) and the
+// next shot still runs on the same app session (the exit code is still non-zero).
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -68,6 +72,7 @@ const FORMAT = opt('format', 'jpeg');
 const OUT = path.resolve(opt('out'));
 const only = (opt('only', '') || '').split(',').filter(Boolean);
 const electronDir = opt('electron');
+const KEEP_GOING = argv.includes('--keep-going');
 const url = opt('url');
 if (!!electronDir === !!url) die('pass exactly one of --electron APP_DIR or --url URL');
 
@@ -281,7 +286,7 @@ async function boxOf(l, a, timeout) {
 const norm = (b) => ({ x: +(b.x / W).toFixed(4), y: +(b.y / H).toFixed(4), w: +(b.width / W).toFixed(4), h: +(b.height / H).toFixed(4) });
 
 async function run(a, ctx) {
-  const key = Object.keys(a).find((k) => !['pause', 'timeout', 'text', 'has_text', 'nth', 'at', 'clear', 'cps', 'dy', 'state', 'on', 'still', 'to'].includes(k)) ?? (a.still ? 'still' : null);
+  const key = Object.keys(a).find((k) => !['pause', 'timeout', 'text', 'has_text', 'nth', 'at', 'clear', 'cps', 'dy', 'state', 'on', 'still', 'to', 'files'].includes(k)) ?? (a.still ? 'still' : null);
   const timeout = a.timeout ?? 15000;
   const mark = (b, kind) => ctx.focus?.push({ t: +(now() - ctx.t0()).toFixed(2), ...norm(b), kind });
   const what = `${key} ${typeof a[key] === 'string' ? a[key] : JSON.stringify(a[key])}${a.has_text ? ` (has_text "${a.has_text}")` : ''}`;
@@ -338,6 +343,20 @@ async function run(a, ctx) {
         await page.mouse.up();
         break;
       }
+      case 'drop': {
+        // a real file / folder drop (CDP drag events carry the paths, as Finder would): glide in, hover, release
+        const { b, x, y } = await boxOf(locate(a, key), a, timeout);
+        const data = { items: [], files: [a.files ?? []].flat().map(String), dragOperationsMask: 1 };
+        await glide(x, y);
+        await cdp.send('Input.dispatchDragEvent', { type: 'dragEnter', x, y, data });
+        for (let i = 0; i < 12; i++) {
+          await cdp.send('Input.dispatchDragEvent', { type: 'dragOver', x: x + i, y, data });
+          await sleep(40);
+        }
+        mark(b, 'click');
+        await cdp.send('Input.dispatchDragEvent', { type: 'drop', x: x + 11, y, data });
+        break;
+      }
       case 'press':
         if (a.on) await locate({ ...a, on: a.on }, 'on').press(a.press, { timeout });
         else await page.keyboard.press(a.press);
@@ -383,20 +402,41 @@ async function run(a, ctx) {
 
 // ------------------------------------------------------------------ shots
 const manifest = { size: [W, H], scale: SCALE, fps: FPS, shots: [] };
+// the window as it was when a shot failed (Electron: the real window, not the screencast)
+const snapFailed = (name) =>
+  app
+    ? app
+        .evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.capturePage().then((i) => i.toPNG().toString('base64')))
+        .then((b) => b && fs.writeFileSync(path.join(OUT, name), Buffer.from(b, 'base64')))
+        .catch(() => undefined)
+    : page.screenshot({ path: path.join(OUT, name) }).catch(() => undefined);
 const manifestPath = path.join(OUT, 'shots.json');
 let code = 0;
 try {
   for (const s of shots) {
     console.log(`shot ${s.id}: setup`);
     const ctx = { id: s.id, setup: true, focus: null, t0: () => rec?.t0 ?? now(), still: null };
-    for (const a of s.setup ?? []) await run(a, ctx);
-    // park the cursor where the first action will pull it from, before the clip starts
-    await page.mouse.move(mouse.x, mouse.y);
-    await page.evaluate(() => document.getElementById('__cap_cursor') || window.dispatchEvent(new Event('resize')));
-    Object.assign(ctx, { setup: false, focus: [] });
-    await startRec(s.id);
-    for (const a of s.actions ?? []) await run(a, ctx);
-    await sleep(Math.round((s.hold_after ?? 1) * 1000));
+    try {
+      for (const a of s.setup ?? []) await run(a, ctx);
+      // park the cursor where the first action will pull it from, before the clip starts
+      await page.mouse.move(mouse.x, mouse.y);
+      await page.evaluate(() => document.getElementById('__cap_cursor') || window.dispatchEvent(new Event('resize')));
+      Object.assign(ctx, { setup: false, focus: [] });
+      await startRec(s.id);
+      for (const a of s.actions ?? []) await run(a, ctx);
+      await sleep(Math.round((s.hold_after ?? 1) * 1000));
+    } catch (e) {
+      if (!KEEP_GOING) throw e;
+      // --keep-going: say why, keep what was recorded as <id>.partial.mp4, go on with the next shot
+      console.error(`capture: ${e.message}`);
+      code = 1;
+      await snapFailed(`_failed-${s.id}.png`);
+      if (rec) {
+        const d = await stopRec(path.join(OUT, `${s.id}.partial.mp4`)).catch(() => 0);
+        console.log(`shot ${s.id}: kept ${d.toFixed(1)} s as ${s.id}.partial.mp4`);
+      }
+      continue;
+    }
     const still = ctx.still ?? (await page.screenshot({ type: 'png' }));
     const file = `${s.id}.mp4`;
     const duration = await stopRec(path.join(OUT, file));
@@ -406,7 +446,7 @@ try {
   }
 } catch (e) {
   console.error(`capture: ${e.message}`);
-  if (app) await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.capturePage().then((i) => i.toPNG().toString('base64'))).then((b) => b && fs.writeFileSync(path.join(OUT, '_failed.png'), Buffer.from(b, 'base64'))).catch(() => undefined);
+  await snapFailed('_failed.png');
   code = 1;
 } finally {
   if (manifest.shots.length) {
