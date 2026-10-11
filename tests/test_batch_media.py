@@ -100,6 +100,7 @@ def _spec(tmp, talk, **kw):
     return str(p)
 
 
+@pytest.mark.slow  # a long real render: CI's full tier only (pyproject.toml)
 def test_longform_slices_end_to_end(tmp_path, talk, monkeypatch):
     monkeypatch.setenv("VSTUDIO_TEST_TRUTH", talk["truth"])
     r = plan_batch(_spec(tmp_path, talk), echo=False)

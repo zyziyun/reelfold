@@ -197,6 +197,7 @@ def test_geometry_stage_detects_page_and_clips(tmp_path, share):
 
 
 # --------------------------------------------------------------------------- end to end
+@pytest.mark.slow  # a long real render: CI's full tier only (pyproject.toml)
 def test_longform_split_end_to_end_privacy(tmp_path, share, monkeypatch):
     monkeypatch.setenv("VSTUDIO_TEST_TRUTH", share["truth"])
     assert magenta_px(video_frames(share["src"], 1)[0]) > 10000            # the tile IS in the source

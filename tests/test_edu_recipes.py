@@ -465,6 +465,7 @@ def test_sync_and_render_two_file_lesson_bilingual(tmp_path, lesson_media):
     assert man["exports"][0]["file"] == "p01-douyin-vertical.mp4"
 
 
+@pytest.mark.slow  # a long real render: CI's full tier only (pyproject.toml)
 @media
 def test_lesson_project_runs_to_publish_and_export(tmp_path, lesson_media):
     from vstudio.project.core import Project

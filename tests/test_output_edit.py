@@ -225,6 +225,7 @@ def test_flattened_every_op_caps_and_render(tmp_path, synth):
 
 
 # --------------------------------------------------------------------------- pipeline
+@pytest.mark.slow  # a long real render: CI's full tier only (pyproject.toml)
 @media
 def test_pipeline_output_recomposes_from_master(th, monkeypatch):
     oid, rec = _pipeline(th)
