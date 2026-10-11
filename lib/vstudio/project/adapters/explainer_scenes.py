@@ -21,8 +21,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 AI_MARK = "<!-- reelfold:scene by=ai -->"
 TASK = "planner"
-# one scene: a whole SVG + GSAP file; Claude Code takes 1-4 min for one, more under load
-SCENE_TIMEOUT = float(os.environ.get("VSTUDIO_SCENE_TIMEOUT") or 600)
+# one scene: a whole SVG + GSAP file; Claude Code takes 1-4 min for one, up to 7 min with four at once on a busy
+# machine (her MCP course, 14 scenes: 119-416 s each): a slow answer beats a fallback
+SCENE_TIMEOUT = float(os.environ.get("VSTUDIO_SCENE_TIMEOUT") or 900)
 PARALLEL = int(os.environ.get("VSTUDIO_SCENE_PARALLEL") or 4)
 # Claude Code at its default effort thought 5.5 min over one scene (31k tokens); at medium it writes the same quality
 # in ~1 min (measured on her MCP course, 2026-10-11)

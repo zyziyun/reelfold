@@ -324,7 +324,9 @@ def test_redo_the_visuals_draws_every_scene_again_and_keeps_the_voice(tmp_path, 
         assert (d / "compositions" / f"{sid}.html").read_text(encoding="utf-8").startswith(S.AI_MARK)
     assert (d / "compositions" / "captions.html").read_text() == "<template>captions</template>"
     assert (d / "audio" / "narration.wav").read_bytes() == b"RIFF-the-voice"                # the voice kept
-    assert r["done"][0]["backup"] and os.path.exists(os.path.join(r["done"][0]["backup"], "f01-mn.html"))
+    backup = r["done"][0]["backup"]
+    assert backup and os.path.exists(os.path.join(backup, "f01-mn.html"))
+    assert os.sep + os.path.join("state", "remake", "ep1", "visuals") + os.sep in backup   # not a stage folder
     assert no_run == [dict(only=["ep1"], on_event=no_run[0]["on_event"])]                 # index/render/export
     q = Project(p.dir)
     assert q.data["answers"]["scenes"]["ep1"]["value"] == dict(done=True)

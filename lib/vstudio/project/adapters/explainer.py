@@ -562,7 +562,10 @@ def scenes_remake(env, cp, choice):
                            "the project first")
     env.at("cp_" + cp["id"])
     stamp = T.strftime("%Y%m%d-%H%M%S")
-    new = os.path.join(env.dir, f"compositions.new-{stamp}")
+    # outside the stage folders: the run below re-runs the gate, which empties its folder (the backup went with it)
+    keep = os.path.join(env.state_dir, "remake", env.job, "visuals")
+    os.makedirs(keep, exist_ok=True)
+    new = os.path.join(keep, f"compositions.new-{stamp}")
     os.makedirs(new, exist_ok=True)
     instruction = choice if choice and choice not in ("ai", "redo") else None
     env.log(f"remake visuals: drawing {item} again" + (f" ({instruction})" if instruction else ""))
@@ -573,7 +576,7 @@ def scenes_remake(env, cp, choice):
         if res.get("error_code") == "needs-model":
             raise S.NeedsModel(res["error"], S.routed_provider())
         raise RuntimeError(res["error"] or "visuals: the scenes could not be drawn")
-    old = os.path.join(env.dir, f"compositions.before-{stamp}")
+    old = os.path.join(keep, f"compositions.before-{stamp}")
     if os.path.isdir(path):
         shutil.move(path, old)
         cap = os.path.join(old, "captions.html")
