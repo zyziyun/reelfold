@@ -43,6 +43,16 @@ test.beforeAll(async () => {
     fs.mkdirSync(path.join(watch, name, 'final'), { recursive: true });
     ffmpeg([...lavfi(dur), path.join(watch, name, 'final', `${name}.mp4`)]);
   }
+  // two projects whose run failed (a file could not be read): one with a single video, one with two ("为什么有两个task")
+  const failed = (dir: string) => {
+    fs.writeFileSync(path.join(dir, 'desk-pilot.json'), JSON.stringify({ pid: 1, exit: 5, offset: 0, started: Date.now() / 1000 - 60, finished: Date.now() / 1000 }));
+    fs.writeFileSync(path.join(dir, 'desk-pilot.log'), JSON.stringify({ event: 'stage-fail', ok: false, error: 'Invalid data found when processing input', stage: 'render' }) + '\n');
+  };
+  for (const [name, clips] of [['leaves-film', ['leaves-red']], ['mcp-course', ['mcp-part1', 'mcp-part2']]] as const) {
+    fs.mkdirSync(path.join(watch, name, 'final'), { recursive: true });
+    for (const c of clips) ffmpeg([...lavfi(3), path.join(watch, name, 'final', `${c}.mp4`)]);
+    failed(path.join(watch, name));
+  }
   app = await electron.launch({
     args: [path.resolve(import.meta.dirname, '../..')],
     env: { ...process.env, DESK_STUDIO: '1', DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_MOCK_PLAN_FAIL: '1', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: vhome, DESK_HISTORY_WATCH: watch, DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
@@ -118,6 +128,43 @@ test('⌘-click picks several: the bulk bar archives them (undo brings them back
   await t2.getByTestId('toast-undo').click();
   await expect(a).toHaveCount(1);
   await expect(b).toHaveCount(1);
+});
+
+test('one row per video: a failed one-video project is one red row; a two-video project is one header + its videos', async () => {
+  const leaves = page.locator('[data-testid=studio-row]', { hasText: 'leaves-red' });
+  await expect(leaves).toHaveCount(1, { timeout: 30000 });
+  await expect(leaves).toHaveAttribute('data-tone', 'error');
+  await expect(leaves).toHaveAttribute('data-kind', 'clip');
+  await expect(page.locator('[data-testid=studio-row][data-kind=project]', { hasText: 'leaves-film' })).toHaveCount(0); // no sibling row
+  const head = page.getByTestId('studio-project-head').filter({ hasText: 'mcp-course' });
+  await expect(head).toHaveCount(1);
+  await expect(head.getByTestId('studio-project-badge')).toBeVisible();
+  await expect(page.locator('.st-rowwrap.nested [data-testid=studio-row]', { hasText: 'mcp-part' })).toHaveCount(2);
+  await expect(page.locator('[data-testid=studio-row]', { hasText: 'mcp-part' })).toHaveCount(2); // listed once
+  await page.screenshot({ path: path.join(SHOTS, 'one-row-per-video.png') });
+  // the header opens the project's question, laid out across the whole page
+  await head.getByTestId('studio-row').click();
+  const ask = page.getByTestId('studio-project-ask');
+  await expect(ask).toBeVisible();
+  const [pw, aw] = await Promise.all([page.getByTestId('studio-page').evaluate((e) => e.getBoundingClientRect().width), ask.evaluate((e) => e.getBoundingClientRect().width)]);
+  expect(aw).toBeGreaterThan(pw - 2);
+  const card = await page.getByTestId('inbox-preview').evaluate((e) => e.getBoundingClientRect().width);
+  expect(card).toBeGreaterThan(pw * 0.8);
+  await page.screenshot({ path: path.join(SHOTS, 'project-question.png') });
+  // the one-video project: its video's page, with the question pinned on it
+  await leaves.click();
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('studio-ask-chip')).toBeVisible();
+});
+
+test('Rename on a video row names the video, not its project', async () => {
+  await rowNamed('travel-a').click({ button: 'right' });
+  await page.getByTestId('context-menu').getByTestId('row-rename').click();
+  const box = page.getByRole('dialog').locator('input');
+  await box.fill('Sunrise over the bay');
+  await box.press('Enter');
+  await expect(rowNamed('Sunrise over the bay')).toHaveCount(1, { timeout: 15000 });
+  await expect(rowNamed('Sunrise over the bay')).toContainText('travel-a'); // the project line keeps its name
 });
 
 test('an almost empty recording: its length is 0:00.9, said plainly, with Archive from the page ⋯ too', async () => {

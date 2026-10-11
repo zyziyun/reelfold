@@ -176,3 +176,17 @@ body.resizing .cs-ai-pane { transition: none; }
 .st-detail > .st-emptyclip { margin: 40px 44px 0 0; }
 .cs.has-notice { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .cs.has-notice > .st-emptyclip { margin: 12px var(--s3) 0; }
+
+/* one row per video: a project with several videos is a header with its videos under it */
+.st-headwrap .st-row.st-head { padding-top: 8px; padding-bottom: 6px; }
+.st-headwrap .st-row.st-head b { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.st-headwrap .st-row.plain { cursor: default; }
+.st-headwrap .st-row.plain:hover { background: transparent; }
+.st-rowwrap.nested .st-row { padding-left: 29px; }
+.st-badge { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text); }
+.st-badge.error { color: var(--danger); }
+/* a question's page (a whole project's, or a video with no file yet): full width, like a video's page */
+.st-askpage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.st-askpage .cs-name h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.st-askbody { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s3); display: flex; flex-direction: column; }
+.st-askbody > .ux-ipv { flex: 1 0 auto; width: 100%; max-width: none; }

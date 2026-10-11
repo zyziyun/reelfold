@@ -1,7 +1,7 @@
 // The Studio list model (lib/studio): one row per video across projects, grouped needs you / in progress / ready /
 // scheduled; a question about a clip lands on that clip, one about the project on the project's own row.
 import { describe, expect, it } from 'vitest';
-import { grouped, needsYou, studioRows, visible } from '../../src/renderer/src/lib/studio';
+import { grouped, listPieces, needsYou, screenPieces, screenRows, studioRows, visible } from '../../src/renderer/src/lib/studio';
 import type { HistoryItem } from '../../src/shared/v02';
 import type { CalendarPost, Clip, InboxItem, OpenRequest } from '../../src/shared/v04';
 
@@ -58,11 +58,35 @@ describe('studio rows', () => {
     expect(visible(rows, 'all').map((r) => r.group)).toEqual(['you', 'run', 'run', 'scheduled', 'scheduled']);
   });
 
-  it('a question about the whole project is a row of its own; old finished work stays out', () => {
+  it('one row per video: a whole-project question is pinned on its only video; old finished work stays out', () => {
     const r2 = studioRows([item('aaaaaaaaaaaa'), item('cccccccccccc', { updated: NOW - 30 * 86400 })], [], { aaaaaaaaaaaa: [clip('a1')], cccccccccccc: [clip('c1')] }, [], [ask('k2', 'aaaaaaaaaaaa', null)], NOW);
-    expect(r2.map((r) => [r.key, r.group])).toEqual([
-      ['p:aaaaaaaaaaaa', 'you'],
-      ['aaaaaaaaaaaa/a1', 'ready'],
+    expect(r2.map((r) => [r.key, r.group, r.ask?.key])).toEqual([['aaaaaaaaaaaa/a1', 'you', 'k2']]);
+    // a failed project with one video: one row, red, the failure on it ("为什么有两个task")
+    const fail: InboxItem = { ...ask('k3', 'aaaaaaaaaaaa', null), kind: 'failed' };
+    const r3 = studioRows([item('aaaaaaaaaaaa')], [], { aaaaaaaaaaaa: [clip('a1', { state: 'error' })] }, [], [fail], NOW);
+    expect(r3.map((r) => [r.key, r.group, r.tone])).toEqual([['aaaaaaaaaaaa/a1', 'you', 'error']]);
+  });
+
+  it('several videos: the project once, as a header with its question as the badge and every video under it', () => {
+    const rows = studioRows([item('aaaaaaaaaaaa')], [], { aaaaaaaaaaaa: [clip('a1'), clip('a2'), clip('a3')] }, [post('aaaaaaaaaaaa', 'a3', 'planned')], [ask('k4', 'aaaaaaaaaaaa', null)], NOW);
+    expect(rows.filter((r) => r.header).map((r) => r.key)).toEqual(['p:aaaaaaaaaaaa']);
+    expect(needsYou(rows)).toBe(1);
+    const all = screenPieces(rows, ['you', 'run', 'ready', 'scheduled']);
+    const you = all.find((x) => x.g === 'you')!.pieces;
+    expect(you.map((p) => (p.kind === 'head' ? `head:${p.r?.key}:${p.n}` : `${p.r.key}${p.nested ? ' (nested)' : ''}`))).toEqual([
+      'head:p:aaaaaaaaaaaa:3',
+      'aaaaaaaaaaaa/a1 (nested)',
+      'aaaaaaaaaaaa/a2 (nested)',
+      'aaaaaaaaaaaa/a3 (nested)',
     ]);
+    // they are not listed a second time in their own groups
+    expect(all.filter((x) => x.g !== 'you').flatMap((x) => x.pieces)).toEqual([]);
+    expect(screenRows(rows, ['you', 'run', 'ready', 'scheduled']).map((r) => r.key)).toEqual(['p:aaaaaaaaaaaa', 'aaaaaaaaaaaa/a1', 'aaaaaaaaaaaa/a2', 'aaaaaaaaaaaa/a3']);
+    // the Ready filter alone: its videos under a plain label (no question there)
+    const ready = screenPieces(rows, ['ready'])[0].pieces;
+    expect(ready.map((p) => (p.kind === 'head' ? `head:${p.r ? 'q' : 'label'}` : p.r.key))).toEqual(['head:label', 'aaaaaaaaaaaa/a1', 'aaaaaaaaaaaa/a2']);
+    // no question: the header is a label in each group, never a row
+    const quiet = studioRows([item('aaaaaaaaaaaa')], [], { aaaaaaaaaaaa: [clip('a1'), clip('a2')] }, [], [], NOW);
+    expect(listPieces(grouped(quiet).ready).map((p) => p.kind)).toEqual(['head', 'row', 'row']);
   });
 });

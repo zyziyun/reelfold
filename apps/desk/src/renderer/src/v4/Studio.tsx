@@ -15,7 +15,7 @@ import { keyHint } from '../lib/keys';
 import { startTriage } from '../lib/nav';
 import { href, routeQuery } from '../lib/router';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
-import { STUDIO_FILTERS, grouped, needsYou, timeLeft, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
+import { STUDIO_FILTERS, grouped, needsYou, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
 import { rowHref, useStudioData } from '../lib/studioData';
 import { platformName } from './Home';
 import { ItemPane, useResolve } from './Inbox';
@@ -56,7 +56,7 @@ type ListFilter = StudioFilter | 'archived';
 const LIST_FILTERS: ListFilter[] = [...STUDIO_FILTERS, 'archived'];
 
 export function targetOf(r: StudioRow): ActionTarget {
-  return { key: r.key, kind: r.kind, title: r.title, r: r.r, i: r.i, video: r.video };
+  return { key: r.key, kind: r.kind, title: r.title, r: r.r, i: r.i, clip: r.clip, video: r.video };
 }
 
 function archivedTargets(items: HistoryItem[], reqs: OpenRequest[]): ActionTarget[] {
@@ -106,7 +106,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     if (inArchive) wantArchived();
   }, [inArchive, wantArchived]);
   const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
-  const list = order.flatMap((g) => groups[g]);
+  // a project with several videos is one header with its videos under it (its question as the header's badge)
+  const pieces = useMemo(() => screenPieces(rows, order), [rows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const list = pieces.flatMap((x) => x.pieces.flatMap((pc) => (pc.kind === 'row' ? [pc.r] : pc.r ? [pc.r] : [])));
   // the Archived filter: archived requests and projects, each with Restore (nothing in it counts anywhere else)
   const archived = useMemo(() => archivedTargets(archDoc?.items ?? [], archivedRequests), [archDoc, archivedRequests]);
   const nArchived = (archDoc ? archDoc.items.length : typeof hist?.archived === 'number' ? hist.archived : 0) + nArchivedRequests;
@@ -141,7 +143,8 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     ui.menu(e, ra.items(x, many ? pickedT : []));
   };
   const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (rows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : rows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
-  const cur = (selKey ? rows.find((r) => r.key === selKey) : null) ?? null;
+  // a project's own link (a notification, ⌘K) with one video: that video's page, its question pinned on it
+  const cur = (selKey ? (rows.find((r) => r.key === selKey) ?? (id && !clip ? rows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ?? null;
   // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
@@ -321,9 +324,10 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           {!inArchive && rows.length > 0 && !list.length && <p className="st-empty muted">{t('st.empty')}</p>}
           {inArchive && (archDoc ? !archived.length : !nArchived) && <p className="st-empty muted">{t('ra.archivedEmpty')}</p>}
           {inArchive && archived.map((x) => <ArchivedRow key={x.key} x={x} picked={picked.has(x.key)} onPick={pick} onMenu={menuAt} ra={ra} />)}
-          {order.map((g) => {
+          {pieces.map(({ g, pieces: pc }) => {
             const l = groups[g];
-            if (!l.length) return null;
+            const shown = pc.filter((x) => x.kind === 'row' || x.r).length;
+            if (!pc.length) return null;
             const left = g === 'run' ? timeLeft(l) : null;
             const shut = foldedGroups.includes(g) && !l.some((r) => r.key === cur?.key);
             return (
@@ -331,7 +335,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                 <h3>
                   <button className="st-gtoggle" onClick={() => foldGroup(g)} aria-expanded={!shut} data-testid={`studio-group-toggle-${g}`}>
                     {shut ? <ChevronRight className="ico" /> : <ChevronDown className="ico" />}
-                    {t(VIDEO_STATUS_KEY[g])} · {l.length}
+                    {t(VIDEO_STATUS_KEY[g])} · {g === 'you' ? l.length : shown}
                   </button>
                   <span className="sp" />
                   {g === 'you' && inbox.items.length > 0 && (
@@ -341,7 +345,14 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                   )}
                   {left ? <span className="muted">{t('st.left', { t: fmtMinutes(Math.max(1, Math.round(left / 60))) })}</span> : null}
                 </h3>
-                {!shut && l.map((r) => <StudioListRow key={r.key} r={r} on={cur?.key === r.key} n={list.indexOf(r) + 1} picked={picked.has(r.key)} onPick={pick} onMenu={menuAt} />)}
+                {!shut &&
+                  pc.map((x) =>
+                    x.kind === 'head' ? (
+                      <ProjectHead key={`h:${x.item}`} x={x} kids={pc} on={!!x.r && cur?.key === x.r.key} n={x.r ? list.indexOf(x.r) + 1 : 0} picked={!!x.r && picked.has(x.r.key)} onPick={pick} onMenu={menuAt} />
+                    ) : (
+                      <StudioListRow key={x.r.key} r={x.r} nested={x.nested} on={cur?.key === x.r.key} n={list.indexOf(x.r) + 1} picked={picked.has(x.r.key)} onPick={pick} onMenu={menuAt} />
+                    ),
+                  )}
               </section>
             );
           })}
@@ -429,12 +440,50 @@ function MoreButton({ onMenu, testId = 'row-more', className = '' }: { onMenu: (
   );
 }
 
-function StudioListRow({ r, on, n, picked, onPick, onMenu }: { r: StudioRow; on: boolean; n: number; picked: boolean; onPick: PickFn; onMenu: MenuFn }) {
+/** A project with several videos, once: its name and how many videos, its question as a badge (then it opens the
+ * question's page), the project's own menu; its videos follow, indented. */
+function ProjectHead({ x, kids, on, n, picked, onPick, onMenu }: { x: Extract<ListPiece, { kind: 'head' }>; kids: ListPiece[]; on: boolean; n: number; picked: boolean; onPick: PickFn; onMenu: MenuFn }) {
+  const first = kids.find((k): k is Extract<ListPiece, { kind: 'row' }> => k.kind === 'row' && k.r.item === x.item)?.r;
+  const i = x.r?.i ?? first?.i;
+  const target: ActionTarget = x.r ? targetOf(x.r) : { key: `p:${x.item}`, kind: 'project', title: x.name, i };
+  const body = (
+    <>
+      <span className="tx">
+        <b className="clamp1">{x.name}</b>
+        <span className="s clamp1">
+          {x.r?.ask ? (
+            <span className={`st-badge ${x.r.tone}`} data-testid="studio-project-badge">
+              <i className={`dot ${x.r.tone}`} />
+              {inboxTitle(x.r.ask)}
+            </span>
+          ) : (
+            <span className="faint">{t('st.headN', { n: x.n })}</span>
+          )}
+        </span>
+      </span>
+    </>
+  );
+  return (
+    <div className={`st-rowwrap st-headwrap ${picked ? 'picked' : ''}`} onContextMenu={(e) => onMenu(e, target)} data-testid="studio-project-head" data-item={x.item}>
+      {x.r ? (
+        <a className={`st-row st-head ${on ? 'on' : ''} ${picked ? 'picked' : ''}`} href={rowHref(x.r)} onClick={(e) => onPick(e, x.r!.key)} aria-current={on ? 'true' : undefined} data-testid="studio-row" data-row={x.r.key} data-group={x.r.group} data-kind="project" data-tone={x.r.tone} title={n > 0 && n < 10 ? `${x.name} · ${keyHint(`⌘${n}`)}` : x.name}>
+          {body}
+        </a>
+      ) : (
+        <div className="st-row st-head plain">{body}</div>
+      )}
+      {i && <MoreButton onMenu={(e) => onMenu(e, target)} />}
+    </div>
+  );
+}
+
+function StudioListRow({ r, on, n, picked, onPick, onMenu, nested = false }: { r: StudioRow; on: boolean; n: number; picked: boolean; onPick: PickFn; onMenu: MenuFn; nested?: boolean }) {
   const pct = r.p.progress == null ? null : Math.round(r.p.progress * 100);
-  const where = [r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ');
+  // under its project's header the project's name is said once, above
+  const where = [nested ? null : r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ');
   const x = targetOf(r);
   return (
-    <div className={`st-rowwrap ${picked ? 'picked' : ''}`} onContextMenu={(e) => onMenu(e, x)} data-picked={picked ? 'true' : undefined}>
+    <div className={`st-rowwrap ${picked ? 'picked' : ''} ${nested ? 'nested' : ''}`} onContextMenu={(e) => onMenu(e, x)} data-picked={picked ? 'true' : undefined}>
     <a className={`st-row ${on ? 'on' : ''} ${picked ? 'picked' : ''}`} href={rowHref(r)} onClick={(e) => onPick(e, r.key)} aria-current={on ? 'true' : undefined} aria-selected={picked || undefined} data-testid="studio-row" data-row={r.key} data-group={r.group} data-kind={r.kind} data-tone={r.tone} title={n > 0 && n < 10 ? `${r.title} · ${keyHint(`⌘${n}`)}` : r.title}>
       <Thumb src={r.thumb} className="st-th" />
       <span className="tx">

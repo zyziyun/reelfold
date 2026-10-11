@@ -14,6 +14,8 @@ export interface ActionTarget {
   title: string;
   r?: OpenRequest;
   i?: HistoryItem;
+  /** a video's id in its project (Rename names the video, not the project) */
+  clip?: string | null;
   /** a video's file (Show in Finder points at it) */
   video?: string | null;
 }

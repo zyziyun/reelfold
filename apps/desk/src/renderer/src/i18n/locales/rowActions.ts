@@ -35,6 +35,7 @@ export const rowActionsEn = {
   'st.emptyClip.none': 'This video has no file: nothing was made. The recording may have been empty.',
   'st.emptyClip.short': 'This video is only {d} long. The recording may have been empty, with nothing to hear.',
   'st.emptyClip.keep': 'Keep it',
+  'st.headN': '{n, plural, one {# video} other {# videos}}',
 };
 
 export const rowActionsZh: Record<keyof typeof rowActionsEn, string> = {
@@ -71,6 +72,7 @@ export const rowActionsZh: Record<keyof typeof rowActionsEn, string> = {
   'st.emptyClip.none': '这条视频没有文件：什么都没做出来，可能是录了一段空白。',
   'st.emptyClip.short': '这条视频只有 {d}，可能是录了一段空白，听不到内容。',
   'st.emptyClip.keep': '留着',
+  'st.headN': '{n} 条视频',
 };
 
 export const rowActionsFr: Record<keyof typeof rowActionsEn, string> = {
@@ -107,4 +109,5 @@ export const rowActionsFr: Record<keyof typeof rowActionsEn, string> = {
   'st.emptyClip.none': 'Cette vidéo n’a pas de fichier : rien n’a été fait. L’enregistrement était peut-être vide.',
   'st.emptyClip.short': 'Cette vidéo ne dure que {d}. L’enregistrement était peut-être vide, sans rien à entendre.',
   'st.emptyClip.keep': 'La garder',
+  'st.headN': '{n, plural, one {# vidéo} other {# vidéos}}',
 };

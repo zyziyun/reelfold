@@ -41,6 +41,9 @@ export interface StudioRow {
   at: number;
   i?: HistoryItem;
   r?: OpenRequest;
+  /** a project with several videos: its row is the header its videos sit under (the whole-project question as its
+   * badge), never a sibling row of its own */
+  header?: boolean;
 }
 
 const RECENT_S = 14 * 86400;
@@ -140,13 +143,17 @@ export function studioRows(
       out.push(projectRow());
       continue;
     }
-    // a question about the whole project (a plan to approve, a budget) is a row of its own: no clip to pin it on
-    if (projAsks.length) out.push({ ...projectRow(), group: 'you', tone: 'you' });
+    // one row per video: a question about the whole project (its failure, a plan to approve, a budget) is pinned on
+    // its only video; with several videos it is the badge of the project's header, the videos under it
+    const single = cl.length === 1;
+    const projAsk = projAsks[0] ?? null;
+    if (projAsk && !single) out.push({ ...projectRow(), group: 'you', tone: projAsk.kind === 'failed' ? 'error' : 'you', header: true });
     const running = p.state === 'run';
     cl.forEach((c, k) => {
-      const ask = asksFor(inbox, i.id, c.id)[0] ?? null;
+      const ask = asksFor(inbox, i.id, c.id)[0] ?? (single ? projAsk : null);
       const mine = posts.filter((x) => x.item === i.id && x.clip === c.id);
       const g = clipGroup(c, mine, !!ask, running);
+      if (ask?.kind === 'failed') g.tone = 'error';
       out.push({
         key: `${i.id}/${c.id}`,
         kind: 'clip',
@@ -172,6 +179,19 @@ export function studioRows(
   return out;
 }
 
+/** The list as shown for a filter: each group's pieces; a project with a question is one header in Needs you with all
+ * its videos under it (they leave their own groups while Needs you is on screen). */
+export function screenPieces(rows: StudioRow[], order: StudioGroup[]): { g: StudioGroup; pieces: ListPiece[] }[] {
+  const groups = grouped(rows);
+  const pulled = new Set(order.includes('you') ? rows.filter((r) => r.header && r.group === 'you').map((r) => r.item!) : []);
+  return order.map((g) => ({ g, pieces: listPieces(groups[g].filter((r) => g === 'you' || r.kind !== 'clip' || !pulled.has(r.item!)), g === 'you' ? rows : undefined) }));
+}
+
+/** The selectable rows in screen order (↑ ↓, ⌘1–9, ⇧-click ranges). */
+export function screenRows(rows: StudioRow[], order: StudioGroup[]): StudioRow[] {
+  return screenPieces(rows, order).flatMap((x) => x.pieces.flatMap((p) => (p.kind === 'row' ? [p.r] : p.r ? [p.r] : [])));
+}
+
 /** Rows in screen order: needs you, in progress (making first, then queued), ready, scheduled; newest first. */
 export function grouped(rows: StudioRow[]): Record<StudioGroup, StudioRow[]> {
   const g: Record<StudioGroup, StudioRow[]> = { you: [], run: [], ready: [], scheduled: [] };
@@ -195,9 +215,34 @@ export function visible(rows: StudioRow[], f: StudioFilter): StudioRow[] {
   return f === 'all' ? STUDIO_GROUPS.flatMap((k) => g[k]) : g[f];
 }
 
-/** How many videos wait for her (the Dock badge, the filter count). */
+/** How many videos wait for her (the Dock badge, the filter count); a project's question counts once. */
 export function needsYou(rows: StudioRow[]): number {
   return rows.filter((r) => r.group === 'you').length;
+}
+
+export type ListPiece = { kind: 'row'; r: StudioRow; nested: boolean } | { kind: 'head'; item: string; name: string; n: number; r: StudioRow | null };
+
+/** A group's rows as the list shows them: a project with several videos once, as a header (its question row when it
+ * has one, else a plain label) with its videos under it, in the place of its first video. ``pool``: where a header's
+ * videos are taken from (every row: a project's question gathers all its videos under it in Needs you). */
+export function listPieces(rows: StudioRow[], pool: StudioRow[] = rows): ListPiece[] {
+  const out: ListPiece[] = [];
+  const done = new Set<string>();
+  for (const r of rows) {
+    const id = r.item;
+    const multi = id && (r.header || (r.kind === 'clip' && r.pos));
+    if (!multi) {
+      out.push({ kind: 'row', r, nested: false });
+      continue;
+    }
+    if (done.has(id)) continue;
+    done.add(id);
+    const head = rows.find((x) => x.item === id && x.header) ?? null;
+    const kids = (head ? pool : rows).filter((x) => x.item === id && x.kind === 'clip');
+    out.push({ kind: 'head', item: id, name: head?.title ?? kids[0]?.project ?? '', n: kids[0]?.pos?.[1] ?? kids.length, r: head });
+    for (const k of kids) out.push({ kind: 'row', r: k, nested: true });
+  }
+  return out;
 }
 
 /** Time left in a group (seconds), when the engine says for the running ones. */

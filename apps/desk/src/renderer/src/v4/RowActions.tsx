@@ -199,24 +199,22 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
     <>
       {renaming && (
         <PromptModal
-          title={t('ra.renameTitle', {
-            name: renaming.i?.name ?? renaming.title,
-          })}
-          placeholder={renaming.i?.name ?? renaming.title}
+          title={t('ra.renameTitle', { name: renaming.kind === 'clip' ? renaming.title : (renaming.i?.name ?? renaming.title) })}
+          placeholder={renaming.kind === 'clip' ? renaming.title : (renaming.i?.name ?? renaming.title)}
           okLabel={t('c.rename')}
           onCancel={() => setRenaming(null)}
           onOk={(v) => {
             const x = renaming;
             setRenaming(null);
             if (!v || !client || !x.i) return;
-            const old = x.i.name;
-            void client
-              .renameHistory(x.i.dir, v)
+            const it = x.i;
+            // a video row names the video (its title); a project row names the project
+            const save = x.kind === 'clip' && x.clip ? (name: string) => client.setClipTitle(it.id, x.clip!, name) : (name: string) => client.renameHistory(it.dir, name);
+            const old = x.kind === 'clip' ? x.title : it.name;
+            void save(v)
               .then(() => {
                 reload();
-                ui.toast(t('editor.saved'), {
-                  undo: () => void client.renameHistory(x.i!.dir, old).then(reload),
-                });
+                ui.toast(t('editor.saved'), { undo: () => void save(old).then(reload) });
               })
               .catch(fail);
           }}
