@@ -82,7 +82,7 @@ def test_grade_graph_shape():
     assert F.filter_names(g) == ["format", "lutyuv"] and "eq" not in F.filter_names(g)
     assert set(F.filter_names(g)) <= BUNDLED
     assert F.filter_names(F.box_blur(30, 3)) == ["gblur"] and abs(float(F.box_blur(30, 3).split("=")[-1]) - 30.5) < 0.1
-    assert F.filter_names(F.denoise(0.3)) == ["atadenoise"]
+    assert F.filter_names(F.denoise(0.3)) == ["bilateral"]
 
 
 # ------------------------------------------------------------------ old strings keep working
@@ -155,3 +155,15 @@ def test_guard_checks_a_binary(tmp_path):
         pytest.skip("no ffmpeg")
     have = GUARD.ffmpeg_filters(ff)
     assert GUARD.check_binary(ff) == (0 if GUARD.read_list(GUARD.ENGINE) <= have else 1)
+
+
+def test_polish_grade_returns_a_single_frame():
+    """The talking-head cover grades ONE raw frame through stdin: a temporal denoise (atadenoise) never returns it on
+    ffmpeg 6.1 (Ubuntu 24.04, CI) and the cover hung until the stall watchdog."""
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        pytest.skip("no ffmpeg")
+    r = subprocess.run([ff, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "64x64", "-i", "-", "-vf",
+                        F.DEFAULT_TH_GRADE, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], input=bytes(64 * 64 * 3),
+                       capture_output=True, timeout=60)
+    assert r.returncode == 0 and len(r.stdout) == 64 * 64 * 3

@@ -178,11 +178,11 @@ def box_blur(radius, power=2):
 
 
 def denoise(strength=1.0):
-    """A light temporal denoise (``atadenoise``, LGPL) where the recipes used ``hqdn3d``. ``strength`` 1 ~ hqdn3d's
-    defaults (4:3:6:4.5), so ``hqdn3d=1.2:1.2:3:3`` (a polish pass) is ~0.4."""
+    """A light spatial denoise (``bilateral``, LGPL) where the recipes used ``hqdn3d``. ``strength`` 1 ~ hqdn3d's
+    defaults (4:3:6:4.5), so ``hqdn3d=1.2:1.2:3:3`` (a polish pass) is ~0.3. Spatial on purpose: a temporal one
+    (atadenoise) never returns a single frame on ffmpeg 6.1 (a cover graded from one raw frame hangs)."""
     s = min(4.0, max(0.05, float(strength)))
-    a, b = 0.02 * s, 0.04 * s
-    return "atadenoise=" + ":".join(f"{c}a={_f(a)}:{c}b={_f(b)}" for c in "012")
+    return f"bilateral=sigmaS={_f(0.5 + 1.5 * s)}:sigmaR={_f(0.02 + 0.08 * s)}"
 
 
 def dim(brightness):
