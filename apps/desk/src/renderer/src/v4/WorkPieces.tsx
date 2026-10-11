@@ -10,7 +10,7 @@ import { t } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
 import { pieceLabel } from '../lib/pieces';
 import { media, Thumb } from './kit';
-import { PlayerOverlay } from './Player';
+import { Player } from './Player';
 import { errText } from './msg';
 import { useUi } from './ui';
 import './workpieces.css';
@@ -125,7 +125,7 @@ function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk
   }, [image, onClose]);
   const bar = (
     <div className="wp-bar" data-testid="piece-actions">
-      <b className="clamp1">{label}</b>
+      {image && <b className="clamp1">{label}</b>}
       <span className="sp" />
       <button className="btn sm primary" onClick={onAsk} data-testid="piece-ask">
         <Sparkles className="ico" />
@@ -137,7 +137,13 @@ function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk
       </button>
     </div>
   );
-  if (isVideo(p)) return <PlayerOverlay files={[{ path: p.path, aspect: '16:9' }]} title={label} onClose={onClose} extra={bar} />;
+  if (isVideo(p))
+    return (
+      // the player as the app's big player (keys, Esc closes), the piece's actions under it
+      <div className="pl-overlay wp-vidview" onMouseDown={(e) => e.target === e.currentTarget && onClose()} data-testid="piece-view">
+        <Player files={[{ path: p.path, aspect: '16:9' }]} title={label} onClose={onClose} autoPlay keys extra={bar} />
+      </div>
+    );
   return (
     <div className="pl-overlay wp-imgview" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-label={label} data-testid="piece-view">
       <div className="wp-imgbox">
