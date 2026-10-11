@@ -54,6 +54,14 @@
    "seedance-2": {"label": "即梦 Seedance", "unit": "second", "resolution": "720p", "credits_per_s": {"720p": 8, "480p": 9},
                   "cny_per_credit": null, "min_clip_s": 4, "max_clip_s": 15, "step_s": 1, "manual": true,
                   "seen_at": "2026-09-14", "source": "observed in the 即梦 web app (credits of your membership)", "verified": false}
+  },
+  "hedra": {
+   "character-3": {"label": "Hedra Character-3", "unit": "second", "resolution": "540p", "use": "presenter",
+                   "credits_per_s": {"540p": 3, "720p": 6}, "cny_per_credit": 0.0394,
+                   "min_clip_s": 1, "max_clip_s": 600, "step_s": 1,
+                   "seen_at": "2026-10-10", "checked_at": "2026-10-10",
+                   "source": "credits/s: third-party reviews of Hedra's web app (Character-3 540p 3, 720p 6; billed per second) - Hedra shows the rate in its model picker, not on a public page. Yuan per credit from the Creator plan ($30 / 5,400 credits), not an official per-credit price. Hedra's own API page lists Character-3 at $0.025/s 540p, $0.05/s 720p for the separate v3 wallet.",
+                   "verified": false}
   }
  }
 }

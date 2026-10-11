@@ -83,8 +83,8 @@ def cheapest(seconds, connected, kinds=("cloud", "mcp")):
         if connected and prov not in connected:
             continue
         for model, e in models.items():
-            if e.get("manual") or e.get("unit") == "image":
-                continue
+            if e.get("manual") or e.get("unit") == "image" or e.get("use") == "presenter":
+                continue                    # a talking presenter (Hedra) needs a portrait + audio, not a shot prompt
             p = costs.price_job(prov, model, seconds)
             if not p["unknown"]:
                 pool.append((p["cny"], prov, model))

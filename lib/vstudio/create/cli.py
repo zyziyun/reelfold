@@ -17,6 +17,8 @@ exit code 2). ``--json-events``: progress as JSON lines (``{"event": ...}``) bef
     plugins [list | enable KEY | disable KEY | set KEY --settings-json J]     (KEY = <kind>:<id>; docs/PLUGINS.md)
     import PATH [--into EID] [--importer ID] [--format F]   a board (HyperFrames, shot list, EDL / OTIO / XML)
     make EID [--only 01,02] [--lanes N]       plugin: / agent: shots in parallel lanes (job folders, QC, takes)
+    presenter estimate --image ME.jpg --audio VO.wav [--resolution 540p] [--aspect 16:9] [--prompt T] [--out DIR]
+    presenter run --estimate ID --confirm CODE --max-cny N    (PAID: Hedra, HEDRA_API_KEY)   presenter show [--estimate ID]
 Global: --home DIR (store root instead of $VSTUDIO_HOME).
 """
 import argparse
@@ -138,6 +140,18 @@ def parser():
     s.add_argument("eid")
     s.add_argument("--only")
     s.add_argument("--lanes", type=int)
+    s = sub.add_parser("presenter", help="AI presenter (Hedra): her photo + the narration -> a talking-head video")
+    s.add_argument("action", choices=["estimate", "run", "show"])
+    s.add_argument("--image")
+    s.add_argument("--audio")
+    s.add_argument("--resolution", default="540p")
+    s.add_argument("--aspect", default="16:9")
+    s.add_argument("--prompt")
+    s.add_argument("--out")
+    s.add_argument("--estimate")
+    s.add_argument("--confirm")
+    s.add_argument("--max-cny", type=float)
+    s.add_argument("--allow-unknown", action="store_true")
     return ap
 
 
@@ -258,6 +272,13 @@ def dispatch(a, on_event=None):
     if c == "make":
         from vstudio.plugins import lanes
         return lanes.make(store.need_eid(a.eid), only=_csv(a.only) or None, lanes=a.lanes, on_event=on_event)
+    if c == "presenter":
+        from . import presenter as PS
+        if a.action == "estimate":
+            return PS.estimate(a.image, a.audio, a.resolution, a.aspect, a.prompt, a.out)
+        if a.action == "run":
+            return PS.run(a.estimate, a.confirm, a.max_cny, a.allow_unknown, on_event=on_event)
+        return PS.show(a.estimate)
     raise CreateError("bad-input", field="command")
 
 

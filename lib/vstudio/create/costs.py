@@ -141,9 +141,10 @@ def check_money(v):
     return f
 
 
-def ledger_append(sid, row):
+def ledger_append(sid, row, path=None):
+    """Append to the series ledger (or ``path``: the presenter's own ledger) and count it in the month."""
     row = dict(row, ts=row.get("ts") or store.stamp())
-    store.append_jsonl(store.ledger_path(sid), row)
+    store.append_jsonl(path or store.ledger_path(sid), row)
     if row.get("status") in COUNTED:
         with _month_lock:
             d = month()

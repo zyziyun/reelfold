@@ -1,0 +1,10 @@
+id: hedra
+kind: shot-provider
+name: {en: Hedra, zh: Hedra, fr: Hedra}
+version: 1.0.0
+api: 1
+entry: vstudio.create.providers.hedra:Hedra
+description: {en: "Talking presenter (Character-3) from your photo + the narration", zh: "用你的照片 + 旁白生成会说话的讲解人（Character-3）", fr: "Présentateur parlant (Character-3) à partir de votre photo + la narration"}
+permissions: [network, spend]
+cost: {kind: paid, notes: {en: "Spends your Hedra plan's credits (about 3 per second at 540p)", zh: "消耗你的 Hedra 套餐积分（540p 约每秒 3 积分）", fr: "Consomme les crédits de votre forfait Hedra (environ 3 par seconde en 540p)"}}
+concurrency: 1

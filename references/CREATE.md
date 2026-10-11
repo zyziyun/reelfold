@@ -45,9 +45,22 @@ Errors are `{"error": {"code": "create.<code>", "params": {...}}}` with exit cod
 - Every submit is appended to `series/<sid>/spend.jsonl` and the month counter before polling starts; task ids go to
   `work/ai/state.json` (generate.py's format) at once.
 - Keys only from the environment (the desk puts them there from the OS keychain): `KLING_MCP_TOKEN`,
-  `MINIMAX_API_KEY`, `GEMINI_API_KEY`, `ARK_API_KEY`. Nothing secret is written to any Create file (the store refuses).
+  `MINIMAX_API_KEY`, `GEMINI_API_KEY`, `ARK_API_KEY`, `HEDRA_API_KEY` (the AI presenter). Nothing secret is written to any Create file (the store refuses).
 - 即梦 / Hailuo / Kling consumer web apps are never automated: Create writes the prompts, the creator presses Generate
   on the site and adds the downloads (`takes import`).
+
+## AI presenter (Hedra)
+
+`python -m vstudio.create presenter estimate --image ME.jpg --audio narration.wav [--resolution 540p|720p]
+[--aspect 16:9|9:16|1:1]` quotes one talking-head video of the creator (Hedra Character-3, `create/providers/hedra.py`)
+from HER portrait (only a file she passes for this) + a finished narration: seconds, Hedra credits, yuan, the
+max with the 30 % retry allowance and an 8-hex confirm code - no network, nothing uploaded.
+`presenter run --estimate ID --confirm CODE --max-cny N` is the paid call, under the same gate as a shot: one
+use per code, 15 min, the files and the price unchanged since the quote, the monthly cap, `--max-cny` covering it;
+the two uploads (free) then ONE generation request; a timeout after it left is an `unknown-charge` row, never a
+resubmit; every submit is in `$VSTUDIO_HOME/create/presenter/spend.jsonl` and the month counter before polling.
+Key: `HEDRA_API_KEY` only from the environment (the desk sets it from the OS keychain). Rates: `rates.json`
+`hedra/character-3` (3 credits/s at 540p, 6 at 720p, unverified); shot routing never picks it (`use: presenter`).
 
 ## Data (`schema_version: 1`, human-readable)
 
