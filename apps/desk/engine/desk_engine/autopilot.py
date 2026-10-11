@@ -48,7 +48,7 @@ class Autopilot:
             return dict(base, supported=False, autopilot=None, decisions=[])
         doc = self._cli().json(["decisions", "--dir", d, "--json"], timeout=60)
         decs = [dict(x, options=options(x)) if x.get("kind") in TASTE else x for x in doc.get("decisions") or []]
-        return dict(base, supported=True, autopilot=doc.get("autopilot"), decisions=decs)
+        return dict(base, supported=True, autopilot=doc.get("autopilot"), decisions=decs, choices=doc.get("choices") or [])
 
     def _resume(self, d, autopilot=None):
         """Continue the project in the background (unless it runs / waits in line already)."""
@@ -90,6 +90,9 @@ class Autopilot:
         doc = self._cli().json(["decisions", "--dir", d, "--json"], timeout=60)
         dec = next((x for x in doc.get("decisions") or [] if x.get("checkpoint") == checkpoint and
                     x.get("item") == sub and not x.get("asked")), None)
+        if dec is None:                            # a standing setting she already chose (framing): she switches it
+            dec = next((x for x in doc.get("choices") or [] if x.get("checkpoint") == checkpoint and
+                        x.get("item") == sub), None)
         need(dec is not None, f"no decision {checkpoint} for {sub}")
         from .inbox import engine_answer
         value = engine_answer(dec.get("kind"), answer)

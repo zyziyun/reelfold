@@ -521,6 +521,20 @@ export interface AutopilotDoc {
   queued: number | null;
   autopilot: { on: boolean; spend_cap?: number; judge?: boolean; lang?: string; ask?: string[] } | null;
   decisions: AutopilotDecision[];
+  /** standing per-video settings among the answers (vertical framing, which post copy), whoever chose them */
+  choices?: AutopilotChoice[];
+}
+
+export interface AutopilotChoice {
+  checkpoint: string;
+  kind: string;
+  item: string;
+  pick: number;
+  /** the picked option's kind (framing: follow | blur; copy: ai | rules) */
+  choice: string | null;
+  /** the option kinds in their order (the answer is an option index) */
+  options?: string[];
+  by: 'ai' | 'rules' | 'her';
 }
 
 // ---------------------------------------------------------------- inbox

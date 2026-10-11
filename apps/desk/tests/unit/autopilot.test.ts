@@ -103,7 +103,14 @@ describe('decisions in words', () => {
     const mw = decisionWords({ checkpoint: 'music', item: 'c1', kind: 'music-pick', params: { pick: 0, title: 'Slow pad with sparse piano' } });
     expect(tk(mw.key, mw.params)).toBe('Music: Slow pad with sparse piano');
     expect(tk(decisionWords({ checkpoint: 'music', item: 'c1', kind: 'music-pick', params: { pick: 3, title: null } }).key)).toBe('No music');
+    // landscape on vertical screens, and the post copy (the vlog's framing / copy decisions)
+    expect(tk(decisionWords({ checkpoint: 'framing', item: 'c1', kind: 'reframe-pick', params: { pick: 0, choice: 'follow' } }).key)).toBe('Vertical versions follow the subject');
+    expect(tk(decisionWords({ checkpoint: 'framing', item: 'c1', kind: 'reframe-pick', params: { pick: 1, choice: 'blur' } }).key)).toMatch(/blurred fill/);
+    const cw = decisionWords({ checkpoint: 'copy', item: 'c1', kind: 'copy-pick', params: { pick: 0, choice: 'ai', provider: 'claude-code' } });
+    expect(tk(cw.key, cw.params)).toBe('Post copy written by the AI (claude-code)');
+    expect(tk(decisionWords({ checkpoint: 'copy', item: 'c1', kind: 'copy-pick', params: { pick: 0, choice: 'rules' } }).key)).toMatch(/from the facts/);
     setLang('zh-CN');
+    expect(tk(cw.key, cw.params)).toBe('发布文案由 AI 写（claude-code）');
     expect(tk(w.key, w.params)).toBe('剪掉 3 处拿不准的口癖，保留 1 处');
     setLang('fr');
     expect(t('ap.auto')).toBe('Pilote automatique');

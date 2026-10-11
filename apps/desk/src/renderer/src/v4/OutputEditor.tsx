@@ -52,7 +52,7 @@ import '../theme/uxcore.css';
 import './transcript/transcript.css';
 import { keyHint } from '../lib/keys';
 import { useAutoRender } from '../lib/autoRender';
-import { CaptionLooks, ClipCovers, ClipInfoPanel, ClipScheduleView, ClipVersions, RenderPill, useClipSchedule } from './ClipInfo';
+import { CaptionLooks, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVersions, RenderPill, useClipSchedule } from './ClipInfo';
 import { ProjectAIPanel } from './ProjectAIPanel';
 
 // cover, captions, versions and export live in the clip's info (ClipInfo) now; the drawer keeps the precise tools
@@ -1116,6 +1116,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
                 <span className="ci-lbl">{t('ci.versions')}</span>
                 <ClipVersions doc={odoc} edit={edit} />
               </div>
+              <ClipFill item={id} clip={clip} />
             </div>
           </section>
           <Splitter
@@ -1292,7 +1293,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               {t('ci.show')}
             </button>
           )}
-          {!split.collapsed && info && <ClipInfoPanel doc={odoc} strip={strip} time={time} edit={edit} sched={sched} />}
+          {!split.collapsed && info && <ClipInfoPanel doc={odoc} strip={strip} time={time} edit={edit} sched={sched} item={id} clip={clip} />}
           {!split.collapsed && info && (
             <Splitter
               orient="row"

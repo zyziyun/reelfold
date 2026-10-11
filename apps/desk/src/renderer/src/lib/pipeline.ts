@@ -154,6 +154,12 @@ export function decisionWords(d: AutopilotDecision): { key: string; params: Reco
       const title = typeof p.title === 'string' ? p.title : '';
       return title ? { key: 'ap.d.music', params: { title } } : { key: 'ap.d.musicNone', params: {} };
     }
+    case 'reframe-pick':
+      // landscape footage on the vertical platforms: follow the subject (default) or the whole frame on a blur
+      return { key: p.choice === 'blur' ? 'ap.d.reframeBlur' : 'ap.d.reframeFollow', params: {} };
+    case 'copy-pick':
+      // the post copy: the AI's draft, or written from the facts when no AI answered
+      return p.choice === 'ai' ? { key: 'ap.d.copyAi', params: { provider: String(p.provider ?? 'AI') } } : { key: 'ap.d.copyRules', params: {} };
     case 'publish':
     case 'review':
       return { key: 'ap.d.approved', params: {} };

@@ -189,6 +189,8 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'checkpoint.keywords': '确认字幕里变色的关键词',
   'checkpoint.segment-approval': '确认选段',
   'checkpoint.cover-pick': '选一张封面',
+  'checkpoint.reframe-pick': '竖屏取景',
+  'checkpoint.copy-pick': '发布文案',
   'checkpoint.budget-approval': '批准花费',
   'checkpoint.take-selection': '选镜头',
   'checkpoint.script-lock': '脚本定稿',

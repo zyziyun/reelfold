@@ -188,6 +188,8 @@ export const v04En = {
   'checkpoint.keywords': 'Check the highlighted keywords',
   'checkpoint.segment-approval': 'Approve the picks',
   'checkpoint.cover-pick': 'Pick a cover',
+  'checkpoint.reframe-pick': 'Vertical framing',
+  'checkpoint.copy-pick': 'Post copy',
   'checkpoint.budget-approval': 'Approve the spend',
   'checkpoint.take-selection': 'Pick the takes',
   'checkpoint.script-lock': 'Lock the script',

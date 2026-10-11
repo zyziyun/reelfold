@@ -79,10 +79,13 @@ class SampleTest(unittest.TestCase):
 
 class AutoCheckpointsTest(unittest.TestCase):
     def test_defaults_unless_she_asked(self):
-        self.assertEqual(auto_checkpoints("Cut the pauses and add captions"), ["hook", "filler", "cover"])
-        self.assertEqual(auto_checkpoints("加一个高光预告开头，去气口"), ["filler", "cover"])
-        self.assertEqual(auto_checkpoints("make a nice cover and a hook"), ["filler"])
-        self.assertEqual(auto_checkpoints("确认一下 filler 再剪"), ["hook", "cover"])
+        rest = ["framing", "copy"]
+        self.assertEqual(auto_checkpoints("Cut the pauses and add captions"), ["hook", "filler", "cover"] + rest)
+        self.assertEqual(auto_checkpoints("加一个高光预告开头，去气口"), ["filler", "cover"] + rest)
+        self.assertEqual(auto_checkpoints("make a nice cover and a hook"), ["filler"] + rest)
+        self.assertEqual(auto_checkpoints("确认一下 filler 再剪"), ["hook", "cover"] + rest)
+        self.assertEqual(auto_checkpoints("竖屏用模糊背景，发之前文案让我确认"), ["hook", "filler", "cover"])
+        self.assertEqual(auto_checkpoints("西雅图红叶，配个音乐"), ["hook", "filler", "cover"] + rest)
 
 
 class EngineAnswerTest(unittest.TestCase):
@@ -93,6 +96,10 @@ class EngineAnswerTest(unittest.TestCase):
         self.assertEqual(IB.engine_answer("cover-pick", ticks([1])), dict(pick=1))
         self.assertEqual(IB.engine_answer("music-pick", ticks([2], [0, 1, 3])), dict(pick=2))   # a track / no music
         self.assertEqual(IB.GROUP["music-pick"], "choose")
+        self.assertEqual(IB.engine_answer("reframe-pick", ticks([1], [0])), dict(pick=1))     # fill with blur
+        self.assertEqual(IB.engine_answer("copy-pick", ticks([0], [1])), dict(pick=0))
+        self.assertEqual(IB.GROUP["reframe-pick"], "choose")
+        self.assertEqual(IB.GROUP["copy-pick"], "choose")
         self.assertEqual(IB.engine_answer("publish", ticks([0, 1])), dict(approve=True))
         self.assertEqual(IB.engine_answer("publish", ticks([], [0])), dict(approve=False))
         self.assertEqual(IB.engine_answer("filler-confirm", ticks([0, 2], [1])), dict(approve=[0, 2], keep=[1]))

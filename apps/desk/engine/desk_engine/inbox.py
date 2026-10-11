@@ -28,6 +28,7 @@ from .common import need, read_json, write_json
 AUTHOR_KINDS = ("author", "script-lock", "storyboard-approval", "media-selection")
 GROUP = {"confirm": "choose", "filler-confirm": "choose", "hook-pick": "choose", "segment-approval": "choose",
          "keywords": "choose", "cover-pick": "choose", "music-pick": "choose", "take-selection": "choose", "media-selection": "choose",
+         "reframe-pick": "choose", "copy-pick": "choose",
          "script-lock": "choose",
          "review": "review", "publish": "review", "budget-approval": "spend", "voice-pick": "spend",
          "checkpoint": "other", "consent": "other", "privacy-masks": "other"}
@@ -185,7 +186,7 @@ def engine_answer(kind, answer):
     if not isinstance(answer, dict) or "approve" not in answer or not isinstance(answer.get("approve"), list):
         return answer or None
     ids = [int(x) for x in answer["approve"] if str(x).lstrip("-").isdigit()]
-    if kind in ("hook-pick", "cover-pick", "music-pick"):
+    if kind in ("hook-pick", "cover-pick", "music-pick", "reframe-pick", "copy-pick"):
         return dict(pick=ids[0]) if len(ids) == 1 else None      # one tick = her pick; all / none = the default
     if kind == "publish":
         return dict(approve=bool(answer["approve"]) or not answer.get("keep"))

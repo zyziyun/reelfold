@@ -88,11 +88,14 @@ def _slug(name, i):
 # Checkpoints a plan from the desk answers with its default (vstudio.intake --auto): the composer promises "only asks
 # you when something needs a human", so the opening (default: none), the filler cuts (the safe ones) and the cover
 # (the suggested frame) are not questions unless her request is about them. All three can be changed afterwards on
-# the clip. Review before publishing always stays hers.
-AUTO = ("hook", "filler", "cover")
+# the clip. The framing of landscape footage on vertical platforms (follow the subject) and the post copy (the AI's
+# draft) likewise. Review before publishing always stays hers.
+AUTO = ("hook", "filler", "cover", "framing", "copy")
 _ASKS_FOR = {"hook": r"hook|opening|cold open|teaser|开场|开头|高光预告|预告",
              "cover": r"cover|thumbnail|封面|缩略图",
-             "filler": r"(confirm|确认).{0,12}(filler|口癖|气口)"}
+             "filler": r"(confirm|确认).{0,12}(filler|口癖|气口)",
+             "framing": r"\bblur|模糊|framing|reframe|竖屏取景",
+             "copy": r"(copy|caption|文案).{0,12}(ask|check|confirm|问我|确认)|(ask|check|confirm|问我|确认).{0,12}(copy|caption|文案)"}
 
 
 def auto_checkpoints(prompt):

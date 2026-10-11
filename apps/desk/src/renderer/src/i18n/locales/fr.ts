@@ -873,6 +873,8 @@ const v04Fr: Record<keyof typeof v04En, string> = {
   'checkpoint.keywords': 'Vérifier les mots-clés en couleur',
   'checkpoint.segment-approval': 'Valider la sélection',
   'checkpoint.cover-pick': 'Choisir une couverture',
+  'checkpoint.reframe-pick': 'Cadrage vertical',
+  'checkpoint.copy-pick': 'Texte de publication',
   'checkpoint.budget-approval': 'Valider la dépense',
   'checkpoint.take-selection': 'Choisir les prises',
   'checkpoint.script-lock': 'Figer le script',

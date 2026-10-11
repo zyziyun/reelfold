@@ -4,7 +4,7 @@
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw } from 'lucide-react';
-import type { EditOp, OutputDoc } from '../../../shared/v04';
+import type { AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtDate, t, type MessageKey } from '../i18n';
 import { useEngine } from '../lib/engine';
@@ -144,6 +144,78 @@ export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- landscape on vertical screens
+/** The framing of a clip made from landscape footage (the vlog's ``framing`` answer: follow the subject / fill with
+ * blur), whoever chose it - the engine's decision or hers. Changing it answers that checkpoint in her name and the
+ * vertical versions are made again. */
+export function framingOf(doc: Pick<AutopilotDoc, 'decisions' | 'choices'> | null, clip: string): { checkpoint: string; item: string; choice: string; options: string[] } | null {
+  const mine = (it: string) => it === clip || clip.startsWith(`${it}/`);
+  const c = (doc?.choices ?? []).find((x) => x.kind === 'reframe-pick' && mine(x.item));
+  if (c) return { checkpoint: c.checkpoint, item: c.item, choice: c.choice === 'blur' ? 'blur' : 'follow', options: c.options?.length ? c.options : [...FILLS] };
+  const d = (doc?.decisions ?? []).find((x) => x.kind === 'reframe-pick' && !x.asked && mine(x.item));
+  return d ? { checkpoint: d.checkpoint, item: d.item, choice: d.params?.choice === 'blur' ? 'blur' : 'follow', options: [...FILLS] } : null;
+}
+
+const FILLS = ['follow', 'blur'] as const; // the engine's option order (vstudio.project.adapters.vlog.FILLS)
+
+export function ClipFill({ item, clip }: { item: string; clip: string }) {
+  const { client, subscribe } = useEngine();
+  const ui = useUi();
+  const [doc, setDoc] = useState<AutopilotDoc | null>(null);
+  const [n, setN] = useState(0);
+  const [mine, setMine] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!client) return;
+    let alive = true;
+    client
+      .autopilot(item)
+      .then((d) => alive && setDoc(d))
+      .catch(() => alive && setDoc(null));
+    return () => {
+      alive = false;
+    };
+  }, [client, item, n]);
+  useEffect(() => subscribe((e) => void (e.type === 'inbox' || e.type === 'batches' ? setN((x) => x + 1) : undefined)), [subscribe]);
+  useEffect(() => setMine(null), [item, clip]);
+  const f = framingOf(doc, clip);
+  if (!f) return null;
+  const cur = mine ?? f.choice;
+  const pick = async (k: (typeof FILLS)[number]) => {
+    if (!client || k === cur || busy) return;
+    if (doc?.running) {
+      ui.toast(t('hub.changeBusy'));
+      return;
+    }
+    const id = f.options.indexOf(k);
+    if (id < 0) return;
+    setBusy(true);
+    try {
+      await client.autopilotChange(item, f.checkpoint, f.item, { approve: [String(id)], keep: f.options.map((_x, i) => String(i)).filter((x) => x !== String(id)) });
+      setMine(k);
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ci-sec" data-testid="ci-fill" data-choice={cur}>
+      <span className="ci-lbl" data-tip={t('ci.fill.tip')}>
+        {t('ci.fill')}
+      </span>
+      <div className="ci-chips">
+        {FILLS.map((k) => (
+          <button key={k} className={`ci-chip ${cur === k ? 'on' : ''}`} aria-pressed={cur === k} disabled={busy} onClick={() => void pick(k)} data-testid={`ci-fill-${k}`}>
+            {cur === k && <Check className="ico" />}
+            {t(`ci.fill.${k}` as MessageKey)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -289,7 +361,7 @@ export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState;
 }
 
 // ---------------------------------------------------------------- the inspector (layout B)
-export function ClipInfoPanel({ doc, strip, time, edit, sched }: { doc: OutputDoc; strip: StripInfo | null; time: number; edit: EditFn; sched: ClipScheduleState }) {
+export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip }: { doc: OutputDoc; strip: StripInfo | null; time: number; edit: EditFn; sched: ClipScheduleState; item?: string; clip?: string }) {
   return (
     <section className="ci" data-testid="clip-info">
       <div className="ci-sec">
@@ -304,6 +376,7 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched }: { doc: OutputDo
         <span className="ci-lbl">{t('ci.versions')}</span>
         <ClipVersions doc={doc} edit={edit} />
       </div>
+      {item && clip && <ClipFill item={item} clip={clip} />}
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>
         <ClipScheduleView s={sched} />
