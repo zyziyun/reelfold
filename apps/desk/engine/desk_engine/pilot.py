@@ -305,10 +305,13 @@ def queued(d):
     return QUEUE.position(d)
 
 
-def run_args(python, d, autopilot=False, lang=None):
-    """The desk's run of a new project: a pilot of one (ask me first) or the whole project on autopilot."""
+def run_args(python, d, autopilot=False, lang=None, retry=False):
+    """The desk's run of a new project: a pilot of one (ask me first) or the whole project on autopilot.
+    ``retry`` (Try again): ``--resume`` too, so a run paused by its failure (a failed pilot job, the breaker) goes on
+    instead of ending at once; failed stages re-run, finished ones are cache hits."""
     how = ["--autopilot"] + (["--lang", lang] if lang in ("en", "zh", "fr") else []) if autopilot else ["--pilot", "1"]
-    return [python, "-m", "vstudio.project", "run", "--dir", d, *how, "--json-events"]
+    return [python, "-m", "vstudio.project", "run", "--dir", d, *how, *(["--resume"] if retry else []),
+            "--json-events"]
 
 
 def spawn(python, env, d, provider=None, bus=None, args=None):

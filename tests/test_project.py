@@ -480,3 +480,43 @@ def test_pilot_then_confirm_and_recipes_cli(tmp_path):
     assert "inbox" in out["capabilities"] and os.path.exists(out["schema"])
     ls = json.loads(cli("list", "--json").stdout)
     assert any(x["dir"] == p.dir for x in ls["projects"])
+
+
+# --------------------------------------------------------------------------- try again
+@pytest.mark.parametrize("pilot", [None, 1])
+def test_try_again_reruns_the_failed_stage_and_keeps_the_done_ones(tmp_path, monkeypatch, pilot):
+    """0.2.7: Try again on a failed project replayed the old failure in the same second, no stage started - the
+    re-plan (``_reopen_stale``) put the failed job back to "planned" while its failed stage row kept the same key,
+    and ``retry_failed`` only reset jobs still saying "failed". A failed pilot pauses the batch: ``resume`` goes on."""
+    from vstudio.project.adapters import preproduction as PP
+    real = PP.parse_lint
+
+    def parse_lint(*a, **k):                              # a module global: the stage fn itself is resolved once
+        if os.environ.get("VSTUDIO_TEST_BREAK_LINT"):
+            raise RuntimeError("No such filter: 'nope'")
+        return real(*a, **k)
+    monkeypatch.setattr(PP, "parse_lint", parse_lint)
+    monkeypatch.setenv("VSTUDIO_TEST_BREAK_LINT", "1")
+    pdir = str(tmp_path / "p")
+    Project.create(pdir, recipe="preproduction", items=[dict(id="001", inputs=dict(topic="hello"))])
+
+    def run(**kw):
+        evs = []
+        out = Project(pdir).run(on_event=evs.append, pilot=pilot, **kw)
+        return out, [e["stage"] for e in evs if e["event"] == "stage-start"], evs
+
+    out, started, _ = run()
+    assert started == ["draft", "lint"] and out["items"][0]["state"] == "failed"
+    out, started, _ = run(resume=bool(pilot))              # still broken: the failed stage runs again, fails again
+    assert started == ["lint"] and out["items"][0]["state"] == "failed"
+    monkeypatch.delenv("VSTUDIO_TEST_BREAK_LINT")
+    out, started, evs = run(resume=bool(pilot))
+    assert started[0] == "lint" and "draft" not in started  # the done stage is a cache hit
+    assert out["items"][0]["state"] != "failed"
+    assert not any(e["event"] == "job-done" and e["state"] == "failed" for e in evs)
+    st = Store(os.path.join(pdir, "state"))
+    try:
+        rows = st.stage_rows("001")
+        assert rows["draft"]["attempts"] == 1 and rows["lint"]["state"] == "done"
+    finally:
+        st.close()

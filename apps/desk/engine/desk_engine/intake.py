@@ -100,6 +100,12 @@ def auto_checkpoints(prompt):
     return [c for c in AUTO if not re.search(_ASKS_FOR[c], prompt or "", re.I)]
 
 
+def _on_autopilot(d):
+    """The project runs on autopilot (project.yaml ``autopilot.on``): its runs never stop for a pilot review."""
+    from .history import summarize_project
+    return bool(summarize_project(d).get("autopilot"))
+
+
 class Unavailable(RuntimeError):
     """The engine's intake (``python -m vstudio.intake``) did not answer: nothing is planned or applied."""
 
@@ -633,11 +639,11 @@ class Intake:
                     self._spawn_pilot(p["dir"], autopilot=autopilot, lang=lang)
         return projects
 
-    def _spawn_pilot(self, d, provider=None, autopilot=False, lang=None):
+    def _spawn_pilot(self, d, provider=None, autopilot=False, lang=None, retry=False):
         """The project's first run: on autopilot the whole project, else a pilot of one (``pilot.run_args``)."""
         from . import pilot
         pilot.spawn(self.runner.python, self.runner.env, d, provider=provider, bus=self.bus,
-                    args=pilot.run_args(self.runner.python, d, autopilot, lang))
+                    args=pilot.run_args(self.runner.python, d, autopilot, lang, retry=retry))
 
     def resume_pilot(self, d):
         """「再试一次」 on a project she stopped: the same run again (the command its record keeps; the engine skips
@@ -650,11 +656,12 @@ class Intake:
             raise BadRequest(f"{e}. Nothing was run; try again.") from e
         rec = read_json(os.path.join(d, pilot.REC), None) or {}
         a = rec.get("args") if isinstance(rec, dict) else None
-        if isinstance(a, list) and a and all(isinstance(x, str) for x in a):
-            args = [self.runner.python, *a]
+        if _on_autopilot(d):                       # a run recorded as a pilot (an older Try again) never sticks
+            args = pilot.run_args(self.runner.python, d, True, retry=True)
+        elif isinstance(a, list) and a and all(isinstance(x, str) for x in a):
+            args = [self.runner.python, *a, *(["--resume"] if "run" in a and "--resume" not in a else [])]
         else:
-            from .history import summarize_project
-            args = pilot.run_args(self.runner.python, d, bool(summarize_project(d).get("autopilot")))
+            args = pilot.run_args(self.runner.python, d, False, retry=True)
         pilot.spawn(self.runner.python, self.runner.env, d, provider=rec.get("provider"), bus=self.bus, args=args)
         if self.bus:
             self.bus.publish("batches")
@@ -670,7 +677,7 @@ class Intake:
             self._need_engine()
         except Unavailable as e:
             raise BadRequest(f"{e}. Nothing was run; try again.") from e
-        self._spawn_pilot(d, provider)
+        self._spawn_pilot(d, provider, autopilot=_on_autopilot(d), retry=True)   # made on autopilot: retried on autopilot
         if self.bus:
             self.bus.publish("batches")
             self.bus.publish("inbox")

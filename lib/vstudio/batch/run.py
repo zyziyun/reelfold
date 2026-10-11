@@ -224,11 +224,14 @@ class Runner:
         if self.only:
             jobs = [j for j in jobs if j["id"] in self.only]
         if self.retry_failed:
+            # every selected job, not only those still saying "failed": a re-plan (project ``_reopen_stale``) puts a
+            # failed job back to "planned" while its stage row stays failed under the same key, and ``_scan`` then
+            # ends that job as failed at once, replaying the old error without running anything (desk Try again)
             for j in jobs:
-                if j["state"] == "failed":
-                    for st, r in self.store.stage_rows(j["id"]).items():
-                        if r["state"] == "failed":
-                            self.store.set_stage(j["id"], st, state="pending", attempts=0, not_before=0, error=None)
+                bad = [st for st, r in self.store.stage_rows(j["id"]).items() if r["state"] == "failed"]
+                for st in bad:
+                    self.store.set_stage(j["id"], st, state="pending", attempts=0, not_before=0, error=None)
+                if j["state"] == "failed" or bad:
                     self.store.set_job(j["id"], state="planned", qc=None, qc_reasons=None)
         if self.pilot:
             prev = [j["id"] for j in self.store.jobs() if j.get("pilot")]

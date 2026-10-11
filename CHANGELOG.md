@@ -17,6 +17,9 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 - A render that fails because of the app (a missing filter or encoder) now says it is a bug in Reelfold with
   "Report this problem", instead of "One of the files couldn't be read". A file that really can't be read is
   named, and a drive that isn't connected is called out.
+- **Try again on a failed project** really runs again: the failed step is re-run (finished steps are kept), a
+  project made on autopilot is retried on autopilot, and a pilot that stopped on its failure goes on. Before, it
+  replayed the old error in the same second without running anything.
 
 ## [0.2.7] - 2026-10-11
 
