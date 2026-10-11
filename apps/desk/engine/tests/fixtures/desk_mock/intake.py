@@ -17,6 +17,11 @@ Autopilot (a request sent with mode autopilot): the simulated run makes every cl
 writes each finished clip into ``final/`` (a tiny real video + cover) and records what it decided in
 ``.vstudio/mock-autopilot.json`` (``MockAutopilot`` serves it like ``vstudio.project decisions``). Runs go through the
 desk's run queue (``pilot.QUEUE``), so a third project waits in line like a real one.
+
+The live pane (``desk_engine.live``): the simulated model calls write Claude Code ``stream-json`` events through the
+engine's own parser (``vstudio.agentlog.claude_event``) into the request's / the project's live transcript, one event
+per tick, so the desk's pane streams them like a real run. ``DESK_MOCK_SECRET=1`` plants a key in one tool result
+(the desk's tests check it never reaches the pane).
 """
 import hashlib
 import json
@@ -28,6 +33,30 @@ import time
 from desk_engine import pilot as P
 from desk_engine.common import read_json, write_json
 from desk_engine.intake import PLATFORMS, Intake, _slug, material
+from desk_engine.live import LIVE_NAME
+
+
+def mock_turn(path, task, prompt, think, tool, result, reply, step):
+    """One simulated Claude Code call in the live transcript: turn + prompt, then the stream events one per tick
+    (through the engine's own stream parser and redaction), then the result line."""
+    try:
+        from vstudio import agentlog as A
+    except Exception:  # noqa: BLE001  (no engine library on the path: nothing to show)
+        return
+    turn = A.new_turn()
+    A.emit("turn", f"{task} · claude-code", path=path, turn=turn, task=task, provider="claude-code")
+    A.emit("prompt", prompt, path=path, turn=turn, provider="claude-code", data=dict(chars=len(prompt)))
+    if os.environ.get("DESK_MOCK_SECRET"):
+        result = result + " · ANTHROPIC_API_KEY=sk-ant-" "api03-PLANTEDSECRET0000"
+    for ev in (dict(type="system", subtype="init", model="claude-sonnet-test"),
+               dict(type="assistant", message=dict(content=[dict(type="thinking", thinking=think)])),
+               dict(type="assistant", message=dict(content=[dict(type="tool_use", name="Read", input=dict(file_path=tool))])),
+               dict(type="user", message=dict(content=[dict(type="tool_result", content=result)])),
+               dict(type="assistant", message=dict(content=[dict(type="text", text=reply)]))):
+        A.claude_event(ev, turn, path=path)
+        time.sleep(step)
+    A.emit("result", f"{900 + len(prompt):,} in · 64 out · {step * 5:.1f} s · subscription", path=path, turn=turn,
+           provider="claude-code", model="claude-sonnet-test")
 
 
 RECIPES = [  # (pattern, recipe, zh label, role)
@@ -258,7 +287,10 @@ class MockIntake(Intake):
                 time.sleep(step / 4)
                 ev("transcribe", "progress", file=video["name"], done_s=round(total * k / ticks, 1), total_s=total)
         ev("model", provider="claude-code")
-        time.sleep(step)                                   # the model call
+        names = ", ".join(material(p, self.probe)["name"] for p in inputs[:3]) or "no files"
+        mock_turn(self.live_path(pid), "intake", f"Plan short videos from: {names}", "Reading the request and the "
+                  "materials; one long recording, so slices.", "inventory.json", f"{len(inputs)} entries",
+                  "Plan: slices of the recording, one project per platform group.", step / 2)
 
     _plan_fails = 0
 
@@ -400,7 +432,12 @@ class MockIntake(Intake):
                     f.write(json.dumps(dict(event="stage-start", ts=time.time(), job=item, stage=stage)) + "\n")
                 if self.bus:
                     self.bus.publish("batches")
-                time.sleep(step)
+                if stage == "cleanup":                    # the one AI call of a clip: the unsure cuts
+                    mock_turn(os.path.join(d, LIVE_NAME), "cleanup", f"{item}: which of these 4 pauses and ums to cut",
+                              "Three ums are filler; the pause before the punchline is timing.", f"{item}.words.json",
+                              "412 words, 4 marked", "Cut 3, keep the pause before the punchline.", step / 5)
+                else:
+                    time.sleep(step)
             name = f"{k + 1:02d}_clip"
             MockEngine._mock_video(None, os.path.join(d, "final", f"{name}.mp4"))
             MockEngine._mock_cover(None, os.path.join(d, "final", f"{name}_cover.jpg"))

@@ -31,7 +31,7 @@ Routes (JSON unless noted)
   GET  /api/batches/<id>/events?n=50&job=
   GET  /api/batches/<id>/jobs/<job>        job detail (stages, QC, cleanup words + edits, media paths)
   GET  /api/stream                         text/event-stream: status | log | run-start | run-exit | batches
-                                           | clients | plan | job-edit
+                                           | clients | plan | job-edit | live
 v0.2 (studio.py; engine command when available, desk implementation otherwise)
   GET  /api/capabilities                   which v0.2 engine commands exist
   GET  /api/clients | POST /api/clients    client workspaces (client.yaml)
@@ -62,6 +62,9 @@ History (history.py; read-only discovery of past work: desk + engine registries,
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
   POST /api/history/item/<id>/adopt        {recipe?: guess|name, title?} plain work folder -> .vstudio/work.json
   GET  /api/history/item/<id>/progress?n=  the run's last events as codes (「看过程」 in the control room)
+  GET  /api/live/request/<id>?cursor=      the live pane (live.py): a request's / a project run's transcript - the
+  GET  /api/live/project/<item>?cursor=    model CLIs' turns + the engine's stages and log, redacted - after the
+                                           cursor; while watched, ``live {key}`` stream events say it grew
 v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk implementation otherwise)
   GET  /api/outputs/<item>                 one clip per output {clips [{id, title, state, files, cover, post}], confirm}
   GET  /api/outputs/<item>/<clip>          player + editor document (words, captions, effects, caps, ops, version)
@@ -514,6 +517,8 @@ class Api:
         self.share = Share(engine.data_dir, self.history, self.outputs, self.inbox, bus)
         from .watermark import Watermark           # Settings › Watermark (vstudio.watermark settings + previews)
         self.watermark = Watermark()
+        from .live import LiveHub                  # the live pane: a job's transcript + a nudge when it grows
+        self.live = LiveHub(bus)
         self.port = None
         self.socket_path = None
 
@@ -852,6 +857,28 @@ class Api:
                 return s.rerun(bid, rest[1])
         return None
 
+    def route_live(self, parts, query):
+        """GET /api/live/request/<id> | /api/live/project/<item> ?cursor= -> the job's transcript after the cursor
+        (``desk_engine.live``); each call keeps the job watched (``live`` events while its files grow)."""
+        from . import live as L
+        need(len(parts) == 2 and parts[0] in ("request", "project"), "live/request/<id> | live/project/<item>")
+        cursor = (query.get("cursor") or [None])[0]
+        need(cursor is None or re.match(r"^[0-9:,]{0,80}$", cursor), "bad cursor")
+        if parts[0] == "request":
+            need(re.match(r"^[0-9a-f]{12}$", parts[1]), "bad request id")
+            src = L.request_sources(self.engine.data_dir, parts[1])
+            j = self.intake.jobs.get(parts[1]) or {}
+            running = j.get("state") == "running"
+        else:
+            need(ID_RE.match(parts[1]), "bad item id")
+            d = self.history.find(parts[1])["dir"]
+            src = L.project_sources(d)
+            from .pilot import running as run_of
+            running = bool(run_of(d))
+        key = f"{parts[0]}:{parts[1]}"
+        self.live.watch(key, src)
+        return dict(L.read(src, cursor), key=key, running=running)
+
     def route(self, method, path, query, body):
         e = self.engine
         parts = [p for p in path.split("/") if p][1:]          # drop "api"
@@ -867,6 +894,8 @@ class Api:
             r = self.watermark.route(method, parts, body, query)
             if r is not None:
                 return r
+        if parts[:1] == ["live"] and method == "GET":
+            return self.route_live(parts[1:], query)
         if parts[:1] != ["batches"]:
             r = self.route_v04(method, parts, query, body)
             if r is not None:

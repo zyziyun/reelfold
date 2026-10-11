@@ -172,14 +172,29 @@ class Intake:
                 self._streams = False
         return self._streams
 
+    def live_path(self, pid):
+        """The request's live transcript (``desk_engine.live``): the model CLIs' turns + the engine's stages / log."""
+        from .live import request_path
+        return request_path(os.path.dirname(self.dir), pid)
+
+    def _live(self, pid, kind, text, data=None):
+        from .live import emit_engine
+        emit_engine(self.live_path(pid), kind, text, data)
+
     def _run(self, pid, args, timeout):
-        """``vstudio.intake <args> --json`` -> its plan document; progress events go to the job as they come."""
+        """``vstudio.intake <args> --json`` -> its plan document; progress events go to the job as they come, and
+        the model CLIs' turns + the engine's log go to the request's live transcript."""
+        from .live import AGENT_ENV
         r = self.runner.sibling("vstudio.intake")
         track = self._procs.setdefault(pid, [])
+        os.makedirs(self.dir, exist_ok=True)
+        env = {AGENT_ENV: self.live_path(pid)}
+        self._live(pid, "cmd", f"vstudio.intake {args[0]}")
         if self.streams():
-            done = r.events([*args, "--json-events"], lambda ev: self._progress(pid, ev), timeout=timeout, track=track)
+            done = r.events([*args, "--json-events"], lambda ev: self._progress(pid, ev), timeout=timeout, track=track,
+                            env_extra=env, on_log=lambda ln: self._live(pid, "log", ln))
             return done.get("plan") or {}
-        return r.json(args, timeout=timeout, track=track)
+        return r.json(args, timeout=timeout, track=track, env_extra=env)
 
     def _progress(self, pid, ev):
         """One engine event -> the job's ``progress``: a ``stage`` event says what it is doing now (the previous
@@ -189,6 +204,11 @@ class Intake:
         stage = ev.get("stage")
         if not stage:
             return
+        if ev.get("event") in ("stage", "progress"):
+            from .live import intake_stage_text
+            self._live(pid, "stage" if ev.get("event") == "stage" else "progress", intake_stage_text(ev),
+                       {k: ev.get(k) for k in ("event", "stage", "file", "i", "n", "kind", "done_s", "total_s", "cached",
+                                               "provider", "model", "files", "inputs") if ev.get(k) is not None})
         if ev.get("event") == "progress":
             if stage != cur.get("stage"):
                 return
@@ -346,6 +366,8 @@ class Intake:
             self._fail(pid, e)
             return
         names = [p.get("name") for p in plan.get("projects") or [] if p.get("name")]
+        self._live(pid, "done", f"plan ready · {len(plan.get('projects') or [])} projects" +
+                   (f" · {', '.join(names[:4])}" if names else ""), dict(projects=len(plan.get("projects") or [])))
         if plan.get("needs"):                       # something only she can give: it waits for her, nothing runs
             self._set(pid, state="needs", step="needs", plan=plan, needs=plan["needs"], seconds=self._took(pid),
                       name=names[0] if names else None)
@@ -480,6 +502,7 @@ class Intake:
         own = str(((getattr(e, "doc", None) or {}) if isinstance(getattr(e, "doc", None), dict) else {}).get("code") or "")
         code = "intake" if isinstance(e, Unavailable) else own if re.match(r"^plan-[a-z-]{2,30}$", own) else \
             "plan-empty" if "no inputs" in txt else pilot.classify(txt)
+        self._live(pid, "error", f"failed · {code} · {pilot.scrub(txt, 300)}")
         j = self._set(pid, state="error", error=pilot.scrub(txt, 500), error_code=code,
                       error_provider=None if isinstance(e, Unavailable) else pilot.provider_of(txt))
         if j.get("mode") and self.bus:              # a request from Home: All projects and the Inbox say so
@@ -492,6 +515,7 @@ class Intake:
         j = self.get(pid)
         killed = kill_tracked(self._procs.get(pid) or [])
         if j.get("state") == "running":
+            self._live(pid, "stop", "stopped by you")
             self._set(pid, state="stopped", step="stopped", error=None)
         return dict(ok=True, id=pid, killed=killed)
 

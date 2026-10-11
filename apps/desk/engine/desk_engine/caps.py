@@ -71,13 +71,17 @@ class CliRunner:
         """The same Python + env for another engine module (vstudio.project, vstudio.intake)."""
         return CliRunner(self.python, self.env, self.timeout, module)
 
-    def _run(self, args, timeout=None, cwd=None, track=None):
+    def _env(self, extra):
+        return dict(self.env, **extra) if extra else self.env
+
+    def _run(self, args, timeout=None, cwd=None, track=None, env_extra=None):
         """``track``: a list the child is appended to while it runs (its own process group, so a stop can kill it
         together with the model CLI it started: :func:`kill_tracked`)."""
         cmd = [self.python, "-m", self.module, *args]
         try:
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env,
-                                 cwd=cwd, stdin=subprocess.DEVNULL, start_new_session=track is not None)
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                 env=self._env(env_extra), cwd=cwd, stdin=subprocess.DEVNULL,
+                                 start_new_session=track is not None)
         except OSError as e:
             raise CliError(f"{self.module} {args[0]}: {e}") from e
         if track is not None:
@@ -97,8 +101,8 @@ class CliRunner:
         p = self._run(args, timeout=timeout)
         return (p.stdout or "") + (p.stderr or "")
 
-    def json(self, args, timeout=None, cwd=None, track=None):
-        p = self._run(args, timeout=timeout, cwd=cwd, track=track)
+    def json(self, args, timeout=None, cwd=None, track=None, env_extra=None):
+        p = self._run(args, timeout=timeout, cwd=cwd, track=track, env_extra=env_extra)
         out = (p.stdout or "").strip()
         try:
             doc = json.loads(out) if out else None
@@ -116,13 +120,15 @@ class CliRunner:
             raise CliError(str(doc.get("error") or doc.get("message") or doc.get("reason") or f"{args[0]} failed"), doc)
         return doc
 
-    def events(self, args, on_event, timeout=None, track=None):
+    def events(self, args, on_event, timeout=None, track=None, env_extra=None, on_log=None):
         """``args`` with ``--json-events``: every {event: ...} line goes to ``on_event`` as it arrives; -> the final
-        {event: done} line. A child that ends without one raises ``CliError`` (its error event, else stderr's tail)."""
+        {event: done} line. A child that ends without one raises ``CliError`` (its error event, else stderr's tail).
+        ``env_extra``: added to the child's environment; ``on_log``: each stderr line as it comes (the live pane)."""
         cmd = [self.python, "-m", self.module, *args]
         try:
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env,
-                                 stdin=subprocess.DEVNULL, start_new_session=track is not None, bufsize=1)
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                 env=self._env(env_extra), stdin=subprocess.DEVNULL,
+                                 start_new_session=track is not None, bufsize=1)
         except OSError as e:
             raise CliError(f"{self.module} {args[0]}: {e}") from e
         if track is not None:
@@ -133,6 +139,11 @@ class CliRunner:
             for line in p.stderr:
                 tail.append(line.rstrip())
                 del tail[:-20]
+                if on_log and line.strip():
+                    try:
+                        on_log(line.rstrip())
+                    except Exception:  # noqa: BLE001
+                        pass
         t_err = threading.Thread(target=drain, daemon=True)
         t_err.start()
         expired = threading.Event()

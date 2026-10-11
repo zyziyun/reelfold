@@ -297,12 +297,16 @@ def _start(python, env, d, provider=None, bus=None, args=None, done=None):
         offset = os.path.getsize(log_path)
     except OSError:
         offset = 0
+    from .live import AGENT_ENV, LIVE_NAME, file_size
+    agent_path = os.path.join(d, LIVE_NAME)                   # the live pane: the model CLIs' turns of this run
+    agent_offset = file_size(agent_path)
     log = open(log_path, "ab")  # noqa: SIM115  (handed to the child)
     cmd = args or [python, "-m", "vstudio.project", "run", "--dir", d, "--pilot", "1", "--json-events"]
-    p = subprocess.Popen(cmd, stdout=log, stderr=log, stdin=subprocess.DEVNULL, env=retry_env(env, provider),
-                         start_new_session=True)
+    p = subprocess.Popen(cmd, stdout=log, stderr=log, stdin=subprocess.DEVNULL,
+                         env=dict(retry_env(env, provider), **{AGENT_ENV: agent_path}), start_new_session=True)
     log.close()
-    rec = dict(pid=p.pid, started=time.time(), offset=offset, exit=None, finished=None, provider=provider)
+    rec = dict(pid=p.pid, started=time.time(), offset=offset, agent_offset=agent_offset, exit=None, finished=None,
+               provider=provider)
     write_json(os.path.join(d, REC), rec)
 
     def wait():
