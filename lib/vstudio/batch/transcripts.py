@@ -60,10 +60,11 @@ def load_any(path):
 # --------------------------------------------------------------------------- words of a finished cut, without ASR
 def job_dir_of(path, depth=5):
     """The batch job folder a stage file belongs to (``jobs/<id>/<stage>/...``: the nearest parent holding
-    ``job.json`` and an ``apply`` stage) -> path or None."""
+    ``job.json`` and an ``apply`` stage, or a talking-head job's ``compose/timeline.json``) -> path or None."""
     d = os.path.dirname(os.path.abspath(path))
     for _ in range(depth):
-        if os.path.isfile(os.path.join(d, "job.json")) and os.path.isdir(os.path.join(d, "apply")):
+        if os.path.isfile(os.path.join(d, "job.json")) and (
+                os.path.isdir(os.path.join(d, "apply")) or os.path.isfile(os.path.join(d, "compose", "timeline.json"))):
             return d
         nd = os.path.dirname(d)
         if nd == d:
@@ -92,6 +93,8 @@ def mapped_words(path, duration=None, tol=0.35):
     jd = job_dir_of(path)
     if not jd:
         return None
+    if not os.path.isdir(os.path.join(jd, "apply")):
+        return _vtrack_words(jd, duration, tol)
     job = read_json(os.path.join(jd, "job.json")) or {}
     p = job.get("params") if isinstance(job.get("params"), dict) else {}
     try:
@@ -115,5 +118,36 @@ def mapped_words(path, duration=None, tol=0.35):
     total = t + (bdur or 0) / s
     if duration and total and abs(float(duration) - total) > tol:
         return None
+    out.sort(key=lambda w: w["t"])
+    return out or None
+
+
+def _vtrack_words(jd, duration=None, tol=0.35):
+    """A talking-head job (``cleanup`` + ``compose``, no ``apply`` stage): the cleanup sidecar compose played
+    (``compose/segs.json`` ``sidecar``: words in body seconds) placed at ``BODY_START + t / BODY_SPEED``
+    (``compose/timeline.json``, the workflow's own mapping). The hook montage before ``BODY_START`` re-cuts body
+    moments and gets no words of its own. -> words or None (sidecars gone, or another length than ``duration``)."""
+    tl = read_json(os.path.join(jd, "compose", "timeline.json"))
+    segs = read_json(os.path.join(jd, "compose", "segs.json"))
+    if not isinstance(tl, dict) or not isinstance(segs, dict):
+        return None
+    name = segs.get("sidecar")
+    if not isinstance(name, str) or not name or os.sep in name or "/" in name or name.startswith("."):
+        return None
+    body, bdur = _sidecar_words(os.path.join(jd, "cleanup", name))
+    if body is None:
+        return None
+    try:
+        start = float(tl.get("BODY_START") or 0.0)
+        speed = float(tl.get("BODY_SPEED") or 1.0)
+    except (TypeError, ValueError):
+        return None
+    if speed <= 0:
+        return None
+    total = float(tl.get("TOTAL") or 0) or (start + (bdur or 0) / speed)
+    if duration and total and abs(float(duration) - total) > tol:
+        return None
+    out = [dict(w=str(w["w"]).strip(), t=round(start + float(w["t"]) / speed, 3),
+                te=round(start + float(w["te"]) / speed, 3)) for w in body]
     out.sort(key=lambda w: w["t"])
     return out or None

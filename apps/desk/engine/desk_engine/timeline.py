@@ -24,7 +24,7 @@ import time
 
 from .common import read_json, write_json
 
-VERSION = 2
+VERSION = 3                 # 3: the last tile of a clip is never black (fps eof_action=pass)
 MAX_TILES = 240
 TILE_H = 96
 COLS = 12
@@ -148,7 +148,7 @@ class Strips:
         if duration > 600:
             cmd += ["-skip_frame", "nokey"]           # long outputs: keyframes are close enough at >= 2.5 s a tile
         cmd += ["-i", path, "-an", "-sn", "-dn", "-vf",
-                f"fps=1/{p['interval']}:round=down,scale={tw}:{tht}:force_original_aspect_ratio=increase,"
+                f"fps=1/{p['interval']}:round=down:eof_action=pass,scale={tw}:{tht}:force_original_aspect_ratio=increase,"
                 f"crop={tw}:{tht},tile={p['cols']}x{p['rows']}", "-frames:v", "1", "-q:v", "5", out]
         try:
             subprocess.run(cmd, capture_output=True, timeout=600, stdin=subprocess.DEVNULL, check=True)

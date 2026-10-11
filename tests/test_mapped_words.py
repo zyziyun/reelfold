@@ -104,3 +104,35 @@ def test_mapped_times_match_a_fresh_hearing_within_50ms(tmp_path):
             errs.append(min(abs(w["t"] + 0.04 - h["t"]) for w in cands))
     assert len(errs) >= 0.8 * len(heard), (len(errs), len(heard))
     assert max(errs) < 0.05, sorted(errs)[-5:]
+
+
+def _vtrack_job(tmp, timeline, sidecar_keep, words=SRC):
+    """A talking-head job: cleanup/<sidecar>.cleanup.json + compose/{segs,timeline}.json, no ``apply`` stage."""
+    jd = tmp / "jobs" / "assembled"
+    (jd / "cleanup").mkdir(parents=True)
+    (jd / "compose").mkdir(parents=True)
+    (jd / "export" / "exports").mkdir(parents=True)
+    (jd / "job.json").write_text(json.dumps(dict(id="assembled", params=dict(speed=1.5))), encoding="utf-8")
+    _sidecar(jd / "cleanup" / "body2_a.cleanup.json", sidecar_keep, words)
+    (jd / "compose" / "segs.json").write_text(json.dumps(dict(sidecar="body2_a.cleanup.json")), encoding="utf-8")
+    (jd / "compose" / "timeline.json").write_text(json.dumps(timeline), encoding="utf-8")
+    f = jd / "export" / "exports" / "xiaohongshu-vertical.mp4"
+    f.write_bytes(b"")
+    return jd, f
+
+
+def test_talkinghead_body_at_its_speed(tmp_path):
+    # the talking-head workflow's own mapping: final = BODY_START + body_t / BODY_SPEED (no apply stage)
+    jd, f = _vtrack_job(tmp_path, dict(HOOK_DUR=0.0, BODY_START=0.0, BODY_SPEED=1.5, TOTAL=0.667), [(0.4, 1.4)])
+    assert job_dir_of(str(f)) == str(jd)
+    W = mapped_words(str(f), duration=0.67)
+    assert [w["w"] for w in W] == ["one", "two"]
+    assert W[0]["t"] == pytest.approx(0.1 / 1.5, abs=0.01)
+    assert W[1]["te"] == pytest.approx(0.9 / 1.5, abs=0.01)
+
+
+def test_talkinghead_after_its_hook_and_length_checked(tmp_path):
+    _jd, f = _vtrack_job(tmp_path, dict(HOOK_DUR=2.0, BODY_START=2.0, BODY_SPEED=1.25, TOTAL=4.0), [(0.4, 2.9)])
+    W = mapped_words(str(f), duration=4.0)
+    assert W[0]["w"] == "one" and W[0]["t"] == pytest.approx(2.0 + 0.1 / 1.25, abs=0.01)
+    assert mapped_words(str(f), duration=2.5) is None                               # another variant: transcribe

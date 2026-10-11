@@ -83,6 +83,22 @@ class StripTest(unittest.TestCase):
         self.assertEqual(out, f"{12 * 54},{1 * 96}")
         self.assertTrue(m["sprite"].startswith(os.path.join(self.root, "desk", "strips")))  # never next to her file
 
+    def test_every_tile_has_a_frame_even_the_last(self):
+        # a 0.9 s clip (a very short recording): 2 tiles; the fps filter used to drop the last frame at the end of
+        # the file, so the second tile (and the cover choices drawn from it) came out black
+        f = os.path.join(self.root, "short.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=white:size=180x320:rate=30:duration=0.9",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", f], check=True)
+        m = self.s.build(f)
+        self.assertEqual(m["n"], 2)
+        tw, th = m["tile"]
+        for k in range(m["n"]):
+            out = subprocess.run(["ffmpeg", "-v", "error", "-i", m["sprite"], "-vf",
+                                  f"crop={tw}:{th}:{k * tw}:0,signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG:file=-",
+                                  "-f", "null", "-"], capture_output=True, text=True).stdout
+            yavg = float(out.strip().split("=")[-1])
+            self.assertGreater(yavg, 128, f"tile {k} is black")
+
     def test_no_audio(self):
         f = os.path.join(self.root, "silent.mp4")
         make_video(f, dur=2, w=320, h=180, audio=False)
