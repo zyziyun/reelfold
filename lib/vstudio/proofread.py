@@ -46,6 +46,7 @@ returns) under ``low_conf`` (default 0.5), attached to the cue they fall in - sh
 import difflib
 import json
 import os
+import threading
 import re
 
 from . import asr
@@ -1205,7 +1206,7 @@ class CueCache:
     def put(self, key, value):
         p = self._path(key)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        tmp = f"{p}.{os.getpid()}.tmp"
+        tmp = f"{p}.{os.getpid()}.{threading.get_ident()}.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(value, f, ensure_ascii=False)
         os.replace(tmp, p)

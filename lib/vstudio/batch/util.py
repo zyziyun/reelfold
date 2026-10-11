@@ -3,6 +3,7 @@ import hashlib
 import importlib
 import json
 import os
+import threading
 import re
 import time
 
@@ -29,7 +30,7 @@ def sha256_file(path, chunk=1 << 20):
 def write_json(path, obj):
     """Atomic JSON write (tmp + replace)."""
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    tmp = f"{path}.tmp{os.getpid()}"
+    tmp = f"{path}.tmp{os.getpid()}.{threading.get_ident()}"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1, default=str)
     oscompat.replace(tmp, path)

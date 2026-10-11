@@ -92,7 +92,7 @@ def write(d, status, stage=None, progress=None, message=None, eta=None, needs_yo
             pass
         p = status_path(d)
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        tmp = f"{p}.tmp{os.getpid()}"
+        tmp = f"{p}.tmp{os.getpid()}.{threading.get_ident()}"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(rec, f, ensure_ascii=False)
         os.replace(tmp, p)

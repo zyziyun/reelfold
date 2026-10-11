@@ -18,6 +18,7 @@ run again; every new attempt starts with an empty outputs/.
 """
 import json
 import os
+import threading
 import shutil
 import subprocess
 import time
@@ -30,7 +31,7 @@ IMAGE = (".png", ".jpg", ".jpeg", ".webp")
 
 
 def _atomic_json(path, obj):
-    tmp = f"{path}.{os.getpid()}.tmp"
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1)
     os.replace(tmp, path)

@@ -38,7 +38,7 @@ def load_yaml(text):
 
 def write_text(path, text):
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    tmp = f"{path}.tmp{os.getpid()}"
+    tmp = f"{path}.tmp{os.getpid()}.{threading.get_ident()}"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, path)

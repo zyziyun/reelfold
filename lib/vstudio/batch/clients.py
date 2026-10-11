@@ -26,6 +26,7 @@ with the client's brand, fillers, tags, term fixes on top - which every ``run`` 
 """
 import json
 import os
+import threading
 import re
 import time
 
@@ -102,7 +103,7 @@ def load(cdir):
 def save(cdir, cfg):
     os.makedirs(cdir, exist_ok=True)
     p = yaml_path(cdir)
-    tmp = f"{p}.tmp{os.getpid()}"
+    tmp = f"{p}.tmp{os.getpid()}.{threading.get_ident()}"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("# client.yaml - this client's settings, layered over the global persona (vstudio.batch clients)\n")
         f.write(_dump_yaml(cfg))

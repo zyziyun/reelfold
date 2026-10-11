@@ -45,7 +45,7 @@ def replace(src, dst, wait=5.0):
 
 def write_json(path, obj):
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    tmp = f"{path}.tmp{os.getpid()}"
+    tmp = f"{path}.tmp{os.getpid()}.{threading.get_ident()}"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1, default=str)
     replace(tmp, path)
