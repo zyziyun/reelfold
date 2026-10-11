@@ -157,26 +157,35 @@ test.beforeAll(async () => {
     return '';
   });
   expect(fuyeId).toMatch(/^[0-9a-f]{12}$/);
-  // today's posts: two out already, two still to go
+  // today's posts: two out already, two still to go. The two to go stay later today whatever the clock says: a
+  // planned post whose time has passed is due, and Home rightly shows it in the Due banner with a filled Post now.
+  // In the last quarter hour of a day, wait for the next one so the suite's few minutes cannot cross midnight.
+  const left = () => 24 * 60 - (new Date().getHours() * 60 + new Date().getMinutes());
+  if (left() <= 15) {
+    test.setTimeout(left() * 60_000 + 120_000);
+    await new Promise((r) => setTimeout(r, left() * 60_000 + 5_000));
+  }
   const d = new Date();
   const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const later = Math.min(d.getHours() * 60 + d.getMinutes() + 120, 24 * 60 - 2);
   await page.evaluate(
-    async ([item, today]) => {
+    async ([item, today, t1, t2]) => {
       const info = await window.desk.engineInfo();
       const post = async (body: unknown, url = '/api/calendar') =>
         (await fetch(info.baseUrl + url, { method: 'POST', headers: { Authorization: `Bearer ${info.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
       const rows = [
         ['A_换圈子', '09:00', 'xiaohongshu', 'posted'],
         ['B_自媒体', '12:30', 'douyin', 'posted'],
-        ['C_底气', '18:00', 'xiaohongshu', 'planned'],
-        ['D_反哺主业', '20:00', 'douyin', 'planned'],
+        ['C_底气', t1, 'xiaohongshu', 'planned'],
+        ['D_反哺主业', t2, 'douyin', 'planned'],
       ];
       for (const [clip, time, platform, state] of rows) {
         const r = await post({ item, clip, at: `${today}T${time}`, platform });
         if (state === 'posted') await post({ state: 'posted' }, `/api/calendar/${r.id}`);
       }
     },
-    [fuyeId, day],
+    [fuyeId, day, hm(later), hm(later + 1)],
   );
 });
 
