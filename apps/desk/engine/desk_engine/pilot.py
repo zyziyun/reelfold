@@ -285,8 +285,8 @@ QUEUE = RunQueue()
 def stop(d, bus=None):
     """「停止」 a project's run (the Studio's row menu): out of the line when it waits there, else the run the desk
     started is interrupted (SIGINT to its session: the engine stops at a safe point and the run can go on later,
-    ``resume``). The record says ``stopped`` (not a failure). -> {ok, stopped: "queued" | "running" | None}"""
-    import signal
+    ``resume``; on Windows it is ended, ``proc.interrupt_pid``). The record says ``stopped`` (not a failure).
+    -> {ok, stopped: "queued" | "running" | None}"""
     recp = os.path.join(d, REC)
     rec = read_json(recp, None)
     rec = rec if isinstance(rec, dict) else {}
@@ -299,13 +299,8 @@ def stop(d, bus=None):
         rec.update(stopped=time.time(), queued=False)
         write_json(recp, rec)
     if how == "running":
-        try:
-            os.killpg(int(rec["pid"]), signal.SIGINT)        # the child runs in its own session (start_new_session)
-        except (OSError, ValueError):
-            try:
-                os.kill(int(rec["pid"]), signal.SIGINT)
-            except (OSError, ValueError):
-                pass
+        from .proc import interrupt_pid
+        interrupt_pid(rec["pid"])                            # the child runs in its own session (start_new_session)
     if bus:
         bus.publish("batches")
     return dict(ok=True, stopped=how)

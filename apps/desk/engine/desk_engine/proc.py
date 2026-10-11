@@ -65,3 +65,34 @@ def kill_tree(p, sig=signal.SIGTERM):
         except OSError:
             pass
     return True
+
+
+def interrupt_pid(pid):
+    """Stop the run with process id ``pid`` (started with ``start_new_session=True``) and what it started: POSIX -
+    SIGINT to its process group (the engine stops at a safe point), else to the process; Windows - ``taskkill /T /F``
+    (no graceful signal reaches a console child), else TerminateProcess. -> False when ``pid`` is not a number."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if WINDOWS:
+        try:
+            r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True,
+                               creationflags=CREATE_NO_WINDOW, timeout=15)
+            if r.returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+        try:
+            os.kill(pid, signal.SIGTERM)                  # TerminateProcess on Windows
+        except OSError:
+            pass
+        return True
+    try:
+        os.killpg(pid, signal.SIGINT)
+    except OSError:
+        try:
+            os.kill(pid, signal.SIGINT)
+        except OSError:
+            pass
+    return True
