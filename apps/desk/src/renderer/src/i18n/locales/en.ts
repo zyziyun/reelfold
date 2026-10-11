@@ -591,6 +591,7 @@ export const v04En = {
   'em.remake-already-follow': 'The vertical versions already follow the subject.',
   'em.remake-already-blur': 'The vertical versions already fill with blur.',
   'em.remake-busy': 'It is making something right now; ask again when it has finished.',
+  'em.remake-visuals': 'Drawing the visuals again: every scene as diagrams and animation by the AI, then a new render and exports. The voice and captions stay.',
   'em.why-zoom': 'Stresses this line',
   'fx.cat.cards': 'Cards',
   'fx.cat.progress': 'Progress',

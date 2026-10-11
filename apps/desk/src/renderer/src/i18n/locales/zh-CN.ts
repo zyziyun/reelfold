@@ -592,6 +592,7 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'em.remake-already-follow': '竖屏版本已经是跟随主体裁切了。',
   'em.remake-already-blur': '竖屏版本已经是模糊填充了。',
   'em.remake-busy': '现在正在制作，做完后再说一次。',
+  'em.remake-visuals': '正在重新设计画面：AI 把每一段重新画成图解动画，再重新渲染和导出。配音和字幕不变。',
   'em.why-zoom': '强调这句话',
   'fx.cat.cards': '卡片',
   'fx.cat.progress': '进度',

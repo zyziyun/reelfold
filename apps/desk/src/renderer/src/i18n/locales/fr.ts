@@ -1275,6 +1275,7 @@ const v04Fr: Record<keyof typeof v04En, string> = {
   'em.remake-already-follow': 'Les versions verticales suivent déjà le sujet.',
   'em.remake-already-blur': 'Les versions verticales ont déjà un fond flou.',
   'em.remake-busy': 'Une fabrication est en cours ; redemandez quand elle est terminée.',
+  'em.remake-visuals': 'Les visuels sont redessinés : chaque scène en schémas et animations par l’IA, puis un nouveau rendu et de nouveaux exports. La voix et les sous-titres restent.',
   'em.why-zoom': 'Met cette phrase en valeur',
   'fx.cat.cards': 'Cartes',
   'fx.cat.progress': 'Progression',

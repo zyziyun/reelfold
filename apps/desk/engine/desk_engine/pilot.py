@@ -170,6 +170,13 @@ def failure(d, now=None):
             if err:
                 bad = e
                 break
+    if bad is not None and not bad.get("code") and err:
+        # the CLI's closing {"ok": false, "error"} repeats the stage-fail before it: that one carries the engine's code
+        # (a remake no model drew: ai-needs-model)
+        same = next((e for e in reversed(evs) if e is not bad and e.get("code") and
+                     str(e.get("error") or "")[:120] == str(err)[:120]), None)
+        if same is not None:
+            bad = same
     if not err:                                               # a traceback / CLI line on stderr
         err = next((ln.strip() for ln in reversed(lines) if ln.strip() and not ln.strip().startswith("{")), "")
     c = classify(err)

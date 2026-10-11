@@ -115,8 +115,14 @@ def author_block(p, pd):
         can = bool(DR._drafter(recipe, cid)) or bool(f and not os.path.isdir(f) and f.lower().endswith(DR.TEXT_EXT))
     except Exception:  # noqa: BLE001  (an engine without drafts: the file decides)
         st = st or ("hers" if f and os.path.exists(f) else "missing")
+    prm = pay.get("draft_error_params") if isinstance(pay.get("draft_error_params"), dict) else {}
     return dict(labels=get("labels") if isinstance(get("labels"), dict) else {}, recipe=recipe, checkpoint=cid,
                 state=st, review=review, can_draft=can, draft_error=pay.get("draft_error"),
+                # ai-needs-model: the step needs an AI model none answered - the desk words it ({what, provider})
+                draft_error_code=pay.get("draft_error_code"),
+                draft_error_params={k: v for k, v in prm.items() if isinstance(v, str)},
+                needs_ai=bool(pay.get("needs_ai")), ai_provider=pay.get("ai_provider"),
+                draft_by=pay.get("draft_by"),
                 exists=st in ("drafted", "hers"), is_dir=bool(get("is_dir")), file=f, doc=get("doc"))
 
 

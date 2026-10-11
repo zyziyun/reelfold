@@ -16,6 +16,7 @@ import { go, href, type ProjectTab } from '../lib/router';
 import { clipStatus, itemStatus, STATUS_KEY } from '../lib/status';
 import { WithProjectChat } from './ProjectChat';
 import { WorkPieces } from './WorkPieces';
+import { ClipVisualsRedo } from './ClipInfo';
 import { inboxSub, inboxTitle } from './Inbox';
 import { authorHelp } from '../lib/inboxView';
 import { LiveBanner } from './LiveLine';
@@ -252,6 +253,10 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
               )}
               <StatusPill s={s} label={failure ? t('status.failed') : undefined} />
               {!failure && done.length > 0 && <ShareButton item={id} />}
+              {/* an explainer whose scenes came out plain: every scene drawn again by the AI, the voice kept */}
+              {!failure && s !== 'run' && item?.kind === 'project' && done.length > 0 && (
+                <ClipVisualsRedo item={id} clip={(sel && done.includes(sel) ? sel : done[0]).id} onDone={reload} bare />
+              )}
               {!failure && primary}
             </div>
           </div>

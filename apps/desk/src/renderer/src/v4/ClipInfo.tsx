@@ -3,7 +3,7 @@
 // (layout A). The copy and the schedule are the publish drawer's own component and calendar rows (PostCopy); cover
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import type { AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtDate, t, type MessageKey } from '../i18n';
@@ -16,6 +16,7 @@ import { platformName } from './Home';
 import { media } from './kit';
 import { PlatformIcon } from './PlatformIcon';
 import { errText } from './msg';
+import { failureReason } from './Failure';
 import { useUi } from './ui';
 import { base, groupPosts, iso, sortIds } from '../publish/model';
 import { firstTab, PostCopy, type Row } from '../publish/PostCopy';
@@ -171,7 +172,7 @@ const FILLS = ['follow', 'blur'] as const; // the engine's option order (vstudio
 
 /** The clip's project settings (its autopilot doc), refreshed on the bus; ``pending`` is the setting she just asked to
  * make again, until the background remake has finished (``onDone`` then). */
-function useClipSettings(item: string, onDone?: (what: string) => void) {
+function useClipSettings(item: string, onDone?: (what: string, doc: AutopilotDoc) => void) {
   const { client, subscribe } = useEngine();
   const ui = useUi();
   const [doc, setDoc] = useState<AutopilotDoc | null>(null);
@@ -192,7 +193,7 @@ function useClipSettings(item: string, onDone?: (what: string) => void) {
         if (!d.running && !d.queued && at > seen.current) {
           seen.current = at;
           setPending((p) => {
-            if (p) onDone?.(p);
+            if (p) onDone?.(p, d);
             return null;
           });
         }
@@ -221,7 +222,9 @@ function useClipSettings(item: string, onDone?: (what: string) => void) {
     setPending(what);
     try {
       await client.autopilotRemake(item, sub, todo);
-      seen.current = evt.current; // only a later event ends it
+      // the run is started (or in line) when the call returns: the next reload that finds nothing running ends it -
+      // also a remake that failed at once (no model: the visuals are not drawn), before any later event came
+      seen.current = evt.current - 1;
       setN((x) => x + 1);
       return true;
     } catch (e) {
@@ -264,6 +267,38 @@ export function ClipFill({ item, clip }: { item: string; clip: string }) {
           {t('ci.fill.making')}
         </span>
       )}
+    </div>
+  );
+}
+
+/** An explainer's visuals (``remake_as: visuals``: its scenes) of this clip, when the engine can draw them again. */
+export function visualsOf(doc: Pick<AutopilotDoc, 'choices'> | null, clip: string): { checkpoint: string; item: string; by: string | null } | null {
+  const c = (doc?.choices ?? []).find((x) => x.remake_as === 'visuals' && mineItem(x.item, clip));
+  return c ? { checkpoint: c.checkpoint, item: c.item, by: c.choice } : null;
+}
+
+/** "Redo the visuals" (an explainer whose scenes came out plain): every scene drawn again by the AI as diagrams and
+ * animation, then rendered and exported again - the voice and captions kept. A model that does not answer says so
+ * ("The visuals need an AI model — …") with Try again / Settings › AI (the failure card). */
+export function ClipVisualsRedo({ item, clip, onDone, bare }: { item: string; clip: string; onDone?: () => void; bare?: boolean }) {
+  const ui = useUi();
+  const s = useClipSettings(item, (_w, d) => {
+    if (d.failure) ui.toast(failureReason(d.failure), { error: true });
+    else ui.toast(t('ci.visuals.done'));
+    onDone?.();
+  });
+  const v = visualsOf(s.doc, clip);
+  if (!v) return null;
+  const making = s.pending === 'visuals';
+  const btn = (
+    <button className={`btn ${bare ? '' : 'ghost sm'}`} disabled={s.busy} onClick={() => void s.remake(v.item, { [v.checkpoint]: null }, 'visuals')} data-tip={t('ci.visuals.tip')} data-testid="ci-visuals-redo">
+      {making ? <Loader2 className="ico spin" /> : <Sparkles className="ico" />}
+      {making ? t('ci.visuals.making') : t('ci.visuals.redo')}
+    </button>
+  );
+  return (
+    <div className={bare ? 'row' : 'ci-sec'} data-testid="ci-visuals" data-by={v.by ?? ''} data-busy={making ? '1' : undefined}>
+      {btn}
     </div>
   );
 }
@@ -446,6 +481,7 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip }: { d
         <ClipVersions doc={doc} edit={edit} />
       </div>
       {item && clip && <ClipFill item={item} clip={clip} />}
+      {item && clip && <ClipVisualsRedo item={item} clip={clip} />}
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>
         <ClipScheduleView s={sched} />

@@ -14,7 +14,7 @@ import { ensureFreeVoice } from '../lib/freeVoice';
 import { openReport } from '../support/Support';
 import { useUi } from './ui';
 
-const AI = new Set(['ai-login', 'ai-quota', 'ai-timeout', 'ai-missing']);
+const AI = new Set(['ai-login', 'ai-quota', 'ai-timeout', 'ai-missing', 'ai-needs-model']);
 
 const TOOL_NAMES: Record<string, string> = { node: 'Node.js', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', npx: 'Node.js (npx)' };
 
@@ -103,6 +103,11 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
           data-testid="fail-download-voice"
         >
           {t('fail.downloadVoice')}
+        </button>
+      )}
+      {failure.code === 'ai-needs-model' && (
+        <button className="btn" onClick={() => go({ name: 'aiAccounts', focus: failure.provider ?? undefined })} data-testid="fail-ai-settings">
+          {t('draft.needsModel.ai')}
         </button>
       )}
       {failure.code === 'ai-key-missing' && (

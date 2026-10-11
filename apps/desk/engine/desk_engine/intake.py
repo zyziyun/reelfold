@@ -680,7 +680,14 @@ class Intake:
             self._need_engine()
         except Unavailable as e:
             raise BadRequest(f"{e}. Nothing was run; try again.") from e
-        self._spawn_pilot(d, provider, autopilot=_on_autopilot(d), retry=True)   # made on autopilot: retried on autopilot
+        rec = read_json(os.path.join(d, pilot.REC), None) or {}
+        a = rec.get("args") if isinstance(rec, dict) else None
+        if isinstance(a, list) and "remake" in a and all(isinstance(x, str) for x in a):
+            # a remake that failed (the visuals: no model answered): Try again makes it again, not a plain resume
+            pilot.spawn(self.runner.python, self.runner.env, d, provider=provider, bus=self.bus,
+                        args=[self.runner.python, *a])
+        else:
+            self._spawn_pilot(d, provider, autopilot=_on_autopilot(d), retry=True)   # made on autopilot: retried on autopilot
         if self.bus:
             self.bus.publish("batches")
             self.bus.publish("inbox")

@@ -3,7 +3,8 @@ between autopilot and "ask me first" (``python -m vstudio.project decisions | re
 references/PROJECTS.md section 3).
 
   GET  /api/autopilot/<item>              {supported, autopilot {on, spend_cap, judge, lang, ask}, decisions [...],
-                                           running, queued}
+                                           choices [...], running, queued, failure (how the last run / remake failed,
+                                           pilot.failure, or None)}
   POST /api/autopilot/<item>/reopen {checkpoint, item}   the decision goes back to her: the project runs on to that
                                            checkpoint and stops there (the Inbox asks) -> {ok, rerun}
   POST /api/autopilot/<item>/mode {on}    switch; turning autopilot on also continues a project that waits (its
@@ -13,7 +14,9 @@ references/PROJECTS.md section 3).
                                            engine's, the affected stages re-run -> {ok, resumed, rerun}
   POST /api/autopilot/<item>/remake {item, do {checkpoint: choice | null}}   a standing setting of a finished clip
                                            made again in the background, only what it changes (the vlog's vertical
-                                           framing: the vertical exports; its post copy: the copy + every post.md),
+                                           framing: the vertical exports; its post copy: the copy + every post.md;
+                                           an explainer's visuals (``scenes``): drawn again by the AI, render +
+                                           exports again, the voice kept),
                                            also on a project made before the recipe had it
                                            (``python -m vstudio.project remake``) -> {ok, started, do}
 
@@ -50,11 +53,25 @@ _COPY = (r"(?:重写|重新写|改写|重新生成|重做|再写|写一?下?|更
          r"descriptions?)")
 
 
+# an explainer whose visuals are too plain (her MCP course came out as text lines): every scene drawn again by the AI
+_VISUALS = (r"重新(?:设计|做|画|生成|制作)(?:一下|一遍)?(?:画面|视觉|图解|动画|场景)|(?:画面|视觉|场景|图解)(?:太|很|有点|都)?"
+            r"(?:素|简陋|单调|无聊|空|丑|干)|(?:画面|视觉|场景).{0,6}(?:重做|重新设计|重画|重新画)|(?:多|加|增加|更多)(?:一些|点|些)?"
+            r"(?:图解|图示|示意图|动画|图表)|"
+            r"\b(?:re-?do|re-?make|re-?design|re-?draw|re-?build)\b.{0,20}\b(?:visuals?|scenes?|graphics|animations?|"
+            r"diagrams?)\b|\bmore (?:diagrams?|visuals?|animations?|graphics)\b|\b(?:visuals?|scenes?) (?:are|look|is|feel)"
+            r"s? (?:too )?(?:plain|boring|bland|bare|empty|dull)\b|refai\w*.{0,20}(?:visuels?|sc[eè]nes?|animations?)|"
+            r"plus de (?:sch[ée]mas|visuels|diagrammes|animations)|(?:visuels?|images?) trop (?:simples?|pauvres?|vides?|"
+            r"sobres?)")
+
+
 def remake_intent(text):
-    """A chat request -> {framing: follow | blur, copy: True} for what it asks to make again, or None."""
+    """A chat request -> {framing: follow | blur, copy: True, visuals: True} for what it asks to make again, or
+    None."""
     import re
     t = (text or "").strip()
     out = {}
+    if re.search(_VISUALS, t, re.I):
+        out["visuals"] = True
     if re.search(_FOLLOW, t, re.I):
         out["framing"] = "follow"
     elif re.search(_BLUR, t, re.I):
@@ -87,7 +104,10 @@ class Autopilot:
             return dict(base, supported=False, autopilot=None, decisions=[])
         doc = self._cli().json(["decisions", "--dir", d, "--json"], timeout=60)
         decs = [dict(x, options=options(x)) if x.get("kind") in TASTE else x for x in doc.get("decisions") or []]
-        return dict(base, supported=True, autopilot=doc.get("autopilot"), decisions=decs, choices=doc.get("choices") or [])
+        # how the last run / remake ended when it failed (a remake whose visuals no model drew): the clip page says so
+        fail = pilot.failure(d) if not base["running"] else None
+        return dict(base, supported=True, autopilot=doc.get("autopilot"), decisions=decs, choices=doc.get("choices") or [],
+                    failure=fail)
 
     def _resume(self, d, autopilot=None):
         """Continue the project in the background (unless it runs / waits in line already)."""
@@ -187,7 +207,11 @@ class Autopilot:
                 str(clip).startswith(f"{c.get('item')}/")]
         frs = [c for c in mine if c.get("kind") == "reframe-pick"]
         cps = [c for c in mine if c.get("kind") == "copy-pick"]
+        vis = [c for c in mine if c.get("remake_as") == "visuals"]
         do, msgs, subs = {}, [], set()
+        if want.get("visuals") and vis:
+            do[vis[0]["checkpoint"]] = None
+            subs |= {c["item"] for c in vis}
         if want.get("framing") and frs:
             todo = [c for c in frs if c.get("choice") != want["framing"]]
             if todo:
@@ -206,13 +230,17 @@ class Autopilot:
             return msgs + [_m("remake-busy", "It is making something right now; ask again when it has finished.",
                               "现在正在制作，做完后再说一次。")]
         self.remake(item, ",".join(sorted(subs)), do)
-        if want.get("framing") in [v for v in do.values()]:
+        if want.get("framing") and want["framing"] in do.values():
             msgs.append(_m(f"remake-{want['framing']}",
                            "Making the vertical versions again: " + ("the camera follows the subject, no blurred "
                                                                     "background." if want["framing"] == "follow" else
                                                                     "the whole frame on a blurred fill."),
                            "正在重新导出竖屏版本：" + ("镜头跟随画面主体裁切，不用模糊背景。" if want["framing"] == "follow"
                                               else "整幅画面放在模糊背景上。")))
+        if want.get("visuals") and vis:
+            msgs.append(_m("remake-visuals", "Drawing the visuals again: every scene as diagrams and animation by the "
+                                             "AI, then a new render and exports. The voice and captions stay.",
+                           "正在重新设计画面：AI 把每一段重新画成图解动画，再重新渲染和导出。配音和字幕不变。"))
         if want.get("copy") and cps:
             msgs.append(_m("remake-copy", "Writing the post copy again for every platform (title, text and hashtags in "
                                           "its language); each version's post text is replaced when it is done.",

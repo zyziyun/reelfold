@@ -496,7 +496,9 @@ export type FailureCode =
   // the app's free voice before its one-time download (params {tool: voice, fix: download-voice}): the desk offers it
   | 'tool-voice'
   // the voice kept leaving out a sentence of the script (params {line, sentence, lines, fix: rephrase-line})
-  | 'stage-voice-dropped';
+  | 'stage-voice-dropped'
+  // a step that needs an AI model none answered (an explainer's visuals; params {what: visuals | script, provider})
+  | 'ai-needs-model';
 export interface PilotFailure {
   state: 'failed';
   /** FailureCode, or another code a stage-fail event carried (shown with the generic text when the UI has none) */

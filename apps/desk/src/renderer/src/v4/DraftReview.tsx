@@ -6,7 +6,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw, Scissors, Send, Sparkles } from 'lucide-react';
 import type { DraftReview, DraftSegment, InboxAuthor } from '../../../shared/v04';
-import { fmtClock, t } from '../i18n';
+import { fmtClock, t, type MessageKey } from '../i18n';
+import { providerName } from '../../../shared/aiRoutes';
+import { go } from '../lib/router';
 import { draftSummary, keptOf, keptSeconds, mmss } from '../lib/inboxView';
 import { useEngine } from '../lib/engine';
 import { useInbox } from '../lib/inbox';
@@ -25,10 +27,43 @@ export function draftLine(rv: DraftReview, edits?: KeepEdits | null): string {
   return draftSummary(rv.summary);
 }
 
+/** A step that needs an AI model (the explainer's script, storyboard, visuals) that no model drew - or that only the
+ * rules drafted: the plain sentence ("The visuals need an AI model — Claude Code didn't answer"), Try again and
+ * Settings › AI. Null when the AI drafted it / it is hers. */
+export function needsModelText(a: InboxAuthor): string | null {
+  const failed = a.draft_error_code === 'ai-needs-model';
+  if (!failed && !(a.needs_ai && a.draft_by === 'rules' && a.review)) return null;
+  const p = a.draft_error_params ?? {};
+  const what = p.what === 'script' || (!p.what && a.checkpoint === 'script') ? 'script' : 'visuals';
+  const prov = p.provider || a.ai_provider || '';
+  if (!prov || prov === 'none') return t(`draft.needsModel.none.${what}` as MessageKey);
+  return t(`draft.needsModel.${what}` as MessageKey, { provider: providerName(prov) });
+}
+
+function NeedsModel({ itemKey, text }: { itemKey: string; text: string }) {
+  const draftIt = useDraftIt(itemKey);
+  return (
+    <div className="ux-opt" data-testid="draft-needs-model">
+      <div className="ux-optt">{text}</div>
+      <div className="row" style={{ gap: 8, marginTop: 8 }}>
+        <button className="btn sm" onClick={() => void draftIt()} data-testid="draft-needs-model-retry">
+          <RotateCcw className="ico" />
+          {t('fail.retry')}
+        </button>
+        <button className="btn ghost sm" onClick={() => go({ name: 'aiAccounts' })} data-testid="draft-needs-model-ai">
+          {t('draft.needsModel.ai')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DraftPane({ itemKey, a, edits, onEdits }: { itemKey: string; a: InboxAuthor; edits: KeepEdits | null; onEdits: (e: KeepEdits | null) => void }) {
   const rv = a.review ?? null;
+  const nm = a.drafting ? null : needsModelText(a);
   return (
     <div className="col ux-draft" style={{ gap: 12, minWidth: 0 }} data-testid="inbox-draft" data-state={a.drafting ? 'drafting' : a.state ?? ''}>
+      {nm && <NeedsModel itemKey={itemKey} text={nm} />}
       {a.drafting ? (
         <div className="ux-opt" data-testid="draft-drafting">
           <div className="ux-optt">
@@ -37,16 +72,18 @@ export function DraftPane({ itemKey, a, edits, onEdits }: { itemKey: string; a: 
           <div className="muted">{t('draft.lead.drafting')}</div>
         </div>
       ) : !rv ? (
-        <div className="ux-opt" data-testid="draft-none">
-          <div className="ux-optt">{a.can_draft ? t('draft.noneCan') : t('draft.lead.none')}</div>
-          {a.draft_error ? (
-            <div className="muted" data-testid="draft-error">
-              {t('draft.failed', { reason: a.draft_error })}
-            </div>
-          ) : !a.can_draft ? (
-            <div className="muted">{t('draft.noAi')}</div>
-          ) : null}
-        </div>
+        nm ? null : (
+          <div className="ux-opt" data-testid="draft-none">
+            <div className="ux-optt">{a.can_draft ? t('draft.noneCan') : t('draft.lead.none')}</div>
+            {a.draft_error ? (
+              <div className="muted" data-testid="draft-error">
+                {t('draft.failed', { reason: a.draft_error })}
+              </div>
+            ) : !a.can_draft ? (
+              <div className="muted">{t('draft.noAi')}</div>
+            ) : null}
+          </div>
+        )
       ) : (
         <>
           <div className="ux-draft-sum" data-testid="draft-summary">

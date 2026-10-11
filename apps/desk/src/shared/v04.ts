@@ -558,8 +558,11 @@ export interface AutopilotDoc {
   queued: number | null;
   autopilot: { on: boolean; spend_cap?: number; judge?: boolean; lang?: string; ask?: string[] } | null;
   decisions: AutopilotDecision[];
-  /** standing per-video settings among the answers (vertical framing, which post copy), whoever chose them */
+  /** standing per-video settings among the answers (vertical framing, which post copy), whoever chose them; and a
+   * finished clip's part that can be made again (an explainer's visuals: ``remake_as: 'visuals'``) */
   choices?: AutopilotChoice[];
+  /** how the last run / remake failed (a remake whose visuals no model drew), or null */
+  failure?: import('./v02').PilotFailure | null;
 }
 
 export interface AutopilotChoice {
@@ -574,6 +577,8 @@ export interface AutopilotChoice {
   options?: string[];
   /** before: made before the recipe asked - read from the clip's files (its exports) */
   by: 'ai' | 'rules' | 'her' | 'before';
+  /** a part of the finished clip the engine can make again under this name (``visuals``: the explainer's scenes) */
+  remake_as?: string;
 }
 
 // ---------------------------------------------------------------- inbox
@@ -706,6 +711,16 @@ export interface InboxAuthor {
   /** a draft is being written now */
   drafting?: boolean;
   draft_error?: string | null;
+  /** ai-needs-model: the step needs an AI model and none answered (the desk words it: ``draft_error_params.what``
+   * visuals | script, ``provider``) */
+  draft_error_code?: string | null;
+  draft_error_params?: Record<string, string>;
+  /** the step needs an AI model (the explainer's script / storyboard / scenes): a rules draft is not enough */
+  needs_ai?: boolean;
+  /** the routed model's provider id (claude-code ...) */
+  ai_provider?: string | null;
+  /** who wrote the draft now in the file */
+  draft_by?: 'ai' | 'rules' | 'her' | null;
   file: string | null;
   exists: boolean;
   is_dir?: boolean;
