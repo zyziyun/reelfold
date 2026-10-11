@@ -81,12 +81,21 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const list = order.flatMap((g) => groups[g]);
   const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (rows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : rows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
   const cur = (selKey ? rows.find((r) => r.key === selKey) : null) ?? null;
-  // nothing chosen: the first video of the list (what needs her first)
+  // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
+  // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
+  const [gaveUp, setGaveUp] = useState<string | null>(null);
+  const waiting = !!q.sel && !selKey && !id && gaveUp !== q.sel;
   useEffect(() => {
-    if (!selKey && first && hist) history.replaceState(null, '', rowHref(first));
-    if (!selKey && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
-  }, [selKey, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!q.sel || selKey) return;
+    const sel = q.sel;
+    const t = window.setTimeout(() => setGaveUp(sel), 20000);
+    return () => window.clearTimeout(t);
+  }, [q.sel, selKey]);
+  useEffect(() => {
+    if (!selKey && !waiting && first && hist) history.replaceState(null, '', rowHref(first));
+    if (!selKey && !waiting && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }, [selKey, waiting, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
   // ＋ New video from anywhere (⌘N, ⌘K): the composer opens here
   const [composer, setComposer] = useState(() => sessionStorage.getItem('studio.compose') === '1');
   useEffect(() => {
@@ -268,7 +277,8 @@ function lineOf(r: StudioRow): string {
   if (r.ask) return inboxTitle(r.ask);
   if (r.group === 'you') return r.tone === 'error' ? t('hub.s.failed') : t('hub.s.you');
   if (r.group === 'run') {
-    if (r.tone === 'off' && !r.i?.queued) return t('st.r.queued');
+    // not in the run line (no queue place): it has simply not been started - never "waiting its turn"
+    if (r.tone === 'off' && !r.i?.queued) return t('st.r.notStarted');
     return stateLine(r.p, r.i);
   }
   if (r.group === 'scheduled' && r.post) {
