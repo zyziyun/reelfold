@@ -752,14 +752,23 @@ def write_words(doc, W):
     return W
 
 
+def _heard(doc, W):
+    """``W`` without what whisper invented over music / silence (``asr.drop_hallucinated_words``): a music-only clip
+    whose cached transcript reads "Thank you." twice has no words, so it opens on its timeline and gets no captions."""
+    if not W:
+        return W
+    from vstudio.asr import drop_hallucinated_words
+    return drop_hallucinated_words(W, duration=(doc.rec.get("info") or {}).get("duration"))
+
+
 def words(doc, required=True):
     """Word timings of the output (source seconds), transcribed once per file signature and cached in the edit
     folder (``transcript.json``; a pickup's spliced file: ``transcripts/<sig>.json``). -> [{"w","t","te"}] ([] when
-    unavailable and not required)."""
+    unavailable and not required, or when all whisper heard was a hallucination over music)."""
     path = transcript_path(doc)
     tr = read_json(path, None)
     if isinstance(tr, dict) and tr.get("sig") == _tsig(doc) and not _split_terms(tr):
-        return tr["words"]
+        return _heard(doc, tr["words"])
     W = _pipeline_words(doc)
     if W:
         return W
@@ -788,7 +797,7 @@ def words(doc, required=True):
             if w.get("p") is not None:
                 row["p"] = round(float(w["p"]), 3)
             W.append(row)
-    return write_words(doc, W)
+    return _heard(doc, write_words(doc, W))
 
 
 _LATIN = re.compile(r"[A-Za-z0-9']+")
@@ -838,7 +847,7 @@ def cached_words(doc):
     never transcribed gets the pipeline's own words, mapped through its cuts (``_pipeline_words``)."""
     tr = read_json(transcript_path(doc), None)
     if isinstance(tr, dict) and tr.get("sig") == _tsig(doc) and isinstance(tr.get("words"), list):
-        return tr["words"]
+        return _heard(doc, tr["words"])
     return _pipeline_words(doc)
 
 

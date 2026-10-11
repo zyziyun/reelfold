@@ -109,7 +109,8 @@ def classify(text):
 def _cached_words(doc):
     tr = read_json(os.path.join(doc.dir, "transcript.json"), None)
     if isinstance(tr, dict) and tr.get("sig") == doc.d.get("source_sig"):
-        return tr.get("words") or []
+        from vstudio.asr import drop_hallucinated_words          # "Thank you." heard in a music bed is no speech
+        return drop_hallucinated_words(tr.get("words") or [], duration=(doc.rec.get("info") or {}).get("duration"))
     for c in (doc.rec["file"] + ".asr.json", os.path.splitext(doc.rec["file"])[0] + ".asr.json"):
         d = read_json(c, None)
         if isinstance(d, dict):

@@ -170,6 +170,19 @@ def probe(path):
 
 
 # ------------------------------------------------------------------ transcripts
+def _heard(words, duration=None):
+    """``words`` without what whisper invented over music / silence (the engine's ``asr.drop_hallucinated_words``, the
+    same filter its output editor applies, so word selections keep the engine's signature): a music-only vlog whose
+    transcript reads "Thank you." twice has no words and opens on its timeline. An older engine: unchanged."""
+    if not words:
+        return words
+    try:
+        from vstudio.asr import drop_hallucinated_words
+    except ImportError:
+        return words
+    return drop_hallucinated_words(words, duration=duration)
+
+
 def _words_from_asr(doc):
     words = []
     if isinstance(doc, dict) and "segments" not in doc and "words" not in doc:
@@ -201,7 +214,7 @@ def _asr_for(file, workdir=None, extra=()):
         if c and os.path.exists(c):
             w = _words_from_asr(read_json(c, None))
             if w:
-                return w
+                return _heard(w)
     return []
 
 
@@ -1071,7 +1084,8 @@ class Outputs:
                             files=[dict(base["files"][0], path=efile, duration=(eng.get("output") or {}).get("duration"))]
                             + base["files"][1:])
             words = [dict(w=w["w"], t=w["t"], te=w["te"], **({"p": w["p"]} if w.get("p") is not None else {}))
-                     for w in (tr or {}).get("words") or []] if isinstance(tr, dict) else None
+                     for w in _heard((tr or {}).get("words") or [], (eng.get("output") or {}).get("duration")
+                                     or base["duration"])] if isinstance(tr, dict) else None
             if not self._ext:                                  # older engine: the desk keeps the transcript
                 eng["chat"] = self._desk(e, clip_id).get("chat") or []
             doc = self._normalise(base, eng, item_id, words or None)

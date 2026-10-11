@@ -694,6 +694,10 @@ def transcribe(path, language=None, prompt=None, word_timestamps=True, model=Non
         with tempfile.TemporaryDirectory() as tmp:
             wav = os.path.join(tmp, "a16.wav")
             media.extract_wav(path, wav, sr=16000, channels=1)
+            try:                                       # 16 kHz mono s16: the clip's length for the sparse rule
+                dur = round(max(0, os.path.getsize(wav) - 44) / 32000.0, 3)
+            except OSError:
+                dur = None
             if language == "auto":
                 language = detect_language(wav, be, model) or _persona_language()
             segs = _RUN[be](wav, language, prompt, word_timestamps, model, hst)
@@ -706,7 +710,7 @@ def transcribe(path, language=None, prompt=None, word_timestamps=True, model=Non
                     segs = alt
     finally:
         _PROGRESS = prev
-    raw = dict(language=language, backend=be, segments=segs)
+    raw = dict(language=language, backend=be, segments=segs, **({"duration": dur} if dur else {}))
     if cache:
         raw["source_sha1"] = fh                            # lets ``cached`` find it under other settings
         cp = _cache_path(path)
@@ -744,7 +748,7 @@ def _finish(raw, term_fixes, fix_terms, drop_hallucinated=False):
     out = dict(raw, segments=segs)
     out["text"] = "".join(s["text"] for s in segs).strip()
     out["words"] = words_of(out)
-    return drop_hallucinations(out) if drop_hallucinated else out
+    return drop_hallucinations(out, duration=raw.get("duration")) if drop_hallucinated else out
 
 
 # ------------------------------------------------------------------ hallucination filter
@@ -769,7 +773,16 @@ def _norm(text):
     return re.sub(r"[\W_]+", "", (text or "").lower())
 
 
-def _seg_reason(seg, phrases, no_speech, logprob, compression, loops):
+def _sign_off(t):
+    """The WEAK phrase ``t`` (normalised text) essentially is, or None."""
+    for ph in HALLUCINATION_WEAK:
+        n = _norm(ph)
+        if n and n in t and len(n) >= 0.6 * len(t):
+            return ph
+    return None
+
+
+def _seg_reason(seg, phrases, no_speech, logprob, compression, loops, statless_unsure=True):
     """Why ``seg`` looks hallucinated (str), or None if it looks like real speech."""
     t = _norm(seg.get("text") or "".join(w.get("word", "") for w in seg.get("words") or []))
     if not t:
@@ -778,16 +791,16 @@ def _seg_reason(seg, phrases, no_speech, logprob, compression, loops):
         if _norm(ph) and _norm(ph) in t:
             return f"phrase:{ph}"
     nsp, alp, cr = (seg.get(k) for k in _STATS)
-    ps = [w.get("p") for w in seg.get("words") or [] if w.get("p") is not None]
+    ws = seg.get("words") or []
+    ps = [w.get("p") for w in ws if w.get("p") is not None]
     mean_p = sum(ps) / len(ps) if ps else None
-    for ph in HALLUCINATION_WEAK:
-        n = _norm(ph)
-        if n and n in t and len(n) >= 0.6 * len(t):
-            unsure = ((nsp is not None and nsp >= 0.2) or (alp is not None and alp < -0.5)
-                      or (mean_p is not None and mean_p < 0.6)
-                      or (nsp is None and alp is None and mean_p is None))
-            if unsure:
-                return f"phrase?:{ph}"
+    ph = _sign_off(t)
+    if ph:
+        unsure = ((nsp is not None and nsp >= 0.2) or (alp is not None and alp < -0.5)
+                  or (mean_p is not None and (mean_p < 0.6 or min(ps) < 0.35))
+                  or (statless_unsure and nsp is None and alp is None and mean_p is None))
+        if unsure:
+            return f"phrase?:{ph}"
     if nsp is not None and alp is not None and nsp > no_speech and alp < logprob:
         return f"no_speech:{nsp:.2f}/logprob:{alp:.2f}"
     if cr is not None and cr > compression and (alp is None or alp < -0.5):
@@ -797,15 +810,34 @@ def _seg_reason(seg, phrases, no_speech, logprob, compression, loops):
     return None
 
 
-def drop_hallucinations(transcript, phrases=None, no_speech=0.6, logprob=-1.0, compression=2.4, loops=True):
+# a clip whose only "speech" is a sign-off or two, this far apart, is music / ambience whisper captioned from its
+# training data ("Thank you." at 0:00 and 0:33 of a 59 s drone vlog), however confident the decoder was
+SPARSE_WORDS_PER_S = 0.25
+
+
+def _sparse_sign_offs(segs, duration=None):
+    """True when every segment of ``segs`` is just a WEAK phrase and the words are sparse over the clip."""
+    if not segs or not all(_sign_off(_norm(s.get("text") or "".join(w.get("word", "") for w in s.get("words") or [])))
+                           for s in segs):
+        return False
+    n = sum(max(1, len(s.get("words") or [])) for s in segs)
+    span = max([float(s.get("end") or 0) for s in segs] + [float(duration or 0)])
+    return span > 0 and n / span < SPARSE_WORDS_PER_S
+
+
+def drop_hallucinations(transcript, phrases=None, no_speech=0.6, logprob=-1.0, compression=2.4, loops=True,
+                        duration=None, statless_unsure=True):
     """Remove segments whisper invented over music / silence.
 
     A segment is dropped when (first match wins): its text contains a HALLUCINATION_STRONG phrase
     (or one of ``phrases``); it is essentially just a HALLUCINATION_WEAK phrase ("Thanks for watching",
-    "谢谢观看") and the decoder was unsure (no_speech_prob >= 0.2, avg_logprob < -0.5 or mean word
-    p < 0.6; no stats at all counts as unsure); whisper's own silence rule (no_speech_prob > no_speech
+    "谢谢观看") and the decoder was unsure (no_speech_prob >= 0.2, avg_logprob < -0.5, mean word
+    p < 0.6 or any word p < 0.35; no stats at all counts as unsure unless
+    ``statless_unsure`` is False); whisper's own silence rule (no_speech_prob > no_speech
     AND avg_logprob < logprob); compression_ratio > compression with a weak avg_logprob; or a
-    repetition loop (``loop_score``) covering >= half of a >= 10-char segment.
+    repetition loop (``loop_score``) covering >= half of a >= 10-char segment. Then, when all that is left
+    is sign-offs at under SPARSE_WORDS_PER_S words a second over the clip (``duration``, else the last
+    segment's end), those go too: the clip has no speech.
 
     ``transcript``: a ``transcribe`` dict (returns a copy with segments/text/words rebuilt and the
     removed ones in ``"dropped"`` [{start, end, text, reason}]) or a bare segment list (returns the
@@ -815,12 +847,16 @@ def drop_hallucinations(transcript, phrases=None, no_speech=0.6, logprob=-1.0, c
     extra = HALLUCINATION_STRONG + list(phrases or [])
     keep, dropped = [], []
     for s in segs:
-        why = _seg_reason(s, extra, no_speech, logprob, compression, loops)
+        why = _seg_reason(s, extra, no_speech, logprob, compression, loops, statless_unsure)
         if why:
             dropped.append(dict(start=s.get("start"), end=s.get("end"), text=(s.get("text") or "").strip(),
                                 reason=why))
         else:
             keep.append(s)
+    if _sparse_sign_offs(keep, duration):
+        dropped += [dict(start=s.get("start"), end=s.get("end"), text=(s.get("text") or "").strip(),
+                         reason="sparse-sign-off") for s in keep]
+        keep = []
     if not isinstance(transcript, dict):
         return keep
     out = dict(transcript, segments=keep)
@@ -828,6 +864,28 @@ def drop_hallucinations(transcript, phrases=None, no_speech=0.6, logprob=-1.0, c
     out["words"] = words_of(out)
     out["dropped"] = list(transcript.get("dropped") or []) + dropped
     return out
+
+
+def drop_hallucinated_words(words, duration=None, gap=0.8):
+    """``drop_hallucinations`` for a flat word list [{"w", "t", "te", "p"?}] (a cached output transcript, which keeps
+    no segment stats): words are grouped into lines at pauses over ``gap`` s and each line is judged like a segment
+    (word ``p`` stands in for the decoder stats; a sign-off with no ``p`` at all is kept, it may be
+    a pipeline's already-filtered words). -> the kept words (the same dicts, in order); [] for a music-only clip."""
+    W = [w for w in words or [] if isinstance(w, dict) and str(w.get("w", "")).strip()]
+    if not W:
+        return []
+    runs, cur = [], [W[0]]
+    for a, b in zip(W, W[1:]):
+        if float(b.get("t", 0)) - float(a.get("te", 0)) > gap:
+            runs.append(cur)
+            cur = []
+        cur.append(b)
+    runs.append(cur)
+    segs = [dict(start=float(r[0].get("t", 0)), end=float(r[-1].get("te", 0)), text=" ".join(str(w["w"]) for w in r),
+                 words=[dict(word=str(w["w"]), start=float(w.get("t", 0)), end=float(w.get("te", 0)), p=w.get("p"))
+                        for w in r], _run=r) for r in runs]
+    kept = drop_hallucinations(segs, duration=duration, statless_unsure=False)
+    return [w for s in kept for w in s["_run"]]
 
 
 def has_speech(transcript, min_words=4):
