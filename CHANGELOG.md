@@ -8,21 +8,15 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
-### Fixed
-
-- **Redo the visuals no longer throws the whole redo away for one scene**: the scene brief forbids the network up
-  front (no `fetch()`, XHR, WebSocket, outside files: data inline), a refused scene is repaired with the check's exact
-  finding and its fix, and a scene that still fails keeps its old version (or a simple diagram from its cues) while
-  the others are redrawn and rendered — "13 of 14 scenes redrawn; scene 14 kept as before", with Redraw scene 14.
-  A code card that only shows `fetch(...)` as text is no longer refused.
-- **A redo that stopped is a notice, not a broken project**: the clip stays Ready to post (its video is unchanged)
-  and says which scene and why, in English, 简体中文 and Français, with Try again — which draws only the scenes still
-  missing. A failure pinned on a clip shows its reason and Try again, never Confirm.
-
 ## [0.2.7] - 2026-10-11
 
 ### Added
 
+- **Home**: the app opens on what needs you — a composer, suggestions from real signals (a new recording, a request
+  you repeat, a post missing some platforms), the top of the Inbox with one action each (with Undo), running jobs
+  with their step in words, and today's posts. Sidebar: Home · Inbox · All projects · Publish (⌘1–4).
+- **All projects for hundreds of videos**: search, platform / project / date filters, J/K / ↵ / E / S / X keys, and
+  bulk Approve, Schedule, Try again, Archive and Change with AI; 220 projects archive in about a second.
 - **Redo the visuals** of a finished explainer, the voice kept: the clip / project page button, or ask the chat
   ("画面太素了" / "redo the visuals" / "plus de schémas"); every scene is drawn again by your AI, then rendered and
   exported again (`vstudio.project remake --do visuals`).
@@ -65,6 +59,14 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Fixed
 
+- **Redo the visuals no longer throws the whole redo away for one scene**: the scene brief forbids the network up
+  front (no `fetch()`, XHR, WebSocket, outside files: data inline), a refused scene is repaired with the check's exact
+  finding and its fix, and a scene that still fails keeps its old version (or a simple diagram from its cues) while
+  the others are redrawn and rendered — "13 of 14 scenes redrawn; scene 14 kept as before", with Redraw scene 14.
+  A code card that only shows `fetch(...)` as text is no longer refused.
+- **A redo that stopped is a notice, not a broken project**: the clip stays Ready to post (its video is unchanged)
+  and says which scene and why, in English, 简体中文 and Français, with Try again — which draws only the scenes still
+  missing. A failure pinned on a clip shows its reason and Try again, never Confirm.
 - **Explainer scenes are drawn by the AI, never as text lines**: each scene is a diagram / animation on the voice's
   cue times, checked and linted before it is kept; the storyboard's "TODO" shots are planned by the AI. When no model
   answers, the project waits in Needs you ("The visuals need an AI model — Claude Code didn't answer") instead of
