@@ -17,8 +17,8 @@ suite and the engine tests marked `slow`. The **full tier** runs all of it: nigh
 branches, on manual runs (`tier=full`, the default) and when CI files, lockfiles, requirements, `pyproject.toml` or the
 desk packaging change (`.github/scripts/ci-changes.sh` has the lists). Runs of `main` and `release/**` queue instead of
 cancelling each other, so every `main` commit gets a result; a PR or feature-branch run is cancelled by a newer push to
-the same ref; tag runs are never cancelled. Caches: npm, pip (keyed on the requirements files), the Electron /
-electron-builder downloads (keyed on `package-lock.json`), the Windows ffmpeg (per month); the release workflow also
+the same ref; tag runs are never cancelled. Caches: npm, the Electron / electron-builder downloads (keyed on
+`package-lock.json`), the Windows ffmpeg (per month); python deps go in with uv (no cache needed); the release workflow also
 caches its runtime downloads (keyed on the runtime lock and requirement files). Locally, the e2e suite can be split the
 same way: `npx playwright test --shard=1/4` in `apps/desk` (after `npm run build`); `pytest -n auto -m "not slow"` is
 the engine's quick tier.

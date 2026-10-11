@@ -1,6 +1,6 @@
-# Shared setup for the Desk CI jobs (macOS + Windows): node + npm cache, python + pip cache (keyed on the requirements
-# files), the Electron / electron-builder download caches (keyed on package-lock.json), ffmpeg (Windows: cached per
-# month instead of a Chocolatey download per job), the engine's python deps, `npm ci`, and DESK_PYTHON.
+# Shared setup for the Desk CI jobs (macOS + Windows): node + npm cache, python (deps via uv), the Electron /
+# electron-builder download caches (keyed on package-lock.json), ffmpeg (Windows: cached per month instead of a
+# Chocolatey download per job), the engine's python deps, `npm ci`, and DESK_PYTHON.
 name: Desk setup
 description: node, python, engine deps, ffmpeg, npm ci for apps/desk jobs
 inputs:
@@ -13,12 +13,7 @@ runs:
     - uses: actions/setup-node@v7
       with: { node-version: 22, cache: npm }
     - uses: actions/setup-python@v7
-      with:
-        python-version: '3.12'
-        cache: pip
-        cache-dependency-path: |
-          requirements.txt
-          tests/requirements.txt
+      with: { python-version: '3.12' }
     - name: Cache Electron downloads
       uses: actions/cache@v6
       with:
@@ -68,13 +63,16 @@ runs:
       env:
         ENGINE_DEPS: ${{ inputs.engine-deps }}
       run: |
+        # uv: parallel wheel downloads + a fast install (pip took ~1 min on Windows even with its download cache). Its
+        # wheel cache is not kept between runs: fetching the wheels again is quicker than restoring them unzipped.
+        python -m pip install -q uv
         if [ "$ENGINE_DEPS" = tests ]; then
-          python -m pip install -r tests/requirements.txt
+          uv pip install --system -r tests/requirements.txt
           python -c "import yaml, numpy, cv2, mediapipe, faster_whisper, xdist; print('deps ok')"
         else
           # no local ASR models: the whisper packages are left out
           grep -v whisper requirements.txt > "$RUNNER_TEMP/req.txt"
-          python -m pip install -r "$RUNNER_TEMP/req.txt"
+          uv pip install --system -r "$RUNNER_TEMP/req.txt"
           python -c "import yaml, numpy; print('deps ok')"   # fail here, not deep inside a test
         fi
         # the app would otherwise pick the runner's own python3 (no engine deps) before this one
