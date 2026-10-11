@@ -19,7 +19,9 @@ references/PROJECTS.md.
                                                       list pending payloads / record an answer
   remake --dir P --item I --do framing=follow|blur [--do copy] [--json-events]   a finished item brought up to
                                                       date: only the vertical exports re-made / the post copy and
-                                                      every post.md written again (remake.py; older projects too)
+                                                      every post.md written again (remake.py; older projects too);
+                                                      --do visuals: an explainer's scenes drawn again by the AI,
+                                                      render + export again, the voice kept
   set --dir P [--item I] (--param k=v ... | --set JSON)   edit params in project.yaml, then refresh
   export --dir P [--out D] [--all] [--items a,b]      final files + manifest.json (sha256)
   list                                                registered projects (lanes) with their state + adopted work
@@ -670,10 +672,12 @@ def build_parser():
     p.add_argument("--answer-file")
     p.add_argument("--default", action="store_true", help="answer with each payload's default")
     p.add_argument("--run", action="store_true", help="continue the run after answering")
-    p = add("remake", cmd_remake, "redo a standing setting of a finished item (vertical framing, post copy) - only "
+    p = add("remake", cmd_remake, "redo a standing setting of a finished item (vertical framing, post copy, an "
+                                  "explainer's visuals) - only "
                                   "what it changes, no other stage")
     p.add_argument("--item", required=True)
-    p.add_argument("--do", action="append", help="CHECKPOINT[=CHOICE], e.g. framing=follow | framing=blur | copy")
+    p.add_argument("--do", action="append", help="CHECKPOINT[=CHOICE], e.g. framing=follow | framing=blur | copy | "
+                                                 "visuals (an explainer's scenes)")
     p.add_argument("--json-events", action="store_true")
     p = add("set", cmd_set, "edit params")
     p.add_argument("--item")

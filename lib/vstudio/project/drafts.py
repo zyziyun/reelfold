@@ -4,7 +4,8 @@ An author checkpoint (promo-recut's keep spans and packaging, an explainer's scr
 to stop with "write <file>" - and its item was seeded with the recipe's SYNTHETIC example, which the autopilot then
 took for her answer. Now, when the gate reaches it:
 
-    missing / template   no file, or the untouched template / example the item was seeded with: never an answer.
+    missing / template   no file, or the untouched template / example the item was seeded with, or a stage's
+                         skeleton still unfinished (placeholders, a scene without its file): never an answer.
                          The engine drafts it: the recipe's own drafter (``DRAFTERS[(recipe, checkpoint)]``, e.g.
                          promo-recut keep spans from the transcript + her request), else the generic AI drafter (the
                          template + the format guide + her request -> the file, checked to parse). No model / a
@@ -161,6 +162,9 @@ def state(path, template=None, cp=None, recipe=None):
     if is_template(path, template):
         return "template"
     cid = (cp or {}).get("id") if isinstance(cp, dict) else cp
+    unfinished = _unfinished(recipe, cid) if cid and recipe else None
+    if unfinished and unfinished(path):
+        return "template"                     # a stage's skeleton with placeholders / scenes still missing
     ok = format_check(recipe, cid) if cid and recipe else None
     if ok and os.path.isfile(path) and not ok(path):
         return "notes"
@@ -173,6 +177,37 @@ def state(path, template=None, cp=None, recipe=None):
     return "hers"
 
 
+def _unfinished(recipe, cp_id):
+    """A checkpoint whose file a stage writes as a skeleton the engine still has to fill: unfinished = "template"
+    (drafted, never an answer). The explainer's storyboard (its shots say "TODO: what appears") and its scenes folder
+    (a scene of scenes.config.json without its composition)."""
+    from .adapters import explainer
+    return {("explainer", "storyboard"): explainer.storyboard_unfinished,
+            ("explainer", "scenes"): explainer.scenes_unfinished}.get((recipe, cp_id))
+
+
+PLACEHOLDER = re.compile(r"\bTODO\b")
+
+
+def placeholders(path):
+    """How many unresolved placeholders ("TODO") the file - or the folder's text files - still has: an autopilot never
+    approves a draft with one (it would reach the render)."""
+    files = []
+    if os.path.isdir(path):
+        try:
+            files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.lower().endswith(TEXT_EXT)][:200]
+        except OSError:
+            files = []
+    elif os.path.isfile(path) and path.lower().endswith(TEXT_EXT):
+        files = [path]
+    n = 0
+    for f in files:
+        text = _read(f, 2_000_000)
+        n += len(PLACEHOLDER.findall(re.sub(r"<!--.*?-->", "", text, flags=re.S) if f.lower().endswith(
+            (".html", ".htm")) else text))
+    return n
+
+
 def _part_present(recipe, cp_id):
     from .adapters import promo
     return {("promo-recut", "package"): promo.package_present}.get((recipe, cp_id))
@@ -183,8 +218,8 @@ def _drafter(recipe, cp_id):
     from .adapters import explainer, preproduction, promo
     return {("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
             ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues,
-            ("explainer", "script"): explainer.draft_script, ("explainer", "scenes"): explainer.draft_scenes}.get(
-        (recipe, cp_id))
+            ("explainer", "script"): explainer.draft_script, ("explainer", "storyboard"): explainer.draft_storyboard,
+            ("explainer", "scenes"): explainer.draft_scenes}.get((recipe, cp_id))
 
 
 def _reviewer(recipe, cp_id):
@@ -206,7 +241,9 @@ def ensure(ctx, cp, path, template=None, instruction=None, complete=None, force=
     except Exception as e:  # noqa: BLE001  (a draft that failed leaves the checkpoint to her, with the reason)
         if echo:
             echo(f"draft {cp['id']}: {e}")
-        return dict(failed=str(e)[:300])
+        # a model that did not answer a step that needs one (the explainer's visuals): its code for the plain words
+        return dict(failed=str(e)[:300], failed_code=getattr(e, "code", None),
+                    failed_params=getattr(e, "params", None))
     if not rec:
         return None
     rec = write_side(path, cp["id"], rec)
@@ -425,7 +462,8 @@ def redraft(project, cp_id, item, instruction=None, complete=None, request=None)
         pay.update(review=rv, draft_state=st, exists=st != "missing", default=done
                    if st in ("drafted", "hers") else None, digest=dig, options=[dict(file=path, sha=dig)],
                    draft_by=(read_side(path, cp_id) or {}).get("by") if st == "drafted" else None,
-                   draft_error=(rec or {}).get("failed"))
+                   draft_error=(rec or {}).get("failed"), draft_error_code=(rec or {}).get("failed_code"),
+                   draft_error_params=(rec or {}).get("failed_params"), placeholders=placeholders(path))
         pay.pop("content", None)
         with open(pay_path, "w", encoding="utf-8") as f:
             json.dump(pay, f, ensure_ascii=False, indent=1, default=str)

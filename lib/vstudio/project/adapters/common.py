@@ -51,7 +51,8 @@ def author_payload(env, cp):
     """The file she would write - drafted by the engine first (``vstudio.project.drafts``: the recipe's drafter or
     the AI; never the seeded template / SYNTHETIC example). ``default`` ({done: true}) only for a real draft or her
     own file; ``review`` is the plain-language view the Inbox shows; ``draft_state`` missing | template | drafted |
-    hers; ``draft_error`` why nothing could be drafted."""
+    hers; ``draft_error`` why nothing could be drafted (``draft_error_code`` needs-model: the step needs an AI model
+    and none answered); ``placeholders`` the "TODO"s still in it (never auto-approved)."""
     from .. import drafts as DR
     a = cp["author"]
     path = _author_path(env, cp)
@@ -62,7 +63,12 @@ def author_payload(env, cp):
     usable = st in ("drafted", "hers")
     extra = dict(review=DR.review(ctx, cp, path, tpl), draft_state=st, draft_by=(DR.read_side(path, cp["id"]) or
                                                                                   {}).get("by") if usable else None,
-                 draft_error=(rec or {}).get("failed"))
+                 draft_error=(rec or {}).get("failed"), draft_error_code=(rec or {}).get("failed_code"),
+                 draft_error_params=(rec or {}).get("failed_params"),
+                 placeholders=DR.placeholders(path) if usable else 0)
+    if a.get("needs_ai"):            # the step needs a model (the Inbox says so over a rules draft) and which one
+        from .explainer_scenes import routed_provider
+        extra.update(needs_ai=True, ai_provider=routed_provider())
     if os.path.isdir(path):
         sha = dir_sha(path)
         files = sorted(os.listdir(path))

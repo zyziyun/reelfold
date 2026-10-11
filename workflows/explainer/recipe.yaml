@@ -203,6 +203,7 @@ checkpoints:
       template: lib/vstudio/project/templates/explainer_SCRIPT.md
       format: explainer SCRIPT.md
       doc: workflows/explainer/WORKFLOW.md
+      needs_ai: true
     payload: vstudio.project.adapters.common:author_payload
     apply: vstudio.project.adapters.common:author_apply
     answer:
@@ -219,6 +220,8 @@ checkpoints:
       file: "{item_dir}/scenes.config.json"
       format: "scenes.config.json {scenes: [{id, transition, shots}], platform, mode}"
       doc: workflows/explainer/WORKFLOW.md
+      # the stage writes shots that say "TODO": the AI plans each beat's visual (the rules only drop the TODOs)
+      needs_ai: true
     payload: vstudio.project.adapters.common:author_payload
     apply: vstudio.project.adapters.common:author_apply
     answer:
@@ -264,13 +267,18 @@ checkpoints:
     after: packets
     blocks: [index]
     labels: {zh: "场景制作", en: "Build the scenes"}
-    help: {zh: "按 frame packets 写 compositions/<id>.html（交给 Agent，可并行）", en: "Author compositions/<id>.html from the frame packets (the agent; parallel workers)"}
+    help: {zh: "AI 按每句旁白画出图解动画（compositions/<id>.html，可并行）；需要 AI 模型", en: "The AI draws each scene as diagrams and motion on the narration (compositions/<id>.html, in parallel); needs an AI model"}
     author:
       file: "{item_dir}/compositions"
       format: HyperFrames scene compositions (one HTML per scene)
       doc: workflows/explainer/WORKFLOW.md
+      needs_ai: true
     payload: vstudio.project.adapters.common:author_payload
     apply: vstudio.project.adapters.common:author_apply
+    # "Redo the visuals" on a finished explainer: every scene drawn again, render + export again, the voice kept
+    current: vstudio.project.adapters.explainer:scenes_current
+    remake: vstudio.project.adapters.explainer:scenes_remake
+    remake_as: visuals
     answer:
       type: object
       properties: {done: {type: boolean}}
@@ -298,7 +306,7 @@ agent:
     folder once and copy references/design-truth*.md to frame.md before authoring. Refresh after edits.
   edit_files: ["{item_dir}/SCRIPT.md", "{item_dir}/scenes.config.json", "{item_dir}/subtitles/cues.txt"]
 gaps:
-  - Scene compositions (compositions/*.html) and the storyboard sketches are agent-authored; `npx hyperframes init` is not a stage.
+  - Scene compositions (compositions/*.html) are drawn by the routed AI at the scenes checkpoint (needs a model); the storyboard sketches are agent-authored; `npx hyperframes init` is not a stage.
   - Music bed (make_bgm_bed.py + carve.mjs) and subset_cjk_font.py / make_captions.py are manual steps.
   - Render needs Node + npx hyperframes.
 capabilities: [script, storyboard, tts, bilingual-captions, hyperframes, export]

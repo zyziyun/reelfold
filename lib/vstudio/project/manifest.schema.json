@@ -443,6 +443,10 @@
       },
       "doc": {
        "type": "string"
+      },
+      "needs_ai": {
+       "type": "boolean",
+       "description": "the step needs an AI model: the autopilot never approves the rules' draft (it asks the routed AI again, else waits in Needs you with a plain message)"
       }
      }
     },
@@ -467,6 +471,10 @@
     "remake": {
      "$ref": "#/$defs/ref",
      "description": "module:function(env, cp, choice) -> {answer, ...}: redo this setting on a finished item without running the recipe again (vstudio.project.remake)"
+    },
+    "remake_as": {
+     "type": "string",
+     "description": "the name she / the CLI uses for this remake (`remake --do visuals` for the explainer's scenes)"
     }
    }
   }

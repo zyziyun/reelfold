@@ -306,7 +306,116 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
     return dict(by="rules", instruction=None, review=DR.outline_review(path, None))
 
 
-# --------------------------------------------------------------------------- scenes: a plain set when no agent wrote any
+# --------------------------------------------------------------------------- the storyboard: a shot plan, no TODO
+_TODO_HINT = re.compile(r"TODO: what appears \(one visual per idea\)")
+_TODO_TAIL = re.compile(r"\s*[—-]+\s*TODO\b")
+
+
+def _load_cfg(path):
+    import json as J
+    with open(path, encoding="utf-8") as f:
+        return J.load(f)
+
+
+def storyboard_unfinished(path):
+    """scenes.config.json as the storyboard stage writes it: shots that still say "TODO" (a decision nobody made)."""
+    try:
+        cfg = _load_cfg(path)
+    except (OSError, ValueError):
+        return False
+    return any(re.search(r"\bTODO\b", str(sc.get("shots") or "")) for sc in cfg.get("scenes") or [])
+
+
+def rules_shots(shots):
+    """The stage's hints without their "TODO": what each beat should show, in words the scene author acts on."""
+    out = _TODO_HINT.sub("one visual for this idea: draw its key term as a diagram / shape (no sentence on screen)",
+                         shots or "")
+    out = _TODO_TAIL.sub("", out)
+    return re.sub(r"\bTODO\b:?\s*", "", out)
+
+
+STORYBOARD_SYSTEM = ("You are the director of a 3Blue1Brown-style explainer channel. For each scene you plan the "
+                     "visuals beat by beat: what the viewer SEES on each narration cue - a diagram, a flow with "
+                     "arrows, boxes that connect, a comparison, a table filling in, a count-up, an equation built "
+                     "term by term, a code card, a timeline - never the narration as text on screen (captions show "
+                     "it). Reuse one visual metaphor across scenes where the story continues. Reply with JSON only.")
+
+
+def _storyboard_prompt(cfg, lines, request, instruction):
+    import json as J
+    by_n = {L["n"]: L for L in lines}
+    rows = []
+    for k, sc in enumerate(cfg.get("scenes") or []):
+        L = by_n.get(k + 1) or {}
+        beats = re.findall(r'^- ([0-9.]+s) \("([^"]*)"\)', str(sc.get("shots") or ""), re.M)
+        rows.append(dict(id=sc.get("id"), label=L.get("label"), direction=L.get("delivery") or None,
+                         narration=L.get("spoken"), beats=[dict(at=a, words=w) for a, w in beats]))
+    return "\n\n".join(x for x in [
+        f"Request: {request or '(none)'}",
+        f"Instruction from the creator: {instruction}" if instruction else "",
+        "Scenes (narration + the beats: the time each cue starts and its first words):\n"
+        + J.dumps(rows, ensure_ascii=False, indent=1),
+        'Write each scene\'s shot plan as text, one beat per line, exactly in this shape:\n'
+        'Scene title fades in at 0.2s.\n- 0.3s ("<the beat\'s words>"): <what appears / moves: concrete shapes, '
+        'labels <= 10 characters, colours by role>\n...\nAmbient: whole group drifts up 6px over the scene.\n'
+        'Keep every beat time and its words. No "TODO", no placeholders.',
+        'Reply {"scenes": [{"id": "<scene id>", "shots": "<the plan>"}], "summary": "<one sentence>"} with every '
+        'scene id above, in order.'] if x)
+
+
+def draft_storyboard(ctx, cp, path, template=None, instruction=None, complete=None):
+    """The storyboard checkpoint (scenes.config.json's shot plans): the routed AI plans each beat's visual from the
+    narration and the cue times; no model / a reply that does not fit -> the stage's hints with every "TODO" turned
+    into words (``by: rules``; the autopilot does not approve that one - the visuals need a model)."""
+    import json as J
+    import sys
+    try:
+        cfg = _load_cfg(path)
+    except (OSError, ValueError):
+        return None
+    scripts = os.path.join(ctx.workflow_dir, "scripts")
+    sys.path.insert(0, scripts)
+    try:
+        from script_md import parse_script
+        try:
+            lines = parse_script(os.path.join(os.path.dirname(path), "SCRIPT.md"))
+        except OSError:
+            lines = []
+    finally:
+        sys.path.remove(scripts)
+    scenes = cfg.get("scenes") or []
+    rec = None
+    if complete is None:
+        from vstudio import llm
+        complete = llm.complete
+    try:
+        r = complete("planner", STORYBOARD_SYSTEM, _storyboard_prompt(cfg, lines, ctx.request(), instruction),
+                     schema=True, max_tokens=16000, timeout=480, cli_timeout=480, retries=1, effort="medium")
+        js = r.get("json") if isinstance(r, dict) and r.get("provider") != "none" else None
+        got = {str(x.get("id")): str(x.get("shots") or "") for x in (js or {}).get("scenes") or []
+               if isinstance(x, dict)}
+        if scenes and all(got.get(sc.get("id"), "").strip() and not re.search(r"\bTODO\b", got[sc["id"]])
+                          for sc in scenes):
+            for sc in scenes:
+                sc["shots"] = got[sc["id"]].strip()
+            rec = dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction,
+                       review=dict(kind="outline", summary=dict(code="draft.generic", params=dict(
+                           text=str(js.get("summary") or "").strip()[:300])) if js.get("summary") else dict(
+                           code="draft.items", params=dict(n=len(scenes))),
+                           lines=[dict(code="draft.line", params=dict(label=sc["id"])) for sc in scenes[:12]]))
+    except Exception:  # noqa: BLE001  (no model, a timeout: the rules plan below)
+        rec = None
+    if rec is None:
+        for sc in scenes:
+            sc["shots"] = rules_shots(sc.get("shots"))
+        rec = dict(by="rules", instruction=None, review=dict(kind="outline", lines=[], summary=dict(
+            code="draft.items", params=dict(n=len(scenes)))))
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(J.dumps(cfg, indent=1, ensure_ascii=False) + "\n")
+    return rec
+
+
+# --------------------------------------------------------------------------- scenes: drawn by the routed AI
 _CJK_FONTS = (("cjk", ["scene-cjk-w4", "subtitle-cjk-w3"]), ("cjk-bold", ["scene-cjk-w7", "subtitle-cjk-w6"]))
 _HF_FILES = {
     "hyperframes.json": {"$schema": "https://hyperframes.heygen.com/schema/hyperframes.json",
@@ -325,111 +434,31 @@ def _font_file(role):
         return p if os.path.exists(p) else None
 
 
-def _scene_html(sid, W, H, title, dur, cues, legacy, box):
-    """One scene of kinetic text: the scene title, then each narration cue as a line that rises in on its word,
-    the earlier ones dimmed above it (three on screen), numbers in the accent colour. Plain, readable, valid."""
-    import html as H_
-    import json as J
-    x0, y0, x1, y1 = box
-    fs = 52 if legacy else 58
-    rows = [dict(t=round(max(0.2, c["t"] - 0.1), 2), text=H_.escape(c.get("text") or c.get("en") or ""))
-            for c in cues if (c.get("text") or c.get("en"))]
-    return f'''<template>
-  <style>
-    @font-face {{ font-family: "Course CJK"; src: url("assets/fonts/scene-cjk-w4.woff2") format("woff2"); font-weight: 400 500; }}
-    @font-face {{ font-family: "Course CJK"; src: url("assets/fonts/scene-cjk-w7.woff2") format("woff2"); font-weight: 600 900; }}
-    #root {{ position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }}
-    #{sid}-stage {{ position: absolute; inset: 0; width: {W}px; height: {H}px; font-family: "Course CJK", sans-serif; }}
-    #{sid}-title {{ position: absolute; left: {x0}px; top: {y0}px; width: {x1 - x0}px; font-size: {fs + 10}px; font-weight: 800; color: #F4D35E; line-height: 1.2; }}
-    #{sid}-bar {{ position: absolute; left: {x0}px; top: {y0 + fs + 40}px; width: 120px; height: 6px; background: #58C4DD; border-radius: 3px; }}
-    .{sid}-line {{ position: absolute; left: {x0}px; width: {x1 - x0}px; font-size: {fs}px; font-weight: 600; color: #ECEEF2; line-height: 1.35; opacity: 0; }}
-    .{sid}-line b {{ color: #58C4DD; font-weight: 800; }}
-  </style>
-  <div id="root" data-composition-id="{sid}" data-width="{W}" data-height="{H}" data-duration="{dur}">
-    <div id="{sid}-stage" class="clip" data-start="0" data-duration="{dur}" data-track-index="1">
-      <div id="{sid}-title">{H_.escape(title)}</div><div id="{sid}-bar"></div>
-      <div id="{sid}-lines"></div>
-    </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-  <script>
-    (function () {{
-      const R = {J.dumps(rows, ensure_ascii=False)};
-      const box = document.getElementById("{sid}-lines");
-      const top = {y0 + fs + 90}, bottom = {y1}, step = {int(fs * 2.9)};
-      const tl = gsap.timeline({{ paused: true }});
-      tl.fromTo("#{sid}-title", {{ opacity: 0, y: 16 }}, {{ opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }}, 0.1);
-      tl.fromTo("#{sid}-bar", {{ scaleX: 0, transformOrigin: "0% 50%" }}, {{ scaleX: 1, duration: 0.6, ease: "power2.out" }}, 0.3);
-      const els = R.map((r, i) => {{
-        const d = document.createElement("div"); d.className = "{sid}-line"; d.id = "{sid}-l" + i;
-        d.innerHTML = r.text.replace(/(\\d+(?:[.,]\\d+)?%?)/g, "<b>$1</b>"); box.appendChild(d); return d; }});
-      els.forEach((d, i) => {{
-        const slot = Math.min(i, 2);
-        d.style.top = (top + slot * step) + "px";
-        tl.fromTo(d, {{ opacity: 0, y: 24 }}, {{ opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }}, R[i].t);
-        if (i >= 1) for (let k = Math.max(0, i - 2); k < i; k++) {{
-          const pos = top + (Math.min(i, 2) - (i - k)) * step;
-          tl.to(els[k], {{ top: pos, opacity: k === i - 1 ? 0.55 : 0.3, duration: 0.4, ease: "power1.inOut" }}, R[i].t);
-        }}
-        if (i >= 3) tl.to(els[i - 3], {{ opacity: 0, duration: 0.3 }}, R[i].t);
-      }});
-      window.__timelines["{sid}"] = tl;
-    }})();
-  </script>
-</template>
-'''
+def scenes_unfinished(path):
+    """The scenes folder lacks a scene of scenes.config.json, or one still has a placeholder."""
+    from .explainer_scenes import scenes_complete
+    return os.path.isdir(path) and not scenes_complete(path)
 
 
-def draft_scenes(ctx, cp, path, template=None, instruction=None, complete=None):
-    """The scenes step when no agent wrote any: one kinetic-text scene per narration line (title + its cues rising
-    in on their words), plus what the render needs that is not a stage yet - the HyperFrames project files, the CJK
-    font subsets (captions + scenes) and the captions composition. An agent's own scenes always win (this only
-    fills an empty folder); she can redraw any scene later."""
+def scene_support(item, path, log=None):
+    """What the render needs besides the scenes: the HyperFrames project file, the CJK font subsets (every character
+    the captions and the scenes use: made again, the scenes changed) and the captions composition."""
     import json as J
     import subprocess
     import sys
-    item = ctx.item_dir
-    try:
-        cfg = J.load(open(os.path.join(item, "scenes.config.json"), encoding="utf-8"))
-        win = J.load(open(os.path.join(item, "audio", "scenes.json"), encoding="utf-8"))["scenes"]
-        cues = J.load(open(os.path.join(item, "audio", "scene_cues.json"), encoding="utf-8"))
-    except (OSError, ValueError, KeyError):
-        return None                                   # the timing is not there yet: nothing to draw from
-    scripts = os.path.join(ctx.workflow_dir, "scripts")
-    sys.path.insert(0, scripts)
-    try:
-        import canvas as CV
-        from script_md import parse_script
-        cv = CV.resolve(item)
-        try:
-            labels = {L["n"]: L["label"] for L in parse_script(os.path.join(item, "SCRIPT.md"))}
-        except OSError:
-            labels = {}
-    finally:
-        sys.path.remove(scripts)
-    W, H = cv["W"], cv["H"]
-    box = (120, 110, 1800, 800) if cv["legacy"] else tuple(cv["math"])
-    os.makedirs(path, exist_ok=True)
-    for sc, w in zip(cfg.get("scenes") or [], win):
-        f = os.path.join(path, f"{sc['id']}.html")
-        if not os.path.exists(f):
-            with open(f, "w", encoding="utf-8") as fh:
-                fh.write(_scene_html(sc["id"], W, H, labels.get(w["frame"], ""), w["duration"],
-                                     cues.get(str(w["frame"])) or [], cv["legacy"], box))
     for name, doc in _HF_FILES.items():
         p = os.path.join(item, name)
         if not os.path.exists(p):
             with open(p, "w", encoding="utf-8") as fh:
                 J.dump(doc, fh, indent=2)
-    # fonts: every character the captions and the scenes use
     from vstudio.render import subset_font
     chars = ""
     try:
-        chars = "".join(c.get("zh", "") + c.get("en", "") for c in J.load(open(os.path.join(item, "subtitles",
-                                                                                         "cues.json"), encoding="utf-8")))
+        with open(os.path.join(item, "subtitles", "cues.json"), encoding="utf-8") as fh:
+            chars = "".join(c.get("zh", "") + c.get("en", "") for c in J.load(fh))
     except (OSError, ValueError):
         pass
-    for f in os.listdir(path):
+    for f in sorted(os.listdir(path)):
         if f.endswith(".html"):
             with open(os.path.join(path, f), encoding="utf-8") as fh:
                 chars += fh.read()
@@ -438,15 +467,139 @@ def draft_scenes(ctx, cp, path, template=None, instruction=None, complete=None):
         src = _font_file(role)
         for o in outs:
             dst = os.path.join(item, "assets", "fonts", f"{o}.woff2")
-            if src and not os.path.exists(dst):
+            if src:
                 try:
                     subset_font(src, chars, dst)
-                except Exception:  # noqa: BLE001  (no fonttools / brotli: the render falls back, visibly)
-                    pass
+                except Exception as e:  # noqa: BLE001  (no fonttools / brotli: the render falls back, visibly)
+                    if log:
+                        log(f"font subset {o}: {e}")
     if os.path.exists(os.path.join(item, "subtitles", "cues.json")) and \
             not os.path.exists(os.path.join(path, "captions.html")):
+        from .. import manifests as M
+        scripts = os.path.join(M.WORKFLOWS, "explainer", "scripts")
         subprocess.run([sys.executable, os.path.join(scripts, "make_captions.py"), "-C", item],
                        capture_output=True, text=True)
+
+
+def _scenes_review(item, written, total):
+    return dict(kind="outline", summary=dict(code="draft.items", params=dict(n=total)),
+                lines=[dict(code="draft.line", params=dict(label=x)) for x in written[:12]])
+
+
+def draft_scenes(ctx, cp, path, template=None, instruction=None, complete=None):
+    """The scenes step: the routed AI draws every scene (``explainer_scenes``: diagrams and motion on the voice's cue
+    times; the scenes it already drew are kept unless she asked for a change), then what the render needs that is
+    not a stage yet (``scene_support``). No model, or not every scene drawn: ``NeedsModel`` / an error - nothing that
+    is not the AI's is written, the step waits for her with a plain sentence (never a text-only video). Her own /
+    her agent's scenes (no AI mark, every scene there) are "hers" and never reach this."""
+    from . import explainer_scenes as S
+    item = ctx.item_dir
+    if not all(os.path.exists(os.path.join(item, *p)) for p in (("scenes.config.json",), ("audio", "scenes.json"),
+                                                                 ("audio", "scene_cues.json"))):
+        return None                                   # the timing is not there yet: nothing to draw from
+    os.makedirs(path, exist_ok=True)
+    res = S.author_scenes(item, ctx.workflow_dir, request=ctx.request(), instruction=instruction, complete=complete,
+                          out_dir=path, keep_ai=instruction is None)
+    if not res["ok"]:
+        if res.get("error_code") == "needs-model":
+            raise S.NeedsModel(res["error"], S.routed_provider())
+        raise RuntimeError(res["error"] or "the scenes could not be drawn")
+    scene_support(item, path)
+    done = [s for s in sorted(os.listdir(path)) if s.endswith(".html") and s != "captions.html"]
+    return dict(by="ai", provider=res.get("provider"), model=res.get("model"), instruction=instruction,
+                review=_scenes_review(item, [d[:-5] for d in done], res["total"]))
+
+
+# --------------------------------------------------------------------------- redo the visuals of a finished one
+def _rendered(env_or_item_dir, item_id=None):
+    item = env_or_item_dir
+    rd = os.path.join(item, "renders")
+    try:
+        return any(f.endswith(".mp4") for f in os.listdir(rd))
+    except OSError:
+        return False
+
+
+def scenes_current(project, cp, item):
+    """A finished explainer's visuals (the clip page's "Redo the visuals"): who drew them -> {pick: None, choice: ai |
+    rules | her, options: []}, or None (not rendered yet)."""
     from .. import drafts as DR
-    return dict(by="rules", instruction=None, review=dict(kind="outline", lines=[], summary=dict(
-        code="draft.items", params=dict(n=len(cfg.get("scenes") or [])))))
+    rows = {r["id"]: r for r in project.jobs_rows()}
+    row = rows.get(item) or {}
+    item_dir = os.path.join(project.dir, "items", row.get("_base_item") or item)
+    comp = os.path.join(item_dir, "compositions")
+    if not _rendered(item_dir) or not os.path.isdir(comp):
+        return None
+    side = DR.read_side(comp, cp["id"]) or {}
+    return dict(pick=None, choice=side.get("by") or "her", options=[])
+
+
+VOICE_STAGES = ("prepare", "storyboard", "cue_draft", "voice", "narration", "transcribe", "align", "windows")
+
+
+def scenes_remake(env, cp, choice):
+    """Redo the visuals of a finished explainer, the voice kept: every scene drawn again by the routed AI (into a
+    new folder first: no model -> ``NeedsModel`` and the old video stays as it was), then index -> render -> export
+    re-run by the project's runner (only those: the narration, its cues and timing are not touched; a project whose
+    voice would be made again is refused). ``choice``: an instruction for the visuals ("more diagrams") or None.
+    -> {answer None (recorded here, before the run), scenes, provider, status}."""
+    import shutil
+    import time as T
+    from . import explainer_scenes as S
+    from .. import drafts as DR
+    from .common import author_payload
+    item, path = env.item_dir, os.path.join(env.item_dir, "compositions")
+    if not _rendered(item):
+        raise RuntimeError("visuals: the video is not made yet")
+    for need in (("audio", "narration.wav"), ("audio", "scenes.json"), ("audio", "scene_cues.json")):
+        if not os.path.exists(os.path.join(item, *need)):
+            raise RuntimeError("visuals: the narration timing is missing (" + "/".join(need) + ")")
+    p = env.project
+    voice = [s for s in (p.stale().get(env.job) or []) if s in VOICE_STAGES or s.startswith("cp_") and
+             s[3:] in ("script", "storyboard", "voice", "cues")]
+    if voice:
+        raise RuntimeError("visuals: the narration would be made again (" + ", ".join(voice) + " changed) - run "
+                           "the project first")
+    env.at("cp_" + cp["id"])
+    stamp = T.strftime("%Y%m%d-%H%M%S")
+    new = os.path.join(env.dir, f"compositions.new-{stamp}")
+    os.makedirs(new, exist_ok=True)
+    instruction = choice if choice and choice not in ("ai", "redo") else None
+    env.log(f"remake visuals: drawing {item} again" + (f" ({instruction})" if instruction else ""))
+    res = S.author_scenes(item, env.workflow_dir, request=_request(p), instruction=instruction, out_dir=new,
+                          keep_ai=False, log=env.log)
+    if not res["ok"]:
+        shutil.rmtree(new, ignore_errors=True)
+        if res.get("error_code") == "needs-model":
+            raise S.NeedsModel(res["error"], S.routed_provider())
+        raise RuntimeError(res["error"] or "visuals: the scenes could not be drawn")
+    old = os.path.join(env.dir, f"compositions.before-{stamp}")
+    if os.path.isdir(path):
+        shutil.move(path, old)
+        cap = os.path.join(old, "captions.html")
+        if os.path.exists(cap):
+            shutil.copy2(cap, os.path.join(new, "captions.html"))
+    shutil.move(new, path)
+    scene_support(item, path, log=env.log)
+    DR.write_side(path, cp["id"], dict(by="ai", provider=res.get("provider"), model=res.get("model"),
+                                       instruction=instruction, review=_scenes_review(item, res["written"],
+                                                                                      res["total"])))
+    try:
+        env.write_payload(cp, author_payload(env, cp))
+    except Exception as e:  # noqa: BLE001  (the payload is a view; the answer below is what counts)
+        env.log(f"scenes payload skipped: {str(e)[:160]}")
+    p.answer(cp["id"], dict(done=True), items=[env.job], replan=True)
+    events = getattr(env, "emit", None)
+    out = p.run(only=[env.job], on_event=(lambda ev: events(ev) if ev.get("event") not in (
+        "run-start", "project-end") else None) if events else None)
+    if out.get("exit_code") not in (0, 7):            # done, or the new video waits for her review
+        raise RuntimeError("visuals: the new scenes were drawn but the video was not made again (" +
+                           str(out.get("status")) + ")")
+    return dict(answer=None, scenes=res["written"], provider=res.get("provider"), model=res.get("model"),
+                status=out.get("status"), keep_live=out.get("exit_code") != 0, backup=old if os.path.isdir(old)
+                else None)
+
+
+def _request(project):
+    d = project.data
+    return "\n".join(x for x in (d.get("prompt") or "", d.get("name") or "") if x)

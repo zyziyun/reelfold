@@ -96,7 +96,16 @@ module:fn(project, cp, item)` (what the item has when nobody answered, e.g. a pr
 read from its exports; `decisions` lists it under `choices`) and `remake: module:fn(env, cp, choice)` (redo just that
 on the finished item: only the vertical exports, or the copy + every post.md):
 `python -m vstudio.project remake --dir P --item I --do framing=follow [--do copy]` records the answer as hers and
-runs no other stage (`vstudio/project/remake.py`).
+runs no other stage (`vstudio/project/remake.py`). A checkpoint may name its remake (`remake_as`): the explainer's
+scenes are `--do visuals` - every scene drawn again by the routed AI into a new folder (no model: the old video stays,
+the failure is `ai-needs-model`), then only index -> render -> export re-run; a project whose voice would be made again
+is refused.
+
+An `author` checkpoint whose file needs a model to be any good says `author.needs_ai: true` (the explainer's script,
+storyboard and scenes): the autopilot never approves the rules' draft of it - it asks the routed AI once more
+(`drafts.redraft`), else stops in Needs you (`needs-model`: "The visuals need an AI model — Claude Code didn't answer",
+payload `draft_error_code: ai-needs-model`). No author draft with a placeholder (`TODO`) is ever auto-approved
+(payload `placeholders`), and a stage's skeleton that still says TODO (the explainer storyboard) is "template" state.
 
 Payload (what the app renders): `{id, kind, scope, item, labels, help, options [...], default, previews [{kind,
 path}], answer_schema, auto, batch_by, aggregate, digest, ...kind-specific}`. Answer: JSON validated against the

@@ -101,6 +101,22 @@ def _persona(iso, monkeypatch, text):
     config.persona.cache_clear()
 
 
+def ai_storyboard(task, system, prompt, **kw):
+    """A model that plans the storyboard (the step needs one on autopilot): these tests are about the voice."""
+    import re
+    ids = re.findall(r'"id": "(f\d\d-[^"]+)"', prompt)
+    return dict(provider="test", model="test", json=dict(scenes=[dict(id=i, shots="- 0.3s (\"x\"): a diagram")
+                                                                 for i in ids]))
+
+
+@pytest.fixture(autouse=True)
+def _storyboard_model(monkeypatch):
+    from vstudio.project.adapters import explainer as X
+    real = X.draft_storyboard
+    monkeypatch.setattr(X, "draft_storyboard", lambda ctx, cp, path, **kw: real(ctx, cp, path, **dict(
+        kw, complete=ai_storyboard)))
+
+
 def _takes(iso):
     p = iso / "tts.jsonl"
     return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines()] if p.exists() else []

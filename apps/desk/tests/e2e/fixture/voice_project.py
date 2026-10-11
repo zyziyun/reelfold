@@ -9,7 +9,8 @@ is not set"). Two explainer projects on a short Chinese script, run with the REA
 Writes a test-only ``sitecustomize`` hook to ``ROOT/hook`` (put it on the desk's PYTHONPATH with ``VOICEKEY_LOG``):
 this computer "has" the free voice Kokoro (``VOICEKEY_FREE``), and a take is never made - the engine and voice of the
 first take are recorded in ``VOICEKEY_LOG``, then the step stops. ``VOICEKEY_DROP_KEY`` drops OPENAI_API_KEY in the
-voice step only (how the key went missing). The only fakes; the rest is the real engine.
+voice step only (how the key went missing). A stand-in model plans the storyboard (a step that needs one on
+autopilot). The only fakes; the rest is the real engine.
 
     python voice_project.py ROOT   (VSTUDIO_HOME etc. from the environment) -> prints {course, asking, hook, log, exit}
 """
@@ -44,6 +45,15 @@ if os.environ.get("VOICEKEY_LOG"):
                 f.write(json.dumps(dict(engine=engine, voice=voice, out=out)) + "\\n")
             raise RuntimeError("test: no real take (the engine and voice are recorded)")
         _tts.synth = _synth
+    # the storyboard needs an AI model on autopilot: a stand-in model plans it (this test is about the voice)
+    from vstudio.project.adapters import explainer as _X
+    _real_sb = _X.draft_storyboard
+
+    def _plan(task, system, prompt, **k):
+        import re
+        ids = re.findall(r'"id": "(f\\d\\d-[^"]+)"', prompt)
+        return dict(provider="test", model="test", json=dict(scenes=[dict(id=i, shots="- 0.3s: a diagram") for i in ids]))
+    _X.draft_storyboard = lambda ctx, cp, path, **kw: _real_sb(ctx, cp, path, **dict(kw, complete=_plan))
 '''
 
 SCRIPT = """# SCRIPT — MCP

@@ -82,6 +82,11 @@ python3 scripts/make_captions.py       # → compositions/captions.html
 ```
 
 ### 6. Build scenes
+In a Reelfold project (`vstudio.project`, recipe `explainer`) this step is the routed AI's: at the "Build the scenes"
+checkpoint every scene is drawn from its frame packet (diagrams and motion on the real cue times, this guide's design
+truth and contract; `lib/vstudio/project/adapters/explainer_scenes.py`), checked and linted before it is kept. With no
+model it waits in Needs you - never a text-only fallback. A finished explainer's visuals are redrawn, the voice kept,
+with `python -m vstudio.project remake --dir P --item I --do visuals`. By hand / with your own agent:
 1. `npx hyperframes init <dir> --non-interactive --example=blank --skill=general-video`; copy `references/design-truth.md` → `frame.md`.
 2. Edit `scenes.config.json` (ids, transitions, **time-coded shot sequences using the real cue times** from `audio/scene_cues.json`; the storyboard draft gives you the skeleton), then `python3 scripts/make_packets.py`.
 3. Build ONE scene yourself from `assets/reference-scene.html`, assemble, `npx hyperframes lint` + `snapshot`, fix — then hand the rest to parallel workers (2–3 scenes each, one wave) with `_role.md` (HyperFrames frame-worker core + general-video delta), `references/frame-worker-dispatch.md`, their packets and sketches.

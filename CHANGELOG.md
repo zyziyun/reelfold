@@ -8,6 +8,20 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Added
+
+- **Redo the visuals** of a finished explainer, the voice kept: the clip / project page button, or ask the chat
+  ("画面太素了" / "redo the visuals" / "plus de schémas"); every scene is drawn again by your AI, then rendered and
+  exported again (`vstudio.project remake --do visuals`).
+
+### Fixed
+
+- **Explainer scenes are drawn by the AI, never as text lines**: each scene is a diagram / animation on the voice's
+  cue times, checked and linted before it is kept; the storyboard's "TODO" shots are planned by the AI. When no model
+  answers, the project waits in Needs you ("The visuals need an AI model — Claude Code didn't answer") instead of
+  rendering a text-only video; the autopilot never approves a draft that still says TODO.
+- Claude Code gets a reasoning effort for big generations (`--effort medium` for a scene: ~1 min instead of 5).
+
 ## [0.2.7] - 2026-10-11
 
 ### Added

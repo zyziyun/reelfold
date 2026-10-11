@@ -12,6 +12,10 @@ it can be looked at and changed afterwards. Only real blockers stay for the crea
                      answer. A seeded template / SYNTHETIC example is never taken for a draft
     asked            she took a decision back ("change it"): the checkpoint waits for her answer
     needs-key        a paid voice without its key and no free voice on this computer: her key (Settings) is the way
+    needs-model      an ``author`` step that needs an AI model (``author.needs_ai``: the explainer's script, storyboard
+                     and scenes) whose draft is the rules' - asked of the routed AI once more first - or that no model
+                     drew: "The visuals need an AI model — Claude Code didn't answer", never a text-only video. A draft
+                     that still has a placeholder ("TODO") is never approved either
 
 project.yaml::
 
@@ -131,6 +135,16 @@ def rules(cp, pay, spend_cap=0.0):
         keep = [int(o["id"]) for o in opts if int(o["id"]) not in cut]
         return _rule("filler-confidence", f"cut {len(cut)} of {len(opts)} (the sure ones), kept {len(keep)}",
                      dict(approve=cut, keep=keep), cut=len(cut), kept=len(keep), n=len(opts))
+    a = cp.get("author") or {}
+    if kind in AUTHOR_KINDS and a.get("needs_ai") and (
+            pay.get("draft_error_code") == "ai-needs-model" or (default is not None and pay.get("draft_by") == "rules")):
+        prm = pay.get("draft_error_params") or {}
+        what = "script" if cp["id"] == "script" else "visuals"
+        prov = prm.get("provider") or _routed()
+        from .adapters.explainer_scenes import needs_model_message
+        return _block("needs-model", pay.get("draft_error") if pay.get("draft_error_code") == "ai-needs-model" and
+                      pay.get("draft_error") else needs_model_message(prov, what), what=what, provider=prov,
+                      by=pay.get("draft_by"))
     if default is None:
         if kind in AUTHOR_KINDS:
             # nothing drafted (no model, a reply that did not parse) - never the seeded template / example
@@ -138,6 +152,10 @@ def rules(cp, pay, spend_cap=0.0):
                 f" ({pay['draft_error']})" if pay.get("draft_error") else ""), file=os.path.basename(
                 str(pay.get("file") or "")), state=pay.get("draft_state"))
         return _block("needs-input", "nothing to go on (no default)")
+    if kind in AUTHOR_KINDS and pay.get("placeholders"):
+        # a stage's skeleton / a draft with "TODO" left in it would reach the render as it is
+        return _block("needs-input", f"the draft still has {pay['placeholders']} placeholder(s) (TODO) to fill",
+                      file=os.path.basename(str(pay.get("file") or "")), n=pay["placeholders"])
     if kind in AUTHOR_KINDS:
         rv = pay.get("review") or {}
         summ = rv.get("summary") or {}
@@ -243,6 +261,28 @@ def _summary_params(kind, value, pay):
     return {}
 
 
+def _routed(task="planner"):
+    try:
+        from vstudio import llm
+        return llm.route(task).provider
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _redraft(project, cp, pay):
+    """A step that needs a model got the rules' draft: ask the routed AI once more (``drafts.redraft``, its long time
+    limit) -> the payload as it is now (None: the redraft itself broke)."""
+    from . import drafts as DR
+    from .build import read_payload
+    item = pay.get("item")
+    try:
+        DR.redraft(project, cp["id"], item)
+    except Exception as e:  # noqa: BLE001  (the blocker below says what is missing)
+        log(project, dict(event="redraft-failed", checkpoint=cp["id"], item=item, error=str(e)[:200]))
+        return None
+    return read_payload(project.state_dir, item, cp["id"])
+
+
 def decide(project, pay, complete=None):
     """One pending checkpoint payload -> a decision (``value`` set) or a blocker (``blocker`` set)."""
     s = settings(project)
@@ -250,6 +290,13 @@ def decide(project, pay, complete=None):
     if key(pay["id"], "*" if cp["scope"] == "project" else pay.get("item")) in s["ask"]:
         return _block("asked", "you asked to decide this one")
     base = rules(cp, pay, s["spend_cap"])
+    if base.get("blocker") == "needs-model" and pay.get("draft_by") == "rules":
+        # the rules wrote it (the model timed out, or an older run): the routed AI is asked once more first
+        again = _redraft(project, cp, pay)
+        if isinstance(again, dict):
+            base = rules(cp, again, s["spend_cap"])
+            if not base.get("blocker") and base.get("by") == "ai":
+                return base
     if base.get("blocker") or not s["judge"] or cp["kind"] not in AI_KINDS:
         return base
     ctx = project.data.get("prompt") or project.data.get("name") or ""
@@ -324,7 +371,8 @@ SETTING_KINDS = ("reframe-pick", "copy-pick")
 def choices(project, kinds=SETTING_KINDS):
     """The standing per-video settings among the answers (vertical framing, which post copy), whoever answered:
     [{checkpoint, kind, item, choice (the picked option's kind), pick, by: ai | rules | her | before (made before
-    the recipe asked: read from the item's files)}] - the clip page shows
+    the recipe asked: read from the item's files)}], + a finished item's part a recipe can remake (the explainer's
+    visuals: ``remake_as``, ``choice`` = who drew them) - the clip page shows
     them as a setting she can switch, also after she changed it (then it is hers and not in ``decisions``)."""
     out = []
     for cid, per in (project.data.get("answers") or {}).items():
@@ -353,7 +401,8 @@ def choices(project, kinds=SETTING_KINDS):
     from .remake import current
     have = {(x["checkpoint"], x["item"]) for x in out}
     for cp in project.manifest["checkpoints"]:
-        if cp["kind"] not in kinds or not cp.get("current"):
+        # a setting with options (framing, copy), or a remake of a finished item's part (the explainer's visuals)
+        if not cp.get("current") or (cp["kind"] not in kinds and not cp.get("remake")):
             continue
         for row in project.jobs_rows():
             if (cp["id"], row["id"]) in have or (cp["scope"] == "project" and (cp["id"], "*") in have):
@@ -361,7 +410,9 @@ def choices(project, kinds=SETTING_KINDS):
             cur = current(project, cp, row["id"])
             if cur:
                 out.append(dict(checkpoint=cp["id"], kind=cp["kind"], item=row["id"], pick=cur.get("pick"),
-                                choice=cur.get("choice"), options=list(cur.get("options") or []), by="before"))
+                                choice=cur.get("choice"), options=list(cur.get("options") or []),
+                                by="before" if cp["kind"] in kinds else (cur.get("choice") or "her"),
+                                **({"remake_as": cp["remake_as"]} if cp.get("remake_as") else {})))
     return out
 
 

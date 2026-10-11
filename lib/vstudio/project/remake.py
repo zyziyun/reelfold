@@ -1,9 +1,11 @@
 """Remake one standing setting of a finished item without running its recipe again: the vertical framing of a vlog
 (follow the subject / fill with blur) re-makes only the vertical exports, the post copy is written again and every
-platform's post.md with it. Works for projects made before the recipe had the setting (no answer recorded, no
+platform's post.md with it, an explainer's visuals (``--do visuals``: the scenes checkpoint's ``remake_as``) are drawn
+again by the AI and only the render + exports re-made - the voice kept. Works for projects made before the recipe had the setting (no answer recorded, no
 stage run): what the item has now is read from its exports (the checkpoint's ``current`` hook).
 
     python -m vstudio.project remake --dir P --item I --do framing=follow [--do copy] [--json | --json-events]
+    python -m vstudio.project remake --dir P --item I --do visuals [--json-events]
 
 A checkpoint takes part when the recipe gives it a ``remake`` ref: ``fn(env, cp, choice) -> {answer, ...}`` with
 ``env`` the item as a finished run left it (``RemakeEnv``: params, the stages' outputs, the stage folder). The
@@ -108,6 +110,8 @@ def remake(project, item, todo, emit=None):
     from vstudio.batch.run import BatchBusy, runner_active
     emit = emit or (lambda ev: None)
     cps = {c["id"]: c for c in remakeable(project)}
+    alias = {c["remake_as"]: c["id"] for c in cps.values() if c.get("remake_as")}
+    todo = {alias.get(k, k): v for k, v in todo.items()}            # `--do visuals` = the explainer's scenes
     bad = [k for k in todo if k not in cps]
     if bad:
         raise RemakeError(f"{project.manifest['id']}: cannot remake {', '.join(bad)}; can: {', '.join(cps) or '-'}")
@@ -115,7 +119,7 @@ def remake(project, item, todo, emit=None):
         raise BatchBusy("the project is running; change this when it has finished")
     order = [c["id"] for c in project.manifest["checkpoints"] if c["id"] in todo]
     emit(dict(event="run-start", ts=now(), jobs=[item], remake=order))
-    done, t0 = [], time.time()
+    done, t0, keep_live = [], time.time(), False
     try:
         for cid in order:
             cp = cps[cid]
@@ -123,18 +127,25 @@ def remake(project, item, todo, emit=None):
                      live_code="remake", live_params=dict(checkpoint=cid, item=item))
             emit(dict(event="stage-start", ts=now(), job=item, stage=cid))
             env = RemakeEnv(project, item, cp["after"])
+            env.emit = emit
             res = M.resolve_ref(cp["remake"])(env, cp, todo[cid]) or {}
             if res.get("answer") is not None:
                 project.answer(cid, res["answer"], items=[item], replan=False)
+            keep_live = keep_live or bool(res.get("keep_live"))
             emit(dict(event="stage-done", ts=now(), job=item, stage=cid, state="done"))
-            done.append(dict({k: v for k, v in res.items() if k != "answer"}, checkpoint=cid, choice=todo[cid]))
+            done.append(dict({k: v for k, v in res.items() if k not in ("answer", "keep_live")}, checkpoint=cid,
+                             choice=todo[cid]))
     except Exception as e:
         LS.write(project.dir, "failed", by="project", message=f"remake failed: {str(e)[:200]}")
-        emit(dict(event="stage-fail", ts=now(), job=item, stage=(order + [""])[len(done)], error=str(e)[:400]))
+        # a step that needs a model none answered (the explainer's visuals): its code, so the desk words it
+        code = getattr(e, "code", None)
+        emit(dict(event="stage-fail", ts=now(), job=item, stage=(order + [""])[len(done)], error=str(e)[:400],
+                  **({"code": code, "params": getattr(e, "params", None) or {}} if code else {})))
         emit(dict(event="project-end", ts=now(), status="failed", exit_code=1))
         if isinstance(e, (RuntimeError, OSError)):
             raise RemakeError(str(e)) from e
         raise
-    LS.write(project.dir, "done", by="project", message="done")
+    if not keep_live:                # a remake whose run stopped at a question (her review) keeps saying so
+        LS.write(project.dir, "done", by="project", message="done")
     emit(dict(event="project-end", ts=now(), status="done", exit_code=0, seconds=round(time.time() - t0, 1)))
     return dict(ok=True, item=item, done=done)
