@@ -57,7 +57,9 @@ export function otherProvider(f: PilotFailure): string {
   return f.provider === 'codex' ? 'claude-code' : 'codex';
 }
 
-export function FailureActions({ item, failure, primary = true, onDone }: { item: string; failure: PilotFailure; primary?: boolean; onDone?: () => void }) {
+/** ``only``: just the one button that fixes it (connect a model / add a key / Sign in / Try again) - Home's rows
+ * offer one action each. */
+export function FailureActions({ item, failure, primary = true, onDone, only = false }: { item: string; failure: PilotFailure; primary?: boolean; onDone?: () => void; only?: boolean }) {
   const { client } = useEngine();
   const hist = useHistory();
   const inbox = useInbox();
@@ -81,6 +83,19 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
     }
   };
   const p = primary ? 'btn primary' : 'btn';
+  const settings = (
+    <button className={only ? p : 'btn'} onClick={() => go({ name: 'aiAccounts', focus: failure.provider ?? undefined })} data-testid="fail-ai-settings">
+      {t('draft.needsModel.ai')}
+    </button>
+  );
+  const addKey = (
+    <button className={only ? p : 'btn'} onClick={() => go({ name: 'aiAccounts', focus: keyFocus(failure) })} data-testid="fail-add-key">
+      {t('fail.addKey', { service: String(failure.params?.service ?? '') || t('fail.keyService') })}
+    </button>
+  );
+  // one button: the step that fixes it (a model to connect, a key to add), else Sign in / Try again
+  if (only && failure.code === 'ai-needs-model') return settings;
+  if (only && failure.code === 'ai-key-missing') return addKey;
   return (
     <>
       {failure.code === 'ai-login' || failure.code === 'ai-missing' ? (
@@ -92,7 +107,7 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
           {t('fail.retry')}
         </button>
       )}
-      {failure.code === 'tool-voice' && (
+      {!only && failure.code === 'tool-voice' && (
         <button
           className="btn"
           onClick={() =>
@@ -105,24 +120,18 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
           {t('fail.downloadVoice')}
         </button>
       )}
-      {failure.code === 'ai-needs-model' && (
-        <button className="btn" onClick={() => go({ name: 'aiAccounts', focus: failure.provider ?? undefined })} data-testid="fail-ai-settings">
-          {t('draft.needsModel.ai')}
-        </button>
-      )}
-      {failure.code === 'ai-key-missing' && (
-        <button className="btn" onClick={() => go({ name: 'aiAccounts', focus: keyFocus(failure) })} data-testid="fail-add-key">
-          {t('fail.addKey', { service: String(failure.params?.service ?? '') || t('fail.keyService') })}
-        </button>
-      )}
-      {ai && (
+      {!only && failure.code === 'ai-needs-model' && settings}
+      {!only && failure.code === 'ai-key-missing' && addKey}
+      {!only && ai && (
         <button className="btn" disabled={busy} onClick={() => void retry(other)} data-testid="fail-retry-other">
           {t('fail.retryWith', { provider: providerName(other) })}
         </button>
       )}
-      <button className="btn ghost" onClick={() => openReport({ kind: 'job', code: failure.code, message: failure.error || failure.code })} data-testid="fail-report">
-        {t('sup.rp.report')}
-      </button>
+      {!only && (
+        <button className="btn ghost" onClick={() => openReport({ kind: 'job', code: failure.code, message: failure.error || failure.code })} data-testid="fail-report">
+          {t('sup.rp.report')}
+        </button>
+      )}
     </>
   );
 }

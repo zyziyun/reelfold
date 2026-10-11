@@ -25,6 +25,11 @@ function withQuery(h: string, q: URLSearchParams): string {
   return s ? `${h}${h.includes('?') ? '&' : '?'}${s}` : h;
 }
 
+/** A request / project selected in All projects (the Studio's whole list, or the control room). */
+export function selHref(id: string): string {
+  return withQuery(href({ name: 'projects' }), new URLSearchParams({ sel: id }));
+}
+
 /** A scheduled post on the Publish board. */
 export function postHref(id: string): string {
   return `${href({ name: 'calendar' })}?post=${encodeURIComponent(id)}`;
@@ -89,6 +94,14 @@ export function startTriage(items: InboxItem[], from = 0) {
   if (!items.length) return;
   setTriage({ keys: items.map((x) => x.key), i: Math.min(from, items.length - 1) });
   location.hash = itemTarget(items[Math.min(from, items.length - 1)], true);
+}
+
+/** 「连着看」 Review in a row: clips waiting for her review play one after another (space approves, X sends back -
+ * Focus); other questions come one after another where they are answered. */
+export function reviewInRow(items: InboxItem[]) {
+  const review = items.find((x) => (x.kind === 'review' || x.kind === 'publish') && x.project.id);
+  if (review?.project.id) location.hash = href({ name: 'focus', id: review.project.id });
+  else startTriage(items);
 }
 
 export function endTriage(toInbox = true) {

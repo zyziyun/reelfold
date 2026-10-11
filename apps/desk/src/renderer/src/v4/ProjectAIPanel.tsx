@@ -11,6 +11,7 @@ import { providerName } from '../../../shared/aiRoutes';
 import { t, type MessageKey } from '../i18n';
 import { emsg, errText } from './msg';
 import { useEngine } from '../lib/engine';
+import type { EngineClient } from '../../../shared/engineClient';
 import { go } from '../lib/router';
 import { useUi } from './ui';
 import { AnsweredBy, FallbackNote, ProviderChip } from './AiChip';
@@ -36,6 +37,16 @@ let seq = 0;
 /** each project's conversation while the app is open: the page under the chat changes as the run goes (the run page,
  * then the ready page) and the chat stays */
 const KEPT = new Map<string, Msg[]>();
+
+/** Requests started outside the panel (All projects' "Change with AI…" over videos of several projects): each
+ * project's panel takes its own over when it opens (it may have finished by then) and shows its changes to apply. */
+const STARTED = new Map<string, { job: string; prompt: string; clips: string[]; timeout: number }>();
+
+export async function askProjectInBackground(client: EngineClient, item: string, prompt: string, clips: string[]): Promise<void> {
+  const r = await client.projectAsk(item, prompt, clips.length ? clips : null);
+  STARTED.set(item, { job: r.job, prompt, clips: r.clips, timeout: r.timeout });
+  KEPT.set(item, [...(KEPT.get(item) ?? []), { id: ++seq, me: true, text: prompt }]);
+}
 
 function stageText(s: ProjectAskJob['stages'][number]): string {
   if (s.stage === 'read') return t('pai.st.read', { n: s.n ?? 0 });
@@ -113,6 +124,18 @@ export function ProjectAIPanel({
     setMsgsS(KEPT.get(item) ?? []);
     setJob(null);
     setStarted(0);
+  }, [item]);
+
+  // a request started from All projects for this project: this panel follows it from here
+  useEffect(() => {
+    const s = STARTED.get(item);
+    if (!s) return;
+    STARTED.delete(item);
+    setMsgsS(KEPT.get(item) ?? []);
+    const t0 = Date.now();
+    setStarted(t0);
+    setNow(t0);
+    setJob({ job: s.job, item, prompt: s.prompt, state: 'running', stages: [], notices: [], clips: s.clips, timeout: s.timeout, elapsed: 0, result: null, error: null, partial: null });
   }, [item]);
 
   // poll the job while it runs (+ a local clock for the elapsed time)

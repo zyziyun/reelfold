@@ -6,7 +6,7 @@ her: hook / cover answered by their defaults, a filler cut to confirm.
 
 ``--pilot``: two clips, run as the desk starts a project (a pilot of one), which parks the first clip at its filler
 question and leaves the second unmade. ``--autopilot``: run on autopilot (rules decide; no AI account) to the end, so
-the clip is made and its decisions are in the autopilot log.
+the clip is made and its decisions are in the autopilot log. ``--name NAME``: the project's name (default "Short talk").
 """
 import json
 import os
@@ -64,7 +64,8 @@ os.environ["VSTUDIO_TEST_TRUTH"] = tp
 
 from vstudio.project.core import Project  # noqa: E402
 
-p = Project.create(os.path.join(ROOT, "projects", "talk"), recipe="talkinghead", folder=media, name="Short talk",
+NAME = sys.argv[sys.argv.index("--name") + 1] if "--name" in sys.argv else "Short talk"
+p = Project.create(os.path.join(ROOT, "projects", "talk"), recipe="talkinghead", folder=media, name=NAME,
                    params=dict(pipeline="fast", platforms=["xiaohongshu:full"], preset="ultrafast", speed=1.0,
                                layout="pad-blur"),
                    auto=["hook", "cover"],

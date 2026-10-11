@@ -58,10 +58,11 @@ export function parseRoute(hash: string): Route {
   return studioEnabled() ? toStudio(r) : r.name === 'studio' ? { name: 'home' } : r;
 }
 
-/** With the Studio on, the pages it replaces open in it (the filter / selection ride along in the query). */
+/** With the Studio on, the pages it replaces open in it (the filter / selection ride along in the query): the Inbox
+ * is its Needs you filter, All projects its whole list. Home stays Home (the landing: triage, the list is the
+ * workbench). */
 export function toStudio(r: Route): Route {
   switch (r.name) {
-    case 'home':
     case 'inbox':
     case 'projects':
       return { name: 'studio' };
@@ -105,7 +106,7 @@ function parseOwn(p: string[]): Route {
 export function href(r: Route): string {
   if (studioEnabled() && r.name !== 'studio') {
     const s = toStudio(r);
-    if (s.name === 'studio') return href(s) + (r.name === 'inbox' ? '?f=you' : '');
+    if (s.name === 'studio') return href(s) + (r.name === 'inbox' ? '?f=you' : r.name === 'projects' ? '?f=all' : '');
   }
   switch (r.name) {
     case 'studio':

@@ -14,9 +14,9 @@ describe('the Studio routes', () => {
     expect(href({ name: 'clip', id: P, clip: 'talk' })).toBe(`#/p/${P}/clip/talk`);
   });
 
-  it('on: Home, the Inbox, All projects, a project and the editor open in the Studio', () => {
+  it('on: the Inbox, All projects, a project and the editor open in the Studio; Home stays the landing', () => {
     setStudioPrefs({ studio: true });
-    expect(parseRoute('#/')).toEqual({ name: 'studio' });
+    expect(parseRoute('#/')).toEqual({ name: 'home' });
     expect(parseRoute('#/inbox')).toEqual({ name: 'studio' });
     expect(parseRoute('#/projects?sel=x')).toEqual({ name: 'studio' });
     expect(parseRoute(`#/p/${P}`)).toEqual({ name: 'studio', id: P });
@@ -32,7 +32,8 @@ describe('the Studio routes', () => {
     expect(href({ name: 'clip', id: P, clip: 'A_换圈子' })).toBe(`#/studio/${P}/A_%E6%8D%A2%E5%9C%88%E5%AD%90`);
     expect(href({ name: 'project', id: P })).toBe(`#/studio/${P}`);
     expect(href({ name: 'inbox' })).toBe('#/studio?f=you');
-    expect(href({ name: 'home' })).toBe('#/studio');
+    expect(href({ name: 'home' })).toBe('#/');
+    expect(href({ name: 'projects' })).toBe('#/studio?f=all');
     expect(href({ name: 'project', id: P, tab: 'files' })).toBe(`#/p/${P}/files`);
   });
 });

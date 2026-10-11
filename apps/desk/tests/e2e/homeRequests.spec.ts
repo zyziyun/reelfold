@@ -77,7 +77,7 @@ const api = <T,>(p: string, body?: unknown) =>
   ) as Promise<T>;
 
 async function send(prompt: string) {
-  await hash('#/');
+  await hash('#/studio');
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   if (!(await page.getByTestId('studio-composer').isVisible())) await page.getByTestId('studio-new').click();
   await page.getByTestId('composer-input').fill(prompt);
@@ -87,7 +87,7 @@ async function send(prompt: string) {
 
 /** The Studio as she should always find it: the list, ＋ New video free (an empty composer), no plan blocking it. */
 async function studioIsFree() {
-  await hash('#/');
+  await hash('#/studio');
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('studio-new')).toBeVisible();
   await page.getByTestId('studio-new').click();

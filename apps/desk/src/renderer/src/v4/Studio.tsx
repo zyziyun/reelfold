@@ -3,20 +3,21 @@
 // one page on the right (the clip page: player, cover, captions, versions, the question, the transcript, the post,
 // one AI bar). A request still being planned or a project with no clips yet opens its own detail; a question about a
 // whole project opens the question itself. ＋ New video (⌘N) starts the next one from here; ↑ ↓ and ⌘1–9 switch.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, ChevronDown, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
-import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
+import type { CalendarPost, OpenRequest } from '../../../shared/v04';
 import { fmtDate, fmtLen, fmtMinutes, t } from '../i18n';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { inboxTitle } from '../lib/inboxView';
 import { keyHint } from '../lib/keys';
-import { startTriage } from '../lib/nav';
+import { reviewInRow } from '../lib/nav';
 import { href, routeQuery } from '../lib/router';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
 import { STUDIO_FILTERS, grouped, needsYou, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
 import { rowHref, useStudioData } from '../lib/studioData';
+import { setStudioView } from '../lib/studioView';
 import { platformName } from './Home';
 import { ItemPane, useResolve } from './Inbox';
 import { Empty, Thumb } from './kit';
@@ -35,7 +36,10 @@ import { WithProjectChat } from './ProjectChat';
 import { useLoad } from '../lib/engine';
 import { WatchAll } from './WatchAll';
 import { runningJobs } from '../lib/live';
+import { findRows, finding, NO_FIND, type Find } from '../lib/studioFind';
+import { BulkMore, FindBar, FINDKEY, loadFind, useBulk } from './StudioBulk';
 import './studio.css';
+import './homeDash.css';
 
 const FKEY = 'studio.filter';
 const GKEY = 'studio.folded';
@@ -68,36 +72,41 @@ function archivedTargets(items: HistoryItem[], reqs: OpenRequest[]): ActionTarge
   ];
 }
 
-/** 「连着看」: clips waiting for her review play one after another (space approves, X sends back - Focus); other
- * questions come one after another on their clips' pages. */
-function inRow(items: InboxItem[]) {
-  const review = items.find((x) => (x.kind === 'review' || x.kind === 'publish') && x.project.id);
-  if (review?.project.id) location.hash = href({ name: 'focus', id: review.project.id });
-  else startTriage(items);
-}
-
 export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const { data: hist, archived: archDoc, archivedRequests, nArchivedRequests, wantArchived } = useHistory();
   const ui = useUi();
   const inbox = useInbox();
-  const { rows, posts, ready } = useStudioData();
+  const { rows: allRows, posts, ready } = useStudioData();
+  // search + filters (hundreds of videos): typing stays instant, the list follows a beat later
+  const [find, setFindS] = useState<Find>(loadFind);
+  const setFind = (f: Find) => {
+    setFindS(f);
+    sessionStorage.setItem(FINDKEY, JSON.stringify(f));
+  };
+  const dfind = useDeferredValue(find);
+  const rows = useMemo(() => findRows(allRows, dfind, posts), [allRows, dfind, posts]);
   const groups = useMemo(() => grouped(rows), [rows]);
   const q = routeQuery();
   const [filter, setFilterS] = useState<ListFilter>(() => (LIST_FILTERS.includes(q.f as ListFilter) ? (q.f as ListFilter) : ((sessionStorage.getItem(FKEY) as ListFilter | null) ?? 'all')));
   useEffect(() => {
-    const on = () => {
+    const on = (e?: Event) => {
       // the Inbox is the Studio's Needs you filter now (an old link, a notification, ⌘K)
       if (/^#\/inbox\b/.test(location.hash)) {
         const rest = location.hash.split('?')[1];
         history.replaceState(null, '', `#/studio?f=you${rest ? `&${rest}` : ''}`);
       }
-      const f = routeQuery().f as ListFilter | undefined;
+      // the link she followed (the list may already have moved the address on to its first video)
+      const to = e instanceof HashChangeEvent && e.newURL ? new URL(e.newURL).hash : location.hash;
+      const f = (routeQuery(to).f ?? routeQuery().f) as ListFilter | undefined;
       if (f && LIST_FILTERS.includes(f)) setFilterS(f);
     };
     on();
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
+  // the sidebar lights Inbox for Needs you, All projects for the rest
+  useEffect(() => setStudioView(filter), [filter]);
+  useEffect(() => () => setStudioView(null), []);
   const setFilter = (f: ListFilter) => {
     setFilterS(f);
     setPicked(new Set());
@@ -117,10 +126,10 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   // multi-select: ⌘-click one more, ⇧-click a range; the bulk bar, ⌫ and the menus act on what is picked
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const anchor = useRef<string | null>(null);
-  const targets = useMemo(() => (inArchive ? archived : rows.map(targetOf)), [inArchive, archived, rows]);
+  const targets = useMemo(() => (inArchive ? archived : allRows.map(targetOf)), [inArchive, archived, allRows]);
   const screen = inArchive ? archived.map((x) => x.key) : list.map((r) => r.key);
   const pickedT = targets.filter((x) => picked.has(x.key));
-  const ra = useRowActions(rows.map(targetOf), (_a, xs) => {
+  const ra = useRowActions(allRows.map(targetOf), (_a, xs) => {
     setPicked(new Set());
     if (cur && xs.some((x) => x.key === cur.key || (x.i && cur.i && x.i.dir === cur.i.dir))) location.hash = href({ name: 'studio' });
   });
@@ -144,9 +153,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     const many = picked.has(x.key) && picked.size > 1;
     ui.menu(e, ra.items(x, many ? pickedT : []));
   };
-  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (rows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : rows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
+  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (allRows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : allRows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
   // a project's own link (a notification, ⌘K) with one video: that video's page, its question pinned on it
-  const cur = (selKey ? (rows.find((r) => r.key === selKey) ?? (id && !clip ? rows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ?? null;
+  const cur = (selKey ? (allRows.find((r) => r.key === selKey) ?? (id && !clip ? allRows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ?? null;
   // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
@@ -178,7 +187,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     if (v) sessionStorage.setItem(WKEY, '1');
     else sessionStorage.removeItem(WKEY);
   };
-  const watching = useMemo(() => runningJobs(rows), [rows]);
+  const watching = useMemo(() => runningJobs(allRows), [allRows]);
   // a video opened from a tile (or anywhere else) is shown: Watch all steps aside
   const routeKey = `${id ?? ''}/${clip ?? ''}`;
   const lastRoute = useRef(routeKey);
@@ -188,6 +197,26 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     setWatch(false);
   }, [routeKey]);
   const watchTip = t(watch ? 'watch.close' : 'watch.open');
+
+  const bulk = useBulk();
+  const pickedRows = useMemo(() => allRows.filter((r) => picked.has(r.key)), [allRows, picked]);
+  /** ↵: where the video needs doing - its question's own place (the review player for a review), else its page's
+   * first button */
+  const openWork = (r: StudioRow) => {
+    if (r.ask?.kind === 'review' && r.ask.project.id) return void (location.hash = href({ name: 'focus', id: r.ask.project.id }));
+    if (rowHref(r) !== location.hash) location.hash = rowHref(r);
+    window.setTimeout(() => {
+      const page = document.querySelector<HTMLElement>('.st-page');
+      const btn = page?.querySelector<HTMLElement>('.btn.primary:not([disabled]), button.primary:not([disabled])');
+      (btn ?? page)?.focus();
+    }, 60);
+  };
+  /** E: the page's AI bar, ready for her words (the clip's, else the project's chat) */
+  const editWork = () =>
+    window.setTimeout(() => {
+      const box = document.querySelector<HTMLElement>('.st-page [data-testid=studio-ai-input], .st-page [data-testid=ai-panel] textarea, .st-page textarea');
+      box?.focus();
+    }, 30);
 
   // ↑ ↓ the next / previous video, ⌘1–9 the n-th one in the list
   const go = useCallback((r: StudioRow | undefined) => r && (location.hash = rowHref(r)), []);
@@ -222,15 +251,43 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
       }
       return;
     }
+    // the list has the keyboard (she clicked a row or moved with the keys): J / K move, ↵ goes to what needs doing,
+    // E edits with AI, S schedules, X picks, ⌘A picks every video shown - the page's own keys (the player's J K L,
+    // E for its drawer) stay the page's while it has the focus
+    const inList = !!(e.target as HTMLElement | null)?.closest?.('.st-list') && !isTyping(e.target);
+    if (inList && mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a' && !inArchive) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setPicked(new Set(list.map((r) => r.key)));
+      return;
+    }
+    if (inList && !mod && !e.altKey && !e.shiftKey && cur) {
+      const lk = e.key.toLowerCase();
+      const act = lk === 'enter' ? () => openWork(cur) : lk === 'e' ? () => editWork() : lk === 's' ? () => void bulk.schedule(pickedRows.length ? pickedRows : [cur]) : lk === 'x' ? () => setPicked((p) => togglePick(p, cur.key)) : null;
+      if (act) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        act();
+        return;
+      }
+    }
     if (isTyping(e.target) || mod || e.altKey || e.shiftKey) return;
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const down = e.key === 'ArrowDown' || (inList && e.key.toLowerCase() === 'j');
+    const up = e.key === 'ArrowUp' || (inList && e.key.toLowerCase() === 'k');
+    if (!down && !up) return;
     if ((e.target as HTMLElement | null)?.closest?.('[data-testid=transcript-body], .tl, [role=slider], [role=separator]')) return;
     const k = cur ? list.findIndex((r) => r.key === cur.key) : -1;
-    const next = list[Math.max(0, Math.min(list.length - 1, k + (e.key === 'ArrowDown' ? 1 : -1)))];
+    const next = list[Math.max(0, Math.min(list.length - 1, k + (down ? 1 : -1)))];
+    if (inList) {
+      e.preventDefault();
+      e.stopImmediatePropagation(); // J / K are the player's shuttle on the page: never both
+    }
     if (next && next.key !== cur?.key) {
       e.preventDefault();
       go(next);
-      document.querySelector(`[data-row="${CSS.escape(next.key)}"]`)?.scrollIntoView({ block: 'nearest' });
+      const el = document.querySelector<HTMLElement>(`[data-row="${CSS.escape(next.key)}"]`);
+      el?.scrollIntoView({ block: 'nearest' });
+      if (inList) el?.focus({ preventScroll: true });
     }
   };
   useEffect(() => {
@@ -282,9 +339,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
               <LayoutGrid className="ico" />
             </button>
           )}
-          {ready && needsYou(rows) > 0 && (
-            <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(rows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
-              <i className="dot you" /> {needsYou(rows)}
+          {ready && needsYou(allRows) > 0 && (
+            <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(allRows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
+              <i className="dot you" /> {needsYou(allRows)}
             </button>
           )}
         </aside>
@@ -313,6 +370,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
             <Composer compact autoFocus onSent={(rid) => (setComposer(false), (location.hash = `${href({ name: 'studio' })}?sel=${rid}`))} onClose={() => setComposer(false)} />
           </div>
         )}
+        {!inArchive && <FindBar find={find} onChange={setFind} rows={allRows} posts={posts} />}
         <div className="st-filters" role="tablist" aria-label={t('st.filters')} aria-busy={!ready}>
           {LIST_FILTERS.filter((f) => f !== 'archived' || nArchived > 0 || inArchive).map((f) => (
             <button key={f} role="tab" aria-selected={filter === f} className={`st-f ${filter === f ? 'on' : ''} ${f === 'you' && ready && count('you') ? 'you' : ''} ${f === 'archived' ? 'arch' : ''}`} onClick={() => setFilter(f)} data-testid={`studio-f-${f}`}>
@@ -322,8 +380,17 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           ))}
         </div>
         <div className="st-rows" data-testid="studio-rows" ref={rowsEl}>
-          {!inArchive && !rows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
-          {!inArchive && rows.length > 0 && !list.length && <p className="st-empty muted">{t('st.empty')}</p>}
+          {!inArchive && !allRows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
+          {!inArchive && allRows.length > 0 && !list.length && (finding(dfind) ? (
+            <div className="st-empty muted" data-testid="studio-find-none">
+              <p>{t('hd.f.none')}</p>
+              <button className="btn sm" onClick={() => setFind(NO_FIND)} data-testid="studio-find-clear-all">
+                {t('hd.f.clear')}
+              </button>
+            </div>
+          ) : (
+            <p className="st-empty muted">{t('st.empty')}</p>
+          ))}
           {inArchive && (archDoc ? !archived.length : !nArchived) && <p className="st-empty muted">{t('ra.archivedEmpty')}</p>}
           {inArchive && archived.map((x) => <ArchivedRow key={x.key} x={x} picked={picked.has(x.key)} onPick={pick} onMenu={menuAt} ra={ra} />)}
           {pieces.map(({ g, pieces: pc }) => {
@@ -341,7 +408,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                   </button>
                   <span className="sp" />
                   {g === 'you' && inbox.items.length > 0 && (
-                    <button className="st-inrow" onClick={() => inRow(inbox.items)} data-testid="studio-in-row">
+                    <button className="st-inrow" onClick={() => reviewInRow(inbox.items)} data-testid="studio-in-row">
                       {t('st.inRow')} <Play className="ico" />
                     </button>
                   )}
@@ -359,13 +426,13 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
             );
           })}
         </div>
-        {picked.size > 0 && <BulkBar xs={pickedT} ra={ra} inArchive={inArchive} onClear={() => setPicked(new Set())} />}
+        {picked.size > 0 && <BulkBar xs={pickedT} rows={allRows.filter((r) => picked.has(r.key))} ra={ra} inArchive={inArchive} onClear={() => setPicked(new Set())} />}
         <footer className="st-foot muted">
           <span>{t('st.jump', { key: keyHint('⌘K') })}</span>
           <span className="sp" />
-          {ready && needsYou(rows) > 0 && (
+          {ready && needsYou(allRows) > 0 && (
             <span className="st-you" data-testid="studio-you-count">
-              <i className="dot you" /> {needsYou(rows)}
+              <i className="dot you" /> {needsYou(allRows)}
             </span>
           )}
         </footer>
@@ -387,13 +454,13 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           testId="studio-list-split"
         />
       )}
-      <section className="st-page" data-testid="studio-page">
+      <section className="st-page" data-testid="studio-page" tabIndex={-1}>
         {watch ? (
           <WatchAll rows={watching} lineOf={lineOf} onClose={() => setWatch(false)} />
         ) : cur ? (
           <Page key={cur.key} r={cur} posts={posts} more={(e) => menuAt(e, targetOf(cur))} ra={ra} />
         ) : (
-          <Empty title={rows.length ? t('st.pick') : t('st.emptyAll')} />
+          <Empty title={allRows.length ? t('st.pick') : t('st.emptyAll')} />
         )}
       </section>
       {ra.modal}
@@ -532,12 +599,13 @@ function ArchivedRow({ x, picked, onPick, onMenu, ra }: { x: ActionTarget; picke
 }
 
 /** What is picked: how many, Archive (or Restore under Archived), Delete… when every picked row can go, Clear. */
-function BulkBar({ xs, ra, inArchive, onClear }: { xs: ActionTarget[]; ra: RowActionsApi; inArchive: boolean; onClear: () => void }) {
+function BulkBar({ xs, rows, ra, inArchive, onClear }: { xs: ActionTarget[]; rows: StudioRow[]; ra: RowActionsApi; inArchive: boolean; onClear: () => void }) {
   const acts = bulkActions(xs);
   return (
     <div className="st-bulk" data-testid="studio-bulk" role="toolbar" aria-label={t('c.selected', { n: xs.length })}>
       <b>{t('c.selected', { n: xs.length })}</b>
       <span className="sp" />
+      {!inArchive && <BulkMore rows={rows} xs={xs} ra={ra} />}
       {!inArchive && acts.includes('archive') && (
         <button className="btn sm" onClick={() => void ra.run('archive', xs)} data-testid="studio-bulk-archive" data-tip={keyHint('⌫')}>
           <Archive className="ico" />

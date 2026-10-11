@@ -1,7 +1,7 @@
 // App-wide overlays: undo toasts, right-click menus, the ⌘K command palette, the ? shortcut sheet, drop-anywhere
 // (files dropped on the window start a new request on Home), and the global keyboard shortcuts.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, Bot, Calendar, CalendarClock, Clapperboard, FolderOpen, Home, Inbox, Keyboard, Languages, LayoutGrid, Moon, Pause, Search, Send, Settings, Sparkles, Sun, Undo2, Video } from 'lucide-react';
+import { ArrowRight, Bot, Calendar, CalendarClock, FolderOpen, Home, Inbox, Keyboard, Languages, LayoutGrid, Moon, Pause, Search, Send, Settings, Sparkles, Sun, Undo2, Video } from 'lucide-react';
 import { LANGS, LOCALES, fmtTime as fmtTimeOf, getLang, t, type MessageKey } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
@@ -162,9 +162,9 @@ export function UiProvider({
         return;
       }
       if (mod && !e.shiftKey && !e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
-        // with the Studio the app has two places (+ Settings ⌘,): ⌘1 the Studio, ⌘2 the Calendar (in the Studio
-        // itself ⌘1–9 pick a video: its own handler runs first)
-        const r: Route[] = studioEnabled() ? [{ name: 'studio' }, { name: 'calendar' }] : [{ name: 'home' }, { name: 'inbox' }, { name: 'projects' }, { name: 'calendar' }];
+        // the sidebar's four places (+ Settings ⌘,); in the Studio list itself ⌘1–9 pick a video (its own handler
+        // runs first)
+        const r: Route[] = [{ name: 'home' }, { name: 'inbox' }, { name: 'projects' }, { name: 'calendar' }];
         const to = r[Number(e.key) - 1];
         if (!to) return;
         e.preventDefault();
@@ -304,9 +304,9 @@ export function isTyping(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
 
-/** ＋ New video (⌘N, ⌘K): the Studio's composer, open and focused; without the Studio, Home's. */
+/** ＋ New video (⌘N, ⌘K): in the Studio list, its own composer (open and focused); anywhere else, Home's. */
 export function newVideo() {
-  if (studioEnabled()) {
+  if (studioEnabled() && /^#\/studio\b/.test(location.hash)) {
     sessionStorage.setItem('studio.compose', '1');
     go({ name: 'studio' });
     window.dispatchEvent(new Event('studio:compose'));
@@ -347,14 +347,10 @@ function Palette({ onClose, openSheet, theme, onTheme, onLang }: { onClose: () =
     const goC = (id: string, key: MessageKey, r: Route, icon: ReactNode, hint?: string): Cmd => ({ id, group: 'go', label: t(key), icon, run: () => go(r), hint });
     const other = theme === 'studio-dark' ? 'notebook-light' : 'studio-dark';
     const list: Cmd[] = [
-      ...(studioEnabled()
-        ? [goC('studio', 'st.nav', { name: 'studio' }, <Clapperboard className="ico" />, keyHint('⌘1')), goC('publish', 'nav.publishTop', { name: 'calendar' }, <Calendar className="ico" />, keyHint('⌘2'))]
-        : [
-            goC('home', 'nav.home', { name: 'home' }, <Home className="ico" />, keyHint('⌘1')),
-            goC('inbox', 'nav.inbox', { name: 'inbox' }, <Inbox className="ico" />, keyHint('⌘2')),
-            goC('projects', 'nav.projects', { name: 'projects' }, <LayoutGrid className="ico" />, keyHint('⌘3')),
-            goC('publish', 'nav.publishTop', { name: 'calendar' }, <Calendar className="ico" />, keyHint('⌘4')),
-          ]),
+      goC('home', 'nav.home', { name: 'home' }, <Home className="ico" />, keyHint('⌘1')),
+      goC('inbox', 'nav.inbox', { name: 'inbox' }, <Inbox className="ico" />, keyHint('⌘2')),
+      goC('projects', 'nav.projects', { name: 'projects' }, <LayoutGrid className="ico" />, keyHint('⌘3')),
+      goC('publish', 'nav.publishTop', { name: 'calendar' }, <Calendar className="ico" />, keyHint('⌘4')),
       goC('settings', 'nav.settings', { name: 'settings' }, <Settings className="ico" />, keyHint('⌘,')),
       {
         id: 'new',
@@ -485,6 +481,12 @@ export const SHORTCUTS: [MessageKey, string][] = [
   ['keys.go', keyHint('⌘1 – ⌘4')],
   ['keys.studioPick', `${keyHint('⌘1 – ⌘9')} · ↑ ↓`],
   ['keys.studioList', keyHint('⌘B')],
+  ['hd.key.jk', 'J · K'],
+  ['hd.key.open', '↵'],
+  ['hd.key.edit', 'E'],
+  ['hd.key.schedule', 'S'],
+  ['hd.key.pick', 'X'],
+  ['hd.key.all', keyHint('⌘A')],
   ['keys.newPrompt', keyHint('⌘N')],
   ['keys.search', '/'],
   ['keys.play', 'Space · K'],

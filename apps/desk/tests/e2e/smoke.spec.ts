@@ -49,17 +49,21 @@ test('the app is Reelfold: name, About panel, menu', async () => {
   expect([...id.top, ...id.labels].join('|')).not.toMatch(/Electron|video-studio/);
 });
 
-test('engine starts (mock); the app is three places: the Studio (every video), the Calendar, Settings', async () => {
+test('engine starts (mock); the app lands on Home; Inbox and All projects are the Studio list; Publish; Settings', async () => {
   await expect(page.getByTestId('engine-status')).toHaveAttribute('data-mode', 'mock', { timeout: 30000 });
-  await expect(page.getByTestId('studio')).toBeVisible();
-  await expect(page.locator('.side a.nav')).toHaveCount(3);
-  for (const n of ['nav-studio', 'nav-publish', 'nav-settings']) await expect(page.getByTestId(n)).toBeVisible();
-  await expect(page.getByTestId('studio-row').filter({ hasText: 'demo-course' }).first()).toBeVisible({ timeout: 15000 });
-  // the old pages land in the Studio
-  for (const h of ['#/home', '#/inbox', '#/projects']) {
+  await expect(page.getByTestId('home')).toBeVisible();
+  await expect(page.locator('.side a.nav')).toHaveCount(5);
+  for (const n of ['nav-home', 'nav-inbox', 'nav-projects', 'nav-publish', 'nav-settings']) await expect(page.getByTestId(n)).toBeVisible();
+  // the Inbox and All projects open the Studio list (its Needs you filter / all of it)
+  for (const h of ['#/inbox', '#/projects']) {
     await page.evaluate((x) => (location.hash = x), h);
     await expect(page.getByTestId('studio')).toBeVisible();
   }
+  await expect(page.getByTestId('studio-row').filter({ hasText: 'demo-course' }).first()).toBeVisible({ timeout: 15000 });
+  await page.evaluate(() => (location.hash = '#/home'));
+  await expect(page.getByTestId('home')).toBeVisible();
+  await page.evaluate(() => (location.hash = '#/projects'));
+  await expect(page.getByTestId('studio')).toBeVisible();
 });
 
 test('engine refuses requests without the token', async () => {

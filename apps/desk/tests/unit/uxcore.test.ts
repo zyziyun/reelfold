@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { HistoryItem } from '../../src/shared/v02';
 import type { InboxItem, Word } from '../../src/shared/v04';
 import { setLang } from '../../src/renderer/src/i18n';
-import { homeIdeas } from '../../src/renderer/src/lib/homeIdeas';
+import { homeSignals } from '../../src/renderer/src/lib/homeSignals';
 import { answerOf, inboxSub, inboxTitle, optionLabel, secsLabel } from '../../src/renderer/src/lib/inboxView';
 import { backForwardKey, clipHref, inboxHref, itemTarget, postHref } from '../../src/renderer/src/lib/nav';
 import { parseRoute, routeQuery } from '../../src/renderer/src/lib/router';
@@ -226,18 +226,21 @@ describe('how the pages connect', () => {
 describe('Home ideas and the Inbox in words', () => {
   const item = (o: Partial<HistoryItem>): HistoryItem =>
     ({ kind: 'project', id: o.id ?? 'x', dir: '/x', name: 'x', recipe: null, client: null, created: 0, updated: 0, counts: { total: 0, green: 0, red: 0, approved: 0, done: 0, failed: 0 }, status: 'done', thumb: null, sources: ['desk'], opened: false, openable: true, ...o }) as HistoryItem;
-  it('ideas come from her own work first', () => {
+  it('chips come from her own work only', () => {
     setLang('en');
-    const ideas = homeIdeas(
+    const ideas = homeSignals(
+      { recurring: [{ prompt: 'cut live-1006 into clips', n: 3, at: 1 }], recordings: [] },
       [item({ id: 'a', name: 'AI short', type: 'aigc', counts: { total: 5, green: 5, red: 0, approved: 5, done: 5, failed: 0 } }), item({ id: 'b', name: 'fuye', counts: { total: 4, green: 2, red: 0, approved: 2, done: 2, failed: 0 } })],
-      [{ prompt: 'cut live-1006 into clips' }],
+      [],
+      [],
     );
-    expect(ideas.map((x) => [x.kind, x.label, x.sub])).toEqual([
-      ['series', 'Next AI short', 'episode 6'],
-      ['finish', 'Finish fuye', '2 clips left'],
-      ['recent', 'cut live-1006 into clips', 'again'],
+    expect(ideas.map((x) => [x.kind, x.text, x.n])).toEqual([
+      ['again', 'cut live-1006 into clips', 3],
+      ['series', 'AI short', 6],
+      ['finish', 'fuye', 2],
     ]);
-    expect(homeIdeas([], []).map((x) => x.kind)).toEqual(['idea', 'idea', 'idea']);
+    // nothing of hers: no chips at all (never a canned idea)
+    expect(homeSignals({ recurring: [], recordings: [] }, [], [], ['tiktok'])).toEqual([]);
   });
   it('plain words, plain answers', () => {
     setLang('en');

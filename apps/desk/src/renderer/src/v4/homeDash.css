@@ -1,0 +1,45 @@
+/* Home as triage (HomeTriage.tsx) and All projects for hundreds of videos (Studio.tsx). */
+
+/* a question settled in a focused sheet over Home (not .scrim: the pane's own Enter / keys stay on) */
+.ux-sheetbg { position: fixed; inset: 0; z-index: 100; background: var(--scrim); display: flex; align-items: flex-start; justify-content: center; padding-top: 8vh; animation: fadein 140ms var(--ease); }
+.ux-isheet { position: relative; width: min(760px, 94vw); max-height: 84vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; outline: none; }
+.ux-isheet > .ux-ipv { border: 0; border-radius: 0; box-shadow: none; flex: 1; min-height: 0; overflow: auto; }
+
+/* chips: label + its reason on one line, never wrapping into two heights */
+.ux-ideas[role=list] .ux-idea { max-width: 360px; }
+.ux-ideas[role=list] .ux-idea .faint { font-size: 13px; }
+
+/* the Inbox rows keep one height whatever the button */
+.ux-hrow { min-height: 72px; }
+.ux-hrow .ux-hacts .btn { min-width: 72px; }
+
+/* today's posts: the platforms of one clip side by side, the state with its dot */
+.ux-post .row1 { display: flex; align-items: center; gap: 8px; }
+.ux-post .dot { margin-right: 2px; }
+
+/* ---------------------------------------------------------------- All projects: search + filters */
+.st-find { display: flex; gap: 6px; align-items: center; padding: 0 12px 8px; }
+.st-find .inp { flex: 1; min-width: 0; height: 32px; }
+.st-find .btn.on { color: var(--accent); }
+.st-fchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
+.st-fchip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 6px 0 10px; border-radius: 13px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); font-size: 12.5px; }
+.st-fchip .ico { width: 14px; height: 14px; color: var(--text-muted); }
+.st-fpop { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; min-width: 280px; }
+.st-fpop label { color: var(--text-muted); font-size: 13px; }
+.st-fpop select { height: 30px; }
+
+/* hundreds of rows: rows off screen cost nothing to lay out or paint */
+.st-rows .st-rowwrap { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+.st-rows .st-rowwrap.focus > .st-row { box-shadow: inset 2px 0 0 var(--accent); }
+.st-bulk { flex-wrap: wrap; row-gap: 6px; }
+
+/* a link-looking button (Review in a row, Watch all) */
+button.ux-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 500; font-size: 14px; color: var(--accent); cursor: pointer; }
+.ux-sech .ux-link + .ux-link { margin-left: 14px; }
+
+/* a running card: the step on one line, the time left never wraps */
+.ux-run .row1 .num { white-space: nowrap; flex: none; }
+
+/* one or two of them use the room they have (never a third of the row with the words cut) */
+.ux-runs { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.ux-strip { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

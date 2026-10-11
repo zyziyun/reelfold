@@ -14,6 +14,7 @@ import { fmtClock, getLang, t } from '../../i18n';
 import { useHistory } from '../../lib/history';
 import { useEngine } from '../../lib/engine';
 import { href, useRouteQuery } from '../../lib/router';
+import { selHref } from '../../lib/nav';
 import { keyHint } from '../../lib/keys';
 import { useAssets } from '../../components/assets';
 import { downloadSummary } from '../../lib/firstRun';
@@ -366,7 +367,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
         const plats = homePlatforms(st.defaultPlatforms, Object.keys(st.accounts ?? {}).filter((k) => (st.accounts[k] ?? []).length));
         const r = await client.startIntake(ask.trim() || t('rec.finishPrompt'), [res.assembled], plats, getLang(), { mode: auto ? 'autopilot' : 'ask', recipe: ask.trim() ? undefined : 'talkinghead' });
         history.reload();
-        const to = `${href({ name: 'projects' })}?sel=${encodeURIComponent(r.id)}`;
+        const to = selHref(r.id);
         ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });
         location.hash = to;
       } catch (e) {

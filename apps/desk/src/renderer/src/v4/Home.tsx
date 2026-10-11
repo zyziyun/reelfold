@@ -9,21 +9,21 @@
 //   quiet     - "All clear" + Continue tiles; first run - six starting points
 // Every project / clip / post on the page is the same link as everywhere else (lib/nav).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, File as FileIcon, FileText, Film, Folder, FolderOpen, GraduationCap, Image as ImageIcon, Lightbulb, MessageSquare, MessagesSquare, Mic, MoreHorizontal, Music, Paperclip, Play, Plus, Repeat, Sparkles, Video, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, ChevronDown, File as FileIcon, FileText, Film, Folder, FolderOpen, GraduationCap, Image as ImageIcon, Lightbulb, MessageSquare, MessagesSquare, Mic, Music, Paperclip, Play, Plus, Repeat, Sparkles, Video, X } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
-import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
+import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtTime, getLang, t, tk, type MessageKey } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
 import { DueBanner } from '../publish/DueBanner';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
-import { inboxHref, itemTarget, postHref, projectHref } from '../lib/nav';
+import { projectHref, selHref } from '../lib/nav';
 import { href } from '../lib/router';
 import { itemStatus } from '../lib/status';
-import { Empty, Mosaic, Sk, StatusPill, Thumb } from './kit';
-import { homeIdeas, IDEAS } from '../lib/homeIdeas';
-import { inboxSub, inboxTitle, InboxThumb } from './Inbox';
-import { FailureActions } from './Failure';
+import { Empty, Mosaic, StatusPill, Thumb } from './kit';
+import { HomeChips, HomeGoingOut, HomeInbox, HomeRunning, HomeSkeleton, homeSignals, runCards, useChipAction, useMyPlatforms } from './HomeTriage';
+import { useStudioEnabled } from '../lib/studioFlag';
+import { useStudioData } from '../lib/studioData';
 import { PlatformIcon } from './PlatformIcon';
 import { PlatformPicker } from './PlatformPicker';
 import { DownloadStrip, useAssets } from '../components/assets';
@@ -33,6 +33,7 @@ import { WEEK_WORDS } from '../../../shared/weekPlan';
 import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { WeekPlanCard } from '../weekplan/WeekPlanCard';
 import '../theme/uxcore.css';
+import './homeDash.css';
 import { homePlatforms, orderPlatforms } from '../../../shared/platforms';
 import { errText } from './msg';
 import { IS_LITE } from '../../../shared/edition';
@@ -76,6 +77,9 @@ const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+
+/** Home waits this long for its slowest source before showing what it has. */
+const HOME_GIVE_UP_MS = 8000;
 
 /** Remember the last request + files so a reload never loses what she typed. */
 const DRAFT = 'v4.composer';
@@ -175,7 +179,7 @@ export function Home() {
           setFiles([]);
           setSent((n) => n + 1);
           reloadHist();
-          ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }), { action: { label: t('home.sentOpen'), href: `${href({ name: 'projects' })}?sel=${r.id}` }, ms: 8000 });
+          ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }), { action: { label: t('home.sentOpen'), href: selHref(r.id) }, ms: 8000 });
           return;
         } catch (e) {
           if (i + 1 >= tries) throw e;
@@ -241,7 +245,6 @@ export function Home() {
   };
 
   const planning = false;
-  const ideas = homeIdeas(hist?.items ?? [], recent ?? []);
   return (
     <div className="scroll ux-home" data-testid="home">
       <div className="pg">
@@ -300,6 +303,8 @@ export function Home() {
                   ui.menu({ clientX: r.left, clientY: r.bottom + 6 }, [
                     { label: t('home.addFiles'), icon: <Plus className="ico" />, run: () => addFiles('files'), testId: 'add-files' },
                     { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
+                    // the built-in recording, to see the whole way once (first run has its own card)
+                    ...(firstRun ? [] : [{ label: t('sample.try'), icon: <Play className="ico" />, run: () => void trySample(), testId: 'idea-sample' }]),
                   ]);
                 }}
                 aria-label={t('home.attach')}
@@ -327,32 +332,6 @@ export function Home() {
           </div>
         )}
         {!planning && wp.plan && <WeekPlanCard wp={wp} where="home" />}
-        {!planning && !firstRun && (
-          <div className="ux-ideas" data-testid="home-ideas">
-            {ideas.map((x) => (
-              <button key={x.id} className="ux-idea" onClick={() => fill(x.prompt)} data-kind={x.kind} data-testid="home-idea" title={x.prompt}>
-                {x.thumb ? <img src={window.desk.mediaUrl(x.thumb)} alt="" /> : x.kind === 'recent' ? <FolderOpen className="ico" /> : <Repeat className="ico" />}
-                <span className="clamp1">{x.label}</span>
-                {x.sub && <span className="faint clamp1">{x.sub}</span>}
-              </button>
-            ))}
-            <button
-              className="ux-idea more"
-              aria-label={t('home.moreIdeas')}
-              onClick={(e) => {
-                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                ui.menu({ clientX: r.left - 160, clientY: r.bottom + 6 }, [
-                  { label: t('sample.try'), icon: <Play className="ico" />, run: () => void trySample(), testId: 'idea-sample' },
-                  ...IDEAS.map(([k, pk]) => ({ label: t(k), run: () => fill(t(pk)) })),
-                  ...(recent ?? []).slice(1, 4).map((r2) => ({ label: r2.prompt.slice(0, 48), icon: <FolderOpen className="ico" />, run: () => fill(r2.prompt) })),
-                ]);
-              }}
-              data-testid="home-more-ideas"
-            >
-              <MoreHorizontal className="ico" />
-            </button>
-          </div>
-        )}
         {(recent?.length ?? 0) > 0 && !planning && !firstRun && (
           <span className="sr" data-testid="recent-prompts">
             {recent!.map((r) => r.prompt).join(' · ')}
@@ -370,7 +349,7 @@ export function Home() {
             </div>
           </div>
         )}
-        {!planning && !waitDl && (firstRun ? <FirstRunStarts onPick={(p) => fill(p)} onSample={() => void trySample()} /> : <Below />)}
+        {!planning && !waitDl && (firstRun ? <FirstRunStarts onPick={(p) => fill(p)} onSample={() => void trySample()} /> : <Below fill={fill} addFile={(f) => setFiles((x) => [...new Set([...x, f])])} />)}
       </div>
     </div>
   );
@@ -469,37 +448,49 @@ function FirstRunStarts({ onPick, onSample }: { onPick: (prompt: string) => void
 }
 
 // ---------------------------------------------------------------- below the composer
-function Below() {
-  const { data, live, requests } = useHistory();
+/** Triage: the chips, the Inbox, what runs, what goes out today - held on a skeleton until every source has
+ * answered (then kept: later changes update in place, nothing pops in). Without the Studio the Continue tiles too
+ * (with it, All projects is the workbench and Home does not repeat it). */
+function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: string) => void }) {
+  const { data, live, requests, requestsLoaded = true } = useHistory();
   const inbox = useInbox();
+  const studio = useStudioEnabled();
+  const st = useStudioData();
   const { subscribe } = useEngine();
-  const { data: cal, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
+  const { data: cal, error: calErr, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
+  const { data: sug, error: sugErr } = useLoad((c) => c.homeSuggestions(), [data?.items.length]);
   useEffect(() => subscribe((e) => void (e.type === 'calendar' && reloadCal())), [subscribe]); // eslint-disable-line react-hooks/exhaustive-deps
-  const items = data?.items ?? [];
+  const mine = useMyPlatforms();
+  const pick = useChipAction(fill, addFile);
+  const items = useMemo(() => data?.items ?? [], [data]);
   const now = Date.now();
   const todays = (cal?.posts ?? []).filter((p) => p.at.slice(0, 10) === today());
   const next = (cal?.posts ?? []).find((p) => p.state !== 'posted' && new Date(p.at).getTime() > now);
-  const runs = live.filter((i) => i.live?.state === 'running');
-  if (!data) {
-    return (
-      <div className="ux-sec">
-        <Sk w={160} h={18} />
-        <div style={{ marginTop: 12 }}>
-          <Sk h={180} r={12} />
-        </div>
-      </div>
-    );
-  }
-  const planningReqs = requests.filter((r) => r.state === 'running');
-  const quiet = !inbox.items.length && !runs.length && !planningReqs.length;
+  const cards = useMemo(() => runCards(studio ? st.rows : null, live, requests), [studio, st.rows, live, requests]);
+  const waiting = items.filter((i) => i.queued).length;
+  const signals = useMemo(() => homeSignals(sug ?? null, items, cal?.posts ?? [], mine), [sug, items, cal, mine]);
+  const waits = [!data && 'history', !requestsLoaded && 'requests', !inbox.loaded && 'inbox', cal === null && calErr === null && 'calendar', sug === null && sugErr === null && 'suggestions', studio && !st.ready && 'videos'].filter(Boolean) as string[];
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!waits.length && !settled) setSettled(true);
+  }, [waits.length, settled]);
+  // a source that never answers does not hold the page for ever (what did answer shows)
+  useEffect(() => {
+    if (settled || !data) return;
+    const tm = window.setTimeout(() => setSettled(true), HOME_GIVE_UP_MS);
+    return () => window.clearTimeout(tm);
+  }, [settled, !!data]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!settled) return <HomeSkeleton waits={waits} />;
+  const quiet = !inbox.items.length && !cards.length;
   return (
     <>
+      <HomeChips signals={signals} onPick={pick} />
       <DueBanner />
-      {inbox.items.length > 0 && <HomeInbox items={inbox.items} />}
-      {(runs.length > 0 || planningReqs.length > 0) && <Running runs={runs} requests={planningReqs} />}
+      <HomeInbox items={inbox.items} />
+      <HomeRunning cards={cards} waiting={waiting} />
       {quiet && <AllClear next={next ?? null} />}
-      {todays.length > 0 && <GoingOut posts={todays} />}
-      {items.length > 0 && (
+      <HomeGoingOut posts={todays} />
+      {!studio && items.length > 0 && (
         <section className="ux-sec" data-testid="home-continue">
           <div className="ux-sech">
             <h2>{t('home.continue')}</h2>
@@ -510,7 +501,7 @@ function Below() {
           </div>
           <div className="ux-tiles">
             {items
-              .filter((i) => !runs.includes(i))
+              .filter((i) => i.live?.state !== 'running')
               .slice(0, 5)
               .map((i) => (
                 <ContinueTile key={i.id} i={i} />
@@ -520,144 +511,6 @@ function Below() {
       )}
       {!items.length && <Empty title={t('projects.empty')} hint={t('home.firstTime')} />}
     </>
-  );
-}
-
-function HomeInbox({ items }: { items: InboxItem[] }) {
-  const top = items.slice(0, 3);
-  const rest = items.slice(3);
-  const minutes = items.reduce((s, x) => s + (x.minutes ?? 1), 0);
-  return (
-    <section className="ux-sec" data-testid="home-inbox">
-      <div className="ux-sech">
-        <h2>{t('nav.inbox')}</h2>
-        <span className="muted" data-testid="home-inbox-count">
-          {t('home.inboxLine', { n: items.length, m: minutes })}
-        </span>
-        <span className="sp" />
-        <a className="ux-link" href={href({ name: 'inbox' })} data-testid="home-open-inbox">
-          {t('home.openInbox')} <ArrowRight className="ico" />
-        </a>
-      </div>
-      <div className="card ux-hlist" data-testid="home-needs-you">
-        {top.map((x, i) => (
-          <HomeInboxRow key={x.key} x={x} first={i === 0} />
-        ))}
-        {rest.length > 0 && (
-          <a className="ux-hmore" href={href({ name: 'inbox' })} data-testid="home-inbox-more">
-            <span className="clamp1">{t('home.nMore', { n: rest.length, what: rest.map((x) => inboxTitle(x).toLocaleLowerCase()).join(', ') })}</span>
-            <span className="sp" />
-            <ChevronRight className="ico" />
-          </a>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function HomeInboxRow({ x, first }: { x: InboxItem; first: boolean }) {
-  const th = (x.options ?? []).find((o) => o.cover)?.cover ?? x.project.thumb;
-  const act =
-    x.kind === 'review' ? t('home.act.fix') : x.kind === 'confirm' ? t('home.act.review') : x.code === 'inbox.spend' ? t('home.act.decide') : t('home.act.open');
-  return (
-    <div className="ux-hrow" data-testid="home-inbox-row" data-kind={x.kind}>
-      <a href={inboxHref({ item: x.key })} className="ux-hrow-main">
-        <InboxThumb x={x} src={th} />
-        <div className="tx">
-          <div className="clamp1">
-            <b>{inboxTitle(x)}</b>
-            {x.project.name && <span className="muted"> · {x.project.name}</span>}
-          </div>
-          <div className="muted clamp1">{inboxSub(x)}</div>
-        </div>
-      </a>
-      <span className="muted num">{t('inbox.minutes', { n: x.minutes ?? 1 })}</span>
-      {x.failure && x.project.id ? (
-        <span className="ux-hacts">
-          <FailureActions item={x.project.id} failure={x.failure} primary={false} />
-        </span>
-      ) : (
-        <a className={`btn ${first ? 'soft' : ''}`} href={x.kind === 'confirm' && !x.href ? inboxHref({ item: x.key }) : itemTarget(x)} data-testid="home-inbox-act">
-          {act}
-        </a>
-      )}
-    </div>
-  );
-}
-
-function Running({ runs, requests = [] }: { runs: HistoryItem[]; requests?: OpenRequest[] }) {
-  const n = runs.length + requests.length;
-  return (
-    <section className="ux-sec" data-testid="live-lane">
-      <div className="ux-sech">
-        <h2>{t('home.running')}</h2>
-        <span className="muted">{t('home.jobs', { n })}</span>
-        <span className="sp" />
-        <a className="ux-link" href={href({ name: 'projects' })}>
-          {t('home.allProjects')} <ArrowRight className="ico" />
-        </a>
-      </div>
-      <div className="ux-runs">
-        {requests.slice(0, 3).map((r) => (
-          <RequestCard key={r.id} r={r} />
-        ))}
-        {runs.slice(0, Math.max(0, 3 - requests.length)).map((i) => (
-          <RunCard key={i.id} i={i} />
-        ))}
-      </div>
-      {n > 3 && (
-        <a className="ux-link" href={href({ name: 'projects' })} style={{ marginTop: 8, display: 'inline-flex' }}>
-          {t('home.nMoreRunning', { n: n - 3 })}
-        </a>
-      )}
-    </section>
-  );
-}
-
-/** A request still being planned (not a project yet): same card, opens it in the control room. */
-function RequestCard({ r }: { r: OpenRequest }) {
-  return (
-    <a className="card ux-run" href={`${href({ name: 'projects' })}?sel=${r.id}`} data-testid="live-row" data-request={r.id}>
-      <Thumb src={null} className="ux-runth" />
-      <div className="tx">
-        <div className="row1">
-          <b className="clamp1">{r.name || r.prompt || t('home.planningRow')}</b>
-        </div>
-        <div className="row1 muted">
-          <span className="clamp1">{t('home.planningRow')}</span>
-        </div>
-        <div className="bar indet">
-          <i style={{ width: '30%' }} />
-        </div>
-      </div>
-    </a>
-  );
-}
-
-function RunCard({ i }: { i: HistoryItem }) {
-  const s = itemStatus(i);
-  const prog = Math.round((i.live?.progress ?? 0) * 100);
-  const eta = i.live?.eta;
-  return (
-    <a className="card ux-run" href={projectHref(i.id)} data-testid="live-row">
-      <Thumb src={i.thumb} className="ux-runth" />
-      <div className="tx">
-        <div className="row1">
-          <b className="clamp1">{i.name}</b>
-        </div>
-        <div className="row1 muted">
-          <span className="clamp1">{liveText(i.live) || liveStep(i.live)}</span>
-          <span className="sp" />
-          {eta ? <span className="num">{t('time.minutes', { n: Math.max(1, Math.round(eta / 60)) })}</span> : null}
-        </div>
-        <div className={`bar ${s === 'you' ? 'you' : ''}`}>
-          <i style={{ width: `${Math.max(4, prog)}%` }} />
-        </div>
-        <span className="sr">
-          <StatusPill s={s} testId="live-state" />
-        </span>
-      </div>
-    </a>
   );
 }
 
@@ -677,35 +530,6 @@ function AllClear({ next }: { next: CalendarPost | null }) {
         {t('home.calendar')} <ArrowRight className="ico" />
       </a>
     </div>
-  );
-}
-
-function GoingOut({ posts }: { posts: CalendarPost[] }) {
-  return (
-    <section className="ux-sec" data-testid="home-today">
-      <div className="ux-sech">
-        <h2>{t('home.goingOut')}</h2>
-        <span className="muted">{t('home.posts', { n: posts.length })}</span>
-        <span className="sp" />
-        <a className="ux-link" href={href({ name: 'calendar' })}>
-          {t('home.calendar')} <ArrowRight className="ico" />
-        </a>
-      </div>
-      <div className="card ux-strip">
-        {posts.slice(0, 4).map((p) => (
-          <a key={p.id} className="ux-post" href={postHref(p.id)} data-testid="home-post">
-            <Thumb src={p.cover} className="ux-postth" />
-            <span className="tx">
-              <span className="row1">
-                <b className="num">{fmtTime(p.at)}</b>
-                <PlatformIcon id={p.platform.split(':')[0]} size={18} />
-              </span>
-              <span className="muted clamp1">{tk(`pub.state.${p.state}`)}</span>
-            </span>
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 

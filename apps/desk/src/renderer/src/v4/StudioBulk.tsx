@@ -1,0 +1,281 @@
+// All projects for hundreds of videos: the search + filters above the list, and what the bulk bar does beyond
+// Archive / Restore / Delete - Approve (the picked videos' questions, the recommended way), Schedule (made ones, the
+// next free slots on her platforms, one Undo), Try again (failed / stopped runs) and Change with AI… (one request
+// per project for exactly the picked videos; each project's chat shows the changes to apply).
+import { useEffect, useRef, useState } from 'react';
+import { CalendarPlus, Check, RotateCcw, SlidersHorizontal, Wand2, X } from 'lucide-react';
+import type { CalendarPost } from '../../../shared/v04';
+import { Modal } from '../components/ui';
+import { fmtDate, t, tk } from '../i18n';
+import { approveAnswer, bulkWork, count } from '../lib/bulk';
+import { useEngine } from '../lib/engine';
+import { useHistory } from '../lib/history';
+import { useInbox } from '../lib/inbox';
+import { go } from '../lib/router';
+import type { StudioRow } from '../lib/studio';
+import { findOptions, finding, NO_FIND, type Find, type FindDate } from '../lib/studioFind';
+import type { ActionTarget } from '../lib/rowActions';
+import { keyHint } from '../lib/keys';
+import { errText } from './msg';
+import { nextSlots, postPlatforms } from './Project';
+import { askProjectInBackground } from './ProjectAIPanel';
+import type { RowActionsApi } from './RowActions';
+import { useUi } from './ui';
+
+export const FINDKEY = 'studio.find';
+
+export function loadFind(): Find {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(FINDKEY) ?? 'null') as Partial<Find> | null;
+    return v ? { ...NO_FIND, ...v, date: (['any', 'today', 'week'] as FindDate[]).includes(v.date as FindDate) ? (v.date as FindDate) : 'any' } : NO_FIND;
+  } catch {
+    return NO_FIND;
+  }
+}
+
+const pf = (id: string) => tk(`pf.${id}`);
+
+// ---------------------------------------------------------------- search + filters
+export function FindBar({ find, onChange, rows, posts }: { find: Find; onChange: (f: Find) => void; rows: StudioRow[]; posts: CalendarPost[] }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [open]);
+  const opts = open ? findOptions(rows, posts) : null;
+  const set = (p: Partial<Find>) => onChange({ ...find, ...p });
+  const projectName = find.project ? (rows.find((r) => r.item === find.project)?.i?.name ?? '') : '';
+  const active = !!(find.platform || find.project || find.date !== 'any');
+  return (
+    <>
+      <div className="st-find" ref={box}>
+        <input
+          className="inp"
+          type="search"
+          value={find.q}
+          onChange={(e) => set({ q: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && find.q) {
+              e.stopPropagation();
+              set({ q: '' });
+            }
+          }}
+          placeholder={t('hd.search')}
+          aria-label={t('hd.search')}
+          data-search
+          data-testid="studio-search"
+        />
+        <button className={`btn ghost icon ${active ? 'on' : ''}`} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t('hd.filters')} data-tip={t('hd.filters')} data-testid="studio-filters">
+          <SlidersHorizontal className="ico" />
+        </button>
+        {open && opts && (
+          <div className="ux-pop st-fpop" role="dialog" aria-label={t('hd.filters')} data-testid="studio-filter-pop">
+            <label htmlFor="st-f-platform">{t('hd.f.platform')}</label>
+            <select id="st-f-platform" className="inp" value={find.platform ?? ''} onChange={(e) => set({ platform: e.target.value || null })} data-testid="studio-f-platform">
+              <option value="">{t('hd.f.any')}</option>
+              {opts.platforms.map((p) => (
+                <option key={p} value={p}>
+                  {pf(p)}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="st-f-project">{t('hd.f.project')}</label>
+            <select id="st-f-project" className="inp" value={find.project ?? ''} onChange={(e) => set({ project: e.target.value || null })} data-testid="studio-f-project">
+              <option value="">{t('hd.f.any')}</option>
+              {opts.projects.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="st-f-date">{t('hd.f.date')}</label>
+            <select id="st-f-date" className="inp" value={find.date} onChange={(e) => set({ date: e.target.value as FindDate })} data-testid="studio-f-date">
+              <option value="any">{t('hd.f.any')}</option>
+              <option value="today">{t('hd.date.today')}</option>
+              <option value="week">{t('hd.date.week')}</option>
+            </select>
+          </div>
+        )}
+      </div>
+      {finding(find) && (find.platform || find.project || find.date !== 'any') && (
+        <div className="st-fchips" data-testid="studio-find-chips">
+          {find.platform && <Chip label={pf(find.platform)} onClear={() => set({ platform: null })} />}
+          {find.project && <Chip label={projectName || t('hd.f.project')} onClear={() => set({ project: null })} />}
+          {find.date !== 'any' && <Chip label={t(find.date === 'today' ? 'hd.date.today' : 'hd.date.week')} onClear={() => set({ date: 'any' })} />}
+          <button className="btn ghost sm" onClick={() => onChange(NO_FIND)} data-testid="studio-find-clear">
+            {t('hd.f.clear')}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Chip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="st-fchip" data-testid="studio-find-chip">
+      {label}
+      <button className="btn ghost icon sm" onClick={onClear} aria-label={`${t('c.remove')} ${label}`}>
+        <X className="ico" />
+      </button>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------- bulk work
+export interface BulkApi {
+  approve(rows: StudioRow[]): Promise<void>;
+  schedule(rows: StudioRow[]): Promise<void>;
+  change(rows: StudioRow[], prompt: string): Promise<void>;
+}
+
+export function useBulk(): BulkApi {
+  const { client } = useEngine();
+  const inbox = useInbox();
+  const ui = useUi();
+  const fail = (e: unknown) => ui.toast(errText(e), { error: true });
+  return {
+    async approve(rows) {
+      if (!client) return;
+      const xs = bulkWork(rows, []).approve;
+      if (!xs.length) return void ui.toast(t('hd.bulk.nothing'));
+      const done: string[] = [];
+      try {
+        for (const x of xs) {
+          await client.answerInbox([x.key], approveAnswer(x));
+          done.push(x.key);
+        }
+      } catch (e) {
+        fail(e);
+      }
+      inbox.reload();
+      if (done.length)
+        ui.toast(t('hd.bulk.approved', { n: done.length }), {
+          undo: async () => {
+            await client.undoInbox(done);
+            inbox.reload();
+          },
+        });
+    },
+    async schedule(rows) {
+      if (!client) return;
+      const by = bulkWork(rows, []).schedule;
+      if (!count(by)) return void ui.toast(t('hd.bulk.nothing'));
+      try {
+        const cal = await client.calendar();
+        const defaults = (await window.desk.getSettings()).defaultPlatforms ?? [];
+        const taken = new Set(cal.posts.map((p) => `${p.item}/${p.clip}`));
+        const todo: { item: string; clip: import('../../../shared/v04').Clip }[] = [];
+        for (const [item, ids] of by) {
+          const d = await client.clips(item);
+          for (const c of d.clips) if (ids.includes(c.id) && !taken.has(`${item}/${c.id}`)) todo.push({ item, clip: c });
+        }
+        const slots = nextSlots(todo.length, cal.posts.map((p) => p.at));
+        const posts = todo.flatMap((x, k) => postPlatforms(x.clip, defaults).map((platform) => ({ item: x.item, clip: x.clip.id, at: slots[k], platform })));
+        if (!posts.length) return void ui.toast(t('project.noPlatforms'), { error: true });
+        const made = (await client.scheduleMany(posts)).ids;
+        ui.toast(`${t('hd.bulk.scheduled', { n: todo.length })} · ${fmtDate(posts[0].at)}`, {
+          undo: made.length ? () => client.unscheduleMany(made).then(() => undefined) : undefined,
+        });
+      } catch (e) {
+        fail(e);
+      }
+    },
+    async change(rows, prompt) {
+      if (!client || !prompt.trim()) return;
+      const by = bulkWork(rows, []).change;
+      if (!by.size) return void ui.toast(t('hd.bulk.nothing'));
+      const asked: string[] = [];
+      try {
+        for (const [item, clips] of by) {
+          await askProjectInBackground(client, item, prompt.trim(), clips);
+          asked.push(item);
+        }
+      } catch (e) {
+        fail(e);
+      }
+      if (!asked.length) return;
+      ui.toast(t('hd.bulk.asked', { n: asked.length }), { ms: 8000 });
+      go({ name: 'project', id: asked[0], tab: 'clips' });
+    },
+  };
+}
+
+/** The bulk bar's own buttons (each only when it takes something, with how many). */
+export function BulkMore({ rows, xs, ra }: { rows: StudioRow[]; xs: ActionTarget[]; ra: RowActionsApi }) {
+  const bulk = useBulk();
+  const { reload } = useHistory();
+  const [asking, setAsking] = useState(false);
+  const [text, setText] = useState('');
+  const w = bulkWork(rows, xs);
+  const nSched = count(w.schedule);
+  const nChange = count(w.change);
+  return (
+    <>
+      {w.approve.length > 0 && (
+        <button className="btn sm primary" onClick={() => void bulk.approve(rows)} data-testid="studio-bulk-approve">
+          <Check className="ico" />
+          {t('hd.bulk.approve')} · {w.approve.length}
+        </button>
+      )}
+      {nSched > 0 && (
+        <button className="btn sm" onClick={() => void bulk.schedule(rows)} data-testid="studio-bulk-schedule" data-tip={keyHint('S')}>
+          <CalendarPlus className="ico" />
+          {t('hd.bulk.schedule')} · {nSched}
+        </button>
+      )}
+      {w.retry.length > 0 && (
+        <button className="btn sm" onClick={() => void ra.run('retry', w.retry).then(reload)} data-testid="studio-bulk-retry">
+          <RotateCcw className="ico" />
+          {t('hd.bulk.retry')} · {w.retry.length}
+        </button>
+      )}
+      {nChange > 0 && (
+        <button className="btn sm" onClick={() => setAsking(true)} data-testid="studio-bulk-change">
+          <Wand2 className="ico" />
+          {t('hd.bulk.change')}
+        </button>
+      )}
+      {asking && (
+        <Modal title={t('hd.bulk.changeTitle', { n: nChange })} onClose={() => setAsking(false)}>
+          <textarea
+            className="input"
+            rows={3}
+            autoFocus
+            value={text}
+            maxLength={500}
+            placeholder={t('hd.bulk.changePh')}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && text.trim()) {
+                e.preventDefault();
+                setAsking(false);
+                void bulk.change(rows, text);
+              }
+            }}
+            data-testid="studio-bulk-change-input"
+          />
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+            <button className="btn ghost" onClick={() => setAsking(false)}>
+              {t('common.cancel')}
+            </button>
+            <button
+              className="btn primary"
+              disabled={!text.trim()}
+              onClick={() => {
+                setAsking(false);
+                void bulk.change(rows, text);
+              }}
+              data-testid="studio-bulk-change-ok"
+            >
+              {t('hd.bulk.changeOk')}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

@@ -10,6 +10,7 @@ import { fmtClock, getLang, t } from '../../i18n';
 import { useEngine } from '../../lib/engine';
 import { useHistory } from '../../lib/history';
 import { href } from '../../lib/router';
+import { selHref } from '../../lib/nav';
 import { waitJob } from '../../create/api';
 import { errText } from '../msg';
 import { useUi } from '../ui';
@@ -97,7 +98,7 @@ export function FinishButton({ item, clip, flush, primary }: { item: string; cli
       const auto = (await window.desk.getSettings()).autopilot !== false;
       const req = await client.startIntake(t('rec.finishPrompt'), [file], undefined, getLang(), { mode: auto ? 'autopilot' : 'ask' });
       hist.reload();
-      const to = `${href({ name: 'projects' })}?sel=${encodeURIComponent(req.id)}`;
+      const to = selHref(req.id);
       ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });
       location.hash = to;
     } catch (e) {

@@ -66,6 +66,7 @@ test.beforeAll(async () => {
   });
   await page.reload();
   await page.waitForURL(/^app:\/\/desk\//);
+  await page.evaluate(() => (location.hash = '#/studio')); // the app lands on Home; the list is All projects
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await expect(rowNamed('talkinghead-1')).toHaveCount(1, { timeout: 30000 });
 });

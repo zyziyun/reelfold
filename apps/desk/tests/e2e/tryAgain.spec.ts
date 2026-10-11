@@ -122,7 +122,7 @@ test.afterAll(async () => {
 
 test("Try again on a failed autopilot project re-runs the failed stage on autopilot and gets past it", async () => {
   test.setTimeout(300000);
-  await page.evaluate(() => (location.hash = "#/"));
+  await page.evaluate(() => (location.hash = "#/studio"));
   await expect(page.getByTestId("studio")).toBeVisible({ timeout: 30000 });
   const row = page.locator("[data-testid=studio-row][data-kind=project]", {
     hasText: "Failed script",

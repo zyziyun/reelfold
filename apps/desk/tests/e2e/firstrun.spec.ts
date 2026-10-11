@@ -97,10 +97,10 @@ test('Try with a sample: planned without AI in the UI language, started, labelle
   test.setTimeout(90000);
   await page.evaluate(() => window.desk.setSettings({ autopilot: false })); // its plan card, then Start
   // first run: the sample card above the starting points; with projects already there (the mock engine lists demo
-  // ones): the same action under "More ideas"
+  // ones): the same action in the composer's add menu (the chips under it are her own work only)
   if (await page.getByTestId('home-sample').isVisible()) await page.getByTestId('home-sample').click();
   else {
-    await page.getByTestId('home-more-ideas').click();
+    await page.getByTestId('composer-attach').click();
     await page.getByTestId('idea-sample').click();
   }
   await page.getByTestId('toast-action').first().click({ timeout: 30000 }); // sent: it plans in All projects

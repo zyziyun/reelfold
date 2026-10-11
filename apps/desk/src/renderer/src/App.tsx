@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, Clapperboard, Home as HomeIcon, Inbox as InboxIcon, LayoutGrid, Settings as SettingsIcon } from 'lucide-react';
+import { Calendar, Home as HomeIcon, Inbox as InboxIcon, LayoutGrid, Settings as SettingsIcon } from 'lucide-react';
 import type { SettingsMsg } from '../../shared/deskApi';
 import { AssetsBanner } from './components/assets';
 import { UpdatePill, UpdateProvider } from './components/update';
@@ -37,6 +37,7 @@ import { UiProvider } from './v4/ui';
 import { SupportLayer } from './support/Support';
 import { CreateNavIcon, CreateScreen, setCreatePrefs, useCreateEnabled } from './create';
 import { setStudioPrefs, useStudioEnabled } from './lib/studioFlag';
+import { useStudioView } from './lib/studioView';
 import { StudioProvider } from './lib/studioData';
 import { useStudioAttention } from './lib/attention';
 import { Studio } from './v4/Studio';
@@ -93,6 +94,7 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
   const inbox = useInbox();
   const createOn = useCreateEnabled();
   const studioOn = useStudioEnabled();
+  const view = useStudioView();
   useRunNotifications();
   useStudioAttention();
   const running = live.filter((i) => i.live?.state === 'running').length;
@@ -116,16 +118,18 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
           {getLang() === 'zh-CN' ? <span className="zh" aria-hidden="true">千剪</span> : null}
           <span className="sr">{t('app.name')}</span>
         </div>
-        {studioOn ? (
-          // the Studio: one place for every video (Home, the Inbox and All projects are its composer and filters)
-          nav({ name: 'studio' }, 'st.nav', r.name === 'studio' || inProject || r.name === 'new' || r.name === 'create', <Clapperboard className="ico" />, 'nav-studio', nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null)
-        ) : (
-          <>
-            {nav({ name: 'home' }, 'nav.home', r.name === 'home' || r.name === 'new', <HomeIcon className="ico" />, 'nav-home', running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null)}
-            {createOn && nav({ name: 'create', path: [] }, 'nav.create', r.name === 'create', <CreateNavIcon className="ico" />, 'nav-create')}
-            {nav({ name: 'inbox' }, 'nav.inbox', r.name === 'inbox', <InboxIcon className="ico" />, 'nav-inbox', nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : null)}
-            {nav({ name: 'projects' }, 'nav.projects', r.name === 'projects' || inProject, <LayoutGrid className="ico" />, 'nav-projects')}
-          </>
+        {/* Home is the landing (triage); the Inbox is the list's Needs you filter, All projects the whole list (the
+            workbench) - with the Studio on both open the Studio list */}
+        {nav({ name: 'home' }, 'nav.home', r.name === 'home' || r.name === 'new', <HomeIcon className="ico" />, 'nav-home')}
+        {!studioOn && createOn && nav({ name: 'create', path: [] }, 'nav.create', r.name === 'create', <CreateNavIcon className="ico" />, 'nav-create')}
+        {nav({ name: 'inbox' }, 'nav.inbox', r.name === 'inbox' || (r.name === 'studio' && view === 'you'), <InboxIcon className="ico" />, 'nav-inbox', nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : null)}
+        {nav(
+          { name: 'projects' },
+          'nav.projects',
+          r.name === 'projects' || inProject || r.name === 'create' || (r.name === 'studio' && view !== 'you'),
+          <LayoutGrid className="ico" />,
+          'nav-projects',
+          running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null,
         )}
         {nav({ name: 'calendar' }, 'nav.publishTop', r.name === 'calendar' || r.name === 'publish' || r.name === 'metrics' || r.name === 'channels' || r.name === 'postNow', <Calendar className="ico" />, 'nav-publish')}
         <div className="grow" />

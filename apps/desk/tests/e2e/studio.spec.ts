@@ -111,14 +111,14 @@ async function noMissingKeys() {
   expect(text.match(/\b(st|ci|hub|te|inbox)\.[a-zA-Z][\w.-]+/g) ?? []).toEqual([]);
 }
 
-test('the Studio is where the app opens: every video in one list, grouped; what needs her first, open on the right', async () => {
+test('All projects is the Studio: every video in one list, grouped; what needs her first, open on the right', async () => {
   await hash('#/');
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 }); // the app lands on Home (triage)
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await expect(page).toHaveURL(/#\/studio/);
-  await expect(page.getByTestId('nav-studio')).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByTestId('nav-home')).toHaveCount(0);
-  await expect(page.getByTestId('nav-inbox')).toHaveCount(0);
-  await expect(page.getByTestId('nav-projects')).toHaveCount(0);
+  await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('nav-home')).not.toHaveAttribute('aria-current', 'page');
   const rows = page.getByTestId('studio-row');
   await expect(rows.first()).toBeVisible({ timeout: 30000 });
   await expect(page.locator('[data-testid=studio-row][data-kind=clip]')).toHaveCount(3, { timeout: 30000 }); // one row per clip

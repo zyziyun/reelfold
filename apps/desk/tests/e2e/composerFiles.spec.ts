@@ -39,6 +39,7 @@ test.beforeAll(async () => {
   });
   await page.reload();
   await page.waitForURL(/^app:\/\/desk\//);
+  await page.evaluate(() => (location.hash = '#/studio')); // the app lands on Home; the list is All projects
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await app.evaluate(({ dialog }, paths) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: paths })) as typeof dialog.showOpenDialog;

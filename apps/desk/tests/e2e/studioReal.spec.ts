@@ -73,7 +73,7 @@ const row = () => page.locator(`[data-testid=studio-row][data-row="${id}/talk"]`
 
 test('the parked clip is under Needs you with its question in words; answering it on its page continues the run', async () => {
   test.setTimeout(300000);
-  await hash('#/');
+  await hash('#/studio');
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await expect(row()).toHaveAttribute('data-group', 'you', { timeout: 60000 });
   await expect(row()).toContainText(/然后|filler|Cut/i);
