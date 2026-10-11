@@ -44,7 +44,7 @@ import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import { CreateClient } from './create';
 
@@ -315,6 +315,10 @@ export class EngineClient {
   }
   progressFeed(id: string, n = 30) {
     return this.req<ProgressFeed>('GET', `/api/history/item/${bid(id)}/progress?n=${n}`);
+  }
+  /** the making piece by piece (work-in-progress tiles): each stage's files as the recipe declares them */
+  pieces(id: string) {
+    return this.req<PiecesDoc>('GET', `/api/history/item/${bid(id)}/pieces`);
   }
   adoptHistory(id: string, body: { recipe?: string; title?: string } = {}) {
     return this.req<{ ok: boolean; dir: string; type: string; recipe: string | null }>('POST', `/api/history/item/${bid(id)}/adopt`, body);

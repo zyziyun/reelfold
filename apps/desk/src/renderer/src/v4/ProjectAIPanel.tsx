@@ -5,8 +5,8 @@
 // panel shows the stages (读取 N 条片子 → 询问 Claude Code → 生成修改) with elapsed time, a fallback notice when
 // the routed AI times out, and Cancel (the engine process is killed).
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, Clipboard, FileText, FolderOpen, RefreshCw, Undo2, X } from 'lucide-react';
-import type { EngineMsg, ProjectAskJob, ProjectAskResult, ProjectGroup, RerenderAction } from '../../../shared/v04';
+import { ArrowUp, Check, Clipboard, FileText, FolderOpen, PanelRightClose, RefreshCw, Undo2, X } from 'lucide-react';
+import type { EngineMsg, ProjectAction, ProjectAskJob, ProjectAskResult, ProjectGroup, RerenderAction } from '../../../shared/v04';
 import { providerName } from '../../../shared/aiRoutes';
 import { t, type MessageKey } from '../i18n';
 import { emsg, errText } from './msg';
@@ -22,6 +22,8 @@ interface Msg {
   result?: ProjectAskResult;
   /** applied group -> the edit number it added (for undo) */
   applied?: Record<string, number>;
+  /** project-level controls already used */
+  done?: string[];
   tone?: 'muted' | 'error';
 }
 
@@ -31,6 +33,9 @@ interface Clip {
 }
 
 let seq = 0;
+/** each project's conversation while the app is open: the page under the chat changes as the run goes (the run page,
+ * then the ready page) and the chat stays */
+const KEPT = new Map<string, Msg[]>();
 
 function stageText(s: ProjectAskJob['stages'][number]): string {
   if (s.stage === 'read') return t('pai.st.read', { n: s.n ?? 0 });
@@ -50,6 +55,7 @@ export function ProjectAIPanel({
   running,
   liveText,
   onApplied,
+  onFold,
   testId = 'ai-panel',
 }: {
   item: string;
@@ -59,23 +65,52 @@ export function ProjectAIPanel({
   running?: boolean;
   liveText?: string | null;
   onApplied?: () => void;
+  /** the page lets the chat fold to its edge: the header's fold button */
+  onFold?: () => void;
   testId?: string;
 }) {
   const { client } = useEngine();
   const ui = useUi();
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [msgs, setMsgsS] = useState<Msg[]>(() => KEPT.get(item) ?? []);
+  const setMsgs = (f: (m: Msg[]) => Msg[]) =>
+    setMsgsS((m) => {
+      const n = f(m);
+      KEPT.set(item, n);
+      return n;
+    });
   const [text, setText] = useState('');
   const [scope, setScope] = useState<'all' | 'one'>('all');
   const [job, setJob] = useState<ProjectAskJob | null>(null);
   const [started, setStarted] = useState(0);
   const [now, setNow] = useState(0);
   const log = useRef<HTMLDivElement | null>(null);
+  const input = useRef<HTMLTextAreaElement | null>(null);
+  // "Ask AI about this" on a piece of the making: her words started, the cursor at the end
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ item: string; text: string }>).detail;
+      if (d?.item !== item) return;
+      setText(d.text);
+      window.setTimeout(() => {
+        const el = input.current;
+        el?.focus();
+        el?.setSelectionRange(el.value.length, el.value.length);
+      }, 40);
+    };
+    window.addEventListener('project-chat:prefill', on);
+    return () => window.removeEventListener('project-chat:prefill', on);
+  }, [item]);
   const busy = Boolean(job && job.state === 'running') || started > 0;
   useEffect(() => {
     log.current?.scrollTo({ top: 1e9, behavior: 'smooth' });
   }, [msgs, job?.stages.length]);
+  const first = useRef(true);
   useEffect(() => {
-    setMsgs([]);
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setMsgsS(KEPT.get(item) ?? []);
     setJob(null);
     setStarted(0);
   }, [item]);
@@ -101,7 +136,7 @@ export function ProjectAIPanel({
       clearInterval(tick);
       clearInterval(poll);
     };
-  }, [client, jobId, started]);
+  }, [client, jobId, started]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = (j: ProjectAskJob) => {
     setStarted(0);
@@ -123,18 +158,15 @@ export function ProjectAIPanel({
   const send = async (prompt: string) => {
     if (!client || !prompt.trim() || busy) return;
     const target = scope === 'one' && selected ? [selected.id] : clips.map((c) => c.id);
-    if (!target.length) {
-      setMsgs((m) => [...m, { id: ++seq, me: true, text: prompt }, { id: ++seq, text: t('ai.pickClip') }]);
-      setText('');
-      return;
-    }
+    // nothing finished yet (it is still being made): the engine still answers what the project can do now (pause,
+    // pick the music or the cover again, cut it again)
     setMsgs((m) => [...m, { id: ++seq, me: true, text: prompt }]);
     setText('');
     const t0 = Date.now();
     setStarted(t0);
     setNow(t0);
     try {
-      const r = await client.projectAsk(item, prompt, scope === 'one' ? target : null, selected ? { selected: selected.id } : null);
+      const r = await client.projectAsk(item, prompt, scope === 'one' && target.length ? target : null, selected ? { selected: selected.id } : null);
       setJob({ job: r.job, item, prompt, state: 'running', stages: [], notices: [], clips: r.clips, timeout: r.timeout, elapsed: 0, result: null, error: null, partial: null });
     } catch (e) {
       setStarted(0);
@@ -194,6 +226,20 @@ export function ProjectAIPanel({
     }
   };
 
+  /** a project-level answer's control: pause / go on / take the decision back (the run asks her there) */
+  const runAction = async (mid: number, a: ProjectAction) => {
+    if (!client) return;
+    try {
+      if (a.kind === 'stop') await client.stopHistory(item);
+      else if (a.kind === 'resume') await client.resumeHistory(item);
+      else if (a.kind === 'reopen' && a.checkpoint) await client.autopilotReopen(item, a.checkpoint, a.item ?? '*');
+      setMsgs((m) => [...m.map((x) => (x.id === mid ? { ...x, done: [...(x.done ?? []), actKey(a)] } : x)), { id: ++seq, text: t(a.kind === 'stop' ? 'pc.done.stop' : a.kind === 'resume' ? 'pc.done.resume' : 'pc.done.reopen'), tone: 'muted' }]);
+      onApplied?.();
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    }
+  };
+
   const act = async (a: RerenderAction) => {
     try {
       if (a.kind === 'copy-prompt' && a.prompt) {
@@ -213,10 +259,17 @@ export function ProjectAIPanel({
   const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0;
   const stages = job?.stages ?? [];
   const asking = stages.length && stages[stages.length - 1].stage === 'ask';
-  const chips: [MessageKey, string][] = [
-    ['ai.chip.tighter', t('ai.chip.tighterPrompt')],
-    ['ai.chip.douyin', t('ai.chip.douyinPrompt')],
-  ];
+  // nothing made yet (it is being made): what the project can do now; else the usual clip edits
+  const chips: [MessageKey, string][] = clips.length
+    ? [
+        ['ai.chip.tighter', t('ai.chip.tighterPrompt')],
+        ['ai.chip.douyin', t('ai.chip.douyinPrompt')],
+      ]
+    : [
+        ['pc.chip.pause', t('pc.chip.pausePrompt')],
+        ['pc.chip.music', t('pc.chip.musicPrompt')],
+        ['pc.chip.recut', t('pc.chip.recutPrompt')],
+      ];
 
   return (
     <aside className="agent" data-testid={testId} data-scope="project">
@@ -224,6 +277,11 @@ export function ProjectAIPanel({
         <b style={{ whiteSpace: 'nowrap', flex: 'none' }}>{t('ai.title')}</b>
         <ProviderChip task="edit" testId="ai-provider-chip" />
         <span className="sp" />
+        {onFold && (
+          <button className="btn ghost icon sm" onClick={onFold} aria-label={t('pc.fold')} data-tip={t('pc.fold')} data-testid="project-chat-fold">
+            <PanelRightClose className="ico" />
+          </button>
+        )}
         {running ? (
           <span className="st run">
             <i className="dot run" />
@@ -247,7 +305,7 @@ export function ProjectAIPanel({
       </div>
       <div className="alog" ref={log} data-testid="ai-log">
         {liveText && <div className="msg" lang="zh-CN">{liveText}</div>}
-        {!msgs.length && !liveText && !busy && <div className="muted">{clips.length ? t('pai.empty') : t('ai.pickClip')}</div>}
+        {!msgs.length && !liveText && !busy && <div className="muted">{clips.length ? t('pai.empty') : t('em.pa-nothing-made')}</div>}
         {msgs.map((m) => (
           <div key={m.id} className="col" style={{ gap: 8 }}>
             {m.text && (
@@ -257,6 +315,15 @@ export function ProjectAIPanel({
             )}
             {m.result && (
               <>
+                {(m.result.actions ?? []).length > 0 && (
+                  <div className="pa-acts" data-testid="pai-actions">
+                    {m.result.actions!.map((a, k) => (
+                      <button key={k} className={`btn sm ${k === 0 ? 'primary' : ''}`} disabled={m.done?.includes(actKey(a))} onClick={() => void runAction(m.id, a)} data-testid="pai-project-action" data-kind={a.kind} data-checkpoint={a.checkpoint}>
+                        {emsg(a.label)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {m.result.needs_rerender && <RerenderCard nr={m.result.needs_rerender} seconds={m.result.model_called ? null : m.result.seconds} onAct={act} />}
                 {m.result.groups.filter((g) => g.proposals.length).map((g) => {
                   const at = m.applied?.[g.clip];
@@ -353,9 +420,10 @@ export function ProjectAIPanel({
       </div>
       <div className="in">
         <textarea
+          ref={input}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={running ? t('ai.placeholderRun') : t('pai.placeholder')}
+          placeholder={running || !clips.length ? t('pc.placeholderRun') : t('pai.placeholder')}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -379,6 +447,8 @@ export function ProjectAIPanel({
     </aside>
   );
 }
+
+const actKey = (a: ProjectAction) => `${a.kind}:${a.checkpoint ?? ''}:${a.item ?? ''}`;
 
 const ACT_ICON = { 'copy-prompt': Clipboard, 'open-file': FileText, regenerate: RefreshCw, reveal: FolderOpen } as const;
 

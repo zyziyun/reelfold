@@ -15,6 +15,7 @@ import { fewerStepsEn } from './fewerSteps';
 import { pickupsEn } from './pickups';
 import { studioEn } from './studio';
 import { composerFilesEn } from './composerFiles';
+import { projectPageEn } from './projectPage';
 import { rowActionsEn } from './rowActions';
 import { layoutEn } from './layout';
 import { runEn } from './runview';
@@ -600,5 +601,5 @@ export const v04En = {
   'editor.zoomFit': 'Fit',
 };
 
-export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn };
+export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...projectPageEn };
 export type MessageKey = keyof typeof en;

@@ -161,6 +161,66 @@ def _desk_paths(e, clips, cls, zh):
     return out
 
 
+# ------------------------------------------------------------------ project-level asks (the run, not the clips)
+# "pause", "change the music", "re-cut it", "another cover": what the whole project does next, answered at once with
+# the real control for it (Stop / Try again / take a decision back so the run asks her there) - no model call
+_VERB_ZH = r"(?:换|改|重选|重新选|另选|再选|挑|选)"
+_VERB_EN = r"(?:change|swap|pick|choose|another|different|new|replace)"
+_INTENTS = (
+    ("pause", r"暂停|先停|停一下|停下|别做了|\bpause\b|\bstop (?:the |this )?(?:run|making|it)\b|hold on|mets? en pause|arr[eê]te"),
+    ("resume", r"^\s*(?:继续|接着做|接着剪|恢复)|\bresume\b|keep going|carry on|go on making|reprends|continue (?:la|le)"),
+    ("music", rf"{_VERB_ZH}.{{0,4}}(?:音乐|配乐|bgm|歌)|{_VERB_EN}\s+(?:the\s+|a\s+)?(?:music|track|song|soundtrack)|"
+              r"(?:changer|autre).{0,10}musique"),
+    ("cover", rf"{_VERB_ZH}.{{0,3}}封面|{_VERB_EN}\s+(?:the\s+|a\s+)?(?:cover|thumbnail)|(?:changer|autre).{{0,10}}couverture"),
+    ("recut", r"重剪|重新剪|再剪一[遍次版]|换.{0,3}(?:镜头|片段)|选段|节奏|调色|色调|\bre-?cut\b|swap .{0,12}shots?|"
+              r"\bpacing\b|\bre-?grade\b|colou?r grad|\bgrade\b|remonte|étalonn|rythme"),
+)
+CP_KINDS = {"music": ("music-pick",), "cover": ("cover-pick",),
+            "recut": ("author", "segment-approval", "media-selection", "script-lock", "storyboard-approval")}
+
+
+def project_intent(text):
+    """A request about the whole project's run -> pause | resume | music | cover | recut, or None (a clip edit)."""
+    t = (text or "").strip()
+    for name, rx in _INTENTS:
+        if re.search(rx, t, re.I):
+            return name
+    return None
+
+
+def _running(e):
+    live = e.get("live") or {}
+    return bool(e.get("pilot") or e.get("queued") or live.get("state") in ("running",))
+
+
+def project_actions(e, intent, decisions):
+    """The controls for ``intent`` on project row ``e`` (its autopilot ``decisions``) -> (actions, note msg)."""
+    if intent == "pause":
+        if _running(e):
+            return [dict(kind="stop", label=_m("pa-stop", "Pause the run", "暂停制作"))], \
+                _m("pa-stop-note", "It stops at a safe point; Try again goes on from there.", "会在安全的地方停下，点「继续」从那里接着做。")
+        return [], _m("pa-not-running", "It isn't making anything right now.", "现在没在制作。")
+    if intent == "resume":
+        if _running(e):
+            return [], _m("pa-running", "It's already making it.", "已经在做了。")
+        return [dict(kind="resume", label=_m("pa-resume", "Go on making it", "接着做"))], None
+    kinds = CP_KINDS[intent]
+    hits, seen = [], set()
+    for d in decisions or []:
+        if d.get("kind") in kinds and (d["checkpoint"], d.get("item")) not in seen:
+            seen.add((d["checkpoint"], d.get("item")))
+            hits.append(d)
+    if not hits:
+        return [], _m(f"pa-no-{intent}", f"This video has no {intent} step to take back.", "这条视频没有这一步可以重选。",
+                      step=intent)
+    words = dict(music=("Pick the music again", "重新选配乐"), cover=("Pick the cover again", "重新选封面"),
+                 recut=("Cut it again", "重新剪"))[intent]
+    acts = [dict(kind="reopen", checkpoint=d["checkpoint"], item=d.get("item") or "*",
+                 label=_m(f"pa-reopen-{intent}", words[0], words[1])) for d in hits[:6]]
+    return acts, _m("pa-reopen-note", "It goes back to that step and asks you there (Needs you); everything else is kept.",
+                    "会回到这一步，在「要你看」里问你；其他的都保留。")
+
+
 # ------------------------------------------------------------------ jobs
 class ProjectAsk:
     def __init__(self, outputs, bus=None):
@@ -168,6 +228,7 @@ class ProjectAsk:
         self.jobs = {}
         self._lock = threading.Lock()
         self._engine_ai = None
+        self.autopilot = None          # the desk's Autopilot (app.py): the decisions a project-level ask takes back
 
     def engine_has_ai(self):
         """``python -m vstudio.project ai`` exists (probed once)."""
@@ -194,7 +255,9 @@ class ProjectAsk:
                 c.get("state") not in ("queued", "running")]
         if clips:
             allc = [c for c in allc if c["id"] in clips]
-        need(allc, "no finished clips to change")
+        intent = project_intent(prompt) if e.get("kind") in ("project", "work") else None
+        if intent or not allc:
+            return self._answer_now(item_id, e, prompt, intent)
         job = hashlib.sha1(f"{item_id}{prompt}{time.time()}".encode()).hexdigest()[:10]
         j = dict(job=job, item=item_id, prompt=prompt.strip(), state="running", stages=[], notices=[], partial=None,
                  started=time.time(), result=None, error=None, proc=None, stop=threading.Event(),
@@ -205,6 +268,33 @@ class ProjectAsk:
                 self.jobs.pop(k, None)
         threading.Thread(target=self._run, args=(j, e, allc, context), daemon=True).start()
         return dict(ok=True, job=job, clips=j["clips"], timeout=j["timeout"])
+
+    def _answer_now(self, item_id, e, prompt, intent):
+        """A project-level ask (pause, the music, the cover, cut it again) or nothing made yet: answered at once with
+        the real controls (a finished job, polled like the others)."""
+        decisions = []
+        if intent in CP_KINDS and self.autopilot is not None:
+            try:
+                decisions = (self.autopilot.get(item_id) or {}).get("decisions") or []
+            except Exception:  # noqa: BLE001  (an older engine: no decisions to take back)
+                decisions = []
+        if intent:
+            actions, note = project_actions(e, intent, decisions)
+        else:
+            actions, note = [], _m("pa-nothing-made", "Nothing is made yet to change. I can pause the run, pick the music "
+                                   "or the cover again, or cut it again.", "还没有做好的片子可以改。我可以暂停制作、重选配乐或封面，或者重新剪。")
+        job = hashlib.sha1(f"{item_id}{prompt}{time.time()}".encode()).hexdigest()[:10]
+        now = time.time()
+        res = dict(answer="actions" if actions else "nothing", groups=[], needs_rerender=None, actions=actions,
+                   intent=intent, summary=None, warnings=[note] if note else [], provider="rules", model=None,
+                   fallback=None, cost_usd=0.0, seconds=0.0, model_called=False, engine="desk")
+        j = dict(job=job, item=item_id, prompt=prompt.strip(), state="done", stages=[], notices=[], partial=None,
+                 started=now, ended=now, result=res, error=None, proc=None, stop=threading.Event(), timeout=0.0,
+                 clips=[])
+        with self._lock:
+            self.jobs[job] = j
+        self._emit(j, event="done", answer=res["answer"])
+        return dict(ok=True, job=job, clips=[], timeout=0.0)
 
     def get(self, job):
         need(isinstance(job, str) and re.match(r"^[0-9a-f]{10}$", job), "job: an id")

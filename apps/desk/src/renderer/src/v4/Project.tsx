@@ -14,13 +14,13 @@ import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { go, href, type ProjectTab } from '../lib/router';
 import { clipStatus, itemStatus, STATUS_KEY } from '../lib/status';
-import { ProjectAIPanel } from './ProjectAIPanel';
-import { useStudioEnabled } from '../lib/studioFlag';
+import { WithProjectChat } from './ProjectChat';
+import { WorkPieces } from './WorkPieces';
 import { inboxSub, inboxTitle } from './Inbox';
 import { authorHelp } from '../lib/inboxView';
 import { LiveBanner } from './LiveLine';
 import { liveLine, liveStep, liveText, pendingFor } from '../lib/liveStatus';
-import { inboxHref } from '../lib/nav';
+import { clipHref, inboxHref } from '../lib/nav';
 import { Elapsed, Empty, More, SkGrid, StatusPill, Thumb } from './kit';
 import { FailureActions, failureReason } from './Failure';
 import { PlayerOverlay } from './Player';
@@ -74,7 +74,6 @@ export async function scheduleClips(client: EngineClient, ui: Pick<Ui, 'toast'>,
 }
 
 export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
-  const studioOn = useStudioEnabled();
   const { client, subscribe } = useEngine();
   const { data: hist, reload: reloadHist, archived, wantArchived } = useHistory();
   const inbox = useInbox();
@@ -200,8 +199,18 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
     </button>
   ) : null;
 
+  // the project chat beside the page (2026-10-11: back on Details too): every finished clip at once, or the project
+  // itself (pause, pick the music again, cut it again); resizable, folds to its edge
   return (
-    <div className={`proj ${studioOn ? 'noai' : ''}`} data-testid="project">
+    <div className="proj noai" data-testid="project">
+      <WithProjectChat
+        item={id}
+        clips={done.map((c) => ({ id: c.id, title: c.title }))}
+        selected={sel && done.includes(sel) ? { id: sel.id, title: sel.title } : null}
+        running={s === 'run'}
+        liveText={s === 'run' ? liveText(item?.live) || null : null}
+        onApplied={reload}
+      >
       <div className="scroll">
         <div className="pg wide">
           <a className="back" href={href({ name: 'projects' })}>
@@ -346,6 +355,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
                       onAspect={(a) => setAspects({ ...aspects, [c.id]: a })}
                       onPick={() => setSelId(c.id)}
                       onPlay={() => setPlaying({ clip: c, aspect: aspects[c.id] })}
+                      onEdit={(v) => (location.hash = clipHref(id, c.id, { v }))}
                       onContext={clipMenu(c)}
                       eta={c.state === 'running' ? item?.live?.eta : null}
                     />
@@ -369,6 +379,11 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
                   <div className="tags">{sel.post.tags.map((x) => `#${x}`).join(' ')}</div>
                 </div>
               )}
+              {item?.kind === 'project' && (
+                <section className="proj-pieces">
+                  <WorkPieces item={id} running={s === 'run'} open={s === 'run' || !done.length} onPaused={reloadHist} />
+                </section>
+              )}
               <Details id={id} kind={item?.kind} running={s === 'run'} />
             </>
           )}
@@ -385,17 +400,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
           {tab === 'files' && <FilesTab id={id} extras={extras} />}
         </div>
       </div>
-      {/* with the Studio, the AI is its one bar (this clip / all N clips): the details page has none of its own */}
-      {!studioOn && (
-      <ProjectAIPanel
-        item={id}
-        clips={done.map((c) => ({ id: c.id, title: c.title }))}
-        selected={sel && done.includes(sel) ? { id: sel.id, title: sel.title } : null}
-        running={s === 'run'}
-        liveText={s === 'run' ? liveText(item?.live) || null : null}
-        onApplied={reload}
-      />
-      )}
+      </WithProjectChat>
       {shareClip && <ShareDialog item={id} only={[shareClip]} onClose={() => setShareClip(null)} />}
       {playing && (
         <PlayerOverlay
@@ -411,16 +416,18 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
   );
 }
 
-function ClipCard({ c, on, aspect, onAspect, onPick, onPlay, onContext, eta }: { c: Clip; on: boolean; aspect?: string; onAspect: (a: string) => void; onPick: () => void; onPlay: () => void; onContext: (e: React.MouseEvent) => void; eta?: number | null }) {
+/** A clip: a made one opens in the editor (second pass) on a click, each version chip opens it on that version, ▶
+ * plays it big; one still being made shows where it is. */
+function ClipCard({ c, on, aspect, onAspect, onPick, onPlay, onEdit, onContext, eta }: { c: Clip; on: boolean; aspect?: string; onAspect: (a: string) => void; onPick: () => void; onPlay: () => void; onEdit: (version?: string) => void; onContext: (e: React.MouseEvent) => void; eta?: number | null }) {
   const file = c.files.find((f) => f.aspect === aspect) ?? c.files[0];
   const st = clipStatus(c);
   const ready = c.files.length > 0 && c.state !== 'queued' && c.state !== 'running';
   return (
     <div
       className={`clip ${on ? 'on' : ''}`}
-      onClick={() => (ready ? (onPick(), onPlay()) : onPick())}
+      onClick={() => (ready ? (onPick(), onEdit(aspect)) : onPick())}
       onContextMenu={ready ? onContext : undefined}
-      onKeyDown={(e) => e.key === 'Enter' && ready && onPlay()}
+      onKeyDown={(e) => e.key === 'Enter' && ready && onEdit(aspect)}
       role="button"
       tabIndex={0}
       data-testid="clip-card"
@@ -440,7 +447,7 @@ function ClipCard({ c, on, aspect, onAspect, onPick, onPlay, onContext, eta }: {
           {c.files.length > 1 && st !== 'error' ? (
             <div className="vers">
               {c.files.map((f) => (
-                <button key={f.aspect} className={f.aspect === file?.aspect ? 'on' : ''} onClick={() => onAspect(f.aspect)} data-testid={`clip-size-${f.aspect}`}>
+                <button key={f.aspect} className={f.aspect === file?.aspect ? 'on' : ''} onClick={() => (onAspect(f.aspect), onEdit(f.aspect))} data-testid={`clip-size-${f.aspect}`}>
                   {/^\d+:\d+$/.test(f.aspect) ? f.aspect : t('c.original')}
                 </button>
               ))}

@@ -229,8 +229,39 @@ def waveform(words, duration, n=None):
 
 
 # ------------------------------------------------------------------ listing (one clip per output)
-def _batch_clips(bdir):
-    """jobs/<id>/export/[exports/]manifest.json of a batch (or a project's state/) -> clips."""
+def _engine_item_files(pdir):
+    """A project's made files per item from the engine (``vstudio.project.outputs.item_files``: the recipe's
+    ``outputs.collect`` over the stage records - the one source export / output list / the Ready count share), or {}
+    (an older engine, a broken project: the batch layout below still answers)."""
+    try:
+        from vstudio.project import outputs as O
+        if not hasattr(O, "item_files"):
+            return {}
+        return O.item_files(pdir) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _file_row(p, e):
+    asp = WK.aspect_of(e.get("w"), e.get("h")) or WK.aspect_from_name(p) or "原尺寸"
+    return dict(path=p, aspect=asp, w=e.get("w"), h=e.get("h"), fps=e.get("fps"), duration=e.get("duration"),
+                platform=f"{e.get('platform')}:{e.get('orientation')}", safe_box=e.get("safe_box"),
+                caption_box=e.get("caption_box"))
+
+
+def _read_post(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return WK.parse_post_single(f.read(20000))
+    except OSError:
+        return None
+
+
+def _batch_clips(bdir, project_dir=None):
+    """jobs/<id>/export/[exports/]manifest.json of a batch (or a project's state/) -> clips. A project's item whose
+    recipe exports elsewhere (``items/<item>/exports/`` of a vlog, an explainer...) takes its files from the engine's
+    collect (``project_dir``), so a finished vlog is made, has its cover and opens in the editor."""
+    eng = None
     states = {}
     try:
         db = os.path.join(bdir, "batch.db")
@@ -262,19 +293,27 @@ def _batch_clips(bdir):
             if not hits:
                 continue
             p = hits[0]
-            asp = WK.aspect_of(e.get("w"), e.get("h")) or WK.aspect_from_name(p) or "原尺寸"
-            if not any(f["aspect"] == asp for f in files):
-                files.append(dict(path=p, aspect=asp, w=e.get("w"), h=e.get("h"), fps=e.get("fps"),
-                                  duration=e.get("duration"), platform=f"{e.get('platform')}:{e.get('orientation')}",
-                                  safe_box=e.get("safe_box"), caption_box=e.get("caption_box")))
+            row = _file_row(p, e)
+            if not any(f["aspect"] == row["aspect"] for f in files):
+                files.append(row)
             if not cover and e.get("cover") and os.path.exists(os.path.join(os.path.dirname(p), e["cover"])):
                 cover = os.path.join(os.path.dirname(p), e["cover"])
             if not post and e.get("post") and os.path.exists(os.path.join(os.path.dirname(p), e["post"])):
-                try:
-                    with open(os.path.join(os.path.dirname(p), e["post"]), encoding="utf-8") as f:
-                        post = WK.parse_post_single(f.read(20000))
-                except OSError:
-                    pass
+                post = _read_post(os.path.join(os.path.dirname(p), e["post"]))
+        if not files and project_dir:
+            if eng is None:
+                eng = _engine_item_files(project_dir)
+            for e in (eng.get(jid) or {}).get("files") or []:
+                p = e.get("file")
+                if not p or not os.path.isfile(p):
+                    continue
+                row = _file_row(p, e)
+                if not any(f["aspect"] == row["aspect"] for f in files):
+                    files.append(row)
+                if not cover and e.get("cover") and os.path.isfile(e["cover"]):
+                    cover = e["cover"]
+                if not post and e.get("post") and os.path.isfile(e["post"]):
+                    post = _read_post(e["post"])
         st = states.get(jid) or {}
         state = st.get("state") or ("done" if files else "queued")
         if not cover:
@@ -307,8 +346,9 @@ def list_clips(entry):
     kind, d = entry["kind"], entry["dir"]
     if kind == "work":
         return _ready(d, WK.clips(d, probe=probe))
-    store = os.path.join(d, "state") if kind == "project" else d
-    return _batch_clips(store)
+    if kind == "project":
+        return _batch_clips(os.path.join(d, "state"), project_dir=d)
+    return _batch_clips(d)
 
 
 def _ready(d, clips):
@@ -851,6 +891,33 @@ class Outputs:
         self.history.allow_media([f["path"] for c in cl for f in c["files"]] + [c["cover"] for c in cl if c.get("cover")])
         return dict(item=item_id, kind=e["kind"], clips=[_public_clip(c) for c in cl],
                     confirm=WK.confirmations(e["dir"]) if e["kind"] == "work" else [])
+
+    # ---------------------------------------------------------- the making, piece by piece (work-in-progress tiles)
+    MEDIA_KINDS = ("image", "images", "video", "videos", "audio", "sheet")
+
+    def pieces(self, item_id):
+        """What a project's run has made so far, as the recipe declares it (each stage's ``wip`` files while it runs,
+        each finished stage's ``preview``, a waiting checkpoint's options): ``vstudio.project`` ``Project.pieces``,
+        media only, in recipe order, per item. A batch / work folder / an older engine: none."""
+        e = self._entry(item_id)
+        out = []
+        if e["kind"] == "project":
+            try:
+                from vstudio.project.core import Project
+                proj = Project(e["dir"])
+                if not hasattr(proj, "pieces"):
+                    raise AttributeError("pieces")
+                doc = proj.pieces()
+            except Exception:  # noqa: BLE001  (an older engine, a project mid-write: nothing to show yet)
+                doc = dict(items=[])
+            titles = {c["id"]: c["title"] for c in list_clips(e)}
+            for it in doc.get("items") or []:
+                for p in it.get("pieces") or []:
+                    if p.get("kind") not in self.MEDIA_KINDS or not p.get("path"):
+                        continue
+                    out.append(dict(p, job=it["id"], title=titles.get(it["id"]) or it["id"], job_state=it.get("state")))
+        self.history.allow_media([p["path"] for p in out])
+        return dict(item=item_id, kind=e["kind"], pieces=out)
 
     def _clip(self, item_id, clip_id):
         need(isinstance(clip_id, str) and WK.CLIP_ID_RE.match(clip_id) and ".." not in clip_id, "bad clip id")

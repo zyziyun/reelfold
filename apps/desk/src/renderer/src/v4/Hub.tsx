@@ -23,6 +23,7 @@ import { errText } from './msg';
 import { PlanCard } from './PlanCard';
 import { ProgressFeed } from './ProgressFeed';
 import { scheduleClips } from './Project';
+import { WorkPieces } from './WorkPieces';
 import { newVideo, useUi } from './ui';
 import { clipWords, liveText } from '../lib/liveStatus';
 import './hub.css';
@@ -382,6 +383,11 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
           <p className="muted small">{t('hub.clipsNone')}</p>
         )}
       </div>
+      {i.kind === 'project' && (
+        <div className="card hub-card" data-testid="hub-pieces">
+          <WorkPieces item={i.id} running={live} open={live || !ready.length} onPaused={reloadHist} />
+        </div>
+      )}
       <div className="card hub-card" data-testid="hub-publish">
         <div className="row">
           <b>{t('hub.publish')}</b>
@@ -409,6 +415,8 @@ function clipMade(c: Clip): boolean {
 
 function ClipTile({ item, c, post }: { item: string; c: Clip; post: CalendarPost[] }) {
   const posted = post.find((x) => x.state === 'posted');
+  const made = clipMade(c);
+  // one vocabulary with the count above ("1 of 1 ready"): a clip without a file is never "Ready"
   const st =
     c.state === 'running'
       ? t('hub.clipRendering')
@@ -418,12 +426,13 @@ function ClipTile({ item, c, post }: { item: string; c: Clip; post: CalendarPost
           ? t('hub.clipFailed')
           : clipStatus(c) === 'you'
             ? t('status.you')
-            : posted
-              ? t('hub.clipPosted')
-              : post.length
-                ? t('hub.clipScheduled')
-                : t('hub.clipReady');
-  const made = c.files.length > 0;
+            : !c.files.length
+              ? t('hub.clipNoFile')
+              : posted
+                ? t('hub.clipPosted')
+                : post.length
+                  ? t('hub.clipScheduled')
+                  : t('hub.clipReady');
   const body = (
     <>
       <Thumb src={c.cover} video={c.cover ? null : c.files[0]?.path ?? null} dur={c.duration} />
@@ -433,10 +442,22 @@ function ClipTile({ item, c, post }: { item: string; c: Clip; post: CalendarPost
       </span>
     </>
   );
+  // a made clip opens in the editor (second pass); each export version opens it on that version
   return made ? (
-    <a className="hub-clip" href={clipHref(item, c.id)} data-testid="hub-clip" title={c.title}>
-      {body}
-    </a>
+    <div className="hub-clipwrap">
+      <a className="hub-clip" href={clipHref(item, c.id)} data-testid="hub-clip" data-made="1" title={c.title}>
+        {body}
+      </a>
+      {c.files.length > 1 && (
+        <span className="hub-vers" data-testid="hub-clip-versions">
+          {c.files.map((f) => (
+            <a key={f.aspect} href={clipHref(item, c.id, { v: f.aspect })} data-testid="hub-clip-version" data-aspect={f.aspect}>
+              {/^\d+:\d+$/.test(f.aspect) ? f.aspect : t('c.original')}
+            </a>
+          ))}
+        </span>
+      )}
+    </div>
   ) : (
     <div className="hub-clip off" data-testid="hub-clip" aria-disabled="true">
       {body}

@@ -1,0 +1,37 @@
+/* The making, piece by piece: a flat strip of small tiles under a quiet heading; the newest one being made carries the
+   run dot. No cards inside cards. */
+.wp { display: block; min-width: 0; padding: 0; margin: 0; border: 0; }
+.wp > * + * { margin-top: 10px; }
+.wp-hd { display: flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; list-style: none; font-size: 14px; }
+.wp-hd::-webkit-details-marker { display: none; }
+.wp-hd b { font-weight: 500; }
+.wp-hd .btn { height: 28px; }
+.wp-job { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wp-job h4 { margin: 4px 0 0; font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+.wp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.wp-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wp-tile .th { border-radius: 8px; overflow: hidden; }
+.wp-tile:hover .th, .wp-tile:focus-visible .th { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wp-tile.running .th { outline: 1px dashed color-mix(in srgb, var(--run) 70%, transparent); outline-offset: 1px; }
+.wp-l { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-muted); min-width: 0; }
+.wp-tile.waiting .wp-l { color: var(--text); }
+.wp-bar { display: flex; align-items: center; gap: 8px; padding: 10px 2px 0; min-width: 0; color: var(--text); }
+.wp-bar b { font-weight: 500; font-size: 14px; min-width: 0; }
+.wp-imgview .wp-imgbox { position: relative; display: flex; flex-direction: column; max-width: min(1200px, 92vw); max-height: 90vh; padding: 12px; border-radius: 12px; background: var(--surface); }
+.wp-imgview img { max-width: 100%; max-height: calc(90vh - 80px); object-fit: contain; border-radius: 8px; }
+.wp-imgview .wp-x { position: absolute; top: 16px; right: 16px; background: var(--surface); }
+/* the project chat beside a project page (running, ready, details): resizable, folds to a slim rail */
+.pchat { flex: 1; min-height: 0; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 1px var(--pchat, 380px); }
+.pchat.folded { grid-template-columns: minmax(0, 1fr) 44px; }
+.pchat-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pchat-main > .st-detail, .pchat-main > .runv, .pchat-main > .scroll { flex: 1; min-height: 0; }
+.pchat-side { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.pchat-side .agent { border-left: 0; }
+.pchat-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 0; border: 0; border-left: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font: inherit; font-size: 12.5px; cursor: pointer; writing-mode: vertical-rl; }
+.pchat-rail:hover { color: var(--text); }
+.pchat-rail .ico { writing-mode: horizontal-tb; width: 16px; height: 16px; color: var(--accent); }
+.pa-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pchat-main > .scroll { overflow: auto; }
+.proj-pieces { margin: 8px 0 16px; }
+.wp-chev { width: 14px; height: 14px; color: var(--text-faint); transition: transform var(--t) var(--ease); }
+.wp[open] > .wp-hd .wp-chev { transform: rotate(90deg); }

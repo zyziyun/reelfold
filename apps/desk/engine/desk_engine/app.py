@@ -67,6 +67,8 @@ History (history.py; read-only discovery of past work: desk + engine registries,
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
   POST /api/history/item/<id>/adopt        {recipe?: guess|name, title?} plain work folder -> .vstudio/work.json
   GET  /api/history/item/<id>/progress?n=  the run's last events as codes (「看过程」 in the control room)
+  GET  /api/history/item/<id>/pieces       the making piece by piece (outputs.pieces: each stage's wip files while it
+                                           runs, finished previews, a waiting checkpoint's options; media only)
   GET  /api/live/request/<id>?cursor=      the live pane (live.py): a request's / a project run's transcript - the
   GET  /api/live/project/<item>?cursor=    model CLIs' turns + the engine's stages and log, redacted - after the
                                            cursor; while watched, ``live {key}`` stream events say it grew
@@ -498,6 +500,7 @@ class Api:
         self.inbox = Inbox(engine.data_dir, self.history, runner, engine.mode, bus)
         self.inbox.outputs = self.outputs
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
+        self.project_ask.autopilot = self.autopilot
         if real and runner is not None:            # runs that waited in line when the app quit go back in line
             import threading
 
@@ -787,6 +790,8 @@ class Api:
                     n = q("n") or "30"
                     need(n.isdigit(), "n: a number")
                     return progress_feed(h.find(parts[2])["dir"], int(n))
+                if parts[3:] == ["pieces"] and method == "GET":
+                    return self.outputs.pieces(parts[2])
                 if parts[3:] in (["stop"], ["resume"]) and method == "POST":
                     e = h.find(parts[2])
                     need(e["kind"] in ("project", "work"), "only a project's run can be stopped / tried again")

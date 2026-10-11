@@ -44,6 +44,32 @@ export interface Clip {
   edited_stale?: boolean;
 }
 
+/** One piece of a project's making (a graded segment, a contact sheet, the cover options, the master): what the recipe
+ * declares per stage (``wip`` while it runs, ``preview`` once done) and a waiting checkpoint's options. */
+export interface Piece {
+  job: string;
+  /** its video's title */
+  title: string;
+  job_state?: string;
+  stage: string;
+  kind: 'image' | 'images' | 'video' | 'videos' | 'audio' | 'sheet';
+  path: string;
+  /** the recipe's words for it ({en, zh, fr?}); absent: the desk says the stage */
+  label?: { en: string; zh: string; fr?: string } | null;
+  /** its place among the stage's files (Segment 3 of 10) */
+  n: number;
+  of: number;
+  state: 'running' | 'done' | 'waiting';
+  checkpoint?: string;
+  mtime: number;
+}
+
+export interface PiecesDoc {
+  item: string;
+  kind: 'batch' | 'project' | 'work';
+  pieces: Piece[];
+}
+
 export interface Confirmation {
   clip: string | null;
   text: string;
@@ -303,8 +329,19 @@ export interface ProjectGroup {
   source?: string | null;
 }
 
+/** A project-level answer's control (pause, go on, take a decision back so the run asks her there). */
+export interface ProjectAction {
+  kind: 'stop' | 'resume' | 'reopen';
+  label: EngineMsg;
+  checkpoint?: string;
+  item?: string;
+}
+
 export interface ProjectAskResult {
-  answer: 'changes' | 'needs_rerender' | 'mixed' | 'nothing';
+  answer: 'changes' | 'needs_rerender' | 'mixed' | 'nothing' | 'actions';
+  /** a request about the whole project's run (pause, the music, the cover, cut it again): its controls */
+  actions?: ProjectAction[];
+  intent?: 'pause' | 'resume' | 'music' | 'cover' | 'recut' | null;
   groups: ProjectGroup[];
   needs_rerender: NeedsRerender | null;
   summary?: string | null;

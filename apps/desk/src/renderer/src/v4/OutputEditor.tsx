@@ -176,8 +176,13 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   }, [doc, q.t]);
 
   const odoc = doc as unknown as OutputDoc | null;
-  // the Studio page reads as words first (layout A): the transcript unless the clip has none
-  const lowerTab: LowerTab = split.layout.tab ?? (odoc ? (studio && odoc.words.length ? 'transcript' : defaultTab(odoc)) : 'transcript');
+  // the Studio page reads as words first (layout A): the transcript unless the clip has none. A clip without speech
+  // (a music-only vlog, a photo story) opens on its timeline whatever tab was last used elsewhere, until she picks one
+  const [tabPicked, setTabPicked] = useState(false);
+  useEffect(() => setTabPicked(false), [clip]);
+  const noWords = !!odoc && !odoc.words.length;
+  const lowerTab: LowerTab = noWords && !tabPicked ? 'timeline' : (split.layout.tab ?? (odoc ? (studio && odoc.words.length ? 'transcript' : defaultTab(odoc)) : 'transcript'));
+  const pickTab = useCallback((x: LowerTab) => (setTabPicked(true), split.setTab(x)), [split]);
   const words = useMemo(() => odoc?.words ?? [], [odoc]);
   const pending = hasDrafts(cuts.drafts);
   const dkey = useMemo(() => JSON.stringify(cuts.drafts), [cuts.drafts]);
@@ -523,7 +528,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     }
     if (mod && k === 'e' && !e.shiftKey) {
       e.preventDefault();
-      split.setTab(lowerTab === 'transcript' ? 'timeline' : 'transcript');
+      pickTab(lowerTab === 'transcript' ? 'timeline' : 'transcript');
       return;
     }
     if (mod && k === 'f' && lowerTab === 'transcript' && words.length) {
@@ -653,7 +658,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         title: t('te.sug.fillers', { n: fill.length }),
         sub: [...[...groups.values()].sort((a, b) => b.n - a.n).map((g) => `${g.text} ×${g.n}`), `−${secs.toFixed(1)} s`].join(' · '),
         run: () => {
-          split.setTab('transcript');
+          pickTab('transcript');
           cuts.set((d) => ({ words: { ...d.words, ...Object.fromEntries(fill.flatMap((m) => Array.from({ length: m.i1 - m.i0 + 1 }, (_, k) => [m.i0 + k, d.words[m.i0 + k] ?? 'filler']))) }, gaps: d.gaps }));
         },
       });
@@ -666,7 +671,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         title: t('te.sug.unsure', { n: unsure.length }),
         sub: unsure.slice(0, 3).map((m) => m.text).join(' · '),
         run: () => {
-          split.setTab('transcript');
+          pickTab('transcript');
           window.setTimeout(() => jumpWord(unsure[0].i0), 60);
         },
       });
@@ -792,6 +797,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         ref={pl}
         key={files.map((f) => f.path).join('|')}
         files={files}
+        initialAspect={q.v}
         fps={doc.fps}
         duration={doc.duration}
         captions={doc.captions.map((c) => ({ ...c }))}
@@ -843,7 +849,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   const lowerEl = (
     <LowerPane
       tab={lowerTab}
-      onTab={split.setTab}
+      onTab={pickTab}
       preset={split.layout.preset}
       onPreset={split.setPreset}
       chips={words.length ? <MarksChips doc={odoc} drafts={cuts.drafts} setDrafts={setTextDrafts} onJump={jumpWord} /> : null}
@@ -998,7 +1004,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
       lead={lowerTab === 'transcript' && words.length ? t('te.chatLead') : null}
       textSuggestions={textSugs}
       onShowInTranscript={(x) => {
-        split.setTab('transcript');
+        pickTab('transcript');
         pl.current?.seek(x);
         window.setTimeout(() => {
           const i = odoc.words.findIndex((w) => w.te >= x);

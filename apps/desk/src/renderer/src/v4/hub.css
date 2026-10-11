@@ -70,3 +70,7 @@ a.hub-clip:hover .th { outline: 2px solid var(--accent); outline-offset: 1px; }
 .hub-feed li .ln { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-feed li.bad .ln { color: var(--danger); }
 .hub-feedbtn { margin-left: 4px; }
+.hub-clipwrap { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hub-vers { display: flex; flex-wrap: wrap; gap: 4px; }
+.hub-vers a { font-size: 11.5px; line-height: 18px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--border-strong); color: var(--text-muted); text-decoration: none; font-variant-numeric: tabular-nums; }
+.hub-vers a:hover { border-color: var(--accent); color: var(--text); }

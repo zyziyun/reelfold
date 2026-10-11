@@ -10,8 +10,9 @@ export function projectHref(id: string): string {
 }
 
 /** A clip in the editor; `t` seeks there on open, `item` + `triage` pin an inbox question in the editor's chat. */
-export function clipHref(id: string, clip: string, opts: { t?: number | null; item?: string | null; triage?: boolean } = {}): string {
+export function clipHref(id: string, clip: string, opts: { t?: number | null; item?: string | null; triage?: boolean; v?: string | null } = {}): string {
   const q = new URLSearchParams();
+  if (opts.v) q.set('v', opts.v); // the export version (aspect) to open on
   if (opts.t != null && Number.isFinite(opts.t)) q.set('t', String(Math.round(opts.t * 100) / 100));
   if (opts.item) q.set('item', opts.item);
   if (opts.triage) q.set('triage', '1');

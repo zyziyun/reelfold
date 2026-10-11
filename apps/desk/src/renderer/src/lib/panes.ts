@@ -38,6 +38,8 @@ export const PANES = {
   'run.live': { def: 300, min: 140, max: 1200, collapsible: true },
   /** the run page's live pane beside the story (its width) */
   'run.side': { def: 560, min: 360, max: 1400, collapsible: true },
+  /** the project chat beside a project's page (running, ready, details) */
+  'project.chat': { def: 380, min: 300, max: 680, collapsible: true },
 } satisfies Record<string, PaneSpec>;
 export type PaneId = keyof typeof PANES;
 

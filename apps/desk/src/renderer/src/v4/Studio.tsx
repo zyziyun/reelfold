@@ -31,6 +31,8 @@ import { useRowActions, type RowActionsApi } from './RowActions';
 import { useBox, usePane } from '../lib/panes';
 import { Splitter } from './Splitter';
 import { ProjectRun, RequestRun } from './RunView';
+import { WithProjectChat } from './ProjectChat';
+import { useLoad } from '../lib/engine';
 import { WatchAll } from './WatchAll';
 import { runningJobs } from '../lib/live';
 import './studio.css';
@@ -615,7 +617,8 @@ function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; mor
         <RequestRun r={r.r!} />
       </div>
     );
-  if (!r.ask && r.i && (r.p.state === 'run' || r.p.state === 'queued') && r.kind !== 'clip')
+  // (a video not made yet in a project being made: the project's run page too - its pieces, the chat, the live pane)
+  if (!r.ask && r.i && (r.p.state === 'run' || r.p.state === 'queued') && (r.kind !== 'clip' || !r.video))
     return (
       <div className="st-run st-withmore">
         {head}
@@ -644,10 +647,21 @@ function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; mor
         </div>
       </div>
     );
+  return <ProjectPage r={r} posts={posts} head={head} />;
+}
+
+/** A project's own page in the Studio (ready with several videos, or not made yet): its details with the project chat
+ * beside it (every finished clip at once, or the project itself: pick the music again, cut it again). */
+function ProjectPage({ r, posts, head }: { r: StudioRow; posts: CalendarPost[]; head: React.ReactNode }) {
+  const i = r.i!;
+  const { data, reload } = useLoad((c) => c.clips(i.id), [i.id, i.updated]);
+  const made = (data?.clips ?? []).filter((c) => !c.extra && c.files.length && !['queued', 'planned', 'running', 'failed', 'waiting'].includes(c.state));
   return (
-    <div className="st-detail st-withmore">
-      {head}
-      <ProjectDetail i={r.i!} p={itemPipeline(r.i!, posts)} posts={posts} />
-    </div>
+    <WithProjectChat item={i.id} clips={made} running={r.p.state === 'run'} onApplied={reload}>
+      <div className="st-detail st-withmore">
+        {head}
+        <ProjectDetail i={i} p={itemPipeline(i, posts)} posts={posts} />
+      </div>
+    </WithProjectChat>
   );
 }

@@ -22,7 +22,9 @@ import { Decisions, stateLine } from './Hub';
 import { LivePane } from './LivePane';
 import { errText } from './msg';
 import { PlanCard } from './PlanCard';
+import { WithProjectChat } from './ProjectChat';
 import { Splitter } from './Splitter';
+import { WorkPieces } from './WorkPieces';
 import { newVideo, useUi } from './ui';
 import './runview.css';
 
@@ -324,6 +326,9 @@ export function ProjectRun({ i, p }: { i: HistoryItem; p: Pipeline; posts: Calen
     return () => clearInterval(tm);
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
   const on = ap?.supported ? !!ap.autopilot?.on : !!i.autopilot;
+  // the clips already made while the rest are still being made (a batch): what "all" means for the chat
+  const { data: cdoc } = useLoad((c) => c.clips(i.id), [i.id, i.updated]);
+  const made = (cdoc?.clips ?? []).filter((c) => !c.extra && c.files.length && !['queued', 'planned', 'running', 'failed', 'waiting'].includes(c.state));
   const setMode = async (v: boolean) => {
     if (!client || v === on) return;
     try {
@@ -387,14 +392,21 @@ export function ProjectRun({ i, p }: { i: HistoryItem; p: Pipeline; posts: Calen
       }
     />
   );
+  // the making piece by piece first (what she can look at and step in on), then what happened, then the decisions;
+  // the project chat beside it all (pause, pick the music again, cut it again)
   return (
-    <RunShell live={live} hero={hero} running={running} testId="hub-project" attrs={{ 'data-id': i.id, 'data-state': p.state, 'data-run': 'project' }}>
-      <Story entries={story} label={(s) => t(`hub.step.${s}` as MessageKey)} now={now} empty={p.state === 'queued' ? t('hub.queuedLong') : t('run.storyNone')} />
-      {ap?.supported !== false && (ap?.decisions?.length ?? 0) > 0 && (
-        <div className="runv-decs">
-          <Decisions item={i.id} doc={ap} clips={[]} busy={p.state === 'run'} onChanged={() => (reloadAp(), reloadHist())} />
+    <WithProjectChat item={i.id} clips={made} running={p.state === 'run'} onApplied={() => (reloadAp(), reloadHist())}>
+      <RunShell live={live} hero={hero} running={running} testId="hub-project" attrs={{ 'data-id': i.id, 'data-state': p.state, 'data-run': 'project' }}>
+        <div className="runv-pieces">
+          <WorkPieces item={i.id} running={p.state === 'run'} onPaused={reloadHist} />
         </div>
-      )}
-    </RunShell>
+        <Story entries={story} label={(s) => t(`hub.step.${s}` as MessageKey)} now={now} empty={p.state === 'queued' ? t('hub.queuedLong') : t('run.storyNone')} />
+        {ap?.supported !== false && (ap?.decisions?.length ?? 0) > 0 && (
+          <div className="runv-decs">
+            <Decisions item={i.id} doc={ap} clips={[]} busy={p.state === 'run'} onChanged={() => (reloadAp(), reloadHist())} />
+          </div>
+        )}
+      </RunShell>
+    </WithProjectChat>
   );
 }

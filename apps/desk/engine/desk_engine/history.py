@@ -140,6 +140,8 @@ def summarize_project(pdir):
                 out[k] = b[k]
         out["recipe"] = out["recipe"] or b.get("recipe")
         out["client"] = out["client"] or b.get("client")
+        if not out.get("thumb") and out.get("counts", {}).get("done"):
+            out["thumb"] = _made_cover(pdir)
     else:
         out.update(counts=dict(total=0, green=0, red=0, approved=0, done=0, failed=0), status="planned", thumb=None,
                    deliveries=0)
@@ -148,6 +150,32 @@ def summarize_project(pdir):
         except OSError:
             pass
     return out
+
+
+_COVERS = {}
+
+
+def _made_cover(pdir):
+    """A finished project's picture when its run store has no contact sheet: the first made clip's cover (the
+    engine's collect - the same files the clip list shows), re-read only when the run store changed."""
+    db = os.path.join(pdir, "state", "batch.db")
+    sig = []
+    for f in (db, db + "-wal"):
+        try:
+            sig.append(os.stat(f).st_mtime_ns)
+        except OSError:
+            sig.append(0)
+    hit = _COVERS.get(pdir)
+    if hit and hit[0] == sig:
+        return hit[1]
+    from .outputs import _engine_item_files
+    cover = None
+    for it in _engine_item_files(pdir).values():
+        cover = next((f["cover"] for f in it.get("files") or [] if f.get("cover") and os.path.isfile(f["cover"])), None)
+        if cover:
+            break
+    _COVERS[pdir] = (sig, cover)
+    return cover
 
 
 # never moved to the Trash as a whole (macOS + the Windows / OneDrive known folders)
