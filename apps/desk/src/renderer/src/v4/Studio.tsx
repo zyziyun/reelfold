@@ -4,7 +4,7 @@
 // one AI bar). A request still being planned or a project with no clips yet opens its own detail; a question about a
 // whole project opens the question itself. ＋ New video (⌘N) starts the next one from here; ↑ ↓ and ⌘1–9 switch.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, LayoutGrid, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles } from 'lucide-react';
 import type { CalendarPost, InboxItem } from '../../../shared/v04';
 import { fmtClock, fmtDate, fmtMinutes, t } from '../i18n';
 import { useHistory } from '../lib/history';
@@ -20,16 +20,20 @@ import { platformName } from './Home';
 import { ItemPane, useResolve } from './Inbox';
 import { Empty, Thumb } from './kit';
 import { OutputEditor } from './OutputEditor';
-import { ProjectDetail, RequestDetail, stateLine } from './Hub';
+import { ProjectDetail, stateLine } from './Hub';
 import { itemPipeline } from '../lib/pipeline';
 import { Composer } from './Composer';
 import { isTyping } from './ui';
 import { useBox, usePane } from '../lib/panes';
 import { Splitter } from './Splitter';
+import { ProjectRun, RequestRun } from './RunView';
+import { WatchAll } from './WatchAll';
+import { runningJobs } from '../lib/live';
 import './studio.css';
 
 const FKEY = 'studio.filter';
 const GKEY = 'studio.folded';
+const WKEY = 'studio.watch';
 /** the clip page keeps this much room next to the list (its own columns stack below ~700 px) */
 export const PAGE_MIN = 560;
 /** the list's scroll position while she is elsewhere in the app (Calendar, Settings) */
@@ -105,6 +109,24 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     return () => window.removeEventListener('studio:compose', on);
   }, []);
 
+  // Watch all: every running job's live pane tiled in place of the page (the header's toggle)
+  const [watch, setWatchS] = useState(() => sessionStorage.getItem(WKEY) === '1');
+  const setWatch = (v: boolean) => {
+    setWatchS(v);
+    if (v) sessionStorage.setItem(WKEY, '1');
+    else sessionStorage.removeItem(WKEY);
+  };
+  const watching = useMemo(() => runningJobs(rows), [rows]);
+  // a video opened from a tile (or anywhere else) is shown: Watch all steps aside
+  const routeKey = `${id ?? ''}/${clip ?? ''}`;
+  const lastRoute = useRef(routeKey);
+  useEffect(() => {
+    if (lastRoute.current === routeKey) return;
+    lastRoute.current = routeKey;
+    setWatch(false);
+  }, [routeKey]);
+  const watchTip = t(watch ? 'watch.close' : 'watch.open');
+
   // ↑ ↓ the next / previous video, ⌘1–9 the n-th one in the list
   const go = useCallback((r: StudioRow | undefined) => r && (location.hash = rowHref(r)), []);
   const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
@@ -178,6 +200,11 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           <button className="btn ghost icon" onClick={() => setComposer(true)} aria-label={t('st.new')} data-tip={`${t('st.new')} · ${keyHint('⌘N')}`} data-tip-x="start" data-testid="studio-rail-new">
             <Plus className="ico" />
           </button>
+          {watching.length > 0 && (
+            <button className={`btn ghost icon ${watch ? 'on' : ''}`} onClick={() => setWatch(!watch)} aria-pressed={watch} aria-label={watchTip} data-tip={watchTip} data-tip-x="start" data-testid="studio-watch">
+              <LayoutGrid className="ico" />
+            </button>
+          )}
           {needsYou(rows) > 0 && (
             <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(rows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
               <i className="dot you" /> {needsYou(rows)}
@@ -192,6 +219,14 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
             <span className="tx">{composer ? t('st.new') : t('st.newHint')}</span>
             <span className="kbd">{keyHint('⌘N')}</span>
           </button>
+          {watching.length > 0 && (
+            <button className={`btn ghost icon st-watch ${watch ? 'on' : ''}`} onClick={() => setWatch(!watch)} aria-pressed={watch} aria-label={watchTip} data-tip={watchTip} data-testid="studio-watch">
+              <LayoutGrid className="ico" />
+              <b className="n" aria-hidden>
+                {watching.length}
+              </b>
+            </button>
+          )}
           <button className="btn ghost icon st-fold" onClick={pane.toggle} aria-label={listTip} data-tip={listTip} aria-expanded aria-controls="studio-list" data-testid="studio-list-toggle">
             <PanelLeftClose className="ico" />
           </button>
@@ -265,7 +300,13 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         />
       )}
       <section className="st-page" data-testid="studio-page">
-        {cur ? <Page key={cur.key} r={cur} posts={posts} /> : <Empty title={rows.length ? t('st.pick') : t('st.emptyAll')} />}
+        {watch ? (
+          <WatchAll rows={watching} lineOf={lineOf} onClose={() => setWatch(false)} />
+        ) : cur ? (
+          <Page key={cur.key} r={cur} posts={posts} />
+        ) : (
+          <Empty title={rows.length ? t('st.pick') : t('st.emptyAll')} />
+        )}
       </section>
     </div>
   );
@@ -319,7 +360,14 @@ function Page({ r, posts }: { r: StudioRow; posts: CalendarPost[] }) {
   const resolve = useResolve();
   // a made clip: its page; one still being made: what it waits for (its question), else where its project is
   if (r.kind === 'clip' && r.video) return <OutputEditor id={r.item!} clip={r.clip!} layout="studio" ask={r.ask} place={{ project: r.project, pos: r.pos }} />;
-  if (r.kind === 'request') return <div className="st-detail"><RequestDetail r={r.r!} onApplied={() => undefined} /></div>;
+  // a request being planned and a project being made: the run page (hero, what happened, the live pane)
+  if (r.kind === 'request') return <div className="st-run"><RequestRun r={r.r!} /></div>;
+  if (!r.ask && r.i && (r.p.state === 'run' || r.p.state === 'queued') && r.kind !== 'clip')
+    return (
+      <div className="st-run">
+        <ProjectRun i={r.i} p={itemPipeline(r.i, posts)} posts={posts} />
+      </div>
+    );
   if (r.ask)
     return (
       <div className="st-detail st-ask" data-testid="studio-project-ask">

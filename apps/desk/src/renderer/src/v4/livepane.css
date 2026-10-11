@@ -1,0 +1,55 @@
+/* The live pane (ux/run-view A): a terminal for the run - near-black in both themes, monospace, one colour per
+   source; the chrome stays in the app's own type. */
+.lv { --lp-bg: #0f0e0d; --lp-fg: #d9d4cc; --lp-dim: #7d766f; --lp-line: rgba(255, 240, 220, 0.07);
+  position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%;
+  background: var(--lp-bg); color: var(--lp-fg); }
+:root[data-theme='notebook-light'] .lv { --lp-bg: #1b1916; }
+.lv-hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--lp-line);
+  font-size: 12.5px; color: var(--lp-dim); flex: none; min-width: 0; }
+.lv-hd .sp { flex: 1; }
+.lv-title { color: var(--lp-fg); font-weight: 600; min-width: 0; }
+.lv-sub { min-width: 0; }
+.lv-open { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 600; color: var(--lp-fg); cursor: pointer; text-align: left; }
+.lv-open:hover { text-decoration: underline; }
+.lv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lp-dim); flex: none; }
+.lv-dot.on { background: #78be92; box-shadow: 0 0 0 3px rgba(120, 190, 146, 0.18); animation: lv-pulse 1.6s ease-in-out infinite; }
+@keyframes lv-pulse { 50% { box-shadow: 0 0 0 5px rgba(120, 190, 146, 0.06); } }
+@media (prefers-reduced-motion: reduce) { .lv-dot.on { animation: none; } }
+.lv-seg { display: inline-flex; border: 1px solid var(--lp-line); border-radius: 7px; overflow: hidden; }
+.lv-seg button { border: 0; background: transparent; color: var(--lp-dim); font: inherit; font-size: 12px; padding: 2px 9px; cursor: pointer; }
+.lv-seg button.on { background: rgba(255, 240, 220, 0.08); color: var(--lp-fg); }
+.lv-ic { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--lp-dim); cursor: pointer; flex: none; }
+.lv-ic:hover:not(:disabled) { background: rgba(255, 240, 220, 0.08); color: var(--lp-fg); }
+.lv-ic:disabled { opacity: 0.4; cursor: default; }
+.lv-ic .ico { width: 14px; height: 14px; }
+.lv-search { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 2px 0 8px; border-radius: 6px; background: rgba(255, 240, 220, 0.06); }
+.lv-search .ico { width: 13px; height: 13px; }
+.lv-search input { width: 150px; border: 0; outline: 0; background: transparent; color: var(--lp-fg); font: inherit; font-size: 12.5px; user-select: text; }
+.lv-n { min-width: 34px; text-align: right; font-size: 11.5px; }
+.lv-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 0 28px; font: 12px/1.62 var(--font-mono); user-select: text; overscroll-behavior: contain; }
+.lv-body::-webkit-scrollbar-thumb { background: rgba(255, 240, 220, 0.12); border-color: var(--lp-bg); }
+.lv-ln { display: grid; grid-template-columns: 64px 84px minmax(0, 1fr); gap: 0 10px; padding: 0 14px; white-space: pre-wrap; word-break: break-word; }
+.lv.lv-compact .lv-ln { grid-template-columns: 58px 64px minmax(0, 1fr); padding: 0 10px; font-size: 11.5px; }
+.lv-ln.lv-gap { margin-top: 10px; }
+.lv-t { color: #5f5953; font-variant-numeric: tabular-nums; }
+.lv-tag { color: var(--lp-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-ln.s-agent .lv-tag { color: #4fbfae; }
+.lv-ln.k-prompt .lv-tag { color: #d8a951; }
+.lv-ln.k-thinking .lv-tag, .lv-ln.k-thinking .lv-x { color: #a99bd8; }
+.lv-ln.k-thinking .lv-x { font-style: italic; }
+.lv-ln.k-tool .lv-tag { color: #7aa7d6; }
+.lv-ln.k-tool-result .lv-x { color: #a39c94; }
+.lv-ln.k-result .lv-tag, .lv-ln.k-done .lv-tag { color: #78be92; }
+.lv-ln.k-turn .lv-x { color: #ede9e4; font-weight: 600; }
+.lv-ln.k-error .lv-tag, .lv-ln.k-error .lv-x { color: #e07a72; }
+.lv-ln.s-engine.k-log .lv-x { color: #a39c94; }
+.lv-ln.lv-hit { background: rgba(216, 169, 81, 0.12); }
+.lv-ln.lv-cur { background: rgba(216, 169, 81, 0.28); }
+.lv-empty { margin: 0; padding: 4px 14px; color: var(--lp-dim); font-family: var(--font); font-size: 12.5px; }
+.lv-jump { position: absolute; right: 16px; bottom: 12px; border: 0; border-radius: 999px; padding: 4px 12px; background: var(--accent);
+  color: var(--accent-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+/* ANSI colours (SGR 30-37 / 90-97, bold, dim) */
+.lv .a-k { color: #7d766f; } .lv .a-r { color: #e07a72; } .lv .a-g { color: #78be92; } .lv .a-y { color: #d8a951; }
+.lv .a-bl { color: #7aa7d6; } .lv .a-m { color: #c592d6; } .lv .a-c { color: #4fbfae; } .lv .a-w { color: #ede9e4; }
+.lv .a-bold { font-weight: 700; } .lv .a-dim { opacity: 0.7; }

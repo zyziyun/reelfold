@@ -720,3 +720,29 @@ export interface CalendarDoc {
   queue: QueueClip[];
   at: number;
 }
+
+/** One line of a job's live transcript (GET /api/live/...; desk_engine.live): a model CLI's turn as it streamed
+ * (``src: agent``: turn | prompt | info | thinking | tool | tool-result | say | result | error) or the engine's own
+ * stages and log (``src: engine``: stage | progress | event | log | cmd | done | error | stop). Redacted. */
+export interface LiveLine {
+  at?: number | null;
+  src: 'agent' | 'engine';
+  kind: string;
+  text: string;
+  turn?: string;
+  task?: string;
+  provider?: string;
+  model?: string;
+  tool?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface LiveDoc {
+  key: string;
+  lines: LiveLine[];
+  /** where the next read starts (opaque) */
+  cursor: string;
+  /** more was written than one read returns: read again from ``cursor`` */
+  more: boolean;
+  running: boolean;
+}

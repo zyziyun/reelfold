@@ -305,4 +305,6 @@ export type StreamEvent =
   | { type: 'intake'; id: string; state: string; ts: number }
   | { type: 'inbox'; ts: number }
   | { type: 'calendar'; ts: number }
-  | { type: 'weekplan'; id: string; state: string; ts: number };
+  | { type: 'weekplan'; id: string; state: string; ts: number }
+  /** a watched job's live transcript grew (desk_engine.live): fetch it from your cursor */
+  | { type: 'live'; key: string; ts: number };

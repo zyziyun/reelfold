@@ -454,7 +454,7 @@ function decisionLabel(d: AutopilotDecision): string {
   return own || t('hub.decisionOther');
 }
 
-function Decisions({ item, doc, clips, busy, onChanged }: { item: string; doc: AutopilotDoc | null; clips: Clip[]; busy: boolean; onChanged: () => void }) {
+export function Decisions({ item, doc, clips, busy, onChanged }: { item: string; doc: AutopilotDoc | null; clips: Clip[]; busy: boolean; onChanged: () => void }) {
   const { client } = useEngine();
   const ui = useUi();
   const [sending, setSending] = useState<string | null>(null);

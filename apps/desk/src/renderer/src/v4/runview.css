@@ -1,0 +1,85 @@
+/* The run page (ux/run-view A): one calm hero, what happened stage by stage, the live pane docked below or beside.
+   No boxed cards: hairlines, whitespace, one big number. */
+.runv { flex: 1; min-height: 0; min-width: 0; height: 100%; display: flex; flex-direction: column; }
+.runv.runv-side { flex-direction: row; }
+.runv-main { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 40px clamp(24px, 4.5vw, 64px) 32px; }
+.runv-live { flex: none; min-height: 0; min-width: 0; display: flex; }
+.runv-live > .lv { flex: 1; }
+.runv-livebar { flex: none; display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 16px; border: 0; border-top: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.runv.runv-side .runv-livebar { height: auto; width: 36px; flex-direction: column; padding: 12px 0; border-top: 0; border-left: 1px solid var(--border); writing-mode: vertical-rl; }
+.runv-livebar .sp { flex: 1; }
+.runv-livebar .lv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+.runv-livebar .lv-dot.on { background: var(--ok); }
+
+.runv-hero { max-width: 1080px; }
+.runv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 32px; }
+.runv-top .sp { flex: 1; }
+.runv-eyebrow { display: inline-flex; flex-wrap: wrap; gap: 6px; white-space: nowrap; color: var(--text-muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.runv-title { margin: 10px 0 2px; font-size: 28px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; }
+.runv-quote { margin: 4px 0 0; font-size: 14px; }
+.runv-now { margin: 28px 0 12px; font-size: 17px; line-height: 1.45; min-height: 1.45em; }
+.runv-big { display: flex; align-items: baseline; gap: 18px; }
+.runv-pct { font-size: 56px; font-weight: 300; line-height: 1; letter-spacing: -0.03em; }
+.runv-left { font-size: 15px; }
+.runv-track { height: 4px; border-radius: 2px; background: var(--surface-3); margin: 16px 0 22px; overflow: hidden; position: relative; }
+.runv-track i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--run)); transition: width 400ms var(--ease); }
+.runv-track.indet i { position: absolute; width: 30%; animation: runv-indet 1.4s ease-in-out infinite; }
+@keyframes runv-indet { 0% { left: -30%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .runv-track.indet i { animation: none; left: 0; } }
+.runv-tl { list-style: none; display: flex; margin: 0; padding: 0; }
+.runv-tl li { flex: 1; min-width: 0; padding-top: 8px; border-top: 2px solid var(--surface-3); font-size: 12px; color: var(--text-faint); }
+.runv-tl li span, .runv-tl li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.runv-tl li small { color: var(--text-faint); font-size: 11px; }
+.runv-tl li.done { border-color: var(--accent); color: var(--text-muted); }
+.runv-tl li.current { color: var(--text); font-weight: 600; border-image: linear-gradient(90deg, var(--accent) 55%, var(--surface-3) 55%) 1; }
+.runv-tl li.current small { font-weight: 400; color: var(--text-muted); }
+.runv-tl li.skipped { color: var(--text-faint); text-decoration: line-through; }
+
+.runv-h { margin: 36px 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }
+.runv-story { max-width: 1080px; }
+.runv-story ol { list-style: none; margin: 0; padding: 0; }
+.runv-st { display: grid; grid-template-columns: 64px 18px minmax(0, 1fr) 64px; gap: 0 10px; padding: 8px 0; align-items: start; }
+.runv-t { color: var(--text-faint); font-size: 12px; padding-top: 1px; }
+.runv-mk { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; background: var(--accent); }
+.runv-st.now .runv-mk { background: var(--run); box-shadow: 0 0 0 4px color-mix(in srgb, var(--run) 20%, transparent); }
+.runv-body { min-width: 0; }
+.runv-body b { font-weight: 500; }
+.runv-body p { margin: 2px 0 0; }
+.runv-d { text-align: right; font-size: 12px; padding-top: 1px; }
+.runv-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 16px; margin-top: 8px; }
+.runv-f { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); min-width: 0; }
+.runv-f .nm { max-width: 60%; }
+.runv-f i { flex: 1; height: 2px; border-radius: 1px; background: var(--surface-3); position: relative; overflow: hidden; }
+.runv-f.done i { background: var(--accent); }
+.runv-f.now { color: var(--text); }
+.runv-f.now i::after { content: ''; position: absolute; inset: 0; width: 45%; background: var(--run); }
+.runv-f.todo { opacity: 0.55; }
+.runv-dec { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; padding: 6px 10px; border-left: 2px solid var(--accent);
+  background: var(--accent-soft); border-radius: 0 6px 6px 0; font-size: 13px; }
+.runv-dec .ico { width: 13px; height: 13px; margin-top: 3px; color: var(--accent); flex: none; }
+.runv-dec.ai b { font-weight: 600; }
+.runv-plan { max-width: 1080px; margin-top: 28px; display: flex; flex-direction: column; gap: var(--s2); }
+.runv-decs { max-width: 1080px; margin-top: 24px; }
+.runv-decs .hub-card { background: transparent; border: 0; padding: 0; box-shadow: none; }
+.runv-decs .hub-card > .row b { font-size: 11.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }
+
+@media (max-width: 1100px) {
+  .runv-main { padding: 28px 24px 24px; }
+  .runv-pct { font-size: 44px; }
+  .runv-st { grid-template-columns: 56px 14px minmax(0, 1fr) 52px; }
+}
+
+/* Watch all: every running job's live pane, tiled (herdr-like) */
+.wa { flex: 1; min-height: 0; display: flex; flex-direction: column; height: 100%; }
+.wa-hd { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 20px; border-bottom: 1px solid var(--border); flex: none; }
+.wa-hd h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.wa-hd .sp { flex: 1; }
+.wa-grid { flex: 1; min-height: 0; display: grid; gap: 10px; padding: 10px; grid-auto-rows: minmax(220px, 1fr); overflow: auto; }
+.wa-tile { min-height: 0; min-width: 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-strong); display: flex; flex-direction: column; }
+.wa-tile > .lv { flex: 1; }
+.wa-tile .lv-title { cursor: pointer; }
+.wa-tile .lv-title:hover { text-decoration: underline; }
+.wa-bar { height: 2px; background: rgba(255, 240, 220, 0.07); flex: none; }
+.wa-bar i { display: block; height: 100%; background: var(--run); }
+.wa-empty { padding: var(--s4); }

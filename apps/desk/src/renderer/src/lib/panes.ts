@@ -34,6 +34,10 @@ export const PANES = {
   'studio.ai': { def: 440, min: 320, max: 760 },
   /** the editor's clip info above the chat (its height) */
   'editor.info': { def: 360, min: 96, max: 900 },
+  /** the run page's live pane docked below (its height) */
+  'run.live': { def: 300, min: 140, max: 1200, collapsible: true },
+  /** the run page's live pane beside the story (its width) */
+  'run.side': { def: 560, min: 360, max: 1400, collapsible: true },
 } satisfies Record<string, PaneSpec>;
 export type PaneId = keyof typeof PANES;
 

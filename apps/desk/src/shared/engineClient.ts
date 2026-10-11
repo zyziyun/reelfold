@@ -44,7 +44,7 @@ import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, OpenRequest, OutputDoc, PreviewEdl, ProjectAskJob, Retimed } from './v04';
+import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PreviewEdl, ProjectAskJob, Retimed } from './v04';
 
 import { CreateClient } from './create';
 
@@ -308,6 +308,10 @@ export class EngineClient {
     return this.req<HistoryDetail>('GET', `/api/history/item/${bid(id)}`);
   }
   /** 「看过程」: the run's last events as codes (the desk words them) */
+  /** a request's / a project run's live transcript after ``cursor`` (the live pane) */
+  live(kind: 'request' | 'project', id: string, cursor?: string | null) {
+    return this.req<LiveDoc>('GET', `/api/live/${kind}/${bid(id)}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+  }
   progressFeed(id: string, n = 30) {
     return this.req<ProgressFeed>('GET', `/api/history/item/${bid(id)}/progress?n=${n}`);
   }
