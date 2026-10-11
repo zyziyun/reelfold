@@ -306,19 +306,40 @@ def run_gate(env, cp):
     if pay.get("skip") or (cp.get("auto") == "skip-if-empty" and not pay.get("options")):
         return dict(state="skipped", reason=pay.get("skip_reason") or "nothing to decide", payload=path, files=files)
     ans = answer_of(env.params, cp["id"])
+    if ans is not None and _bad_format(env.m, cp, env.params, env.job):
+        ans = None                       # locked before the format check existed (her notes as the script): ask again
     reask = cp.get("reask", cp["kind"] != "author")      # authored files: edits re-run the watchers, no re-ask
     if ans is not None and (not reask or not ans.get("digest") or ans["digest"] == pay["digest"]):
         return dict(state="answered", answer=ans["value"], payload=path, files=files)
     raise CheckpointPending(cp["id"], env.job, path)
 
 
+def _bad_format(m, cp, params, job_id):
+    """The checkpoint's authored file exists but fails its format check (drafts.format_check)."""
+    from . import drafts as DR
+    a = cp.get("author") or {}
+    ok = DR.format_check(m["id"], cp["id"]) if a.get("file") else None
+    if not ok:
+        return False
+    try:
+        path = M.fmt(a["file"], static_tctx(m, params, job_id))
+    except Exception:  # noqa: BLE001
+        return False
+    return os.path.isfile(path) and not ok(path)
+
+
 def gate_stage(m, cp, names=()):
     def fn(ctx):
         return run_gate(Env(ctx, m, cp), cp)
     fn.__name__ = f"{m['id']}.gate.{cp['id']}"
+    from . import drafts as DR
+    checked = bool((cp.get("author") or {}).get("file") and DR.format_check(m["id"], cp["id"]))
 
     def params(job, spec):
-        return dict(answer=answer_of(job["params"], cp["id"]), v=1)
+        out = dict(answer=answer_of(job["params"], cp["id"]), v=1)
+        if checked:                      # a file that stops passing the format check re-opens the step (retry)
+            out["format_ok"] = not _bad_format(m, cp, job["params"], job["id"])
+        return out
     return Stage(M.GATE_PREFIX + cp["id"], "cpu", fn, deps=(cp["after"], *[n for n in cp.get("needs") or []
                                                                        if n in names and n != cp["after"]]),
                  params=params,

@@ -352,3 +352,96 @@ def test_an_edited_scene_rerenders():
     m = yaml.safe_load(open(ROOT / "workflows/explainer/recipe.yaml", encoding="utf-8"))
     render = next(s for s in m["stages"] if s["id"] == "render")
     assert any("compositions" in w for w in render.get("watch") or [])
+
+
+# --------------------------------------------------------------------------- her lecture notes as the explainer's script
+NOTES = "# S7 - 讲稿\n\n# Part 1 开场\n[镜头：你的脸]\n" + "".join(
+    f"## 【{k}:00】第 {k} 段\n**MCP 是 AI 应用的 USB-C 接口。** 第 {k} 段讲稿：以前每个应用都要给每个工具写一遍集成，"
+    "3 个应用乘 4 个工具就是 12 份代码；MCP 把乘法变成加法。面试 tip：这是高频题。\n"
+    "```python\n@mcp.tool()\ndef save_note(title: str) -> dict: ...\n```\n| 原语 | 谁控制 |\n|---|---|\n| Tools | 模型 |\n"
+    for k in range(1, 120))
+
+
+def test_lecture_notes_never_lock_as_the_script_and_the_rules_draft_lines(tmp_path, monkeypatch):
+    """Her run (2026-10-10): the 85k-character notes were locked as SCRIPT.md and the storyboard failed. Now the
+    notes are drafted into '## Line N' scenes - by the rules when no model answers - and kept as material."""
+    from vstudio.project.adapters import explainer as X
+    from vstudio.project.core import Project
+    monkeypatch.setenv("VSTUDIO_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VSTUDIO_LLM_PROVIDER", "none")
+    monkeypatch.setenv("VSTUDIO_LLM_PLANNER_PROVIDER", "none")
+    notes = tmp_path / "S7 - 讲稿 358f.md"
+    notes.write_text(NOTES, encoding="utf-8")
+    assert not X.script_format_ok(str(notes)) and len(NOTES) > 20000
+    p = Project.create(str(tmp_path / "ep"), recipe="explainer", inputs=dict(script=[str(notes)]),
+                       params=dict(platforms=["youtube", "bilibili"]),
+                       items=[dict(id="ep1", params=dict(title="MCP 是 AI 应用的 USB-C 接口"))])
+    # an older build copied the notes in as the script: put them there, as her project had them
+    script = tmp_path / "ep" / "items" / "ep1" / "SCRIPT.md"
+    script.write_text(NOTES, encoding="utf-8")
+    from vstudio.project import drafts as DR
+    assert DR.state(str(script), None, {"id": "script"}, "explainer") == "notes"
+    res = p.run(pilot=1, auto=["script", "storyboard"])
+    assert res["exit_code"] in (4, 7), res
+    assert X.script_format_ok(str(script))
+    body = script.read_text(encoding="utf-8")
+    assert "```" not in body and "[镜头" not in body and "| Tools" not in body
+    assert (tmp_path / "ep" / "items" / "ep1" / "inputs" / X.NOTES_NAME).read_text(encoding="utf-8") == NOTES
+    pay = [c for c in p.pending() if c["id"] == "script"][0]
+    assert pay["draft_state"] == "drafted" and pay["default"] == {"done": True}       # what autopilot locks
+    p.answer("script", {"done": True})
+    res = p.run(pilot=1, auto=["storyboard"])
+    assert (tmp_path / "ep" / "items" / "ep1" / "STORYBOARD.md").exists(), (res, p.pending())  # storyboard ran
+    lines = body.count("## Line ")
+    assert 6 <= lines <= 45
+    assert [c["id"] for c in p.pending()] == ["storyboard"]
+    p.answer("storyboard", {"done": True})
+    p.run(pilot=1)
+    pend = [c["id"] for c in p.pending()]
+    assert pend == ["voice"], pend                   # the next step is the voice: nothing failed on the way
+
+
+def test_a_raw_notes_answer_is_refused_in_plain_words(tmp_path):
+    from types import SimpleNamespace
+    from vstudio.project.adapters import common
+    f = tmp_path / "SCRIPT.md"
+    f.write_text(NOTES, encoding="utf-8")
+    a = SimpleNamespace(payload={"file": str(f)}, value={"done": True}, m={"id": "explainer"},
+                        cp={"id": "script", "author": {"file": str(f)}})
+    with pytest.raises(ValueError, match="script format"):
+        common.author_apply(a)
+
+
+def test_the_storyboard_failure_is_worded_with_its_fix():
+    from vstudio import proctail
+    got = proctail.tool_failure("RuntimeError: storyboard_from_script.py exit 1: no '## Line N' blocks in SCRIPT.md")
+    assert got == {"code": "stage-script-format", "params": {"fix": "draft-script"}}
+
+
+def test_rules_script_fits_the_requested_length():
+    from vstudio.project.adapters import explainer as X
+    s = X.notes_to_script(NOTES, "zh", 2.0, "MCP")
+    assert X.target_minutes({}, "做成 6–8 分钟的中文讲解") == 7.0 and X.target_minutes({"mode": "short"}) == 1.5
+    narr = "".join(ln.strip() for ln in s.splitlines() if ln.startswith("    "))
+    import re as _re
+    assert len(_re.findall(r"[㐀-鿿]", narr)) < 2.0 * 260 + 200
+
+
+def test_a_script_locked_as_raw_notes_by_an_older_build_is_asked_again(tmp_path, monkeypatch):
+    """Try again on her failed run: the locked answer no longer counts once the file fails the format check, so
+    the step is drafted again (instead of replaying the storyboard failure)."""
+    from vstudio.project.adapters import explainer as X
+    from vstudio.project.core import Project
+    monkeypatch.setenv("VSTUDIO_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VSTUDIO_LLM_PROVIDER", "none")
+    monkeypatch.setenv("VSTUDIO_LLM_PLANNER_PROVIDER", "none")
+    p = Project.create(str(tmp_path / "ep"), recipe="explainer", items=[dict(id="ep1", params=dict(title="MCP"))],
+                       params=dict(platforms=["youtube"]))
+    script = tmp_path / "ep" / "items" / "ep1" / "SCRIPT.md"
+    script.write_text(NOTES, encoding="utf-8")
+    p.data.setdefault("answers", {})["script"] = {"ep1": {"value": {"done": True}, "digest": "old", "at": "x"}}
+    p.save()
+    p = Project(str(tmp_path / "ep"))
+    p.run(pilot=1)
+    assert X.script_format_ok(str(script))           # re-drafted into lines (rules: no model here)
+    assert [c["id"] for c in p.pending()] == ["script"]

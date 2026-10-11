@@ -98,6 +98,11 @@ def author_apply(a):
         return dict(params={}, digest=dir_sha(path))
     if not os.path.exists(path):
         raise ValueError(f"{a.cp['id']}: {path} does not exist yet - write it (or answer with content)")
+    from .. import drafts as DR
+    ok = DR.format_check(a.m["id"], a.cp["id"])
+    if ok and not ok(path):
+        raise ValueError(f"{a.cp['id']}: {os.path.basename(path)} is not in the script format yet ('## Line N' "
+                         "scenes with indented narration) - let Reelfold draft it from your notes, or write the lines")
     return dict(params={}, digest=file_sha(path))
 
 

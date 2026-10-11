@@ -78,11 +78,20 @@ _TOOLS = (
 )
 
 
+# failures with a known cause and a known fix the app can word ("the script wasn't in lines - draft it for me")
+_KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in the script format"),
+           "stage-script-format", "draft-script"),)
+
+
 def tool_failure(text):
     """An error caused by a missing / broken external tool -> {code: "tool-node" | "tool-ffmpeg",
-    params: {tool, fix}}; else None. fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg."""
+    params: {tool, fix}}; a known stage failure -> {code: "stage-script-format", params: {fix}}; else None.
+    fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script."""
     t = str(text or "")
     low = t.lower()
+    for rx, code, fix in _KNOWN:
+        if rx.search(t):
+            return dict(code=code, params=dict(fix=fix))
     for tool, rx in _TOOLS:
         if rx.search(t):
             if tool == "node":

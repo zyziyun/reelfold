@@ -143,9 +143,17 @@ def is_template(path, template=None):
     return b"SYNTHETIC" in head
 
 
+def format_check(recipe, cp_id):
+    """The format a checkpoint's file must have before it can be locked (None: any text): the explainer's script is
+    '## Line N' blocks - her lecture notes in that file are "notes", drafted into lines, never locked as they are."""
+    from .adapters import explainer
+    return {("explainer", "script"): explainer.script_format_ok}.get((recipe, cp_id))
+
+
 def state(path, template=None, cp=None, recipe=None):
-    """missing | template | drafted | hers (module doc). ``cp`` / ``recipe``: a checkpoint that shares its file with
-    another one (promo-recut package after keep) is "missing" until its own part is in the file."""
+    """missing | template | notes | drafted | hers (module doc). ``cp`` / ``recipe``: a checkpoint that shares its
+    file with another one (promo-recut package after keep) is "missing" until its own part is in the file; a file
+    the format check rejects (her notes where a line script belongs) is "notes": drafted from, never locked."""
     if not path or not os.path.exists(path) or (os.path.isfile(path) and os.path.getsize(path) == 0):
         return "missing"
     if os.path.isdir(path) and not sha(path):
@@ -153,6 +161,9 @@ def state(path, template=None, cp=None, recipe=None):
     if is_template(path, template):
         return "template"
     cid = (cp or {}).get("id") if isinstance(cp, dict) else cp
+    ok = format_check(recipe, cid) if cid and recipe else None
+    if ok and os.path.isfile(path) and not ok(path):
+        return "notes"
     side = read_side(path, cid) if cid else None
     if side and side.get("sha") and side["sha"] == sha(path):
         return "drafted"
@@ -171,7 +182,8 @@ def _part_present(recipe, cp_id):
 def _drafter(recipe, cp_id):
     from .adapters import explainer, preproduction, promo
     return {("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
-            ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues}.get(
+            ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues,
+            ("explainer", "script"): explainer.draft_script, ("explainer", "scenes"): explainer.draft_scenes}.get(
         (recipe, cp_id))
 
 
