@@ -82,3 +82,16 @@ def test_vlog_script_exits_with_the_reason_last(tmp_path):
     assert last.startswith("!! render failed - ")
     got = proctail.tool_failure(r.stderr)
     assert got and got["code"] in ("media-unreadable", "media-unmounted") and got["params"].get("file") == clip.name
+
+
+def test_media_run_feeds_stdin_once_across_the_stall_poll():
+    """media._exec polls every 5 s; a run fed through stdin that takes longer must not re-send its input (CI: the
+    talking-head cover grades a raw frame through stdin)."""
+    from vstudio import media
+    if not shutil.which("ffmpeg"):
+        pytest.skip("no ffmpeg")
+    frame = bytes(16 * 16 * 3)
+    # one frame looped for ~5.7 s of real time (realtime filter): longer than one 5 s poll
+    r = media.run(["ffmpeg", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "16x16", "-i", "-", "-vf",
+                   "loop=loop=170:size=1,setpts=N/30/TB,realtime", "-f", "null", "-"], input=frame, capture=True)
+    assert r.returncode == 0

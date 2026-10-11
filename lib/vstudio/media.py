@@ -249,13 +249,15 @@ def _exec(cmd, input=None):
     try:
         p = subprocess.Popen(full, stdin=subprocess.DEVNULL if input is None else subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, **raw)
-        seen, since = None, time.monotonic()
+        seen, since, feed = None, time.monotonic(), input
         while True:
             try:
-                out, err = p.communicate(input, timeout=5)
+                # stdin is written once: a retry after the timeout passes no input (else "Cannot send input after
+                # starting communication" - a > 5 s run fed through stdin, e.g. a graded raw frame)
+                out, err = p.communicate(feed, timeout=5)
                 return subprocess.CompletedProcess(cmd, p.returncode, out, err)
             except subprocess.TimeoutExpired:
-                pass
+                feed = None
             mark = _progress_mark(prog)
             if mark != seen:
                 seen, since = mark, time.monotonic()
