@@ -34,7 +34,11 @@ def render(env):
     master = out if os.path.isabs(out) else os.path.join(os.path.dirname(path), out)
     if not os.path.exists(master):
         raise RuntimeError(f"vlog render wrote no {master}")
-    return dict(master=master, style=cfg.get("style", "calm"), files=[master], digest=file_sha(master))
+    res = dict(master=master, style=cfg.get("style", "calm"), files=[master], digest=file_sha(master))
+    shots = os.path.splitext(master)[0] + ".shots.json"
+    if os.path.exists(shots) and os.path.getmtime(shots) >= os.path.getmtime(master) - 5:
+        res["shots"] = shots                          # the crossfades, for the export's subject reframe
+    return res
 
 
 # --------------------------------------------------------------------------- the music pick
@@ -179,3 +183,172 @@ def music(env):
         res["post"] = write_json(env.path("music_post.json"), dict(body=cr))
         res["files"].append(res["post"])
     return res
+
+
+# --------------------------------------------------------------------------- framing (landscape -> vertical)
+FILLS = (("follow", dict(en="Follow the subject", zh="跟随主体")),
+         ("blur", dict(en="Fill with blur", zh="模糊填充")))
+
+
+def _final_master(env):
+    return (env.inputs.get("music") or {}).get("master") or (env.inputs.get("render") or {}).get("master")
+
+
+def reframed_targets(master, platforms):
+    """The targets whose canvas is another shape than the master (those get reframed)."""
+    from vstudio import media
+    from vstudio import platform as P
+    info = media.probe(master)
+    a = info["display_w"] / info["display_h"]
+    out = []
+    for p in P.parse_targets(list(platforms or []) or ["xiaohongshu"], master_aspect=a):
+        if abs(p.w / p.h - a) > 0.01:
+            out.append(p)
+    return out
+
+
+def _framing_previews(env, master, prof):
+    """One frame of the master on the first reframed canvas, both ways (the follow crop placed where that frame's
+    interest is; the blurred fill as exported) -> preview images."""
+    import numpy as np
+    from PIL import Image
+    from vstudio import media
+    from vstudio import reframe as R
+    from vstudio import saliency
+    from .common import grab_frame
+    t = float(media.probe(master)["duration"]) * 0.4
+    src = grab_frame(master, t, env.path("framing_frame.jpg"))
+    im = np.asarray(Image.open(src).convert("RGB"))[..., ::-1].copy()
+    h, w = im.shape[:2]
+    tw, th = int(prof.w * 480 / prof.h) // 2 * 2, 480
+    cw, _ch = R.crop_size(w, h, tw, th)
+    an = saliency.Analyzer(person=False)
+    col = an(im)["map"].sum(0)
+    G = len(col)
+    k = max(1, int(round(G * cw / w)))
+    path, _s = R._window_path([col], k, 0.0, 0.05)
+    x = min(max((path[0] + k / 2) / G * w - cw / 2, 0), w - cw)
+    out = []
+    for kind, mode in (("follow", "subject"), ("blur", "pad-blur")):
+        pl = dict(target=[tw, th], src_w=w, src_h=h, mode_used=mode, rects=[[x, 0, cw, h]] if mode == "subject"
+                  else None)
+        img = R.frame_fn(pl)(0, im)
+        p = env.path(f"framing_{kind}.jpg")
+        Image.fromarray(np.ascontiguousarray(img[..., ::-1])).save(p, quality=86)
+        out.append(dict(kind="image", path=p, label=dict(FILLS)[kind]["en"]))
+    return out
+
+
+def framing_payload(env, cp):
+    """How a landscape master fills the vertical canvases: follow the subject (default) or the whole frame on a
+    blurred fill. Skipped when every platform has the master's own shape."""
+    master = _final_master(env)
+    if not master or not os.path.exists(master):
+        return dict(options=[], skip=True, skip_reason="no master yet")
+    profs = reframed_targets(master, env.params.get("platforms"))
+    if not profs:
+        return dict(options=[], skip=True, skip_reason="every platform takes the video's own shape")
+    try:
+        previews = _framing_previews(env, master, profs[0])
+    except Exception as e:  # noqa: BLE001  (a preview is a nicety: the choice stands without it)
+        env.log(f"framing previews skipped: {str(e)[:160]}")
+        previews = []
+    by = dict((p["label"], p["path"]) for p in previews)
+    opts = [dict(id=i, kind=k, labels=lab, checked=i == 0, **({"path": by[lab["en"]]} if lab["en"] in by else {}))
+            for i, (k, lab) in enumerate(FILLS)]
+    names = ", ".join(p.label for p in profs)
+    return dict(options=opts, default=dict(pick=0), previews=previews, targets=[p.key for p in profs],
+                default_reason=f"{names}: the camera follows what stands out in each shot (a shot that cannot be "
+                               f"cropped is shown whole)",
+                digest=sha1_json([p.key for p in profs])[:16])
+
+
+def framing_apply(a):
+    k = int((a.value or {}).get("pick", 0))
+    if not 0 <= k < len(FILLS):
+        raise ValueError(f"framing: pick {k} out of range")
+    return dict(params=dict(reframe=FILLS[k][0]))
+
+
+# --------------------------------------------------------------------------- post copy
+def _project_prompt(env):
+    try:
+        import yaml
+        with open(os.path.join(env.project_dir, "project.yaml"), encoding="utf-8") as f:
+            return str((yaml.safe_load(f) or {}).get("prompt") or "")
+    except (OSError, ValueError, ImportError):
+        return ""
+
+
+def copy(env):
+    """The post copy of every platform (vstudio.postcopy): the routed ``copy`` model writes it from the facts (her
+    words, her title, the place from the DJI logs, the month, the music credit), the rules draft is always made
+    too. -> {post (the one the export uses), ai, rules, source, provider, notes}."""
+    from vstudio import postcopy as PC
+    from vstudio.batch.util import import_ref
+    master = _final_master(env)
+    plats = env.params.get("platforms") or ["xiaohongshu"]
+    music = env.inputs.get("music") or {}
+    pick = env.params.get("music_pick") or {}
+    footage = (env.params.get("_inputs") or {}).get("footage") or []
+    footage = footage if isinstance(footage, list) else [footage]
+    mi = dict(title=music.get("title") or pick.get("title"), credit=music.get("credit"))
+    ctx = PC.context(request=_project_prompt(env), title=env.params.get("title") or "", footage=footage, music=mi,
+                     duration=_duration(master) if master and os.path.exists(master) else None)
+    call = (env.spec.get("copy") or {}).get("call") if isinstance(env.spec, dict) else None
+    d = PC.draft(ctx, plats, complete=import_ref(call) if call else None)
+    rules = d if d["source"] == "rules" else PC.rules_draft(ctx, plats)
+    out = dict(source=d["source"], provider=d.get("provider"), notes=d.get("notes") or [], files=[],
+               place=(ctx.get("place") or {}).get("en"), error=d.get("error"))
+    if d["source"] != "rules":
+        out["ai"] = write_json(env.path("post.ai.json"), PC.post_json(d))
+        out["files"].append(out["ai"])
+    out["rules"] = write_json(env.path("post.rules.json"), PC.post_json(rules))
+    out["files"].append(out["rules"])
+    out["post"] = out.get("ai") or out["rules"]
+    for n in out["notes"]:
+        env.log(n)
+    write_json(env.path("copy.json"), dict(out, context=ctx))
+    out["digest"] = sha1_json([file_sha(f) for f in out["files"]])[:16]
+    return out
+
+
+def _excerpt(path, platforms):
+    from vstudio.batch.util import read_json
+    d = read_json(path, {}) or {}
+    per = d.get("per_platform") or {}
+    rows = []
+    for pl, c in per.items():
+        rows.append(f"[{pl}] {c.get('title') or ''}\n{c.get('body') or ''}\n" + " ".join("#" + t for t in c.get("tags") or []))
+    return "\n\n".join(rows)
+
+
+def copy_payload(env, cp):
+    """The post copy drafts: the AI's (when one was routed and answered) and the one written from the facts by the
+    rules; default the AI's. Each option carries its text per platform so the Inbox shows what will be posted."""
+    c = env.inputs.get("copy") or {}
+    opts = []
+    if c.get("ai"):
+        who = c.get("provider") or "AI"
+        opts.append(dict(id=len(opts), kind="ai", file=c["ai"], provider=who, text=_excerpt(c["ai"], None),
+                         labels=dict(en=f"Written by AI ({who})", zh=f"AI 写的（{who}）"), checked=True))
+    if c.get("rules"):
+        opts.append(dict(id=len(opts), kind="rules", file=c["rules"], text=_excerpt(c["rules"], None),
+                         labels=dict(en="Written from the facts (place, month, your words)",
+                                     zh="按事实写的（地点、月份、你的原话）"), checked=not opts))
+    if not opts:
+        return dict(options=[], skip=True, skip_reason="no copy drafted")
+    why = (f"the AI's copy ({c.get('provider')})" if opts[0]["kind"] == "ai" else
+           "no AI available: written from the facts" + (f" ({c['error'][:80]})" if c.get("error") else ""))
+    return dict(options=opts, default=dict(pick=0), default_reason=why,
+                previews=[dict(kind="json", path=o["file"]) for o in opts],
+                digest=sha1_json([file_sha(o["file"]) for o in opts])[:16])
+
+
+def copy_apply(a):
+    k = int((a.value or {}).get("pick", 0))
+    opts = a.payload.get("options") or []
+    if not 0 <= k < len(opts):
+        raise ValueError(f"copy: pick {k} out of range")
+    o = opts[k]
+    return dict(params=dict(copy_pick=dict(file=o["file"], by=o["kind"], provider=o.get("provider"))))

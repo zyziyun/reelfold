@@ -356,6 +356,8 @@
       "music-pick",
       "voice-pick",
       "media-selection",
+      "reframe-pick",
+      "copy-pick",
       "review"
      ]
     },

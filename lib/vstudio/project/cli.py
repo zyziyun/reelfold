@@ -210,7 +210,7 @@ def cmd_decisions(a):
     from . import autopilot as AP
     from .core import Project
     p = Project(_dir(a))
-    out = dict(autopilot=AP.settings(p), decisions=AP.decisions(p))
+    out = dict(autopilot=AP.settings(p), decisions=AP.decisions(p), choices=AP.choices(p))
     if a.history:
         out["history"] = AP.history(p)
     _out(a, out, "\n".join(f"{d['item']}: {d['checkpoint']} -> {json.dumps(d.get('value'), ensure_ascii=False)}"

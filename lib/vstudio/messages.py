@@ -193,6 +193,9 @@ FR = {
     "checkpoint.music-pick": "Choisir la musique", "inbox.music-pick": "Choisissez la musique",
     "checkpoint.voice-pick": "Choisir la voix", "inbox.voice-pick": "Choisissez la voix",
     "checkpoint.media-selection": "Choisir les médias", "inbox.media-selection": "Choisissez les médias à utiliser",
+    "checkpoint.reframe-pick": "Cadrage vertical", "inbox.reframe-pick": "Choisissez comment le paysage remplit "
+    "l'écran vertical",
+    "checkpoint.copy-pick": "Texte de publication", "inbox.copy-pick": "Choisissez le texte de chaque plateforme",
     "checkpoint.review": "Relecture", "inbox.review": "Regardez le résultat",
     "job-state.planned": "À faire", "job-state.running": "En cours", "job-state.waiting": "À vous de jouer",
     "job-state.done": "Terminé", "job-state.failed": "Échec", "job-state.interrupted": "Interrompu",
@@ -251,6 +254,9 @@ CHECKPOINTS = {
     "music-pick": ("Pick the music", "选音乐", "Pick the music", "选配乐"),
     "voice-pick": ("Pick the voice", "选声音", "Pick the voice", "选配音"),
     "media-selection": ("Pick the media", "选素材", "Pick the media to use", "选要用的素材"),
+    "reframe-pick": ("Vertical framing", "竖屏取景", "Choose how landscape footage fills the vertical screen",
+                     "选横屏素材怎么放进竖屏"),
+    "copy-pick": ("Post copy", "发布文案", "Choose the post copy for each platform", "选每个平台的发布文案"),
     "review": ("Review", "审片", "Review the result", "看一下成片"),
 }
 JOB_STATES = {"planned": ("To do", "待做"), "running": ("Running", "进行中"), "waiting": ("Needs you", "需要你"), "done": ("Done", "已完成"),

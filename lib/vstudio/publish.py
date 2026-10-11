@@ -362,15 +362,23 @@ def localize_post(post, platform, content_lang=None, lang=None, bilingual=None, 
     """post.json -> the flat {title, hook, body, tags, chapters, links, lang} for one platform.
 
     post may hold per-language blocks ``{"en": {title, hook, body, tags}, "zh": {...}}`` next to (or instead of)
-    the flat keys, plus ``lang`` / ``bilingual`` / ``lang_by_platform`` {platform: "en"}.
+    the flat keys, plus ``lang`` / ``bilingual`` / ``lang_by_platform`` {platform: "en"}; a ``per_platform``
+    {platform: {title, body, tags, lang}} block (vstudio.postcopy) is that platform's finished copy and wins.
     Language: ``lang`` arg > ``lang_by_platform`` > ``post.lang`` > the content language (``content_lang``, e.g.
     detected from the cues): English content -> English copy on X / Instagram / TikTok / YouTube (INTL_PLATFORMS);
     Chinese platforms take the content language too. A missing block falls back to the other language / flat keys.
     bilingual (arg or ``post.bilingual``): English first, then Chinese (titles "EN / 中文", tags merged)."""
     from .platform import INTL_PLATFORMS
     pl = platform_name(platform)
+    per = post.get("per_platform") or {}
+    own = per.get(pl) or per.get("youtube" if pl == "youtube-shorts" else pl)
     pl = "youtube" if pl == "youtube-shorts" else pl
     flat = {k: post.get(k) for k in _COPY_KEYS if post.get(k) is not None}
+    if isinstance(own, dict) and not (bilingual or post.get("bilingual")):
+        # a drafted post per platform (vstudio.postcopy: its own language, length and tags) wins over the flat copy
+        b = dict(flat, **{k: v for k, v in own.items() if k in _COPY_KEYS and v not in (None, "")})
+        b["lang"] = own.get("lang") or lang or content_lang
+        return b
     blocks = {k: dict(flat, **post[k]) for k in ("en", "zh") if isinstance(post.get(k), dict)}
     want = (lang or (post.get("lang_by_platform") or {}).get(pl) or post.get("lang") or content_lang
             or ("en" if pl in INTL_PLATFORMS and "en" in blocks else None) or ("zh" if "zh" in blocks else None))

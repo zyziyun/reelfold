@@ -146,6 +146,10 @@ The desk maps `code` to its own copy (en / zh-CN / fr below; `{name}` = a param)
 | `inbox.voice-pick` | Pick the voice | 选配音 | Choisissez la voix |
 | `checkpoint.media-selection` | Pick the media | 选素材 | Choisir les médias |
 | `inbox.media-selection` | Pick the media to use | 选要用的素材 | Choisissez les médias à utiliser |
+| `checkpoint.reframe-pick` | Vertical framing | 竖屏取景 | Cadrage vertical |
+| `inbox.reframe-pick` | Choose how landscape footage fills the vertical screen | 选横屏素材怎么放进竖屏 | Choisissez comment le paysage remplit l'écran vertical |
+| `checkpoint.copy-pick` | Post copy | 发布文案 | Texte de publication |
+| `inbox.copy-pick` | Choose the post copy for each platform | 选每个平台的发布文案 | Choisissez le texte de chaque plateforme |
 | `checkpoint.review` | Review | 审片 | Relecture |
 | `inbox.review` | Review the result | 看一下成片 | Regardez le résultat |
 | `job-state.planned` | To do | 待做 | À faire |

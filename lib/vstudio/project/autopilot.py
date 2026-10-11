@@ -164,6 +164,15 @@ def rules(cp, pay, spend_cap=0.0):
             "the best fit in the music library" if track else "no music"), default, pick=k,
             title=o.get("title") if track else None, mood=o.get("mood"), license=o.get("license"),
             n=len([x for x in opts if x.get("kind") == "track"]))
+    if kind in ("reframe-pick", "copy-pick"):
+        # the framing of landscape footage on vertical canvases (follow the subject) / the post copy (the AI's when
+        # one answered, else written from the facts): one she can Change (the Inbox / the clip page offer the other)
+        k = int((default or {}).get("pick", 0))
+        opts = pay.get("options") or []
+        o = opts[k] if 0 <= k < len(opts) else {}
+        code = f"{'reframe' if kind == 'reframe-pick' else 'copy'}-{o.get('kind') or 'default'}"
+        return _rule(code, pay.get("default_reason") or "the suggested answer", default, pick=k, choice=o.get("kind"),
+                     provider=o.get("provider"), n=len(opts))
     return _rule("default", "the suggested answer", default)
 
 
@@ -306,6 +315,38 @@ def decisions(project):
         cid, _, item = k.partition(":")
         out.append(dict(checkpoint=cid, item=item, asked=True))
     out.sort(key=lambda d: str(d.get("at") or ""), reverse=True)
+    return out
+
+
+SETTING_KINDS = ("reframe-pick", "copy-pick")
+
+
+def choices(project, kinds=SETTING_KINDS):
+    """The standing per-video settings among the answers (vertical framing, which post copy), whoever answered:
+    [{checkpoint, kind, item, choice (the picked option's kind), pick, by: ai | rules | her}] - the clip page shows
+    them as a setting she can switch, also after she changed it (then it is hers and not in ``decisions``)."""
+    out = []
+    for cid, per in (project.data.get("answers") or {}).items():
+        try:
+            cp = project.checkpoint(cid)
+        except Exception:  # noqa: BLE001
+            continue
+        if cp["kind"] not in kinds:
+            continue
+        for item, rec in (per or {}).items():
+            if not isinstance(rec, dict):
+                continue
+            k = int((rec.get("value") or {}).get("pick", 0))
+            path = os.path.join(project.state_dir, "checkpoints", item, f"{cid}.json")
+            try:
+                with open(path, encoding="utf-8") as f:
+                    opts = (json.load(f) or {}).get("options") or []
+            except (OSError, ValueError):
+                opts = []
+            o = opts[k] if 0 <= k < len(opts) else {}
+            out.append(dict(checkpoint=cid, kind=cp["kind"], item=item, pick=k, choice=o.get("kind"),
+                            options=[x.get("kind") for x in opts],
+                            by=(rec.get("by") or "rules") if rec.get("auto") else "her"))
     return out
 
 

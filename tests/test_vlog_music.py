@@ -134,18 +134,18 @@ def test_autopilot_picks_a_fitting_track_and_exports_with_audio(tmp_path, clips)
 
 def test_ask_me_first_offers_three_tracks_and_no_music(tmp_path, clips):
     pdir = make(tmp_path, clips)
-    out, _ = run(pdir, autopilot=False, auto=["edit", "cover", "publish"])
+    out, _ = run(pdir, autopilot=False, auto=["edit", "cover", "framing", "copy", "publish"])
     pend = Project(pdir).pending()
     if any(x["id"] == "edit" for x in pend):              # the starter edit list waits for her (author, never auto)
         Project(pdir).answer("edit", dict(done=True), items=["main"])
-        out, _ = run(pdir, auto=["cover", "publish"])
+        out, _ = run(pdir, auto=["cover", "framing", "copy", "publish"])
         pend = Project(pdir).pending()
     mp = next(x for x in pend if x["id"] == "music")
     assert mp["kind"] == "music-pick" and len([o for o in mp["options"] if o["kind"] == "track"]) == 3
     assert mp["default"] == dict(pick=0) and mp["options"][0]["checked"] and mp["options"][0]["labels"]["zh"]
     assert all(os.path.exists(o["path"]) for o in mp["options"] if o["kind"] == "track")   # each one to listen to
     Project(pdir).answer("music", dict(pick=1), items=["main"])
-    out, _ = run(pdir, auto=["cover", "publish"])
+    out, _ = run(pdir, auto=["cover", "framing", "copy", "publish"])
     assert out["exit_code"] == 0, out
     assert has_audio(export_of(pdir)[0])
     st = Store(os.path.join(pdir, "state"))

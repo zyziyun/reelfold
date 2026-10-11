@@ -64,6 +64,12 @@ params:
       title: Title
       x-zh: 标题
       x-scope: item
+    reframe:
+      enum: [follow, blur]
+      default: follow
+      title: Landscape on vertical canvases (follow the subject / fill with blur)
+      x-zh: 横屏素材上竖屏（跟随主体 / 模糊填充）
+      x-scope: item
 stages:
   - id: probe
     resource: io
@@ -108,17 +114,27 @@ stages:
     keys: [title]
     produces: [cand_<k>.jpg]
     preview: {kind: image, path: "out:sheet"}
+  - id: copy
+    resource: cpu
+    deps: [music]
+    fn: vstudio.project.adapters.vlog:copy
+    keys: [platforms, title, music_pick]
+    produces: [post.ai.json + post.rules.json (title, body, hashtags per platform in its language; place from the DJI logs; music credit)]
+    preview: {kind: json, path: "out:post"}
   - id: export
     resource: cpu-render
-    deps: [cover_frames, music]
-    keys: [platforms, preset, cover]
+    deps: [cover_frames, music, render, copy]
+    keys: [platforms, preset, cover, reframe, copy_pick]
     run:
       argv: ["{python}", "-m", "vstudio.export", "{out.music.master}", "--platforms", "{platforms_csv}", "--out",
-             "{item_dir}/exports", "--mode", "pad-blur", "--preset", "{preset}",
+             "{item_dir}/exports", "--mode", "{reframe}", "--preset", "{preset}",
+             {if: out.render.shots, args: ["--shots", "{out.render.shots}"]},
              {if: cover.file, args: ["--cover", "{cover.file}"]}, {if: title, args: ["--title", "{title}"]},
-             {if: out.music.post, args: ["--post", "{out.music.post}"]}]
+             {if: out.music.post, args: ["--post", "{out.music.post}"]},
+             {if: out.copy.post, args: ["--post", "{out.copy.post}"]},
+             {if: copy_pick.file, args: ["--post", "{copy_pick.file}"]}]
       files: ["{item_dir}/exports/manifest.json"]
-    produces: ["exports/<platform>-<orientation>.mp4 + cover"]
+    produces: ["exports/<platform>-<orientation>.mp4 + cover + post.md (landscape on a vertical canvas: the camera follows the subject, or a blurred fill)"]
 checkpoints:
   - id: edit
     kind: author
@@ -167,6 +183,38 @@ checkpoints:
       type: object
       properties: {pick: {type: integer, minimum: 0}, t: {type: number}, text: {type: string}}
     auto: default
+  - id: framing
+    kind: reframe-pick
+    scope: item
+    after: music
+    blocks: [export]
+    labels: {zh: "竖屏取景", en: "Vertical framing"}
+    help:
+      zh: 横屏素材放到竖屏平台：镜头跟随画面里的主体（默认），或整幅画面放在模糊背景上
+      en: Landscape footage on the vertical platforms - the camera follows the subject in each shot (default), or the whole frame on a blurred fill
+    payload: vstudio.project.adapters.vlog:framing_payload
+    apply: vstudio.project.adapters.vlog:framing_apply
+    answer:
+      type: object
+      properties: {pick: {type: integer, minimum: 0}}
+      required: [pick]
+    auto: default
+  - id: copy
+    kind: copy-pick
+    scope: item
+    after: copy
+    blocks: [export]
+    labels: {zh: "发布文案", en: "Post copy"}
+    help:
+      zh: 每个平台的标题、正文和话题（按平台语言）：AI 写的，或按事实（地点、月份、你的原话）写的
+      en: Title, text and hashtags per platform, in its language - written by the AI, or from the facts (place, month, your words)
+    payload: vstudio.project.adapters.vlog:copy_payload
+    apply: vstudio.project.adapters.vlog:copy_apply
+    answer:
+      type: object
+      properties: {pick: {type: integer, minimum: 0}}
+      required: [pick]
+    auto: default
   - id: publish
     kind: publish
     scope: item
@@ -189,4 +237,4 @@ agent:
 gaps:
   - Window / shot selection from the contact sheets is agent / human work (no automatic picker).
   - The music is picked from the local license-free library only (your music folders + the built-in beds); a CC-BY catalog track (fetch_music.sh) is used once it sits in ~/Music/Reelfold. Calm cuts are fixed before the music (no beat alignment); the fun style cuts to the edit's own music. The scrapbook cover (make_cover.py) needs Chrome and is replaced here by a frame + text cover.
-capabilities: [grade, transitions, beat-cuts, sfx, pops, music, cover, export]
+capabilities: [grade, transitions, beat-cuts, sfx, pops, music, cover, export, reframe, post-copy]

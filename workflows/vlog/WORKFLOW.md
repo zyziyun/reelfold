@@ -128,6 +128,16 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    the list. A built-in is generated to the master's length; a CC BY track's credit goes into every
    platform's post copy. No network fetch: put catalog tracks in the music folder first.
 
+   **Vertical platforms + post copy (in a project).** A landscape master going to 9:16 / 3:4 is reframed with
+   `--mode follow` (`vstudio.reframe` subject mode: the camera follows what stands out in each shot, holds on
+   static shots, eases through the crossfades; a shot that cannot be cropped is shown whole on a blurred fill).
+   The `framing` decision records it (autopilot: follow the subject); she can switch to "Fill with blur" in the
+   Inbox or on the clip page (On vertical screens). The `copy` stage writes each platform's post copy
+   (`vstudio.postcopy`): title / hook, 2-4 line body (a longer YouTube description), topic hashtags within the
+   platform's limit, the city from the DJI `.SRT` logs (offline), the music credit; 小红书 / 抖音 / B站 in her
+   request's language, YouTube / TikTok in persona `publish.copy_lang.intl` (English by default). The routed
+   `copy` model writes it, the rules when there is none; the `copy` decision says which and offers the other.
+
 8. **Deliver.** A native-4K master is large (~1.8 GB per ~3 min). Offer a smaller visually-lossless
    4K or high-bitrate 1080p (commands in recipes.md). State duration, resolution, file size, and list
    the files produced. `work/clips/seg_*.mp4` are safe to delete.
