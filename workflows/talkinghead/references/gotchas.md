@@ -13,7 +13,7 @@ Fix: bound every looped image with `-t <duration>` (callouts/panels already do t
 grayscale mask. If you want masked compositing, use `alphamerge` (mask -> alpha on the sharp layer)
 then `overlay` onto the blurred layer; that preserves color.
 But note: the elliptical "focus blur" looked **ugly and fake** on a static talking head and was
-dropped. Default is **brightness-grade-only** (`eq=brightness=-0.06:contrast=1.08:gamma=0.96`),
+dropped. Default is **brightness-grade-only** (`GRADE = {"brightness": -0.06, "contrast": 1.08, "gamma": 0.96}`, an LGPL `lutyuv` via `vstudio.ffmpeg_filters.grade`),
 which is what fixes the "太亮/太乱" complaint without the cost or the bad look. Only do real
 background blur if the user explicitly wants bokeh, and then use proper per-frame matting (RVM),
 not a static ellipse.

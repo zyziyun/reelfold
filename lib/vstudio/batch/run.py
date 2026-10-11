@@ -574,7 +574,8 @@ class Runner:
             return
         self._set(jid, st.name, state="failed", error=err, finished=now())
         self.store.log("fail", f"{st.name}: {err}", jid, st.name)
-        tool = proctail.tool_failure(err)        # Node / ffmpeg missing or broken: {code: tool-node, params}
+        # Node / ffmpeg missing or broken {code: tool-node, params}, an app bug (no such filter), an unreadable input
+        tool = proctail.tool_failure(err) or proctail.tool_failure(str(e))
         self.emit("stage-fail", job=jid, stage=st.name, error=err, **(tool or {}))
         self.say(f"{jid}: {st.name} FAILED - {err}")
         self._finish_job(jid, "failed", [f"{st.name}: {err}"])

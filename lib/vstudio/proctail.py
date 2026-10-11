@@ -8,6 +8,7 @@ reason (an ffmpeg / dyld / Python error line) is gone. :func:`tail` keeps the la
     proctail.tail(stderr_text)            # -> "line\\nline\\n..." (<= 20 lines)
     proctail.is_noise("  45% |█████▌   | 120/300")  # True
 """
+import os
 import re
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
@@ -73,7 +74,7 @@ _TOOLS = (
     ("node", re.compile(r"node unavailable|referenced from:\s*\S*/node\b|library not loaded\S*.*\bnode\b|"
                         r"npx \(node\) not found|env: node: no such file|node(\.js)? \S* ?is too old", re.I | re.S)),
     ("ffmpeg", re.compile(r"ffmpeg not found|ffprobe not found|vstudio_ff(mpeg|probe)=\S* does not exist|"
-                          r"lacks filter\(s\)|unknown bitstream filter|no such filter|"
+                          r"lacks filter\(s\)|unknown bitstream filter|no such file or directory: '?\S*ff(mpeg|probe)'|"
                           r"referenced from:\s*\S*/ff(mpeg|probe)\b|ff(mpeg|probe): (command )?not found", re.I)),
 )
 
@@ -83,15 +84,89 @@ _KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in
            "stage-script-format", "draft-script"),)
 
 
+# an ffmpeg failure the app itself caused: a filter / encoder / option the ffmpeg it runs does not have (a GPL filter
+# on the bundled LGPL build), a graph it built wrong. Never "a file couldn't be read": nothing she can fix.
+APP_BUG = re.compile(r"no such filter|filter not found|unknown encoder|encoder not found|unrecognized option|"
+                     r"option not found|error (initializing|reinitializing|parsing) (a )?filter|error applying option|"
+                     r"invalid filter ?graph|failed to (configure|inject) (the )?(output|input) (pad|filter)|"
+                     r"error parsing (a )?filter ?(chain|graph)|error binding filtergraph", re.I)
+_APP_BUG_NAMED = re.compile(r"no such filter|unknown encoder|encoder not found|unrecognized option|option not found", re.I)
+# ffmpeg could not open / read one input: "<path>: <why>" (ffmpeg <= 6), "Error opening input file <path>." (7+)
+_IO_WHY = (r"No such file or directory|Invalid data found when processing input|Permission denied|"
+           r"Input/output error|Operation not permitted|moov atom not found|End of file")
+_IO_PATH = (re.compile(rf"^\s*(?:\[[^\]]*\]\s*)?(?P<path>[^\[\n]+?): (?:{_IO_WHY})\s*$", re.I | re.M),
+            re.compile(r"Error opening input file (?P<path>.+?)\.?\s*$", re.I | re.M),
+            re.compile(r"(?:No such file or directory|Permission denied|Input/output error): '(?P<path>[^']+)'", re.I))
+_FF_CONTEXT = re.compile(r"ff(mpeg|probe)|error opening input|invalid data found|moov atom", re.I)
+_MEDIA_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".mts", ".m2ts", ".insv", ".lrv", ".webm", ".mxf", ".3gp",
+              ".wav", ".mp3", ".m4a", ".aac", ".flac", ".aif", ".aiff", ".ogg", ".opus", ".caf",
+              ".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".tif", ".tiff", ".dng", ".gif"}
+_IO = re.compile(rf"{_IO_WHY}|error opening input|could not open|moov atom", re.I)
+
+
+def cause(text):
+    """The line that says why an ffmpeg run failed (an APP_BUG line, else an open / IO error line), or ""."""
+    lns = [ln.strip() for ln in lines(text) if ln.strip()]
+    for rx in (_APP_BUG_NAMED, APP_BUG, _IO):
+        hit = next((ln for ln in reversed(lns) if rx.search(ln)), None)
+        if hit:
+            return hit
+    return ""
+
+
+def _volume_of(path):
+    """(volume name, mounted?) for a path on an external drive (/Volumes/<name>/..., /media/<user>/<name>/...)."""
+    m = re.match(r"^/Volumes/([^/]+)/", path) or re.match(r"^/(?:media|run/media)/[^/]+/([^/]+)/", path)
+    if not m:
+        return None, True
+    root = path[:m.end() - 1]
+    return m.group(1), os.path.ismount(root) or os.path.isdir(root)
+
+
+def media_failure(text):
+    """ffmpeg could not open / read an input -> {code: "media-unmounted" (the drive it is on is not connected) |
+    "media-unreadable", params: {file (base name), volume}}; else None. Only real open / IO errors count: a filter or
+    encoder error is APP_BUG, never this."""
+    t = str(text or "")
+    if APP_BUG.search(t):
+        return None
+    # an output it could not write (a folder that is gone) is not her footage
+    t = "\n".join(ln for ln in t.splitlines() if not re.search(r"\boutput\b", ln, re.I))
+    if not _IO.search(t):
+        return None
+    path = None
+    for rx in _IO_PATH:
+        for m in rx.finditer(t):
+            p = m.group("path").strip().strip("'\"")
+            if p.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", p) or "." in os.path.basename(p):
+                path = p
+    is_media = bool(path) and os.path.splitext(path)[1].lower() in _MEDIA_EXT
+    if not (_FF_CONTEXT.search(t) or is_media):
+        return None                        # a script's own missing file (a config, a json): not her footage
+    if path and not is_media and os.path.basename(path).lower().startswith(("ffmpeg", "ffprobe")):
+        return None
+    if not path:
+        return dict(code="media-unreadable", params={})
+    vol, mounted = _volume_of(path)
+    params = dict(file=os.path.basename(path))
+    if vol:
+        params["volume"] = vol
+    return dict(code="media-unreadable" if mounted else "media-unmounted", params=params)
+
+
 def tool_failure(text):
     """An error caused by a missing / broken external tool -> {code: "tool-node" | "tool-ffmpeg",
-    params: {tool, fix}}; a known stage failure -> {code: "stage-script-format", params: {fix}}; else None.
+    params: {tool, fix}}; a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
+    app caused (APP_BUG: no such filter / unknown encoder ...) -> {code: "app-bug", params: {}}; ffmpeg could not
+    open / read an input -> media_failure(); else None.
     fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script."""
     t = str(text or "")
     low = t.lower()
     for rx, code, fix in _KNOWN:
         if rx.search(t):
             return dict(code=code, params=dict(fix=fix))
+    if APP_BUG.search(t):
+        return dict(code="app-bug", params={})
     for tool, rx in _TOOLS:
         if rx.search(t):
             if tool == "node":
@@ -101,4 +176,4 @@ def tool_failure(text):
                 bundled = "reelfold.app" in low or "/runtime/ffmpeg" in low or "vstudio_ff" in low
                 fix = "reinstall-app" if bundled else "install-ffmpeg"
             return dict(code=f"tool-{tool}", params=dict(tool=tool, fix=fix))
-    return None
+    return media_failure(t)

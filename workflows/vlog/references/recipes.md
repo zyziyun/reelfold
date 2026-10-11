@@ -102,7 +102,7 @@ No text by default; `--title` adds one torn-paper label (CJK titles use font rol
 
 Frames: extract clean stills at the timestamps you liked, slightly saturated:
 ```bash
-ffmpeg -ss 3 -i CLIP.MP4 -frames:v 1 -vf "scale=1400:-1,eq=saturation=1.18" work/frames/a.jpg
+ffmpeg -ss 3 -i CLIP.MP4 -frames:v 1 -vf "scale=1400:-1,hue=s=1.18" work/frames/a.jpg
 ```
 For HDR phone clips, extract from the graded master (or `work/clips/seg_*.mp4`) instead of the source,
 otherwise stills look washed out.

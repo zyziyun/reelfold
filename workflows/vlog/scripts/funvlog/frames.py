@@ -102,8 +102,9 @@ COLORBALANCE = "colorbalance=rs=0.02:rm=0.02:bm=-0.02:bs=-0.03:rh=0.01:bh=-0.02"
 
 def grade_chain(grade, warm=True, sharpen=True, extra_bright=0.0):
     g = grade
-    parts = [f"eq=brightness={g['brightness'] + extra_bright:.3f}:contrast={g['contrast']}"
-             f":saturation={g['saturation']}:gamma={g['gamma']}"]
+    from vstudio import ffmpeg_filters as FF      # LGPL: the same look as eq (the bundled ffmpeg has no eq)
+    parts = [FF.grade(brightness=round(g['brightness'] + extra_bright, 3), contrast=g['contrast'],
+                      saturation=g['saturation'], gamma=g['gamma'])]
     if warm:
         parts.append(COLORBALANCE)
     if sharpen:

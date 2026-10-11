@@ -31,6 +31,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from common import Project, P, hook_speed, montage_clips, resolve_source  # noqa: E402
 import screen_crop  # noqa: E402
 from vstudio import asr, audio, cleanup, cut, media  # noqa: E402
+from vstudio import ffmpeg_filters as FF  # noqa: E402
 
 
 def words_of(transcript):
@@ -510,7 +511,7 @@ def do_cut(prj, args):
             if tone:
                 vf.append(tone)
         if prj.get("grade"):
-            vf.append(prj.get("grade"))
+            vf.append(FF.lgpl_graph(prj.get("grade")))     # "eq=..." -> LGPL (the bundled ffmpeg has no eq)
         vf.append("format=yuv420p")
         media.run(["ffmpeg", "-y", "-i", talk, "-vf", ",".join(vf),
                    *media.delivery_args(crf=14, preset="fast", faststart=False, audio_bitrate="192k"), graded])

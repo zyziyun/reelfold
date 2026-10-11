@@ -200,6 +200,27 @@ def test_transient_retry_then_breaker_pause_and_resume(tmp_path):
     st.close()
 
 
+def test_app_bug_failure_is_worded_and_try_again_reruns_the_render(tmp_path):
+    """A render that fails on "No such filter" is an app bug (stage-fail code app-bug, not a file that couldn't be
+    read); after the fix, running the project again (the desk's Try again: retry_failed) re-runs the render."""
+    events = []
+    bdir, _ = plan_run(tmp_path, jobs_n(1), run=False, test=dict(fail={"j001:render": "nofilter"}))
+    res = run_batch(bdir, echo=False, on_event=events.append)
+    st = Store(bdir)
+    assert st.job("j001")["state"] == "failed" and st.stage("j001", "render")["attempts"] == 1   # not transient
+    st.close()
+    fail = next(e for e in events if e.get("event") == "stage-fail")
+    assert (fail["stage"], fail["code"]) == ("render", "app-bug") and "No such filter" in fail["error"]
+    assert ("j001", "render") not in H.calls(bdir)
+    (pathlib.Path(bdir) / "fixed").write_text("")
+    res = run_batch(bdir, echo=False, retry_failed=True)
+    assert res["exit_code"] == 0
+    st = Store(bdir)
+    assert st.job("j001")["state"] == "done" and st.stage("j001", "render")["state"] == "done"
+    st.close()
+    assert ("j001", "render") in H.calls(bdir)                   # it really ran again, not the stored failure
+
+
 def test_pilot_then_confirm_and_pilot_red_pauses(tmp_path):
     bdir, _ = plan_run(tmp_path, jobs_n(4), run=False)
     res = run_batch(bdir, echo=False, pilot=2)

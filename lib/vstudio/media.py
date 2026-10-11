@@ -24,6 +24,8 @@ import time
 from fractions import Fraction
 from functools import lru_cache
 
+from . import ffmpeg_filters as FF
+
 BT709 = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
 HDR_TRC = ("arib-std-b67", "smpte2084")          # HLG, PQ
 SR = 48000                                       # every audio stem we produce is 48 kHz
@@ -155,48 +157,18 @@ def _resolve(cmd):
     return cmd
 
 
-# GPL-only video filters the recipes use for the finishing grade: an LGPL ffmpeg (the desk's bundled one) has none of
-# them. They only polish the picture, so they become a pass-through there instead of failing the whole render.
-GPL_POLISH_FILTERS = ("hqdn3d", "eq")
-_FILTER_ARGS = ("-vf", "-filter:v", "-filter_complex")
-
-
-def _split_top(s, sep):
-    """Split ``s`` on ``sep`` outside quotes, brackets and backslash escapes (filtergraph syntax)."""
-    out, cur, quote, depth, i = [], [], False, 0, 0
-    while i < len(s):
-        c = s[i]
-        if c == "\\" and i + 1 < len(s):
-            cur.append(s[i:i + 2]); i += 2; continue
-        if c == "'":
-            quote = not quote
-        elif not quote and c in "[(":
-            depth += 1
-        elif not quote and c in "])":
-            depth -= 1
-        if c == sep and not quote and depth == 0:
-            out.append("".join(cur)); cur = []
-        else:
-            cur.append(c)
-        i += 1
-    out.append("".join(cur))
-    return out
+# GPL-only filters (eq, hqdn3d, boxblur, smartblur ...): an LGPL ffmpeg (the desk's bundled one) has none of them.
+# The library builds LGPL graphs itself (vstudio.ffmpeg_filters); a graph that still names one (an old project's
+# ``grade: "eq=..."``, a persona string) is rewritten here to its LGPL look-alike for a binary that lacks it.
+GPL_POLISH_FILTERS = FF.TRANSLATED
+_FILTER_ARGS = FF.FILTER_ARGS
+_split_top = FF.split_top
 
 
 def portable_graph(graph, available):
-    """``graph`` with every GPL polish filter that ``available`` (a set of filter names) lacks replaced by ``null``
-    (input / output pad labels kept). -> (graph, [dropped names])."""
-    dropped, chains = [], []
-    for chain in _split_top(graph, ";"):
-        parts = []
-        for f in _split_top(chain, ","):
-            m = re.match(r"^(\s*(?:\[[^\]]*\]\s*)*)([A-Za-z0-9_]+)(.*?)((?:\s*\[[^\]]*\])*\s*)$", f, re.S)
-            if m and m.group(2) in GPL_POLISH_FILTERS and m.group(2) not in available:
-                dropped.append(m.group(2))
-                f = f"{m.group(1)}null{m.group(4)}"
-            parts.append(f)
-        chains.append(",".join(parts))
-    return ";".join(chains), dropped
+    """``graph`` with every GPL filter that ``available`` (a set of filter names) lacks rewritten to its LGPL
+    look-alike (vstudio.ffmpeg_filters.lgpl; pad labels kept). -> (graph, [rewritten names])."""
+    return FF.lgpl(graph, available)
 
 
 def _portable_cmd(cmd):
@@ -206,13 +178,10 @@ def _portable_cmd(cmd):
     have = _filters(cmd[0])
     if not have or all(f in have for f in GPL_POLISH_FILTERS):
         return cmd
-    out = list(cmd)
-    for i, a in enumerate(out[:-1]):
-        if a in _FILTER_ARGS:
-            out[i + 1], dropped = portable_graph(out[i + 1], have)
-            if dropped:
-                print(f"!! video-studio: this ffmpeg has no {', '.join(sorted(set(dropped)))} (GPL): "
-                      f"skipped in the finishing grade", file=sys.stderr)
+    out, done = FF.portable_argv(cmd, have)
+    if done:
+        print(f"!! video-studio: this ffmpeg has no {', '.join(sorted(set(done)))} (GPL): "
+              f"using the LGPL equivalent", file=sys.stderr)
     return out
 
 
@@ -240,7 +209,10 @@ def run(cmd, capture=False, check=True, quiet=True, input=None):
         r = _exec(retry, input)
     if check and r.returncode != 0:
         err = r.stderr.decode("utf-8", "replace") if isinstance(r.stderr, bytes) else (r.stderr or "")
-        raise FFmpegError(f"command failed ({r.returncode}): {' '.join(cmd[:8])} ...\n{err[-2500:]}")
+        from . import proctail
+        why = proctail.cause(err)
+        raise FFmpegError(f"command failed ({r.returncode}): {' '.join(cmd[:8])} ...\n{err[-2500:]}"
+                          + (f"\n{why}" if why and why not in err[-2500:] else ""))
     if capture:
         r.stdout_text = r.stdout.decode("utf-8", "replace") if isinstance(r.stdout, bytes) else r.stdout
         r.stderr_text = r.stderr.decode("utf-8", "replace") if isinstance(r.stderr, bytes) else r.stderr

@@ -486,12 +486,12 @@ _add("end-fade", "End fade (no fade-in)", "transitions", "fade=t=out + afade; ne
 # ------------------------------------------------------------------------------------------------
 # 8. Looks / grade
 # ------------------------------------------------------------------------------------------------
-_add("vlog-grade", "Vlog grade", "looks", "eq + warm colorbalance + unsharp", [FF],
-     {FF: [VL + ":grade_chain", VL + ":DEFAULT_GRADE"]}, "`vlog/build_vlog.py:grade_chain`",
+_add("vlog-grade", "Vlog grade", "looks", "eq-style grade (LGPL lutyuv) + warm colorbalance + unsharp", [FF],
+     {FF: [VL + ":grade_chain", VL + ":DEFAULT_GRADE", "vstudio.ffmpeg_filters:grade"]}, "`vlog/build_vlog.py:grade_chain`",
      [("sat", 1.18, ">1.3 skin goes orange"), ("contrast", 1.12, "crushes shadows above 1.2"), ("warm", "on", "warmth reads as memory")],
      "Travel / lifestyle footage", "n/a", "whole video", "one grade per video", ["Check skin tones"], "no", "Paste the chain into any `-vf`")
-_add("talkinghead-grade", "Talking-head grade", "looks", "Denoise + eq + colorbalance + CAS sharpen", [FF],
-     {FF: [TH + ":GRADE", "workflows/talkinghead/examples/v_config_example.py:GRADE"]}, "talkinghead config `GRADE`", [("eq brightness", -0.06, "horizontal default")],
+_add("talkinghead-grade", "Talking-head grade", "looks", "Denoise + eq-style grade (LGPL lutyuv) + colorbalance + CAS sharpen", [FF],
+     {FF: [TH + ":GRADE", "vstudio.ffmpeg_filters:DEFAULT_TH_GRADE"]}, "talkinghead config `GRADE`", [("brightness", -0.06, "horizontal default")],
      "Talking heads", "n/a", "whole video", "one grade", [], "no", "Paste it")
 _add("hdr-to-sdr", "HDR to SDR", "looks", "zscale/tonemap for iPhone HLG", [FF], {FF: ["vstudio.media:hdr_to_sdr_args"]},
      "`lib/vstudio/media.py:hdr_to_sdr_args`", [("force", False, "force tonemap on mis-tagged files")], "iPhone HDR sources", "n/a",

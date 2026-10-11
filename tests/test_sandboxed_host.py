@@ -142,19 +142,20 @@ def test_anthropic_without_the_sdk_uses_plain_https(monkeypatch):
     assert row["ready"] is True
 
 
-def test_lgpl_ffmpeg_skips_gpl_polish_filters(monkeypatch):
-    from vstudio import media
+def test_lgpl_ffmpeg_rewrites_gpl_polish_filters(monkeypatch):
+    from vstudio import media, ffmpeg_filters as F
     g = ("[0:v]scale='if(gt(iw,ih),1920,1080)':-2[v];"
          "[v]hqdn3d=1.2:1.2:3:3,eq=contrast=1.06:brightness=0.015,colorbalance=rs=-0.02,format=yuv420p[vg]")
-    out, dropped = media.portable_graph(g, {"scale", "colorbalance", "format"})
-    assert dropped == ["hqdn3d", "eq"]
+    out, done = media.portable_graph(g, {"scale", "colorbalance", "format"})
+    assert done == ["hqdn3d", "eq"]
     assert out == ("[0:v]scale='if(gt(iw,ih),1920,1080)':-2[v];"
-                   "[v]null,null,colorbalance=rs=-0.02,format=yuv420p[vg]")
-    assert media.portable_graph("[a]eq=gamma=1.1[b]", set())[0] == "[a]null[b]"
+                   f"[v]{F.denoise(0.3)},{F.grade(contrast=1.06, brightness=0.015)},colorbalance=rs=-0.02,"
+                   "format=yuv420p[vg]")
+    assert media.portable_graph("[a]eq=gamma=1.1[b]", set())[0] == f"[a]{F.grade(gamma=1.1)}[b]"
     assert media.portable_graph(g, {"hqdn3d", "eq"}) == (g, [])
     monkeypatch.setattr(media, "_filters", lambda b: frozenset({"scale", "format"}))
     cmd = media._portable_cmd(["/x/ffmpeg", "-i", "a.mp4", "-vf", "hqdn3d=1,format=yuv420p", "b.mp4"])
-    assert cmd[4] == "null,format=yuv420p"
+    assert cmd[4] == f"{F.denoise(0.25)},format=yuv420p"
     keep = ["/x/ffprobe", "-vf", "eq=1"]
     assert media._portable_cmd(keep) is keep
 

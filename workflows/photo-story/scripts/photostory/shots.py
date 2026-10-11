@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from vstudio import media as vmedia
+from vstudio import ffmpeg_filters as FF, media as vmedia
 
 from . import speechclean
 from .ctx import font, font_for
@@ -138,7 +138,7 @@ def prep_video(C, sh, name):
         y = int(min(max(cy * h - ch / 2, 0), h - ch))
         vf = hdr + f"setpts=PTS/{speed},crop={int(cw)}:{int(ch)}:{x}:{y},scale={C.BOX_W}:{C.BOX_H}:flags=lanczos,fps={C.FPS}"
         if name in C.VEQ or sh.get("grade"):
-            vf += "," + (sh.get("grade") if isinstance(sh.get("grade"), str) else C.VEQ_FILTER)
+            vf += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(off), "-t", f"{need:.2f}", "-i", src,
                         "-vf", vf, "-an", "-c:v", "libx264", "-crf", "12", "-preset", "fast", out], check=True)
     return out

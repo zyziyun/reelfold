@@ -7,7 +7,7 @@ talk: input/talk.mp4                 # talking-head recording (16:9)
 highlights: input/highlights.mp4     # supporting video the montage is cut from (optional)
 language: zh                         # whisper language (default: persona creator.language)
 # whisper_model: mlx-community/whisper-large-v3-turbo
-grade: "eq=brightness=-0.06:contrast=1.08:saturation=1.05:gamma=0.96"   # ffmpeg filter, applied once to the raw
+grade: {brightness: -0.06, contrast: 1.08, saturation: 1.05, gamma: 0.96}   # eq-style grade (or an ffmpeg filter string; "eq=..." still works), applied once to the raw
 hdr_tonemap: false                   # true for iPhone HLG/HDR sources (needs ffmpeg with zimg)
 work_dir: work
 promo_dir: promo                     # HyperFrames project written by build_promo.py

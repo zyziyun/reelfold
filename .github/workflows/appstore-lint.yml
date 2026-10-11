@@ -25,6 +25,7 @@ on:
       - 'lib/**'
       - 'workflows/**'
       - 'requirements.txt'
+      - 'scripts/check_ffmpeg_filters.py'
       - '.github/workflows/appstore-lint.yml'
   push:
     branches: [main]
@@ -33,6 +34,7 @@ on:
       - 'lib/**'
       - 'workflows/**'
       - 'requirements.txt'
+      - 'scripts/check_ffmpeg_filters.py'
       - '.github/workflows/appstore-lint.yml'
   workflow_dispatch:
     inputs:

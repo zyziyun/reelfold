@@ -40,17 +40,31 @@ vstudio.cleanup 气口/filler/repeat pass before assembly; needs "ambient_audio"
 from the profile, fps default from the profile, length check printed. --platform overrides it.
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
-import argparse, json, os, subprocess
+import argparse, json, os
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
-from vstudio import media
+from vstudio import ffmpeg_filters as FF, media, proctail
 from vstudio.config import persona
 
 COLORBALANCE = "colorbalance=rs=0.02:rm=0.02:bm=-0.02:bs=-0.03:rh=0.01:bh=-0.02"
 UNSHARP = "unsharp=5:5:0.5:5:5:0.0"
 DEFAULT_GRADE = {"brightness": 0.05, "contrast": 1.12, "saturation": 1.18, "gamma": 1.04}
+
+
+class RenderError(RuntimeError):
+    """One ffmpeg run of the render failed: ``what`` (segment / final) + ffmpeg's own error output."""
+
+
+def run_ffmpeg(cmd, what):
+    """media.run (stderr captured, LGPL filter / H.264 encoder rewrites for this ffmpeg) -> RenderError that names
+    the step and leads with ffmpeg's reason ("No such filter: 'eq'", "<file>: No such file or directory")."""
+    try:
+        media.run(cmd, quiet=False)
+    except media.FFmpegError as e:
+        why = proctail.cause(str(e)) or "ffmpeg failed"
+        raise RenderError(f"{what}: {why}\n{e}") from None
 
 
 def vlog_persona():
@@ -83,7 +97,7 @@ def fit_chain(cfg):
                 f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
     if fit == "blur":
         return (f"split=2[bg][fg];[bg]scale={W}:{H}:force_original_aspect_ratio=increase,"
-                f"crop={W}:{H},gblur=sigma=40,eq=brightness=-0.08[bgb];"
+                f"crop={W}:{H},gblur=sigma=40,{FF.dim(-0.08)}[bgb];"
                 f"[fg]scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos[fgs];"
                 f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1")
     return (f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,"
@@ -92,8 +106,9 @@ def fit_chain(cfg):
 
 def grade_chain(cfg, extra_bright):
     g = {**DEFAULT_GRADE, **(vlog_persona().get("grade") or {}), **(cfg.get("grade") or {})}
-    parts = [f"eq=brightness={g['brightness'] + extra_bright:.3f}:contrast={g['contrast']}"
-             f":saturation={g['saturation']}:gamma={g['gamma']}"]
+    # LGPL (the desk's bundled ffmpeg has no eq): the same look as eq=brightness:contrast:saturation:gamma
+    parts = [FF.grade(brightness=round(g['brightness'] + extra_bright, 3), contrast=g['contrast'],
+                      saturation=g['saturation'], gamma=g['gamma'])]
     if cfg.get("warm", True):
         parts.append(COLORBALANCE)
     if cfg.get("sharpen", True):
@@ -159,7 +174,7 @@ def render_seg(args):
     if dry:
         print("  " + " ".join(cmd))
     else:
-        subprocess.run(cmd, check=True)
+        run_ffmpeg(cmd, f"segment {i:02d} ({os.path.basename(src)})")
     return dst, eff
 
 
@@ -228,6 +243,16 @@ def main():
     segdir = os.path.join(os.path.dirname(out), "clips")
     os.makedirs(segdir, exist_ok=True)
 
+    try:
+        return render(cfg, out, segdir, prof, a)
+    except RenderError as e:
+        # the whole ffmpeg output first, the reason last: the desk's stage error keeps the last lines
+        head, _, rest = str(e).partition("\n")
+        print(rest, file=sys.stderr, flush=True)
+        sys.exit(f"!! render failed - {head}")
+
+
+def render(cfg, out, segdir, prof, a):
     clean_speech(cfg, segdir, a.dry_run)
     tasks = [(i, cfg, s, segdir, a.dry_run) for i, s in enumerate(cfg["segments"])]
     with ThreadPoolExecutor(max_workers=a.workers or cfg.get("workers", 3)) as ex:
@@ -271,7 +296,7 @@ def main():
     if a.dry_run:
         print("  " + " ".join(cmd))
         return
-    subprocess.run(cmd, check=True)
+    run_ffmpeg(cmd, "final crossfade render")
     print(f"DONE -> {out}", flush=True)
     if prof is not None:
         from vstudio import platform as P

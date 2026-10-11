@@ -47,6 +47,9 @@ def make_stage_fn(name, res):
             fail = ctl.get("fail", {}).get(f"{ctx.job['id']}:{name}")
             if fail == "always":
                 raise ValueError(f"deterministic failure in {name}")
+            if fail == "nofilter" and not os.path.exists(os.path.join(ctx.batch_dir, "fixed")):
+                # 0.2.6: the bundled LGPL ffmpeg had no eq; the render fails until the app is fixed
+                raise RuntimeError(f"{name}.py exit 1: [AVFilterGraph @ 0x1] No such filter: 'eq'")
             if fail == "once":
                 marker = os.path.join(ctx.batch_dir, f"failed-once-{ctx.job['id']}-{name}")
                 if not os.path.exists(marker):

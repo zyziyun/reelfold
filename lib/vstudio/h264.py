@@ -238,6 +238,27 @@ def resolve_bin(argv):
     return argv
 
 
+def _lgpl_filters(cmd):
+    """A GPL filter in the argv's filter graphs (``eq=`` from a script's own string) that this ffmpeg lacks -> its
+    LGPL look-alike (vstudio.ffmpeg_filters): the bundled LGPL ffmpeg would stop at "No such filter"."""
+    from . import ffmpeg_filters as FF
+    if not any(isinstance(a, str) and a in FF.FILTER_ARGS for a in cmd):
+        return cmd
+    try:
+        from .media import _filters
+        have = _filters(str(cmd[0]))
+    except Exception:  # noqa: BLE001  (never break a command over the rewrite)
+        return cmd
+    if not have:
+        return cmd
+    out, done = FF.portable_argv([str(a) for a in cmd], have)
+    if done:
+        print(f"!! video-studio: this ffmpeg has no {', '.join(sorted(set(done)))} (GPL): using the LGPL equivalent",
+              file=sys.stderr)
+        return out
+    return cmd
+
+
 def install():
     """The Popen hook (idempotent): binaries from the environment, libx264 lines rewritten to the encoder."""
     global _ORIG_INIT
@@ -248,6 +269,8 @@ def install():
     def _init(self, cmd, *a, _vstudio_raw=False, **kw):
         if not _vstudio_raw and isinstance(cmd, (list, tuple)):
             cmd = resolve_bin(cmd)
+            if os.path.basename(str(cmd[0])).lower().startswith("ffmpeg"):
+                cmd = _lgpl_filters(cmd)
             if "libx264" in cmd and os.path.basename(str(cmd[0])).lower().startswith("ffmpeg"):
                 enc = effective_encoder(str(cmd[0]))
                 if enc != "libx264":

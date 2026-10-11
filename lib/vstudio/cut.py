@@ -35,7 +35,7 @@ from fractions import Fraction
 
 import numpy as np
 
-from . import media
+from . import ffmpeg_filters as FF, media
 from .audio import SR, decode_audio, rms_envelope, write_wav
 
 
@@ -884,7 +884,7 @@ def fit_chain(size, fit="crop", blur_sigma=40, blur_dim=-0.08):
                 f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black")
     if fit == "blur":
         return (f"split=2[{{L}}bg][{{L}}fg];[{{L}}bg]scale={w}:{h}:force_original_aspect_ratio=increase,"
-                f"crop={w}:{h},gblur=sigma={blur_sigma},eq=brightness={blur_dim}[{{L}}bgb];"
+                f"crop={w}:{h},gblur=sigma={blur_sigma},{FF.dim(blur_dim)}[{{L}}bgb];"
                 f"[{{L}}fg]scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos[{{L}}fgs];"
                 f"[{{L}}bgb][{{L}}fgs]overlay=(W-w)/2:(H-h)/2")
     if fit != "crop":

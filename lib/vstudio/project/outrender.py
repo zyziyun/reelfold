@@ -355,7 +355,9 @@ def run_timeline(spec, src, out, quality, workdir):
         ach.append(m.atempo_chain(s))
     gr = spec.get("grade")
     if gr:
-        vch.append(f"eq=saturation={float(gr.get('sat', 1.12)):.3f}:contrast={float(gr.get('contrast', 1.05)):.3f}")
+        from vstudio import ffmpeg_filters as FF
+        vch.append(FF.grade(saturation=round(float(gr.get('sat', 1.12)), 3),
+                            contrast=round(float(gr.get('contrast', 1.05)), 3)))
         if gr.get("warm", True):
             vch.append("colorbalance=rs=0.04:gs=0.0:bs=-0.04:rm=0.03:bm=-0.03")
     ef = spec.get("end_fade")

@@ -70,7 +70,8 @@ def grade_chain(t):
     g = t.get("grade") or {}
     out = []
     if g.get("saturation", 1.0) != 1.0:
-        out.append(f"eq=saturation={float(g['saturation']):.3f}")
+        from vstudio import ffmpeg_filters as FF
+        out.append(FF.grade(saturation=round(float(g['saturation']), 3)))
     if g.get("grain"):
         out.append(f"noise=alls={int(g['grain'])}:allf=t")
     return out

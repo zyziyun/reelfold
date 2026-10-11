@@ -121,7 +121,11 @@ class Env:
         if r.returncode not in tuple(ok):
             # stderr carries the cause; a renderer's progress bars on stdout must not push it out of the window
             from vstudio import proctail
-            tail = proctail.tail((r.stdout or "") + "\n" + (r.stderr or ""))[-1500:]
+            text = (r.stdout or "") + "\n" + (r.stderr or "")
+            tail = proctail.tail(text)[-1500:]
+            why = proctail.cause(text)       # "No such filter: 'eq'" must survive a long traceback / command line
+            if why and why not in tail:
+                tail = tail[-(1490 - len(why[:300])):] + "\n" + why[:300]
             raise RuntimeError(f"{os.path.basename(str(argv[1] if len(argv) > 1 else argv[0]))} exit "
                                f"{r.returncode}: {tail}")
         return r

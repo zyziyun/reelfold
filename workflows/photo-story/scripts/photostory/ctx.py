@@ -16,6 +16,7 @@ from functools import cached_property, lru_cache
 import numpy as np
 from PIL import Image, ImageFont, ImageOps
 
+from vstudio import ffmpeg_filters as FF
 from vstudio.config import MissingAsset, font as vfont, persona
 
 from .util import has_cjk, hex_rgb
@@ -201,7 +202,9 @@ class Ctx:
         self.FILM_SECTIONS = set(g("FILM_SECTIONS", set()))
         self.VCROP = dict(g("VCROP", {}) or {})
         self.VEQ = set(g("VEQ", set()) or set())
-        self.VEQ_FILTER = g("VEQ_FILTER", "eq=contrast=1.22:brightness=-0.07:saturation=1.3")
+        # an "eq=..." string (older specs) becomes its LGPL look-alike: the desk's bundled ffmpeg has no eq
+        self.VEQ_FILTER = FF.lgpl_graph(g("VEQ_FILTER", None) or FF.grade(contrast=1.22, brightness=-0.07,
+                                                                          saturation=1.3))
         self.FOCUS = dict(g("FOCUS", {}) or {})
         self.ROUTE = dict(g("ROUTE", {}) or {})
         self.TIMELINE = dict(g("TIMELINE", {}) or {})

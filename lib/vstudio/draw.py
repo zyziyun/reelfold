@@ -14,6 +14,7 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from . import ffmpeg_filters as FF
 from .config import MissingAsset, font, persona
 
 WHITE = (255, 255, 255, 255)
@@ -660,7 +661,7 @@ def redact_rects(frame_or_video, rects, mode="blur", out=None, color=None, facto
         parts = [f"[0:v]split={n + 1}[b0]" + "".join(f"[s{i}]" for i in range(n))]
         for i, (x, y, w, h) in enumerate(rects):
             sw, sh = max(2, w // factor), max(2, h // factor)
-            post = f"scale={w}:{h}:flags=neighbor" if mode == "pixelate" else f"scale={w}:{h},boxblur=3:1"
+            post = f"scale={w}:{h}:flags=neighbor" if mode == "pixelate" else f"scale={w}:{h},{FF.box_blur(3, 1)}"
             parts.append(f"[s{i}]crop={w}:{h}:{x}:{y},scale={sw}:{sh}:flags=area,{post}[r{i}]")
         for i, (x, y, w, h) in enumerate(rects):
             parts.append(f"[b{i}][r{i}]overlay={x}:{y}{en}[b{i + 1}]")

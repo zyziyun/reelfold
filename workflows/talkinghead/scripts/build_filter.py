@@ -12,7 +12,7 @@ import sys, pathlib; sys.path[:0] = [str(pathlib.Path(__file__).resolve().parent
                                      str(pathlib.Path(__file__).resolve().parent / "vertical")]
 if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"): print(__doc__); sys.exit(0)
 import json, shlex, os, importlib.util
-from vstudio import media
+from vstudio import ffmpeg_filters as FF, media
 from vstudio.config import persona
 from vstudio.draw import brand
 from montage import Montage
@@ -45,7 +45,9 @@ panel_base = call_base + len(callouts)
 
 ln = [M.graph]
 # brightness grade only (footage usually too bright; blur was tried and dropped, see gotchas)
-GRADE = getattr(C, "GRADE", "eq=brightness=-0.06:contrast=1.08:saturation=1.05:gamma=0.96")
+# LGPL graph (the desk's bundled ffmpeg has no eq); a config's own "eq=..." GRADE is translated the same way
+GRADE = FF.lgpl_graph(getattr(C, "GRADE", None) or FF.grade(brightness=-0.06, contrast=1.08, saturation=1.05,
+                                                             gamma=0.96))
 ln.append(f"{M.vout}{GRADE}[bg]")
 # progress bar always on (even during hooks); fill/playhead/active only in body
 acc = "%02X%02X%02X" % brand()["accent"]

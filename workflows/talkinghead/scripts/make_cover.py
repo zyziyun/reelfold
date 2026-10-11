@@ -11,7 +11,7 @@ Usage: python3 make_cover.py work/config.py [--platform youtube --platform bilib
 import sys, pathlib; sys.path[:0] = [str(pathlib.Path(__file__).resolve().parents[3] / "lib"), str(pathlib.Path(__file__).resolve().parent / "vertical")]
 if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"): print(__doc__); sys.exit(0)
 import importlib.util, os
-from vstudio import cover, media
+from vstudio import cover, ffmpeg_filters as FF, media
 from vstudio import platform as P
 from vstudio.export import fit_cover
 from layout import resolve_profile
@@ -26,7 +26,7 @@ WORK, SRC, OUT = C.WORK, C.SRC, C.COVER_OUT
 
 # COVER_EQ: optional ffmpeg eq on the grabbed frame. The cards are near-black, so a frame that
 # looked fine in the video often reads as a dark cover once they are pasted on. Lift it here.
-frame = media.grab_frame(SRC, float(C.COVER_FRAME_T), f"{WORK}/cover_frame.png", vf=getattr(C, "COVER_EQ", None))
+frame = media.grab_frame(SRC, float(C.COVER_FRAME_T), f"{WORK}/cover_frame.png", vf=FF.lgpl_graph(getattr(C, "COVER_EQ", None)) or None)
 # COVER_MUTE_BOTTOM=0 skips the solid band when the frame carries no burned-in sub; COVER_MUTE_TOP for 剪映
 # exports that burn subtitles at the top. COVER_HEAD_X (detect_head.py) is a placement note for COVER_SPOTS.
 img, img43 = cover.notes_cover(frame, panels=C.COVER_PANELS, fun=getattr(C, "COVER_FUN", None), kicker=getattr(C, "COVER_KICKER", None),

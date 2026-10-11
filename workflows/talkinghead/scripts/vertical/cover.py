@@ -21,7 +21,7 @@ if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"): print(__doc__); sys.exi
 import os, importlib.util
 import numpy as np, cv2
 from PIL import Image, ImageDraw
-from vstudio import media
+from vstudio import ffmpeg_filters as FF, media
 from vstudio import draw as D, overlays as O
 from vstudio import platform as P
 from layout import resolve_profile
@@ -37,7 +37,7 @@ if not CV:
     sys.exit("config has no COVER dict - see this script's docstring")
 SRC, T, OUT = CV['SRC'], float(CV['T']), CV.get('OUT', 'cover.jpg')
 TITLE = CV.get('TITLE', []); STICKY = CV.get('STICKY'); TAG = CV.get('TAG')
-GRADE = getattr(C, 'GRADE', "hqdn3d=1.2:1.2:3:3,eq=contrast=1.06:brightness=0.015:saturation=1.07:gamma=1.02,colorbalance=rs=-0.02:bs=0.015:rm=-0.01,cas=0.45")
+GRADE = FF.lgpl_graph(getattr(C, 'GRADE', None) or FF.DEFAULT_TH_GRADE)   # LGPL (see compose.py)
 KW = [k for k in getattr(C, 'KEYWORDS', []) if k]
 B = D.brand(); INK = (34, 34, 40); WHITE = (255, 255, 255, 255)
 COL = {'ink': INK, 'red': B['accent'], 'accent': B['accent']}   # 'red' = the theme accent (no hard-coded red)

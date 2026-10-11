@@ -33,6 +33,7 @@ import os, json, re, subprocess, importlib.util
 import numpy as np, cv2
 from PIL import Image, ImageDraw
 from vstudio import asr, audio, media, subs as vsubs
+from vstudio import ffmpeg_filters as FF
 from vstudio import draw as D, overlays as O
 from montage import Montage
 from bodycut import mux
@@ -76,7 +77,7 @@ LUFS, TP = PROF.loudness.get('lufs', (_PS.get('audio') or {}).get('loudness_lufs
 SEGJ = json.load(open(G('SEGS', 'segs.json')))
 SUBS = SEGJ['subs']; BODY_T = SEGJ['total']
 HOOKS = C.HOOKS; HS = G('HOOK_SPEED', _SPEED['hook']); BS = G('BODY_SPEED', _SPEED['body']); XF = G('XF', 0.3)
-GRADE = G('GRADE', "hqdn3d=1.2:1.2:3:3,eq=contrast=1.06:brightness=0.015:saturation=1.07:gamma=1.02,colorbalance=rs=-0.02:bs=0.015:rm=-0.01,cas=0.45")
+GRADE = FF.lgpl_graph(G('GRADE', None) or FF.DEFAULT_TH_GRADE)   # LGPL; an "eq=..." / "hqdn3d=..." GRADE is translated
 
 # ---------------- source upscale (prep_sources.sh writes prep.json: how much the picture was enlarged) ----------------
 def _src_upscale():

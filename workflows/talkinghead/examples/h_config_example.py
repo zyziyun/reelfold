@@ -19,7 +19,7 @@ BODY_SPEED = 1.25    # omit to use the talking-head format
 XFADE      = 0.8     # dissolve between hook clips and into main; it plays over muted pads, so each join adds ~2*XFADE
 HOOK_VOL_DB = 4      # extra gain on hook audio
 # HOOK_BADGE_TEXT = "高光预告 · 完整版在下面"; NOTES_TAG = "记笔记 ↓"
-# GRADE = "eq=brightness=-0.06:contrast=1.08:saturation=1.05:gamma=0.96"   # brightness grade only
+# GRADE = {"brightness": -0.06, "contrast": 1.08, "saturation": 1.05, "gamma": 0.96}   # brightness grade only
 
 # ---- hooks: picked clips in picked order (source seconds). A 2-part clip = 2 entries ----
 HOOKS = [
@@ -56,5 +56,5 @@ COVER_KICKER  = "封面顶部一句话标题"
 COVER_PANELS = [("第一部分要点", "一行总结"), ("第二部分要点", "一行总结")]       # 2-3 mini panels
 COVER_FUN = ("说句大实话", ["黄色便签", "三行文字", "最后一句标红"], "最后一句标红")   # (title, lines, red line)
 COVER_HEAD_X = (700, 1300)        # from detect_head.py, so cards avoid the face
-# COVER_EQ = "eq=brightness=0.04"  # lift a frame that reads dark under the near-black cards
+# COVER_EQ = {"brightness": 0.04}  # lift a frame that reads dark under the near-black cards
 # COVER_MUTE_BOTTOM = 150          # solid band over burned subtitles (0 = off); COVER_MUTE_TOP likewise

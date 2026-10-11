@@ -32,7 +32,7 @@ MEDIA = dict(images="my_photos", videos="my_clips")
 FOCUS = {"photo03": ((0.4, 0.45), 1.3)}            # framing (centre, zoom) used inside collage/grid/split/film
 VCROP = {"clip1": (0.5, 0.5, 0.9)}                 # video crop: centre x, centre y, width fraction
 VEQ = {"clip1"}                                    # clips that get VEQ_FILTER (lift dull phone video)
-# VEQ_FILTER = "eq=contrast=1.22:brightness=-0.07:saturation=1.3"
+# VEQ_FILTER = {"contrast": 1.22, "brightness": -0.07, "saturation": 1.3}   # or an ffmpeg filter string
 
 # ---------------------------------------------------------------- route map + timeline bar
 ROUTE = dict(

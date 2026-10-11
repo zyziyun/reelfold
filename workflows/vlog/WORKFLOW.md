@@ -91,7 +91,7 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    Extract 5-6 frames where the subject reads clearly plus one wide frame for the darkened backing:
    ```bash
    mkdir -p work/frames
-   ffmpeg -ss 3 -i footage/CLIP.MP4 -frames:v 1 -vf "scale=1400:-1,eq=saturation=1.18" work/frames/a.jpg
+   ffmpeg -ss 3 -i footage/CLIP.MP4 -frames:v 1 -vf "scale=1400:-1,hue=s=1.18" work/frames/a.jpg
    python3 $VSTUDIO/workflows/vlog/scripts/make_cover.py --out work/cover.png \
      --hero work/frames/hero.jpg --frames work/frames/{a,b,c,d}.jpg --base work/frames/wide.jpg
    ffmpeg -i work/cover.png -vf scale=1920:1080 -q:v 2 work/cover_1920.jpg

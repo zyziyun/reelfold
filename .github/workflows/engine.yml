@@ -12,6 +12,7 @@ on:
       - 'requirements.txt'
       - 'tests/requirements.txt'
       - 'pyproject.toml'
+      - 'apps/desk/packaging/ffmpeg/**'   # the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
       - '.github/workflows/engine.yml'
   push:
     branches: [main]
@@ -25,6 +26,7 @@ on:
       - 'requirements.txt'
       - 'tests/requirements.txt'
       - 'pyproject.toml'
+      - 'apps/desk/packaging/ffmpeg/**'   # the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
       - '.github/workflows/engine.yml'
   workflow_dispatch:
 permissions:

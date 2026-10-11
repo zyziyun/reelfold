@@ -13,7 +13,8 @@ OUT = "../my-talk_xhs.mp4"
 #   "youtube-shorts", "youtube" / "bilibili" = 16:9 1920x1080. CLI --platform overrides it per render.
 # SRC_UPSCALE = 1.8                   # picture enlargement of the source (prep.json has it); caps the punch-in
 # SEGS = "segs.json"                                   # default
-GRADE = "hqdn3d=1.2:1.2:3:3,eq=contrast=1.06:brightness=0.015:saturation=1.07:gamma=1.02,colorbalance=rs=-0.02:bs=0.015:rm=-0.01,cas=0.45"
+# GRADE = {"contrast": 1.06, "brightness": 0.015, "saturation": 1.07, "gamma": 1.02}   # default: light denoise + this
+#   grade + warm colorbalance + cas (vstudio.ffmpeg_filters.DEFAULT_TH_GRADE); a filter string works too ("eq=..." ok)
 HOOK_SPEED = 1.5; BODY_SPEED = 1.25                   # omit to use the talking-head format (vstudio.formats <- persona formats); hook <= 1.6
 XF = 0.3; HOOK_VOL_DB = 2                             # hook dissolve length, extra hook gain
 KEYWORDS = ["关键词", "Keyword", "API"]                # coloured yellow in subtitles / titles / panels

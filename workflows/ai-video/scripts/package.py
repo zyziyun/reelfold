@@ -244,11 +244,11 @@ def build_post(cfg, n, platform, log=None):
 
 def fit_cover(src, dst, ratio):
     """Cover at the platform ratio: blurred fill + whole image centred (never crop heads or the headline)."""
-    from vstudio import media
+    from vstudio import ffmpeg_filters as FF, media
     w, h = {"9x16": (1080, 1920), "3x4": (1080, 1440), "16x9": (1920, 1080), "16x10": (1146, 717), "4x5": (1080, 1350),
             "1x1": (1080, 1080)}[ratio]
-    vf = (f"split[a][b];[a]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=30:3,"
-          f"eq=brightness=-0.08[bg];[b]scale={w}:{h}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
+    vf = (f"split[a][b];[a]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},{FF.box_blur(30, 3)},"
+          f"{FF.dim(-0.08)}[bg];[b]scale={w}:{h}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
     media.run(["ffmpeg", "-y", "-i", src, "-filter_complex", vf, "-frames:v", "1", "-q:v", "2", dst])
     return dst
 

@@ -219,6 +219,10 @@ function verify() {
   const enc = run(path.join(OUT, 'ffmpeg', 'bin', isWin ? 'ffmpeg.exe' : 'ffmpeg'), ['-hide_banner', '-encoders'], { capture: true });
   if (!enc.includes(T.h264)) throw new Error(`bundled ffmpeg lacks ${T.h264}`);
   if (/libx264|libx265/.test(enc)) throw new Error('bundled ffmpeg contains GPL encoders');
+  // every filter the engine can emit (packaging/ffmpeg/engine-filters.txt, kept by the engine's pytest guard) is in
+  // this build: an LGPL ffmpeg has no eq / hqdn3d / boxblur ..., and a missing one stops a render ("No such filter")
+  run(pyExe(), [path.join(ENGINE_ROOT, 'scripts', 'check_ffmpeg_filters.py'), '--binary',
+    path.join(OUT, 'ffmpeg', 'bin', isWin ? 'ffmpeg.exe' : 'ffmpeg')], { env });
   if (isMac) {
     checkMachO();
     // what App Review checks (Tcl / non-public Accelerate symbols, itms-services): the same lint release-mas.sh runs

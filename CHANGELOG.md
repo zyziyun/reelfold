@@ -8,6 +8,16 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Vlog, talking-head, photo-story and promo renders in the app**: the bundled ffmpeg is LGPL and has no `eq`,
+  `hqdn3d` or `boxblur`, so a graded render stopped at "No such filter". Grades are now built from LGPL filters
+  (`vstudio.ffmpeg_filters`, pixel-identical to `eq`); old `eq=` grade strings in projects and configs are
+  translated when they run. A guard checks every filter the engine can emit against the bundled build.
+- A render that fails because of the app (a missing filter or encoder) now says it is a bug in Reelfold with
+  "Report this problem", instead of "One of the files couldn't be read". A file that really can't be read is
+  named, and a drive that isn't connected is called out.
+
 ## [0.2.7] - 2026-10-11
 
 ### Added
