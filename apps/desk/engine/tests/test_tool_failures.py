@@ -85,6 +85,38 @@ class ClassifyTools(unittest.TestCase):
         self.assertNotIn("/opt/homebrew", f["error"])
 
 
+class MissingKey(unittest.TestCase):
+    """Dogfood 2026-10-11: the course voice stopped on "OPENAI_API_KEY is not set in the environment" (a raw
+    traceback). A missing key is its own code: the service and the fix, never "log in again" or "didn't start"."""
+    NEW = ("RuntimeError: tts.py exit 1: No OpenAI key: OPENAI_API_KEY is not set. Add your OpenAI key in Settings > "
+           "AI, or use the free local voice.")
+    OLD = ("RuntimeError: tts.py exit 1:\nTraceback (most recent call last):\n  File \"tts.py\", line 69\n"
+           "RuntimeError: OPENAI_API_KEY is not set in the environment")
+
+    def test_classified_with_the_service(self):
+        for text in (self.NEW, self.OLD):
+            self.assertEqual(PI.classify(text), "ai-key-missing", text)
+            self.assertEqual(PI.tool_fix("ai-key-missing", text)["params"]["service"], "OpenAI")
+        self.assertEqual(PI.tool_fix("ai-key-missing", self.NEW)["params"]["fix"], "free-voice")
+        self.assertEqual(PI.tool_fix("ai-key-missing", self.OLD)["params"]["fix"], "add-key")
+
+    def test_failure_document_names_the_service(self):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, PI.LOG), "w") as f:
+            f.write(json.dumps(dict(event="stage-fail", job="ep1", stage="voice", error=self.NEW,
+                                    code="ai-key-missing", params=dict(service="OpenAI", fix="free-voice"))) + "\n")
+            f.write(json.dumps(dict(event="project-end", exit_code=5, status="failed")) + "\n")
+        write_json(os.path.join(d, PI.REC), dict(pid=None, started=1, offset=0, exit=5, finished=2))
+        out = PI.failure(d)
+        self.assertEqual((out["code"], out["stage"], out["params"]), ("ai-key-missing", "voice",
+                                                                       dict(service="OpenAI", fix="free-voice")))
+        with open(os.path.join(d, PI.LOG), "w") as f:                  # an older engine: no code on the event
+            f.write(json.dumps(dict(event="stage-fail", job="ep1", stage="voice", error=self.OLD)) + "\n")
+            f.write(json.dumps(dict(event="project-end", exit_code=5, status="failed")) + "\n")
+        out = PI.failure(d)
+        self.assertEqual((out["code"], out["params"]["service"]), ("ai-key-missing", "OpenAI"))
+
+
 class ToolHealth(unittest.TestCase):
     def test_tools_in_capabilities_info_real_mode_only(self):
         class R:

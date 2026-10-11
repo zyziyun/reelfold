@@ -490,7 +490,9 @@ export type FailureCode =
   | 'app-bug'
   // ffmpeg could not open / read an input (params {file, volume?}); -unmounted: the drive it is on is not connected
   | 'media-unreadable'
-  | 'media-unmounted';
+  | 'media-unmounted'
+  // a paid service without its key (params {service, fix: free-voice | add-key}): named, with Settings to add it
+  | 'ai-key-missing';
 export interface PilotFailure {
   state: 'failed';
   /** FailureCode, or another code a stage-fail event carried (shown with the generic text when the UI has none) */

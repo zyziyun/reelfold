@@ -10,11 +10,19 @@ export function activeItems(items: InboxItem[]): InboxItem[] {
   return items.some((x) => x.archived) ? items.filter((x) => !x.archived) : items;
 }
 
+/** The voice question when the chosen paid voice has no key: what it offers, in her words. */
+export function noKeyBody(x: Pick<InboxItem, 'no_key'>): string {
+  const k = x.no_key;
+  if (!k) return '';
+  return k.free_engine ? t('voice.noKey.freeBody', { service: k.service, voice: k.free_voice || k.free_engine }) : t('voice.noKey.noneBody', { service: k.service });
+}
+
 /** The card's title from the engine's code + params (UI language); the engine's own text otherwise. */
 export function inboxTitle(x: InboxItem): string {
   if (x.code === 'inbox.spend' && typeof x.params.amount === 'number') return t('inbox.spend', { amount: money(x.params.amount, String(x.params.currency ?? 'USD')) });
   if (x.source === 'feedback' && x.code && has(x.code)) return tk(x.code, { ...x.params, who: x.params.who || t('inbox.reviewer') });
   if (x.author) return authorTitle(x);
+  if (x.no_key) return t('voice.noKey.title', { service: x.no_key.service });
   if (x.code && has(x.code)) return tk(x.code, x.params);
   if (x.kind === 'failed') return t('inbox.failed.unknown'); // a failure code this desk has no title for yet
   if (x.kind && has(`checkpoint.${x.kind}`)) return tk(`checkpoint.${x.kind}`);

@@ -100,6 +100,12 @@ class EngineAnswerTest(unittest.TestCase):
         self.assertEqual(IB.engine_answer("keywords", ticks(["亚麻", "L6"], ["风格"])),       # ids = the keywords
                          dict(approve=["亚麻", "L6"], keep=["风格"]))
         self.assertIsNone(IB.engine_answer("publish", None))
+        # the voice: ticks mean the step's suggestion ("Use the free voice" when there is no key); a voice answer stays
+        self.assertIsNone(IB.engine_answer("voice-pick", ticks([0])))
+        v = dict(voice="zf_xiaobei", speed=1.0, approve=True, engine="kokoro")
+        self.assertEqual(IB.engine_answer("voice-pick", v), v)
+        self.assertEqual(IB._no_key(dict(service="OpenAI", env="OPENAI_API_KEY", engine="openai", free_engine=None)),
+                         dict(service="OpenAI", engine="openai", free_engine=None, free_voice=None))
 
     def test_export_labels(self):
         # the platform's name and its frame shape - never the engine's "vertical" (and 小红书 in Chinese)

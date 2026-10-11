@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, FileText, Film, Inbox as InboxIcon, Pause, Play, Sparkles } from 'lucide-react';
 import type { InboxItem, InboxOption } from '../../../shared/v04';
 import { fmtClock, has, intlLocale, t } from '../i18n';
-import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueText, keptChanged, keptOf, keptSpans, money, optionLabel, secsLabel } from '../lib/inboxView';
+import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, secsLabel } from '../lib/inboxView';
 import { DraftPane, useDraftIt, type KeepEdits } from './DraftReview';
 import { useEngine } from '../lib/engine';
 import { useInbox } from '../lib/inbox';
@@ -15,7 +15,7 @@ import { clipHref, itemTarget, projectHref, startTriage, triageStep, useTriageSt
 import { go, useRouteQuery } from '../lib/router';
 import { Empty, media, Sk, Thumb } from './kit';
 import { FeedbackLink } from '../support/Support';
-import { FailureActions, failureReason } from './Failure';
+import { FailureActions, failureReason, keyFocus } from './Failure';
 import { emsg, errText } from './msg';
 import { TriageBar } from './TriageBar';
 import { ImportFeedback } from './ShareDialog';
@@ -269,8 +269,10 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
   const draftIt = useDraftIt(x.key);
   const segs = author?.review?.kind === 'keep-spans' ? (author.review.segments ?? []) : [];
   const mine = keptChanged(segs, edits);
+  const noKey = x.no_key ?? null;
   const primary = (): void => {
     if (x.failure) return;
+    if (noKey) return noKey.free_engine ? onDone(undefined) : undefined; // "Use the free voice" = the step's default
     if (x.href) return void (location.hash = x.href);
     if (x.kind === 'review' && x.project.id) return go({ name: 'focus', id: x.project.id });
     if (author) {
@@ -343,6 +345,10 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
             <div className="ux-opt">
               <div className="ux-optt">{failureReason(x.failure)}</div>
             </div>
+          ) : noKey ? (
+            <div className="ux-opt" data-testid="inbox-no-key">
+              <div className="ux-optt">{noKeyBody(x)}</div>
+            </div>
           ) : author ? (
             <DraftPane itemKey={x.key} a={author} edits={edits} onEdits={setEdits} />
           ) : x.kind === 'review' ? (
@@ -391,6 +397,8 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
         )}
         {x.failure && x.project.id ? (
           <FailureActions item={x.project.id} failure={x.failure} primary />
+        ) : noKey ? (
+          <NoKeyActions x={x} onFree={() => onDone(undefined)} />
         ) : x.href ? (
           <a className="btn primary lg" href={x.href} data-testid="inbox-open">
             {t('inbox.openCreate')}
@@ -423,7 +431,47 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
   );
 }
 
+/** The voice has no key: "Use the free voice" (the step's default) when this computer has one, else Try again once
+ * the key is added; "Add a key" opens Settings › AI on that service's row. */
+function NoKeyActions({ x, onFree }: { x: InboxItem; onFree: () => void }) {
+  const { client } = useEngine();
+  const ui = useUi();
+  const [busy, setBusy] = useState(false);
+  const k = x.no_key!;
+  const retry = async () => {
+    if (!client || !x.project.id) return;
+    setBusy(true);
+    try {
+      await client.retryPilot(x.project.id, null);
+      ui.toast(t('fail.retrying'));
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button className={k.free_engine ? 'btn lg' : 'btn primary lg'} onClick={() => go({ name: 'aiAccounts', focus: keyFocus({ params: { service: k.service } }) })} data-testid="no-key-add">
+        {t('voice.noKey.addKey', { service: k.service })}
+      </button>
+      {k.free_engine ? (
+        <button className="btn primary lg" onClick={onFree} data-testid="no-key-free">
+          <Check className="ico" />
+          {t('voice.noKey.free')}
+          <span className="kbd on">↵</span>
+        </button>
+      ) : (
+        <button className="btn lg" disabled={busy || !x.project.id} onClick={() => void retry()} data-testid="no-key-retry">
+          {t('voice.noKey.retry')}
+        </button>
+      )}
+    </>
+  );
+}
+
 function leadOf(x: InboxItem): string {
+  if (x.no_key) return t('voice.noKey.lead', { service: x.no_key.service });
   if (x.author) return authorHelp(x);
   if (x.kind === 'needs' && x.need) return emsg(x.need);
   if (x.kind === 'confirm') return t('inbox.confirmLead');

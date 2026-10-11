@@ -589,6 +589,19 @@ export interface InboxItem {
   error_code?: string | null;
   /** an engine question about one clip: which (its title, else its place in the project) */
   clip?: { id: string; title?: string | null; n: number } | null;
+  /** the voice question when the chosen paid voice has no key: the service, and the free voice this computer has
+   * (null: none, so adding the key is the way). "Use the free voice" answers the default; "Add a key" opens Settings */
+  no_key?: InboxNoKey | null;
+}
+
+export interface InboxNoKey {
+  /** "OpenAI" */
+  service: string;
+  /** the paid engine chosen ("openai") */
+  engine?: string | null;
+  /** the free voice installed here ("kokoro"), null when there is none */
+  free_engine?: string | null;
+  free_voice?: string | null;
 }
 
 /** A message the engine words with a code + params (the desk has the text in each UI language). */

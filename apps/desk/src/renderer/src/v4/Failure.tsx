@@ -2,7 +2,7 @@
 // to do next — 去登录 / 换 Codex 重试 / 重试. Used on the project page and in the inbox.
 import { useState } from 'react';
 import type { PilotFailure } from '../../../shared/v02';
-import { providerName } from '../../../shared/aiRoutes';
+import { KEY_NAMES, providerName } from '../../../shared/aiRoutes';
 import { has, t, tk, type MessageKey } from '../i18n';
 import { stepOfStage } from '../lib/pipeline';
 import { useEngine } from '../lib/engine';
@@ -34,12 +34,19 @@ export function failureReason(f: PilotFailure): string {
   // a file that couldn't be read is named (and its drive when that isn't connected); without a name: the general words
   else if (f.code === 'media-unmounted' && !(p.file && p.volume)) reason = tk(p.file ? 'fail.reason.media-unreadable' : 'fail.reason.media', { file: String(p.file ?? '') });
   else if (f.code === 'media-unreadable' && !p.file) reason = tk('fail.reason.media');
+  else if (f.code === 'ai-key-missing') reason = tk(key, { service: String(p.service ?? '') || t('fail.keyService') });
   else if (has(key)) reason = tk(key, { provider, tool, at: path, path: String(p.path ?? ''), file: String(p.file ?? ''), volume: String(p.volume ?? '') });
   else reason = tk('fail.reason.unknown'); // a code this desk has no words for yet
   const fix = String(p.fix ?? f.fix ?? '');
   if (!fix) return reason;
   const how = has(`fail.fix.${fix}`) ? tk(`fail.fix.${fix}`) : /\s/.test(fix) || fix.includes('/') ? tk('fail.fix.cmd', { fix }) : '';
   return how ? `${reason} ${how}` : reason;
+}
+
+/** Where Settings › AI shows the key a failure needs (the OpenAI row for "No OpenAI key"). */
+export function keyFocus(f: Pick<PilotFailure, 'params'>): string | undefined {
+  const s = String(f.params?.service ?? '').toLowerCase();
+  return (KEY_NAMES as readonly string[]).includes(s) ? s : undefined;
 }
 
 /** The provider to offer for 「换 … 重试」: the other subscription CLI. */
@@ -80,6 +87,11 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
       ) : (
         <button className={p} disabled={busy} onClick={() => void retry(failure.provider ?? undefined)} data-testid="fail-retry">
           {t('fail.retry')}
+        </button>
+      )}
+      {failure.code === 'ai-key-missing' && (
+        <button className="btn" onClick={() => go({ name: 'aiAccounts', focus: keyFocus(failure) })} data-testid="fail-add-key">
+          {t('fail.addKey', { service: String(failure.params?.service ?? '') || t('fail.keyService') })}
         </button>
       )}
       {ai && (

@@ -45,6 +45,8 @@ _CODES = (
     ("tool-ffmpeg", r"ffmpeg not found|ffprobe not found|vstudio_ff(mpeg|probe)=\S* does not exist|"
                     r"ffmpeg lacks filter|lacks filter\(s\)|unknown bitstream filter|"
                     r"referenced from:\s*\S*/ff(mpeg|probe)\b|ff(mpeg|probe): (command )?not found"),
+    # a paid service without its key ("No OpenAI key: OPENAI_API_KEY is not set ..."): named, never "log in again"
+    ("ai-key-missing", r"\bno [a-z][\w .-]{1,30}? key: [a-z0-9_]+_api_key is not set|\b[a-z0-9]+_api_key is not set"),
     ("ai-login", r"\b401\b|auth-expired|not-logged-in|authenticat|not logged in|"
                  r"log ?in (again|required|expired)|session expired|token expired|"
                  r"unauthori[sz]ed|invalid (api )?key|invalid x-api-key|credential"),
@@ -72,7 +74,8 @@ def classify(text):
 
 
 def tool_fix(code, text):
-    """For a tool-* code: {tool, fix} (fix: a stable key the UI words; see the module doc), else {}."""
+    """For a tool-* code: {tool, fix} (fix: a stable key the UI words; see the module doc); for ai-key-missing:
+    {params: {service, fix: free-voice | add-key}}; else {}."""
     t = (text or "").lower()
     if code == "tool-node":
         brew = "homebrew" in t or "/cellar/" in t or "brew" in t
@@ -80,6 +83,16 @@ def tool_fix(code, text):
     if code == "tool-ffmpeg":
         bundled = "reelfold.app" in t or "/runtime/ffmpeg" in t or "vstudio_ff" in t
         return dict(tool="ffmpeg", fix="reinstall-app" if bundled else "install-ffmpeg")
+    if code == "ai-key-missing":
+        try:
+            from vstudio import proctail
+            k = proctail.key_failure(text)
+        except Exception:  # noqa: BLE001  (an older engine: the service by its env var)
+            k = None
+        if k:
+            return dict(params=k["params"])
+        m = re.search(r"\b([a-z0-9]+)_api_key is not set", t)
+        return dict(params=dict(service=(m.group(1).title() if m else "API"), fix="add-key"))
     return {}
 
 

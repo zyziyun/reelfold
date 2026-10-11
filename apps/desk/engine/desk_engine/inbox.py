@@ -119,6 +119,14 @@ def author_block(p, pd):
                 exists=st in ("drafted", "hers"), is_dir=bool(get("is_dir")), file=f, doc=get("doc"))
 
 
+def _no_key(nk):
+    """The voice question when the chosen paid voice has no key: what the desk words ("No OpenAI key ..."), never the
+    env var name."""
+    nk = nk if isinstance(nk, dict) else {}
+    return dict(service=str(nk.get("service") or "OpenAI"), engine=nk.get("engine"), free_engine=nk.get("free_engine"),
+                free_voice=nk.get("free_voice"))
+
+
 def _project_name(pd):
     """A project the history does not list: its own name (project.yaml), not its folder ("01-AIGC")."""
     try:
@@ -184,6 +192,8 @@ def engine_answer(kind, answer):
     if kind == "filler-confirm":
         keep = [int(x) for x in answer.get("keep") or [] if str(x).lstrip("-").isdigit()]
         return dict(approve=ids, keep=keep)
+    if kind == "voice-pick":
+        return None                      # the voice the step suggests ("Use the free voice" when there is no key)
     return answer
 
 
@@ -450,6 +460,7 @@ class Inbox:
                                       default=p.get("default"), minutes=1 if not author else 2, source="engine",
                                       engine=dict(dir=pd, id=p.get("id"), item=p.get("item")),
                                       **({"archived": True} if archived else {}),
+                                      **({"no_key": _no_key(p.get("no_key"))} if p.get("no_key") else {}),
                                       **({"author": author, "labels": author["labels"]} if author else {})))
             except Exception:  # noqa: BLE001
                 pass

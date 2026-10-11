@@ -159,6 +159,9 @@ export function decisionWords(d: AutopilotDecision): { key: string; params: Reco
       return { key: 'ap.d.approved', params: {} };
     case 'budget-approval':
       return { key: 'ap.d.budget', params: { n: n('total') } };
+    case 'voice-pick':
+      // a paid voice without its key: the free voice on this computer, said so
+      return d.reason_code === 'free-voice' ? { key: 'ap.d.freeVoice', params: { service: String(p.service ?? 'OpenAI') } } : { key: 'ap.d.default', params: {} };
     case 'segment-approval':
       return { key: 'ap.d.segments', params: {} };
     case 'keywords':

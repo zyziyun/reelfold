@@ -53,6 +53,22 @@ export const sessionFixesEn = {
   'inbox.failed.app-bug': 'A bug in Reelfold stopped the render — report this problem',
   'inbox.failed.media-unreadable': 'A file couldn’t be read — the first clip stopped',
   'inbox.failed.media-unmounted': 'A drive isn’t connected — the first clip stopped',
+  // a paid service without its key (dogfood 2026-10-11: the course voice stopped on "OPENAI_API_KEY is not set")
+  'fail.reason.ai-key-missing': 'There’s no {service} key in Reelfold, so this step couldn’t run.',
+  'fail.keyService': 'API',
+  'fail.fix.free-voice': 'Press Try again to make the voice with the free voice on this computer, or add the key in Settings › AI.',
+  'fail.fix.add-key': 'Add it in Settings › AI, then try again.',
+  'fail.addKey': 'Add your {service} key',
+  'inbox.failed.ai-key-missing': 'An API key is missing — the run stopped',
+  // the voice question when the chosen paid voice has no key
+  'voice.noKey.title': 'No {service} key for the voice',
+  'voice.noKey.lead': 'This video was set to use the {service} voice, but there’s no {service} key in Reelfold.',
+  'voice.noKey.free': 'Use the free voice',
+  'voice.noKey.freeBody': 'The free voice on this computer reads the script ({voice}). It costs nothing; you can switch to {service} later.',
+  'voice.noKey.noneBody': 'There’s no free voice on this computer either. Add your {service} key in Settings, then press Try again.',
+  'voice.noKey.addKey': 'Add your {service} key',
+  'voice.noKey.retry': 'Try again',
+  'ap.d.freeVoice': 'used the free voice — no {service} key',
 };
 
 export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
@@ -100,6 +116,20 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
   'inbox.failed.app-bug': '千剪的 bug 让渲染停下了，报告一下这个问题',
   'inbox.failed.media-unreadable': '有个素材读不了，第 1 条试看停下了',
   'inbox.failed.media-unmounted': '有个盘没连接，第 1 条试看停下了',
+  'fail.reason.ai-key-missing': '千剪里还没有 {service} 密钥，这一步没法运行。',
+  'fail.keyService': 'API',
+  'fail.fix.free-voice': '点「再试一次」，用这台电脑上的免费配音来生成；或在「设置 › AI」里添加密钥。',
+  'fail.fix.add-key': '在「设置 › AI」里添加，再试一次。',
+  'fail.addKey': '添加 {service} 密钥',
+  'inbox.failed.ai-key-missing': '缺少一个 API 密钥，运行停下了',
+  'voice.noKey.title': '配音缺少 {service} 密钥',
+  'voice.noKey.lead': '这条视频设成了用 {service} 配音，但千剪里还没有 {service} 密钥。',
+  'voice.noKey.free': '用免费配音',
+  'voice.noKey.freeBody': '用这台电脑上的免费配音朗读脚本（{voice}），不花钱；之后也可以换回 {service}。',
+  'voice.noKey.noneBody': '这台电脑上也没有免费配音。在设置里添加你的 {service} 密钥，再点「再试一次」。',
+  'voice.noKey.addKey': '添加 {service} 密钥',
+  'voice.noKey.retry': '再试一次',
+  'ap.d.freeVoice': '用了免费配音——没有 {service} 密钥',
 };
 
 export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
@@ -147,4 +177,18 @@ export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
   'inbox.failed.app-bug': 'Un bug de Reelfold a arrêté le rendu — signalez ce problème',
   'inbox.failed.media-unreadable': 'Un fichier n’a pas pu être lu : le premier clip s’est arrêté',
   'inbox.failed.media-unmounted': 'Un disque n’est pas connecté : le premier clip s’est arrêté',
+  'fail.reason.ai-key-missing': 'Reelfold n’a pas de clé {service}, cette étape n’a donc pas pu s’exécuter.',
+  'fail.keyService': 'API',
+  'fail.fix.free-voice': 'Cliquez sur Réessayer pour faire la voix avec la voix gratuite de cet ordinateur, ou ajoutez la clé dans Réglages › IA.',
+  'fail.fix.add-key': 'Ajoutez-la dans Réglages › IA, puis réessayez.',
+  'fail.addKey': 'Ajouter votre clé {service}',
+  'inbox.failed.ai-key-missing': 'Une clé d’API manque : l’exécution s’est arrêtée',
+  'voice.noKey.title': 'Pas de clé {service} pour la voix',
+  'voice.noKey.lead': 'Cette vidéo devait utiliser la voix {service}, mais Reelfold n’a pas de clé {service}.',
+  'voice.noKey.free': 'Utiliser la voix gratuite',
+  'voice.noKey.freeBody': 'La voix gratuite de cet ordinateur lit le script ({voice}). C’est gratuit ; vous pourrez repasser à {service} plus tard.',
+  'voice.noKey.noneBody': 'Il n’y a pas non plus de voix gratuite sur cet ordinateur. Ajoutez votre clé {service} dans Réglages, puis cliquez sur Réessayer.',
+  'voice.noKey.addKey': 'Ajouter votre clé {service}',
+  'voice.noKey.retry': 'Réessayer',
+  'ap.d.freeVoice': 'voix gratuite utilisée — pas de clé {service}',
 };
