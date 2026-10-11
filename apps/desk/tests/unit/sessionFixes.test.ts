@@ -124,6 +124,25 @@ describe('a failed step names the tool and the fix', () => {
     setMac(false); // Windows / Linux: no Homebrew hint
     expect(failureReason(f({ code: 'tool-ffmpeg', tool: 'ffmpeg', fix: 'install-ffmpeg' }))).toMatch(/这台电脑.*winget install ffmpeg/);
   });
+  it('an ffmpeg error the app caused is a bug to report, never "a file couldn\'t be read"', () => {
+    expect(failureReason(f({ code: 'app-bug', stage: 'render' }))).toBe(
+      'Reelfold couldn’t render this — this is a bug in the app, not a problem with your files. Report this problem so it gets fixed.',
+    );
+    expect(failureReason(f({ code: 'app-bug' }))).not.toMatch(/couldn’t be read/);
+  });
+  it('a file that really couldn\'t be read is named, with its drive when that is not connected', () => {
+    expect(failureReason(f({ code: 'media-unreadable', params: { file: 'DJI_0079.MP4' } }))).toBe(
+      '“DJI_0079.MP4” couldn’t be read. Check that it still opens, then try again.',
+    );
+    expect(failureReason(f({ code: 'media-unmounted', params: { file: 'DJI_0079.MP4', volume: 'dji' } }))).toBe(
+      '“DJI_0079.MP4” is on the drive “dji”, which isn’t connected. Connect it, then try again.',
+    );
+    expect(failureReason(f({ code: 'media-unreadable' }))).toBe(t('fail.reason.media'));
+    expect(failureReason(f({ code: 'media-unmounted', params: { file: 'a.mov' } }))).toMatch(/“a\.mov” couldn’t be read/);
+    setLang('zh-CN');
+    expect(failureReason(f({ code: 'media-unmounted', params: { file: 'a.mov', volume: 'dji' } }))).toMatch(/a\.mov.*dji.*没有连接/);
+    expect(failureReason(f({ code: 'app-bug' }))).toMatch(/bug/);
+  });
   it('"Part of Reelfold didn\'t start" only for the engine not starting', () => {
     expect(failureReason(f({ code: 'engine' }))).toMatch(/didn’t start/);
     expect(failureReason(f({ code: 'tool-node', tool: 'node' }))).not.toMatch(/didn’t start/);

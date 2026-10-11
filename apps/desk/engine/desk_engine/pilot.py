@@ -37,10 +37,13 @@ TASKS = ("SEGMENT_PLAN", "PROOFREAD", "GLOSSARY", "COPY", "SCRIPT", "PLANNER", "
 PROVIDERS = ("claude-code", "codex", "anthropic", "openai")
 
 _CODES = (
+    # ffmpeg refused something the app asked for (a filter / encoder this build lacks): a bug in Reelfold, not her files
+    ("app-bug", r"no such filter|filter not found|unknown encoder|encoder not found|unrecognized option|"
+                r"option not found|error (initializing|reinitializing|parsing) (a )?filter|error applying option"),
     ("tool-node", r"node unavailable|referenced from:\s*\S*/node\b|library not loaded\S*.*\bnode\b|"
                   r"npx \(node\) not found|env: node: no such file|node(\.js)? \S* ?is too old"),
     ("tool-ffmpeg", r"ffmpeg not found|ffprobe not found|vstudio_ff(mpeg|probe)=\S* does not exist|"
-                    r"ffmpeg lacks filter|lacks filter\(s\)|unknown bitstream filter|no such filter|"
+                    r"ffmpeg lacks filter|lacks filter\(s\)|unknown bitstream filter|"
                     r"referenced from:\s*\S*/ff(mpeg|probe)\b|ff(mpeg|probe): (command )?not found"),
     ("ai-login", r"\b401\b|auth-expired|not-logged-in|authenticat|not logged in|"
                  r"log ?in (again|required|expired)|session expired|token expired|"
@@ -50,12 +53,13 @@ _CODES = (
     ("ai-missing", r"(claude|codex)\b.*(not found|no such file|not installed)|command not found"),
     ("disk", r"no space left|disk full"),
     ("engine", r"no module named|importerror|modulenotfounderror"),
-    ("media", r"ffmpeg|invalid data found|moov atom|could not open|no such file"),
+    # only a real open / read error (never any line that merely says "ffmpeg")
+    ("media", r"invalid data found|moov atom|could not open|no such file|error opening input|input/output error"),
     ("engine", r"traceback \(most recent"),                  # any other Python crash
 )
 _CODES_ENGINE_START = r"no module named|importerror|modulenotfounderror"
 # an error code a stage-fail event may carry (vstudio's runner: tool-missing, tool-broken, ...)
-_ENGINE_CODE = re.compile(r"^(tool|stage|media|disk|ai)-[a-z0-9-]{2,40}$")
+_ENGINE_CODE = re.compile(r"^(tool|stage|media|disk|ai|app)-[a-z0-9-]{2,40}$")
 _PATH_RE = re.compile(r"(?:/(?:Users|home|private|var|tmp|Volumes|opt|Applications)/|[A-Za-z]:\\)[^\s'\"]*")
 
 

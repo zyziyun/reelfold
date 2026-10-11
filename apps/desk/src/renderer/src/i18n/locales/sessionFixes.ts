@@ -46,6 +46,13 @@ export const sessionFixesEn = {
   'inbox.failed.tool-missing': 'A tool is missing — the first clip stopped',
   'inbox.failed.tool-broken': 'A tool didn’t run — the first clip stopped',
   'inbox.failed.stage': 'A step stopped with an error — the first clip stopped',
+  // an ffmpeg error Reelfold caused (a filter / encoder its ffmpeg lacks) vs a file that really couldn't be read
+  'fail.reason.app-bug': 'Reelfold couldn’t render this — this is a bug in the app, not a problem with your files. Report this problem so it gets fixed.',
+  'fail.reason.media-unreadable': '“{file}” couldn’t be read. Check that it still opens, then try again.',
+  'fail.reason.media-unmounted': '“{file}” is on the drive “{volume}”, which isn’t connected. Connect it, then try again.',
+  'inbox.failed.app-bug': 'A bug in Reelfold stopped the render — report this problem',
+  'inbox.failed.media-unreadable': 'A file couldn’t be read — the first clip stopped',
+  'inbox.failed.media-unmounted': 'A drive isn’t connected — the first clip stopped',
 };
 
 export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
@@ -87,6 +94,12 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
   'inbox.failed.tool-missing': '缺少一个工具，第 1 条试看停下了',
   'inbox.failed.tool-broken': '有个工具运行不了，第 1 条试看停下了',
   'inbox.failed.stage': '有一步出错了，第 1 条试看停下了',
+  'fail.reason.app-bug': '千剪没能渲染出来——这是应用的 bug，不是你的素材有问题。点「报告这个问题」，我们来修。',
+  'fail.reason.media-unreadable': '“{file}”读不了。确认它还能打开，再试一次。',
+  'fail.reason.media-unmounted': '“{file}”在“{volume}”这个盘上，但这个盘没有连接。接上它，再试一次。',
+  'inbox.failed.app-bug': '千剪的 bug 让渲染停下了，报告一下这个问题',
+  'inbox.failed.media-unreadable': '有个素材读不了，第 1 条试看停下了',
+  'inbox.failed.media-unmounted': '有个盘没连接，第 1 条试看停下了',
 };
 
 export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
@@ -128,4 +141,10 @@ export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
   'inbox.failed.tool-missing': 'Un outil manque : le premier clip s’est arrêté',
   'inbox.failed.tool-broken': 'Un outil ne s’est pas lancé : le premier clip s’est arrêté',
   'inbox.failed.stage': 'Une étape s’est arrêtée sur une erreur : le premier clip s’est arrêté',
+  'fail.reason.app-bug': 'Reelfold n’a pas pu faire le rendu — c’est un bug de l’application, pas un problème avec vos fichiers. Signalez ce problème pour qu’il soit corrigé.',
+  'fail.reason.media-unreadable': '« {file} » n’a pas pu être lu. Vérifiez qu’il s’ouvre toujours, puis réessayez.',
+  'fail.reason.media-unmounted': '« {file} » est sur le disque « {volume} », qui n’est pas connecté. Branchez-le, puis réessayez.',
+  'inbox.failed.app-bug': 'Un bug de Reelfold a arrêté le rendu — signalez ce problème',
+  'inbox.failed.media-unreadable': 'Un fichier n’a pas pu être lu : le premier clip s’est arrêté',
+  'inbox.failed.media-unmounted': 'Un disque n’est pas connecté : le premier clip s’est arrêté',
 };

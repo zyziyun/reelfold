@@ -31,7 +31,10 @@ export function failureReason(f: PilotFailure): string {
   // the step in her words (「转写」), never the engine's stage id (「asr」)
   if (f.code === 'stage') reason = step ? tk(key, { stage: t(`hub.step.${step}` as MessageKey) }) : tk('fail.reason.unknown');
   else if ((f.code === 'tool-missing' || f.code === 'tool-broken') && !tool) reason = tk('fail.reason.unknown');
-  else if (has(key)) reason = tk(key, { provider, tool, at: path, path: String(p.path ?? '') });
+  // a file that couldn't be read is named (and its drive when that isn't connected); without a name: the general words
+  else if (f.code === 'media-unmounted' && !(p.file && p.volume)) reason = tk(p.file ? 'fail.reason.media-unreadable' : 'fail.reason.media', { file: String(p.file ?? '') });
+  else if (f.code === 'media-unreadable' && !p.file) reason = tk('fail.reason.media');
+  else if (has(key)) reason = tk(key, { provider, tool, at: path, path: String(p.path ?? ''), file: String(p.file ?? ''), volume: String(p.volume ?? '') });
   else reason = tk('fail.reason.unknown'); // a code this desk has no words for yet
   const fix = String(p.fix ?? f.fix ?? '');
   if (!fix) return reason;

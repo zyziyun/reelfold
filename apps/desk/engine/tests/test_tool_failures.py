@@ -49,6 +49,31 @@ class ClassifyTools(unittest.TestCase):
         self.assertEqual(PI.classify(B_TRACEBACK), "media")
         self.assertEqual(PI.tool_fix("media", B_TRACEBACK), {})
 
+    def test_ffmpeg_errors_the_app_caused_are_a_bug_not_an_unreadable_file(self):
+        """0.2.6: the bundled LGPL ffmpeg has no eq -> "No such filter: 'eq'" was worded as "a file couldn't be
+        read" (the line merely said ffmpeg). Now: app-bug; only real open / read errors are media."""
+        nofilter = ("RuntimeError: build_vlog.py exit 1: [AVFilterGraph @ 0x1] No such filter: 'eq'\n"
+                    "!! render failed - segment 00 (DJI_0079.MP4): No such filter: 'eq'")
+        for t in (nofilter, "[vost#0:0] Unknown encoder 'libx264'", "Error initializing filter 'lutyuv' with args"):
+            self.assertEqual(PI.classify(t), "app-bug", t)
+        self.assertEqual(PI.classify("CalledProcessError: Command '['ffmpeg', '-y']' returned non-zero exit status 8."),
+                         "unknown")                                       # says ffmpeg, but nothing about a file
+        self.assertEqual(PI.classify("Error opening input file /Volumes/dji/DJI_0079.MP4."), "media")
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, PI.LOG), "w") as f:
+            f.write(json.dumps(dict(event="stage-fail", job="V1", stage="render", error=nofilter, code="app-bug",
+                                    params={})) + "\n")
+            f.write(json.dumps(dict(event="project-end", exit_code=5, status="failed")) + "\n")
+        write_json(os.path.join(d, PI.REC), dict(pid=None, started=1, offset=0, exit=5, finished=2))
+        f = PI.failure(d)
+        self.assertEqual((f["code"], f["stage"]), ("app-bug", "render"))
+        with open(os.path.join(d, PI.LOG), "w") as fh:
+            fh.write(json.dumps(dict(event="stage-fail", job="V1", stage="render", error="x: No such file or directory",
+                                     code="media-unmounted", params=dict(file="DJI_0079.MP4", volume="dji"))) + "\n")
+            fh.write(json.dumps(dict(event="project-end", exit_code=5, status="failed")) + "\n")
+        f = PI.failure(d)
+        self.assertEqual((f["code"], f["params"]), ("media-unmounted", dict(file="DJI_0079.MP4", volume="dji")))
+
     def test_failure_document_carries_tool_and_fix(self):
         d = tempfile.mkdtemp()
         with open(os.path.join(d, PI.LOG), "w") as f:

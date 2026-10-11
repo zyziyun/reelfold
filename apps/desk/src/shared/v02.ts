@@ -482,7 +482,12 @@ export type FailureCode =
   | 'tool-ffmpeg'
   | 'tool-missing'
   | 'tool-broken'
-  | 'stage';
+  | 'stage'
+  // an ffmpeg error the app caused (no such filter / unknown encoder): a bug, "Report this problem"
+  | 'app-bug'
+  // ffmpeg could not open / read an input (params {file, volume?}); -unmounted: the drive it is on is not connected
+  | 'media-unreadable'
+  | 'media-unmounted';
 export interface PilotFailure {
   state: 'failed';
   /** FailureCode, or another code a stage-fail event carried (shown with the generic text when the UI has none) */
