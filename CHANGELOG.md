@@ -10,6 +10,12 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **A free offline voice in the Mac app (Apple silicon)**: explainers and courses without an OpenAI key are narrated
+  by Kokoro on this computer (Chinese `zf_xiaobei`, English `af_heart` / `am_michael` / `bf_emma`). The voice is a
+  one-time 330 MB download (Settings › Downloads), started when a video first takes the free voice; before it, the
+  voice step says so and offers the download instead of stopping at "No OpenAI key". Works offline and in the Mac
+  App Store sandbox. Intel Macs and Windows still need a key for narration.
+
 - **Vlog music is picked for you**: a vlog without your own track gets the best fit for your words and the style
   from the license-free library (your `~/Music/Reelfold` tracks, else Reelfold's built-in beds), laid under the
   picture at -14 LUFS. On autopilot it is a decision you can change; with Ask me first you pick from three tracks

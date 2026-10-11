@@ -30,6 +30,7 @@ export const firstRunEn = {
   'assets.group.asr-mlx': 'Speech recognition (best accuracy)',
   'assets.group.asr-ct2': 'Speech recognition',
   'assets.group.chromium': 'Designed covers and slides',
+  'assets.group.tts-kokoro': 'Free voice (Kokoro, offline)',
   // ---------------------------------------------------------------- the sample
   'sample.try': 'Try with a sample',
   'sample.tryTitle': 'No footage handy? Try a sample first',
@@ -89,6 +90,7 @@ export const firstRunZh: Record<keyof typeof firstRunEn, string> = {
   'assets.group.asr-mlx': '语音识别（最高精度）',
   'assets.group.asr-ct2': '语音识别',
   'assets.group.chromium': '设计封面和幻灯片',
+  'assets.group.tts-kokoro': '免费配音（Kokoro，离线）',
   'sample.try': '用示例试试',
   'sample.tryTitle': '手边没素材？先用示例试一遍',
   'sample.trySub': 'Reelfold 自带一段 2 分钟的讲解录音。点一下就规划一个真实批次：去气口、加字幕、每个平台一条竖屏——本机大约 3 分钟。',
@@ -145,6 +147,7 @@ export const firstRunFr: Record<keyof typeof firstRunEn, string> = {
   'assets.group.asr-mlx': 'Reconnaissance vocale (précision maximale)',
   'assets.group.asr-ct2': 'Reconnaissance vocale',
   'assets.group.chromium': 'Couvertures et diapositives',
+  'assets.group.tts-kokoro': 'Voix gratuite (Kokoro, hors ligne)',
   'sample.try': 'Essayer avec un exemple',
   'sample.tryTitle': 'Pas de vidéo sous la main ? Essayez d’abord un exemple',
   'sample.trySub': 'Une leçon commentée de 2 minutes fournie avec Reelfold. Un clic planifie un vrai lot : pauses coupées, sous-titres, une vidéo verticale par plateforme — environ 3 minutes sur cet ordinateur.',

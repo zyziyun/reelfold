@@ -20,6 +20,7 @@ import { emsg, errText } from './msg';
 import { TriageBar } from './TriageBar';
 import { ImportFeedback } from './ShareDialog';
 import { isTyping, useUi } from './ui';
+import { ensureFreeVoice } from '../lib/freeVoice';
 import '../theme/uxcore.css';
 
 export { answerOf, clipName, inboxClip, inboxSub, inboxTitle, issueText, money, optionLabel, secsLabel };
@@ -215,7 +216,7 @@ export function InboxScreen() {
               <span className="kbd">E</span> {t('inbox.key.open')}
             </div>
           </div>
-          {cur && <ItemPane key={cur.key} x={cur} onDone={(a) => void done(cur, a)} onSkip={() => skip(cur)} />}
+          {cur && <ItemPane key={cur.key} x={cur} onDone={(a) => done(cur, a)} onSkip={() => skip(cur)} />}
         </div>
       )}
     </div>
@@ -270,9 +271,15 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
   const segs = author?.review?.kind === 'keep-spans' ? (author.review.segments ?? []) : [];
   const mine = keptChanged(segs, edits);
   const noKey = x.no_key ?? null;
+  // the free voice's one-time download starts with her choice (Kokoro: not in the installer) - once the answer is in:
+  // a finished download restarts the engine sidecar, which must not cut the answer short
+  const takeFreeVoice = (): void => {
+    const answered: unknown = onDone(undefined); // the inbox's done(): a promise
+    if (noKey?.free_engine === 'kokoro') void Promise.resolve(answered).finally(() => void ensureFreeVoice().catch(() => undefined));
+  };
   const primary = (): void => {
     if (x.failure) return;
-    if (noKey) return noKey.free_engine ? onDone(undefined) : undefined; // "Use the free voice" = the step's default
+    if (noKey) return noKey.free_engine ? takeFreeVoice() : undefined; // "Use the free voice" = the step's default
     if (x.href) return void (location.hash = x.href);
     if (x.kind === 'review' && x.project.id) return go({ name: 'focus', id: x.project.id });
     if (author) {
@@ -398,7 +405,7 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
         {x.failure && x.project.id ? (
           <FailureActions item={x.project.id} failure={x.failure} primary />
         ) : noKey ? (
-          <NoKeyActions x={x} onFree={() => onDone(undefined)} />
+          <NoKeyActions x={x} onFree={takeFreeVoice} />
         ) : x.href ? (
           <a className="btn primary lg" href={x.href} data-testid="inbox-open">
             {t('inbox.openCreate')}

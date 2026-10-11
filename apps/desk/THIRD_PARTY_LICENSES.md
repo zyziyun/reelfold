@@ -168,22 +168,31 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | Package | Version | Licence | Targets | Source |
 |---|---|---|---|---|
 | absl-py | 2.5.0 | Apache-2.0 | all | https://github.com/abseil/abseil-py |
+| addict | 2.4.0 | MIT License | darwin-arm64 | https://github.com/mewwts/addict |
+| annotated-doc | 0.0.5 | MIT | darwin-arm64 | https://github.com/fastapi/annotated-doc |
 | annotated-types | 0.8.0 | MIT | all | https://github.com/annotated-types/annotated-types |
 | anyio | 4.15.1 | MIT | all | https://pypi.org/project/anyio/ |
 | attrs | 26.1.0 | MIT | all | https://pypi.org/project/attrs/ |
 | av | 19.0.1 | BSD-3-Clause | darwin-x64, win32-x64 | https://pypi.org/project/av/ |
 | babel | 2.18.0 | BSD License | all | https://github.com/python-babel/babel |
+| blis | 1.3.3 | BSD License | darwin-arm64 | https://github.com/explosion/cython-blis |
 | brotli | 1.2.0 | MIT | all | https://github.com/google/brotli |
+| catalogue | 2.0.10 | MIT License | darwin-arm64 | https://github.com/explosion/catalogue |
 | certifi | 2026.7.22 | Mozilla Public License 2.0 (MPL 2.0) | all | https://github.com/certifi/python-certifi |
 | cffi | 2.1.1 | MIT-0 | all | https://pypi.org/project/cffi/ |
 | charset-normalizer | 3.5.2 | MIT | darwin-arm64 | https://pypi.org/project/charset-normalizer/ |
 | click | 8.5.0 | BSD-3-Clause | all | https://github.com/pallets/click/ |
+| cloudpathlib | 0.26.0 | MIT License | darwin-arm64 | https://pypi.org/project/cloudpathlib/ |
+| cn2an | 0.5.24 | MIT License | darwin-arm64 | https://github.com/Ailln/cn2an |
 | colorama | 0.4.6 | BSD License | win32-x64 | https://github.com/tartley/colorama |
 | coloredlogs | 15.0.1 | MIT License | darwin-x64 | https://coloredlogs.readthedocs.io |
+| confection | 1.3.3 | MIT License | darwin-arm64 | https://github.com/explosion/confection |
 | contourpy | 1.4.0 | BSD-3-Clause | darwin-arm64, win32-x64 | https://github.com/contourpy/contourpy |
 | contourpy | 1.3.3 | BSD License | darwin-x64 | https://github.com/contourpy/contourpy |
 | ctranslate2 | 4.8.2 | MIT | darwin-x64, win32-x64 | https://github.com/OpenNMT/CTranslate2 |
 | cycler | 0.12.1 | BSD License | all | https://pypi.org/project/cycler/ |
+| cymem | 2.0.13 | MIT License | darwin-arm64 | https://github.com/explosion/cymem |
+| en-core-web-sm | 3.8.0 | MIT | darwin-arm64 | https://github.com/explosion/spacy-models |
 | faster-whisper | 1.2.1 | MIT License | darwin-x64, win32-x64 | https://github.com/SYSTRAN/faster-whisper |
 | filelock | 4.0.12 | MIT | all | https://github.com/tox-dev/py-filelock |
 | flatbuffers | 25.12.19 | Apache Software License | all | https://github.com/google/flatbuffers |
@@ -191,9 +200,9 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | fsspec | 2026.9.0 | BSD-3-Clause | all | https://github.com/fsspec/filesystem_spec |
 | h11 | 0.16.0 | MIT License | all | https://github.com/python-hyper/h11 |
 | hf-xet | 1.6.0 | Apache-2.0 | all | https://github.com/huggingface/xet-core |
-| httpcore | 1.0.9 | BSD-3-Clause | darwin-x64, win32-x64 | https://github.com/encode/httpcore |
+| httpcore | 1.0.9 | BSD-3-Clause | all | https://github.com/encode/httpcore |
 | httpcore2 | 2.13.1 | BSD-3-Clause | all | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 |
-| httpx | 0.28.1 | BSD License | darwin-x64, win32-x64 | https://github.com/encode/httpx |
+| httpx | 0.28.1 | BSD License | all | https://github.com/encode/httpx |
 | httpx2 | 2.13.1 | BSD-3-Clause | all | https://github.com/pydantic/httpx2 |
 | huggingface-hub | 2.1.1 | Apache Software License | darwin-arm64 | https://github.com/huggingface/huggingface_hub |
 | huggingface-hub | 1.33.0 | Apache Software License | darwin-x64, win32-x64 | https://github.com/huggingface/huggingface_hub |
@@ -201,20 +210,29 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | idna | 3.20 | BSD-3-Clause | all | https://github.com/kjd/idna |
 | jax | 0.4.38 | Apache-2.0 | darwin-x64 | https://github.com/jax-ml/jax |
 | jaxlib | 0.4.38 | Apache-2.0 | darwin-x64 | https://github.com/jax-ml/jax |
+| jieba | 0.42.1 | MIT License | darwin-arm64 | https://github.com/fxsjy/jieba |
+| jinja2 | 3.1.6 | BSD License | darwin-arm64 | https://github.com/pallets/jinja/ |
 | jiter | 0.17.0 | MIT | all | https://github.com/pydantic/jiter/ |
 | jsonschema | 4.26.0 | MIT | all | https://github.com/python-jsonschema/jsonschema |
 | jsonschema-specifications | 2025.9.1 | MIT | all | https://github.com/python-jsonschema/jsonschema-specifications |
 | kiwisolver | 1.5.1 | BSD License | all | https://pypi.org/project/kiwisolver/ |
 | llvmlite | 0.50.0 | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception | darwin-arm64 | https://github.com/numba/llvmlite |
+| markdown-it-py | 4.2.0 | MIT License | darwin-arm64 | https://github.com/executablebooks/markdown-it-py |
+| markupsafe | 3.0.4 | BSD-3-Clause | darwin-arm64 | https://github.com/pallets/markupsafe/ |
 | matplotlib | 3.11.2 | Python Software Foundation License | all | https://matplotlib.org |
+| mdurl | 0.1.2 | MIT License | darwin-arm64 | https://github.com/executablebooks/mdurl |
 | mediapipe | 0.10.35 | Apache Software License | darwin-arm64, win32-x64 | https://github.com/google/mediapipe |
 | mediapipe | 0.10.21 | Apache Software License | darwin-x64 | https://github.com/google/mediapipe |
+| miniaudio | 1.71 | MIT License | darwin-arm64 | https://github.com/irmen/pyminiaudio |
+| misaki | 0.9.4 | Apache Software License | darwin-arm64 | https://pypi.org/project/misaki/ |
 | ml-dtypes | 0.5.4 | Apache-2.0 | darwin-x64 | https://pypi.org/project/ml-dtypes/ |
 | mlx | 0.32.3 | MIT | darwin-arm64 | https://github.com/ml-explore/mlx |
+| mlx-audio | 0.5.8 | MIT | darwin-arm64 | https://github.com/Blaizzy/mlx-audio |
 | mlx-metal | 0.32.3 | MIT | darwin-arm64 | https://github.com/ml-explore/mlx |
 | mlx-whisper | 0.4.3 | MIT | darwin-arm64 | https://github.com/ml-explore/mlx-examples |
 | more-itertools | 11.1.0 | MIT | darwin-arm64 | https://github.com/more-itertools/more-itertools |
 | mpmath | 1.3.0 | BSD License | darwin-x64 | https://github.com/fredrik-johansson/mpmath |
+| murmurhash | 1.0.15 | MIT License | darwin-arm64 | https://github.com/explosion/murmurhash |
 | numba | 0.68.0 | BSD License | darwin-arm64 | https://numba.pydata.org |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | darwin-arm64, win32-x64 | https://pypi.org/project/numpy/ |
 | numpy | 1.26.4 | BSD License | darwin-x64 | https://github.com/numpy/numpy |
@@ -226,13 +244,17 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | opencv-python | 5.0.0.93 | Apache Software License | darwin-arm64, win32-x64 | https://github.com/opencv/opencv-python |
 | opencv-python | 4.11.0.86 | Apache Software License | darwin-x64 | https://github.com/opencv/opencv-python |
 | opt-einsum | 3.4.0 | MIT License | darwin-x64 | https://pypi.org/project/opt-einsum/ |
+| ordered-set | 4.1.0 | MIT License | darwin-arm64 | https://pypi.org/project/ordered-set/ |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | all | https://github.com/pypa/packaging |
 | pillow | 12.3.0 | MIT-CMU | all | https://github.com/python-pillow/Pillow |
+| preshed | 3.0.13 | MIT License | darwin-arm64 | https://github.com/explosion/preshed |
+| proces | 0.1.7 | MIT License | darwin-arm64 | https://github.com/Ailln/proces |
 | protobuf | 4.25.9 | 3-Clause BSD License | darwin-x64 | https://developers.google.com/protocol-buffers/ |
 | protobuf | 7.36.2 | 3-Clause BSD License | win32-x64 | https://developers.google.com/protocol-buffers/ |
 | pycparser | 3.0 | BSD-3-Clause | all | https://github.com/eliben/pycparser |
 | pydantic | 2.13.5 | MIT | all | https://github.com/pydantic/pydantic |
 | pydantic-core | 2.46.5 | MIT | all | https://github.com/pydantic/pydantic/tree/main/pydantic-core |
+| pygments | 2.21.0 | BSD-2-Clause | darwin-arm64 | https://github.com/pygments/pygments |
 | pyparsing | 3.3.3 | MIT | all | https://github.com/pyparsing/pyparsing.git |
 | pypinyin | 0.55.0 | MIT License | all | https://github.com/mozillazg/python-pinyin |
 | python-dateutil | 2.9.0.post0 | Apache Software License / BSD License | all | https://github.com/dateutil/dateutil |
@@ -240,21 +262,34 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | referencing | 0.37.0 | MIT | all | https://github.com/python-jsonschema/referencing |
 | regex | 2026.9.29 | Apache-2.0 AND CNRI-Python | darwin-arm64 | https://github.com/mrabarnett/mrab-regex |
 | requests | 2.34.2 | Apache Software License | darwin-arm64 | https://github.com/psf/requests |
+| rich | 15.0.0 | MIT License | darwin-arm64 | https://github.com/Textualize/rich |
 | rpds-py | 2026.9.1 | MIT | all | https://github.com/crate-py/rpds |
 | sentencepiece | 0.2.2 | Apache-2.0 | darwin-x64 | https://github.com/google/sentencepiece |
+| setuptools | 84.0.0 | MIT | darwin-arm64 | https://github.com/pypa/setuptools |
+| shellingham | 1.5.4 | ISC License (ISCL) | darwin-arm64 | https://github.com/sarugaku/shellingham |
 | six | 1.17.0 | MIT License | all | https://github.com/benjaminp/six |
+| smart-open | 8.0.2 | MIT License | darwin-arm64 | https://pypi.org/project/smart-open/ |
 | sniffio | 1.3.1 | Apache Software License / MIT License | all | https://github.com/python-trio/sniffio |
 | sounddevice | 0.5.6 | MIT | all | https://pypi.org/project/sounddevice/ |
 | soundfile | 0.14.0 | BSD License | all | https://github.com/bastibe/python-soundfile |
+| spacy | 3.8.16 | MIT License | darwin-arm64 | https://github.com/explosion/spaCy |
+| spacy-legacy | 3.0.12 | MIT License | darwin-arm64 | https://spacy.io |
+| spacy-loggers | 1.0.5 | MIT | darwin-arm64 | https://github.com/explosion/spacy-loggers |
+| srsly | 2.5.4 | MIT License | darwin-arm64 | https://github.com/explosion/srsly |
 | sympy | 1.14.0 | BSD License | darwin-x64 | https://github.com/sympy/sympy |
+| thinc | 8.3.13 | MIT License | darwin-arm64 | https://github.com/explosion/thinc |
 | tiktoken | 0.14.0 | MIT License | darwin-arm64 | https://pypi.org/project/tiktoken/ |
 | tokenizers | 0.23.2 | Apache Software License | darwin-x64, win32-x64 | https://github.com/huggingface/tokenizers |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT | all | https://pypi.org/project/tqdm/ |
 | truststore | 0.10.4 | MIT | all | https://github.com/sethmlarson/truststore |
+| typer | 0.27.3 | MIT | darwin-arm64 | https://github.com/fastapi/typer |
 | typing-extensions | 4.16.0 | PSF-2.0 | all | https://pypi.org/project/typing-extensions/ |
 | typing-inspection | 0.4.4 | MIT | all | https://github.com/pydantic/typing-inspection |
 | tzdata | 2026.5 | Apache-2.0 | win32-x64 | https://github.com/python/tzdata |
 | urllib3 | 2.8.0 | MIT | darwin-arm64 | https://pypi.org/project/urllib3/ |
+| wasabi | 1.1.3 | MIT | darwin-arm64 | https://github.com/explosion/wasabi |
+| weasel | 1.0.0 | MIT License | darwin-arm64 | https://github.com/explosion/weasel/ |
+| wrapt | 2.5.0 | BSD-2-Clause | darwin-arm64 | https://github.com/GrahamDumpleton/wrapt |
 | zopfli | 0.4.3 | Apache Software License | all | https://github.com/fonttools/py-zopfli |
 
 ## Downloaded on first run (not in the installer)
@@ -267,6 +302,7 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | asr-mlx-fast | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (4-bit MLX conversion by mlx-community). | huggingface.co |
 | asr-mlx | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (MLX conversion by mlx-community). | huggingface.co |
 | asr-ct2 | darwin-x64, win32-x64 | OpenAI Whisper large-v3-turbo weights, MIT (CTranslate2 conversion). | huggingface.co |
+| tts-kokoro | darwin-arm64 | Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community). | huggingface.co |
 | chromium-darwin-arm64 | darwin-arm64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-darwin-x64 | darwin-x64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-win32-x64 | win32-x64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
@@ -274,7 +310,13 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
 segmenter) — Apache-2.0, Google. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
-CTranslate2 conversion: dropbox-dash / Mobius Labs). Chromium snapshot builds — BSD-3-Clause and third-party licences.
+CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
+silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community). Chromium
+snapshot builds — BSD-3-Clause and third-party licences.
+
+The free voice's text front end (misaki, Apache-2.0) runs without its optional GPL / LGPL helpers: no espeak-ng
+(espeakng-loader / phonemizer, GPL-3.0; English words missing from misaki's dictionaries are skipped instead) and no
+num2words (LGPL-2.1; number words come from the engine's own `vstudio.numwords_en`, MIT).
 
 ## Sample recording (in the installer)
 

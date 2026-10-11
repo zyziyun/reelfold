@@ -117,6 +117,28 @@ class MissingKey(unittest.TestCase):
         self.assertEqual((out["code"], out["params"]["service"]), ("ai-key-missing", "OpenAI"))
 
 
+class FreeVoiceNotDownloaded(unittest.TestCase):
+    """The app's free voice (Kokoro) is a one-time download: before it, the voice step names that and the desk offers
+    the download (code tool-voice, fix download-voice) - never "Part of Reelfold didn't start"."""
+    TEXT = ("RuntimeError: tts.py exit 1: The free voice is not downloaded yet: download it in Settings > Downloads "
+            "(Free voice), then try again.")
+
+    def test_classified(self):
+        self.assertEqual(PI.classify(self.TEXT), "tool-voice")
+        self.assertEqual(PI.tool_fix("tool-voice", self.TEXT), dict(tool="voice", fix="download-voice"))
+
+    def test_failure_document(self):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, PI.LOG), "w") as f:
+            f.write(json.dumps(dict(event="stage-fail", job="ep1", stage="voice", error=self.TEXT, code="tool-voice",
+                                    params=dict(tool="voice", fix="download-voice"))) + "\n")
+            f.write(json.dumps(dict(event="project-end", exit_code=5, status="failed")) + "\n")
+        write_json(os.path.join(d, PI.REC), dict(pid=None, started=1, offset=0, exit=5, finished=2))
+        out = PI.failure(d)
+        self.assertEqual((out["code"], out["stage"], out["params"]), ("tool-voice", "voice",
+                                                                       dict(tool="voice", fix="download-voice")))
+
+
 class ToolHealth(unittest.TestCase):
     def test_tools_in_capabilities_info_real_mode_only(self):
         class R:

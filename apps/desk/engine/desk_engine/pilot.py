@@ -7,10 +7,10 @@ The child runs in its own session (it outlives the desk); stdout + stderr go to 
 
     (+ stage: the step that failed; a stage-fail event's own ``code`` / ``params`` win, e.g. tool-broken {tool,
     path, fix}; a Python crash inside a step is ``stage``, not ``engine``, which means the engine did not start)
-    {state: "failed", code: tool-node | tool-ffmpeg | ai-login | ai-quota | ai-timeout | ai-missing | engine | disk
+    {state: "failed", code: tool-node | tool-ffmpeg | tool-voice | ai-login | ai-quota | ai-timeout | ai-missing | engine | disk
      | media | unknown, provider: claude-code | codex | anthropic | openai | None, error: short text without paths,
-     at, + for tool-*: tool: "node" | "ffmpeg", fix: "brew-reinstall-node" | "install-node" | "reinstall-app" |
-     "install-ffmpeg"}
+     at, + for tool-*: tool: "node" | "ffmpeg" | "voice", fix: "brew-reinstall-node" | "install-node" |
+     "reinstall-app" | "install-ffmpeg" | "download-voice" (the app's free voice before its one-time download)}
 
 tool-node: the Node.js that renders HyperFrames is missing, too old or broken (a Homebrew node whose dylibs were
 upgraded away: ``dyld: Library not loaded ... Referenced from: .../node``). tool-ffmpeg: ffmpeg / ffprobe is missing,
@@ -45,6 +45,8 @@ _CODES = (
     ("tool-ffmpeg", r"ffmpeg not found|ffprobe not found|vstudio_ff(mpeg|probe)=\S* does not exist|"
                     r"ffmpeg lacks filter|lacks filter\(s\)|unknown bitstream filter|"
                     r"referenced from:\s*\S*/ff(mpeg|probe)\b|ff(mpeg|probe): (command )?not found"),
+    # the free voice before its one-time download (vstudio.tts.VoiceNotDownloaded): the desk offers the download
+    ("tool-voice", r"free voice is not downloaded"),
     # a paid service without its key ("No OpenAI key: OPENAI_API_KEY is not set ..."): named, never "log in again"
     ("ai-key-missing", r"\bno [a-z][\w .-]{1,30}? key: [a-z0-9_]+_api_key is not set|\b[a-z0-9]+_api_key is not set"),
     ("ai-login", r"\b401\b|auth-expired|not-logged-in|authenticat|not logged in|"
@@ -83,6 +85,8 @@ def tool_fix(code, text):
     if code == "tool-ffmpeg":
         bundled = "reelfold.app" in t or "/runtime/ffmpeg" in t or "vstudio_ff" in t
         return dict(tool="ffmpeg", fix="reinstall-app" if bundled else "install-ffmpeg")
+    if code == "tool-voice":
+        return dict(tool="voice", fix="download-voice")
     if code == "ai-key-missing":
         try:
             from vstudio import proctail

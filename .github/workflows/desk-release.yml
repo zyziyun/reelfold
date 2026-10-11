@@ -110,7 +110,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: apps/desk/build/.cache
-          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt') }}
+          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt', 'apps/desk/packaging/assets.json') }}
           restore-keys: runtime-darwin-arm64-
 
       - name: Import the Developer ID certificate + API key (temporary keychain)

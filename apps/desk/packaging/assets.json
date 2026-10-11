@@ -89,13 +89,13 @@
    "files": [
     {
      "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo-q4/resolve/660c343bbf4e52ac257f0b7d952e5388e6f93bef/config.json",
-     "dest": "config.json",
+     "dest": "./config.json",
      "sha256": "538e24557b8f9bc504700add5e7bbe32087c2353001ff563e64772ad4398671a",
      "size": 341
     },
     {
      "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo-q4/resolve/660c343bbf4e52ac257f0b7d952e5388e6f93bef/weights.npz",
-     "dest": "weights.npz",
+     "dest": "./weights.npz",
      "sha256": "862bbc832b05f3f4ec19dd632b701d61a6d3f5c7906360a10d72a79870642a80",
      "size": 463664664
     }
@@ -169,6 +169,56 @@
      "dest": "./vocabulary.json",
      "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
      "size": 1068114
+    }
+   ]
+  },
+  {
+   "id": "tts-kokoro",
+   "required": false,
+   "targets": [
+    "darwin-arm64"
+   ],
+   "root": "models/kokoro-82m-mlx",
+   "env": {
+    "VSTUDIO_KOKORO_MODEL": ""
+   },
+   "licence": "Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community).",
+   "files": [
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/config.json",
+     "dest": "./config.json",
+     "sha256": "5abb01e2403b072bf03d04fde160443e209d7a0dad49a423be15196b9b43c17f",
+     "size": 2351
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/kokoro-v1_0.safetensors",
+     "dest": "./kokoro-v1_0.safetensors",
+     "sha256": "4e9ecdf03b8b6cf906070390237feda473dc13327cb8d56a43deaa374c02acd8",
+     "size": 327115152
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/voices/zf_xiaobei.safetensors",
+     "dest": "./voices/zf_xiaobei.safetensors",
+     "sha256": "cbda378bbe266c735aa13c94c20b6224f2f8d0e16cf3abe612a4e6d93ebeab51",
+     "size": 522320
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/voices/af_heart.safetensors",
+     "dest": "./voices/af_heart.safetensors",
+     "sha256": "2c1c733b0e6576c810e268d3e440c21dea4e0f0131a3ba4cfc98d7fe6136d094",
+     "size": 522320
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/voices/am_michael.safetensors",
+     "dest": "./voices/am_michael.safetensors",
+     "sha256": "3940147ded35deba0bb52e8132f89b719298e0520258c34584358aa5a24da2ea",
+     "size": 522320
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c/voices/bf_emma.safetensors",
+     "dest": "./voices/bf_emma.safetensors",
+     "sha256": "8878a75a6661305849eeb1d6293a7177250193616e161b4c3100636434dfe69f",
+     "size": 522320
     }
    ]
   },

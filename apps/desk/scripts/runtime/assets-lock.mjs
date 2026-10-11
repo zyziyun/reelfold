@@ -15,6 +15,10 @@ const PINS = {
   // 4-bit turbo: ~460 MB instead of 1.6 GB, near-identical captions; the first-run default (the full one is optional)
   mlxWhisperFast: { repo: 'mlx-community/whisper-large-v3-turbo-q4', rev: '660c343bbf4e52ac257f0b7d952e5388e6f93bef' },
   fasterWhisper: { repo: 'dropbox-dash/faster-whisper-large-v3-turbo', rev: '0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf' },
+  // the free offline voice (Apple silicon, mlx-audio): Kokoro-82M v1.0 weights + the voices the engine defaults to
+  // (zf_xiaobei = vstudio.tts.ZH_VOICE, af_heart = DEFAULT_VOICE) and two more English ones
+  kokoro: { repo: 'mlx-community/Kokoro-82M-bf16', rev: 'a71e4d38b236d968966a2002c4c895dbd12b1c3c',
+    voices: ['zf_xiaobei', 'af_heart', 'am_michael', 'bf_emma'] },
   chromium: { 'darwin-arm64': ['Mac_Arm', 1712143, 'chrome-mac.zip'], 'darwin-x64': ['Mac', 1712146, 'chrome-mac.zip'], 'win32-x64': ['Win_x64', 1712024, 'chrome-win.zip'] },
 };
 const skipChromium = process.argv.includes('--skip-chromium');
@@ -37,7 +41,7 @@ async function file(url, dest) {
 }
 
 async function hf({ repo, rev }, dir, names) {
-  const tree = await (await fetch(`https://huggingface.co/api/models/${repo}/tree/${rev}`)).json();
+  const tree = await (await fetch(`https://huggingface.co/api/models/${repo}/tree/${rev}?recursive=true`)).json();
   const out = [];
   for (const name of names) {
     const ent = tree.find((x) => x.path === name);
@@ -107,6 +111,17 @@ groups.push({
   env: { VSTUDIO_WHISPER_FW: '' },
   licence: 'OpenAI Whisper large-v3-turbo weights, MIT (CTranslate2 conversion).',
   files: await hf(PINS.fasterWhisper, '.', ['config.json', 'model.bin', 'preprocessor_config.json', 'tokenizer.json', 'vocabulary.json']),
+});
+log('kokoro');
+// optional: downloaded the first time a video needs the free voice (the desk offers it), or from Settings > Downloads
+groups.push({
+  id: 'tts-kokoro',
+  required: false,
+  targets: ['darwin-arm64'],
+  root: 'models/kokoro-82m-mlx',
+  env: { VSTUDIO_KOKORO_MODEL: '' },
+  licence: 'Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community).',
+  files: await hf(PINS.kokoro, '.', ['config.json', 'kokoro-v1_0.safetensors', ...PINS.kokoro.voices.map((v) => `voices/${v}.safetensors`)]),
 });
 for (const [target, [dir, rev, zip]] of Object.entries(PINS.chromium)) {
   const url = `https://storage.googleapis.com/chromium-browser-snapshots/${dir}/${rev}/${zip}`;

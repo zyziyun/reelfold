@@ -72,11 +72,11 @@ jobs:
         working-directory: .
       - name: Lint unit tests
         run: python3 -m unittest discover -s scripts/appstore
-      - name: Cache runtime downloads (python, wheels, conda packages)
+      - name: Cache runtime downloads (python, wheels, conda packages, the free voice it verifies with)
         uses: actions/cache@v6
         with:
           path: apps/desk/build/.cache
-          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt') }}
+          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt', 'apps/desk/packaging/assets.json') }}
           restore-keys: runtime-darwin-arm64-
       - name: Engine runtime (its verify step lints the runtime's symbols and strings)
         run: node scripts/runtime/bundle.mjs --target=darwin-arm64
@@ -130,7 +130,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: apps/desk/build/.cache
-          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt') }}
+          key: runtime-darwin-arm64-${{ hashFiles('apps/desk/packaging/runtime.lock.json', 'apps/desk/packaging/requirements/*.txt', 'apps/desk/packaging/ffmpeg/*.txt', 'apps/desk/packaging/assets.json') }}
           restore-keys: runtime-darwin-arm64-
       - name: Certificates, profile and API key (temporary keychain)
         if: steps.secrets.outputs.ok == 'true'

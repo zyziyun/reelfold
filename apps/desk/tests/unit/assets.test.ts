@@ -207,6 +207,7 @@ describe('bundled runtime', () => {
       VSTUDIO_FFPROBE: path.join(rt.ffmpegBin, 'ffprobe'),
       PYTHONNOUSERSITE: '1',
       PYTHONDONTWRITEBYTECODE: '1',
+      VSTUDIO_TTS_MODELS_MANAGED: '1', // the free voice's model comes from the app's downloads, never the engine's
     });
     expect(e).not.toHaveProperty('pythonPath'); // the engine owns the encoder now: no sitecustomize shim
     expect(runtimeEnv(rt, { DESK_H264_ENCODER: 'libx264' }).env.VSTUDIO_H264_ENCODER).toBe('libx264');

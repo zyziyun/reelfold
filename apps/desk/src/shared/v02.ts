@@ -492,7 +492,9 @@ export type FailureCode =
   | 'media-unreadable'
   | 'media-unmounted'
   // a paid service without its key (params {service, fix: free-voice | add-key}): named, with Settings to add it
-  | 'ai-key-missing';
+  | 'ai-key-missing'
+  // the app's free voice before its one-time download (params {tool: voice, fix: download-voice}): the desk offers it
+  | 'tool-voice';
 export interface PilotFailure {
   state: 'failed';
   /** FailureCode, or another code a stage-fail event carried (shown with the generic text when the UI has none) */

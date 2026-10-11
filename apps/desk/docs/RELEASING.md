@@ -20,6 +20,11 @@ Every installer contains the whole engine, so users need nothing preinstalled:
 
 - `resources/runtime/python` — python-build-standalone CPython 3.12 + the pip set hash-locked in
   `packaging/requirements/<target>.txt` (mlx-whisper on Apple silicon, faster-whisper elsewhere; torch is not shipped).
+  Apple silicon also carries the free offline voice: Kokoro via mlx-audio + misaki (zh: jieba / pypinyin / cn2an;
+  en: spaCy + `en_core_web_sm`), without espeak-ng (GPL) or num2words (LGPL) - `scripts/runtime/patch_kokoro.py`;
+  jieba has no wheel and is built from its hash-pinned sdist (`pip.sdist` in `runtime.lock.json`). Runtime size
+  +116 MB (992 -> 1,111 MB on disk, Oct 2026). Intel Macs and Windows bundle no free voice (no MLX; kokoro-onnx would
+  need espeak-ng): there the voice needs a key or the user's own TTS server.
 - `resources/runtime/ffmpeg` — the conda-forge **LGPL** FFmpeg 8.1 (shared libraries, no libx264) plus only the
   libraries it loads (`packaging/ffmpeg/<target>.txt`, md5-pinned conda explicit lists).
 - `resources/runtime/vstudio` — the engine from the same checkout (the monorepo root: `lib/`, `workflows/`,
@@ -34,7 +39,9 @@ Every installer contains the whole engine, so users need nothing preinstalled:
 On first launch the setup wizard starts a one-time background download (progress + time left in the wizard and a banner; Settings → Models, fonts and tools for the optional ones) of the assets pinned
 with sha256 in `packaging/assets.json`, into the app data folder (`~/Library/Application Support/Reelfold/assets`,
 `%APPDATA%\Reelfold\assets`; the first Reelfold launch copies an older `Daycut` / `video-studio desk` profile there once, see `src/main/identity.ts`): fonts + MediaPipe models (62 MB) and Whisper large-v3-turbo 4-bit (464 MB) — required; optional: the full-precision
-Whisper large-v3-turbo (1.6 GB, takes over once installed) and
+Whisper large-v3-turbo (1.6 GB, takes over once installed), the free voice `tts-kokoro` (Kokoro-82M v1.0 + 4 voices,
+329 MB, Apple silicon; also started when a video first takes the free voice - the voice step's "Download the free
+voice") and
 Chromium for HTML covers/slides/HyperFrames (180–360 MB). Downloads resume, are verified before they are installed and
 never leave a half-installed folder.
 

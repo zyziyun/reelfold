@@ -39,10 +39,18 @@ for (const t of targets) {
     if (!py.has(k)) py.set(k, { name: m[1], version: m[2], targets: [] });
     py.get(k).targets.push(t);
   }
+  // direct-URL wheels (spaCy's en_core_web_sm from its GitHub release): name-version from the wheel file name
+  for (const m of txt.matchAll(/^([A-Za-z0-9_.-]+) @ (\S+\/([A-Za-z0-9_.]+)-([0-9][^-]*)-[^/\s]+\.whl)/gm)) {
+    const k = `${m[1]}==${m[4]}`;
+    if (!py.has(k)) py.set(k, { name: m[1], version: m[4], targets: [], url: m[2] });
+    py.get(k).targets.push(t);
+  }
 }
+// not on PyPI: their licence from the project itself
+const NOT_ON_PYPI = { 'en-core-web-sm': { lic: 'MIT', url: 'https://github.com/explosion/spacy-models' } };
 const pyRows = [];
 for (const p of [...py.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-  const { lic, url } = await pypiLicence(p.name, p.version);
+  const { lic, url } = NOT_ON_PYPI[p.name] ?? (await pypiLicence(p.name, p.version));
   pyRows.push(`| ${p.name} | ${p.version} | ${lic.replaceAll('|', '/')} | ${p.targets.length === targets.length ? 'all' : p.targets.join(', ')} | ${url} |`);
 }
 
@@ -170,7 +178,13 @@ ${assetRows.join('\n')}
 Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
 segmenter) — Apache-2.0, Google. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
-CTranslate2 conversion: dropbox-dash / Mobius Labs). Chromium snapshot builds — BSD-3-Clause and third-party licences.
+CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
+silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community). Chromium
+snapshot builds — BSD-3-Clause and third-party licences.
+
+The free voice's text front end (misaki, Apache-2.0) runs without its optional GPL / LGPL helpers: no espeak-ng
+(espeakng-loader / phonemizer, GPL-3.0; English words missing from misaki's dictionaries are skipped instead) and no
+num2words (LGPL-2.1; number words come from the engine's own \`vstudio.numwords_en\`, MIT).
 
 ## Sample recording (in the installer)
 

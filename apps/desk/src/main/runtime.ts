@@ -52,6 +52,9 @@ export function runtimeEnv(rt: BundledRuntime, env = process.env) {
       VSTUDIO_H264_ENCODER: env.VSTUDIO_H264_ENCODER || env.DESK_H264_ENCODER || rt.manifest.h264Encoder,
       VSTUDIO_FFMPEG: path.join(rt.ffmpegBin, `ffmpeg${exe}`),
       VSTUDIO_FFPROBE: path.join(rt.ffmpegBin, `ffprobe${exe}`),
+      // voice models (Kokoro) come from the app's downloads (assets.json tts-kokoro -> VSTUDIO_KOKORO_MODEL): the
+      // engine never fetches one itself; without it the step says "not downloaded" and the desk offers the download
+      VSTUDIO_TTS_MODELS_MANAGED: '1',
     },
     // the workflow scripts call `python3` / `ffmpeg` by name: the bundled ones, never /usr/bin/python3 (an xcrun shim
     // that refuses to run inside the App Sandbox, and without the engine's packages anyway)

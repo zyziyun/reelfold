@@ -10,6 +10,7 @@ import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { go } from '../lib/router';
 import { errText } from './msg';
+import { ensureFreeVoice } from '../lib/freeVoice';
 import { openReport } from '../support/Support';
 import { useUi } from './ui';
 
@@ -87,6 +88,19 @@ export function FailureActions({ item, failure, primary = true, onDone }: { item
       ) : (
         <button className={p} disabled={busy} onClick={() => void retry(failure.provider ?? undefined)} data-testid="fail-retry">
           {t('fail.retry')}
+        </button>
+      )}
+      {failure.code === 'tool-voice' && (
+        <button
+          className="btn"
+          onClick={() =>
+            void ensureFreeVoice()
+              .then((st) => ui.toast(t(st === 'installed' ? 'fail.voiceReady' : 'fail.voiceDownloading')))
+              .catch((e) => ui.toast(errText(e), { error: true }))
+          }
+          data-testid="fail-download-voice"
+        >
+          {t('fail.downloadVoice')}
         </button>
       )}
       {failure.code === 'ai-key-missing' && (

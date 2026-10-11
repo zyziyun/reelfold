@@ -7,7 +7,10 @@
 // App Store compliance (all editions, one runtime): no tkinter / Tcl / Tk, no scipy (its extensions import
 // non-public Accelerate BLAS symbols - App Review 2.5.1; mlx-whisper's one scipy call is patched, see
 // patch_mlx_whisper.py), no "itms-services" in urllib.parse. scripts/appstore/appstore_lint.py checks the result.
-// Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio]
+// The free offline voice (Apple silicon): Kokoro-82M via mlx-audio + misaki, without espeak-ng (GPL) or num2words
+// (LGPL) - patch_kokoro.py; its weights are a first-run download (packaging/assets.json tts-kokoro), and verify
+// synthesises a Chinese and an English sentence with them (--skip=voice: not).
+// Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio,verify,voice]
 // The pip step runs the target's own interpreter, so build on a host of the target's OS/arch (CI matrix does).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,8 +41,11 @@ async function buildPython() {
   run(TAR, ['-xzf', tgz, '-C', OUT]); // -> OUT/python
   const py = pyExe();
   const req = path.join(ROOT, 'packaging', 'requirements', `${target}.txt`);
+  // wheels only, except the few pure-Python packages PyPI has no wheel for (runtime.lock.json pip.sdist: built from
+  // their hash-pinned sdist)
+  const sdist = lock.pip.sdist?.length ? [`--no-binary=${lock.pip.sdist.join(',')}`] : [];
   run(py, ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-warn-script-location', '--no-deps',
-    '--require-hashes', '--only-binary=:all:', '--no-compile', '-r', req],
+    '--require-hashes', '--only-binary=:all:', ...sdist, '--no-compile', '-r', req],
   { env: { ...process.env, PIP_CACHE_DIR: path.join(CACHE, 'pip'), PYTHONNOUSERSITE: '1' } });
   // licence inventory before pip itself goes
   const inv = run(py, ['-c', INVENTORY_PY, path.join(OUT, 'licenses', 'python-packages')], { capture: true, quiet: true });
@@ -71,6 +77,8 @@ function pruneSitePackages() {
   const site = path.join(lib, 'site-packages');
   for (const p of ['pip', 'setuptools', '_distutils_hack']) rmrf(path.join(site, p));
   for (const e of fs.readdirSync(site)) if (/^(pip|setuptools)-.*\.dist-info$/.test(e)) rmrf(path.join(site, e));
+  // setuptools' import hook (spaCy pins setuptools): without _distutils_hack every start prints "Error processing line 1"
+  rmrf(path.join(site, 'distutils-precedence.pth'));
   // stdlib parts the engine never uses
   for (const p of ['test', 'idlelib', 'turtledemo', 'tkinter', 'ensurepip', 'lib2to3', 'pydoc_data']) rmrf(path.join(lib, p));
   // tkinter's C extension links Tcl / Tk (App Review 2.5.1 refuses every Tcl_* symbol); nothing imports it
@@ -87,6 +95,9 @@ function pruneSitePackages() {
     rmrf(path.join(pyRoot, 'include'));
     rmrf(path.join(pyRoot, 'tcl'));
   }
+  // the voice's word segmenter: misaki.zh calls jieba.lcut (dict.txt + finalseg) only; part-of-speech tagging, keyword
+  // extraction and the Paddle LAC model are never imported (33 MB)
+  for (const p of ['posseg', 'lac_small', 'analyse']) rmrf(path.join(site, 'jieba', p));
   // heavy test suites inside wheels
   walk(site, (p, ent) => {
     // C headers (mlx/include, numpy/_core/include, ...) are only for building extensions
@@ -113,7 +124,13 @@ function appStoreCompliance(py) {
   // mlx-whisper (Apple silicon ASR) without scipy: its one scipy call, patched with an equivalent numpy medfilt
   const site = path.join(lib, 'site-packages');
   if (fs.existsSync(path.join(site, 'mlx_whisper'))) run(py, [path.join(ROOT, 'scripts', 'runtime', 'patch_mlx_whisper.py'), site]);
+  // Kokoro (mlx-audio + misaki) without espeak-ng and num2words
+  if (fs.existsSync(path.join(site, 'mlx_audio'))) run(py, [path.join(ROOT, 'scripts', 'runtime', 'patch_kokoro.py'), site]);
   if (fs.existsSync(path.join(site, 'scipy'))) throw new Error('scipy is in the runtime: the pins must not install it (runtime.lock.json pip.overrides)');
+  // copyleft / unused heavy packages the voice must not pull in (runtime.lock.json pip.overrides)
+  for (const p of ['espeakng_loader', 'phonemizer', 'num2words', 'transformers', 'torch', 'pypinyin_dict']) {
+    if (fs.existsSync(path.join(site, p))) throw new Error(`${p} is in the runtime: the pins must not install it (runtime.lock.json pip.overrides)`);
+  }
 }
 
 function walk(dir, fn) {
@@ -198,7 +215,7 @@ async function buildVstudio() {
 }
 
 // ------------------------------------------------------------------ checks
-function verify() {
+async function verify() {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== 'PATH'));
   const sysPath = Object.entries(process.env).find(([k]) => k.toUpperCase() === 'PATH')?.[1] ?? '';
   Object.assign(env, { PYTHONPATH: path.join(OUT, 'vstudio', 'lib'), PYTHONNOUSERSITE: '1', PYTHONDONTWRITEBYTECODE: '1',
@@ -223,6 +240,7 @@ function verify() {
   // this build: an LGPL ffmpeg has no eq / hqdn3d / boxblur ..., and a missing one stops a render ("No such filter")
   run(pyExe(), [path.join(ENGINE_ROOT, 'scripts', 'check_ffmpeg_filters.py'), '--binary',
     path.join(OUT, 'ffmpeg', 'bin', isWin ? 'ffmpeg.exe' : 'ffmpeg')], { env });
+  if (isMac && target.endsWith('arm64') && !skip.has('voice')) await verifyVoice(env);
   if (isMac) {
     checkMachO();
     // what App Review checks (Tcl / non-public Accelerate symbols, itms-services): the same lint release-mas.sh runs
@@ -235,6 +253,26 @@ function verify() {
       { env: { ...env, VSTUDIO_H264_ENCODER: T.h264, VSTUDIO_FFMPEG: path.join(OUT, 'ffmpeg', 'bin', 'ffmpeg.exe') } });
     checkPathLengths();
   }
+}
+
+// The free voice end to end: the tts-kokoro asset group (the same pinned files the app downloads on first use, cached
+// here) + the bundled runtime -> a Chinese and an English take through vstudio.tts, offline, as the app runs it.
+async function verifyVoice(env) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'packaging', 'assets.json'), 'utf8'));
+  const g = manifest.groups.find((x) => x.id === 'tts-kokoro');
+  if (!g) throw new Error('packaging/assets.json has no tts-kokoro group (node scripts/runtime/assets-lock.mjs)');
+  const dir = path.join(CACHE, 'assets', 'tts-kokoro', g.files[0].sha256.slice(0, 12));
+  for (const f of g.files) await download(f.url, path.join(dir, f.dest.replace(/^\.\//, '')), f.sha256);
+  const venv = { ...env, PYTHONUTF8: '1', VSTUDIO_KOKORO_MODEL: dir, VSTUDIO_TTS_MODELS_MANAGED: '1', HF_HUB_OFFLINE: '1',
+    HF_HOME: path.join(CACHE, 'hf-empty'), VSTUDIO_CACHE: path.join(CACHE, 'vstudio-cache-voice') };
+  rmrf(venv.VSTUDIO_CACHE);
+  run(pyExe(), ['-c', [
+    'import wave; from vstudio import tts',
+    'assert tts.local_engine() == "kokoro" and tts.kokoro_ready(), tts.providers(probe=False)',
+    'for text, voice in (("你好，欢迎来到这门课。", "zf_xiaobei"), ("Welcome back. In 2024 we shipped 3 features.", "af_heart")):',
+    '    w = wave.open(tts.synth(text, engine="kokoro", voice=voice)); s = w.getnframes() / w.getframerate()',
+    '    assert 1.0 < s < 15.0, (voice, s); print("voice ok", voice, round(s, 2), "s")',
+  ].join('\n')], { env: venv });
 }
 
 // Windows MAX_PATH (260) without the long-paths policy: the runtime's deepest file + a typical per-user install prefix
@@ -278,6 +316,8 @@ function manifest() {
     ffmpeg: lock.ffmpeg.spec,
     h264Encoder: T.h264,
     asr: isMac && target.endsWith('arm64') ? 'mlx-whisper' : 'faster-whisper',
+    // the free offline voice (weights: packaging/assets.json tts-kokoro, downloaded on first use); elsewhere a TTS key
+    tts: isMac && target.endsWith('arm64') ? 'kokoro-mlx' : null,
     builtAt: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(OUT, 'runtime.json'), JSON.stringify(m, null, 1) + '\n');
@@ -287,5 +327,5 @@ if (!skip.has('vstudio')) await buildVstudio();
 if (!skip.has('python')) await buildPython();
 if (!skip.has('ffmpeg')) await buildFfmpeg();
 manifest();
-if (!skip.has('verify')) verify();
+if (!skip.has('verify')) await verify();
 log(`runtime ready: ${OUT}`);

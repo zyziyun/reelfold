@@ -52,12 +52,15 @@
     "$comment": "Copied at build time from this monorepo's root (apps/desk -> ../..; VSTUDIO_ENGINE_SRC overrides), never fetched: include = top-level entries copied, exclude = directory names dropped anywhere. runtime.json / COMMIT record the checkout's git HEAD."
   },
   "pip": {
-    "$comment": "Added to the pinned repo's requirements.txt per target. torch is overridden away (mlx-whisper only needs it to convert checkpoints); so is scipy (App Review 2.5.1: its extensions import non-public Accelerate BLAS symbols; the engine is scipy-free and mlx-whisper's one call is patched by scripts/runtime/patch_mlx_whisper.py).",
+    "$comment": "Added to the pinned repo's requirements.txt per target. torch is overridden away (mlx-whisper only needs it to convert checkpoints); so is scipy (App Review 2.5.1: its extensions import non-public Accelerate BLAS symbols; the engine is scipy-free and mlx-whisper's one call is patched by scripts/runtime/patch_mlx_whisper.py). darwin-arm64 also carries the free offline voice: Kokoro-82M via mlx-audio (MIT) + misaki G2P (Apache-2.0; zh: jieba/pypinyin/cn2an, en: spaCy + en_core_web_sm, MIT). Dropped for it: transformers (mlx-audio's Kokoro path never imports it), espeak-ng (espeakng-loader / phonemizer-fork, GPL: misaki's English fallback for out-of-dictionary words, which are then skipped), spacy-curated-transformers (+torch, only for en_core_web_trf), pypinyin-dict (110 MB, only misaki's Kokoro v1.1-zh frontend; the v1.0 weights use misaki.zh without it) and num2words (LGPL: replaced by vstudio.numwords_en); scripts/runtime/patch_kokoro.py makes mlx-audio / misaki run without them. The Kokoro weights are a first-run download (packaging/assets.json group tts-kokoro), not in the installer.",
     "extra": {
       "darwin-arm64": [
         "mediapipe==0.10.35",
         "mlx>=0.30",
-        "mlx-whisper"
+        "mlx-whisper",
+        "mlx-audio",
+        "misaki[en,zh]",
+        "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
       ],
       "darwin-x64": [
         "mediapipe==0.10.21",
@@ -70,8 +73,18 @@
     },
     "overrides": [
       "torch; python_version < \"0\"",
-      "scipy; python_version < \"0\""
-    ]
+      "scipy; python_version < \"0\"",
+      "transformers; python_version < \"0\"",
+      "espeakng-loader; python_version < \"0\"",
+      "phonemizer-fork; python_version < \"0\"",
+      "spacy-curated-transformers; python_version < \"0\"",
+      "num2words; python_version < \"0\"",
+      "pypinyin-dict; python_version < \"0\""
+    ],
+    "sdist": [
+      "jieba"
+    ],
+    "$sdist": "Pure-Python packages PyPI has no wheel for, built from their hash-pinned sdist (pip --no-binary; everything else stays --only-binary). jieba (MIT): misaki's Chinese word segmentation."
   },
   "micromamba": {
     "version": "2.9.0-0",
