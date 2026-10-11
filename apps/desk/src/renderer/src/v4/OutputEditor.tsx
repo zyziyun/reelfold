@@ -8,12 +8,12 @@
 // her (Settings: ask before applying AI edits), else 导出 - or, for a take from Record yourself, Finish — make my video.
 // Pickups (ux/record/pickups): select words in the transcript -> Re-record (R) / Add after (⇧R) -> the player turns
 // into the camera (PickupStage) -> the pickup is spliced in as one undo step and marked in the transcript.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, CalendarClock, ChevronDown, ChevronRight, Contrast, GanttChart, Music, PanelRight, Redo2, Scissors, SkipForward, SlidersHorizontal, Sparkle, Sparkles, Square, Trash2, Type, Undo2, Upload, X, ZoomIn } from 'lucide-react';
 import type { ChatDoc } from '../../../shared/chatEdit';
 import { EngineError } from '../../../shared/engineClient';
 import type { ClipFile, EditOp, EffectDef, InboxItem, OutputDoc } from '../../../shared/v04';
-import { fmtClock, getLang, t, type MessageKey } from '../i18n';
+import { fmtClock, fmtLen, getLang, t, type MessageKey } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
@@ -77,7 +77,8 @@ function fixedKey(id: string, clip: string) {
 /** `layout`: classic (the editor page) or studio (the Studio's one page per video, layout A of the 2026-10 review:
  * player with cover / captions / versions on the left, the question, the transcript and the post on the right, one AI
  * bar at the bottom). `ask`: the Studio row's open question about this clip (shown at the top of the page). */
-export function OutputEditor({ id, clip, layout = 'classic', ask = null, place = null }: { id: string; clip: string; layout?: 'classic' | 'studio'; ask?: InboxItem | null; place?: { project: string | null; pos: [number, number] | null } | null }) {
+/** ``more``: the Studio's ⋯ (the row's menu) at the end of the header; ``notice``: a line under it (an empty clip). */
+export function OutputEditor({ id, clip, layout = 'classic', ask = null, place = null, more = null, notice = null }: { id: string; clip: string; layout?: 'classic' | 'studio'; ask?: InboxItem | null; place?: { project: string | null; pos: [number, number] | null } | null; more?: ReactNode; notice?: ReactNode }) {
   const studio = layout === 'studio';
   const { client, subscribe } = useEngine();
   const ui = useUi();
@@ -1040,7 +1041,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     };
     const projClips = (hist.data?.items.find((x) => x.id === id) ? place?.pos?.[1] : null) ?? null;
     return (
-      <div className={`cs ${ai.open ? 'ai-open' : ''}`} data-testid="editor" data-layout="studio">
+      <div className={`cs ${ai.open ? 'ai-open' : ''} ${notice ? 'has-notice' : ''}`} data-testid="editor" data-layout="studio">
         <header className="cs-top" data-testid="studio-header">
           <div className="cs-title">
             <span className="cs-where muted clamp1" data-testid="studio-where">
@@ -1055,7 +1056,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
                     {fmtClock(durNow)} <span className="arrow">→ {fmtClock(durAfter)}</span>
                   </>
                 ) : (
-                  fmtClock(durNow || doc.duration)
+                  fmtLen(durNow || doc.duration)
                 )}
               </span>
             </span>
@@ -1095,8 +1096,10 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
                 {t('st.schedule')}
               </button>
             )}
+            {more}
           </div>
         </header>
+        {notice}
         <div className="cs-body" ref={bodyRef} style={{ ['--cs-player' as string]: `${playerPane.size}px`, ['--cs-ai' as string]: `${aiPane.size}px` }}>
           <section className="cs-left" ref={leftCol} aria-label={t('st.playerCol')}>
             {stageEl}

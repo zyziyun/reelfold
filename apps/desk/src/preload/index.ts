@@ -21,6 +21,7 @@ const api: DeskApi = {
     setAuto: (on) => call('support:setAuto', { on }),
   },
   showItem: (path) => call('shell:showItem', { path }),
+  countFiles: (path) => call('fs:countFiles', { path }),
   openLogs: () => call('shell:openLogs'),
   copyText: (text) => call('clipboard:write', { text }),
   getSettings: () => call('settings:get'),
@@ -125,6 +126,7 @@ const api: DeskApi = {
     setRoutes: (routes) => call('ai:setRoutes', { routes }),
   },
   confirmCleanup: (batchId) => call('cleanup:confirm', { batchId }),
+  trashProjects: (dirs) => call('history:trash', { dirs }),
   mediaUrl: (p) => `vsmedia://local/${encodeURIComponent(p)}`,
 };
 

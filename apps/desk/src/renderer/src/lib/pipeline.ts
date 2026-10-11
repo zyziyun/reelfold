@@ -36,7 +36,8 @@ export function stepOfLive(live: Pick<LiveStatus, 'stage' | 'stages'> | null | u
   return stepOfStage(st);
 }
 
-export type HubState = 'planning' | 'plan-ready' | 'queued' | 'run' | 'you' | 'failed' | 'ready' | 'scheduled' | 'out' | 'idle';
+/** stopped: she stopped it (a request while it planned, a project's run): Try again goes on */
+export type HubState = 'planning' | 'plan-ready' | 'queued' | 'run' | 'you' | 'failed' | 'ready' | 'scheduled' | 'out' | 'idle' | 'stopped';
 
 export interface Pipeline {
   state: HubState;
@@ -57,6 +58,7 @@ export function postsOf(posts: CalendarPost[], item: string): { scheduled: numbe
 
 export function requestPipeline(r: OpenRequest): Pipeline {
   if (r.state === 'error') return { state: 'failed', current: 'plan', progress: null, eta: null };
+  if (r.state === 'stopped') return { state: 'stopped', current: 'plan', progress: null, eta: null };
   if (r.state === 'needs') return { state: 'you', current: 'plan', progress: null, eta: null }; // waits for her files / pages
   if (r.state === 'done') return { state: r.mode === 'ask' ? 'plan-ready' : 'planning', current: 'plan', progress: 1, eta: null };
   const p = r.progress;
@@ -72,6 +74,7 @@ export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDeci
   const eta = live?.eta ?? null;
   const at = stepOfLive(live);
   if (i.queued) return { state: 'queued', current: 'plan', progress: null, eta: null };
+  if (i.stopped && !i.failure && i.live?.state !== 'running') return { state: 'stopped', current: at ?? 'plan', progress, eta: null };
   if (s === 'error') return { state: 'failed', current: at ?? stepOfStage(i.failure?.stage) ?? 'plan', progress, eta: null };
   // something waits for her (an Inbox question, a run parked at one): she is what it waits for - 「需要你」, not 「进行中」
   if (s === 'you' || hasDecision || live?.needs_you) return { state: 'you', current: at ?? 'check', progress: s === 'run' ? progress : null, eta: null };

@@ -16,6 +16,10 @@ interface Ctx {
   wantArchived(): void;
   /** requests from Home that are not projects yet (planning, a plan waiting for her Start, a failure) */
   requests: OpenRequest[];
+  /** the archived requests (GET /api/intake/open?archived=1), loaded with the archived projects (wantArchived) */
+  archivedRequests: OpenRequest[];
+  /** how many requests are archived (the open list says, without reading them) */
+  nArchivedRequests: number;
 }
 
 const HistoryCtx = createContext<Ctx | null>(null);
@@ -50,8 +54,14 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   const wantRef = useRef(false);
   const arch = useLoad((c) => (want ? c.history({ archived: true }) : Promise.resolve(null)), [want]);
   const reloadArch = arch.reload;
-  const reqs = useLoad((c) => c.openRequests().catch(() => ({ items: [] as OpenRequest[] })), []);
-  const reloadReqs = reqs.reload;
+  const reqs = useLoad((c) => c.openRequests().catch(() => ({ items: [] as OpenRequest[], archived: 0 })), []);
+  const archReqs = useLoad((c) => (want ? c.openRequests(true).catch(() => ({ items: [] as OpenRequest[] })) : Promise.resolve(null)), [want]);
+  const reloadArchReqs = archReqs.reload;
+  const reloadReqs = useCallback(() => {
+    reqs.reload();
+    if (wantRef.current) reloadArchReqs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const reload = useCallback(() => {
     reloadMain();
     reloadReqs();
@@ -135,7 +145,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   }, [anyLive]);
 
   const requests = useMemo(() => reqs.data?.items ?? [], [reqs.data]);
-  return <HistoryCtx.Provider value={{ data, error, reload, live, archived: arch.data, wantArchived, requests }}>{children}</HistoryCtx.Provider>;
+  const archivedRequests = useMemo(() => archReqs.data?.items ?? [], [archReqs.data]);
+  const nArchivedRequests = archReqs.data ? archivedRequests.length : (reqs.data?.archived ?? 0);
+  return <HistoryCtx.Provider value={{ data, error, reload, live, archived: arch.data, wantArchived, requests, archivedRequests, nArchivedRequests }}>{children}</HistoryCtx.Provider>;
 }
 
 export function useHistory(): Ctx {

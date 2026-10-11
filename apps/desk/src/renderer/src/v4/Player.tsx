@@ -5,7 +5,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { Maximize2, Minimize2, Pause, Play, Repeat, ScanLine, StepBack, StepForward, Subtitles, Wand2, X } from 'lucide-react';
 import type { CaptionCue, ClipFile, EffectInstance } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
-import { fmtClock, t } from '../i18n';
+import { fmtLen, t } from '../i18n';
 import { clamp, frameTime, loopTime, safeAreas, shuttle, step, timecode } from '../lib/player';
 import { isTyping } from './ui';
 import { media } from './kit';
@@ -418,7 +418,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
           <StepForward className="ico" />
         </button>
         <span className="tc num" data-testid="timecode">
-          <TC v={timecode(cur, fps)} /> <span className="of">/ {fmtClock(dur)}</span>
+          <TC v={timecode(cur, fps)} /> <span className="of">/ {fmtLen(dur)}</span>
         </span>
         {rate !== 0 && rate !== 1 && <span className="muted num">{rate > 0 ? `${rate}×` : `◀ ${-rate}×`}</span>}
         <span className="sp" />

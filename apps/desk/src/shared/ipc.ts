@@ -53,6 +53,8 @@ export const ipcSchemas = {
   'dialog:openFolder': z.undefined(),
   'shell:openExternal': z.strictObject({ url: httpsUrl }),
   'shell:showItem': z.strictObject({ path: absPath }),
+  /** the composer's folder chip: how many files a dropped folder holds (its top level) */
+  'fs:countFiles': z.strictObject({ path: absPath }),
   /** Settings › Advanced › Help and diagnostics: the app's own log folder (<userData>/logs) */
   'shell:openLogs': z.undefined(),
   'clipboard:write': z.strictObject({ text: z.string().max(20000) }),
@@ -164,6 +166,8 @@ export const ipcSchemas = {
   // Lite (Mac App Store) build: keep access to dropped files / folders across launches (main/access.ts)
   'access:grant': z.strictObject({ paths: z.array(absPath).min(1).max(200) }),
   'cleanup:confirm': z.strictObject({ batchId }),
+  // the Studio's row menu: Delete project folders (main asks, then moves them to the Trash; main/trash.ts)
+  'history:trash': z.strictObject({ dirs: z.array(absPath).min(1).max(200) }),
   // AI accounts & models: status, CLI login terminal (command from the engine), routes
   'ai:status': z.strictObject({ refresh: z.boolean().optional(), probe: z.boolean().optional(), providers: z.array(provider).max(12).optional() }),
   'ai:test': z.strictObject({ provider }),

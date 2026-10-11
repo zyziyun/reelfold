@@ -4,9 +4,10 @@
 // one AI bar). A request still being planned or a project with no clips yet opens its own detail; a question about a
 // whole project opens the question itself. ＋ New video (⌘N) starts the next one from here; ↑ ↓ and ⌘1–9 switch.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, LayoutGrid, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles } from 'lucide-react';
-import type { CalendarPost, InboxItem } from '../../../shared/v04';
-import { fmtClock, fmtDate, fmtMinutes, t } from '../i18n';
+import { Archive, ArchiveRestore, ChevronDown, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import type { HistoryItem } from '../../../shared/v02';
+import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
+import { fmtDate, fmtLen, fmtMinutes, t } from '../i18n';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { inboxTitle } from '../lib/inboxView';
@@ -23,7 +24,10 @@ import { OutputEditor } from './OutputEditor';
 import { ProjectDetail, stateLine } from './Hub';
 import { itemPipeline } from '../lib/pipeline';
 import { Composer } from './Composer';
-import { isTyping } from './ui';
+import { isTyping, useUi } from './ui';
+import { archivedLine } from '../lib/archive';
+import { bulkActions, emptyClip, rangePick, togglePick, type ActionTarget } from '../lib/rowActions';
+import { useRowActions, type RowActionsApi } from './RowActions';
 import { useBox, usePane } from '../lib/panes';
 import { Splitter } from './Splitter';
 import { ProjectRun, RequestRun } from './RunView';
@@ -48,6 +52,20 @@ function loadFolded(): StudioGroup[] {
   }
 }
 
+type ListFilter = StudioFilter | 'archived';
+const LIST_FILTERS: ListFilter[] = [...STUDIO_FILTERS, 'archived'];
+
+export function targetOf(r: StudioRow): ActionTarget {
+  return { key: r.key, kind: r.kind, title: r.title, r: r.r, i: r.i, video: r.video };
+}
+
+function archivedTargets(items: HistoryItem[], reqs: OpenRequest[]): ActionTarget[] {
+  return [
+    ...reqs.map((r): ActionTarget => ({ key: `r:${r.id}`, kind: 'request', title: r.name || r.prompt || '', r })),
+    ...items.map((i): ActionTarget => ({ key: `p:${i.id}`, kind: 'project', title: i.name, i })),
+  ];
+}
+
 /** 「连着看」: clips waiting for her review play one after another (space approves, X sends back - Focus); other
  * questions come one after another on their clips' pages. */
 function inRow(items: InboxItem[]) {
@@ -57,12 +75,13 @@ function inRow(items: InboxItem[]) {
 }
 
 export function Studio({ id, clip }: { id?: string; clip?: string }) {
-  const { data: hist } = useHistory();
+  const { data: hist, archived: archDoc, archivedRequests, nArchivedRequests, wantArchived } = useHistory();
+  const ui = useUi();
   const inbox = useInbox();
   const { rows, posts } = useStudioData();
   const groups = useMemo(() => grouped(rows), [rows]);
   const q = routeQuery();
-  const [filter, setFilterS] = useState<StudioFilter>(() => (STUDIO_FILTERS.includes(q.f as StudioFilter) ? (q.f as StudioFilter) : ((sessionStorage.getItem(FKEY) as StudioFilter | null) ?? 'all')));
+  const [filter, setFilterS] = useState<ListFilter>(() => (LIST_FILTERS.includes(q.f as ListFilter) ? (q.f as ListFilter) : ((sessionStorage.getItem(FKEY) as ListFilter | null) ?? 'all')));
   useEffect(() => {
     const on = () => {
       // the Inbox is the Studio's Needs you filter now (an old link, a notification, ⌘K)
@@ -70,19 +89,57 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         const rest = location.hash.split('?')[1];
         history.replaceState(null, '', `#/studio?f=you${rest ? `&${rest}` : ''}`);
       }
-      const f = routeQuery().f as StudioFilter | undefined;
-      if (f && STUDIO_FILTERS.includes(f)) setFilterS(f);
+      const f = routeQuery().f as ListFilter | undefined;
+      if (f && LIST_FILTERS.includes(f)) setFilterS(f);
     };
     on();
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
-  const setFilter = (f: StudioFilter) => {
+  const setFilter = (f: ListFilter) => {
     setFilterS(f);
+    setPicked(new Set());
     sessionStorage.setItem(FKEY, f);
   };
-  const order: StudioGroup[] = filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
+  const inArchive = filter === 'archived';
+  useEffect(() => {
+    if (inArchive) wantArchived();
+  }, [inArchive, wantArchived]);
+  const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
   const list = order.flatMap((g) => groups[g]);
+  // the Archived filter: archived requests and projects, each with Restore (nothing in it counts anywhere else)
+  const archived = useMemo(() => archivedTargets(archDoc?.items ?? [], archivedRequests), [archDoc, archivedRequests]);
+  const nArchived = (archDoc ? archDoc.items.length : typeof hist?.archived === 'number' ? hist.archived : 0) + nArchivedRequests;
+  // multi-select: ⌘-click one more, ⇧-click a range; the bulk bar, ⌫ and the menus act on what is picked
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const anchor = useRef<string | null>(null);
+  const targets = useMemo(() => (inArchive ? archived : rows.map(targetOf)), [inArchive, archived, rows]);
+  const screen = inArchive ? archived.map((x) => x.key) : list.map((r) => r.key);
+  const pickedT = targets.filter((x) => picked.has(x.key));
+  const ra = useRowActions(rows.map(targetOf), (_a, xs) => {
+    setPicked(new Set());
+    if (cur && xs.some((x) => x.key === cur.key || (x.i && cur.i && x.i.dir === cur.i.dir))) location.hash = href({ name: 'studio' });
+  });
+  const pick = (e: React.MouseEvent, key: string): boolean => {
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      setPicked((p) => togglePick(p.size ? p : cur && !inArchive ? new Set([cur.key]) : p, key));
+      anchor.current = key;
+      return true;
+    }
+    if (e.shiftKey) {
+      e.preventDefault();
+      setPicked((p) => rangePick(screen, anchor.current ?? cur?.key ?? null, key, p));
+      return true;
+    }
+    anchor.current = key;
+    if (picked.size) setPicked(new Set());
+    return false;
+  };
+  const menuAt = (e: { clientX: number; clientY: number; preventDefault?: () => void }, x: ActionTarget) => {
+    const many = picked.has(x.key) && picked.size > 1;
+    ui.menu(e, ra.items(x, many ? pickedT : []));
+  };
   const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (rows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : rows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
   const cur = (selKey ? rows.find((r) => r.key === selKey) : null) ?? null;
   // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
@@ -145,6 +202,21 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
       go(list[Number(e.key) - 1]);
       return;
     }
+    if (!isTyping(e.target) && !mod && !e.altKey && e.key === 'Escape' && picked.size) {
+      setPicked(new Set());
+      return;
+    }
+    // ⌫ archives what is picked (or the row in focus in the list), with undo
+    if (!isTyping(e.target) && !mod && !e.altKey && (e.key === 'Backspace' || e.key === 'Delete') && !inArchive) {
+      const inList = !!(e.target as HTMLElement | null)?.closest?.('.st-list');
+      const xs = pickedT.length ? pickedT : inList && cur ? [targetOf(cur)] : [];
+      if (xs.length && bulkActions(xs).includes('archive')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        void ra.archive(xs);
+      }
+      return;
+    }
     if (isTyping(e.target) || mod || e.altKey || e.shiftKey) return;
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     if ((e.target as HTMLElement | null)?.closest?.('[data-testid=transcript-body], .tl, [role=slider], [role=separator]')) return;
@@ -162,7 +234,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     return () => window.removeEventListener('keydown', on, true);
   }, []);
 
-  const count = (g: StudioFilter) => (g === 'all' ? rows.length : groups[g].length);
+  const count = (g: ListFilter) => (g === 'all' ? rows.length : g === 'archived' ? nArchived : groups[g].length);
   // the list: resizable, folds to the edge (⌘B, its button, or dragged past its min); saved on this Mac
   const [boxRef, box] = useBox<HTMLDivElement>();
   const pane = usePane('studio.list', box.w ? box.w - PAGE_MIN : undefined);
@@ -237,16 +309,18 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           </div>
         )}
         <div className="st-filters" role="tablist" aria-label={t('st.filters')}>
-          {STUDIO_FILTERS.map((f) => (
-            <button key={f} role="tab" aria-selected={filter === f} className={`st-f ${filter === f ? 'on' : ''} ${f === 'you' && count('you') ? 'you' : ''}`} onClick={() => setFilter(f)} data-testid={`studio-f-${f}`}>
-              {f === 'all' ? t('st.f.all') : t(VIDEO_STATUS_KEY[f])}
+          {LIST_FILTERS.filter((f) => f !== 'archived' || nArchived > 0 || inArchive).map((f) => (
+            <button key={f} role="tab" aria-selected={filter === f} className={`st-f ${filter === f ? 'on' : ''} ${f === 'you' && count('you') ? 'you' : ''} ${f === 'archived' ? 'arch' : ''}`} onClick={() => setFilter(f)} data-testid={`studio-f-${f}`}>
+              {f === 'all' ? t('st.f.all') : f === 'archived' ? t('ra.f.archived') : t(VIDEO_STATUS_KEY[f])}
               {count(f) > 0 && <b className="n">{count(f)}</b>}
             </button>
           ))}
         </div>
         <div className="st-rows" data-testid="studio-rows" ref={rowsEl}>
-          {!rows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
-          {rows.length > 0 && !list.length && <p className="st-empty muted">{t('st.empty')}</p>}
+          {!inArchive && !rows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
+          {!inArchive && rows.length > 0 && !list.length && <p className="st-empty muted">{t('st.empty')}</p>}
+          {inArchive && (archDoc ? !archived.length : !nArchived) && <p className="st-empty muted">{t('ra.archivedEmpty')}</p>}
+          {inArchive && archived.map((x) => <ArchivedRow key={x.key} x={x} picked={picked.has(x.key)} onPick={pick} onMenu={menuAt} ra={ra} />)}
           {order.map((g) => {
             const l = groups[g];
             if (!l.length) return null;
@@ -267,11 +341,12 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                   )}
                   {left ? <span className="muted">{t('st.left', { t: fmtMinutes(Math.max(1, Math.round(left / 60))) })}</span> : null}
                 </h3>
-                {!shut && l.map((r) => <StudioListRow key={r.key} r={r} on={cur?.key === r.key} n={list.indexOf(r) + 1} />)}
+                {!shut && l.map((r) => <StudioListRow key={r.key} r={r} on={cur?.key === r.key} n={list.indexOf(r) + 1} picked={picked.has(r.key)} onPick={pick} onMenu={menuAt} />)}
               </section>
             );
           })}
         </div>
+        {picked.size > 0 && <BulkBar xs={pickedT} ra={ra} inArchive={inArchive} onClear={() => setPicked(new Set())} />}
         <footer className="st-foot muted">
           <span>{t('st.jump', { key: keyHint('⌘K') })}</span>
           <span className="sp" />
@@ -303,11 +378,12 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         {watch ? (
           <WatchAll rows={watching} lineOf={lineOf} onClose={() => setWatch(false)} />
         ) : cur ? (
-          <Page key={cur.key} r={cur} posts={posts} />
+          <Page key={cur.key} r={cur} posts={posts} more={(e) => menuAt(e, targetOf(cur))} ra={ra} />
         ) : (
           <Empty title={rows.length ? t('st.pick') : t('st.emptyAll')} />
         )}
       </section>
+      {ra.modal}
     </div>
   );
 }
@@ -319,21 +395,47 @@ function lineOf(r: StudioRow): string {
   if (r.group === 'you') return r.tone === 'error' ? t('hub.s.failed') : t('hub.s.you');
   if (r.group === 'run') {
     // not in the run line (no queue place): it has simply not been started - never "waiting its turn"
-    if (r.tone === 'off' && !r.i?.queued) return t('st.r.notStarted');
+    if (r.tone === 'off' && !r.i?.queued && r.p.state !== 'stopped') return t('st.r.notStarted');
     return stateLine(r.p, r.i);
   }
   if (r.group === 'scheduled' && r.post) {
     const when = fmtDate(r.post.at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
     return r.posted ? t('st.r.posted', { when }) : `${when} · ${platformName(r.post.platform)}`;
   }
-  return t('st.r.made', { d: r.duration ? fmtClock(r.duration) : '—' });
+  return t('st.r.made', { d: r.duration ? fmtLen(r.duration) : '—' });
 }
 
-function StudioListRow({ r, on, n }: { r: StudioRow; on: boolean; n: number }) {
+type PickFn = (e: React.MouseEvent, key: string) => boolean;
+type MenuFn = (e: { clientX: number; clientY: number; preventDefault?: () => void }, x: ActionTarget) => void;
+
+/** The hover ⋯ of a row / the page header: the same menu as a right-click. */
+function MoreButton({ onMenu, testId = 'row-more', className = '' }: { onMenu: (e: { clientX: number; clientY: number }) => void; testId?: string; className?: string }) {
+  return (
+    <button
+      className={`btn ghost icon st-more ${className}`}
+      aria-label={t('ra.more')}
+      aria-haspopup="menu"
+      data-tip={t('ra.more')}
+      data-testid={testId}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const b = e.currentTarget.getBoundingClientRect();
+        onMenu({ clientX: b.right - 220, clientY: b.bottom + 4 });
+      }}
+    >
+      <MoreHorizontal className="ico" />
+    </button>
+  );
+}
+
+function StudioListRow({ r, on, n, picked, onPick, onMenu }: { r: StudioRow; on: boolean; n: number; picked: boolean; onPick: PickFn; onMenu: MenuFn }) {
   const pct = r.p.progress == null ? null : Math.round(r.p.progress * 100);
   const where = [r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ');
+  const x = targetOf(r);
   return (
-    <a className={`st-row ${on ? 'on' : ''}`} href={rowHref(r)} aria-current={on ? 'true' : undefined} data-testid="studio-row" data-row={r.key} data-group={r.group} data-kind={r.kind} data-tone={r.tone} title={n > 0 && n < 10 ? `${r.title} · ${keyHint(`⌘${n}`)}` : r.title}>
+    <div className={`st-rowwrap ${picked ? 'picked' : ''}`} onContextMenu={(e) => onMenu(e, x)} data-picked={picked ? 'true' : undefined}>
+    <a className={`st-row ${on ? 'on' : ''} ${picked ? 'picked' : ''}`} href={rowHref(r)} onClick={(e) => onPick(e, r.key)} aria-current={on ? 'true' : undefined} aria-selected={picked || undefined} data-testid="studio-row" data-row={r.key} data-group={r.group} data-kind={r.kind} data-tone={r.tone} title={n > 0 && n < 10 ? `${r.title} · ${keyHint(`⌘${n}`)}` : r.title}>
       <Thumb src={r.thumb} className="st-th" />
       <span className="tx">
         <b className="clamp1" lang="zh-CN">
@@ -352,31 +454,150 @@ function StudioListRow({ r, on, n }: { r: StudioRow; on: boolean; n: number }) {
         )}
       </span>
     </a>
+    <MoreButton onMenu={(e) => onMenu(e, x)} />
+    </div>
+  );
+}
+
+/** A row of the Archived filter: dimmed, its archived date, Restore at hand (and the same menu). */
+function ArchivedRow({ x, picked, onPick, onMenu, ra }: { x: ActionTarget; picked: boolean; onPick: PickFn; onMenu: MenuFn; ra: RowActionsApi }) {
+  const when = x.i ? archivedLine(x.i) : x.r?.archived_at ? archivedLine({ archived_at: x.r.archived_at }) : t('projects.archivedNoDate');
+  return (
+    <div className={`st-rowwrap archived ${picked ? 'picked' : ''}`} onContextMenu={(e) => onMenu(e, x)} data-picked={picked ? 'true' : undefined}>
+      <div className={`st-row ${picked ? 'picked' : ''}`} role="button" tabIndex={0} onClick={(e) => onPick(e, x.key)} data-testid="studio-archived-row" data-row={x.key} data-kind={x.kind}>
+        <Thumb src={x.i?.thumb ?? null} className="st-th" />
+        <span className="tx">
+          <b className="clamp1">{x.title || t('home.planningRow')}</b>
+          <span className="s clamp1">{when}</span>
+        </span>
+      </div>
+      <button className="btn sm st-restore" onClick={() => void ra.run('restore', [x])} data-testid="studio-restore">
+        <ArchiveRestore className="ico" />
+        {t('ra.restore')}
+      </button>
+      <MoreButton onMenu={(e) => onMenu(e, x)} />
+    </div>
+  );
+}
+
+/** What is picked: how many, Archive (or Restore under Archived), Delete… when every picked row can go, Clear. */
+function BulkBar({ xs, ra, inArchive, onClear }: { xs: ActionTarget[]; ra: RowActionsApi; inArchive: boolean; onClear: () => void }) {
+  const acts = bulkActions(xs);
+  return (
+    <div className="st-bulk" data-testid="studio-bulk" role="toolbar" aria-label={t('c.selected', { n: xs.length })}>
+      <b>{t('c.selected', { n: xs.length })}</b>
+      <span className="sp" />
+      {!inArchive && acts.includes('archive') && (
+        <button className="btn sm" onClick={() => void ra.run('archive', xs)} data-testid="studio-bulk-archive" data-tip={keyHint('⌫')}>
+          <Archive className="ico" />
+          {t('ra.archive')}
+        </button>
+      )}
+      {acts.includes('restore') && (
+        <button className="btn sm" onClick={() => void ra.run('restore', xs)} data-testid="studio-bulk-restore">
+          <ArchiveRestore className="ico" />
+          {t('ra.restore')}
+        </button>
+      )}
+      {acts.includes('delete') && (
+        <button className="btn sm danger" onClick={() => void ra.run('delete', xs)} data-testid="studio-bulk-delete">
+          <Trash2 className="ico" />
+          {t('ra.delete')}
+        </button>
+      )}
+      <button className="btn ghost icon sm" onClick={onClear} aria-label={t('ra.clear')} data-tip={t('ra.clear')} data-testid="studio-bulk-clear">
+        <X className="ico" />
+      </button>
+    </div>
+  );
+}
+
+/** A video with nothing in it (no file, or under a second and a half): said plainly, with Delete… / Archive. */
+function EmptyClip({ r, ra, kind }: { r: StudioRow; ra: RowActionsApi; kind: 'none' | 'short' }) {
+  const x = targetOf(r);
+  const [hide, setHide] = useState(false);
+  const acts = new Set(ra.items(x).map((m) => m.testId));
+  if (hide) return null;
+  return (
+    <div className={`st-emptyclip ${kind}`} role="status" data-testid="studio-empty-clip" data-kind={kind}>
+      <span className="tx">{kind === 'none' ? t('st.emptyClip.none') : t('st.emptyClip.short', { d: fmtLen(r.duration) })}</span>
+      <span className="sp" />
+      {acts.has('row-delete') && (
+        <button className="btn sm danger" onClick={() => void ra.run('delete', [x])} data-testid="studio-empty-delete">
+          <Trash2 className="ico" />
+          {t('ra.delete')}
+        </button>
+      )}
+      {acts.has('row-archive') && (
+        <button className="btn sm" onClick={() => void ra.run('archive', [x])} data-testid="studio-empty-archive">
+          <Archive className="ico" />
+          {t('ra.archive')}
+        </button>
+      )}
+      {kind === 'short' && (
+        <button className="btn sm ghost" onClick={() => setHide(true)} data-testid="studio-empty-keep">
+          {t('st.emptyClip.keep')}
+        </button>
+      )}
+    </div>
   );
 }
 
 /** The right side: the video's page, or what a request / a project without clips / a project's question needs. */
-function Page({ r, posts }: { r: StudioRow; posts: CalendarPost[] }) {
+function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; more: (e: { clientX: number; clientY: number }) => void; ra: RowActionsApi }) {
   const resolve = useResolve();
+  const head = <MoreButton onMenu={more} testId="studio-page-more" className="st-pagemore" />;
+  const empty = r.kind === 'clip' && r.group !== 'run' ? emptyClip(r.video, r.duration) : null;
   // a made clip: its page; one still being made: what it waits for (its question), else where its project is
-  if (r.kind === 'clip' && r.video) return <OutputEditor id={r.item!} clip={r.clip!} layout="studio" ask={r.ask} place={{ project: r.project, pos: r.pos }} />;
+  if (r.kind === 'clip' && r.video)
+    return <OutputEditor id={r.item!} clip={r.clip!} layout="studio" ask={r.ask} place={{ project: r.project, pos: r.pos }} more={<MoreButton onMenu={more} testId="studio-page-more" />} notice={empty ? <EmptyClip r={r} ra={ra} kind={empty} /> : null} />;
+  if (r.kind === 'clip' && empty === 'none' && !r.ask)
+    return (
+      <div className="st-detail st-withmore">
+        {head}
+        <EmptyClip r={r} ra={ra} kind="none" />
+      </div>
+    );
   // a request being planned and a project being made: the run page (hero, what happened, the live pane)
-  if (r.kind === 'request') return <div className="st-run"><RequestRun r={r.r!} /></div>;
+  if (r.kind === 'request')
+    return (
+      <div className="st-run st-withmore">
+        {head}
+        <RequestRun r={r.r!} />
+      </div>
+    );
   if (!r.ask && r.i && (r.p.state === 'run' || r.p.state === 'queued') && r.kind !== 'clip')
     return (
-      <div className="st-run">
+      <div className="st-run st-withmore">
+        {head}
         <ProjectRun i={r.i} p={itemPipeline(r.i, posts)} posts={posts} />
       </div>
     );
   if (r.ask)
     return (
-      <div className="st-detail st-ask" data-testid="studio-project-ask">
-        <p className="muted small">{r.kind === 'clip' ? [r.project, r.title].filter(Boolean).join(' · ') : `${t('st.projectAsk')} · ${r.title}`}</p>
-        <ItemPane key={r.ask.key} x={r.ask} onDone={(a) => void resolve(r.ask!, a)} onSkip={() => undefined} />
+      // laid out like a video's page: the header (where it is, its name, ⋯) across the top, the question below
+      <div className="st-askpage" data-testid="studio-project-ask" data-kind={r.kind}>
+        <header className="cs-top">
+          <div className="cs-title">
+            <span className="cs-where muted clamp1" data-testid="studio-where">
+              {r.kind === 'clip' ? [r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ') : t('st.projectAsk')}
+            </span>
+            <span className="cs-name">
+              <h2 className="clamp1">{r.title}</h2>
+            </span>
+          </div>
+          <div className="cs-actions">
+            <MoreButton onMenu={more} testId="studio-page-more" />
+          </div>
+        </header>
+        <div className="st-askbody">
+          <ItemPane key={r.ask.key} x={r.ask} onDone={(a) => void resolve(r.ask!, a)} onSkip={() => undefined} />
+        </div>
       </div>
     );
   return (
-    <div className="st-detail">
+    <div className="st-detail st-withmore">
+      {head}
       <ProjectDetail i={r.i!} p={itemPipeline(r.i!, posts)} posts={posts} />
     </div>
   );

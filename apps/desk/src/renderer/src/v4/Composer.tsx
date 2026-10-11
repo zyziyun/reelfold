@@ -3,11 +3,12 @@
 // yourself, a series / storyboard (Create), the sample. The request becomes a row of the Studio at once (planned and
 // run on autopilot unless Settings says "Ask me first") and the box is free for the next one.
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Clapperboard, Circle, File as FileIcon, FileText, Folder, FolderOpen, Image as ImageIcon, MoreHorizontal, Music, Paperclip, Play, Plus, Sparkles, Video, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronRight, Clapperboard, Circle, File as FileIcon, FileText, Folder, FolderOpen, Image as ImageIcon, MoreHorizontal, Music, Paperclip, Play, Plus, Sparkles, Video, X } from 'lucide-react';
 import { WEEK_WORDS } from '../../../shared/weekPlan';
 import { homePlatforms } from '../../../shared/platforms';
 import { IS_LITE } from '../../../shared/edition';
 import { getLang, t } from '../i18n';
+import { CHIP_LIMIT, groupAttachments, removeItem, summarize, type AttachItem } from '../lib/attachments';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { keyHint } from '../lib/keys';
@@ -170,19 +171,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         rows={2}
         data-testid="composer-input"
       />
-      {files.length > 0 && (
-        <div className="files" data-testid="composer-files">
-          {files.map((f) => (
-            <span key={f} className="file" title={f}>
-              <span className="ic">{isImage(f) ? <img src={window.desk.mediaUrl(f)} alt="" /> : kindIcon(f)}</span>
-              <span className="clamp1">{base(f)}</span>
-              <button className="x" onClick={() => setFiles(files.filter((x) => x !== f))} aria-label={t('c.remove')}>
-                <X className="ico" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {files.length > 0 && <AttachedFiles files={files} onChange={setFiles} />}
       <div className="foot">
         <button className="btn icon ux-attach" onClick={() => void addFiles('files')} aria-label={t('home.attach')} data-tip={t('home.attachTip')} data-testid="composer-attach">
           <Paperclip className="ico" />
@@ -206,6 +195,100 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
           {t('home.submitAuto')}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** a dropped folder's chip says how many files it holds */
+function FolderCount({ path }: { path: string }) {
+  const [n, setN] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void window.desk
+      .countFiles?.(path)
+      .then((x) => alive && setN(x))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+  return n == null ? null : (
+    <span className="pair" data-testid="composer-folder-count">
+      {t('cf.files', { n })}
+    </span>
+  );
+}
+
+/** one attached item: a video and its same-named .srt are one chip (removing it removes both) */
+function FileChip({ item, onRemove }: { item: AttachItem; onRemove: () => void }) {
+  return (
+    <span className="file" title={item.paths.join('\n')} data-testid="composer-file" data-kind={item.kind}>
+      <span className="ic">{isImage(item.path) ? <img src={window.desk.mediaUrl(item.path)} alt="" loading="lazy" /> : kindIcon(item.path)}</span>
+      <span className="clamp1">{item.name}</span>
+      {item.sidecar && <span className="pair">{t('cf.plusSrt')}</span>}
+      {item.kind === 'folder' && <FolderCount path={item.path} />}
+      <button className="x" onClick={onRemove} aria-label={t('cf.removeOne', { name: item.name })} data-testid="composer-file-remove">
+        <X className="ico" />
+      </button>
+    </span>
+  );
+}
+
+/** a few files: their chips; many (a drone card): one plain line that opens into a scrollable list */
+function AttachedFiles({ files, onChange }: { files: string[]; onChange: (f: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const items = groupAttachments(files);
+  const chips = (
+    <>
+      {items.map((it) => (
+        <FileChip key={it.path} item={it} onRemove={() => onChange(removeItem(files, it))} />
+      ))}
+    </>
+  );
+  if (items.length <= CHIP_LIMIT) {
+    return (
+      <div className="files ux-files" data-testid="composer-files">
+        {chips}
+      </div>
+    );
+  }
+  const s = summarize(files, items);
+  const parts = [
+    t('cf.files', { n: s.files }),
+    s.videos ? t('cf.videos', { n: s.videos }) + (s.withSubs ? ` (${t('cf.withSubs', { n: s.withSubs })})` : '') : '',
+    s.photos ? t('cf.photos', { n: s.photos }) : '',
+    s.audio ? t('cf.audio', { n: s.audio }) : '',
+    s.docs ? t('cf.docs', { n: s.docs }) : '',
+    s.subs ? t('cf.subs', { n: s.subs }) : '',
+    s.folders ? t('cf.folders', { n: s.folders }) : '',
+    s.other ? t('cf.other', { n: s.other }) : '',
+  ].filter(Boolean);
+  return (
+    <div className={`ux-files many ${open ? 'open' : ''}`} data-testid="composer-files">
+      <div className="ux-files-sum">
+        <button className="ux-files-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open} data-tip={t(open ? 'cf.hide' : 'cf.show')} data-testid="composer-files-toggle">
+          {open ? <ChevronDown className="ico" /> : <ChevronRight className="ico" />}
+          <span className="lines">
+            {s.dir && (
+              <span className="dir">
+                <Folder className="ico" />
+                <span className="clamp1">{s.dir}</span>
+              </span>
+            )}
+            <span className="tx" data-testid="composer-files-summary">
+              {parts.join(' · ')}
+            </span>
+          </span>
+        </button>
+        <button className="ux-files-clear" onClick={() => onChange([])} data-testid="composer-files-clear">
+          {t('cf.removeAll')}
+        </button>
+      </div>
+      {open && (
+        <div className="files ux-files-list" data-testid="composer-files-list">
+          {chips}
+        </div>
+      )}
     </div>
   );
 }

@@ -177,7 +177,7 @@ export function stateLine(p: Pipeline, i?: HistoryItem, r?: OpenRequest): string
 function HubListRow({ r, on, onPick }: { r: HubRow; on: boolean; onPick: () => void }) {
   const name = r.kind === 'request' ? r.r.name || r.r.prompt || t('home.planningRow') : r.i.name;
   const thumb = r.kind === 'project' ? r.i.thumb : null;
-  const tone = r.p.state === 'run' || r.p.state === 'planning' ? 'run' : r.p.state === 'you' || r.p.state === 'plan-ready' ? 'you' : r.p.state === 'failed' ? 'error' : r.p.state === 'queued' || r.p.state === 'idle' ? 'off' : 'done';
+  const tone = r.p.state === 'run' || r.p.state === 'planning' ? 'run' : r.p.state === 'you' || r.p.state === 'plan-ready' ? 'you' : r.p.state === 'failed' ? 'error' : r.p.state === 'queued' || r.p.state === 'idle' || r.p.state === 'stopped' ? 'off' : 'done';
   const pct = r.p.progress == null ? null : Math.round(r.p.progress * 100);
   return (
     <button className={`hub-row ${on ? 'on' : ''}`} onClick={onPick} aria-current={on ? 'true' : undefined} data-testid="hub-row" data-id={r.id} data-state={r.p.state}>

@@ -378,7 +378,8 @@ export function median(xs: number[]): number | null {
 // ---------------------------------------------------------------- history (past work, auto-discovered)
 /** .vstudio/status.json of a job / batch / project folder, as the engine reads it (stale running -> interrupted). */
 export interface LiveStatus {
-  state: 'running' | 'waiting' | 'done' | 'failed' | 'interrupted';
+  /** stopped: she stopped the run the desk started (Try again goes on) */
+  state: 'running' | 'waiting' | 'done' | 'failed' | 'interrupted' | 'stopped';
   status: string;
   stage?: string | null;
   progress?: number | null;
@@ -455,6 +456,8 @@ export interface HistoryItem {
   autopilot?: boolean;
   /** waits for a free run slot (desk_engine/pilot.py RunQueue): its place in line, 1 = next */
   queued?: number | null;
+  /** she stopped its run (epoch s; pilot.stop): Try again runs it on */
+  stopped?: number | null;
   /** the request it was made from (Home's sentence) */
   prompt?: string | null;
 }

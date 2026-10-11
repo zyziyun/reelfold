@@ -458,7 +458,8 @@ export interface IntakeJob {
 /** GET /api/intake/open: requests from Home that are not projects yet (planning, a plan waiting for her, a failure). */
 export interface OpenRequest {
   id: string;
-  state: 'running' | 'done' | 'error' | 'needs';
+  /** stopped: she stopped it while it planned (Try again / Delete from its row menu) */
+  state: 'running' | 'done' | 'error' | 'needs' | 'stopped';
   step?: string | null;
   mode: 'autopilot' | 'ask';
   prompt?: string | null;
@@ -473,6 +474,25 @@ export interface OpenRequest {
   failed_apply?: boolean;
   /** state needs: what it waits for */
   needs?: EngineMsg[] | null;
+  /** only in GET /api/intake/open?archived=1 (the Studio's Archived filter) */
+  archived?: boolean;
+  archived_at?: number | null;
+}
+
+/** POST /api/history/trash-plan: what Delete would move to the Trash, per project folder (her footage stays). */
+export interface TrashPlanItem {
+  dir: string;
+  id?: string;
+  name: string;
+  ok: boolean;
+  /** not-in-list | own-folder (her own folder or a batch: archive it) | running | unsafe | footage-inside */
+  reason?: 'not-in-list' | 'own-folder' | 'running' | 'unsafe' | 'footage-inside';
+  target?: string;
+  files?: number;
+  bytes?: number;
+  /** her recordings the project points at: they stay */
+  keep?: string[];
+  inside?: string[];
 }
 
 /** One decision the autopilot took (``vstudio.project decisions``), or one she took back (``asked``). */

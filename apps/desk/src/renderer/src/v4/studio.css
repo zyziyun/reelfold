@@ -16,7 +16,8 @@
 .st-new .ico { width: 16px; height: 16px; color: var(--accent); flex: none; }
 .st-new .tx { flex: 1; min-width: 0; }
 .st-new .kbd { flex: none; }
-.st-composer { padding: 0 12px 10px; }
+/* the composer scrolls on its own in a short window; its foot (Make it) stays in view while it does */
+.st-composer { flex: 0 1 auto; min-height: 0; max-height: 75%; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 10px; }
 .st-composer .ux-composer { margin: 0; }
 .st-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 12px 10px; }
 .st-f { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer; }
@@ -135,4 +136,43 @@ body.resizing .cs-ai-pane { transition: none; }
 .ux-composer.compact .ux-kbdhint { display: none; }
 .ux-composer.compact .ux-make { margin-left: auto; }
 .ux-composer.compact .sp { display: none; }
+.ux-composer.compact .foot { position: sticky; bottom: 0; z-index: 1; padding: 4px 0 2px; background: var(--surface); }
+/* attached files: a few chips, or (a drone card) one line that opens into a scrollable list */
+.ux-composer .ux-files { margin: 6px 0 0; }
+.ux-composer .file { min-width: 0; max-width: 100%; }
+.ux-composer .file .clamp1 { min-width: 0; }
+.ux-composer .file .pair { flex: none; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ux-files-sum { position: relative; min-width: 0; }
+.ux-files-toggle { width: 100%; min-width: 0; display: flex; align-items: flex-start; gap: 6px; padding: 6px 8px 6px 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; font-size: 12.5px; line-height: 1.45; text-align: left; cursor: pointer; }
+.ux-files-toggle:hover { border-color: var(--border-strong); }
+.ux-files-toggle .ico { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--text-muted); }
+.ux-files-toggle .lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* the first line leaves room for Remove all */
+.ux-files-toggle .lines > :first-child { padding-right: 76px; }
+.ux-files-toggle .dir { display: flex; align-items: center; gap: 5px; min-width: 0; font-weight: 500; }
+.ux-files-toggle .dir .ico { margin-top: 0; }
+.ux-files-toggle .tx { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ux-files-clear { position: absolute; top: 3px; right: 4px; padding: 3px 6px; border: 0; border-radius: 6px; background: none; color: var(--text-muted); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ux-files-clear:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.ux-files-list { max-height: min(200px, 28vh); overflow-y: auto; overscroll-behavior: contain; align-content: flex-start; margin: 6px 0 0; padding-right: 2px; }
 .ux-rec .rec { color: var(--danger); fill: var(--danger); width: 12px; height: 12px; }
+
+/* ---------------------------------------------------------------- row actions: hover ⋯, picked rows, bulk bar, Archived */
+.st-rowwrap { position: relative; }
+.st-rowwrap .st-more { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); opacity: 0; background: var(--surface, var(--bg)); }
+.st-rowwrap:hover .st-more, .st-rowwrap .st-more:focus-visible, .st-rowwrap.picked .st-more { opacity: 1; }
+.st-row.picked { background: var(--accent-soft); border-left-color: var(--accent); }
+.st-rowwrap.archived .st-row { opacity: 0.72; cursor: default; padding-right: 128px; }
+.st-rowwrap.archived .st-restore { position: absolute; top: 50%; right: 44px; transform: translateY(-50%); }
+.st-rowwrap.archived .st-more { opacity: 1; }
+.st-bulk { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--accent-soft); font-size: 13px; }
+.st-bulk b { font-weight: 500; }
+.st-f.arch { border-style: dashed; }
+.st-withmore { position: relative; }
+.st-withmore > .st-pagemore { position: absolute; top: var(--s3); right: var(--s3); z-index: 2; }
+.st-withmore .hub-dh { padding-right: 44px; }
+.st-emptyclip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 var(--s3) var(--s2); padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--warn) 8%, transparent); font-size: 13.5px; }
+.st-emptyclip .tx { min-width: 0; flex: 1 1 260px; }
+.st-detail > .st-emptyclip { margin: 40px 44px 0 0; }
+.cs.has-notice { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.cs.has-notice > .st-emptyclip { margin: 12px var(--s3) 0; }

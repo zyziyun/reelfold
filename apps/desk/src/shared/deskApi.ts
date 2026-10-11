@@ -152,6 +152,8 @@ export interface DeskApi {
   /** feedback + problem reports (never sends by itself) */
   support: import('./supportIpc').SupportApi;
   showItem(path: string): Promise<void>;
+  /** how many files a folder holds (top level, hidden ones left out); null when it cannot be read */
+  countFiles(path: string): Promise<number | null>;
   /** open <userData>/logs in Finder / Explorer */
   openLogs(): Promise<void>;
   copyText(text: string): Promise<void>;
@@ -267,5 +269,7 @@ export interface DeskApi {
     screenPick(id: string): Promise<{ ok: boolean }>;
   };
   confirmCleanup(batchId: string): Promise<{ confirmed: boolean; trashed: string[]; failed: string[]; outside: string[] }>;
+  /** Delete projects: one native confirm naming the folders (her recordings stay), then the Trash (main/trash.ts) */
+  trashProjects(dirs: string[]): Promise<{ confirmed: boolean; trashed: string[]; refused: { dir: string; name: string; reason: string }[] }>;
   mediaUrl(path: string): string;
 }

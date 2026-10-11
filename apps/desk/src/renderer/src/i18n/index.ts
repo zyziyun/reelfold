@@ -103,6 +103,11 @@ export function fmtMoney(usd: number): string {
 }
 
 /** Clip length / timecode: 1:24, 12:03, 1:02:03 (tabular numerals in CSS). */
+/** A video's length: like fmtClock, but a clip under a second reads 0:00.9, never 0:00 (an almost empty recording). */
+export function fmtLen(s: number | null | undefined): string {
+  return s != null && s > 0 && s < 1 ? fmtClock(s, true) : fmtClock(s);
+}
+
 export function fmtClock(s: number | null | undefined, frac = false): string {
   if (s == null || !Number.isFinite(s) || s < 0) return '–';
   const h = Math.floor(s / 3600);

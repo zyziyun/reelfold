@@ -297,7 +297,12 @@ class Intake:
                 row.update(archived=True, archived_at=j.get("archived_at"))
             out.append(row)
         out.sort(key=lambda x: -(x.get("started") or 0))
-        return dict(items=out)
+        if archived:
+            return dict(items=out)
+        # how many she archived (the Studio shows its Archived filter without reading them)
+        n = sum(1 for j in list(self.jobs.values()) if j.get("archived_at") and j.get("mode") and not j.get("applied")
+                and not j.get("discarded"))
+        return dict(items=out, archived=n)
 
     # ---------------------------------------------------------- archive / restore / delete (the Studio's row menu)
     def archive(self, ids):

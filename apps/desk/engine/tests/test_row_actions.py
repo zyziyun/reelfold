@@ -51,6 +51,7 @@ class RequestRowTest(unittest.TestCase):
         self.assertEqual(len(self.it.inbox_items()), 1)
         self.it.archive([pid])
         self.assertEqual(self.it.open()["items"], [])
+        self.assertEqual(self.it.open()["archived"], 1)                   # the Studio's Archived filter count
         self.assertEqual(self.it.inbox_items(), [])                       # archived: not in the Inbox / badges
         arch = self.it.open(archived=True)["items"]
         self.assertEqual([x["id"] for x in arch], [pid])

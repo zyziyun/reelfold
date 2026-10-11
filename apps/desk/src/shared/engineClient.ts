@@ -44,7 +44,7 @@ import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PreviewEdl, ProjectAskJob, Retimed } from './v04';
+import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import { CreateClient } from './create';
 
@@ -322,6 +322,21 @@ export class EngineClient {
   unhideOne(dir: string) {
     return this.req<{ ok: boolean }>('POST', '/api/history/unhide-one', { dir });
   }
+  /** Delete, step 1: what would go to the Trash per project folder (the desk's main process moves it after her confirm) */
+  historyTrashPlan(dirs: string[]) {
+    return this.req<{ items: TrashPlanItem[] }>('POST', '/api/history/trash-plan', { dirs });
+  }
+  /** Delete, step 2: project folders now in the Trash leave the desk's notes (posts still waiting to go out go too) */
+  forgetHistory(dirs: string[]) {
+    return this.req<{ ok: boolean; forgot: string[]; posts_removed: number }>('POST', '/api/history/forget', { dirs });
+  }
+  /** 「Stop」 a project's run (out of the line, or interrupted at a safe point); 「Try again」 runs it on */
+  stopHistory(id: string) {
+    return this.req<{ ok: boolean; stopped: 'queued' | 'running' | null }>('POST', `/api/history/item/${bid(id)}/stop`, {});
+  }
+  resumeHistory(id: string) {
+    return this.req<{ ok: boolean }>('POST', `/api/history/item/${bid(id)}/resume`, {});
+  }
   renameHistory(dir: string, name: string) {
     return this.req<{ ok: boolean; name: string }>('POST', '/api/history/rename', { dir, name: name.slice(0, 80) });
   }
@@ -476,9 +491,20 @@ export class EngineClient {
       ...(opts.recipe ? { recipe: opts.recipe } : {}),
     });
   }
-  /** requests from Home that are not projects yet (All projects lists them first) */
-  openRequests() {
-    return this.req<{ items: OpenRequest[] }>('GET', '/api/intake/open');
+  /** requests from Home that are not projects yet (All projects lists them first); ``archived``: the archived ones */
+  openRequests(archived = false) {
+    return this.req<{ items: OpenRequest[]; archived?: number }>('GET', archived ? '/api/intake/open?archived=1' : '/api/intake/open');
+  }
+  /** the Studio's row menu: archive (out of the list and its counts) / restore / delete requests that are not projects
+   * (delete: the request is gone for good; her files are never touched) */
+  archiveRequests(ids: string[]) {
+    return this.req<{ ok: boolean; archived: string[] }>('POST', '/api/intake/archive', { ids: ids.map(pid) });
+  }
+  restoreRequests(ids: string[]) {
+    return this.req<{ ok: boolean; restored: string[] }>('POST', '/api/intake/restore', { ids: ids.map(pid) });
+  }
+  deleteRequests(ids: string[]) {
+    return this.req<{ ok: boolean; deleted: string[] }>('POST', '/api/intake/delete', { ids: ids.map(pid) });
   }
   /** drop a request that is not a project yet (nothing was made) */
   discardIntake(id: string) {
