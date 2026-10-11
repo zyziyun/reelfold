@@ -1,56 +1,99 @@
 # Engine (repo root: lib/vstudio, workflows/, scripts/) - pytest + the skill's pre-publish check.
-# pytest runs in parallel (pytest-xdist, -n auto: ~25 min serial -> ~8). Tags (v*) always run it and are never cancelled.
+#   changes   what this run has to do: `run` (engine files changed) and `full` (the full tier)
+#   pytest    pytest in parallel (pytest-xdist, -n auto). A normal push / PR skips the tests marked `slow` (long real
+#             renders, see pyproject.toml); the full tier runs them too: nightly, tags (v*), release/**, manual runs
+#             (tier=full, the default) and changes to CI / requirements / pyproject.toml.
+#   test      aggregator, the required check: green when pytest passed, or when no engine file changed (a no-op).
+# Concurrency is per ref: PR / feature-branch runs supersede each other, main / release/** queue, tags never cancel.
 name: Engine
 on:
   pull_request:
-    paths:
-      - 'lib/**'
-      - 'workflows/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'references/**'
-      - 'SKILL.md'
-      - 'requirements.txt'
-      - 'tests/requirements.txt'
-      - 'pyproject.toml'
-      - 'apps/desk/packaging/ffmpeg/**'   # the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
-      - '.github/workflows/engine.yml'
   push:
     branches: [main, 'release/**']
     tags: ['v*']
-    paths:
-      - 'lib/**'
-      - 'workflows/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'references/**'
-      - 'SKILL.md'
-      - 'requirements.txt'
-      - 'tests/requirements.txt'
-      - 'pyproject.toml'
-      - 'apps/desk/packaging/ffmpeg/**'   # the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
-      - '.github/workflows/engine.yml'
+  schedule:
+    - cron: '47 9 * * *' # nightly (UTC): the full tier, slow tests included
   workflow_dispatch:
+    inputs:
+      tier:
+        description: 'full = include the tests marked slow; quick = what a normal push runs'
+        type: choice
+        options: [full, quick]
+        default: full
 permissions:
   contents: read
 concurrency:
-  group: engine-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  group: engine-${{ github.ref }}${{ github.event_name == 'schedule' && '-nightly' || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/tags/')) }}
 jobs:
-  test:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.c.outputs.run }}
+      full: ${{ steps.c.outputs.full }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: .github, sparse-checkout-cone-mode: false }
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          TIER: ${{ inputs.tier }}
+        # apps/desk/packaging/ffmpeg: the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
+        run: >-
+          bash .github/scripts/ci-changes.sh
+          '^(lib/|workflows/|tests/|scripts/|references/|SKILL\.md$|requirements\.txt$|pyproject\.toml$|apps/desk/packaging/ffmpeg/|\.github/workflows/engine\.yml$|\.github/scripts/ci-changes\.sh$)'
+          '^(\.github/workflows/engine\.yml$|\.github/scripts/ci-changes\.sh$|requirements\.txt$|tests/requirements\.txt$|pyproject\.toml$|tests/conftest\.py$)'
+
+  pytest:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
-        with: { python-version: '3.12', cache: pip }
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            tests/requirements.txt
       - name: ffmpeg + GL runtime (mediapipe needs libEGL / libGLESv2)
         run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libegl1 libgles2
       - name: Python deps (runtime + tests/requirements.txt)
-        run: python -m pip install -r tests/requirements.txt pytest-xdist
+        run: python -m pip install -r tests/requirements.txt
       - name: deps are importable (fail here, not as 8 odd test errors)
-        run: python -c "import yaml, jsonschema, numpy, cv2, mediapipe; print('deps ok')"
+        run: python -c "import yaml, jsonschema, numpy, cv2, mediapipe, xdist; print('deps ok')"
       - name: check_skill (frontmatter, personal paths, secrets - also scans apps/)
         run: python scripts/check_skill.py
-      - name: pytest (parallel, pytest-xdist; the 15 slowest tests are listed at the end)
-        run: python -m pytest -q -n auto --durations=15
+      - name: pytest (parallel; ${{ needs.changes.outputs.full == 'true' && 'full tier, slow tests included' || 'slow tests skipped' }})
+        env:
+          MARK: ${{ needs.changes.outputs.full != 'true' && 'not slow' || '' }} # ('' = every test)
+        run: python -m pytest -q -n auto --dist worksteal -m "$MARK" --durations=15
+
+  test:
+    # the required check: green only when pytest passed (or nothing engine-related changed)
+    name: test
+    needs: [changes, pytest]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Engine pytest passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          PYTEST: ${{ needs.pytest.result }}
+        run: |
+          echo "changes: $CHANGES (run: $RUN), pytest: $PYTEST"
+          [ "$CHANGES" = success ] || exit 1
+          if [ "$RUN" = false ]; then echo "no engine changes: nothing to test"; exit 0; fi
+          [ "$PYTEST" = success ]
