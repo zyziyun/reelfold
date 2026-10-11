@@ -80,7 +80,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const { data: hist, archived: archDoc, archivedRequests, nArchivedRequests, wantArchived } = useHistory();
   const ui = useUi();
   const inbox = useInbox();
-  const { rows, posts } = useStudioData();
+  const { rows, posts, ready } = useStudioData();
   const groups = useMemo(() => grouped(rows), [rows]);
   const q = routeQuery();
   const [filter, setFilterS] = useState<ListFilter>(() => (LIST_FILTERS.includes(q.f as ListFilter) ? (q.f as ListFilter) : ((sessionStorage.getItem(FKEY) as ListFilter | null) ?? 'all')));
@@ -282,7 +282,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
               <LayoutGrid className="ico" />
             </button>
           )}
-          {needsYou(rows) > 0 && (
+          {ready && needsYou(rows) > 0 && (
             <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(rows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
               <i className="dot you" /> {needsYou(rows)}
             </button>
@@ -313,11 +313,11 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
             <Composer compact autoFocus onSent={(rid) => (setComposer(false), (location.hash = `${href({ name: 'studio' })}?sel=${rid}`))} onClose={() => setComposer(false)} />
           </div>
         )}
-        <div className="st-filters" role="tablist" aria-label={t('st.filters')}>
+        <div className="st-filters" role="tablist" aria-label={t('st.filters')} aria-busy={!ready}>
           {LIST_FILTERS.filter((f) => f !== 'archived' || nArchived > 0 || inArchive).map((f) => (
-            <button key={f} role="tab" aria-selected={filter === f} className={`st-f ${filter === f ? 'on' : ''} ${f === 'you' && count('you') ? 'you' : ''} ${f === 'archived' ? 'arch' : ''}`} onClick={() => setFilter(f)} data-testid={`studio-f-${f}`}>
+            <button key={f} role="tab" aria-selected={filter === f} className={`st-f ${filter === f ? 'on' : ''} ${f === 'you' && ready && count('you') ? 'you' : ''} ${f === 'archived' ? 'arch' : ''}`} onClick={() => setFilter(f)} data-testid={`studio-f-${f}`}>
               {f === 'all' ? t('st.f.all') : f === 'archived' ? t('ra.f.archived') : t(VIDEO_STATUS_KEY[f])}
-              {count(f) > 0 && <b className="n">{count(f)}</b>}
+              {!ready && f !== 'archived' ? <b className="n wait" aria-hidden data-testid={`studio-n-wait-${f}`} /> : count(f) > 0 && <b className="n" data-testid={`studio-n-${f}`}>{count(f)}</b>}
             </button>
           ))}
         </div>
@@ -337,7 +337,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
                 <h3>
                   <button className="st-gtoggle" onClick={() => foldGroup(g)} aria-expanded={!shut} data-testid={`studio-group-toggle-${g}`}>
                     {shut ? <ChevronRight className="ico" /> : <ChevronDown className="ico" />}
-                    {t(VIDEO_STATUS_KEY[g])} · {g === 'you' ? l.length : shown}
+                    {t(VIDEO_STATUS_KEY[g])}{ready ? ` · ${g === 'you' ? l.length : shown}` : ''}
                   </button>
                   <span className="sp" />
                   {g === 'you' && inbox.items.length > 0 && (
@@ -363,7 +363,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         <footer className="st-foot muted">
           <span>{t('st.jump', { key: keyHint('⌘K') })}</span>
           <span className="sp" />
-          {needsYou(rows) > 0 && (
+          {ready && needsYou(rows) > 0 && (
             <span className="st-you" data-testid="studio-you-count">
               <i className="dot you" /> {needsYou(rows)}
             </span>

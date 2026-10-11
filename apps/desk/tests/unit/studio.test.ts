@@ -1,7 +1,7 @@
 // The Studio list model (lib/studio): one row per video across projects, grouped needs you / in progress / ready /
 // scheduled; a question about a clip lands on that clip, one about the project on the project's own row.
 import { describe, expect, it } from 'vitest';
-import { grouped, listPieces, needsYou, screenPieces, screenRows, studioRows, visible } from '../../src/renderer/src/lib/studio';
+import { grouped, listPieces, needsYou, screenPieces, screenRows, studioRows, studioSettled, visible } from '../../src/renderer/src/lib/studio';
 import type { HistoryItem } from '../../src/shared/v02';
 import type { CalendarPost, Clip, InboxItem, OpenRequest } from '../../src/shared/v04';
 
@@ -110,5 +110,29 @@ describe('a project still making its next videos', () => {
   it('once it ends: only its videos', () => {
     const rows = studioRows([item('cccccccccccc')], [], { cccccccccccc: [clip('01_clip')] }, [], [], NOW);
     expect(rows.map((r) => r.key)).toEqual(['cccccccccccc/01_clip']);
+  });
+});
+
+describe('studio counts settle before they show', () => {
+  // right after launch: the project with four videos was one row until its clips came in, so "All" and "Ready to
+  // post" grew by three a few seconds later. The counts wait for every source instead.
+  const items = [item('aaaaaaaaaaaa'), item('dddddddddddd')];
+  const full = { aaaaaaaaaaaa: [clip('a1')], dddddddddddd: [clip('d1'), clip('d2'), clip('d3'), clip('d4')] };
+  const src = { history: true, requests: true, inbox: true, calendar: true, projects: items.map((i) => i.id) };
+
+  it('a project whose clips are still loading is one row: not settled, the count would be wrong', () => {
+    const early = { aaaaaaaaaaaa: full.aaaaaaaaaaaa, dddddddddddd: undefined };
+    const g0 = grouped(studioRows(items, [], early, [], [], NOW));
+    const g1 = grouped(studioRows(items, [], full, [], [], NOW));
+    expect([g0.ready.length, g1.ready.length]).toEqual([2, 5]);
+    expect(studioSettled({ ...src, clips: early })).toBe(false);
+    expect(studioSettled({ ...src, clips: full })).toBe(true);
+  });
+
+  it('waits for the history, the open requests, the inbox and the calendar too', () => {
+    for (const k of ['history', 'requests', 'inbox', 'calendar'] as const) expect(studioSettled({ ...src, clips: full, [k]: false })).toBe(false);
+    // a project whose clips failed to load reads [] (one project row): that is an answer, not "loading"
+    expect(studioSettled({ ...src, clips: { ...full, dddddddddddd: [] } })).toBe(true);
+    expect(studioSettled({ ...src, projects: [], clips: {} })).toBe(true);
   });
 });

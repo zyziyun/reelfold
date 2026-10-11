@@ -6,17 +6,20 @@ import { useEngine, useLoad } from './engine';
 import { useHistory } from './history';
 import { useInbox } from './inbox';
 import { href } from './router';
-import { studioRows, type StudioRow } from './studio';
+import { studioRows, studioSettled, type StudioRow } from './studio';
 import { useStudioEnabled } from './studioFlag';
 
 interface Ctx {
   rows: StudioRow[];
   posts: CalendarPost[];
-  /** history loaded (an empty list means no videos, not "not loaded yet") */
+  /** every source of the rows loaded (``studioSettled``): the counts are final, an empty list means no videos */
   ready: boolean;
 }
 
 const StudioCtx = createContext<Ctx>({ rows: [], posts: [], ready: false });
+
+/** A source that never answers (a stuck clips call) does not hide the counts for ever. */
+export const SETTLE_GIVE_UP_MS = 15_000;
 
 /** Every recent project's clips, loaded once per project version (a run's new clip shows as soon as it exists). */
 function useClipsOf(ids: { id: string; v: string }[], on: boolean) {
@@ -49,10 +52,10 @@ const RECENT_S = 14 * 86400;
 
 export function StudioProvider({ children }: { children: ReactNode }) {
   const on = useStudioEnabled();
-  const { data: hist, requests = [] } = useHistory();
+  const { data: hist, requests = [], requestsLoaded = true } = useHistory();
   const inbox = useInbox();
   const { subscribe } = useEngine();
-  const { data: cal, reload: reloadCal } = useLoad((c) => (on ? c.calendar(undefined, { queue: false }).catch(() => c.calendar()) : Promise.resolve(null)), [on]);
+  const { data: cal, error: calError, reload: reloadCal } = useLoad((c) => (on ? c.calendar(undefined, { queue: false }).catch(() => c.calendar()) : Promise.resolve(null)), [on]);
   useEffect(() => subscribe((e) => void (e.type === 'calendar' && reloadCal())), [subscribe]); // eslint-disable-line react-hooks/exhaustive-deps
   const posts = useMemo(() => cal?.posts ?? [], [cal]);
   const items = useMemo(() => hist?.items ?? [], [hist]);
@@ -65,7 +68,29 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     on,
   );
   const rows = useMemo(() => (on ? studioRows(recent, requests, clips, posts, inbox.items) : []), [on, recent, requests, clips, posts, inbox.items]);
-  const value = useMemo(() => ({ rows, posts, ready: !!hist && !inbox.loading }), [rows, posts, hist, inbox.loading]);
+  const settled = studioSettled({
+    history: !!hist,
+    requests: requestsLoaded,
+    inbox: inbox.loaded ?? !inbox.loading,
+    calendar: !on || cal !== null || calError !== null,
+    projects: recent.map((i) => i.id),
+    clips,
+  });
+  // give up waiting on a source that does not answer, counted from when the history came in
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (!hist || settled || gaveUp) return;
+    const tm = window.setTimeout(() => setGaveUp(true), SETTLE_GIVE_UP_MS);
+    return () => window.clearTimeout(tm);
+  }, [!!hist, settled, gaveUp]); // eslint-disable-line react-hooks/exhaustive-deps
+  // once the first full picture is in, it stays: a project started later shows as it comes (no counts blinking off)
+  const now = settled || (gaveUp && !!hist);
+  const [latched, setLatched] = useState(false);
+  useEffect(() => {
+    if (now && !latched) setLatched(true);
+  }, [now, latched]);
+  const ready = now || latched;
+  const value = useMemo(() => ({ rows, posts, ready }), [rows, posts, ready]);
   return <StudioCtx.Provider value={value}>{children}</StudioCtx.Provider>;
 }
 

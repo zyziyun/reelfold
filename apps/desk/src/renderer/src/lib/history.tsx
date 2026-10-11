@@ -20,6 +20,8 @@ interface Ctx {
   archivedRequests: OpenRequest[];
   /** how many requests are archived (the open list says, without reading them) */
   nArchivedRequests: number;
+  /** the open requests answered (or failed): an empty ``requests`` then means none, not "not loaded yet" */
+  requestsLoaded?: boolean;
 }
 
 const HistoryCtx = createContext<Ctx | null>(null);
@@ -147,7 +149,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   const requests = useMemo(() => reqs.data?.items ?? [], [reqs.data]);
   const archivedRequests = useMemo(() => archReqs.data?.items ?? [], [archReqs.data]);
   const nArchivedRequests = archReqs.data ? archivedRequests.length : (reqs.data?.archived ?? 0);
-  return <HistoryCtx.Provider value={{ data, error, reload, live, archived: arch.data, wantArchived, requests, archivedRequests, nArchivedRequests }}>{children}</HistoryCtx.Provider>;
+  return <HistoryCtx.Provider value={{ data, error, reload, live, archived: arch.data, wantArchived, requests, archivedRequests, nArchivedRequests, requestsLoaded: reqs.data !== null || reqs.error !== null }}>{children}</HistoryCtx.Provider>;
 }
 
 export function useHistory(): Ctx {

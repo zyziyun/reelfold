@@ -74,6 +74,28 @@ function clipGroup(c: Clip, mine: CalendarPost[], ask: boolean, projectRunning: 
   return { group: 'ready', tone: 'done', post: null, posted: false };
 }
 
+/** What the Studio's rows are made from, each loaded or not yet. */
+export interface StudioSources {
+  history: boolean;
+  requests: boolean;
+  inbox: boolean;
+  calendar: boolean;
+  /** the recent projects whose clips the list shows */
+  projects: string[];
+  clips: Record<string, Clip[] | undefined>;
+}
+
+/**
+ * True once every source of the rows has answered: the history, the open requests, the inbox, the calendar, and
+ * the clips of every recent project. Until then the counts are not shown (and nothing is notified): a project
+ * whose clips are still loading is one row that becomes one row per video a moment later ("All 55 · Ready to post
+ * 51" turning into "All 58 · Ready to post 54" right after launch), and a post or a question arriving late moves
+ * rows between groups.
+ */
+export function studioSettled(s: StudioSources): boolean {
+  return s.history && s.requests && s.inbox && s.calendar && s.projects.every((id) => s.clips[id] !== undefined);
+}
+
 /**
  * Every video, grouped. `clips[project]`: the project's clips once loaded (undefined: not loaded yet -> one project
  * row). Projects finished more than 14 days ago are left out unless something about them still waits for her.

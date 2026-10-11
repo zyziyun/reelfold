@@ -15,6 +15,8 @@ interface Ctx {
   /** answered today (Inbox "Done today" row) */
   doneToday: number;
   loading: boolean;
+  /** the first answer came (or failed): an empty list then means nothing needs her, not "not loaded yet" */
+  loaded?: boolean;
   error: string | null;
   reload(): void;
 }
@@ -39,7 +41,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
   }, [hist?.at]);
   const all = useMemo(() => data?.items ?? [], [data]);
   const items = useMemo(() => activeItems(all), [all]);
-  return <InboxCtx.Provider value={{ items, all, doneToday: data?.done_today ?? 0, loading: loading && !data, error, reload }}>{children}</InboxCtx.Provider>;
+  return <InboxCtx.Provider value={{ items, all, doneToday: data?.done_today ?? 0, loading: loading && !data, loaded: data !== null || error !== null, error, reload }}>{children}</InboxCtx.Provider>;
 }
 
 export function useInbox(): Ctx {

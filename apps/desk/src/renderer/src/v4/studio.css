@@ -25,6 +25,10 @@
 .st-f.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .st-f .n { font-weight: 600; font-variant-numeric: tabular-nums; }
 .st-f.you .n { color: var(--warn); }
+/* the counts while the list is still loading: a quiet placeholder, never a number that changes a moment later */
+.st-f .n.wait { display: inline-block; width: 1.4em; height: 0.7em; border-radius: 4px; background: var(--text-muted); vertical-align: middle; animation: st-wait 1.2s ease-in-out infinite alternate; }
+@keyframes st-wait { from { opacity: 0.15; } to { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .st-f .n.wait { animation: none; } }
 .st-rows { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 12px; }
 .st-empty { padding: 16px; font-size: 13.5px; }
 .st-group h3 { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 0 12px 0 8px; min-height: 28px; font-size: 12.5px; font-weight: 500; color: var(--text-faint); }

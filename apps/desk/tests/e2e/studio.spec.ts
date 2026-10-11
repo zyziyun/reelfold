@@ -130,6 +130,38 @@ test('the Studio is where the app opens: every video in one list, grouped; what 
   await shot('S1-studio');
 });
 
+test('the counts never show a number that changes a moment later: they wait until every video is in', async () => {
+  // right after launch the fuye project (three videos) is one row until its clips load: "All" read 2, then 4
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __allCounts: string[] }).__allCounts = seen;
+    const look = () => {
+      const b = document.querySelector('[data-testid=studio-f-all] .n');
+      const v = b ? (b.classList.contains('wait') ? 'wait' : (b.textContent ?? '')) : 'none';
+      if (seen[seen.length - 1] !== v) seen.push(v);
+    };
+    new MutationObserver(look).observe(document, { subtree: true, childList: true, characterData: true, attributes: true });
+  });
+  // the clips answer late (a busy engine on her Mac): the history is in well before them
+  const slow = async (route: import('@playwright/test').Route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  };
+  await page.route(/\/api\/outputs\/[0-9a-f]{12}(\?.*)?$/, slow);
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await expect(page.getByTestId('studio-n-wait-all')).toBeVisible({ timeout: 30000 }); // loading, not a number
+  await expect(page.locator('[data-testid=studio-row][data-kind=clip]')).toHaveCount(3, { timeout: 30000 });
+  await page.unroute(/\/api\/outputs\/[0-9a-f]{12}(\?.*)?$/, slow);
+  const all = page.getByTestId('studio-n-all');
+  await expect(all).toBeVisible({ timeout: 30000 });
+  const final = (await all.textContent()) ?? '';
+  expect(Number(final)).toBeGreaterThanOrEqual(4); // three videos + the run with no clips yet
+  const seen = await page.evaluate(() => (window as unknown as { __allCounts: string[] }).__allCounts);
+  const numbers = seen.filter((v) => /^\d+$/.test(v));
+  expect(numbers, `counts shown: ${seen.join(' → ')}`).toEqual([final]);
+});
+
 test('a clip opens as one page: title, player, cover, captions, versions, transcript, post, one AI bar', async () => {
   await page.locator(`[data-testid=studio-row][data-row="${fuyeId}/A_换圈子"]`).click();
   await expect(page).toHaveURL(new RegExp(`#/studio/${fuyeId}/`));
