@@ -195,6 +195,8 @@ checkpoints:
       en: Landscape footage on the vertical platforms - the camera follows the subject in each shot (default), or the whole frame on a blurred fill
     payload: vstudio.project.adapters.vlog:framing_payload
     apply: vstudio.project.adapters.vlog:framing_apply
+    current: vstudio.project.adapters.vlog:framing_current
+    remake: vstudio.project.adapters.vlog:framing_remake
     answer:
       type: object
       properties: {pick: {type: integer, minimum: 0}}
@@ -211,6 +213,8 @@ checkpoints:
       en: Title, text and hashtags per platform, in its language - written by the AI, or from the facts (place, month, your words)
     payload: vstudio.project.adapters.vlog:copy_payload
     apply: vstudio.project.adapters.vlog:copy_apply
+    current: vstudio.project.adapters.vlog:copy_current
+    remake: vstudio.project.adapters.vlog:copy_remake
     answer:
       type: object
       properties: {pick: {type: integer, minimum: 0}}

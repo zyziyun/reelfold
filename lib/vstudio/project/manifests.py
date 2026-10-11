@@ -219,7 +219,7 @@ def _refs(m):
         if s.get("fn"):
             out.append(s["fn"])
     for c in m["checkpoints"]:
-        out += [c[k] for k in ("payload", "apply", "recheck") if c.get(k)]
+        out += [c[k] for k in ("payload", "apply", "recheck", "current", "remake") if c.get(k)]
     out += [v["x-resolve"] for v in ((m.get("params") or {}).get("properties") or {}).values() if v.get("x-resolve")]
     return out
 

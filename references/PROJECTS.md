@@ -91,6 +91,13 @@ key, so a change re-opens the gate on the next run (the explainer's voice: a pai
 with `x-resolve: module:fn` and the value `auto` gets that function's answer for this machine (the explainer's
 `tts_engine`), and `_<param>_auto: true` marks it in the job's params.
 
+A standing setting of a finished item (the vlog's vertical `framing`, its post `copy`) may also name `current:
+module:fn(project, cp, item)` (what the item has when nobody answered, e.g. a project made before the recipe asked:
+read from its exports; `decisions` lists it under `choices`) and `remake: module:fn(env, cp, choice)` (redo just that
+on the finished item: only the vertical exports, or the copy + every post.md):
+`python -m vstudio.project remake --dir P --item I --do framing=follow [--do copy]` records the answer as hers and
+runs no other stage (`vstudio/project/remake.py`).
+
 Payload (what the app renders): `{id, kind, scope, item, labels, help, options [...], default, previews [{kind,
 path}], answer_schema, auto, batch_by, aggregate, digest, ...kind-specific}`. Answer: JSON validated against the
 checkpoint's `answer` schema; the checkpoint's `apply` turns it into param changes (`overrides` per item, project

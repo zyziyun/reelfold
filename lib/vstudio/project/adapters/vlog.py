@@ -352,3 +352,159 @@ def copy_apply(a):
         raise ValueError(f"copy: pick {k} out of range")
     o = opts[k]
     return dict(params=dict(copy_pick=dict(file=o["file"], by=o["kind"], provider=o.get("provider"))))
+
+
+# --------------------------------------------------------------------------- a finished vlog, brought up to date
+# (vstudio.project.remake): the clip page's "On vertical screens" and "Rewrite post copy" on a vlog made before the
+# recipe had these steps, and on one made since (then they change her answer)
+def _exports_manifest(item_dir):
+    from vstudio.batch.util import read_json
+    m = read_json(os.path.join(item_dir, "exports", "manifest.json"), None)
+    return m if isinstance(m, dict) and m.get("exports") else None
+
+
+def _item_dir_of(project, item):
+    row = next((r for r in project.jobs_rows() if r["id"] == item), {})
+    return os.path.join(project.dir, "items", row.get("_base_item") or item)
+
+
+_SAME_SHAPE = ("scale", "letterbox")
+_FILL_OF_MODE = {"subject": "follow", "pad-blur": "blur"}
+
+
+def framing_current(project, cp, item):
+    """The framing an item's vertical exports have (``exports/manifest.json``: subject -> follow, pad-blur -> blur)
+    when no answer says it -> {pick, choice, options} | None (no exports / every platform the master's shape)."""
+    man = _exports_manifest(_item_dir_of(project, item))
+    if not man:
+        return None
+    modes = [(e.get("reframe") or {}).get("mode") for e in man["exports"]
+             if (e.get("reframe") or {}).get("mode_used") not in _SAME_SHAPE]
+    if not modes:
+        return None
+    fill = next((_FILL_OF_MODE[m] for m in modes if m in _FILL_OF_MODE), "blur")   # a face crop reads as neither
+    kinds = [k for k, _ in FILLS]
+    return dict(pick=kinds.index(fill), choice=fill, options=kinds)
+
+
+def copy_current(project, cp, item):
+    """A finished item without a copy answer (made before the copy step): its post copy can be written -> {pick:
+    None, choice: None, options} | None (no exports yet)."""
+    if not _exports_manifest(_item_dir_of(project, item)):
+        return None
+    return dict(pick=None, choice=None, options=["ai", "rules"])
+
+
+def master_shots(env, master=None):
+    """``<render master>.shots.json`` (the crossfades build_vlog writes) for a master rendered before it wrote one:
+    the joins from the edit (work/edit.json) and each segment's length on screen (the rendered segments in
+    work/clips, else the edit's durations over their speed), written beside the master when they add up to its
+    length -> the path | None (a fun reel's hard cuts are found by the reframe itself)."""
+    from vstudio import media
+    rmaster = (env.inputs.get("render") or {}).get("master") or master
+    if not rmaster or not os.path.exists(rmaster):
+        return None
+    path = os.path.splitext(rmaster)[0] + ".shots.json"
+    if os.path.exists(path) and os.path.getmtime(path) >= os.path.getmtime(rmaster) - 5:
+        return path
+    try:
+        epath, cfg = _edit(env)
+    except (OSError, ValueError):
+        return None
+    segs = cfg.get("segments") or []
+    if cfg.get("style") == "fun" or len(segs) < 2:
+        return None
+    D = float(cfg.get("xfade", 0.8))
+    total = float(media.probe(rmaster)["duration"])
+    out = cfg.get("out") or "vlog_master.mp4"
+    segdir = os.path.join(os.path.dirname(os.path.join(os.path.dirname(epath), out)), "clips")
+    files = [os.path.join(segdir, f"seg_{i:02d}.mp4") for i in range(len(segs))]
+    if all(os.path.exists(f) for f in files):
+        durs = [float(media.probe(f)["duration"]) for f in files]
+    else:                                   # speed not given per segment: the one the render used, from the length
+        fixed = sum(float(s["dur"]) / float(s["speed"]) for s in segs if s.get("speed"))
+        free = sum(float(s["dur"]) for s in segs if not s.get("speed"))
+        room = total + (len(segs) - 1) * D - fixed
+        if free and room <= 0:
+            return None
+        sp = free / room if free else 1.0
+        durs = [float(s["dur"]) / (float(s["speed"]) if s.get("speed") else sp) for s in segs]
+    if min(durs) <= D or abs(sum(durs) - (len(durs) - 1) * D - total) > 0.15:
+        env.log(f"shots: the edit does not add up to the master ({sum(durs) - (len(durs) - 1) * D:.2f}s vs "
+                f"{total:.2f}s): none written")
+        return None
+    joins, L = [], durs[0]
+    for d in durs[1:]:
+        joins.append([round(L - D, 3), round(L, 3)])
+        L += d - D
+    write_json(path, dict(transitions=joins, duration=round(L, 3), segments=len(segs), derived="edit.json"))
+    return path
+
+
+def _post_doc(env):
+    """The post copy the export uses (as the recipe's export stage: her pick > the copy step's > the music credit),
+    with the title -> post dict | None."""
+    from vstudio.batch.util import read_json
+    pick = env.params.get("copy_pick") or {}
+    src = pick.get("file") or (env.inputs.get("copy") or {}).get("post") or (env.inputs.get("music") or {}).get("post")
+    post = read_json(src, None) if src and os.path.exists(src) else None
+    title = env.params.get("title")
+    return dict(post or {}, title=title) if title else post
+
+
+def framing_remake(env, cp, choice):
+    """Re-make only the vertical exports of a finished vlog with ``choice`` (follow | blur), the other exports kept:
+    the master's crossfades (``master_shots``), her cover, the post copy and preset as the export stage has them.
+    -> {answer {pick}, mode, targets, shots}."""
+    from vstudio import export as EX
+    kinds = [k for k, _ in FILLS]
+    choice = choice or "follow"
+    if choice not in kinds:
+        raise ValueError(f"framing: {choice!r} is not one of {', '.join(kinds)}")
+    master = _final_master(env)
+    if not master or not os.path.exists(master):
+        raise RuntimeError("framing: the video is not made yet (no master)")
+    out_dir = os.path.join(env.item_dir, "exports")
+    if not _exports_manifest(env.item_dir):
+        raise RuntimeError("framing: the video has no exports yet")
+    profs = reframed_targets(master, env.params.get("platforms"))
+    if not profs:
+        raise RuntimeError("framing: every platform takes the video's own shape")
+    env.at("cp_" + cp["id"])
+    try:
+        env.write_payload(cp, framing_payload(env, cp))
+    except Exception as e:  # noqa: BLE001  (the choice stands without the preview payload)
+        env.log(f"framing payload skipped: {str(e)[:160]}")
+    shots = master_shots(env, master)
+    from vstudio.export import load_shots
+    cover = (env.params.get("cover") or {}).get("file")
+    env.log(f"remake framing={choice}: {', '.join(p.key for p in profs)}")
+    EX.export(master, [p.key for p in profs], out_dir, covers=[cover] if cover and os.path.exists(cover) else None,
+              post=_post_doc(env), mode=choice, transitions=load_shots(shots), preset=env.params.get("preset") or "medium",
+              merge=True)
+    return dict(answer=dict(pick=kinds.index(choice)), mode=choice, targets=[p.key for p in profs], shots=shots)
+
+
+def copy_remake(env, cp, choice):
+    """Write the post copy of a finished vlog again (the routed copy model, the facts draft beside it) and every
+    export's post.md with it - no video work. ``choice``: ai | rules | None (the AI's when one answered).
+    -> {answer {pick}, source, provider, files}."""
+    from vstudio import export as EX
+    from vstudio.batch.util import read_json
+    if not _exports_manifest(env.item_dir):
+        raise RuntimeError("copy: the video has no exports yet")
+    env.at("copy")
+    out = copy(env)
+    env.inputs["copy"] = out
+    env.at("cp_" + cp["id"])
+    pay = env.write_payload(cp, copy_payload(env, cp))
+    opts = pay.get("options") or []
+    kinds = [o.get("kind") for o in opts]
+    if not opts:
+        raise RuntimeError("copy: no copy was drafted")
+    k = kinds.index(choice) if choice in kinds else 0
+    post = read_json(opts[k]["file"], {}) or {}
+    title = env.params.get("title")
+    EX.rewrite_posts(os.path.join(env.item_dir, "exports"), dict(post, title=title) if title else post)
+    return dict(answer=dict(pick=k), source=out.get("source"), provider=out.get("provider"), pick=kinds[k],
+                error=out.get("error"))

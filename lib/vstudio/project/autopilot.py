@@ -323,7 +323,8 @@ SETTING_KINDS = ("reframe-pick", "copy-pick")
 
 def choices(project, kinds=SETTING_KINDS):
     """The standing per-video settings among the answers (vertical framing, which post copy), whoever answered:
-    [{checkpoint, kind, item, choice (the picked option's kind), pick, by: ai | rules | her}] - the clip page shows
+    [{checkpoint, kind, item, choice (the picked option's kind), pick, by: ai | rules | her | before (made before
+    the recipe asked: read from the item's files)}] - the clip page shows
     them as a setting she can switch, also after she changed it (then it is hers and not in ``decisions``)."""
     out = []
     for cid, per in (project.data.get("answers") or {}).items():
@@ -347,6 +348,20 @@ def choices(project, kinds=SETTING_KINDS):
             out.append(dict(checkpoint=cid, kind=cp["kind"], item=item, pick=k, choice=o.get("kind"),
                             options=[x.get("kind") for x in opts],
                             by=(rec.get("by") or "rules") if rec.get("auto") else "her"))
+    # a finished item nobody answered these for (made before the recipe asked): what it has now, so the clip page
+    # shows the setting and can change it (vstudio.project.remake)
+    from .remake import current
+    have = {(x["checkpoint"], x["item"]) for x in out}
+    for cp in project.manifest["checkpoints"]:
+        if cp["kind"] not in kinds or not cp.get("current"):
+            continue
+        for row in project.jobs_rows():
+            if (cp["id"], row["id"]) in have or (cp["scope"] == "project" and (cp["id"], "*") in have):
+                continue
+            cur = current(project, cp, row["id"])
+            if cur:
+                out.append(dict(checkpoint=cp["id"], kind=cp["kind"], item=row["id"], pick=cur.get("pick"),
+                                choice=cur.get("choice"), options=list(cur.get("options") or []), by="before"))
     return out
 
 

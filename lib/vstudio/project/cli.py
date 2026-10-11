@@ -17,6 +17,9 @@ references/PROJECTS.md.
   reopen --dir P --id X [--item I]                    autopilot: take a decision back (the next run asks you)
   checkpoint --dir P [--id X] [--item I | --items a,b] [--answer JSON | --answer-file F | --default] [--run]
                                                       list pending payloads / record an answer
+  remake --dir P --item I --do framing=follow|blur [--do copy] [--json-events]   a finished item brought up to
+                                                      date: only the vertical exports re-made / the post copy and
+                                                      every post.md written again (remake.py; older projects too)
   set --dir P [--item I] (--param k=v ... | --set JSON)   edit params in project.yaml, then refresh
   export --dir P [--out D] [--all] [--items a,b]      final files + manifest.json (sha256)
   list                                                registered projects (lanes) with their state + adopted work
@@ -270,6 +273,25 @@ def cmd_checkpoint(a):
         _out(a, out)
         return 0
     _out(a, p.answer(a.id, value, items=items, run=a.run))
+    return 0
+
+
+def cmd_remake(a):
+    from vstudio.batch.cli import json_event_sink
+    from .core import Project
+    from .remake import remake
+    todo = {}
+    for x in a.do or []:
+        k, _, v = x.partition("=")
+        todo[k.strip()] = v.strip() or None
+    if not todo:
+        raise ValueError("--do CHECKPOINT[=CHOICE] (e.g. --do framing=follow --do copy)")
+    emit, stream = json_event_sink() if a.json_events else (None, None)
+    r = remake(Project(_dir(a)), a.item, todo, emit=emit)
+    if emit:
+        stream.flush()
+    else:
+        _out(a, r, "\n".join(f"{x['checkpoint']}: {x.get('choice') or 'done'}" for x in r["done"]))
     return 0
 
 
@@ -648,6 +670,11 @@ def build_parser():
     p.add_argument("--answer-file")
     p.add_argument("--default", action="store_true", help="answer with each payload's default")
     p.add_argument("--run", action="store_true", help="continue the run after answering")
+    p = add("remake", cmd_remake, "redo a standing setting of a finished item (vertical framing, post copy) - only "
+                                  "what it changes, no other stage")
+    p.add_argument("--item", required=True)
+    p.add_argument("--do", action="append", help="CHECKPOINT[=CHOICE], e.g. framing=follow | framing=blur | copy")
+    p.add_argument("--json-events", action="store_true")
     p = add("set", cmd_set, "edit params")
     p.add_argument("--item")
     p.add_argument("--param", action="append")

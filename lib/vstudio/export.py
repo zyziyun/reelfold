@@ -662,31 +662,72 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         entry["notes"].append(f"{prof.label} feed shows a centre {prof.feed_crop} crop of the video "
                               f"{list(P.feed_crop_box(prof))}: keep faces and captions inside it")
     if post:
-        from . import publish
-        msgs = []
         src_cues = cue_list or (load_cues(cues) if cues is not None else [])
-        content_lang = post_lang or publish.detect_lang(src_cues)
-        body, copy = publish.platform_post(post, _publish_platform(prof), content_lang=content_lang,
-                                           lang=post.get("_lang"), bilingual=post.get("_bilingual"), warn=msgs.append)
-        warnings += msgs
-        ttl = publish.fit_title(copy["title"], _publish_platform(prof))[0] if copy.get("title") else None
-        warnings += P.check_text(prof, title=ttl, body=body, tags=copy.get("tags"))   # the title as post_body fit it
-        if copy.get("chapters") and not prof.chapters.get("supported") and prof.name not in publish.NO_TITLE:
-            entry["notes"].append(f"{prof.label} has no native chapters; timeline kept as plain text")
-        pp = os.path.join(out_dir, stem + ".post.md")
-        with open(pp, "w", encoding="utf-8") as f:
-            f.write(body)
-        entry["post"] = os.path.basename(pp)
-        entry["post_lang"] = copy.get("lang")
-        entry["post_len"] = P.text_len(prof, body)
+        warnings += write_post(prof, out_dir, post, entry, cues=src_cues, post_lang=post_lang)
     entry["warnings"] = list(dict.fromkeys(warnings))
     return entry
 
 
-def export(master, targets, out_dir="exports", cues=None, covers=None, post=None, account=None, **kw):
+def write_post(prof, out_dir, post, entry, cues=None, post_lang=None):
+    """``<platform>-<orientation>.post.md`` of one export from post.json (``post``): the platform's text in its
+    language (publish.platform_post), checked against its limits. Updates ``entry`` (post, post_lang, post_len,
+    post_warnings, notes) -> the warnings about the text."""
+    from . import publish
+    msgs = []
+    content_lang = post_lang or publish.detect_lang(cues or [])
+    body, copy = publish.platform_post(post, _publish_platform(prof), content_lang=content_lang,
+                                       lang=post.get("_lang"), bilingual=post.get("_bilingual"), warn=msgs.append)
+    ttl = publish.fit_title(copy["title"], _publish_platform(prof))[0] if copy.get("title") else None
+    msgs += P.check_text(prof, title=ttl, body=body, tags=copy.get("tags"))   # the title as post_body fit it
+    if copy.get("chapters") and not prof.chapters.get("supported") and prof.name not in publish.NO_TITLE:
+        note = f"{prof.label} has no native chapters; timeline kept as plain text"
+        if note not in entry.setdefault("notes", []):
+            entry["notes"].append(note)
+    pp = os.path.join(out_dir, f"{prof.name}-{prof.orientation}.post.md")
+    with open(pp, "w", encoding="utf-8") as f:
+        f.write(body)
+    entry.update(post=os.path.basename(pp), post_lang=copy.get("lang"), post_len=P.text_len(prof, body),
+                 post_warnings=list(dict.fromkeys(msgs)))
+    return msgs
+
+
+def _profile_of(e, master_aspect=None):
+    """A manifest entry -> its platform Profile."""
+    return P.parse_targets([f"{e['platform']}:{e['orientation']}"], master_aspect=master_aspect)[0]
+
+
+# text warnings an export wrote before ``post_warnings`` was kept apart (old manifests): dropped when the post is
+# written again, so they are not reported twice
+_OLD_TEXT_WARNING = ("needs a title", "em-dash", "title ", "description ", "hashtag", "links in the text",
+                     "put the link", "tags")
+
+
+def rewrite_posts(out_dir, post, cues=None, post_lang=None):
+    """Write every export's post.md again from ``post`` (no video work) and update ``manifest.json`` -> the manifest.
+    The new per-platform post copy of a finished video."""
+    path = os.path.join(out_dir, "manifest.json")
+    with open(path, encoding="utf-8") as f:
+        man = json.load(f)
+    for e in man.get("exports") or []:
+        prof = _profile_of(e)
+        old = e.get("post_warnings")
+        if old is not None:
+            keep = [w for w in e.get("warnings") or [] if w not in old]
+        else:
+            keep = [w for w in e.get("warnings") or [] if not any(k in w for k in _OLD_TEXT_WARNING)]
+        e["warnings"] = list(dict.fromkeys(keep + write_post(prof, out_dir, post, e, cues=cues, post_lang=post_lang)))
+    man["warnings"] = [f"{e['platform']}:{e['orientation']}: {w}" for e in man.get("exports") or []
+                       for w in e["warnings"]]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(man, f, ensure_ascii=False, indent=2)
+    return man
+
+
+def export(master, targets, out_dir="exports", cues=None, covers=None, post=None, account=None, merge=False, **kw):
     """Export to every target ("name[:orientation]" strings or Profiles). Writes out_dir/manifest.json and
     returns the manifest dict. A bare platform name that takes several shapes (X) gets the orientation closest
-    to the master's aspect (no letterbox); ``account`` ("premium") applies that account tier's limits."""
+    to the master's aspect (no letterbox); ``account`` ("premium") applies that account tier's limits.
+    ``merge``: the targets are made again, the other exports already in out_dir/manifest.json are kept."""
     os.makedirs(out_dir, exist_ok=True)
     mi = media.probe(master)
     aspect = mi["display_w"] / mi["display_h"]
@@ -716,6 +757,16 @@ def export(master, targets, out_dir="exports", cues=None, covers=None, post=None
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(workers) as ex:
             entries = list(ex.map(one, profs))
+    if merge:
+        try:
+            with open(os.path.join(out_dir, "manifest.json"), encoding="utf-8") as f:
+                old = json.load(f).get("exports") or []
+        except (OSError, ValueError):
+            old = []
+        key = lambda e: (e["platform"], e["orientation"])  # noqa: E731
+        new = {key(e): e for e in entries}
+        had = {key(e) for e in old}
+        entries = [new.get(key(e), e) for e in old] + [e for e in entries if key(e) not in had]
     man = dict(master=os.path.abspath(master), master_info={k: media.probe(master)[k] for k in
                                                             ("w", "h", "fps", "duration", "has_audio")},
                exports=entries, warnings=[f"{e['platform']}:{e['orientation']}: {w}" for e in entries for w in e["warnings"]])

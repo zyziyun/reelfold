@@ -459,6 +459,14 @@
     "recheck": {
      "type": "string",
      "description": "module:function(job params) -> a value hashed into the gate's key (None = nothing): a change re-opens the gate on the next run (e.g. a paid voice whose key went away)"
+    },
+    "current": {
+     "$ref": "#/$defs/ref",
+     "description": "module:function(project, cp, item) -> {pick, choice, options} | None: what a finished item has when nobody answered (made before the recipe asked); the desk shows it as the setting"
+    },
+    "remake": {
+     "$ref": "#/$defs/ref",
+     "description": "module:function(env, cp, choice) -> {answer, ...}: redo this setting on a finished item without running the recipe again (vstudio.project.remake)"
     }
    }
   }
