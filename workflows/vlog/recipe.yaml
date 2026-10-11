@@ -110,7 +110,7 @@ stages:
     preview: {kind: image, path: "out:sheet"}
   - id: export
     resource: cpu-render
-    deps: [cover_frames]
+    deps: [cover_frames, music]
     keys: [platforms, preset, cover]
     run:
       argv: ["{python}", "-m", "vstudio.export", "{out.music.master}", "--platforms", "{platforms_csv}", "--out",

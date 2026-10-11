@@ -144,6 +144,7 @@ def validate(m, deep=True):
         for d in list(s.get("deps") or []) + list(s.get("extra_deps") or []):
             if d not in known:
                 errs.append(f"stage {s['id']}: unknown dep {d!r}")
+    errs += _out_ref_errors(m)
     cps = [c["id"] for c in m["checkpoints"]]
     if len(cps) != len(set(cps)):
         errs.append("duplicate checkpoint ids")
@@ -183,6 +184,33 @@ def validate(m, deep=True):
     if fi and fi not in inputs:
         errs.append(f"items.from_input {fi!r} is not an input")
     return errs
+
+
+def _templates_in(v):
+    if isinstance(v, str):
+        yield from (mo.group(1) for mo in _TPL.finditer(v))
+    elif isinstance(v, dict):
+        if isinstance(v.get("if"), str):
+            yield v["if"]
+        for x in v.values():
+            yield from _templates_in(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from _templates_in(x)
+
+
+def _out_ref_errors(m):
+    """A ``run:`` stage reads ``{out.<stage>...}`` from its direct deps only (the runner hands a stage the outputs
+    of its ``deps``, not of their ancestors): naming any other stage fails at run time with Missing (0.2.7: the
+    vlog export read out.music through cover_frames)."""
+    errs = []
+    for s in m["stages"]:
+        deps = set(s.get("deps") or []) | set(s.get("extra_deps") or [])
+        for name in _templates_in(s.get("run") or {}):
+            parts = name.split(".")
+            if parts[0] == "out" and len(parts) > 1 and parts[1] not in deps:
+                errs.append(f"stage {s['id']}: {{{name}}} reads stage {parts[1]!r}, which is not one of its deps")
+    return list(dict.fromkeys(errs))
 
 
 def _refs(m):
