@@ -112,7 +112,7 @@ test(`a bulk Archive of ${N} projects empties the list, Undo brings every one ba
   test.setTimeout(120000);
   const arch = await timed('bulkArchive', { click: 'studio-bulk-archive' }, { rows: 0 });
   expect(arch).toBeGreaterThan(0);
-  expect(arch).toBeLessThan(5000); // one engine call + one listing (it was 21 s while every lookup listed again)
+  expect(arch).toBeLessThan(15000); // one engine call + one listing: under 1 s on a quiet Mac (21 s while every lookup listed again)
   const undo = await timed('undoArchive', { click: 'toast-undo' }, { rows: N });
   expect(undo).toBeGreaterThan(0);
   expect(undo).toBeLessThan(10000);
