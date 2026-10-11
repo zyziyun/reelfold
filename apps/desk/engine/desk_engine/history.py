@@ -24,7 +24,8 @@ import threading
 import time
 
 from . import works as WK
-from .pilot import failure as pilot_failure, queued as pilot_queued, running as pilot_running
+from .pilot import (failure as pilot_failure, queued as pilot_queued, running as pilot_running,
+                    stopped as pilot_stopped)
 from .common import (batch_id, is_temp_path, keep_entry, live_status, need, prune_json_registry, read_json,
                      write_json)
 
@@ -147,6 +148,46 @@ def summarize_project(pdir):
         except OSError:
             pass
     return out
+
+
+# never moved to the Trash as a whole (macOS + the Windows / OneDrive known folders)
+TOP_DIRS = ("Desktop", "Documents", "Downloads", "Movies", "Pictures", "Library", "Videos", "Music", "OneDrive",
+            "AppData")
+
+
+def _trashable(target, home):
+    t = os.path.realpath(target)
+    if len([x for x in t.split(os.sep) if x]) < 3 or t == home:
+        return False
+    return t not in {os.path.join(home, x) for x in TOP_DIRS} and t != os.path.realpath(vstudio_home())
+
+
+def _project_sources(pdir):
+    """Every absolute path project.yaml names as an input (``inputs`` and each item's ``inputs``): her footage."""
+    try:
+        import yaml
+        with open(os.path.join(pdir, "project.yaml"), encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception:  # noqa: BLE001  (unreadable: the folder's own files are all there is to check)
+        data = {}
+    out = []
+
+    def walk(v):
+        if isinstance(v, str):
+            if os.path.isabs(v):
+                out.append(v)
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    if isinstance(data, dict):
+        walk(data.get("inputs"))
+        for it in data.get("items") or []:
+            if isinstance(it, dict):
+                walk(it.get("inputs"))
+    return list(dict.fromkeys(out))
 
 
 # ------------------------------------------------------------------ discovery
@@ -375,6 +416,91 @@ class History:
                 self.reg.add(r["dir"], r.get("name"))
         return dict(ok=True, restored=sorted(rps))
 
+    # ---------------------------------------------------------- delete (to the Trash; the desk's main process moves it)
+    def _row_for(self, path):
+        rp = os.path.realpath(path)
+        for archived in (False, True):
+            for r in self.list(archived=archived)["items"]:
+                if os.path.realpath(r.get("real") or r["dir"]) == rp:
+                    return r
+        return None
+
+    def trash_plan(self, paths):
+        """What Delete would move to the Trash, per project folder (the confirm names it; the desk's main process
+        asks again before it moves anything): {dir, name, ok, reason?, target, files, bytes, keep[], inside[]}.
+
+        Only a project the app made or found (``project.yaml``) is deleted, as a whole folder; a plain work folder or
+        a batch is her own folder (archive it instead). Her source footage is never deleted: a project whose inputs
+        live inside its folder is refused (``footage-inside``), inputs elsewhere are listed in ``keep`` (they stay).
+        A project with a run going is refused (``running``). An app-made project's ``projects/<id>`` folder goes with
+        it when nothing else is in there (its intake note only)."""
+        need(isinstance(paths, list) and 0 < len(paths) <= 200, "dirs: 1-200 folders")
+        home = os.path.realpath(os.path.expanduser("~"))
+        mine = os.path.realpath(os.path.join(vstudio_home(), "projects"))
+        out = []
+        for p in paths:
+            rp = os.path.realpath(p)
+            row = self._row_for(p)
+            res = dict(dir=p, name=(row or {}).get("name") or os.path.basename(rp), ok=False)
+            out.append(res)
+            if not row:
+                res["reason"] = "not-in-list"
+                continue
+            res["id"] = row["id"]
+            if row["kind"] != "project" or not os.path.isfile(os.path.join(rp, "project.yaml")):
+                res["reason"] = "own-folder"
+                continue
+            if self._busy(rp):
+                res["reason"] = "running"
+                continue
+            target, parent = rp, os.path.dirname(rp)
+            if os.path.dirname(parent) == mine:
+                try:
+                    rest = set(os.listdir(parent)) - {os.path.basename(rp), "intake.json", ".DS_Store"}
+                except OSError:
+                    rest = {"?"}
+                if not rest:
+                    target = parent
+            if not _trashable(target, home):
+                res["reason"] = "unsafe"
+                continue
+            srcs = _project_sources(rp)
+            inside = [x for x in srcs if os.path.realpath(x) == target or os.path.realpath(x).startswith(target + os.sep)]
+            if inside:
+                res.update(reason="footage-inside", inside=inside[:20])
+                continue
+            n, size = 0, 0
+            for dp, _dn, fn in os.walk(target):
+                for f in fn:
+                    n += 1
+                    try:
+                        size += os.lstat(os.path.join(dp, f)).st_size
+                    except OSError:
+                        pass
+                if n > 200000:
+                    break
+            res.update(ok=True, target=target, files=n, bytes=size,
+                       keep=[x for x in srcs if os.path.exists(x)][:20])
+        return dict(items=out)
+
+    def forget(self, paths):
+        """After the desk moved project folders to the Trash: their archive / name / client notes go too (the
+        registries drop rows of missing folders by themselves)."""
+        need(isinstance(paths, list) and 0 < len(paths) <= 200, "dirs: 1-200 folders")
+        rps = {os.path.realpath(p) for p in paths}
+        with self._lock:
+            c = self._cfg()
+            c["hidden"] = [h for h in c.get("hidden") or [] if h not in rps]
+            for k in ("archived_at", "archived_reg", "names", "clients"):
+                if isinstance(c.get(k), dict):
+                    c[k] = {x: v for x, v in c[k].items() if x not in rps}
+            write_json(self.path, c)
+        for b in self.reg.all():
+            if os.path.realpath(b["dir"]) in rps or os.path.dirname(os.path.realpath(b["dir"])) in rps:
+                self.reg.remove(b["id"])
+        self._last = self._last_archived = None
+        return dict(ok=True, forgot=sorted(rps))
+
     def hide(self, path):
         """The old 「remove from list」: archive one folder."""
         r = self.archive([path])
@@ -552,6 +678,12 @@ class History:
             in_line = None if kind_ == "batch" or run else pilot_queued(d)
             if in_line:
                 info["queued"] = in_line                 # waits for a free run slot (pilot.RunQueue): 1 = next
+            halted = None if kind_ == "batch" or run or in_line or fail else pilot_stopped(d)
+            if halted and not (live and live.get("state") in ("running", "waiting") and
+                               (live.get("heartbeat") or 0) > halted + 30):
+                info["stopped"] = halted                 # she stopped its run (pilot.stop): Try again goes on
+                if live and live.get("state") in ("running", "interrupted", "failed"):
+                    live = dict(live, state="stopped")
             if fail:
                 info["status"] = "failed"
                 info["failure"] = fail

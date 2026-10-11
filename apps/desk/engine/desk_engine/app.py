@@ -59,6 +59,11 @@ History (history.py; read-only discovery of past work: desk + engine registries,
   POST /api/history/hide {dir}             old alias of archive; /unhide-one {dir} of restore; POST /api/history/unhide
                                            restores everything
   POST /api/history/client {dir, client}   agency mode: the client a project is for ('' = her own)
+  POST /api/history/trash-plan {dirs[]}    Delete, step 1: what would go to the Trash per project folder (the desk's
+                                           main process moves it after her confirm) {items [{dir, name, ok, reason?,
+                                           target, files, bytes, keep[] (her footage: stays), inside[]}]}
+  POST /api/history/forget {dirs[]}        Delete, step 2: folders now in the Trash leave the desk's notes
+  POST /api/history/item/<id>/stop|resume  stop a project's run (pilot.stop: resumable) / run it on (Try again)
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
   POST /api/history/item/<id>/adopt        {recipe?: guess|name, title?} plain work folder -> .vstudio/work.json
   GET  /api/history/item/<id>/progress?n=  the run's last events as codes (「看过程」 in the control room)
@@ -94,7 +99,10 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            failed plan / revision / apply again); POST .../discard; GET
                                            /api/intake/recent; GET /api/intake/open (requests not projects yet)
                                            POST .../add {inputs?, text?} (what a ``needs`` request waited for);
-                                           POST .../go-on (plan it without)
+                                           POST .../go-on (plan it without); GET /api/intake/open?archived=1 (the
+                                           archived ones); POST /api/intake/archive | restore | delete {ids[]}
+                                           (the Studio's row menu: delete = a request that never became a project
+                                           is gone for good; her files are never touched)
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
        POST .../change {checkpoint, item, answer}   (autopilot.py)
   GET  /api/sample                         the built-in sample recording (copied out of the app) -> {available, path, ...};
@@ -134,7 +142,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import metrics as MET
-from .common import JOB_RE, NAME_RE, BadRequest, need
+from .common import JOB_RE, NAME_RE, BadRequest, batch_id, need
 from .v02store import CLIENT_RE
 
 MAX_BODY = 1 << 20
@@ -605,7 +613,14 @@ class Api:
             if parts == ["intake", "recent"] and method == "GET":
                 return self.intake.recent()
             if parts == ["intake", "open"] and method == "GET":
-                return self.intake.open()
+                ar = (query.get("archived") or [None])[0]
+                need(ar in (None, "", "0", "1"), "archived: 0|1")
+                return self.intake.open(archived=ar == "1")
+            if parts[1:] in (["archive"], ["restore"], ["delete"]) and len(parts) == 2 and method == "POST":
+                ids = b.get("ids")
+                need(isinstance(ids, list) and 0 < len(ids) <= 200 and all(isinstance(x, str) and PID_RE.match(x) for x in ids),
+                     "ids: 1-200 request ids")
+                return getattr(self.intake, parts[1])(ids)
             need(len(parts) >= 2 and PID_RE.match(parts[1]), "bad plan id")
             if len(parts) == 2 and method == "GET":
                 return self.intake.get(parts[1])
@@ -772,6 +787,13 @@ class Api:
                     n = q("n") or "30"
                     need(n.isdigit(), "n: a number")
                     return progress_feed(h.find(parts[2])["dir"], int(n))
+                if parts[3:] in (["stop"], ["resume"]) and method == "POST":
+                    e = h.find(parts[2])
+                    need(e["kind"] in ("project", "work"), "only a project's run can be stopped / tried again")
+                    if parts[3] == "stop":
+                        from . import pilot
+                        return pilot.stop(e["dir"], self.bus)
+                    return self.intake.resume_pilot(e["dir"])
                 if parts[3:] == ["adopt"] and method == "POST":
                     b = body if isinstance(body, dict) else {}
                     rec = b.get("recipe") or "guess"
@@ -800,6 +822,25 @@ class Api:
                 dirs = [_abs_path(d, "dir", must_exist=False) for d in raw]
                 r = h.archive(dirs) if parts[1] == "archive" else h.restore(dirs)
                 self.bus.publish("batches")
+                return r
+            if parts[1:] in (["trash-plan"], ["forget"]) and method == "POST":
+                need(isinstance(body, dict), "body must be an object")
+                raw = body.get("dirs")
+                need(isinstance(raw, list) and 0 < len(raw) <= 200, "dirs[] (1-200) required")
+                dirs = [_abs_path(d, "dir", must_exist=False) for d in raw]
+                if parts[1] == "trash-plan":
+                    return h.trash_plan(dirs)
+                gone = [d for d in dirs if not os.path.exists(d)]
+                need(gone, "nothing to forget: the folders are still there")
+                r = h.forget(gone)
+                # its posts still waiting to go out go too (posted ones stay: they are her history)
+                items = {batch_id(x) for d in gone for x in (d, os.path.join(d, "state"))}
+                drop = [p["id"] for p in self.calendar._rows() if p.get("item") in items and p.get("state") != "posted"]
+                if drop:
+                    self.calendar.remove_many(drop[:200])
+                r["posts_removed"] = len(drop)
+                self.bus.publish("batches")
+                self.bus.publish("calendar")
                 return r
             if parts[1:] == ["client"] and method == "POST":
                 need(isinstance(body, dict), "body must be an object")

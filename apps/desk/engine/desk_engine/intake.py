@@ -120,7 +120,7 @@ class Intake:
 
     JOB_KEYS = ("id", "state", "step", "prompt", "inputs", "error", "error_code", "error_provider", "started",
                 "seconds", "platforms", "lang", "mode", "sample_name", "applied", "discarded", "failed_apply",
-                "failed_revise", "name", "needs", "ignore_needs")
+                "failed_revise", "name", "needs", "ignore_needs", "archived_at")
 
     def _job_path(self, pid):
         return os.path.join(self.dir, f"{pid}.job.json")
@@ -276,22 +276,85 @@ class Intake:
                     break
         return out
 
-    def open(self):
-        """Requests from Home that are not projects yet (planning, a plan waiting for her Start, a failure), newest
-        first: what All projects lists above the projects."""
+    def open(self, archived=False):
+        """Requests from Home that are not projects yet (planning, a plan waiting for her Start, a failure, one she
+        stopped), newest first: what All projects / the Studio list above the projects. ``archived``: only the ones
+        she archived (the Studio's Archived filter; ``archived_at`` set)."""
         out = []
         for j in list(self.jobs.values()):
-            if not j.get("mode") or j.get("applied") or j.get("discarded") or j.get("state") == "stopped":
+            if not j.get("mode") or j.get("applied") or j.get("discarded"):
+                continue
+            if bool(j.get("archived_at")) != bool(archived):
                 continue
             plan = j.get("plan") or {}
             names = [p.get("name") for p in plan.get("projects") or [] if p.get("name")]
-            out.append(dict(id=j["id"], state=j.get("state"), step=j.get("step"), mode=j["mode"],
-                            prompt=j.get("prompt"), inputs=j.get("inputs") or [], started=j.get("started"),
-                            progress=j.get("progress"), error_code=j.get("error_code"), error=j.get("error"),
-                            name=j.get("name") or (names[0] if names else None), projects=len(names) or None,
-                            failed_apply=bool(j.get("failed_apply")), needs=j.get("needs") or None))
+            row = dict(id=j["id"], state=j.get("state"), step=j.get("step"), mode=j["mode"],
+                       prompt=j.get("prompt"), inputs=j.get("inputs") or [], started=j.get("started"),
+                       progress=j.get("progress"), error_code=j.get("error_code"), error=j.get("error"),
+                       name=j.get("name") or (names[0] if names else None), projects=len(names) or None,
+                       failed_apply=bool(j.get("failed_apply")), needs=j.get("needs") or None)
+            if archived:
+                row.update(archived=True, archived_at=j.get("archived_at"))
+            out.append(row)
         out.sort(key=lambda x: -(x.get("started") or 0))
         return dict(items=out)
+
+    # ---------------------------------------------------------- archive / restore / delete (the Studio's row menu)
+    def archive(self, ids):
+        """Archive requests (the Studio's 归档): they leave the list and its counts, nothing is deleted; one that is
+        still planning is stopped first. -> {ok, archived[]}"""
+        need(isinstance(ids, list) and 0 < len(ids) <= 200, "ids: 1-200 request ids")
+        now = time.time()
+        done = []
+        for pid in ids:
+            j = self.get(pid)
+            need(not j.get("applied"), "this request is already a project")
+            if j.get("state") == "running":
+                self.stop(pid)
+            self._set(pid, archived_at=now)
+            done.append(pid)
+        if self.bus:
+            self.bus.publish("batches")
+            self.bus.publish("inbox")
+        return dict(ok=True, archived=done, at=now)
+
+    def restore(self, ids):
+        """Archived requests back in the list, as they were (a stopped one stays stopped)."""
+        need(isinstance(ids, list) and 0 < len(ids) <= 200, "ids: 1-200 request ids")
+        done = []
+        for pid in ids:
+            self.get(pid)
+            self._set(pid, archived_at=None)
+            done.append(pid)
+        if self.bus:
+            self.bus.publish("batches")
+            self.bus.publish("inbox")
+        return dict(ok=True, restored=done)
+
+    def delete(self, ids):
+        """Delete requests that never became projects (a failure, one she stopped, a draft): the request and its plan
+        are gone for good. Her files are never touched (the request only pointed at them). A request already made
+        into projects is refused (those are deleted as projects)."""
+        need(isinstance(ids, list) and 0 < len(ids) <= 200, "ids: 1-200 request ids")
+        jobs = [self.get(pid) for pid in ids]
+        for j in jobs:
+            need(not j.get("applied"), "this request is already a project: delete the project instead")
+        for j in jobs:
+            pid = j["id"]
+            if j.get("state") == "running":
+                self.stop(pid)
+            with self._lock:
+                self.jobs.pop(pid, None)
+                self._procs.pop(pid, None)
+            for p in (self._job_path(pid), self._path(pid)):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+        if self.bus:
+            self.bus.publish("batches")
+            self.bus.publish("inbox")
+        return dict(ok=True, deleted=[j["id"] for j in jobs])
 
     def inbox_items(self):
         """For the Inbox: a plan that waits for her Start (ask me first), a request that waits for something only she
@@ -424,7 +487,10 @@ class Intake:
     def retry(self, pid):
         """「再试一次」 on a failed plan card: the same request (plan, or the revision that failed) again."""
         j = self.get(pid)
-        need(j.get("state") == "error", "only a failed plan can be tried again")
+        need(j.get("state") in ("error", "stopped"), "only a failed or stopped plan can be tried again")
+        if j.get("state") == "stopped":            # she stopped it: 「再试一次」 plans it again from the start
+            with self._lock:
+                self.jobs[pid] = dict(self.jobs[pid], state="error")
         if j.get("failed_revise"):
             return self.revise(pid, j["failed_revise"])
         if j.get("failed_apply") and j.get("plan"):
@@ -567,6 +633,28 @@ class Intake:
         from . import pilot
         pilot.spawn(self.runner.python, self.runner.env, d, provider=provider, bus=self.bus,
                     args=pilot.run_args(self.runner.python, d, autopilot, lang))
+
+    def resume_pilot(self, d):
+        """「再试一次」 on a project she stopped: the same run again (the command its record keeps; the engine skips
+        what is already made), else the project's first run (on autopilot when the project is)."""
+        from . import pilot
+        need(os.path.isdir(d), "no such project folder")
+        try:
+            self._need_engine()
+        except Unavailable as e:
+            raise BadRequest(f"{e}. Nothing was run; try again.") from e
+        rec = read_json(os.path.join(d, pilot.REC), None) or {}
+        a = rec.get("args") if isinstance(rec, dict) else None
+        if isinstance(a, list) and a and all(isinstance(x, str) for x in a):
+            args = [self.runner.python, *a]
+        else:
+            from .history import summarize_project
+            args = pilot.run_args(self.runner.python, d, bool(summarize_project(d).get("autopilot")))
+        pilot.spawn(self.runner.python, self.runner.env, d, provider=rec.get("provider"), bus=self.bus, args=args)
+        if self.bus:
+            self.bus.publish("batches")
+            self.bus.publish("inbox")
+        return dict(ok=True)
 
     def retry_pilot(self, d, provider=None):
         """「换 Codex 重试」/「重试」 after a failed pilot: the same run, every model task on ``provider``."""

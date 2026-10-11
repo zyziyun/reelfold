@@ -328,7 +328,7 @@ class MockAutopilotRunTest(unittest.TestCase):
 class StopRequestTest(unittest.TestCase):
     def test_a_request_stopped_while_it_plans_makes_nothing(self):
         """Stop in the control room while an autopilot request plans: the late plan never applies (no project, no
-        run), and the request leaves the list."""
+        run), and the request stays in the list as stopped (Try again / Delete from its row menu)."""
         from desk_mock.intake import MockIntake
         tmp = tempfile.mkdtemp(prefix="mockstop-")
         env0 = dict(os.environ)
@@ -345,7 +345,7 @@ class StopRequestTest(unittest.TestCase):
             j = it.get(pid)
             self.assertEqual(j["state"], "stopped")
             self.assertFalse(j.get("applied"))
-            self.assertEqual(it.open()["items"], [])
+            self.assertEqual([(x["id"], x["state"]) for x in it.open()["items"]], [(pid, "stopped")])
             self.assertFalse(os.path.exists(os.path.join(tmp, "vh", "projects")))
         finally:
             os.environ.clear()

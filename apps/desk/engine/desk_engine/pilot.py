@@ -130,6 +130,8 @@ def failure(d, now=None):
     rec = rec if isinstance(rec, dict) else {}
     if rec.get("queued") and not rec.get("pid"):
         return None                                           # waiting in line: an older run's end is history
+    if rec.get("stopped"):
+        return None                                           # she stopped it (``stop``): not a failure
     code = rec.get("exit")
     if code is None and rec.get("pid") and _pid_alive(rec.get("pid")):
         return None                                           # still running
@@ -263,6 +265,41 @@ class RunQueue:
 QUEUE = RunQueue()
 
 
+def stop(d, bus=None):
+    """「停止」 a project's run (the Studio's row menu): out of the line when it waits there, else the run the desk
+    started is interrupted (SIGINT to its session: the engine stops at a safe point and the run can go on later,
+    ``resume``). The record says ``stopped`` (not a failure). -> {ok, stopped: "queued" | "running" | None}"""
+    import signal
+    recp = os.path.join(d, REC)
+    rec = read_json(recp, None)
+    rec = rec if isinstance(rec, dict) else {}
+    how = None
+    if QUEUE.cancel(d):
+        how = "queued"
+    elif rec.get("exit") is None and rec.get("pid") and _pid_alive(rec.get("pid")):
+        how = "running"
+    if how:
+        rec.update(stopped=time.time(), queued=False)
+        write_json(recp, rec)
+    if how == "running":
+        try:
+            os.killpg(int(rec["pid"]), signal.SIGINT)        # the child runs in its own session (start_new_session)
+        except (OSError, ValueError):
+            try:
+                os.kill(int(rec["pid"]), signal.SIGINT)
+            except (OSError, ValueError):
+                pass
+    if bus:
+        bus.publish("batches")
+    return dict(ok=True, stopped=how)
+
+
+def stopped(d):
+    """She stopped the last run (and none started since) -> when, else None."""
+    rec = read_json(os.path.join(d, REC), None)
+    return rec.get("stopped") if isinstance(rec, dict) and rec.get("stopped") else None
+
+
 def queued(d):
     """The run of project ``d`` waits for a free slot -> its place in line (1 = next), else None."""
     return QUEUE.position(d)
@@ -306,7 +343,7 @@ def _start(python, env, d, provider=None, bus=None, args=None, done=None):
                          env=dict(retry_env(env, provider), **{AGENT_ENV: agent_path}), start_new_session=True)
     log.close()
     rec = dict(pid=p.pid, started=time.time(), offset=offset, agent_offset=agent_offset, exit=None, finished=None,
-               provider=provider)
+               provider=provider, args=cmd[1:])
     write_json(os.path.join(d, REC), rec)
 
     def wait():
