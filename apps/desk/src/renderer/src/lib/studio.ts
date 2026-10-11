@@ -149,6 +149,7 @@ export function studioRows(
     const projAsk = projAsks[0] ?? null;
     if (projAsk && !single) out.push({ ...projectRow(), group: 'you', tone: projAsk.kind === 'failed' ? 'error' : 'you', header: true });
     const running = p.state === 'run';
+    const at0 = out.length;
     cl.forEach((c, k) => {
       const ask = asksFor(inbox, i.id, c.id)[0] ?? (single ? projAsk : null);
       const mine = posts.filter((x) => x.item === i.id && x.clip === c.id);
@@ -175,6 +176,9 @@ export function studioRows(
         i,
       });
     });
+    // still making the next videos while every listed one is made (they are listed once they exist): the project
+    // stays In progress as its own row - Watch all, the time left and its run page keep it until it ends
+    if (running && !out.slice(at0).some((x) => x.group === 'run')) out.push(projectRow());
   }
   return out;
 }

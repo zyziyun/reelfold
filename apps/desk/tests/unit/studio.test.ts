@@ -90,3 +90,25 @@ describe('studio rows', () => {
     expect(listPieces(grouped(quiet).ready).map((p) => p.kind)).toEqual(['head', 'row', 'row']);
   });
 });
+
+describe('a project still making its next videos', () => {
+  const live = { state: 'running', status: 'running', stage: 's02:asr', progress: 0.4, eta: 14, needs_you: false, heartbeat: NOW } as const;
+  const running = item('cccccccccccc', { status: 'in-progress', live });
+
+  it('every listed video made: the project stays In progress as its own row, its made videos ready', () => {
+    const rows = studioRows([running], [], { cccccccccccc: [clip('01_clip')] }, [], [], NOW);
+    const g = grouped(rows);
+    expect(g.run.map((r) => [r.key, r.tone])).toEqual([['p:cccccccccccc', 'run']]);
+    expect(g.ready.map((r) => r.key)).toEqual(['cccccccccccc/01_clip']);
+  });
+
+  it('a video of it still being made is the In progress row: no extra project row', () => {
+    const rows = studioRows([running], [], { cccccccccccc: [clip('01_clip'), clip('02_clip', { state: 'running', files: [] })] }, [], [], NOW);
+    expect(grouped(rows).run.map((r) => r.key)).toEqual(['cccccccccccc/02_clip']);
+  });
+
+  it('once it ends: only its videos', () => {
+    const rows = studioRows([item('cccccccccccc')], [], { cccccccccccc: [clip('01_clip')] }, [], [], NOW);
+    expect(rows.map((r) => r.key)).toEqual(['cccccccccccc/01_clip']);
+  });
+});
