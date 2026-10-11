@@ -87,7 +87,10 @@ def llm_failed(e, provider=None):
                        codes=ei["codes"], attempts=ei["attempts"])
 
 
-AI_CLI_TIMEOUT = 60.0     # s per CLI provider attempt for output ai (an expired claude -p hangs ~3 min otherwise)
+# s per CLI provider attempt for output ai. Claude Code (Opus) takes ~65 s on a clip's ~15k-char context with the
+# effects catalogue: 60 s timed it out on every vlog ask, marked it unresponsive (vstudio.llm_auth) and the chat fell
+# back to the rules ("No model"). An expired login is caught by the auth cache now, so the limit is for slow answers.
+AI_CLI_TIMEOUT = 180.0
 
 
 # --------------------------------------------------------------------------- owners and outputs
