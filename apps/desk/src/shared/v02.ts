@@ -442,6 +442,8 @@ export interface HistoryItem {
   error?: string;
   /** the last pilot the desk started failed (engine/desk_engine/pilot.py): code -> UI words, never the raw error */
   failure?: PilotFailure | null;
+  /** a remake of a finished clip stopped (a redo of the visuals): its video stands - the clip page shows a notice */
+  remake_failure?: PilotFailure | null;
   /** a clip edit that was cut off (its process gone) or failed: a note on that edit, not the project's state */
   edit_note?: { state: 'interrupted' | 'failed'; stage?: string | null; message?: string | null; at?: number | null } | null;
   /** the pilot the desk started is still running */
@@ -514,6 +516,8 @@ export interface PilotFailure {
   fix?: string | null;
   /** the engine's params for its code (tool-missing / tool-broken: {tool, path, fix}) */
   params?: Record<string, string | number> | null;
+  /** a remake of a finished clip (its visuals) stopped: the clip's video still stands - a notice, not Needs you */
+  remake?: boolean;
 }
 export interface HistoryDoc {
   items: HistoryItem[];

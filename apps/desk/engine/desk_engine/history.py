@@ -714,6 +714,13 @@ class History:
                 info["stopped"] = halted                 # she stopped its run (pilot.stop): Try again goes on
                 if live and live.get("state") in ("running", "interrupted", "failed"):
                     live = dict(live, state="stopped")
+            if fail and fail.get("remake"):
+                # a remake that stopped (a redo of the visuals no model drew): the video it had stands - Ready with a
+                # notice (the clip page words it, Try again there), not Needs you
+                info["remake_failure"] = fail
+                if live and live.get("state") in ("failed", "interrupted"):
+                    live = dict(live, state="done")
+                fail = None
             if fail:
                 info["status"] = "failed"
                 info["failure"] = fail

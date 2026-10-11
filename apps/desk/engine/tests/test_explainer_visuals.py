@@ -109,6 +109,40 @@ class RedoVisualsTest(unittest.TestCase):
         self.assertEqual(self.spawned[-1][1:], args)              # the remake again, not `run --resume`
 
 
+class RemakeFailureIsANoticeTest(unittest.TestCase):
+    """Her MCP course, 2026-10-11: a redo whose scene 14 kept calling fetch() put the finished course in Needs you as
+    "The first clip stopped" with a Confirm button. The old video still stands: the project stays Ready, the failure
+    is a notice of its own (which scene, why), Try again redraws only what is missing."""
+
+    def test_a_failed_redo_keeps_the_project_ready_with_its_own_words(self):
+        from unittest import mock
+        from desk_engine.common import Registry
+        from desk_engine.history import History
+        from desk_engine.inbox import Inbox
+        root = tempfile.mkdtemp(prefix="vis-")
+        d, _env = finished_explainer(root)
+        args = ["-m", "vstudio.project", "remake", "--dir", d, "--item", "ep1", "--do", "scenes", "--json-events"]
+        err = "Scene 14 of 14 couldn't be drawn: it tried to load data from the internet, which a video can't do."
+        with open(os.path.join(d, P.LOG), "w", encoding="utf-8") as f:
+            f.write(json.dumps(dict(event="stage-fail", job="ep1", stage="scenes", code="stage-visuals-failed",
+                                    params=dict(scene="14", id="f14-mcp-a2a", total="14", n="1", why="network"),
+                                    error=err)) + "\n")
+            f.write(json.dumps(dict(ok=False, type="RemakeError", error=err)) + "\n")
+        with open(os.path.join(d, P.REC), "w", encoding="utf-8") as f:
+            json.dump(dict(pid=None, exit=1, offset=0, args=args, provider=None, finished=1.0), f)
+        fail = P.failure(d)
+        self.assertEqual((fail["code"], fail["remake"], fail["params"]["scene"], fail["params"]["why"]),
+                         ("stage-visuals-failed", True, "14", "network"))
+        with mock.patch.dict(os.environ, {"DESK_HISTORY_WATCH": root}):
+            data = os.path.join(root, "desk")
+            h = History(data, Registry(data))
+            row = next(r for r in h.list()["items"] if os.path.realpath(r["dir"]) == os.path.realpath(d))
+            self.assertNotEqual(row.get("status"), "failed")
+            self.assertNotIn("failure", row)
+            self.assertEqual(row["remake_failure"]["code"], "stage-visuals-failed")
+            self.assertFalse([i for i in Inbox(data, h).list()["items"] if i["kind"] == "failed"])
+
+
 class InboxNeedsModelTest(unittest.TestCase):
     def test_the_inbox_gets_the_needs_model_fields(self):
         pd = tempfile.mkdtemp(prefix="inb-")

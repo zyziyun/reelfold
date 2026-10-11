@@ -192,3 +192,96 @@ test('the clip chat: 「画面太素了」 redoes the visuals', async () => {
   await noMissingKeys();
   await shot('V6-chat');
 });
+
+// her MCP course again (2026-10-11): after ~22 min the redo stopped on "1 of 14 scenes could not be drawn
+// (f14-mcp-a2a: remove fetch())", nothing was rendered and the finished course fell into Needs you as "The first clip
+// stopped" with a Confirm button. Now the brief forbids the network, the repair round names the fix, a scene that
+// still calls fetch() keeps its old version while the others are redrawn and rendered, and a redo that drew nothing
+// is a notice on the Ready clip with Try again (only the missing scenes).
+const sceneIds = (dir: string) => (JSON.parse(fs.readFileSync(path.join(item(dir), 'scenes.config.json'), 'utf8')) as { scenes: { id: string }[] }).scenes.map((s) => s.id);
+const fetchy = (ids: string[]) => (ids.length ? fs.writeFileSync(path.join(tmp, 'claude-fetch'), ids.join('\n')) : fs.rmSync(path.join(tmp, 'claude-fetch'), { force: true }));
+const sceneCalls = () =>
+  fs
+    .readFileSync(path.join(tmp, 'claude.log'), 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as { kind: string; scene: string | null; offline?: boolean; fetch_fix?: boolean })
+    .filter((x) => x.kind === 'scene');
+const projectRow = async (dir: string) =>
+  (await api<{ items: { dir: string; status?: string; failure?: unknown; remake_failure?: { code: string } }[] }>('/api/history')).items.find((i) => fs.realpathSync(i.dir) === fs.realpathSync(dir))!;
+
+test('a scene that keeps calling fetch() is kept as before; the other is redrawn and rendered; Redraw scene 2', async () => {
+  test.setTimeout(500000);
+  const id = await idOf(fx.plain);
+  const [s1, s2] = sceneIds(fx.plain);
+  const comp = path.join(item(fx.plain), 'compositions');
+  const old2 = fs.readFileSync(path.join(comp, `${s2}.html`), 'utf8');
+  const calls0 = sceneCalls().length;
+  const before = renders(fx.plain);
+  const outs = await api<{ clips: { id: string }[] }>(`/api/outputs/${encodeURIComponent(id)}`);
+  await hash(`#/p/${id}/clip/${encodeURIComponent(outs.clips[0].id)}`);
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 60000 });
+  fetchy([s2]);
+  const vis = page.getByTestId('ci-visuals').first();
+  await expect(vis.getByTestId('ci-visuals-redo')).toBeEnabled({ timeout: 30000 });
+  await vis.getByTestId('ci-visuals-redo').click();
+  await expect.poll(() => renders(fx.plain), { timeout: 300000, intervals: [2000] }).toBe(before + 1); // made anyway
+  await idle(id);
+  const calls = sceneCalls().slice(calls0);
+  expect(calls.every((c) => c.offline)).toBe(true); // the network is forbidden up front
+  expect(calls.filter((c) => c.scene === s2).length).toBe(3); // the first answer + two targeted repairs
+  expect(calls.some((c) => c.scene === s2 && c.fetch_fix)).toBe(true); // the exact finding and its fix fed back
+  expect(fs.readFileSync(path.join(comp, `${s2}.html`), 'utf8')).toBe(old2); // kept as before
+  expect(fs.readFileSync(path.join(comp, `${s1}.html`), 'utf8')).toContain('reelfold:scene by=ai');
+  const kept = page.getByTestId('ci-visuals-kept');
+  await expect(kept).toContainText('1 of 2 scenes redrawn; scene 2 kept as before', { timeout: 60000 });
+  await expect(page.getByTestId('toast').filter({ hasText: '1 of 2 scenes redrawn; scene 2 kept as before' })).toBeVisible({ timeout: 60000 });
+  const row = await projectRow(fx.plain);
+  expect(row.status).not.toBe('failed');
+  expect(row.failure ?? null).toBeNull();
+  await noMissingKeys();
+  await shot('V7-scene-kept');
+  // the model draws it now: "Redraw scene 2" asks for that one only
+  fetchy([]);
+  const calls1 = sceneCalls().length;
+  await kept.getByTestId('ci-visuals-redraw-missing').click();
+  await expect.poll(() => renders(fx.plain), { timeout: 300000, intervals: [2000] }).toBe(before + 2);
+  await idle(id);
+  expect([...new Set(sceneCalls().slice(calls1).map((c) => c.scene))]).toEqual([s2]);
+  expect(fs.readFileSync(path.join(comp, `${s2}.html`), 'utf8')).toContain('reelfold:scene by=ai');
+  await expect(page.getByTestId('ci-visuals-kept')).toHaveCount(0, { timeout: 60000 });
+});
+
+test('a redo that drew no scene: which and why on the Ready clip, Try again draws only the missing ones', async () => {
+  test.setTimeout(500000);
+  const id = await idOf(fx.plain);
+  const ids = sceneIds(fx.plain);
+  const before = renders(fx.plain);
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  fetchy(ids);
+  const vis = page.getByTestId('ci-visuals').first();
+  await expect(vis.getByTestId('ci-visuals-redo')).toBeEnabled({ timeout: 60000 });
+  await vis.getByTestId('ci-visuals-redo').click();
+  const note = page.getByTestId('ci-visuals-failed');
+  await expect(note).toContainText('2 of 2 scenes couldn’t be redrawn: the AI kept loading data from the internet, which a video can’t do. Your video is unchanged', { timeout: 300000 });
+  await expect(note).toHaveAttribute('data-code', 'stage-visuals-failed');
+  await expect(note.getByTestId('ci-visuals-retry')).toHaveClass(/primary/);
+  expect(renders(fx.plain)).toBe(before);
+  // Ready with a notice: never Needs you, no "first clip stopped" card
+  const row = await projectRow(fx.plain);
+  expect(row.status).not.toBe('failed');
+  expect(row.remake_failure?.code).toBe('stage-visuals-failed');
+  const inbox = await api<{ items: { kind: string; project: { id: string | null } }[] }>('/api/inbox');
+  expect(inbox.items.filter((x) => x.kind === 'failed' && x.project.id === id)).toEqual([]);
+  await noMissingKeys();
+  await shot('V8-redo-failed-notice');
+  fetchy([]);
+  const calls1 = sceneCalls().length;
+  await note.getByTestId('ci-visuals-retry').click();
+  await expect.poll(() => renders(fx.plain), { timeout: 300000, intervals: [2000] }).toBe(before + 1);
+  await idle(id);
+  expect(sceneCalls().slice(calls1).length).toBe(ids.length); // the missing ones, once each
+  await expect(page.getByTestId('ci-visuals-failed')).toHaveCount(0, { timeout: 60000 });
+  await expect(page.getByTestId('toast').filter({ hasText: 'The visuals are redrawn' })).toBeVisible({ timeout: 60000 });
+});

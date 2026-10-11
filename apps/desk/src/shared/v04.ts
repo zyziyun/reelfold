@@ -579,6 +579,11 @@ export interface AutopilotChoice {
   by: 'ai' | 'rules' | 'her' | 'before';
   /** a part of the finished clip the engine can make again under this name (``visuals``: the explainer's scenes) */
   remake_as?: string;
+  /** the visuals: the scenes the last redo could not draw and kept (``before``: its old version, ``diagram``: a
+   * simple diagram from its cues) - "13 of 14 scenes redrawn; scene 14 kept as before" + Redraw scene 14
+   * (``options: ['missing']``) */
+  kept?: { id: string; n: number; how: 'before' | 'diagram'; why?: string }[];
+  total?: number | null;
 }
 
 // ---------------------------------------------------------------- inbox

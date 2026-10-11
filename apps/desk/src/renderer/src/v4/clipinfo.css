@@ -22,6 +22,11 @@
 .ci-render .ico.spin { animation: tp-spin 900ms linear infinite; }
 .ci-render.done { color: var(--accent); }
 .ci-render.failed { color: var(--danger); }
+/* a redo of the visuals that kept a scene or stopped: a notice on the ready clip, never a broken project */
+.ci-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 12.5px; line-height: 1.4; max-width: 100%; }
+.ci-note > span { flex: 1 1 220px; min-width: 0; }
+.ci-note > .ico { width: 14px; height: 14px; flex: none; color: var(--accent); }
+.ci-note[data-code] > .ico { color: var(--danger); }
 .ci-render .ci-bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); transition: width 300ms var(--ease); }
 .ci-render .pb-link { display: inline-flex; align-items: center; gap: 4px; }
 .ci-sched { display: flex; flex-direction: column; gap: 10px; }

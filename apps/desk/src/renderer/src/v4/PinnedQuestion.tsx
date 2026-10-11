@@ -10,6 +10,7 @@ import { fmtAgo, t } from '../i18n';
 import { locateCut } from '../lib/decided';
 import { clipHref, triageStep, useTriageState } from '../lib/nav';
 import { answerOf, inboxTitle, OptionCard, useResolve } from './Inbox';
+import { FailureActions, failureReason } from './Failure';
 import { isTyping } from './ui';
 
 export function PinnedQuestion({
@@ -50,6 +51,7 @@ export function PinnedQuestion({
   useEffect(() => onPreviewCuts?.(spans), [skey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onPreviewCuts?.([]), []); // eslint-disable-line react-hooks/exhaustive-deps
   const confirm = async () => {
+    if (item.failure) return; // Enter never "confirms" a failure away: Try again is its action
     if (await resolve(item, item.kind === 'confirm' || opts.length ? answerOf(item, picked, choices) : undefined)) {
       if (triage) triageStep(items, 1, item.key);
       else history.back();
@@ -69,6 +71,32 @@ export function PinnedQuestion({
     return () => window.removeEventListener('keydown', on);
   }, []);
   const cuts = item.kind === 'confirm' || item.kind === 'filler-confirm';
+  // a run / remake that stopped is not a question: its own words (which step, why) and Try again, never Confirm
+  if (item.failure) {
+    return (
+      <div className="ux-pin" data-testid="pinned-question" data-kind="failed">
+        <div className="ux-pin-hd">
+          <InboxIcon className="ico" />
+          <b>{t('pin.from')}</b>
+          <span className="sp" />
+          {item.at ? <span className="muted">{t('pin.asked', { ago: fmtAgo(item.at) })}</span> : null}
+        </div>
+        <div className="ux-pin-t">{inboxTitle(item)}</div>
+        <div className="muted" data-testid="pin-failed-reason">
+          {failureReason(item.failure)}
+        </div>
+        <div className="ux-pin-ft">
+          {triage && (
+            <button className="btn ghost" onClick={onSkip} data-testid="pin-skip">
+              {t('inbox.skipShort')}
+            </button>
+          )}
+          <span className="sp" />
+          {item.project.id && <FailureActions item={item.project.id} failure={item.failure} primary only />}
+        </div>
+      </div>
+    );
+  }
   const lead = cuts && opts.length ? t('fs.pin.lead', { n: picked.size }) : item.kind === 'confirm' ? t('pin.lead', { n: opts.length }) : inboxTitle(item);
   return (
     <div className="ux-pin" data-testid="pinned-question">

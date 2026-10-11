@@ -4,9 +4,10 @@
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw, Sparkles } from 'lucide-react';
-import type { AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
+import type { AutopilotChoice, AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
+import type { PilotFailure } from '../../../shared/v02';
 import type { StripInfo } from '../../../shared/timeline';
-import { fmtDate, t, type MessageKey } from '../i18n';
+import { fmtDate, fmtList, t, type MessageKey } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { nextFreeDay } from '../lib/nextSlot';
 import type { RenderState } from '../lib/autoRender';
@@ -16,7 +17,7 @@ import { platformName } from './Home';
 import { media } from './kit';
 import { PlatformIcon } from './PlatformIcon';
 import { errText } from './msg';
-import { failureReason } from './Failure';
+import { FailureActions, failureReason } from './Failure';
 import { useUi } from './ui';
 import { base, groupPosts, iso, sortIds } from '../publish/model';
 import { firstTab, PostCopy, type Row } from '../publish/PostCopy';
@@ -271,36 +272,97 @@ export function ClipFill({ item, clip }: { item: string; clip: string }) {
   );
 }
 
-/** An explainer's visuals (``remake_as: visuals``: its scenes) of this clip, when the engine can draw them again. */
-export function visualsOf(doc: Pick<AutopilotDoc, 'choices'> | null, clip: string): { checkpoint: string; item: string; by: string | null } | null {
+/** An explainer's visuals (``remake_as: visuals``: its scenes) of this clip, when the engine can draw them again;
+ * ``kept``: the scenes the last redo could not draw and kept (as before / as a simple diagram). */
+export function visualsOf(
+  doc: Pick<AutopilotDoc, 'choices'> | null,
+  clip: string,
+): { checkpoint: string; item: string; by: string | null; kept: NonNullable<AutopilotChoice['kept']>; total: number | null; missing: boolean } | null {
   const c = (doc?.choices ?? []).find((x) => x.remake_as === 'visuals' && mineItem(x.item, clip));
-  return c ? { checkpoint: c.checkpoint, item: c.item, by: c.choice } : null;
+  return c ? { checkpoint: c.checkpoint, item: c.item, by: c.choice, kept: c.kept ?? [], total: c.total ?? null, missing: (c.options ?? []).includes('missing') } : null;
+}
+
+/** "13 of 14 scenes redrawn; scene 14 kept as before" (pure: unit-tested). */
+export function keptNote(kept: NonNullable<AutopilotChoice['kept']>, total: number | null): string {
+  if (!kept.length) return '';
+  const all = total ?? kept.length;
+  const names = (ks: typeof kept) => {
+    const ns = ks.map((k) => k.n).sort((a, b) => a - b);
+    return ns.length === 1 ? t('ci.visuals.scene', { n: ns[0] }) : t('ci.visuals.scenes', { list: fmtList(ns.map(String)) });
+  };
+  const before = kept.filter((k) => k.how === 'before');
+  const diagram = kept.filter((k) => k.how !== 'before');
+  const what = [before.length ? t('ci.visuals.keptBefore', { scenes: names(before) }) : '', diagram.length ? t('ci.visuals.keptDiagram', { scenes: names(diagram) }) : '']
+    .filter(Boolean)
+    .join(t('ci.visuals.keptSep'));
+  return t('ci.visuals.kept', { done: Math.max(0, all - kept.length), total: all, what });
+}
+
+/** The visuals' failed redo (the clip's video still stands: a notice here, not Needs you), or null. */
+export function visualsFailure(doc: Pick<AutopilotDoc, 'failure' | 'running' | 'queued'> | null, checkpoint: string | undefined): PilotFailure | null {
+  const f = doc?.failure;
+  if (!f || doc?.running || doc?.queued || !f.remake) return null;
+  return !f.stage || f.stage === checkpoint || f.code === 'stage-visuals-failed' || f.code === 'ai-needs-model' ? f : null;
 }
 
 /** "Redo the visuals" (an explainer whose scenes came out plain): every scene drawn again by the AI as diagrams and
- * animation, then rendered and exported again - the voice and captions kept. A model that does not answer says so
- * ("The visuals need an AI model — …") with Try again / Settings › AI (the failure card). */
+ * animation, then rendered and exported again - the voice and captions kept. A redo that stopped says which scene
+ * and why, with Try again (only the missing scenes are drawn); a redo that kept a scene says so, with "Redraw scene
+ * 14" - the clip stays Ready either way (its video stands). */
 export function ClipVisualsRedo({ item, clip, onDone, bare }: { item: string; clip: string; onDone?: () => void; bare?: boolean }) {
   const ui = useUi();
   const s = useClipSettings(item, (_w, d) => {
-    if (d.failure) ui.toast(failureReason(d.failure), { error: true });
+    const v2 = visualsOf(d, clip);
+    const f = visualsFailure(d, v2?.checkpoint);
+    if (f) ui.toast(visualsFailText(f), { error: true });
+    else if (v2?.kept.length) ui.toast(keptNote(v2.kept, v2.total));
     else ui.toast(t('ci.visuals.done'));
     onDone?.();
   });
   const v = visualsOf(s.doc, clip);
   if (!v) return null;
   const making = s.pending === 'visuals';
+  const fail = making ? null : visualsFailure(s.doc, v.checkpoint);
+  const redo = (choice: string | null) => void s.remake(v.item, { [v.checkpoint]: choice }, 'visuals');
   const btn = (
-    <button className={`btn ${bare ? '' : 'ghost sm'}`} disabled={s.busy} onClick={() => void s.remake(v.item, { [v.checkpoint]: null }, 'visuals')} data-tip={t('ci.visuals.tip')} data-testid="ci-visuals-redo">
+    <button className={`btn ${bare ? '' : 'ghost sm'}`} disabled={s.busy} onClick={() => redo(null)} data-tip={t('ci.visuals.tip')} data-testid="ci-visuals-redo">
       {making ? <Loader2 className="ico spin" /> : <Sparkles className="ico" />}
       {making ? t('ci.visuals.making') : t('ci.visuals.redo')}
     </button>
   );
+  const kept = !making && !fail && v.kept.length ? v.kept : null;
   return (
-    <div className={bare ? 'row' : 'ci-sec'} data-testid="ci-visuals" data-by={v.by ?? ''} data-busy={making ? '1' : undefined}>
+    <div className={bare ? 'row' : 'ci-sec'} style={bare ? { gap: 8, flexWrap: 'wrap' } : { gap: 8, flexWrap: 'wrap', alignItems: 'center' }} data-testid="ci-visuals" data-by={v.by ?? ''} data-busy={making ? '1' : undefined}>
+      {fail ? (
+        <div className="ci-note" role="status" data-testid="ci-visuals-failed" data-code={fail.code}>
+          <AlertTriangle className="ico" />
+          <span>{visualsFailText(fail)}</span>
+          {fail.code === 'ai-needs-model' ? (
+            <FailureActions item={item} failure={fail} only />
+          ) : (
+            <button className="btn primary sm" disabled={s.busy} onClick={() => redo(v.missing ? 'missing' : null)} data-testid="ci-visuals-retry">
+              <RefreshCw className="ico" />
+              {t('fail.retry')}
+            </button>
+          )}
+        </div>
+      ) : kept ? (
+        <div className="ci-note" role="status" data-testid="ci-visuals-kept">
+          <Check className="ico" />
+          <span>{keptNote(kept, v.total)}</span>
+          <button className="btn sm" disabled={s.busy || !v.missing} onClick={() => redo('missing')} data-testid="ci-visuals-redraw-missing">
+            <Sparkles className="ico" />
+            {kept.length === 1 ? t('ci.visuals.redrawOne', { n: kept[0].n }) : t('ci.visuals.redrawMany', { n: kept.length })}
+          </button>
+        </div>
+      ) : null}
       {btn}
     </div>
   );
+}
+
+function visualsFailText(f: PilotFailure): string {
+  return f.code === 'stage-visuals-failed' || f.code === 'ai-needs-model' ? failureReason(f) : t('ci.visuals.failed');
 }
 
 /** "Rewrite post copy": every platform's title, text and hashtags written again (the routed AI, else from the facts)

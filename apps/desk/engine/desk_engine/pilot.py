@@ -196,6 +196,11 @@ def failure(d, now=None):
                **extra)
     if stage:
         out["stage"] = str(stage)
+    a = rec.get("args")
+    if isinstance(a, list) and "remake" in a:
+        # a remake of a finished clip (its visuals, framing, copy) wrote aside: the clip's video is still the one it
+        # had - the desk shows a notice on it, never a broken project
+        out["remake"] = True
     return out
 
 

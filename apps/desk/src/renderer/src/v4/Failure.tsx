@@ -38,6 +38,12 @@ export function failureReason(f: PilotFailure): string {
   else if (f.code === 'ai-key-missing') reason = tk(key, { service: String(p.service ?? '') || t('fail.keyService') });
   // the voice kept leaving out a sentence: which scene and the sentence itself (without them: the step's general words)
   else if (f.code === 'stage-voice-dropped') reason = p.sentence ? tk(key, { line: String(p.line ?? ''), sentence: String(p.sentence) }) : tk('fail.reason.unknown');
+  // a redo of the visuals that drew no scene: which scene (or how many), why in plain words - the video stands
+  else if (f.code === 'stage-visuals-failed') {
+    const why = has(`fail.why.${p.why}`) ? tk(`fail.why.${p.why}`) : t('fail.why.other');
+    const n = Number(p.n ?? 1);
+    reason = n > 1 ? tk('fail.reason.stage-visuals-failed.many', { n, total: String(p.total ?? ''), why }) : tk(key, { scene: String(p.scene ?? ''), total: String(p.total ?? ''), why });
+  }
   else if (has(key)) reason = tk(key, { provider, tool, at: path, path: String(p.path ?? ''), file: String(p.file ?? ''), volume: String(p.volume ?? '') });
   else reason = tk('fail.reason.unknown'); // a code this desk has no words for yet
   const fix = String(p.fix ?? f.fix ?? '');

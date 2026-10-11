@@ -100,9 +100,15 @@ argv = sys.argv[1:]
 system = argv[argv.index("--system-prompt") + 1] if "--system-prompt" in argv else ""
 prompt = sys.stdin.read()
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sid_m = re.search(r"SCENE_ID = (\S+),", prompt)
 with open(os.path.join(root, "claude.log"), "a", encoding="utf-8") as f:
     f.write(json.dumps(dict(kind="scene" if "motion designer" in system else "plan" if "director" in system else
-                            "other", effort=argv[argv.index("--effort") + 1] if "--effort" in argv else None)) + "\n")
+                            "other", effort=argv[argv.index("--effort") + 1] if "--effort" in argv else None,
+                            scene=sid_m.group(1) if sid_m else None, offline="XMLHttpRequest" in system,
+                            fetch_fix="fetch() is not allowed" in prompt)) + "\n")
+# the scenes listed in ROOT/claude-fetch: "drawn" with a fetch() call every time (her MCP course's scene 14)
+fetchy = open(os.path.join(root, "claude-fetch")).read().split() if os.path.exists(os.path.join(root, "claude-fetch")) \
+    else []
 
 
 def out(result, error=False):
@@ -115,6 +121,7 @@ if "motion designer" in system:
         out("Request timed out", error=True)
     m = re.search(r"SCENE_ID = (\S+), W = (\d+), H = (\d+), DURATION = (\d+(?:\.\d+)?)", prompt)
     sid, w, h, d = m.group(1), m.group(2), m.group(3), float(m.group(4))
+    extra = 'fetch("/a2a/agents.json").then((r) => r.json());' if sid in fetchy else ""
     out(f"""<template>
   <style>#root {{ position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }}</style>
   <div id="root" data-composition-id="{sid}" data-width="{w}" data-height="{h}" data-duration="{d:.2f}">
@@ -126,7 +133,8 @@ if "motion designer" in system:
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-  <script>(function () {{ const tl = gsap.timeline({{ paused: true }});
+  <script>(function () {{ {extra}
+    const tl = gsap.timeline({{ paused: true }});
     tl.fromTo("#{sid}-arrow", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.6 }}, 0.3);
     window.__timelines["{sid}"] = tl; }})();</script>
 </template>""")
