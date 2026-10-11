@@ -240,7 +240,16 @@ test('Home busy: the Inbox top 3 + n more, Running, Going out today, the platfor
   await page.getByTestId('platform-popover').locator('button[data-pf="bilibili"]').click();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('composer-platforms')).toContainText('YouTube, TikTok +2');
-  expect((await page.evaluate(() => window.desk.getSettings())).defaultPlatforms).not.toContain('bilibili');
+  // picking for this request never changes her default; "Make this my default" does, explicitly
+  expect((await page.evaluate(() => window.desk.getSettings())).defaultPlatforms).toContain('bilibili');
+  await page.getByTestId('composer-platforms').click();
+  await page.getByTestId('pf-make-default').click();
+  await expect.poll(async () => (await page.evaluate(() => window.desk.getSettings())).defaultPlatforms).not.toContain('bilibili');
+  await expect(page.getByTestId('pf-make-default')).toHaveCount(0); // the choice is the default now
+  await page.getByTestId('platform-popover').locator('button[data-pf="bilibili"]').click();
+  await page.getByTestId('pf-make-default').click();
+  await expect.poll(async () => (await page.evaluate(() => window.desk.getSettings())).defaultPlatforms).toContain('bilibili');
+  await page.keyboard.press('Escape');
   // the paperclip opens Add files / Add folder and the menu stays open (the opening click must not close it)
   await page.getByTestId('composer-attach').click();
   await expect(page.getByTestId('add-files')).toBeVisible();

@@ -120,6 +120,7 @@ export function Home() {
     void window.desk.getSettings().then((s) => {
       // her choice, else her accounts' platforms, else the international pair - international first (Create agrees)
       setPlatforms(homePlatforms(s.defaultPlatforms, Object.keys(s.accounts ?? {}).filter((k) => (s.accounts[k] ?? []).length)));
+      setSavedPf(s.defaultPlatforms ?? null);
       setAuto(s.autopilot !== false);
     });
   }, []);
@@ -223,9 +224,13 @@ export function Home() {
     // App Store (Lite) build: a drop is readable for this launch only - ask once to keep it (no-op elsewhere)
     if (paths.length && IS_LITE) void window.desk.grantAccess?.(paths).catch(() => undefined);
   };
-  const savePlatforms = (v: string[]) => {
-    setPlatforms(v);
-    if (v.length) void window.desk.setSettings({ defaultPlatforms: v.slice(0, 8) }).catch(() => undefined);
+  // the chip is this request's choice; her default changes only through "Make this my default"
+  const [savedPf, setSavedPf] = useState<string[] | null>(null);
+  const savePlatforms = (v: string[]) => setPlatforms(v);
+  const makeDefault = (v: string[]) => {
+    if (!v.length) return;
+    setSavedPf(v);
+    void window.desk.setSettings({ defaultPlatforms: v.slice(0, 8) }).catch(() => undefined);
   };
   const fill = (p: string) => {
     setPrompt(p);
@@ -303,7 +308,7 @@ export function Home() {
               >
                 <Paperclip className="ico" />
               </button>
-              <PlatformChip value={platforms} onChange={savePlatforms} />
+              <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
               <span className="sp" />
               <span className="ux-kbdhint" aria-hidden>{keyHint('⌘↵')}</span>
               <button className={`btn lg ux-make ${ready ? 'primary' : ''}`} disabled={busy || !ready || !!waitDl} onClick={() => void submit()} data-testid="make-plan">
@@ -371,8 +376,10 @@ export function Home() {
   );
 }
 
-// ---------------------------------------------------------------- the platform chip (editable defaults)
-export function PlatformChip({ value, onChange }: { value: string[] | null; onChange: (v: string[]) => void }) {
+// ---------------------------------------------------------------- the platform chip (this request; default on demand)
+/** The platforms of THIS request. Changing them never changes her default: "Make this my default" does, explicitly
+ * (``saved`` = her default, ``onMakeDefault`` saves the current choice as it). */
+export function PlatformChip({ value, onChange, saved, onMakeDefault }: { value: string[] | null; onChange: (v: string[]) => void; saved?: string[] | null; onMakeDefault?: (v: string[]) => void }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -413,10 +420,20 @@ export function PlatformChip({ value, onChange }: { value: string[] | null; onCh
             {t('home.platformsTitle')}
           </div>
           <PlatformPicker multi value={ids} onChange={(v) => onChange(v)} testId="home-pf" />
+          {onMakeDefault && ids.length > 0 && !samePlatforms(ids, saved ?? []) && (
+            <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => onMakeDefault(value ?? [])} data-testid="pf-make-default">
+              {t('home.makeDefault')}
+            </button>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function samePlatforms(a: string[], b: string[]): boolean {
+  const k = (x: string[]) => [...new Set(x.map((p) => p.split(':')[0]))].sort().join(',');
+  return k(a) === k(b);
 }
 
 // ---------------------------------------------------------------- first run

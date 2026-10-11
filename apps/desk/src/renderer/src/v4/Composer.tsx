@@ -49,13 +49,17 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const [prompt, setPrompt] = useState(draft.prompt ?? '');
   const [files, setFiles] = useState<string[]>(draft.files ?? []);
   const [platforms, setPlatforms] = useState<string[] | null>(null);
+  const [savedPf, setSavedPf] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   const ta = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files })), [prompt, files]);
   useEffect(() => {
     // her choice, else her accounts' platforms, else the international pair - international first (as on Home)
-    void window.desk.getSettings().then((s) => setPlatforms(homePlatforms(s.defaultPlatforms, Object.keys(s.accounts ?? {}).filter((k) => (s.accounts[k] ?? []).length))));
+    void window.desk.getSettings().then((s) => {
+      setPlatforms(homePlatforms(s.defaultPlatforms, Object.keys(s.accounts ?? {}).filter((k) => (s.accounts[k] ?? []).length)));
+      setSavedPf(s.defaultPlatforms ?? null);
+    });
   }, []);
   useEffect(() => {
     if (autoFocus) window.setTimeout(() => ta.current?.focus(), 30);
@@ -119,9 +123,12 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     if (paths.length) setFiles((f) => [...new Set([...f, ...paths])]);
     if (paths.length && IS_LITE) void window.desk.grantAccess?.(paths).catch(() => undefined);
   };
-  const savePlatforms = (v: string[]) => {
-    setPlatforms(v);
-    if (v.length) void window.desk.setSettings({ defaultPlatforms: v.slice(0, 8) }).catch(() => undefined);
+  // the chip is this request's choice; her default changes only through "Make this my default"
+  const savePlatforms = (v: string[]) => setPlatforms(v);
+  const makeDefault = (v: string[]) => {
+    if (!v.length) return;
+    setSavedPf(v);
+    void window.desk.setSettings({ defaultPlatforms: v.slice(0, 8) }).catch(() => undefined);
   };
   const more = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -186,7 +193,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
             {compact ? null : t('st.record')}
           </a>
         )}
-        <PlatformChip value={platforms} onChange={savePlatforms} />
+        <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
         <button className="btn ghost icon sm" onClick={more} aria-label={t('st.more')} data-tip={t('st.more')} data-testid="composer-more">
           <MoreHorizontal className="ico" />
         </button>
