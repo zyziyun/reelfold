@@ -11,4 +11,4 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 2 ]]; then
   sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0
 fi
-exec python3 "$HERE/export.py" "$@"
+exec "${VSTUDIO_PYTHON:-python3}" "$HERE/export.py" "$@"

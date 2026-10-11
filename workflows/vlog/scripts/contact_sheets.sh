@@ -17,7 +17,7 @@ if [ $# -lt 3 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   sed -n '2,14p' "$0"; exit 0
 fi
 LIB="$(cd "$(dirname "$0")/../../.." && pwd)/lib"
-PYTHONPATH="$LIB${PYTHONPATH:+:$PYTHONPATH}" python3 - "$@" <<'PY'
+PYTHONPATH="$LIB${PYTHONPATH:+:$PYTHONPATH}" "${VSTUDIO_PYTHON:-python3}" - "$@" <<'PY'
 import os, sys
 from concurrent.futures import ThreadPoolExecutor
 from vstudio import media
