@@ -6,7 +6,13 @@ Everything ships from GitHub Actions; nobody deploys or builds a release by hand
 |---|---|---|
 | `deploy-web.yml` (Deploy web) | PRs and pushes to `main` touching the site, docs or the docs generator inputs; `release: published`; manual | Regenerates the docs reference pages from the engine, builds site + docs (`scripts/build-web.sh`), runs the site + docs checks and `check_skill`. On `main` / a published release / a manual run it then deploys to the Cloudflare Worker `reelfold-site` (reelfold.com) and smoke-tests `/`, `/zh/`, `/docs/`. PRs never deploy. |
 | `desk-release.yml` (Desk release) | tag `v*`; manual (dry run by default) | Builds, signs, notarizes, staples and verifies the macOS arm64 app with `apps/desk/scripts/release-mac.sh`, then creates / updates a **draft** GitHub Release with the DMG, zip, blockmap, `latest-mac.yml` and release notes. Never publishes. |
-| `site.yml`, `engine.yml`, `desk-ci.yml` | PRs and pushes | Checks only (site build, engine pytest, desk lint / unit / e2e). |
+| `site.yml` (Site) | PRs and pushes | Checks only (site build). |
+| `desk-ci.yml` (Desk CI) | PRs and pushes touching the desk app / engine; tags `v*`, `release/**`; nightly; manual | Parallel jobs, ~15 min: `checks` (lint, unit, sidecar engine, scripts) and `e2e (i/3)` (Electron e2e, `playwright --shard=i/3`) on macOS, then the aggregator **`test`** (green only when all of them passed; the release automation waits on this name). `e2e report (merged)` uploads one HTML report (`desk-e2e-report`). Windows: `Windows checks` (incl. engine pytest) + `Windows e2e (i/4)`, rolled up in **`Windows`**, which fails the run but is not part of `test`. Nothing is tiered away: every run is the full suite. |
+| `engine.yml` (Engine) | PRs and pushes touching the engine; tags `v*`, `release/**`; manual | `test`: engine pytest in parallel (`pytest -n auto`, pytest-xdist), slowest tests listed at the end. |
+
+Tag runs (`v*`) of Desk CI and Engine always run everything (GitHub does not evaluate path filters for tags) and are
+never cancelled; branch and PR runs are cancelled by a newer push to the same ref. Locally, the e2e suite can be split
+the same way: `npx playwright test --shard=1/3` in `apps/desk` (after `npm run build`).
 | `deploy-telemetry.yml` (Deploy telemetry) | PRs and pushes to `main` touching `apps/telemetry`; manual | Unit tests + typecheck. On `main`: finds or creates the D1 database `reelfold-usage`, applies `apps/telemetry/migrations`, deploys the Worker `reelfold-telemetry` on `t.reelfold.com`, sets `STATS_TOKEN`, smoke-tests `/api/v1/health`. |
 | `metrics-weekly.yml` (Weekly metrics) | Mondays 02:00 UTC; manual | `scripts/metrics/github_stats.py` + `scripts/metrics/usage.py` into the run summary, one CSV row each into the `metrics-history` artifact. Totals only. |
 

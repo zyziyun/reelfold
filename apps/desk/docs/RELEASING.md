@@ -114,7 +114,9 @@ Full walk-through and the one-time secrets: [`docs/CI_CD.md`](../../../docs/CI_C
    or updates a **draft** release `v0.2.1` with the DMG, the updater zip + blockmap, `latest-mac.yml` and release notes
    (`scripts/release-notes.sh`: `apps/desk/release-notes/v0.2.1.md` if it exists, else the `CHANGELOG.md` section,
    else generated from the Conventional Commits since the previous tag). Missing secrets fail the first step; nothing
-   unsigned is ever released.
+   unsigned is ever released. The tag also runs the full Desk CI (job `test` = macOS checks + every e2e shard;
+   `Windows` = Windows checks + e2e shards) and Engine pytest; tag runs are never cancelled, so check both are green
+   before publishing (`docs/CI_CD.md`).
 4. Download the DMG from the draft, smoke-test on a clean machine, edit the notes, then **Publish**. electron-updater
    only sees published releases; installed apps check at launch and every 6 hours, download in the background and show
    "Restart to update". Pre-release versions (`0.3.0-beta.1`, marked pre-release) only update other pre-releases.

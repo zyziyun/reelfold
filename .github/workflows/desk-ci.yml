@@ -1,108 +1,188 @@
-# Reelfold desk app (apps/desk): lint + typecheck, unit tests, sidecar engine tests (against this repo's engine) and
-# the Electron e2e suite (hidden windows) on macOS. The windows job runs the same checks plus the engine's pytest on
-# windows-latest; a failure there fails the run like one on macOS.
+# Reelfold desk app (apps/desk), as parallel jobs so a push finishes in ~10-15 min instead of ~25-80:
+#   changes               what this run has to do: `run` (desk files changed) and `full` (the full tier, below)
+#   checks (macOS)        check_skill, lint + typecheck, unit tests, sidecar real-engine tests, scripts tests
+#   e2e (macOS, 4 shards) the Electron e2e suite (hidden windows, mock + real engine), playwright --shard=i/4
+#   test                  aggregator, the required check: green only when checks + every e2e shard passed, or when no
+#                         desk file changed (a no-op, so a docs-only change is not left waiting). Keep this name: the
+#                         release automation waits on Desk CI's job named `test`.
+#   e2e report (merged)   merges the shards' blob reports into one HTML report artifact (desk-e2e-report)
+#   Windows checks        lint, unit, build, app start, sidecar engine tests on windows-latest (every run)
+#   full tier             + engine pytest on Windows and the Windows e2e suite in 4 shards. Runs nightly, on tags (v*),
+#                         release/** branches, manual runs (tier=full, the default) and when CI / lockfile / packaging
+#                         files change. `Windows` rolls the Windows jobs up; it fails the run but is not part of `test`.
+# Concurrency: per ref. A newer push supersedes an older run of a PR / feature branch; runs of main and release/** queue
+# instead (every main commit gets a result); a tag run (release) is never cancelled; the nightly has its own group.
 name: Desk CI
 on:
   pull_request:
-    paths:
-      - 'apps/desk/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/desk-ci.yml'
   push:
-    branches: [main]
-    paths:
-      - 'apps/desk/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/desk-ci.yml'
+    branches: [main, 'release/**']
+    tags: ['v*']
+  schedule:
+    - cron: '17 9 * * *' # nightly (UTC): the full tier; catches flakes and environment drift (runner images, ffmpeg)
   workflow_dispatch:
+    inputs:
+      tier:
+        description: 'full = + Windows engine pytest and Windows e2e; quick = what a normal push runs'
+        type: choice
+        options: [full, quick]
+        default: full
 permissions:
   contents: read
 concurrency:
-  group: desk-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: desk-ci-${{ github.ref }}${{ github.event_name == 'schedule' && '-nightly' || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/tags/')) }}
+env:
+  DESK_HIDE_WINDOW: '1'
 jobs:
-  test:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.c.outputs.run }}
+      full: ${{ steps.c.outputs.full }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: .github, sparse-checkout-cone-mode: false }
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          TIER: ${{ inputs.tier }}
+        run: >-
+          bash .github/scripts/ci-changes.sh
+          '^(apps/desk/|lib/|requirements\.txt$|package\.json$|package-lock\.json$|\.github/workflows/desk-ci\.yml$|\.github/actions/desk-setup/|\.github/scripts/ci-changes\.sh$)'
+          '^(\.github/workflows/desk-ci\.yml$|\.github/actions/desk-setup/|package-lock\.json$|requirements\.txt$|tests/requirements\.txt$|apps/desk/package\.json$|apps/desk/packaging/|apps/desk/playwright\.config\.ts$|apps/desk/scripts/startCheck\.mjs$)'
+
+  checks:
+    name: checks (lint, unit, engine, scripts)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: macos-14
-    timeout-minutes: 45
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/desk
-    env:
-      DESK_HIDE_WINDOW: '1'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with: { node-version: 22, cache: npm }
-      - uses: actions/setup-python@v7
-        with: { python-version: '3.12', cache: pip }
-      - name: Engine deps for the sidecar's real-engine tests (no local ASR models)
-        working-directory: .
-        run: |
-          grep -v whisper requirements.txt > "$RUNNER_TEMP/req.txt"
-          python -m pip install -r "$RUNNER_TEMP/req.txt"
-          python -c "import yaml, numpy"   # fail here, not deep inside an e2e test
-          brew install ffmpeg
-          # the app would otherwise pick the runner's Homebrew python3 (no engine deps) before this one
-          echo "DESK_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
-      - run: npm ci
-        working-directory: .
+      - uses: ./.github/actions/desk-setup
       - name: check_skill (personal paths / secrets in apps/)
         working-directory: .
         run: python scripts/check_skill.py
       - run: npm run lint
-      - run: npm run test:unit
-      - run: npm run test:engine
-      - run: npm run test:scripts # App Store lint + runtime patch (scripts/appstore, scripts/runtime)
-      - name: Electron e2e (hidden windows, mock + real engine)
-        run: npm run test:e2e
+      # each check below runs even after a failure, so one run shows all of them
+      - name: Unit tests
+        if: success() || failure()
+        run: npm run test:unit
+      - name: Sidecar real-engine tests
+        if: success() || failure()
+        run: npm run test:engine
+      - name: Scripts tests (App Store lint + runtime patch)
+        if: success() || failure()
+        run: npm run test:scripts
+
+  e2e:
+    name: e2e (${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: macos-14
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: apps/desk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/desk-setup
+      - run: npm run build
+      - name: Electron e2e shard ${{ matrix.shard }}/4 (hidden windows, mock + real engine)
+        env: { PW_BLOB: '1' }
+        run: npx playwright test --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: desk-e2e-blob-${{ matrix.shard }}
+          path: apps/desk/blob-report
+          retention-days: 3
       - uses: actions/upload-artifact@v7
         if: failure()
-        with: { name: desk-test-results, path: apps/desk/test-results, retention-days: 7 }
+        with:
+          name: desk-test-results-${{ matrix.shard }}
+          path: apps/desk/test-results
+          retention-days: 7
 
-  windows:
-    name: Windows
+  test:
+    # the required / awaited check: green only when every macOS job above passed (or nothing desk-related changed)
+    name: test
+    needs: [changes, checks, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All macOS checks and e2e shards passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          CHECKS: ${{ needs.checks.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          echo "changes: $CHANGES (run: $RUN), checks: $CHECKS, e2e shards: $E2E"
+          [ "$CHANGES" = success ] || exit 1
+          if [ "$RUN" = false ]; then echo "no desk changes: nothing to test"; exit 0; fi
+          [ "$CHECKS" = success ] && [ "$E2E" = success ]
+
+  e2e-report:
+    name: e2e report (merged)
+    needs: [e2e]
+    if: always() && needs.e2e.result != 'skipped' && needs.e2e.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desk
+    steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: package-lock.json, sparse-checkout-cone-mode: false }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v7
+        with: { pattern: desk-e2e-blob-*, path: apps/desk/all-blob-reports, merge-multiple: true }
+      - name: Merge the shards' reports
+        run: |
+          v=$(node -p "require('../../package-lock.json').packages['node_modules/@playwright/test'].version")
+          npx -y "@playwright/test@$v" merge-reports --reporter html ./all-blob-reports
+      - uses: actions/upload-artifact@v7
+        with: { name: desk-e2e-report, path: apps/desk/playwright-report, retention-days: 14 }
+
+  windows-checks:
+    name: Windows checks (lint, unit, start, engine)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
         working-directory: apps/desk
     env:
-      DESK_HIDE_WINDOW: '1'
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with: { node-version: 22, cache: npm }
-      - uses: actions/setup-python@v7
-        with: { python-version: '3.12', cache: pip }
-      - name: Engine deps + ffmpeg
-        working-directory: .
-        run: |
-          python -m pip install -r tests/requirements.txt
-          python -c "import yaml, numpy, cv2, mediapipe, faster_whisper; print('deps ok')"
-          # the Chocolatey download fails now and then: retry, and show why when it does
-          for i in 1 2 3; do
-            choco install ffmpeg -y --no-progress > "$RUNNER_TEMP/choco.log" 2>&1 && break
-            tail -20 "$RUNNER_TEMP/choco.log"; sleep 30
-          done
-          ffmpeg -hide_banner -version | head -1
-          echo "DESK_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
-      - run: npm ci
-        working-directory: .
+      - uses: ./.github/actions/desk-setup
+        with: { engine-deps: tests }
       - run: npm run lint
-      # every check below runs even after a failure, so one run shows all Windows failures
       - name: Unit tests
         if: success() || failure()
         run: npm run test:unit
-      - name: Electron binary (downloaded up front, not lazily inside the first test)
-        if: success() || failure()
-        working-directory: .
-        run: node node_modules/electron/install.js && node -e "console.log(require('electron'))"
       - name: Build
         if: success() || failure()
         run: npm run build
@@ -112,16 +192,65 @@ jobs:
       - name: Sidecar engine tests
         if: success() || failure()
         run: python -m unittest discover -s engine/tests
-      - name: Engine pytest
-        if: success() || failure()
+      - name: Engine pytest (full tier; parallel, pytest-xdist)
+        if: (success() || failure()) && needs.changes.outputs.full == 'true'
         working-directory: .
-        run: python -m pytest -q -p no:cacheprovider
-      - name: Electron e2e (hidden windows, mock + real engine)
-        if: success() || failure()
-        # like the macOS job (no local ASR models): faster-whisper is installed here for the pytest above, and would
-        # download a Whisper model inside an e2e run
+        run: python -m pytest -q -p no:cacheprovider -n auto
+
+  windows-e2e:
+    name: Windows e2e (${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desk
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/desk-setup
+        with: { engine-deps: tests }
+      - name: Electron binary (downloaded up front, not lazily inside the first test)
+        working-directory: .
+        run: node node_modules/electron/install.js && node -e "console.log(require('electron'))"
+      - run: npm run build
+      - name: Electron e2e shard ${{ matrix.shard }}/4 (hidden windows, mock + real engine)
+        # like the macOS job (no local ASR models): faster-whisper is installed for the engine's pytest parity, and
+        # would download a Whisper model inside an e2e run
         env: { HF_HUB_OFFLINE: '1' }
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v7
         if: failure()
-        with: { name: desk-test-results-windows, path: apps/desk/test-results, retention-days: 7 }
+        with:
+          name: desk-test-results-windows-${{ matrix.shard }}
+          path: apps/desk/test-results
+          retention-days: 7
+
+  windows:
+    # one status for every Windows job; a failure here fails the run (but not `test`, which only covers macOS)
+    name: Windows
+    needs: [changes, windows-checks, windows-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All Windows checks (and, in the full tier, e2e shards) passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          FULL: ${{ needs.changes.outputs.full }}
+          CHECKS: ${{ needs.windows-checks.result }}
+          E2E: ${{ needs.windows-e2e.result }}
+        run: |
+          echo "changes: $CHANGES (run: $RUN, full: $FULL), windows checks: $CHECKS, e2e shards: $E2E"
+          [ "$CHANGES" = success ] || exit 1
+          if [ "$RUN" = false ]; then echo "no desk changes: nothing to test"; exit 0; fi
+          [ "$CHECKS" = success ] || exit 1
+          if [ "$FULL" = true ]; then [ "$E2E" = success ]; else echo "quick tier: Windows e2e runs nightly / on tags"; fi

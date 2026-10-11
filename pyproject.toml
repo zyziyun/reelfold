@@ -12,3 +12,5 @@ where = ["lib"]
 testpaths = ["tests"]
 pythonpath = ["lib"]
 norecursedirs = ["apps", "node_modules", ".git"]
+# `slow`: long real renders; CI skips them on a normal push / PR and runs them in the full tier (.github/workflows/engine.yml)
+markers = ["slow: long real-render test, run in CI's full tier (nightly, tags, release branches, manual runs)"]
