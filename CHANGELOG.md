@@ -8,25 +8,55 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-11
+
 ### Added
 
+- **Vertical versions follow the subject**: landscape footage made for 9:16 or 3:4 is cropped shot by shot around
+  faces, people, moving things and vivid colour, with a smooth camera that holds still on static shots and eases
+  through crossfades; only a shot that cannot be cropped (two far-apart subjects, a flat panorama) keeps the blurred
+  fill. Switch per video on the clip page ("Follow the subject" / "Fill with blur").
+- **Real post copy per platform** for vlogs: title, body, hashtags within each platform's limit, the place (offline
+  from DJI flight logs) and the music credit; Chinese platforms in your request's language, YouTube and TikTok in the
+  persona's (`publish.copy_lang`). Recorded as a decision you can change.
+- **See how it is being made**: the project page shows the pieces as they appear (graded segments, contact sheets,
+  master, cover options) — open one big, ask AI about it, or pause the run.
+- **Chat on every project page** again (running, ready, Details): it can pause, go on, change the music, pick another
+  cover or re-cut, beside the page and resizable.
 - **A free offline voice in the Mac app (Apple silicon)**: explainers and courses without an OpenAI key are narrated
   by Kokoro on this computer (Chinese `zf_xiaobei`, English `af_heart` / `am_michael` / `bf_emma`). The voice is a
   one-time 330 MB download (Settings › Downloads), started when a video first takes the free voice; before it, the
   voice step says so and offers the download instead of stopping at "No OpenAI key". Works offline and in the Mac
   App Store sandbox. Intel Macs and Windows still need a key for narration.
-
 - **Vlog music is picked for you**: a vlog without your own track gets the best fit for your words and the style
   from the license-free library (your `~/Music/Reelfold` tracks, else Reelfold's built-in beds), laid under the
   picture at -14 LUFS. On autopilot it is a decision you can change; with Ask me first you pick from three tracks
   or no music. A CC BY track's credit is added to the post copy.
+- **Live run page**: one calm view of a planning or running project — what it is doing in one sentence, % and time
+  left, what happened per step (files, minutes, decisions, tokens) — and a terminal-style Live pane with the real
+  Claude Code / Codex stream and the engine log (secrets redacted; copy, search, filter). "Watch all" tiles every
+  running job.
+- **Row actions in the Studio**: ⋯ / right-click on any row — Archive (undo), Delete (requests; projects to the
+  Trash, recordings kept), Rename, Show in Finder, Stop, Try again; multi-select; an Archived filter with Restore.
+- **Course videos from notes**: explainers narrate in Chinese end to end (voice, checks, captions, timing); lecture
+  notes or exported Notion pages are drafted into an episode for the requested length instead of being locked as
+  the script, with a rules fallback when no model is available.
+- **AI presenter (Hedra)**: an optional talking presenter behind the spend gate; the key lives in the keychain
+  (Settings › Video generation).
+
+### Changed
+
+- The composer's platform chip applies to this request only, with "Make this my default".
+- After sending a request the Studio opens it.
 
 ### Fixed
 
+- A finished vlog, explainer or other single-export project read "Not started" / "0 of 1 ready" with no cover: the
+  desk only looked for batch-style exports. It now reads Ready to post with its cover, and clicking a ready clip (or
+  one of its versions) opens the editor — on the timeline when the video has no speech.
 - **Vlog export** stopped at "Missing: 'out.music.master'": the export read the music step without depending on
   it. It now does, a recipe that reads a step it does not depend on is rejected, and Try again on such a project
   finishes it without re-rendering.
-
 - **Vlog, talking-head, photo-story and promo renders in the app**: the bundled ffmpeg is LGPL and has no `eq`,
   `hqdn3d` or `boxblur`, so a graded render stopped at "No such filter". Grades are now built from LGPL filters
   (`vstudio.ffmpeg_filters`, pixel-identical to `eq`); old `eq=` grade strings in projects and configs are
@@ -43,33 +73,6 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   voice and says so; in Ask me first it asks "Use the free voice" / "Add an OpenAI key"; Try again recovers a
   project that already failed. With no free voice installed, it asks for the key instead. A missing key anywhere
   now names the service and the fix.
-
-## [0.2.7] - 2026-10-11
-
-### Added
-
-- **Live run page**: one calm view of a planning or running project — what it is doing in one sentence, % and time
-  left, what happened per step (files, minutes, decisions, tokens) — and a terminal-style Live pane with the real
-  Claude Code / Codex stream and the engine log (secrets redacted; copy, search, filter). "Watch all" tiles every
-  running job.
-- **Row actions in the Studio**: ⋯ / right-click on any row — Archive (undo), Delete (requests; projects to the
-  Trash, recordings kept), Rename, Show in Finder, Stop, Try again; multi-select; an Archived filter with Restore.
-
-### Added
-
-- **Course videos from notes**: explainers narrate in Chinese end to end (voice, checks, captions, timing); lecture
-  notes or exported Notion pages are drafted into an episode for the requested length instead of being locked as
-  the script, with a rules fallback when no model is available.
-- **AI presenter (Hedra)**: an optional talking presenter behind the spend gate; the key lives in the keychain
-  (Settings › Video generation).
-
-### Changed
-
-- The composer's platform chip applies to this request only, with "Make this my default".
-- After sending a request the Studio opens it.
-
-### Fixed
-
 - A course request stopped at "no '## Line N' blocks in SCRIPT.md"; the reason is now said in plain words and Try
   again really re-runs the step.
 - Lecture notes were taken for a screenplay or asked for recordings; drafts read the whole source.
