@@ -19,7 +19,7 @@ def _entry(p, pay):
     e.update(project_name=pay.get("project_name"), recipe=pay.get("recipe"), options=pay.get("options") or [],
              previews=pay.get("previews") or [], answer_schema=pay.get("answer_schema"), auto=pay.get("auto"),
              batch_by=pay.get("batch_by"), help=pay.get("help"))
-    for k in ("exports", "qc", "copy", "file", "exists", "content", "estimate", "kinds"):
+    for k in ("exports", "qc", "copy", "file", "exists", "content", "estimate", "kinds", "no_key"):
         if k in pay:
             e[k] = pay[k]
     cm = MSG.checkpoint(e.get("kind"), n=e.get("n_options") or len(pay.get("options") or []) or "")

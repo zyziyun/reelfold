@@ -130,16 +130,20 @@ def test_tts_kokoro_language_and_zh_voice():
     assert tts.zh_voice("kokoro") == "zf_xiaobei" and tts.zh_voice("edge").startswith("zh-CN")
 
 
-def test_voice_checkpoint_is_free_for_a_local_chinese_voice(tmp_path):
+def test_voice_checkpoint_is_free_for_a_local_chinese_voice(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from vstudio.project.adapters import explainer as X
+    monkeypatch.delenv("VSTUDIO_TTS_ENGINE", raising=False)
     (tmp_path / "SCRIPT.md").write_text(ZH_SCRIPT, encoding="utf-8")
     env = SimpleNamespace(item_dir=str(tmp_path), params={"tts_engine": "clone", "voice": "cedar", "speed": 1.0})
     pay = X.voice_payload(env, {})
     assert pay["language"] == "zh" and pay["paid"] is False and pay["estimate_usd"] == 0.0 and pay["minutes"] > 0
     assert pay["default"]["voice"] == "clone"
     env.params = {"voice": "cedar"}
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")            # the default voice is OpenAI only with its key
     assert X.voice_payload(env, {})["paid"] is True
+    monkeypatch.delenv("OPENAI_API_KEY")
+    assert X.voice_payload(env, {})["paid"] is False
 
 
 # --------------------------------------------------------------------------- intake: an exported Notion 讲稿 folder

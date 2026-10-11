@@ -11,7 +11,9 @@ Built on **HyperFrames** (HTML → video). Worked example in `example/` (model q
 
 - HyperFrames skills installed (`/hyperframes`, `/hyperframes-core`, `/hyperframes-animation`, `/hyperframes-audio`, `/media-use`) and `npx hyperframes` working. Route fresh creation through `/hyperframes` first (it writes `BRIEF.md`); this skill is the `general-video` playbook for this genre.
 - `ffmpeg`, Python 3 with `fonttools brotli`.
-- `OPENAI_API_KEY` (narration ≈ $0.015/min with `gpt-4o-mini-tts`).
+- A voice: `OPENAI_API_KEY` (narration ≈ $0.015/min with `gpt-4o-mini-tts`), or a free one (Kokoro: `pip install
+  mlx-audio "misaki[zh]"` on Apple Silicon; edge-tts). The default (`tts_engine: auto`) is the voice this machine
+  has: persona `tts.engine`, else OpenAI only with its key, else the free voice - never a paid engine without a key.
 - Optional: HeyGen CLI logged in (`heygen auth login --oauth`) for the music catalog.
 - A CJK font you may redistribute (Noto Sans SC / Source Han Sans, OFL) and STIX Two Text (OFL, Google Fonts) in `assets/fonts/`.
 

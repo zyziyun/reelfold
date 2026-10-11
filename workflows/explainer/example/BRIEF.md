@@ -21,7 +21,7 @@ User's words: "should focus on principal/数学计算，为什么，怎么做，
 
 ## Customizations
 
-- Narration: English, generated with OpenAI TTS (gpt-4o-mini-tts; user switched from Hedra, has OpenAI credit; OPENAI_API_KEY in env). Claude picks the voice; send a short sample first.
+- Narration: English, generated with OpenAI TTS (gpt-4o-mini-tts; user switched from Hedra, has OpenAI credit; OPENAI_API_KEY in env). Claude picks the voice; send a short sample first. (This creator had a key: without one the explainer uses the free local voice, never OpenAI.)
 - Subtitles: bilingual, burned in, English line on top, 中文 line below, synced to narration. Also export en.srt and zh.srt.
 - 3b1b look: dark navy background, animated number lines, weight grids, colour-coded step-by-step equations.
 

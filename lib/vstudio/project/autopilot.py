@@ -11,6 +11,7 @@ it can be looked at and changed afterwards. Only real blockers stay for the crea
                      the engine drafts these files itself: ``drafts``) or a checkpoint with no default and no AI
                      answer. A seeded template / SYNTHETIC example is never taken for a draft
     asked            she took a decision back ("change it"): the checkpoint waits for her answer
+    needs-key        a paid voice without its key and no free voice on this computer: her key (Settings) is the way
 
 project.yaml::
 
@@ -101,6 +102,13 @@ def rules(cp, pay, spend_cap=0.0):
     default = pay.get("default")
     if kind in NEVER:
         return _block("consent", "consent is the creator's own call")
+    if kind == "voice-pick" and pay.get("no_key"):
+        nk = pay["no_key"]
+        svc = nk.get("service") or "API"
+        if not nk.get("free_engine") or default is None:        # nothing free here either: her key is the way
+            return _block("needs-key", f"no {svc} key and no free voice on this computer", service=svc)
+        return _rule("free-voice", f"used the free local voice — no {svc} key", default,
+                     service=svc, engine=nk.get("free_engine"), voice=nk.get("free_voice"))
     if kind == "budget-approval":
         total = float(pay.get("total_credits") or 0)
         unknown = pay.get("unknown_items") or []

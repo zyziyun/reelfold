@@ -338,11 +338,16 @@ def gate_stage(m, cp, names=()):
     fn.__name__ = f"{m['id']}.gate.{cp['id']}"
     from . import drafts as DR
     checked = bool((cp.get("author") or {}).get("file") and DR.format_check(m["id"], cp["id"]))
+    recheck = M.resolve_ref(cp["recheck"]) if cp.get("recheck") else None
 
     def params(job, spec):
         out = dict(answer=answer_of(job["params"], cp["id"]), v=1)
         if checked:                      # a file that stops passing the format check re-opens the step (retry)
             out["format_ok"] = not _bad_format(m, cp, job["params"], job["id"])
+        if recheck:                      # e.g. the voice's paid engine lost its key: re-open the gate (only then)
+            extra = recheck(job["params"])
+            if extra:
+                out["recheck"] = extra
         return out
     return Stage(M.GATE_PREFIX + cp["id"], "cpu", fn, deps=(cp["after"], *[n for n in cp.get("needs") or []
                                                                        if n in names and n != cp["after"]]),

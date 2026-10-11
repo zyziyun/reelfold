@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Synthesize every narration line in SCRIPT.md (via vstudio.tts, cached): OpenAI TTS by default, or a local voice.
+"""Synthesize every narration line in SCRIPT.md (via vstudio.tts, cached): the voice this machine has, or a named one.
 
 Usage:  python3 tts.py [--project .] [--voice cedar] [--model gpt-4o-mini-tts] [--speed 1.0] [LINE ...]
 Reads   <project>/SCRIPT.md  (sections "## Line N — ...", indented 4-space block = spoken text,
                               optional "**Delivery:** ..." line = per-line direction)
 Writes  <project>/audio/vo/lineNN.wav  (48 kHz mono)
-Needs   OPENAI_API_KEY in the environment (default engine), or --engine openai-compatible (your own TTS server,
-        VSTUDIO_TTS_BASE_URL) / elevenlabs / kokoro / edge / clone (local Qwen3-TTS from persona tts.clone) / auto
-        (persona tts.engine, else kokoro -> edge -> openai; see references/PROVIDERS.md). Chinese narration
+Engine  --engine auto (default) = persona tts.engine, else OpenAI when OPENAI_API_KEY is set, else the free local
+        voice (kokoro on Apple Silicon, else edge; vstudio.tts.available_engine). Or name one: openai (needs
+        OPENAI_API_KEY) / openai-compatible (your own TTS server, VSTUDIO_TTS_BASE_URL) / elevenlabs / kokoro / edge /
+        clone (local Qwen3-TTS from persona tts.clone); see references/PROVIDERS.md. A paid engine without its key
+        stops before any take with a plain message (which key, where to add it, or the free voice). Chinese narration
         (中文讲解) is detected from the script: the default English voice "cedar" is not sent to a non-OpenAI engine,
         Kokoro gets a Mandarin voice, and the check runs the ASR in Chinese. Takes are cached by text+voice+direction
         ($VSTUDIO_CACHE/tts), so re-running only pays for changed lines; --fresh forces new takes.
@@ -31,11 +33,12 @@ BASE = ("Calm, curious, unhurried teacher thinking out loud at a whiteboard, lik
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("lines", nargs="*", help="only these line numbers")
 ap.add_argument("--project", "-C", default=".", help="project dir (default: current dir)")
-ap.add_argument("--engine", default="openai",
+ap.add_argument("--engine", default="auto",
                 choices=["openai", "openai-compatible", "elevenlabs", "kokoro", "edge", "clone", "auto"],
-                help="openai (default, per-line delivery direction) | openai-compatible (your own /v1/audio/speech "
+                help="auto (default: persona tts.engine, else openai with its key, else the free local voice) | "
+                     "openai (per-line delivery direction) | openai-compatible (your own /v1/audio/speech "
                      "server: VSTUDIO_TTS_BASE_URL) | elevenlabs | kokoro | edge | clone (local Qwen3-TTS, "
-                     "persona tts.clone) | auto (persona tts.engine, else the first that works here)")
+                     "persona tts.clone)")
 ap.add_argument("--voice", default="cedar")
 ap.add_argument("--model", default="gpt-4o-mini-tts")
 ap.add_argument("--speed", type=float, default=1.0)
@@ -46,9 +49,17 @@ ap.add_argument("--retries", type=int, default=2, help="new takes when the check
 ap.add_argument("--asr-backend", default="auto", choices=["auto", "mlx", "faster", "openai", "openai-compatible"])
 a = ap.parse_args()
 failed = []
-engine = tts.pick_engine(a.engine) if a.engine == "auto" else a.engine
+engine = tts.available_engine(a.engine)
+free = tts.local_engine() is not None
+if tts.missing_key(engine):
+    sys.exit(str(tts.MissingKey(engine, free=free)))  # before any take: the service, and the fix, in plain words
+if engine in tts.LOCAL and not tts.installed(engine) and tts.missing_key("openai"):
+    sys.exit(str(tts.MissingKey("openai", free=False)))     # no free voice here and no key: the key is the way
+OPENAI_VOICES = {"cedar", "marin", "alloy", "ash", "coral", "sage", "verse", "ballad", "echo", "fable", "onyx", "nova",
+                 "shimmer"}
 # "cedar" / "gpt-4o-mini-tts" are OpenAI's: any other engine uses its own default unless a voice was given
-voice = a.voice if engine == "openai" or a.voice != "cedar" else None
+voice = a.voice if engine == "openai" or a.voice not in OPENAI_VOICES else None
+print(f"voice: {engine}" + (f" ({voice})" if voice else ""), flush=True)
 model = a.model if engine == "openai" or a.model != "gpt-4o-mini-tts" else None
 
 root = pathlib.Path(a.project)

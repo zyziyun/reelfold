@@ -84,6 +84,26 @@ _KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in
            "stage-script-format", "draft-script"),)
 
 
+# a paid service without its key (vstudio.tts.MissingKey "No OpenAI key: OPENAI_API_KEY is not set ...", or an older
+# "OPENAI_API_KEY is not set in the environment"): the service by name, never the env var / a traceback
+_KEY_MISSING = re.compile(r"\bNo ([A-Za-z][\w .-]{1,30}?) key: ([A-Z][A-Z0-9_]*_API_KEY) is not set|"
+                          r"\b([A-Z][A-Z0-9]*)_API_KEY is not set")
+_SERVICES = {"OPENAI": "OpenAI", "ELEVENLABS": "ElevenLabs", "GEMINI": "Gemini", "HEDRA": "Hedra",
+             "ANTHROPIC": "Anthropic", "FAL": "fal", "REPLICATE": "Replicate", "KLING": "Kling"}
+
+
+def key_failure(text):
+    """A missing API key -> {code: "ai-key-missing", params: {service, fix}} (fix: free-voice when the message offers
+    the free local voice - Try again takes it - else add-key); else None."""
+    t = str(text or "")
+    m = _KEY_MISSING.search(t)
+    if not m:
+        return None
+    service = m.group(1) or _SERVICES.get(m.group(3) or "", (m.group(3) or "").title())
+    free = re.search(r"or use the free local voice", t, re.I)
+    return dict(code="ai-key-missing", params=dict(service=service, fix="free-voice" if free else "add-key"))
+
+
 # an ffmpeg failure the app itself caused: a filter / encoder / option the ffmpeg it runs does not have (a GPL filter
 # on the bundled LGPL build), a graph it built wrong. Never "a file couldn't be read": nothing she can fix.
 APP_BUG = re.compile(r"no such filter|filter not found|unknown encoder|encoder not found|unrecognized option|"
@@ -156,12 +176,15 @@ def media_failure(text):
 
 def tool_failure(text):
     """An error caused by a missing / broken external tool -> {code: "tool-node" | "tool-ffmpeg",
-    params: {tool, fix}}; a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
+    params: {tool, fix}}; a missing API key -> key_failure(); a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
     app caused (APP_BUG: no such filter / unknown encoder ...) -> {code: "app-bug", params: {}}; ffmpeg could not
     open / read an input -> media_failure(); else None.
     fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script."""
     t = str(text or "")
     low = t.lower()
+    key = key_failure(t)
+    if key:
+        return key
     for rx, code, fix in _KNOWN:
         if rx.search(t):
             return dict(code=code, params=dict(fix=fix))

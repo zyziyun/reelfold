@@ -291,6 +291,10 @@ class Project:
         props = self.manifest["params"]["properties"]
         out.update({k: v for k, v in (self.series().get("params") or {}).items() if k in props})
         out.update(self.data.get("params") or {})
+        for k, v in props.items():                    # "auto" -> what this machine has (x-resolve), marked as such
+            if v.get("x-resolve") and out.get(k) == "auto":
+                out[k] = M.resolve_ref(v["x-resolve"])(out)
+                out[f"_{k}_auto"] = True
         return out
 
     def validate_params(self):
@@ -502,6 +506,8 @@ class Project:
         cp = self.checkpoint(pay["id"])
         if cp["kind"] in NEVER_AUTO or cp.get("auto", "never") != "default":
             return False
+        if pay.get("no_key"):                          # a paid voice without its key: Ask-me-first asks her
+            return False
         if not ({"all", cp["id"], cp["kind"]} & pol):
             return False
         return pay.get("default") is not None
@@ -607,7 +613,9 @@ class Project:
         if not isinstance(v, dict) or "value" not in v:
             return False
         reask = cp.get("reask", cp["kind"] != "author")
-        return not reask or not v.get("digest") or v["digest"] == pay.get("digest")
+        # ``answered_digest``: the digest the checkpoint's apply records for an answer that changes what the payload
+        # will be (the explainer's free voice answers "no key" with the script's digest): settled as well
+        return not reask or not v.get("digest") or v["digest"] in (pay.get("digest"), pay.get("answered_digest"))
 
     def pending(self, cid=None, item=None, answered=False):
         """Every checkpoint waiting for an answer: the payloads the gates wrote (options, default, previews).

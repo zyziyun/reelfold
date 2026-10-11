@@ -31,6 +31,12 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 - **Try again on a failed project** really runs again: the failed step is re-run (finished steps are kept), a
   project made on autopilot is retried on autopilot, and a pilot that stopped on its failure goes on. Before, it
   replayed the old error in the same second without running anything.
+- **Explainer voice without an OpenAI key**: a new explainer uses the voice this computer has — your persona's,
+  OpenAI only when its key is set, else the free local voice (a Mandarin voice for Chinese narration). A project
+  that chose OpenAI without a key no longer stops on "OPENAI_API_KEY is not set": on autopilot it uses the free
+  voice and says so; in Ask me first it asks "Use the free voice" / "Add an OpenAI key"; Try again recovers a
+  project that already failed. With no free voice installed, it asks for the key instead. A missing key anywhere
+  now names the service and the fix.
 
 ## [0.2.7] - 2026-10-11
 

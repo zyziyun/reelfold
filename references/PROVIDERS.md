@@ -190,6 +190,12 @@ OpenAI-compatible transcription server, use the `openai-compatible` backend.
 | `elevenlabs` | API (optional) | `ELEVENLABS_API_KEY`; voice = a voice id (persona `tts.elevenlabs_voice`), model `eleven_multilingual_v2`, speed 0.7-1.2 |
 
 `auto` = persona `tts.engine` / env `VSTUDIO_TTS_ENGINE`, else kokoro (Apple Silicon) -> edge -> openai. The
+explainer's default (`tts_engine: auto`, `tts.available_engine()`) is the voice this machine has: persona
+`tts.engine`, else OpenAI only when `OPENAI_API_KEY` is set, else the free voice installed (kokoro -> edge) - never
+a paid engine without its key. A plan that chose OpenAI without a key: autopilot takes the free voice and records it
+("used the free local voice — no OpenAI key"); Ask-me-first asks (use the free voice / add the key); with no free
+voice installed either (the desktop app's runtime ships neither mlx-audio nor edge-tts), adding the key is the way.
+A paid engine without its key raises `tts.MissingKey` (the service and the fix, in plain words). The
 explainer narration takes `--engine`; drills take `--engine`. Takes are cached by engine + model (+ server URL) +
 voice + speed + direction + text.
 

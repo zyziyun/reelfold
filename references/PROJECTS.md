@@ -86,6 +86,10 @@ A checkpoint compiles to a gate stage `cp_<id>` after `after` and before `blocks
 `state/checkpoints/<item>/<id>.json` and passes when there is nothing to decide (`skip`, or `auto: skip-if-empty`
 with no options), or when the item carries an answer whose digest still matches (`reask`, default on except for
 `author`); otherwise the item parks in `waiting` (not a failure: no circuit breaker, no red QC) and `run` exits 7.
+`recheck: module:fn` (optional) is called with the job's params at plan time; a non-empty result goes into the gate's
+key, so a change re-opens the gate on the next run (the explainer's voice: a paid engine whose key went away). A param
+with `x-resolve: module:fn` and the value `auto` gets that function's answer for this machine (the explainer's
+`tts_engine`), and `_<param>_auto: true` marks it in the job's params.
 
 Payload (what the app renders): `{id, kind, scope, item, labels, help, options [...], default, previews [{kind,
 path}], answer_schema, auto, batch_by, aggregate, digest, ...kind-specific}`. Answer: JSON validated against the

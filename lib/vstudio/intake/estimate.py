@@ -44,6 +44,16 @@ def _paid_llm(tasks, client_cfg=None):
     return False
 
 
+def _explainer_engine(params):
+    """The explainer's voice as it will run: "auto" (the default) = the voice this machine has (vstudio.tts.
+    available_engine: OpenAI only with its key), so a plan without a key costs nothing for the voice."""
+    eng = str((params or {}).get("tts_engine") or "auto")
+    if eng != "auto":
+        return eng
+    from vstudio import tts
+    return tts.available_engine()
+
+
 def project(p, src_s, out_s, n_items, n_platforms, client_cfg=None):
     """-> {machine_min, wall_min, storage_mb, api_usd, credits, measured, basis, paid_steps}"""
     bench, fb = _bench()
@@ -65,7 +75,7 @@ def project(p, src_s, out_s, n_items, n_platforms, client_cfg=None):
         api += LLM_USD_PER_SOURCE_MIN * src_s / 60
         paid.append("LLM（选段 / 字幕校对）")
     params = p.get("params") or {}
-    if rid == "explainer" and (params.get("tts_engine") or "openai") == "openai":
+    if rid == "explainer" and _explainer_engine(params) == "openai":
         api += TTS_USD_PER_MIN * out_s / 60
         paid.append("配音 TTS")
     if rid == "photo-story" and params.get("mode", "narration") == "narration" and \

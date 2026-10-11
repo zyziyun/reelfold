@@ -27,6 +27,9 @@ Engines (all optional imports, nothing is needed until you call one):
   elevenlabs  ElevenLabs API (optional): ELEVENLABS_API_KEY from the environment ONLY; voice = a voice id
           (persona ``tts.elevenlabs_voice``), model eleven_multilingual_v2; speed 0.7-1.2.
 "auto" = persona ``tts.engine`` / env VSTUDIO_TTS_ENGINE, else kokoro (Apple Silicon) -> edge -> openai.
+``available_engine()`` is the voice a plan defaults to (the explainer): persona ``tts.engine``, else a paid engine
+only when its key is set, else the free local voice (``local_engine()``). A paid engine without its key raises
+``MissingKey`` (a plain message naming the service and the fix); ``missing_key(engine)`` says so beforehand.
 ``providers()`` (and ``python -m vstudio.llm providers``) lists what works on this machine.
 Output is always 48 kHz mono 16-bit wav. Cache: ``$VSTUDIO_CACHE/tts/<sha1>.wav`` keyed by
 engine+model+voice+speed+instructions+text, so re-running a script never pays twice.
@@ -68,6 +71,21 @@ LANG_NAMES = {"en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean"
               "es": "Spanish", "it": "Italian", "pt": "Portuguese", "ru": "Russian"}
 _CLONE_MODELS = {}
 SR = 48000
+# engines that need a key (env var the app fills from the keychain) and the service it is for
+KEY_ENV = {"openai": "OPENAI_API_KEY", "elevenlabs": "ELEVENLABS_API_KEY"}
+SERVICE = {"openai": "OpenAI", "elevenlabs": "ElevenLabs"}
+
+
+class MissingKey(RuntimeError):
+    """A paid engine without its key: the message names the service and the fix (proctail words it for the app).
+    ``free``: a free voice is installed here (the message offers it), else adding the key is the way."""
+
+    def __init__(self, engine, free=True):
+        self.engine, self.env, self.service = engine, KEY_ENV.get(engine, ""), SERVICE.get(engine, engine)
+        self.free = bool(free)
+        super().__init__(f"No {self.service} key: {self.env} is not set. Add your {self.service} key in Settings > AI"
+                         + (", or use the free local voice." if free else
+                            " (no free voice is installed on this computer)."))
 
 
 def _cache_dir():
@@ -114,6 +132,47 @@ def pick_engine(name="auto"):
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
     raise RuntimeError("no TTS engine: pip install mlx-audio (Apple Silicon) | edge-tts | openai (+OPENAI_API_KEY)")
+
+
+def missing_key(engine):
+    """The env var a paid ``engine`` needs and does not have (None: no key needed, or it is set)."""
+    env = KEY_ENV.get(ALIASES.get(str(engine or "").lower(), str(engine or "").lower()))
+    return env if env and not os.environ.get(env) else None
+
+
+def _persona_engine():
+    conf = os.environ.get("VSTUDIO_TTS_ENGINE") or _tts_cfg().get("engine")
+    if conf and str(conf).lower() != "auto":
+        return ALIASES.get(str(conf).lower(), str(conf).lower())
+    return None
+
+
+LOCAL = ("kokoro", "clone", "edge")      # free voices (edge: Microsoft's online voices, no key)
+
+
+def installed(engine):
+    """Can ``engine`` run here at all (its package is installed; a key is ``missing_key``'s business)?"""
+    if engine in ("kokoro", "clone"):
+        return platform.system() == "Darwin" and platform.machine() == "arm64" and \
+            bool(importlib.util.find_spec("mlx_audio"))
+    if engine == "edge":
+        return bool(importlib.util.find_spec("edge_tts") or shutil.which("edge-tts"))
+    return True
+
+
+def local_engine():
+    """The free voice installed here: kokoro (Apple Silicon + mlx-audio), else edge (edge-tts); None = none is."""
+    return next((e for e in ("kokoro", "edge") if installed(e)), None)
+
+
+def available_engine(name="auto"):
+    """The voice a plan defaults to: ``name`` unless "auto" -> persona ``tts.engine`` / VSTUDIO_TTS_ENGINE -> openai
+    when OPENAI_API_KEY is set -> the free local voice. Never a paid engine without its key."""
+    name = ALIASES.get(str(name or "auto").lower(), str(name or "auto").lower())
+    if name != "auto":
+        return name
+    # nothing free installed and no key: kokoro by name (free; the voice step says what is missing, never a charge)
+    return _persona_engine() or ("openai" if not missing_key("openai") else local_engine() or "kokoro")
 
 
 def providers(probe=True):
@@ -197,7 +256,7 @@ def _speech_http(url, body, headers, dst, timeout=300):
 def _openai(text, voice, speed, instructions, model, dst):
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
-        raise RuntimeError("OPENAI_API_KEY is not set in the environment")
+        raise MissingKey("openai", free=local_engine() is not None)
     body = {"model": model, "voice": voice, "input": text, "speed": speed, "response_format": "wav"}
     if instructions and not model.startswith("tts-1"):
         body["instructions"] = instructions
@@ -221,7 +280,7 @@ def _compatible(text, voice, speed, instructions, model, dst):
 def _elevenlabs(text, voice, speed, model, dst):
     key = os.environ.get("ELEVENLABS_API_KEY")
     if not key:
-        raise RuntimeError("ELEVENLABS_API_KEY is not set in the environment")
+        raise MissingKey("elevenlabs", free=local_engine() is not None)
     body = {"text": text, "model_id": model, "voice_settings": {"speed": max(0.7, min(1.2, float(speed)))}}
     _speech_http(f"https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format=mp3_44100_128", body,
                  {"xi-api-key": key, "Accept": "audio/mpeg"}, dst)

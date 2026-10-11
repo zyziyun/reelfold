@@ -53,7 +53,10 @@ params:
       x-zh: 配音音色
     tts_engine:
       type: string
-      default: openai
+      # auto = the voice this machine has: her persona's engine, else OpenAI only with its key, else the free local
+      # voice (Kokoro / edge; Mandarin for 中文讲解). Never a paid engine without a key.
+      default: auto
+      x-resolve: vstudio.project.adapters.explainer:resolve_engine
       title: TTS engine
       x-zh: 配音引擎
     speed:
@@ -228,12 +231,14 @@ checkpoints:
     after: cue_draft
     blocks: [voice]
     labels: {zh: "配音确认", en: "Voice"}
-    help: {zh: "确认音色与语速后才会生成配音；付费引擎（OpenAI 等）先显示费用", en: "The voice is made only after this; a paid engine (OpenAI ...) shows its cost first"}
+    help: {zh: "确认音色与语速后才会生成配音；付费引擎（OpenAI 等）先显示费用；没有密钥就用免费的本地配音", en: "The voice is made only after this; a paid engine (OpenAI ...) shows its cost first; without its key, the free local voice"}
     payload: vstudio.project.adapters.explainer:voice_payload
     apply: vstudio.project.adapters.explainer:voice_apply
+    # OpenAI chosen but no key: re-open on Try again -> the free local voice (autopilot) / "no key" question (ask first)
+    recheck: vstudio.project.adapters.explainer:voice_recheck
     answer:
       type: object
-      properties: {voice: {type: string}, speed: {type: number}, approve: {type: boolean}}
+      properties: {voice: {type: string}, speed: {type: number}, approve: {type: boolean}, engine: {type: string}}
       required: [approve]
     auto: default
   - id: cues

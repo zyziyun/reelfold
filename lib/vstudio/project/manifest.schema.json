@@ -444,6 +444,10 @@
       "$ref": "#/$defs/ident"
      },
      "description": "extra stages whose outputs the payload reads (gate deps)"
+    },
+    "recheck": {
+     "type": "string",
+     "description": "module:function(job params) -> a value hashed into the gate's key (None = nothing): a change re-opens the gate on the next run (e.g. a paid voice whose key went away)"
     }
    }
   }
@@ -640,6 +644,10 @@
        "x-format": {
         "type": "string",
         "description": "dotted key in the recipe's format (vstudio.formats), e.g. speed.body: the default comes from there"
+       },
+       "x-resolve": {
+        "type": "string",
+        "description": "module:function(params) -> the value a param set to \"auto\" gets on this machine (e.g. the TTS engine actually available)"
        }
       }
      }

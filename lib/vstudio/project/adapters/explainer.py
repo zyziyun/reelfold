@@ -1,4 +1,5 @@
-"""explainer: the voice checkpoint (paid TTS: voice / speed confirmed first, with a cost estimate)."""
+"""explainer: the voice checkpoint (paid TTS: voice / speed confirmed first, with a cost estimate; a paid voice
+without its key offers the free local voice instead)."""
 import os
 import re
 
@@ -33,24 +34,101 @@ def spoken_minutes(script_path, speed=1.0):
     return (words / (165.0 * speed) if words else 0.0), words, chars, "en"
 
 
+def resolve_engine(params):
+    """``tts_engine: auto`` (the recipe default) -> the voice actually available here (vstudio.tts.available_engine:
+    her persona's engine, else OpenAI only with its key, else the free local voice). Never a paid engine without a
+    key; a project that says ``auto`` with a key set keeps OpenAI (the stage keys of older projects do not move)."""
+    from vstudio import tts
+    return tts.available_engine()
+
+
+def _voice_answer(params):
+    a = ((params or {}).get("_answers") or {}).get("voice")
+    return a.get("value") if isinstance(a, dict) and isinstance(a.get("value"), dict) else None
+
+
+def voice_engine(params):
+    """Which voice the item gets -> {engine (the one to make it with; None = none can run here), chosen (the
+    plan's), need (the paid engine whose missing key stops the voice, else None), service, env}. ``need`` when the
+    plan chose a paid engine without its key (``tts_engine: openai``, or an answer from before the engine was
+    recorded, when OpenAI was the default), or chose a free voice this computer does not have and there is no OpenAI
+    key either. The free voice installed here takes over when there is one (autopilot records it; Ask-me-first
+    asks); with none, adding the key is the way (a question for her, never a traceback)."""
+    from vstudio import tts
+    p = params or {}
+    chosen = str(p.get("tts_engine") or "auto").lower()
+    chosen = tts.ALIASES.get(chosen, chosen)
+    if chosen == "auto":
+        chosen = tts.available_engine()
+    ans = _voice_answer(p)
+    legacy = ans is not None and not ans.get("engine") and bool(p.get("_tts_engine_auto"))
+    free = tts.local_engine()
+    if tts.missing_key(chosen):
+        need = chosen
+    elif legacy and chosen != "openai" and tts.missing_key("openai"):
+        need = "openai"
+    elif chosen in tts.LOCAL and not tts.installed(chosen) and tts.missing_key("openai"):
+        need = "openai"
+    else:
+        need = None
+    ok = not tts.missing_key(chosen) and tts.installed(chosen)
+    engine = chosen if ok else (free if need else chosen)
+    return dict(engine=engine, chosen=chosen, need=need, service=tts.SERVICE.get(need) if need else None,
+                env=tts.KEY_ENV.get(need) if need else None)
+
+
+def _narration_current(item_dir):
+    """The narration is made and newer than the script: a key that went away later re-voices nothing."""
+    narr, script = os.path.join(item_dir, "audio", "narration.wav"), os.path.join(item_dir, "SCRIPT.md")
+    try:
+        return os.path.getmtime(narr) >= os.path.getmtime(script)
+    except OSError:
+        return False
+
+
+def voice_recheck(params):
+    """The voice gate's extra key (``recheck``): set only while the voice waits on a missing key (``voice_engine``
+    need), so a Try again re-opens the voice checkpoint (autopilot takes the free voice, Ask-me-first asks; with no
+    free voice here, the key question stays); None otherwise (the gates of projects that have their key keep their
+    keys)."""
+    v = voice_engine(params)
+    if not v["need"] or _narration_current((params or {}).get("_item_dir") or ""):
+        return None
+    return dict(need=v["need"], use=v["engine"])
+
+
 def voice_payload(env, cp):
     script = os.path.join(env.item_dir, "SCRIPT.md")
     speed = float(env.params.get("speed") or 1.0)
     minutes, words, chars, lang = spoken_minutes(script, speed)
-    engine = env.params.get("tts_engine") or "openai"
+    v = voice_engine(env.params)
+    engine = v["engine"]
     cur = env.params.get("voice") or "cedar"
-    if engine != "openai" and cur == "cedar":         # cedar is OpenAI's: show the voice that will really speak
+    derived = None
+    if engine and engine != "openai" and cur in VOICES:   # OpenAI's voices: show the voice that will really speak
         from vstudio import tts
-        cur = "clone" if engine == "clone" else (tts.zh_voice(engine) if lang == "zh" else None) or \
+        cur = derived = "clone" if engine == "clone" else (tts.zh_voice(engine) if lang == "zh" else None) or \
             tts.DEFAULT_VOICE.get(engine) or engine
     paid = engine in PAID_ENGINES
-    voices = VOICES if engine == "openai" else [cur]
-    return dict(options=[dict(voice=v, current=v == cur) for v in voices], words=words, chars=chars, language=lang,
-                engine=engine, paid=paid, minutes=round(minutes, 2),
-                estimate_usd=round(minutes * USD_PER_MIN * 1.5, 3) if engine == "openai" else 0.0,
-                digest=file_sha(script) or "none",
-                default=dict(voice=cur, speed=speed, approve=True),
-                previews=[dict(kind="markdown", path=script)])
+    voices = VOICES if engine == "openai" else [cur] if engine else []
+    base = file_sha(script) or "none"
+    # the script and, for any voice but OpenAI's (the old default: its answers keep their digest), the engine
+    mine = base if engine in (None, "openai") else f"{base}:{engine}"
+    pay = dict(options=[dict(voice=x, engine=engine, current=x == cur) for x in voices], words=words, chars=chars,
+               language=lang, engine=engine, paid=paid, minutes=round(minutes, 2),
+               estimate_usd=round(minutes * USD_PER_MIN * 1.5, 3) if engine == "openai" else 0.0,
+               # a missing key asks again (the earlier answer was for the paid voice); else the script decides
+               digest=f"{base}:no-key:{v['need']}" if v["need"] else mine,
+               derived_voice=derived,
+               # no voice can run here (no key, no free voice): nothing to approve until the key is added
+               default=dict(voice=cur, speed=speed, approve=True, engine=engine) if engine else None,
+               previews=[dict(kind="markdown", path=script)])
+    if v["need"]:
+        pay["no_key"] = dict(service=v["service"], env=v["env"], engine=v["need"], free_engine=engine,
+                             free_voice=cur if engine else None)
+        if engine:
+            pay["answered_digest"] = mine      # the free voice's answer: the digest its own payload will have
+    return pay
 
 
 def voice_apply(a):
@@ -58,11 +136,17 @@ def voice_apply(a):
     if not v.get("approve"):
         return dict(params={}, digest="not-approved")
     p = {}
-    if v.get("voice"):
-        p["voice"] = v["voice"]
+    if v.get("voice") and v["voice"] != a.payload.get("derived_voice"):
+        p["voice"] = v["voice"]          # a derived voice (cedar -> the local engine's own) stays derived per line
     if v.get("speed"):
         p["speed"] = float(v["speed"])
-    return dict(params={}, project_params=p) if p else dict(params={})
+    if v.get("engine"):
+        p["tts_engine"] = str(v["engine"])
+    out = dict(params={}, project_params=p) if p else dict(params={})
+    nk = a.payload.get("no_key") or {}
+    if nk and v.get("engine") and v["engine"] != nk.get("engine") and a.payload.get("answered_digest"):
+        out["digest"] = a.payload["answered_digest"]     # the free voice answers the script as it is now
+    return out
 
 
 def draft_cues(ctx, cp, path, template=None, instruction=None, complete=None):
