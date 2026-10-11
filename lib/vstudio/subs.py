@@ -226,13 +226,26 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
         return [text.strip()]
     m = len(toks)
 
+    span_w, span_orphan = {}, {}   # the DP asks for the same spans O(n*m^2) times: measure each token once
+
+    def _span(i, j):
+        a, b = i, j
+        while a < b and toks[a][0].isspace():
+            a += 1
+        while b > a and toks[b - 1][0].isspace():
+            b -= 1
+        span_w[i, j] = sum(widths[a:b]) if a < b else 0.0
+        span_orphan[i, j] = b - a == 1 and len(toks[a][0]) == 1 and not _LATIN.fullmatch(toks[a][0])
+
     def lw(i, j):
-        tt = _trim(toks[i:j])
-        return sum(measure(t) for t, _ in tt) if tt else 0.0
+        if (i, j) not in span_w:
+            _span(i, j)
+        return span_w[i, j]
 
     def is_orphan(i, j):
-        tt = _trim(toks[i:j])
-        return len(tt) == 1 and len(tt[0][0]) == 1 and not _LATIN.fullmatch(tt[0][0])
+        if (i, j) not in span_orphan:
+            _span(i, j)
+        return span_orphan[i, j]
 
     bonus = _break_bonus(toks, word_aware)
     n0 = max(2, math.ceil(total / max_width))
