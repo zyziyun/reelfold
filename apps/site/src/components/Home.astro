@@ -7,7 +7,9 @@ import Audiences from './home/Audiences.astro';
 import Batch from './home/Batch.astro';
 import Platforms from './home/Platforms.astro';
 import ThreeUp from './home/ThreeUp.astro';
-import CreateTeaser from './home/CreateTeaser.astro';
+import NextTeaser from './home/NextTeaser.astro';
+import Makes from './home/Makes.astro';
+import PromoVideo from './home/PromoVideo.astro';
 import OpenSource from './home/OpenSource.astro';
 import Faq from './Faq.astro';
 import FinalCta from './home/FinalCta.astro';
@@ -16,12 +18,14 @@ const { lang } = Astro.props;
 const c = t(lang);
 ---
 <Hero {lang} />
+<PromoVideo {lang} />
 <Steps {lang} />
+<Makes {lang} />
 <Audiences {lang} />
 <Batch {lang} />
 <Platforms {lang} />
 <ThreeUp {lang} />
-<CreateTeaser {lang} />
+<NextTeaser {lang} />
 <OpenSource {lang} />
 <Faq {lang} kicker={c.faq.k} title={c.faq.t} items={c.faq.items} />
 <FinalCta {lang} title={c.final.t} />

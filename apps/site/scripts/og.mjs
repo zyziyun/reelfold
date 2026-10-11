@@ -27,7 +27,7 @@ mkdirSync(OUT, { recursive: true });
 
 const page = (lang, c) => {
   const zhl = lang === 'zh';
-  const shot = `file://${join(ROOT, 'src/assets/app', zhl ? 'home-zh.png' : 'home-en.png')}`;
+  const shot = `file://${join(ROOT, 'src/assets/app', zhl ? 'making-zh.png' : 'making-en.png')}`;
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>
 @font-face{font-family:IS;src:url(${F('newsreader-latin-opsz-normal.woff2')})}
 @font-face{font-family:IS;font-style:italic;src:url(${F('newsreader-latin-opsz-italic.woff2')})}
@@ -38,7 +38,7 @@ body{width:1200px;height:630px;overflow:hidden;background:#F4F0E8;color:#1C1A17;
 .logo{position:absolute;left:72px;top:60px;display:flex;align-items:center;gap:12px;font:600 26px/1 Inter,'PingFang SC',sans-serif}
 .logo svg{width:44px;height:auto}
 .eyebrow{position:absolute;left:72px;top:150px;width:540px;font:500 13px/1.4 Inter,'PingFang SC';letter-spacing:.1em;text-transform:uppercase;color:#6B6359}
-h1{position:absolute;left:68px;top:188px;margin:0;width:540px;font:400 ${lang === 'en' ? 100 : 74}px/.98 IS,serif;letter-spacing:-.025em}
+h1{position:absolute;left:68px;top:188px;margin:0;width:540px;font:400 ${lang === 'en' ? 76 : 64}px/1 IS,serif;letter-spacing:-.025em}
 h1 em{font-style:italic}
 .zh h1{font:600 84px/1.18 NS,'Songti SC',serif;letter-spacing:.02em}
 .zh h1 em{font-style:normal;color:#0A7266}

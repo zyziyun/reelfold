@@ -41,7 +41,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       stepsT: 'From episode to a week of clips',
       steps: [
         { t: 'Describe the batch', b: '“Ten clips from this episode, about a minute each, for Shorts, Reels and Xiaohongshu.”' },
-        { t: 'Approve the plan', b: 'Read the picks and the AI cost estimate. Swap a moment, shorten one, or approve all.' },
+        { t: 'It plans and runs', b: 'On autopilot it picks the moments and goes on, noting why for each; change any pick later. With Ask me first, you approve the plan before it renders.' },
         { t: 'Let it run', b: 'Cutting, captions, covers and exports run on your Mac, several clips at a time.' },
         { t: 'Check the flagged few', b: 'Automatic checks catch missing caption words, loudness and length. You look only at those.' },
       ],
@@ -56,7 +56,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     zh: {
       nav: '播客切片',
       title: '播客切片：一整期播客，一次剪成多条短视频 | 千剪',
-      description: '把视频播客剪成小红书、抖音、视频号、Shorts、Reels 的竖屏短片。免费开源的 Mac 应用，AI 挑片段，你只看被标出来的几条。',
+      description: '把视频播客剪成 Shorts、Reels、小红书、抖音、视频号的竖屏短片。免费开源的 Mac 应用，AI 挑片段，你只看被标出来的几条。',
       kicker: '场景 · 播客',
       h1: '一整期播客，一次切成多条。',
       intro: '拖进一期视频播客，说清要几条、发哪些平台。千剪读文字稿，挑出能单独成立的回答，按你点名的每个平台各渲染一版，字幕、封面和文案都配好。',
@@ -71,7 +71,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       stepsT: '从一期节目到一周的片段',
       steps: [
         { t: '描述这一批', b: '“这期剪十条，每条一分钟左右，发 Shorts、Reels 和小红书。”' },
-        { t: '确认计划', b: '看一遍选段和 AI 费用预估。换一段、剪短一段，或者全部确认。' },
+        { t: '规划好就开做', b: '自动驾驶会挑好片段直接往下做，每段都记下理由，之后随时能换。选“先问我”，就先确认计划再渲染。' },
         { t: '交给它跑', b: '剪辑、字幕、封面、导出都在你的 Mac 上进行，几条同时跑。' },
         { t: '只看被标出来的', b: '自动检查会抓出字幕漏字、响度和时长问题。你只看这几条。' },
       ],
@@ -101,7 +101,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       stepsT: 'De l’épisode à une semaine de clips',
       steps: [
         { t: 'Décrivez le lot', b: '« Dix clips d’environ une minute pour Shorts, Reels et Xiaohongshu. »' },
-        { t: 'Validez le plan', b: 'Lisez les choix et l’estimation du coût d’IA. Remplacez un moment, raccourcissez-en un, ou validez tout.' },
+        { t: 'Il planifie et avance', b: 'En pilote automatique, il choisit les moments et continue, en notant pourquoi pour chacun ; changez un choix plus tard. Avec « Me demander d’abord », vous validez le plan avant le rendu.' },
         { t: 'Laissez tourner', b: 'Coupes, sous-titres, couvertures et exports tournent sur votre Mac, plusieurs clips à la fois.' },
         { t: 'Relisez les clips signalés', b: 'Les contrôles automatiques repèrent les mots manquants, le volume et la durée. Vous ne regardez que ceux-là.' },
       ],
@@ -131,7 +131,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       stepsT: 'Del episodio a una semana de clips',
       steps: [
         { t: 'Describe el lote', b: '“Diez clips de este episodio, de un minuto más o menos, para Shorts, Reels y Xiaohongshu.”' },
-        { t: 'Aprueba el plan', b: 'Revisa los momentos elegidos y la estimación de costo de IA. Cambia uno, acorta otro o apruébalo todo.' },
+        { t: 'Planifica y avanza', b: 'En piloto automático elige los momentos y sigue, anotando el motivo de cada uno; cambia cualquiera después. Con “Ask me first”, apruebas el plan antes del render.' },
         { t: 'Deja que trabaje', b: 'Cortes, subtítulos, portadas y exportaciones se procesan en tu Mac, varios clips a la vez.' },
         { t: 'Revisa los pocos marcados', b: 'Los controles automáticos detectan palabras que faltan en los subtítulos, volumen y duración. Solo miras esos.' },
       ],
@@ -308,7 +308,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     zh: {
       nav: '课程切片',
       title: '课程切片：把录播课、直播回放剪成短视频 | 千剪',
-      description: '把录播课、讲座、直播回放切成小红书、抖音、Shorts、B站的短课，代码和幻灯片都看得清。免费开源的 Mac 应用。',
+      description: '把录播课、讲座、直播回放切成 Shorts、小红书、抖音、B站的短课，代码和幻灯片都看得清。免费开源的 Mac 应用。',
       kicker: '场景 · 课程与讲座',
       h1: '一节录播课，切成一组短课。',
       intro: '讲座、直播回放和录播课里，藏着几十个能单独讲清楚的点。千剪把它们找出来，在竖屏里也让代码和幻灯片看得清，再给片段编号，排成一个系列。',
@@ -324,7 +324,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       steps: [
         { t: '输入 72 分钟', b: '一节讲 RAG（检索增强生成）的录播课，屏幕共享加讲解。' },
         { t: '规划 24 条', b: '每条一分钟左右，各讲清一个点，跑题的部分都去掉。' },
-        { t: '输出 96 个文件', b: '每条四种尺寸：小红书 3:4 和 9:16、抖音、YouTube Shorts。' },
+        { t: '输出 96 个文件', b: '每条四种尺寸：YouTube Shorts、小红书 3:4 和 9:16、抖音。' },
         { t: '24 条通过 21 条', b: '3 条被标出来交给人看。整批的 AI 费用是 0.73 美元。' },
       ],
       faq: [
@@ -402,15 +402,15 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     en: {
       nav: 'Talking-head shorts',
       title: 'Remove filler words and pauses from talking-head video | Reelfold',
-      description: 'Cut pauses, filler words, repeats and restarts from talking-head videos, add captions, punch-ins and a cover, and export for every platform. Free, open-source Mac app; you confirm the uncertain cuts.',
+      description: 'Cut pauses, filler words, repeats and restarts from talking-head videos, add captions, punch-ins and a cover, and export for every platform. Free, open-source Mac app; you can undo any cut.',
       kicker: 'Use case · Talking head',
       h1: 'Talking-head videos, without the ums.',
-      intro: 'Reelfold finds the pauses, filler words, repeats and restarts in a talking-head recording. Clear ones are cut on word boundaries; the ones it isn’t sure about are listed for you to keep or cut. Then come captions, punch-ins, a cover and one export per platform.',
+      intro: 'Reelfold finds the pauses, filler words, repeats and restarts in a talking-head recording. Clear ones are cut on word boundaries; the AI decides the ones it isn’t sure about and lists them, so you can undo any. Then come captions, punch-ins, a cover and one export per platform.',
       img: 'textedit', figCaption: 'Edit with AI: filler words, long pauses and likely caption typos, listed before anything is cut.', figAlt: 'The clip editor: a vertical preview, the transcript with fillers and pauses marked, and a side panel suggesting to remove 12 filler words and tighten 7 long pauses.',
       pointsT: 'Cleanup you can trust',
       points: [
         { t: 'Cuts on word boundaries', b: 'Every cut lands between words and on an exact frame, so no syllable is clipped.' },
-        { t: 'You confirm the unsure ones', b: 'Uncertain cuts come as a short list with the words before and after. Reply “cut 3, 5, keep 7”, or tick boxes in the app.' },
+        { t: 'Unsure cuts, your call', b: 'On autopilot the AI decides the unsure ones and lists each with the words around it; undo any. With Ask me first, they wait for you as a short list to tick.' },
         { t: 'Checked after cutting', b: 'The audio is transcribed again after cleanup to make sure no content word was lost.' },
         { t: 'Three strengths', b: 'Gentle, standard or tight. Pick per video, or set a default per client.' },
       ],
@@ -432,15 +432,15 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     zh: {
       nav: '口播剪辑',
       title: '口播视频去气口、去口头禅、删停顿 | 千剪',
-      description: '自动找出口播视频里的停顿、口头禅、重复和说错重来，加字幕、放大镜头和封面，导出各平台尺寸。免费开源的 Mac 应用，拿不准的剪辑由你确认。',
+      description: '自动找出口播视频里的停顿、口头禅、重复和说错重来，加字幕、放大镜头和封面，导出各平台尺寸。免费开源的 Mac 应用，每一刀都能撤销。',
       kicker: '场景 · 口播',
       h1: '口播视频，去掉气口和口头禅。',
-      intro: '千剪会找出口播录像里的停顿、口头禅、重复和说错重来。把握大的按词边界直接剪掉；拿不准的列出来，由你决定留还是剪。之后再加字幕、放大镜头、封面，每个平台各导一版。',
+      intro: '千剪会找出口播录像里的停顿、口头禅、重复和说错重来。把握大的按词边界直接剪掉；拿不准的由 AI 判断，并逐条列出来，哪一刀都能撤销。之后再加字幕、放大镜头、封面，每个平台各导一版。',
       img: 'textedit', figCaption: '用 AI 编辑：口头禅、长停顿、可能的字幕错字，剪之前先列出来。', figAlt: '片段编辑器：左边是竖屏预览，下方是标出口头禅和停顿的文字稿，右侧建议删掉 12 个口头禅、收紧 7 处长停顿。',
       pointsT: '放心交给它的去气口',
       points: [
         { t: '按词边界剪', b: '每一刀都落在两个词之间、精确到帧，不会剪掉半个字。' },
-        { t: '拿不准的由你确认', b: '不确定的剪辑会列成一张短表，带上前后文。回一句 “确认 3,5 / 保留 7”，或者在应用里勾选。' },
+        { t: '拿不准的，你说了算', b: '自动驾驶时，拿不准的由 AI 判断，每条都带上前后文，可以撤销。选“先问我”，它们会列成一张短表等你勾选。' },
         { t: '剪完再核一遍', b: '去气口之后会重新转写一遍音频，确认没有丢掉有内容的词。' },
         { t: '三档力度', b: '轻、标准、紧。每条单独选，或者按客户设默认值。' },
       ],
@@ -462,15 +462,15 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     fr: {
       nav: 'Vidéos face caméra',
       title: 'Retirer les hésitations et les silences d’une vidéo face caméra | Reelfold',
-      description: 'Coupez les silences, hésitations, répétitions et faux départs de vos vidéos face caméra, ajoutez sous-titres, zooms et couverture, puis exportez pour chaque plateforme. App Mac gratuite et open source ; vous validez les coupes incertaines.',
+      description: 'Coupez les silences, hésitations, répétitions et faux départs de vos vidéos face caméra, ajoutez sous-titres, zooms et couverture, puis exportez pour chaque plateforme. App Mac gratuite et open source ; chaque coupe peut être annulée.',
       kicker: 'Usage · Face caméra',
       h1: 'Des vidéos face caméra, sans les « euh ».',
-      intro: 'Reelfold repère les silences, hésitations, répétitions et faux départs d’un enregistrement face caméra. Les cas évidents sont coupés entre deux mots ; les autres vous sont listés pour garder ou couper. Viennent ensuite sous-titres, zooms, couverture et un export par plateforme.',
+      intro: 'Reelfold repère les silences, hésitations, répétitions et faux départs d’un enregistrement face caméra. Les cas évidents sont coupés entre deux mots ; l’IA tranche les cas douteux et les liste, pour que vous puissiez annuler n’importe quelle coupe. Viennent ensuite sous-titres, zooms, couverture et un export par plateforme.',
       img: 'textedit', figCaption: 'Modifier avec l’IA : hésitations, longs silences et coquilles probables, listés avant toute coupe.', figAlt: 'L’éditeur de clip : un aperçu vertical, la transcription avec hésitations et silences marqués, et un panneau qui propose de retirer 12 hésitations et de raccourcir 7 longs silences.',
       pointsT: 'Un nettoyage digne de confiance',
       points: [
         { t: 'Des coupes entre les mots', b: 'Chaque coupe tombe entre deux mots, à l’image près : aucune syllabe n’est rognée.' },
-        { t: 'Vous validez les cas douteux', b: 'Les coupes incertaines arrivent en courte liste, avec les mots avant et après. Répondez « coupe 3, 5, garde 7 », ou cochez dans l’app.' },
+        { t: 'Les cas douteux, à vous de voir', b: 'En pilote automatique, l’IA tranche les cas douteux et liste chacun avec les mots autour ; annulez ce que vous voulez. Avec « Me demander d’abord », ils vous attendent en courte liste à cocher.' },
         { t: 'Vérifié après coupe', b: 'L’audio est retranscrit après le nettoyage pour s’assurer qu’aucun mot utile n’a disparu.' },
         { t: 'Trois intensités', b: 'Douce, standard ou serrée. À choisir par vidéo, ou par défaut pour chaque client.' },
       ],
@@ -492,15 +492,15 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
     es: {
       nav: 'Videos a cámara',
       title: 'Quita muletillas y pausas de tus videos a cámara | Reelfold',
-      description: 'Elimina pausas, muletillas, repeticiones y frases empezadas de nuevo en videos a cámara, añade subtítulos, zooms y portada, y exporta para cada plataforma. App gratuita y de código abierto para Mac; tú confirmas los cortes dudosos.',
+      description: 'Elimina pausas, muletillas, repeticiones y frases empezadas de nuevo en videos a cámara, añade subtítulos, zooms y portada, y exporta para cada plataforma. App gratuita y de código abierto para Mac; puedes deshacer cualquier corte.',
       kicker: 'Uso · Videos a cámara',
       h1: 'Videos a cámara, sin los “eh”.',
-      intro: 'Reelfold encuentra las pausas, muletillas, repeticiones y frases empezadas de nuevo de una grabación a cámara. Las claras se cortan entre palabras; las dudosas se te muestran para que decidas. Después vienen los subtítulos, los zooms, la portada y una exportación por plataforma.',
+      intro: 'Reelfold encuentra las pausas, muletillas, repeticiones y frases empezadas de nuevo de una grabación a cámara. Las claras se cortan entre palabras; las dudosas las decide la IA y te las muestra, para que puedas deshacer cualquiera. Después vienen los subtítulos, los zooms, la portada y una exportación por plataforma.',
       img: 'textedit', figCaption: 'Editar con IA: muletillas, pausas largas y posibles erratas, listadas antes de cortar nada.', figAlt: 'El editor de clips: una vista previa vertical, la transcripción con muletillas y pausas marcadas y un panel que sugiere quitar 12 muletillas y acortar 7 pausas largas.',
       pointsT: 'Una limpieza de confianza',
       points: [
         { t: 'Cortes entre palabras', b: 'Cada corte cae entre dos palabras y en el fotograma exacto, sin comerse ninguna sílaba.' },
-        { t: 'Tú confirmas las dudas', b: 'Los cortes dudosos llegan en una lista breve con las palabras de antes y después. Responde “corta 3 y 5, deja 7” o marca las casillas en la app.' },
+        { t: 'Las dudas, a tu manera', b: 'En piloto automático la IA decide los cortes dudosos y muestra cada uno con las palabras de alrededor; deshaz el que quieras. Con “Ask me first”, te esperan en una lista breve para marcar.' },
         { t: 'Comprobado después', b: 'Tras la limpieza se vuelve a transcribir el audio para asegurar que no se perdió ninguna palabra con contenido.' },
         { t: 'Tres intensidades', b: 'Suave, estándar o ajustada. Elígela por video o fija una por defecto para cada cliente.' },
       ],

@@ -8,7 +8,7 @@ const { lang, page } = Astro.props;
 const c = t(lang);
 const home = pathFor(lang);
 const name = lang === 'zh' ? SITE.nameZh : SITE.name;
-const anchors = [['how', c.nav.how], ['batch', c.nav.batch], ['open-source', c.nav.oss], ['faq', c.nav.faq]] as const;
+const anchors = [['how', c.nav.how], ['makes', c.nav.makes], ['batch', c.nav.batch], ['open-source', c.nav.oss], ['faq', c.nav.faq]] as const;
 // on the home page the anchors are local (#how); elsewhere they point to the home page of the same language
 const base = page === '' && Astro.url.pathname === home ? '' : home;
 ---

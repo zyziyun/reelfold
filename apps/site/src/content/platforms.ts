@@ -35,8 +35,8 @@ export const PLATFORMS_COPY: Record<Lang, PlatformsCopy> = {
     ],
   },
   zh: {
-    title: '各平台视频尺寸：小红书、抖音、视频号、B站、Shorts | 千剪',
-    description: '小红书、抖音、视频号、B站、快手、YouTube Shorts、TikTok 等 20 个平台的视频尺寸、画幅、封面尺寸、时长上限和文案字数限制。2026 年 10 月核对。',
+    title: '各平台视频尺寸：Shorts、TikTok、小红书、抖音、视频号、B站 | 千剪',
+    description: 'YouTube Shorts、TikTok、小红书、抖音、视频号、B站、快手等 20 个平台的视频尺寸、画幅、封面尺寸、时长上限和文案字数限制。2026 年 10 月核对。',
     kicker: '平台规格',
     h1: '二十个平台的视频尺寸。',
     intro: '千剪导出片段时用的画面尺寸、封面、时长和文案字数，按平台列出。平台经常调整这些数字，所以每一项都对照了官方帮助页或几份一致的指南，核对日期见下方。',

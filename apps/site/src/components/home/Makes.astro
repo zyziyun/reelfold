@@ -1,0 +1,14 @@
+---
+import { t, type Lang } from '../../i18n';
+import { heading } from '../../lib/zhHeading';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+---
+<section class="wrap" id="makes" aria-labelledby="mk-h">
+  <div class="head2">
+    <div><p class="kick">{c.makes.k}</p><h2 id="mk-h" set:html={heading(c.makes.t, lang)} /></div>
+    <p class="lede">{c.makes.l}</p>
+  </div>
+  <div class="three">{c.makes.items.map((x) => <div><h3>{x.t}</h3><p>{x.b}</p></div>)}</div>
+</section>

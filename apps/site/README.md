@@ -56,8 +56,8 @@ src/content/platforms.ts    /platforms/ copy; numbers come from src/data/platfor
 src/data/batch.ts           the real batch on the home page (72-min lecture, 24 clips, timecodes, QC result)
 src/layouts/Base.astro      <html lang>, head (Seo), fonts preload, nav, footer, the inline script
 src/components/             Seo, SiteNav, SiteFooter, Ctas, Print, Img (AVIF+WebP <picture>), Faq, Crumbs, Related,
-                            Icon, Logo, home/* (Hero, Steps, Audiences, Batch, Platforms, ThreeUp, CreateTeaser,
-                            OpenSource, FinalCta), Privacy, Terms
+                            Icon, Logo, home/* (Hero, PromoVideo, Steps, Makes, Audiences, Batch, Platforms, ThreeUp,
+                            NextTeaser, OpenSource, FinalCta), Privacy, Terms
 src/views/                  page templates (HomePage, UseCasePage, ComparePage, PlatformsPage, LegalPage)
 src/pages/                  thin route files: / , /[slug]/, /compare/[tool]/, /platforms/, … and the same under zh/ fr/ es/
 src/lib/                    zhHeading (中文 clause-safe line breaks), images (screenshot registry), schema (JSON-LD),
@@ -67,6 +67,17 @@ src/styles/global.css       tokens + all component styles (ported from the F pro
 scripts/                    check-copy, check-site, subset-zh-font.py, og, export-platforms.py, fr-typo.py, screenshot, brand
 docs/SEO_SUBMIT.md          Google Search Console, Bing Webmaster, 百度站长 steps
 ```
+
+## Promo film and screenshot slots
+
+- **Promo film**: put the film at `public/media/reelfold-promo.mp4` (H.264, 16:9) and a poster frame at
+  `public/media/reelfold-promo.jpg`, then rebuild. `src/components/home/PromoVideo.astro` shows it under the hero on
+  every language; with no mp4 there, nothing renders. To swap the film, replace the file (same name) and rebuild.
+- **Home dashboard screenshot**: `HOME_DASH` in `src/lib/images.ts` (boxed comment there). While it is `null`, the
+  "Coming next: Home" section is text only.
+- **App screenshots** (`src/assets/app/making-*.png`, `editor-*.png`): 1440×900, light theme, taken from a built desk
+  app with an isolated temp profile and the e2e real-engine fixtures (`apps/desk/tests/e2e/fixture/`), never a real
+  profile or real footage.
 
 ## The "coming soon" switch
 

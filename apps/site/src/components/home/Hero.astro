@@ -13,7 +13,7 @@ const zh = lang === 'zh';
   <h1>{zh ? <><span class="ph">{c.hero.h1a}</span><br /><em class="ph">{c.hero.h1b}</em></> : <>{c.hero.h1a}<br /><em>{c.hero.h1b}</em></>}</h1>
   <p class="sub">{c.hero.sub}</p>
   <Ctas {lang} />
-  <Print class="herofig" src={img('home', lang)} mobile={img('homeM', lang)} mobileWidths={[700, 1100]} alt={c.hero.figAlt}
+  <Print class="herofig" src={img('making', lang)} alt={c.hero.figAlt}
     widths={[800, 1200, 1800, 2400]} sizes="(max-width: 1300px) calc(100vw - 2 * var(--pad)), 1240px"
     fig={`${c.fig} 1`} caption={c.hero.fig} priority reveal={false} />
 </div>
