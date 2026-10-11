@@ -142,7 +142,16 @@ test('package a work folder for platforms -> confirm the code -> calendar slots 
   await expect(page.getByTestId('pkg-item-checks').locator('[data-code="hashtags-over"]')).toBeVisible();
   // the board: one card per clip per day (2 clips x 4 platforms = 8 rows, 2 cards), the 抖音 row posted
   await hash('#/publish');
-  await expect(page.getByTestId('pub-post')).toHaveCount(2, { timeout: 15000 });
+  // one card per day from today: on a Sunday the second day is next week's board, so count this week + the next
+  await expect
+    .poll(async () => {
+      const here = await page.getByTestId('pub-post').count();
+      await page.getByTestId('pb-next').click();
+      const next = await page.getByTestId('pub-post').count();
+      await page.getByTestId('pb-prev').click();
+      return here + next;
+    }, { timeout: 15000 })
+    .toBe(2);
   const posts = await page.evaluate(async () => {
     const info = await window.desk.engineInfo();
     return (await (await fetch(info.baseUrl + '/api/calendar', { headers: { Authorization: `Bearer ${info.token}` } })).json()).posts as { platform: string; state: string }[];

@@ -186,20 +186,33 @@ test('Publish: a scheduled card opens its clip; the drawer and the queue do too'
     await expect(page).toHaveURL(/#\/publish\/accounts/);
     await hash('#/publish');
   }
+  // "next free slot" can fall in next week (e.g. on a Sunday evening): look there when this week has no card
+  const toCardWeek = () =>
+    expect
+      .poll(async () => {
+        if (await page.getByTestId('pub-post').count()) return true;
+        await page.getByTestId('pb-next').click();
+        if (await page.getByTestId('pub-post').count()) return true;
+        await page.getByTestId('pb-prev').click();
+        return false;
+      }, { timeout: 30000 })
+      .toBe(true);
+  await toCardWeek();
   const card = page.getByTestId('pub-post').first();
-  await expect(card).toBeVisible({ timeout: 30000 });
   // the drawer (the card's title / time open it): "Open the clip" leads to the clip page
   await card.locator('.pc-title').click();
   await expect(page.getByTestId('pb-drawer')).toBeVisible();
   await page.getByTestId('pb-drawer-clip').click();
   await expect(page).toHaveURL(/#\/p\/[0-9a-f]{12}\/clip\//);
   await page.getByTestId('nav-publish').click();
+  await toCardWeek();
   // the card's cover opens the clip straight away
   await page.getByTestId('pc-open-clip').first().click();
   await expect(page).toHaveURL(/#\/p\/[0-9a-f]{12}\/clip\//);
   await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
   // an unscheduled clip in the queue opens its clip too
   await page.getByTestId('nav-publish').click();
+  await toCardWeek();
   const q = page.getByTestId('pub-queue-item').first();
   if (await q.count()) {
     await q.click();
