@@ -183,7 +183,7 @@ OpenAI-compatible transcription server, use the `openai-compatible` backend.
 | engine | kind | setup |
 |---|---|---|
 | `openai` | API | `OPENAI_API_KEY`; `gpt-4o-mini-tts` with per-line `instructions` (delivery direction) |
-| `kokoro` | local (Apple Silicon) | `pip install mlx-audio` |
+| `kokoro` | local (Apple Silicon), offline | `pip install mlx-audio "misaki[en,zh]"`; model `VSTUDIO_KOKORO_MODEL` (a local folder) or the HF repo `mlx-community/Kokoro-82M-bf16`. Bundled in the Mac app (Apple silicon) |
 | `edge` | online, no key | `pip install edge-tts` (Microsoft online voices) |
 | `clone` | local (Apple Silicon) | `mlx-audio` + persona `tts.clone.ref_wav` / `ref_text` (your own voice only) |
 | `openai-compatible` | self-hosted | a `/v1/audio/speech` server (Kokoro-FastAPI on port 8880, openedai-speech, LocalAI): `VSTUDIO_TTS_BASE_URL` or persona `tts.server.{base_url, api_key_env, model, voice}` |
@@ -194,7 +194,7 @@ explainer's default (`tts_engine: auto`, `tts.available_engine()`) is the voice 
 `tts.engine`, else OpenAI only when `OPENAI_API_KEY` is set, else the free voice installed (kokoro -> edge) - never
 a paid engine without its key. A plan that chose OpenAI without a key: autopilot takes the free voice and records it
 ("used the free local voice — no OpenAI key"); Ask-me-first asks (use the free voice / add the key); with no free
-voice installed either (the desktop app's runtime ships neither mlx-audio nor edge-tts), adding the key is the way.
+voice installed either (the app on an Intel Mac or Windows: no free voice is bundled there), adding the key is the way.
 A paid engine without its key raises `tts.MissingKey` (the service and the fix, in plain words). The
 explainer narration takes `--engine`; drills take `--engine`. Takes are cached by engine + model (+ server URL) +
 voice + speed + direction + text.
@@ -205,6 +205,21 @@ as Kokoro's `lang_code`, `pip install "misaki[zh]"`) read Chinese only - English
 recording of your own voice, a free local reference works: a 10-15 s Kokoro `zf_xiaobei` sample of plain Chinese
 sentences as `tts.clone.ref_wav` + its text as `ref_text` (a synthetic voice, no real person's). Measured on an M5
 Mac: about 3.3 x real time (a 6-minute narration in 20 minutes), sentence check by ASR included.
+
+**The free voice in the desktop app (Apple silicon).** The app's runtime bundles Kokoro (mlx-audio + misaki, MIT /
+Apache-2.0); the weights (Kokoro-82M v1.0, Apache-2.0, ~330 MB with the voices `zf_xiaobei`, `af_heart`,
+`am_michael`, `bf_emma`) are not in the installer: they are the optional first-run download `tts-kokoro`
+(`apps/desk/packaging/assets.json`: pinned Hugging Face revision, sha256 per file, resumable, Settings > Downloads),
+fetched the first time a video takes the free voice. The app passes the folder as `VSTUDIO_KOKORO_MODEL` and sets
+`VSTUDIO_TTS_MODELS_MANAGED=1`, so the engine never fetches a model itself (Mac App Store sandbox: everything stays in
+the app's container, no `network.server`); before the download the voice step stops with `tts.VoiceNotDownloaded`
+(failure code `tool-voice`) and the app offers the download. Takes run through `vstudio.kokoro_synth` (mlx-audio's
+Python API, offline for a local folder). English without espeak-ng: misaki's GPL fallback (espeakng-loader /
+phonemizer) is not bundled, so a word missing from misaki's English dictionaries (~180k words) is skipped instead of
+guessed - spell out rare names or acronyms in the script; numbers are read through `vstudio.numwords_en` (the app
+ships no LGPL num2words; same words). Intel Macs and Windows bundle no free voice (MLX is Apple-silicon only, and
+kokoro-onnx's default phonemizer is espeak-ng, GPL): they keep the key path (OpenAI / ElevenLabs / your own
+`openai-compatible` server, e.g. Kokoro-FastAPI).
 
 The AI presenter (a talking head from your photo + the narration) is a paid video service, not TTS: Hedra, key
 `HEDRA_API_KEY` (desk: Settings > Video generation > Hedra), behind the Create spend gate -

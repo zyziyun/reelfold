@@ -36,7 +36,13 @@ engine+model+voice+speed+instructions+text, so re-running a script never pays tw
 Voice defaults: persona ``tts.<engine>_voice`` else DEFAULT_VOICE; for Chinese text ``zh_voice(engine)`` (persona
 ``tts.<engine>_voice_zh`` else ZH_VOICE). Kokoro voices carry their language in the prefix (``zf_xiaobei`` =
 Mandarin, ``af_heart`` = US English, ``jf_alpha`` = Japanese ...) and it is passed on as Kokoro's ``lang_code``;
-Mandarin needs ``pip install "misaki[zh]"``. Kokoro reads Chinese only (English terms inside a Chinese sentence
+Mandarin needs ``pip install "misaki[zh]"``, English ``misaki[en]``.
+Kokoro's model: ``kokoro_model()`` = env VSTUDIO_KOKORO_MODEL (a local folder: config.json, kokoro-v1_0.safetensors,
+voices/<id>.safetensors - the desk app downloads one, see apps/desk/packaging/assets.json ``tts-kokoro``), else persona
+``tts.kokoro_model``, else the Hugging Face repo DEFAULT_MODEL["kokoro"] (mlx-audio downloads it). With a local folder
+nothing is fetched; a voice it lacks is an error naming the voices it has. VSTUDIO_TTS_MODELS_MANAGED=1 (the app): the
+voice is never fetched by the engine - without VSTUDIO_KOKORO_MODEL it raises ``VoiceNotDownloaded``.
+Without espeak-ng (the app's runtime: GPL, not bundled) English words missing from misaki's dictionaries are skipped. Kokoro reads Chinese only (English terms inside a Chinese sentence
 come out garbled): for 中文讲解 with English terms use ``clone`` (Qwen3-TTS reads both) or edge.
 Unified from preproduction ``make_drill.tts/pick_engine/to_wav``, explainer ``tts.py`` (urllib
 OpenAI call with per-line direction), photo-story ``tts.main.synth`` (cache by text+voice+instructions).
@@ -74,6 +80,8 @@ SR = 48000
 # engines that need a key (env var the app fills from the keychain) and the service it is for
 KEY_ENV = {"openai": "OPENAI_API_KEY", "elevenlabs": "ELEVENLABS_API_KEY"}
 SERVICE = {"openai": "OpenAI", "elevenlabs": "ElevenLabs"}
+KOKORO_MODEL_ENV = "VSTUDIO_KOKORO_MODEL"      # a local Kokoro folder (the desk app's download)
+MANAGED_ENV = "VSTUDIO_TTS_MODELS_MANAGED"     # the app downloads voice models; the engine never fetches them
 
 
 class MissingKey(RuntimeError):
@@ -86,6 +94,14 @@ class MissingKey(RuntimeError):
         super().__init__(f"No {self.service} key: {self.env} is not set. Add your {self.service} key in Settings > AI"
                          + (", or use the free local voice." if free else
                             " (no free voice is installed on this computer)."))
+
+
+class VoiceNotDownloaded(RuntimeError):
+    """The app's free voice (Kokoro) is not downloaded yet: the desk offers the download (Settings > Downloads)."""
+
+    def __init__(self):
+        super().__init__("The free voice is not downloaded yet: download it in Settings > Downloads "
+                         "(Free voice), then try again.")
 
 
 def _cache_dir():
@@ -160,6 +176,11 @@ def installed(engine):
     return True
 
 
+def kokoro_ready():
+    """Kokoro's model is here or may be fetched on use (False only in the app before its download)."""
+    return os.path.isdir(kokoro_model()) or not os.environ.get(MANAGED_ENV)
+
+
 def local_engine():
     """The free voice installed here: kokoro (Apple Silicon + mlx-audio), else edge (edge-tts); None = none is."""
     return next((e for e in ("kokoro", "edge") if installed(e)), None)
@@ -187,8 +208,10 @@ def providers(probe=True):
         clone_ok, clone_d = False, "needs persona tts.clone.ref_wav + ref_text"
     rows = [dict(provider="openai", kind="api", ready=bool(os.environ.get("OPENAI_API_KEY")),
                  detail="gpt-4o-mini-tts, key set" if os.environ.get("OPENAI_API_KEY") else "needs OPENAI_API_KEY"),
-            dict(provider="kokoro", kind="local", ready=mac_arm and mlx,
-                 detail="mlx-audio Kokoro-82M" if mac_arm and mlx else "pip install mlx-audio (Apple Silicon)"),
+            dict(provider="kokoro", kind="local", ready=mac_arm and mlx and kokoro_ready(),
+                 detail=("pip install mlx-audio (Apple Silicon)" if not (mac_arm and mlx) else
+                         f"mlx-audio Kokoro-82M, {kokoro_model()}" if kokoro_ready() else
+                         "mlx-audio Kokoro-82M, not downloaded yet (Settings > Downloads)")),
             dict(provider="edge", kind="api (no key)", ready=edge,
                  detail="edge-tts (Microsoft online voices, no key)" if edge else "pip install edge-tts"),
             dict(provider="clone", kind="local", ready=mac_arm and mlx and clone_ok,
@@ -222,9 +245,28 @@ def zh_voice(engine):
     return v or ZH_VOICE.get(engine)
 
 
+def kokoro_model(model=None):
+    """Kokoro model: ``model`` > env VSTUDIO_KOKORO_MODEL > persona ``tts.kokoro_model`` > DEFAULT_MODEL (HF repo)."""
+    m = model or os.environ.get(KOKORO_MODEL_ENV) or _tts_cfg().get("kokoro_model") or DEFAULT_MODEL["kokoro"]
+    m = str(m)
+    return os.path.expanduser(m) if m.startswith("~") else m
+
+
+def kokoro_voices(model=None):
+    """Voice ids a local Kokoro folder has (sorted); None for a Hugging Face repo (any voice, fetched on use)."""
+    d = kokoro_model(model)
+    if not os.path.isdir(d):
+        return None
+    try:
+        return sorted(f[:-len(".safetensors")] for f in os.listdir(os.path.join(d, "voices"))
+                      if f.endswith(".safetensors"))
+    except OSError:
+        return []
+
+
 def kokoro_lang(voice):
     """Kokoro's lang_code for a voice id ("zf_xiaobei" -> "z"); None when the id has no language prefix."""
-    v = str(voice or "")
+    v = os.path.basename(str(voice or ""))
     return v[0] if len(v) > 3 and v[0] in KOKORO_LANGS and v[1] in "fm" and v[2] == "_" else None
 
 
@@ -289,19 +331,28 @@ def _elevenlabs(text, voice, speed, model, dst):
 def _kokoro(text, voice, speed, model, dst, tmp):
     if not importlib.util.find_spec("mlx_audio"):
         raise RuntimeError("kokoro needs mlx-audio (pip install mlx-audio; Apple Silicon)")
+    local = os.path.isdir(model)
+    if not local and os.environ.get(MANAGED_ENV):
+        raise VoiceNotDownloaded()
     lang = kokoro_lang(voice)
-    r = subprocess.run([sys.executable, "-m", "mlx_audio.tts.generate", "--model", model, "--text", text,
-                        "--voice", voice, "--speed", str(speed), "--join_audio", "--audio_format", "wav",
-                        "--output_path", tmp, "--file_prefix", "k"]
-                       + (["--lang_code", lang] if lang else []), capture_output=True, text=True)
+    vref = voice
+    if local and not str(voice).endswith(".safetensors"):
+        vref = os.path.join(model, "voices", f"{voice}.safetensors")
+        if not os.path.isfile(vref):
+            raise RuntimeError(f"Kokoro voice {voice!r} is not downloaded (this copy has: "
+                               f"{', '.join(kokoro_voices(model) or []) or 'none'})")
+    lib = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in (lib, os.environ.get("PYTHONPATH")) if p))
+    if local:
+        env["HF_HUB_OFFLINE"] = "1"                  # a local folder: never reach for the hub
+    out = os.path.join(tmp, "kokoro.wav")
+    r = subprocess.run([sys.executable, "-m", "vstudio.kokoro_synth", "--model", model, "--voice", vref,
+                        "--speed", str(speed), "--out", out] + (["--lang", lang] if lang else []),
+                       input=text, capture_output=True, text=True, env=env)
     tail = lambda: "\n".join(((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-15:])
-    if r.returncode != 0:
-        raise RuntimeError(f"mlx_audio failed (exit {r.returncode}):\n{tail()}")
-    cands = [f for f in os.listdir(tmp) if f.startswith("k") and f.endswith(".wav")]
-    if not cands:
-        # mlx_audio prints the real error (bad voice, model download) to stdout and exits 0
-        raise RuntimeError(f"mlx_audio produced no wav; its output:\n{tail()}")
-    shutil.move(os.path.join(tmp, sorted(cands)[0]), dst)
+    if r.returncode != 0 or not os.path.exists(out):
+        raise RuntimeError(f"kokoro failed (exit {r.returncode}):\n{tail()}")
+    shutil.move(out, dst)
 
 
 def clone_config(ref_wav=None, ref_text=None, model=None, language=None):
@@ -398,7 +449,8 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         voice = f"ref:{ccfg['ref_hash']}:{ccfg['language'] or 'auto'}:{seed if seed is not None else '-'}"
     else:
         voice = _voice(engine, voice)
-        model = model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
+        model = kokoro_model(model) if engine == "kokoro" else \
+            model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
     key = cache_key(text, engine, voice, speed, instructions,
                     f"{server_config()['base_url']}#{model}" if engine == "openai-compatible" else model)
     cpath = os.path.join(_cache_dir(), f"{key}.wav")

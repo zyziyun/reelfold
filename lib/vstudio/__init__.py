@@ -15,6 +15,7 @@ Core (audio/video pipeline)
            cut_segments (frame-exact), xfade_assemble (muted-pad dissolves)
   subs     Cue, wrap_cjk / balanced_wrap, highlight markup, SRT/ASS writers, bilingual, retime
   tts      synth() via OpenAI / Kokoro / Edge / clone / self-hosted server / ElevenLabs, content-addressed cache
+           (kokoro_synth: one Kokoro take via mlx-audio; numwords_en: English number words for misaki)
   llm      complete(): one LLM interface (API providers, local servers, Claude Code / Codex CLIs, none), routing,
            JSON repair, cost, fallback chains; ``python -m vstudio.llm providers`` (references/PROVIDERS.md)
   entities named-entity verification of transcripts (CLDR place names, glossary / model spellings)

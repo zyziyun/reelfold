@@ -84,6 +84,17 @@ _KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in
            "stage-script-format", "draft-script"),)
 
 
+# the app's free voice (Kokoro) before its one-time download (vstudio.tts.VoiceNotDownloaded): the desk offers it
+_VOICE_MISSING = re.compile(r"free voice is not downloaded", re.I)
+
+
+def voice_failure(text):
+    """The free voice not downloaded yet -> {code: "tool-voice", params: {tool: "voice", fix: "download-voice"}}."""
+    if _VOICE_MISSING.search(str(text or "")):
+        return dict(code="tool-voice", params=dict(tool="voice", fix="download-voice"))
+    return None
+
+
 # a paid service without its key (vstudio.tts.MissingKey "No OpenAI key: OPENAI_API_KEY is not set ...", or an older
 # "OPENAI_API_KEY is not set in the environment"): the service by name, never the env var / a traceback
 _KEY_MISSING = re.compile(r"\bNo ([A-Za-z][\w .-]{1,30}?) key: ([A-Z][A-Z0-9_]*_API_KEY) is not set|"
@@ -176,13 +187,13 @@ def media_failure(text):
 
 def tool_failure(text):
     """An error caused by a missing / broken external tool -> {code: "tool-node" | "tool-ffmpeg",
-    params: {tool, fix}}; a missing API key -> key_failure(); a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
+    params: {tool, fix}}; a missing API key -> key_failure(); the free voice not downloaded -> voice_failure(); a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
     app caused (APP_BUG: no such filter / unknown encoder ...) -> {code: "app-bug", params: {}}; ffmpeg could not
     open / read an input -> media_failure(); else None.
-    fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script."""
+    fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script | download-voice."""
     t = str(text or "")
     low = t.lower()
-    key = key_failure(t)
+    key = key_failure(t) or voice_failure(t)
     if key:
         return key
     for rx, code, fix in _KNOWN:
