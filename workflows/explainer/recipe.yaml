@@ -5,8 +5,8 @@ version: 1
 workflow: explainer
 labels: {zh: "讲解视频", en: "Explainer (3b1b style)"}
 description:
-  zh: 选题 → 脚本（英文旁白 + 中文字幕）→ 分镜 → 配音（TTS）→ 双语字幕对齐 → 场景（HyperFrames）→ 渲染 → 多平台导出
-  en: topic -> script (EN narration + ZH subtitles) -> storyboard -> TTS voice -> bilingual cue alignment -> HyperFrames scenes -> render -> per-platform exports
+  zh: 选题 → 脚本（英文旁白 + 中文字幕，或中文讲解）→ 分镜 → 配音（TTS）→ 双语字幕对齐 → 场景（HyperFrames）→ 渲染 → 多平台导出
+  en: topic -> script (EN narration + ZH subtitles, or Chinese narration) -> storyboard -> TTS voice -> bilingual cue alignment -> HyperFrames scenes -> render -> per-platform exports
 category: generate
 inputs:
   - key: topic
@@ -168,6 +168,9 @@ stages:
   - id: render
     resource: browser
     deps: [index]
+    # the scenes, captions and fonts are read at render time: an edited scene re-renders even when index.html
+    # (which only names them) did not change
+    watch: ["{item_dir}/compositions", "{item_dir}/assets", "{item_dir}/audio/narration.wav"]
     keys: [quality]
     units: one
     run:
@@ -191,7 +194,7 @@ checkpoints:
     scope: item
     after: prepare
     labels: {zh: "脚本定稿", en: "Lock the script"}
-    help: {zh: "一行一个场景；英文旁白缩进块 + ZH 中文字幕", en: "One line = one scene: indented EN narration + ZH: subtitle"}
+    help: {zh: "一行一个场景；旁白写在缩进块里：英文旁白 + ZH 中文字幕，或中文讲解（可加 EN 英文字幕）", en: "One line = one scene: the indented block is the narration - English + a ZH: subtitle, or Chinese (中文讲解) + an optional EN: subtitle"}
     author:
       file: "{item_dir}/SCRIPT.md"
       template: lib/vstudio/project/templates/explainer_SCRIPT.md
@@ -224,8 +227,8 @@ checkpoints:
     scope: item
     after: cue_draft
     blocks: [voice]
-    labels: {zh: "配音确认（付费 TTS）", en: "Voice (paid TTS)"}
-    help: {zh: "确认音色与语速后才会调用 TTS", en: "TTS is called only after this"}
+    labels: {zh: "配音确认", en: "Voice"}
+    help: {zh: "确认音色与语速后才会生成配音；付费引擎（OpenAI 等）先显示费用", en: "The voice is made only after this; a paid engine (OpenAI ...) shows its cost first"}
     payload: vstudio.project.adapters.explainer:voice_payload
     apply: vstudio.project.adapters.explainer:voice_apply
     answer:

@@ -193,6 +193,17 @@ OpenAI-compatible transcription server, use the `openai-compatible` backend.
 explainer narration takes `--engine`; drills take `--engine`. Takes are cached by engine + model (+ server URL) +
 voice + speed + direction + text.
 
+Chinese narration (中文讲解): Kokoro's Mandarin voices (`zf_xiaobei`, `zm_yunjian`, ...; the voice prefix is passed
+as Kokoro's `lang_code`, `pip install "misaki[zh]"`) read Chinese only - English terms inside a Chinese sentence
+(MCP, JSON-RPC) come out garbled. For a course full of English terms use `clone` (Qwen3-TTS reads both). Without a
+recording of your own voice, a free local reference works: a 10-15 s Kokoro `zf_xiaobei` sample of plain Chinese
+sentences as `tts.clone.ref_wav` + its text as `ref_text` (a synthetic voice, no real person's). Measured on an M5
+Mac: about 3.3 x real time (a 6-minute narration in 20 minutes), sentence check by ASR included.
+
+The AI presenter (a talking head from your photo + the narration) is a paid video service, not TTS: Hedra, key
+`HEDRA_API_KEY` (desk: Settings > Video generation > Hedra), behind the Create spend gate -
+`python -m vstudio.create presenter estimate|run` (references/CREATE.md).
+
 ## 5. What each step sends
 
 | step | task / registry | sent to the provider | not sent |

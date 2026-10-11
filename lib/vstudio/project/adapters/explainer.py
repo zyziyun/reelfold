@@ -6,26 +6,48 @@ from ..build import file_sha
 
 VOICES = ["cedar", "marin", "alloy", "ash", "coral", "sage", "verse", "ballad"]
 USD_PER_MIN = 0.015           # gpt-4o-mini-tts, workflows/explainer/WORKFLOW.md
+PAID_ENGINES = ("openai", "elevenlabs")
+CJK = re.compile(r"[㐀-鿿豈-﫿]")
 
 
-def spoken_words(script_path):
+def spoken_text(script_path):
     try:
         with open(script_path, encoding="utf-8") as f:
             txt = f.read()
     except OSError:
-        return 0
-    spoken = [ln.strip() for ln in txt.splitlines() if ln.startswith("    ") and ln.strip()]
-    return sum(len(re.findall(r"[A-Za-z0-9']+", s)) for s in spoken)
+        return []
+    return [ln.strip() for ln in txt.splitlines() if ln.startswith("    ") and ln.strip()]
+
+
+def spoken_words(script_path):
+    return sum(len(re.findall(r"[A-Za-z0-9']+", s)) for s in spoken_text(script_path))
+
+
+def spoken_minutes(script_path, speed=1.0):
+    """(minutes, words, chars, lang): English at ~165 words/min, Chinese (中文讲解) at ~260 characters/min."""
+    spoken = spoken_text(script_path)
+    chars = sum(len(CJK.findall(s)) for s in spoken)
+    words = sum(len(re.findall(r"[A-Za-z0-9']+", s)) for s in spoken)
+    if chars > words:
+        return (chars + words / 2) / (260.0 * speed), words, chars, "zh"
+    return (words / (165.0 * speed) if words else 0.0), words, chars, "en"
 
 
 def voice_payload(env, cp):
     script = os.path.join(env.item_dir, "SCRIPT.md")
-    words = spoken_words(script)
     speed = float(env.params.get("speed") or 1.0)
-    minutes = words / (165.0 * speed) if words else 0.0
+    minutes, words, chars, lang = spoken_minutes(script, speed)
+    engine = env.params.get("tts_engine") or "openai"
     cur = env.params.get("voice") or "cedar"
-    return dict(options=[dict(voice=v, current=v == cur) for v in VOICES], words=words,
-                minutes=round(minutes, 2), estimate_usd=round(minutes * USD_PER_MIN * 1.5, 3),
+    if engine != "openai" and cur == "cedar":         # cedar is OpenAI's: show the voice that will really speak
+        from vstudio import tts
+        cur = "clone" if engine == "clone" else (tts.zh_voice(engine) if lang == "zh" else None) or \
+            tts.DEFAULT_VOICE.get(engine) or engine
+    paid = engine in PAID_ENGINES
+    voices = VOICES if engine == "openai" else [cur]
+    return dict(options=[dict(voice=v, current=v == cur) for v in voices], words=words, chars=chars, language=lang,
+                engine=engine, paid=paid, minutes=round(minutes, 2),
+                estimate_usd=round(minutes * USD_PER_MIN * 1.5, 3) if engine == "openai" else 0.0,
                 digest=file_sha(script) or "none",
                 default=dict(voice=cur, speed=speed, approve=True),
                 previews=[dict(kind="markdown", path=script)])

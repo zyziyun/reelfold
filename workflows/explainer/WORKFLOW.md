@@ -30,6 +30,12 @@ Format: `## Line N — <label> (Frame N)`, optional `**Delivery:**`, the spoken 
 - Teaching shape that works: hook (a concrete number) → everyday intuition → what is stored → the core picture (one image) → **one worked example carried through 3–5 scenes with the same numbers** → why it doesn't hurt → types/variants → real tools → trade-offs → recap.
 - Verify every number in the worked example yourself before writing it; write them at the top of SCRIPT.md as the example's ground truth.
 - ≈ 175 spoken words/min for OpenAI `cedar` at speed 1.0 — measure from the sample, don't guess.
+- **Chinese narration (中文讲解)**: write the indented block in Chinese (English terms stay English: MCP, JSON-RPC;
+  numbers as digits), no `ZH:` line (the narration is the caption), optional `EN:` English subtitle. Every script
+  detects it (`script_md.narration_lang`): TTS / ASR checks run in Chinese, cues are `中文 || English`, the 中文
+  caption leads. ≈ 260 characters/min; a local voice that reads English terms inside Chinese is `--engine clone`
+  (Qwen3-TTS, persona `tts.clone`); Kokoro's Mandarin voices (`zf_xiaobei`) read Chinese only. From a long 讲稿 /
+  Notion export: condense to the one idea per scene, keep her examples and analogies, cut stage directions.
 
 Then draft instead of writing from scratch (both only propose; you edit and verify):
 ```bash

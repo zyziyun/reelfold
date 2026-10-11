@@ -7,6 +7,8 @@ Writes  <project>/compositions/captions.html  (EN line on top, 中文 below, bot
         For a vertical canvas (--platform / scenes.config.json "platform", see canvas.py) the cue block sits
         bottom-anchored inside the profile's caption box, sizes from the band height, balanced wraps, and cues
         longer than 2 lines per language are reported.
+Chinese narration (中文讲解, script_md.script_lang): the 中文 line is the main caption (larger, white, on top)
+and the English line, when the cue has one, sits under it in the secondary style.
 The CJK font must be a file you are allowed to ship (e.g. Noto Sans SC, OFL); see subset_cjk_font.py.
 --font paths are URLs relative to the project root (they are written into the HTML as-is).
 """
@@ -15,6 +17,7 @@ import argparse, json, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from canvas import add_platform_arg, resolve
+from script_md import script_lang
 
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("--project", "-C", default=".", help="project dir (default: current dir)")
@@ -26,6 +29,7 @@ root = pathlib.Path(a.project)
 cv = resolve(root, a.platform)
 
 C = json.load(open(root / "subtitles/cues.json"))
+ZH = script_lang(root / "SCRIPT.md") == "zh"
 total = json.load(open(root / "audio/scenes.json"))["total"]
 data = json.dumps([{"s": c["start"], "e": c["end"], "en": c["en"], "zh": c["zh"]} for c in C], ensure_ascii=False)
 W, H = cv["W"], cv["H"]
@@ -50,6 +54,10 @@ else:
     for c in long:
         print(f"warning: line {c['line']} cue at {c['start']:.2f}s exceeds 2 lines in the {cv['key']} caption box "
               f"(EN {len(c['en'])}/{cv['max_en']}, ZH {len(c['zh'])}/{cv['max_zh']}): split it in cues.txt")
+if ZH:      # 中文讲解: the Chinese line leads, English (when a cue has it) is the smaller second line
+    zfs, efs = (44, 30) if cv["legacy"] else (cv["zh_fs"], int(round(cv["zh_fs"] * 0.62)))
+    style += (f"\n    .captions-zh {{ font-size: {zfs}px; line-height: 1.3; color: #F2F4F8; font-weight: 600; }}"
+              f"\n    .captions-en {{ font-size: {efs}px; line-height: 1.25; color: #B9C0CC; font-weight: 400; }}")
 (root / "compositions").mkdir(parents=True, exist_ok=True)       # a blank `hyperframes init` has none yet
 open(root / "compositions/captions.html", "w").write(f'''<template>
   <style>
@@ -72,7 +80,9 @@ open(root / "compositions/captions.html", "w").write(f'''<template>
         const d = document.createElement("div"); d.className = "captions-cue"; d.id = "captions-cue-" + i;
         const en = document.createElement("div"); en.className = "captions-en"; en.textContent = c.en;
         const zh = document.createElement("div"); zh.className = "captions-zh"; zh.textContent = c.zh;
-        d.appendChild(en); d.appendChild(zh); layer.appendChild(d);
+        const order = {json.dumps("zh" if ZH else "en")} === "zh" ? [zh, en] : [en, zh];
+        order.forEach((el) => {{ if (el.textContent) d.appendChild(el); }});
+        layer.appendChild(d);
         tl.fromTo(d, {{ opacity: 0 }}, {{ opacity: 1, duration: 0.12, ease: "none" }}, c.s);
         tl.to(d, {{ opacity: 0, duration: 0.12, ease: "none" }}, Math.max(c.s + 0.2, c.e - 0.12));
       }});

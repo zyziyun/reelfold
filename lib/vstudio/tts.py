@@ -30,7 +30,11 @@ Engines (all optional imports, nothing is needed until you call one):
 ``providers()`` (and ``python -m vstudio.llm providers``) lists what works on this machine.
 Output is always 48 kHz mono 16-bit wav. Cache: ``$VSTUDIO_CACHE/tts/<sha1>.wav`` keyed by
 engine+model+voice+speed+instructions+text, so re-running a script never pays twice.
-Voice defaults: persona ``tts.<engine>_voice`` else DEFAULT_VOICE.
+Voice defaults: persona ``tts.<engine>_voice`` else DEFAULT_VOICE; for Chinese text ``zh_voice(engine)`` (persona
+``tts.<engine>_voice_zh`` else ZH_VOICE). Kokoro voices carry their language in the prefix (``zf_xiaobei`` =
+Mandarin, ``af_heart`` = US English, ``jf_alpha`` = Japanese ...) and it is passed on as Kokoro's ``lang_code``;
+Mandarin needs ``pip install "misaki[zh]"``. Kokoro reads Chinese only (English terms inside a Chinese sentence
+come out garbled): for 中文讲解 with English terms use ``clone`` (Qwen3-TTS reads both) or edge.
 Unified from preproduction ``make_drill.tts/pick_engine/to_wav``, explainer ``tts.py`` (urllib
 OpenAI call with per-line direction), photo-story ``tts.main.synth`` (cache by text+voice+instructions).
 """
@@ -53,6 +57,10 @@ DEFAULT_VOICE = {"openai": "cedar", "kokoro": "af_heart", "edge": "en-US-AriaNeu
 DEFAULT_MODEL = {"openai": "gpt-4o-mini-tts", "kokoro": "mlx-community/Kokoro-82M-bf16", "edge": None,
                  "clone": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "openai-compatible": "kokoro",
                  "elevenlabs": "eleven_multilingual_v2"}
+# Chinese voices (中文讲解); openai's voices are multilingual, clone speaks like its reference
+ZH_VOICE = {"kokoro": "zf_xiaobei", "edge": "zh-CN-XiaoxiaoNeural", "openai": "cedar", "openai-compatible": None,
+            "elevenlabs": None, "clone": None}
+KOKORO_LANGS = "abefhijpz"          # Kokoro's lang codes = the first letter of its voice ids
 ENGINES = ("openai", "kokoro", "edge", "clone", "openai-compatible", "elevenlabs")
 ALIASES = {"compatible": "openai-compatible", "tts-server": "openai-compatible", "eleven": "elevenlabs",
            "11labs": "elevenlabs", "edge-tts": "edge", "qwen3-clone": "clone"}
@@ -149,6 +157,18 @@ def default_voice(engine="auto"):
     return _voice(pick_engine(engine), None)
 
 
+def zh_voice(engine):
+    """The Chinese voice of ``engine`` (persona tts.<engine>_voice_zh, else ZH_VOICE); None = the engine's default."""
+    v = (_tts_cfg() or {}).get(f"{engine}_voice_zh")
+    return v or ZH_VOICE.get(engine)
+
+
+def kokoro_lang(voice):
+    """Kokoro's lang_code for a voice id ("zf_xiaobei" -> "z"); None when the id has no language prefix."""
+    v = str(voice or "")
+    return v[0] if len(v) > 3 and v[0] in KOKORO_LANGS and v[1] in "fm" and v[2] == "_" else None
+
+
 def _voice(engine, voice):
     if voice:
         return voice
@@ -210,9 +230,11 @@ def _elevenlabs(text, voice, speed, model, dst):
 def _kokoro(text, voice, speed, model, dst, tmp):
     if not importlib.util.find_spec("mlx_audio"):
         raise RuntimeError("kokoro needs mlx-audio (pip install mlx-audio; Apple Silicon)")
+    lang = kokoro_lang(voice)
     r = subprocess.run([sys.executable, "-m", "mlx_audio.tts.generate", "--model", model, "--text", text,
                         "--voice", voice, "--speed", str(speed), "--join_audio", "--audio_format", "wav",
-                        "--output_path", tmp, "--file_prefix", "k"], capture_output=True, text=True)
+                        "--output_path", tmp, "--file_prefix", "k"]
+                       + (["--lang_code", lang] if lang else []), capture_output=True, text=True)
     tail = lambda: "\n".join(((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-15:])
     if r.returncode != 0:
         raise RuntimeError(f"mlx_audio failed (exit {r.returncode}):\n{tail()}")

@@ -410,14 +410,14 @@ def test_tts_regenerates_a_take_that_drops_a_sentence(tmp_path, monkeypatch):
     monkeypatch.setattr(T, "synth", synth)
     monkeypatch.setattr(media, "duration", lambda p: 1.0)
     heard = iter([" One chip.", " One chip. Many cores."])
-    monkeypatch.setattr(C, "check_take", lambda wav, text, backend="auto": C.check(text, next(heard)))
+    monkeypatch.setattr(C, "check_take", lambda wav, text, backend="auto", **k: C.check(text, next(heard)))
     monkeypatch.setitem(sys.modules, "vo_check", C)
     monkeypatch.setattr(sys, "argv", ["tts.py", "--project", str(tmp_path)])
     runpy.run_path(str(EXP / "tts.py"), run_name="__main__")
     assert calls == [True, False]                     # cached take, then one fresh take that passes
 
     calls.clear()
-    monkeypatch.setattr(C, "check_take", lambda wav, text, backend="auto": C.check(text, " One chip."))
+    monkeypatch.setattr(C, "check_take", lambda wav, text, backend="auto", **k: C.check(text, " One chip."))
     with pytest.raises(SystemExit) as e:
         runpy.run_path(str(EXP / "tts.py"), run_name="__main__")
     assert "Many cores." in str(e.value) and len(calls) == 3

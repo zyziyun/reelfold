@@ -15,13 +15,18 @@ EN chunks always concatenate to the spoken text (align_cues.py checks it). Pairs
 or whose punctuation disagrees get a "# check" comment: a human/agent still verifies every pair — the
 machine cannot know which clause translates which; it only proposes a sensible split.
 --compare reports how many of a hand-made cues.txt's EN boundaries the draft reproduces.
+
+Chinese narration (中文讲解, script_md.narration_lang): the FIRST column is always the spoken text, so a cue is
+"中文 chunk || English" (the English is optional, from the line's "EN:" subtitle). Without "EN:" the 中文 clauses
+are grouped into one-line cues (16:9: <= 26 wide; vertical: <= 16), preferring sentence ends; with it the same
+DP pairs them. The 中文 chunks concatenated must equal the spoken text (align_cues.py checks it).
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
 import argparse, math, os, re
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from canvas import add_platform_arg, resolve
-from script_md import parse_script
+from script_md import narration_lang, parse_script
 
 W_CUE, W_MID, W_STRADDLE = 0.1, 0.3, 0.8    # tuned on example/ (78 % of hand cue boundaries)
 EN_END = re.compile(r"[.?!][\"'”’)]*$")
@@ -132,6 +137,48 @@ def pair_line(en, zh, max_en, max_zh, min_en=22):
     return out
 
 
+def _cut_points(c):
+    """Where a long 中文 clause may be cut: after 、 / a space, or where Chinese meets a latin run (never inside
+    an English term like "function calling", never between two Chinese characters unless nothing else fits)."""
+    good, ok = [], []
+    for i in range(1, len(c)):
+        a, b = c[i - 1], c[i]
+        if a in "、 " or (a.isascii() != b.isascii() and not (a.isascii() and a.isalnum() and b == " ")):
+            if not (a.isascii() and b.isascii()):
+                good.append(i)
+        elif not (a.isascii() or b.isascii()):
+            ok.append(i)
+    return good, ok
+
+
+def zh_only(zh, max_zh):
+    """One-language cues for Chinese narration: clauses grouped greedily up to ``max_zh`` (display width), a cue
+    closed early at a sentence end once it is half full; a clause longer than the limit is cut at the best point
+    near its middle (``_cut_points``)."""
+    parts = []
+    for c in zh_clauses(zh):
+        while zh_len(c) > max_zh:
+            good, ok = _cut_points(c)
+            half = zh_len(c) / 2
+            fits = lambda i: zh_len(c[:i]) <= max_zh
+            cands = [i for i in good if fits(i)] or [i for i in ok if fits(i)]
+            if not cands:
+                break
+            cut = min(cands, key=lambda i: abs(zh_len(c[:i]) - half))
+            parts.append(c[:cut]); c = c[cut:]
+        parts.append(c)
+    out, cur = [], ""
+    for c in parts:
+        if cur and zh_len(cur + c) > max_zh:
+            out.append(cur); cur = ""
+        cur += c
+        if ZH_END.search(cur) and zh_len(cur) >= max_zh / 2:
+            out.append(cur); cur = ""
+    if cur:
+        out.append(cur)
+    return [(z, "", 1.0, ["long"] if zh_len(z) > max_zh else []) for z in out]
+
+
 def read_cues_txt(path):
     groups, cur = {}, None
     for ln in open(path, encoding="utf-8"):
@@ -165,18 +212,29 @@ def main():
     a = ap.parse_args()
     root = pathlib.Path(a.project)
     cv = resolve(root, a.platform)
-    max_en = a.max_en or (90 if cv["legacy"] else min(cv["max_en"], 64))
-    max_zh = a.max_zh or (38 if cv["legacy"] else min(cv["max_zh"], 24))
     lines = parse_script(root / a.script)
-    out = ["# Bilingual cue pairs (DRAFT from pair_cues.py — verify every pair: meaning, not just length).",
-           "# Per narration line: \"EN || ZH\". EN chunks concatenated must equal the spoken text.",
-           f"# limits: EN <= {max_en} chars, ZH <= {max_zh:g} (canvas {cv['key']}). '# check: ...' = look twice."]
+    zh_narr = narration_lang(lines) == "zh"
+    max_en = a.max_en or (90 if cv["legacy"] else min(cv["max_en"], 64))
+    max_zh = a.max_zh or ((26 if cv["legacy"] else 16) if zh_narr else (38 if cv["legacy"] else min(cv["max_zh"], 24)))
+    if zh_narr:
+        out = ["# Cue pairs for Chinese narration (DRAFT from pair_cues.py — check every cue).",
+               "# Per narration line: \"中文 || English\" (English optional). 中文 chunks concatenated must equal the spoken text.",
+               f"# limits: 中文 <= {max_zh:g} wide, EN <= {max_en} chars (canvas {cv['key']}). '# check: ...' = look twice."]
+    else:
+        out = ["# Bilingual cue pairs (DRAFT from pair_cues.py — verify every pair: meaning, not just length).",
+               "# Per narration line: \"EN || ZH\". EN chunks concatenated must equal the spoken text.",
+               f"# limits: EN <= {max_en} chars, ZH <= {max_zh:g} (canvas {cv['key']}). '# check: ...' = look twice."]
     nflag = ncue = 0
     for L in lines:
         out.append(f"## {L['n']}")
-        for e, z, r, flags in pair_line(L["en"], L["zh"], max_en, max_zh):
+        if zh_narr:
+            rows = [(z, e, r, f) for e, z, r, f in pair_line(L["en"], L["zh"], max_en, max_zh)] if L["en"] \
+                else zh_only(L["zh"], max_zh)
+        else:
+            rows = pair_line(L["en"], L["zh"], max_en, max_zh)
+        for first, second, r, flags in rows:
             ncue += 1
-            out.append(f"{e} || {z}" + (f"    # check: {', '.join(flags)}" if flags else ""))
+            out.append(f"{first} || {second}".rstrip() + (f"    # check: {', '.join(flags)}" if flags else ""))
             nflag += bool(flags)
     p = root / a.out
     p.parent.mkdir(parents=True, exist_ok=True)

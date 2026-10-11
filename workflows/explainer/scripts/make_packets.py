@@ -48,7 +48,7 @@ CUES = json.load(open(root / "audio/scene_cues.json"))
 os.makedirs(root / ".hyperframes/frame-packets", exist_ok=True)
 for k, (w, sc) in enumerate(zip(S, cfg)):
     n, fid, last = w["frame"], sc["id"], k == len(S) - 1
-    cues = "\n".join(f"| {c['t']:6.2f} | {c['te']:6.2f} | {c['en']} |" for c in CUES[str(n)])
+    cues = "\n".join(f"| {c['t']:6.2f} | {c['te']:6.2f} | {c.get('text', c['en'])} |" for c in CUES[str(n)])
     open(root / f".hyperframes/frame-packets/{fid}.md", "w").write(f"""# Frame packet — {fid}
 
 - frame_id: `{fid}` → write `compositions/{fid}.html` (+ `compositions/{fid}.motion.json`)

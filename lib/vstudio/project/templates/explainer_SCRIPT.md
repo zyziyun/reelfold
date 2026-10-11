@@ -4,8 +4,10 @@
 **Voice settings:** model gpt-4o-mini-tts · speed 1.0 · format wav
 **Voice direction:** Calm, curious, unhurried. A teacher thinking out loud at a whiteboard.
 
-Each line: indented block = spoken English (fed to TTS). `ZH:` = 中文 subtitle source. One line = one scene.
-Numbers are spelled the way they are spoken. Format: workflows/explainer/WORKFLOW.md (Step 1).
+Each line: indented block = the narration (fed to TTS). One line = one scene. Narrate in the language the request
+asks for: English narration + `ZH:` 中文 subtitle, or Chinese narration (中文讲解: the indented block is Chinese,
+English terms stay English, numbers as digits; optional `EN:` English subtitle). English numbers are spelled the
+way they are spoken. Format: workflows/explainer/WORKFLOW.md (Step 2).
 
 ---
 

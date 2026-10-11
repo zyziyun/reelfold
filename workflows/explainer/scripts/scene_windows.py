@@ -4,13 +4,15 @@
 Usage:  python3 scene_windows.py [--project .] [--tail 2.5]
 Reads   <project>/audio/vo/offsets.json, subtitles/cues.json, audio/vo gap (seams fall mid-gap)
 Writes  <project>/audio/scenes.json       {"total": s, "scenes": [{"frame", "start", "end", "duration"}]}
-        audio/scene_cues.json   {frame: [{"t", "te", "en"}]}   (scene-local seconds)
+        audio/scene_cues.json   {frame: [{"t", "te", "text", "en"}]}   (scene-local seconds; text = the caption
+                                in the narration language - 中文 for Chinese narration; "en" kept for older readers)
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
 import argparse, json, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from canvas import add_platform_arg, resolve
+from script_md import script_lang
 
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("--project", "-C", default=".", help="project dir (default: current dir)")
@@ -41,8 +43,9 @@ if not cv["legacy"]:
     out["canvas"] = {"key": cv["key"], "W": cv["W"], "H": cv["H"], "safe": list(cv["safe"]),
                      "caption": list(cv["caption"]), "math": list(cv["math"])}
 json.dump(out, open(root / "audio/scenes.json", "w"), indent=1)
-local = {w["frame"]: [{"t": round(c["start"] - w["start"], 2), "te": round(c["end"] - w["start"], 2), "en": c["en"]}
-                      for c in cues if c["line"] == w["frame"]] for w in W}
+key = "zh" if script_lang(root / "SCRIPT.md") == "zh" else "en"
+local = {w["frame"]: [{"t": round(c["start"] - w["start"], 2), "te": round(c["end"] - w["start"], 2), "text": c[key],
+                       "en": c[key]} for c in cues if c["line"] == w["frame"]] for w in W}
 json.dump(local, open(root / "audio/scene_cues.json", "w"), indent=1, ensure_ascii=False)
 for w in W:
     print(w)

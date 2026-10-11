@@ -7,6 +7,9 @@ Here both sides are normalised first (spoken numbers -> digits with display_en, 
 case, hyphens), the take's transcript is aligned to the script word by word, and every SCRIPT sentence gets a
 coverage score (share of its words found in order). A sentence under --min-cover (0.5) is reported MISSING.
 
+Chinese narration (中文讲解, script_md.narration_lang) is checked the same way on zhtext tokens (one per character,
+English term or number; Chinese numerals as digits) with sentences split after 。！？, and the ASR runs in Chinese.
+
 Usage:  python3 vo_check.py [--project .] [LINE ...] [--min-cover 0.5] [--backend auto] [--model ...]
 Reads   <project>/SCRIPT.md, <project>/audio/vo/lineNN.wav (ASR via vstudio.asr, cached next to each wav)
 Exit 1  when any sentence is missing (tts.py runs the same check per take and re-generates the line).
@@ -16,6 +19,8 @@ import argparse, difflib, os, re
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from display_en import _convert  # noqa: E402
+import zhtext  # noqa: E402
+from script_md import spoken_of, text_lang  # noqa: E402
 
 MIN_COVER = 0.5
 
@@ -44,16 +49,18 @@ def sentences(text):
     return [p.strip() for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p.strip()]
 
 
-def check(script, heard, min_cover=MIN_COVER):
+def check(script, heard, min_cover=MIN_COVER, lang=None):
     """Align ``heard`` (ASR text of the take) to ``script`` (the line's spoken text).
-    Returns dict(ratio, sentences=[{text, cover, missing}], missing=[text, ...])."""
-    sents = sentences(script)
+    ``lang``: "zh" | "en" (default: the script's). Returns dict(ratio, sentences=[{text, cover, missing}], missing=[...])."""
+    zh = (lang or text_lang(script)) == "zh"
+    split, tok = (zhtext.sentences, zhtext.tokens) if zh else (sentences, norm_tokens)
+    sents = split(script)
     toks, owner = [], []
     for i, s in enumerate(sents):
-        t = norm_tokens(s)
+        t = tok(s)
         toks += t
         owner += [i] * len(t)
-    heard_t = norm_tokens(heard)
+    heard_t = tok(heard)
     sm = difflib.SequenceMatcher(None, toks, heard_t, autojunk=False)
     hit = [False] * len(toks)
     for a, _, n in sm.get_matching_blocks():
@@ -73,15 +80,17 @@ def script_lines(root):
     out = {}
     for b in blocks:
         n = int(b.split(" ", 1)[0])
-        out[n] = " ".join(l.strip() for l in b.split("\n") if l.startswith("    "))
+        out[n] = spoken_of(b)
     return out
 
 
-def check_take(wav, script, min_cover=MIN_COVER, backend="auto", model=None):
+def check_take(wav, script, min_cover=MIN_COVER, backend="auto", model=None, lang=None):
     """ASR one take (vstudio.asr, cached by content) and check it against its script line."""
     from vstudio import asr
-    tr = asr.transcribe(str(wav), language="en", backend=backend, model=model, fix_terms=False)
-    r = check(script, tr.get("text") or " ".join(w["w"] for w in tr["words"]), min_cover)
+    lang = lang or text_lang(script)
+    tr = asr.transcribe(str(wav), language=lang, backend=backend, model=model, fix_terms=False)
+    joiner = "" if lang == "zh" else " "
+    r = check(script, tr.get("text") or joiner.join(w["w"] for w in tr["words"]), min_cover, lang)
     r["heard"] = tr.get("text", "")
     return r
 

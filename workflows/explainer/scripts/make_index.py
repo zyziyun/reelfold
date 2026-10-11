@@ -54,6 +54,10 @@ for k, (w, fid) in enumerate(zip(S["scenes"], IDS)):
       </div>''')
 trans = [{"n": n, **hf.transition(t, "w-" + IDS[n - 2], "w-" + IDS[n - 1], S["scenes"][n - 1]["start"], d)} for n, (t, d) in TR.items()]
 tx = hf.scene_transitions(trans, W=W, H=H)  # css/html/js for the 11 transition types (vstudio.hf)
+from vstudio import media  # noqa: E402
+# the voice slot is the file's own length (the scene windows add a held tail after the last word)
+narr = round(min(total, media.duration(str(root / "audio/narration.wav")) or total), 2) \
+    if os.path.exists(root / "audio/narration.wav") else total
 bgm = ""
 if os.path.exists(root / "audio/bgm.wav"):
     bgm = f'''      <audio id="bgm" src="audio/bgm.wav" data-start="0" data-duration="{total}" data-track-index="9" data-volume="1"></audio>\n'''
@@ -78,7 +82,7 @@ html = f'''<!doctype html>
       {tx["html"]}
       <div id="captions" style="position:absolute;inset:0;z-index:50" data-composition-id="captions" data-composition-src="compositions/captions.html" data-track-kind="captions"
         data-start="0" data-duration="{total}" data-track-index="5" data-width="{W}" data-height="{H}"></div>
-      <audio id="narration" src="audio/narration.wav" data-start="0" data-duration="{total}" data-track-index="8" data-volume="1"></audio>
+      <audio id="narration" src="audio/narration.wav" data-start="0" data-duration="{narr}" data-track-index="8" data-volume="1"></audio>
 {bgm}    </div>
     <script>
       const tl = gsap.timeline({{ paused: true }});

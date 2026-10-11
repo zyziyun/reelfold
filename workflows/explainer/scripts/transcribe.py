@@ -9,14 +9,17 @@ Writes  <project>/audio/transcript.json in the HyperFrames shape [{"text", "star
 Term fixes are OFF by default: SCRIPT.md is the ground truth and align_cues.py only uses word timing.
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
-import argparse, json
+import argparse, json, os
 
 from vstudio import asr
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from script_md import script_lang  # noqa: E402
 
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("--project", "-C", default=".", help="project dir (default: current dir)")
 ap.add_argument("--audio", default="audio/narration.wav", help="relative to the project dir")
-ap.add_argument("--language", default="en")
+ap.add_argument("--language", default="auto", help="en | zh | auto (default: the SCRIPT.md narration language)")
 ap.add_argument("--model", default=None, help="backend model id (default: vstudio.asr's)")
 ap.add_argument("--backend", default="auto", choices=["auto", "mlx", "faster", "openai", "openai-compatible"])
 ap.add_argument("--prompt", default=None, help="initial prompt with domain terms")
@@ -24,7 +27,8 @@ ap.add_argument("--term-fixes", action="store_true", help="apply persona/generic
 a = ap.parse_args()
 
 root = pathlib.Path(a.project)
-tr = asr.transcribe(str(root / a.audio), language=a.language, prompt=a.prompt, model=a.model,
+lang = script_lang(root / "SCRIPT.md") if a.language == "auto" else a.language
+tr = asr.transcribe(str(root / a.audio), language=lang, prompt=a.prompt, model=a.model,
                     backend=a.backend, fix_terms=a.term_fixes)
 out = [{"text": w["w"], "start": w["t"], "end": w["te"], "id": f"w{k}"} for k, w in enumerate(tr["words"])]
 json.dump(out, open(root / "audio/transcript.json", "w"), indent=2, ensure_ascii=False)

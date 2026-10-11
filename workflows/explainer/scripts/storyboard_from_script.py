@@ -14,6 +14,8 @@ fast ones in short mode), and a time-coded shot sequence with ONE beat per cue �
 words that trigger it, plus a hint (numbers to reveal, an equation to build, a question to pose, a contrast,
 a numbered step). Every hint ends in "TODO": decide the actual visual. Re-run with --force after
 scene_windows.py so the times are the real ones (and keep your edited "shots" text: --keep-shots).
+Chinese narration (中文讲解): clauses from pair_cues.zh_only, timing at --cpm (characters per minute; latin
+counts half), Chinese contrast / step / question cues in the hints, and the hook measured on the first sentence.
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
 import argparse, json, os, re
@@ -21,14 +23,15 @@ import argparse, json, os, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from canvas import add_platform_arg, resolve
 from display_en import display, load_rules
-from pair_cues import en_clauses
-from script_md import parse_script, slug
+from pair_cues import en_clauses, zh_len, zh_only
+from script_md import narration_lang, parse_script, slug
+import zhtext
 
 TRANS_LONG = [["blur", 0.8], ["fade", 0.6], ["push", 0.7], ["iris", 0.8], ["focus", 0.7], ["vpush", 0.7]]
 TRANS_SHORT = [["push", 0.35], ["fade", 0.3], ["vpush", 0.35], ["zoom", 0.4]]
 OPS = re.compile(r"\b(divided by|times|plus|minus|equals|over|round(?:ed|s|ing)?|multipl\w+|add\w*|subtract\w*)\b", re.I)
-CONTRAST = re.compile(r"\b(but|instead|versus|vs|whereas|unlike|however|on the other hand)\b", re.I)
-STEP = re.compile(r"\b(first|second|third|step|next|then|finally)\b", re.I)
+CONTRAST = re.compile(r"\b(but|instead|versus|vs|whereas|unlike|however|on the other hand)\b|但是|而是|不是|相比|对比|区别|反过来", re.I)
+STEP = re.compile(r"\b(first|second|third|step|next|then|finally)\b|第[一二三四五六七八九十\d]+[步个]|首先|然后|接着|最后", re.I)
 
 
 def hint(en_disp):
@@ -39,7 +42,7 @@ def hint(en_disp):
         h.append("reveal " + ", ".join(dict.fromkeys(nums[:4])) + " (mono; count up or pop on the word)")
     if OPS.search(en_disp) or re.search(r"[=÷×]", en_disp):
         h.append("build the equation term by term, symbols in their role colours")
-    if en_disp.rstrip().endswith("?"):
+    if en_disp.rstrip().endswith(("?", "？")):
         h.append("pose it as an italic question line")
     if CONTRAST.search(en_disp):
         h.append("contrast: dim what came before, light up the new idea")
@@ -61,6 +64,8 @@ def motion_tags(hints):
 
 
 def key_phrase(s, n=6):
+    if zhtext.width(s) > len(s.split()) * 2:          # Chinese: the first characters
+        return s[:12] + ("…" if len(s) > 12 else "")
     w = s.split()
     return " ".join(w[:n]) + ("…" if len(w) > n else "")
 
@@ -83,6 +88,8 @@ def main():
     ap.add_argument("--mode", choices=["long", "short"], default=None,
                     help="short = 60-120 s vertical explainer pacing (default: config mode, else short on a vertical canvas)")
     ap.add_argument("--wpm", type=float, default=175.0, help="speaking rate for estimated timing (measure from a sample)")
+    ap.add_argument("--cpm", type=float, default=260.0,
+                    help="Chinese narration: characters per minute for estimated timing (latin counts half)")
     ap.add_argument("--gap", type=float, default=0.7, help="pause between lines (concat_vo.py --gap)")
     ap.add_argument("--force", action="store_true", help="overwrite STORYBOARD.md / scenes.config.json")
     ap.add_argument("--keep-shots", action="store_true",
@@ -101,6 +108,7 @@ def main():
     lines = parse_script(root / "SCRIPT.md")
     if not lines:
         sys.exit("no '## Line N' blocks in SCRIPT.md")
+    zh = narration_lang(lines) == "zh"
 
     # ---- timing: real (scene_cues) > cues.txt chunks at wpm > script clauses at wpm
     sc_p, sw_p = root / "audio/scene_cues.json", root / "audio/scenes.json"
@@ -111,8 +119,10 @@ def main():
     else:
         ct = next((p for p in (root / "subtitles/cues.txt", root / "subtitles/cues.draft.txt") if p.exists()), None)
         groups = read_cues_txt(ct) if ct else {}
-        timing = f"ESTIMATED at {a.wpm:g} wpm from {ct.relative_to(root) if ct else 'SCRIPT clauses'} — re-run with --force after scene_windows.py"
-    sec = lambda s: len(s.split()) * 60.0 / a.wpm
+        rate = f"{a.cpm:g} chars/min" if zh else f"{a.wpm:g} wpm"
+        timing = f"ESTIMATED at {rate} from {ct.relative_to(root) if ct else 'SCRIPT clauses'} — re-run with --force after scene_windows.py"
+    sec = (lambda s: zh_len(s) * 60.0 / a.cpm) if zh else (lambda s: len(s.split()) * 60.0 / a.wpm)
+    show = (lambda ch, n: ch) if zh else (lambda ch, n: display(ch, n, rules))
 
     scenes, frames, total = [], [], 0.0
     oldsc = {s.get("id"): s for s in old.get("scenes", [])}
@@ -120,13 +130,14 @@ def main():
     for k, L in enumerate(lines):
         n = L["n"]
         if real:
-            cues = [(c["t"], c["en"]) for c in SC.get(str(n), [])]
+            cues = [(c["t"], c.get("text") or c["en"]) for c in SC.get(str(n), [])]
             dur = SW[n]["duration"] if n in SW else (cues[-1][0] + 2 if cues else 5)
         else:
-            chunks = [e for e, _ in groups.get(n, [])] or en_clauses(L["en"], 64 if short else 90)
+            chunks = [e for e, _ in groups.get(n, [])] or (
+                [z for z, *_ in zh_only(L["spoken"], 16 if short else 26)] if zh else en_clauses(L["en"], 64 if short else 90))
             t, cues = (0.35 if k else 0.0), []
             for ch in chunks:
-                cues.append((round(t, 2), display(ch, n, rules)))
+                cues.append((round(t, 2), show(ch, n)))
                 t += sec(ch)
             dur = round(t + a.gap + (1.2 if k == len(lines) - 1 and short else 2.5 if k == len(lines) - 1 else 0), 2)
         total += dur
@@ -162,7 +173,8 @@ def main():
     cfg["scenes"] = scenes
 
     # ---- STORYBOARD.md
-    hook_s = sec(re.split(r"(?<=[.?!])\s", lines[0]["en"])[0])
+    first = (zhtext.sentences(lines[0]["spoken"]) or [""])[0] if zh else re.split(r"(?<=[.?!])\s", lines[0]["en"])[0]
+    hook_s = sec(first)
     sb = ["---", f"format: {cv['W']}x{cv['H']}" + ("" if cv["legacy"] else f"  # {cv['key']}"),
           f"mode: {mode}", f"duration: ~{total:.0f}s ({len(lines)} scenes)",
           'message: "TODO: the one sentence the viewer should remember"',
@@ -180,7 +192,7 @@ def main():
                "- status: draft", f"- src: compositions/{fid}.html",
                f"- motion: {motion_tags(' '.join(hint(e) for _, e in cues))}",
                f"- sketch: storyboard/sketches/f{n:02d}.svg",
-               f"- voiceover: \"{L['en'][:90]}{'…' if len(L['en']) > 90 else ''}\"",
+               f"- voiceover: \"{L['spoken'][:90]}{'…' if len(L['spoken']) > 90 else ''}\"",
                f"- beats: {len(cues)} cues → {len(cues)} reveals (see scenes.config.json shots)", ""]
 
     warn = []
