@@ -85,7 +85,7 @@ docs/SEO_SUBMIT.md          Google Search Console, Bing Webmaster, 百度站长 
 `https://github.com/zyziyun/reelfold/releases/latest` is a published release with a `.dmg` (GitHub API; drafts never
 count). While `false`, every CTA on every page and language is **Star on GitHub** + **Build from source**, the fine
 print says the macOS app is coming soon, the header button is "Star", and the JSON-LD has no `downloadUrl`; once `true`
-everything switches to **Download for macOS**. The deploy workflow (`.github/workflows/deploy-web.yml`) also runs on
+everything switches to **Download for macOS**. The deploy workflow (`.github/workflows/deploy-web.yml`) deploys only on
 `release: published`, so publishing a desk release turns the buttons on within minutes. `SITE_DOWNLOAD_READY=1` / `0`
 forces it; `DOWNLOAD_READY_FALLBACK` in `config.ts` is used only when the API cannot be reached. The build logs
 `[site] downloadReady=… (reason)`.

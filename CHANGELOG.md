@@ -8,24 +8,13 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-11
+
 ### Added
 
 - **Redo the visuals** of a finished explainer, the voice kept: the clip / project page button, or ask the chat
   ("画面太素了" / "redo the visuals" / "plus de schémas"); every scene is drawn again by your AI, then rendered and
   exported again (`vstudio.project remake --do visuals`).
-
-### Fixed
-
-- **Explainer scenes are drawn by the AI, never as text lines**: each scene is a diagram / animation on the voice's
-  cue times, checked and linted before it is kept; the storyboard's "TODO" shots are planned by the AI. When no model
-  answers, the project waits in Needs you ("The visuals need an AI model — Claude Code didn't answer") instead of
-  rendering a text-only video; the autopilot never approves a draft that still says TODO.
-- Claude Code gets a reasoning effort for big generations (`--effort medium` for a scene: ~1 min instead of 5).
-
-## [0.2.7] - 2026-10-11
-
-### Added
-
 - **Vertical versions follow the subject**: landscape footage made for 9:16 or 3:4 is cropped shot by shot around
   faces, people, moving things and vivid colour, with a smooth camera that holds still on static shots and eases
   through crossfades; only a shot that cannot be cropped (two far-apart subjects, a flat panorama) keeps the blurred
@@ -64,6 +53,12 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 - After sending a request the Studio opens it.
 
 ### Fixed
+
+- **Explainer scenes are drawn by the AI, never as text lines**: each scene is a diagram / animation on the voice's
+  cue times, checked and linted before it is kept; the storyboard's "TODO" shots are planned by the AI. When no model
+  answers, the project waits in Needs you ("The visuals need an AI model — Claude Code didn't answer") instead of
+  rendering a text-only video; the autopilot never approves a draft that still says TODO.
+- Claude Code gets a reasoning effort for big generations (`--effort medium` for a scene: ~1 min instead of 5).
 
 - A finished vlog, explainer or other single-export project read "Not started" / "0 of 1 ready" with no cover: the
   desk only looked for batch-style exports. It now reads Ready to post with its cover, and clicking a ready clip (or

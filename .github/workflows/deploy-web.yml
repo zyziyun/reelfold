@@ -1,8 +1,8 @@
 # Website + docs (apps/site + apps/docs) -> reelfold.com, the Cloudflare Worker "reelfold-site" (apps/site/wrangler.jsonc).
 #   pull_request              build + checks only, never deploys
-#   push to main              build + checks, then deploy (only when the checks pass), then smoke-test the live site
-#   release: published        same as a push to main (rebuilds from main), so the site's download buttons turn on as
-#                             soon as a desk release is published (apps/site/src/lib/releaseStatus.ts)
+#   push to main              build + checks only; the live site never runs ahead of the app people can download
+#   release: published        build + checks from main, then deploy and smoke-test the live site, so the site and its
+#                             download buttons change when a desk release is published (apps/site/src/lib/releaseStatus.ts)
 #   workflow_dispatch         manual redeploy (main only)
 # Needs repository secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (docs/CI_CD.md). Without them the deploy job
 # is skipped with a warning; the build and checks still run.
@@ -90,7 +90,7 @@ jobs:
   deploy:
     name: Deploy to Cloudflare
     needs: build
-    if: github.event_name != 'pull_request' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
