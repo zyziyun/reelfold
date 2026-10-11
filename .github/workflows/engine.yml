@@ -1,4 +1,5 @@
 # Engine (repo root: lib/vstudio, workflows/, scripts/) - pytest + the skill's pre-publish check.
+# pytest runs in parallel (pytest-xdist, -n auto: ~25 min serial -> ~8). Tags (v*) always run it and are never cancelled.
 name: Engine
 on:
   pull_request:
@@ -15,7 +16,8 @@ on:
       - 'apps/desk/packaging/ffmpeg/**'   # the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
       - '.github/workflows/engine.yml'
   push:
-    branches: [main]
+    branches: [main, 'release/**']
+    tags: ['v*']
     paths:
       - 'lib/**'
       - 'workflows/**'
@@ -33,7 +35,7 @@ permissions:
   contents: read
 concurrency:
   group: engine-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -45,10 +47,10 @@ jobs:
       - name: ffmpeg + GL runtime (mediapipe needs libEGL / libGLESv2)
         run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libegl1 libgles2
       - name: Python deps (runtime + tests/requirements.txt)
-        run: python -m pip install -r tests/requirements.txt
+        run: python -m pip install -r tests/requirements.txt pytest-xdist
       - name: deps are importable (fail here, not as 8 odd test errors)
         run: python -c "import yaml, jsonschema, numpy, cv2, mediapipe; print('deps ok')"
       - name: check_skill (frontmatter, personal paths, secrets - also scans apps/)
         run: python scripts/check_skill.py
-      - name: pytest
-        run: python -m pytest -q
+      - name: pytest (parallel, pytest-xdist; the 15 slowest tests are listed at the end)
+        run: python -m pytest -q -n auto --durations=15
