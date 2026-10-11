@@ -57,7 +57,10 @@ def test_redact_keeps_ordinary_words_and_numbers():
 def test_redact_home_folder(monkeypatch, tmp_path):
     home = str(tmp_path / "someone")
     monkeypatch.setenv("HOME", home)
+    monkeypatch.setenv("USERPROFILE", home)                      # what expanduser reads on Windows
     assert agentlog.redact(f"open {home}/Movies/a.mp4") == "open ~/Movies/a.mp4"  # check-skill: allow
+    if os.name == "nt":
+        assert agentlog.redact(f"open {home.replace(os.sep, '/')}/a.mp4") == "open ~/a.mp4"
 
 
 # ------------------------------------------------------------------ writing
@@ -77,7 +80,8 @@ def test_emit_redacts_caps_and_appends(tmp_path, monkeypatch):
     assert a["src"] == "agent" and a["kind"] == "say" and "sk-ant" not in a["text"]
     assert len(a["text"]) < agentlog.MAX_TEXT + 40 and "+" in a["text"][-20:]
     assert b["src"] == "engine" and b["data"]["files"] == 3 and b["data"]["mail"] == "[email]"
-    assert oct(os.stat(p).st_mode & 0o777) == "0o600"
+    if os.name != "nt":                                          # no POSIX file modes on Windows
+        assert oct(os.stat(p).st_mode & 0o777) == "0o600"
 
 
 def test_file_stops_growing_at_the_cap(tmp_path, monkeypatch):

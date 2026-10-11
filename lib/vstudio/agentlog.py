@@ -74,6 +74,8 @@ def redact(text):
     h = _home()
     if h:
         s = s.replace(h, "~")
+        if os.sep == "\\":
+            s = s.replace(h.replace("\\", "/"), "~")       # the C:/Users/... spelling too (Node, git, ffmpeg)
     return s
 
 
