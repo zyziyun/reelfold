@@ -589,6 +589,10 @@ def cli_argv(exe, windows=None):
     return [node, target] if node else [exe]
 
 
+CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+_CLI_NO_EFFORT = {}
+
+
 def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
     exe = find_cli("claude", opts)
     if not exe:
@@ -600,6 +604,9 @@ def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
         cmd += ["--model", model]
     if isinstance(schema, dict):
         cmd += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
+    if opts.get("effort") in CLAUDE_EFFORTS and not _CLI_NO_EFFORT.get(exe):
+        # a big generation (a scene file) thinks for minutes at the CLI's default effort; medium writes it in ~1
+        cmd += ["--effort", str(opts["effort"])]
     live = agentlog.active()
     if live:                                   # the live pane: the same call, its events streamed as they come
         k = cmd.index("--output-format") + 1
@@ -617,6 +624,10 @@ def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
         except subprocess.TimeoutExpired as e:
             raise LLMError(f"claude CLI timed out after {timeout} s") from e
     d = _claude_result(r.stdout, live)
+    if not isinstance(d, dict) and "--effort" in cmd and re.search(r"unknown option.{0,8}--effort",
+                                                                  r.stderr or r.stdout or "", re.I):
+        _CLI_NO_EFFORT[exe] = True             # an older Claude Code without --effort: the same call without it
+        return _claude_code(system, prompt, model, schema, max_tokens, timeout, opts)
     if not isinstance(d, dict):
         raise LLMError(f"claude CLI failed (exit {r.returncode}): {(r.stderr or r.stdout or '').strip()[:300]}")
     if d.get("is_error") or r.returncode:
@@ -1050,7 +1061,7 @@ def _complete(task, system, prompt, schema=None, provider=None, model=None, max_
 
     task: routing key (segment_plan | proofread | glossary | copy | script | ...); schema: None (text), True (any
     JSON object) or a JSON-schema dict; provider / model: override the route; config: a client config with an
-    ``llm`` section; effort (anthropic output_config.effort), temperature, cache (anthropic: cache the system
+    ``llm`` section; effort (anthropic output_config.effort, claude-code --effort), temperature, cache (anthropic: cache the system
     prompt), base_url / api_key_env (openai-compatible), inherit_env / cli (CLIs) go to the backend.
     Raises LLMError when the provider fails after the retries (never for a JSON problem: ``json`` is None then).
     """
