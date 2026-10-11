@@ -352,5 +352,18 @@ class StopRequestTest(unittest.TestCase):
             os.environ.update(env0)
 
 
+class MockIntakeSignatureTest(unittest.TestCase):
+    def test_the_test_engine_takes_every_argument_the_desk_passes(self):
+        """The e2e test engine overrides ``Intake`` methods the desk calls with keywords: a new keyword in the real
+        method (Try again's ``retry``) must be taken by the override too, else the call raises in the mock and the
+        desk's retry silently does nothing in the e2e runs."""
+        import inspect
+        from desk_mock.intake import MockIntake
+        for name in ("_spawn_pilot", "_engine_apply"):
+            real = set(inspect.signature(getattr(IN.Intake, name)).parameters)
+            mock = set(inspect.signature(getattr(MockIntake, name)).parameters)
+            self.assertLessEqual(real, mock, name)
+
+
 if __name__ == "__main__":
     unittest.main()

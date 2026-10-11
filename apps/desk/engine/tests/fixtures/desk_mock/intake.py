@@ -328,7 +328,8 @@ class MockIntake(Intake):
         home = os.path.abspath(os.path.expanduser(os.environ.get("VSTUDIO_HOME") or "~/.config/vstudio"))
         return self._mock_apply(plan, out_root, home, run, autopilot)
 
-    def _spawn_pilot(self, d, provider=None, autopilot=False, lang=None):
+    def _spawn_pilot(self, d, provider=None, autopilot=False, lang=None, retry=False):
+        """``retry`` (Try again's ``--resume``) changes nothing here: the simulated run always starts over."""
         rec = read_json(os.path.join(d, ".vstudio", "work.json"), {}) or {}
         proj = dict(name=rec.get("title") or os.path.basename(d), items=dict(count=int(rec.get("count") or 3)))
         autopilot = autopilot or mock_autopilot(d).get("on")
