@@ -280,6 +280,18 @@ def confirm_options(d, conf):
     return opts, media
 
 
+# answers whose project run is being continued right now (resume_after_answer asks the engine first, then starts the
+# run): the desk must not restart the sidecar meanwhile (new downloads -> restart when idle), or the run never starts
+_BG_LOCK = threading.Lock()
+_BG = [0]
+
+
+def background():
+    """How many answered projects are being continued in the background right now (GET /api/health)."""
+    with _BG_LOCK:
+        return _BG[0]
+
+
 class Inbox:
     def __init__(self, data_dir, history, runner=None, mode=None, bus=None):
         self.path = os.path.join(data_dir, "inbox.json")
@@ -530,7 +542,16 @@ class Inbox:
         """Answers recorded for these projects: continue their runs in the background (nothing when nothing waits)."""
         self._forget_engine()
         if dirs:
-            threading.Thread(target=self._resume, args=(list(dirs),), daemon=True).start()
+            with _BG_LOCK:
+                _BG[0] += 1                  # counted before the thread starts: no gap a restart could fall into
+            threading.Thread(target=self._resume_counted, args=(list(dirs),), daemon=True).start()
+
+    def _resume_counted(self, dirs):
+        try:
+            self._resume(dirs)
+        finally:
+            with _BG_LOCK:
+                _BG[0] -= 1
 
     def _resume(self, dirs):
         """The last open question of a project answered: its run goes on (pilot.resume_after_answer)."""

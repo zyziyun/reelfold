@@ -12,7 +12,7 @@ Security model
   * JSON bodies are capped at 1 MB and validated per route.
 
 Routes (JSON unless noted)
-  GET  /api/health                         mode real|mock, engine path
+  GET  /api/health                         mode real|mock, engine path, background (answers being continued)
   GET  /api/recipes
   GET  /api/roots                          folders the desk may show media from (Electron media protocol)
   GET  /api/batches                        registry + state + counts
@@ -924,7 +924,8 @@ class Api:
         e = self.engine
         parts = [p for p in path.split("/") if p][1:]          # drop "api"
         if method == "GET" and parts == ["health"]:
-            return dict(ok=True, **e.health())
+            from .inbox import background
+            return dict(ok=True, **e.health(), background=background())
         if method == "GET" and parts == ["recipes"]:
             return e.recipes()
         if method == "GET" and parts == ["roots"]:

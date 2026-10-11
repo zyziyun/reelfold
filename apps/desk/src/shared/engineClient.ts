@@ -147,7 +147,8 @@ export class EngineClient {
   }
 
   health() {
-    return this.req<{ ok: boolean; mode: string; engine_path: string | null }>('GET', '/api/health');
+    // background: answered projects whose run the engine is continuing right now (a restart would drop it)
+    return this.req<{ ok: boolean; mode: string; engine_path: string | null; background?: number }>('GET', '/api/health');
   }
   recipes() {
     return this.req<Recipe[]>('GET', '/api/recipes');

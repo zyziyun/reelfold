@@ -147,6 +147,34 @@ class ResumeAfterInboxAnswer(unittest.TestCase):
         from desk_engine import pilot
         self.assertIsNone(pilot.resume_after_answer(self.runner([], [dict(state="planned")]), tempfile.mkdtemp()))
 
+    def test_the_continuing_run_counts_as_background_work(self):
+        # the desk restarts the sidecar after a download only when idle: an answered project being continued (its run
+        # not started yet) counts, from the answer until resume_after_answer is done (/api/health background)
+        import threading
+        from desk_engine import inbox as IB
+        gate, seen = threading.Event(), []
+
+        class Fake(IB.Inbox):
+            def __init__(self):
+                pass
+
+            def _forget_engine(self):
+                pass
+
+            def _resume(self, dirs):
+                seen.append(IB.background())
+                gate.wait(5)
+
+        before = IB.background()
+        Fake().resume(["/x"])
+        self.assertEqual(IB.background(), before + 1)             # counted before the thread runs
+        gate.set()
+        for _ in range(100):
+            if IB.background() == before:
+                break
+            threading.Event().wait(0.02)
+        self.assertEqual((seen, IB.background()), ([before + 1], before))
+
 
 if __name__ == "__main__":
     unittest.main()

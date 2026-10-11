@@ -59,6 +59,7 @@ class ServerTest(unittest.TestCase):
         st, body, hdr = self.req("GET", "/api/health")
         self.assertEqual(st, 200)
         self.assertEqual(body["mode"], "mock")
+        self.assertEqual(body["background"], 0)                 # no answered project being continued
         self.assertEqual(hdr.get("Access-Control-Allow-Origin"), ORIGIN)
 
     def test_tcp_backlog_takes_a_burst(self):

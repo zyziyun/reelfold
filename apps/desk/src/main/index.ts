@@ -331,12 +331,14 @@ async function currentEngine(): Promise<EngineInfo> {
 
 // ---------------------------------------------------------------- engine restart after downloads
 /** New assets change the engine's environment. Restart only the engine sidecar (the window and its state stay), and
- * only when no batch is running - a restart would stop it. Checked again every 30 s until idle. */
+ * only when no batch is running and no answered project is being continued (the engine starts its run in the
+ * background) - a restart would stop either. Checked again every 30 s until idle. */
 let restartWhenIdle = false;
 let idleTimer: NodeJS.Timeout | null = null;
 async function engineBusy(): Promise<boolean> {
   if (!client) return false;
   try {
+    if (((await client.health()).background ?? 0) > 0) return true;
     const list = (await client.batches()) as { running?: boolean }[];
     return list.some((b) => b.running);
   } catch {
