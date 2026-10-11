@@ -933,7 +933,13 @@ def complete(task, system, prompt, schema=None, provider=None, model=None, max_t
         name = fb.get("provider") if isinstance(fb, dict) else fb
         cands.append((name, None, fb.get("model") if isinstance(fb, dict) else None))
     attempts, last = [], None
-    for i, (name, cname, mdl) in enumerate(cands):
+    # a CLI skipped as unresponsive (it timed out a few minutes ago) is tried after all when every other candidate
+    # failed: better a slow answer than none (a 60 s timeout once sent every clip-chat ask to the rules for 10 min)
+    queue = [(i, name, cname, mdl, False) for i, (name, cname, mdl) in enumerate(cands)]
+    k = 0
+    while k < len(queue):
+        i, name, cname, mdl, retry = queue[k]
+        k += 1
         if cname is None:
             try:
                 cname = canonical(name)
@@ -941,7 +947,7 @@ def complete(task, system, prompt, schema=None, provider=None, model=None, max_t
                 attempts.append(dict(provider=str(name), code="failed", error=f"{name}: unknown provider",
                                      seconds=0.0))
                 continue
-        if cname in [a["provider"] for a in attempts] or (i and cname == cands[0][1]):
+        if not retry and (cname in [a["provider"] for a in attempts] or (i and cname == cands[0][1])):
             continue
         if attempts and on_fallback:
             try:
@@ -955,11 +961,12 @@ def complete(task, system, prompt, schema=None, provider=None, model=None, max_t
             last = err
             attempts.append(dict(provider=cname, code="unavailable", error=str(err)[:300], seconds=0.0))
             continue
-        if cname in CLI_PROVIDERS and i < len(cands) - 1 and _known_unresponsive(cname):
+        if not retry and cname in CLI_PROVIDERS and i < len(cands) - 1 and _known_unresponsive(cname):
             err = LLMError(f"{cname}: timed out on a call a few minutes ago and has not answered since - skipped "
                            f"(the next provider answers instead)")
             last = err
             attempts.append(dict(provider=cname, code="timeout", error=str(err)[:300], seconds=0.0, cached=True))
+            queue.append((i, name, cname, mdl, True))
             continue
         if cname in CLI_PROVIDERS and _known_expired(cname):
             err = LLMError(f"{cname}: the login is known to be expired (checked earlier; log in again, then "
@@ -987,7 +994,9 @@ def complete(task, system, prompt, schema=None, provider=None, model=None, max_t
             continue
         if cname in CLI_PROVIDERS:
             _remember(cname, "logged-in")
-        if attempts:
+        if retry and cname == attempts[0]["provider"]:
+            out["failed_attempts"] = attempts           # the routed one answered after all: no fallback to report
+        elif attempts:
             first = attempts[0]
             out["fallback_from"] = [a["error"] for a in attempts]
             out["fallback"] = dict(**{"from": first["provider"]}, to=out.get("provider") or cname,
