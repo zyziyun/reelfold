@@ -62,7 +62,7 @@ answer-derived overrides; params with `x-spec` go into a batch spec section (`as
 | `items {sources, from_input, planner, per_item, shared, variants, share_cache}` | how items form; which params / stages are per item vs shared |
 | `params` | JSON Schema object; every property has `title`, `x-zh`, `default`, ranges / enums; `x-scope: item`, `x-spec`, `x-map` |
 | `engine {batch_recipe, expand, batch_inputs, spec}` | reuse a vstudio.batch recipe's stages (`batch_recipe: name` or `{param, map}` for engine variants) |
-| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, when, paid, units, produces, preview}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter |
+| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, when, paid, units, produces, preview, wip}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter; `preview {kind, path, label {zh, en, fr?}}` = what a finished stage shows, `wip` = the files it writes one by one (a glob, e.g. the vlog's `work/clips/seg_*.mp4`), shown while it runs and after (`Project.pieces()`: the desk's work-in-progress tiles, in recipe order, only this run's files while a stage runs again) |
 | `checkpoints [...]` | section 3 |
 | `outputs {platforms, collect, files}` | supported platforms; collector (`module:fn`) or file templates for `export` |
 | `agent {workflow_md, notes, edit_files}`, `gaps`, `capabilities` | agent hook, known gaps |
@@ -168,6 +168,7 @@ checkpoint), `pause`, `run-end` + `checkpoint {job, checkpoint, checkpoint_kind,
 | `checkpoint --dir P --id X [--item I \| --items a,b] (--answer JSON \| --answer-file F \| --default) [--run]` | `{ok, checkpoint, answered, rerun {item: stages}, run?}` (exit 5 + `{ok: false, error}` on an invalid answer) |
 | `set --dir P [--item I] --param k=v \| --set JSON` | the `refresh` result |
 | `preview --dir P [--item I] [--stage S]` | `{items: [{id, state, previews [{stage, kind, path, checkpoint?}]}]}` |
+| (Python) `Project(P).pieces(item=None)` / `outputs.item_files(P)` | the making piece by piece `{items: [{id, state, pieces [{stage, kind, path, label?, n, of, state running\|done\|waiting, checkpoint?, mtime}]}]}`; what each item made per the recipe's `outputs.collect` `{item: {state, files [{file, platform, orientation, cover, post, duration, w, h, fps, safe_box, caption_box}]}}` (the desk's clip list, Ready count and thumbnails read it) |
 | `export --dir P [--out D] [--all] [--items a,b]` | `{ok, dir, manifest, files, items, skipped, entries [{item, platform, orientation, kind, file, sha256, cover, post}]}` |
 | `context --dir P [--write]` / `refresh --dir P` | section 5 |
 | `list` | `{projects: [{dir, name, recipe, series, state, items, pending, progress}] + adopted work folders [{kind: "work", type, state: "adopted", outputs}], series: [{id, name, recipe, client, projects}]}` (missing / temp-dir entries are pruned first) |

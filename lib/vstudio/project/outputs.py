@@ -203,9 +203,24 @@ def _project_outputs(pdir):
                 out.append(dict(id=f"{j['id']}/{tag}", file=os.path.abspath(f), item=j["id"], job_state=j["state"],
                                 platform=e.get("platform"), orientation=e.get("orientation"),
                                 title=(j["params"] or {}).get("title"), cover=e.get("cover"), post=e.get("post"),
+                                duration=e.get("duration"),
+                                **{k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box") if e.get(k) is not None},
                                 _rows=rows, _params=j["params"] or {}))
     finally:
         st.close()
+    return out
+
+
+def item_files(pdir):
+    """What each item of a project has made, from the one source every reader shares (the recipe's
+    ``outputs.collect`` over the stage records: the same list ``export`` and ``output list`` use) ->
+    ``{item: {state, files: [{file, platform, orientation, cover, post, duration, w, h, fps, ...}]}}``.
+    Only existing video files; the desk's clip list, its thumbnails and the Ready count read this, so a recipe whose
+    exports live under ``items/<item>/`` (vlog, explainer, polish, photo-story...) counts as made like a batch one."""
+    out = {}
+    for o in _project_outputs(pdir):
+        e = out.setdefault(o["item"], dict(state=o["job_state"], files=[]))
+        e["files"].append({k: v for k, v in o.items() if not k.startswith("_") and k not in ("id", "item", "job_state")})
     return out
 
 

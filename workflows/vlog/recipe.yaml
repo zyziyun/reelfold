@@ -90,7 +90,7 @@ stages:
       argv: [bash, "{workflow_dir}/scripts/contact_sheets.sh", "{item_dir}/work/sheets", "{sheet_every}", "{input.footage*}"]
       files: ["{item_dir}/work/sheets"]
     produces: [work/sheets/*_sheet.jpg]
-    preview: {kind: images, path: "{item_dir}/work/sheets/*.jpg"}
+    preview: {kind: images, path: "{item_dir}/work/sheets/*.jpg", label: {zh: "联系表", en: "Contact sheet", fr: "Planche contact"}}
   - id: render
     resource: cpu-render
     deps: [sheets]
@@ -99,21 +99,22 @@ stages:
     watch: ["{item_dir}/work/edit.json"]
     units: one
     produces: [the master (edit.json out)]
-    preview: {kind: video, path: "out:master"}
+    wip: {kind: videos, path: "{item_dir}/work/clips/seg_*.mp4", label: {zh: "调色片段", en: "Graded segment", fr: "Plan étalonné"}}
+    preview: {kind: video, path: "out:master", label: {zh: "成片（未配乐）", en: "Master, no music yet", fr: "Montage, sans musique"}}
   - id: music
     resource: cpu
     deps: [render]
     fn: vstudio.project.adapters.vlog:music
     keys: [platforms, music_pick]
     produces: [out/vlog_music.mp4 (calm + your track or the picked library track; credit -> post copy if CC BY)]
-    preview: {kind: video, path: "out:master"}
+    preview: {kind: video, path: "out:master", label: {zh: "配好乐的成片", en: "With music", fr: "Avec la musique"}}
   - id: cover_frames
     resource: cpu
     deps: [music]
     fn: vstudio.project.adapters.common:cover_frames
     keys: [title]
     produces: [cand_<k>.jpg]
-    preview: {kind: image, path: "out:sheet"}
+    preview: {kind: image, path: "out:sheet", label: {zh: "封面候选", en: "Cover options", fr: "Couvertures possibles"}}
   - id: copy
     resource: cpu
     deps: [music]

@@ -506,7 +506,12 @@ def choice_apply(a):
 def collect_batch_exports(project, job, rows):
     ex = ((rows.get("export") or {}).get("out") or {}).get("exports") or []
     return [dict(platform=e.get("platform"), orientation=e.get("orientation"), kind="video", file=e.get("file"),
-                 cover=e.get("cover"), post=e.get("post"), duration=e.get("duration")) for e in ex]
+                 cover=e.get("cover"), post=e.get("post"), duration=e.get("duration"), **_geometry(e)) for e in ex]
+
+
+def _geometry(e):
+    """The export manifest's frame facts the players and the editor read (size, fps, safe / caption boxes)."""
+    return {k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box") if e.get(k) is not None}
 
 
 def collect_files(project, job, rows):
@@ -543,7 +548,7 @@ def collect_vstudio_exports(project, job, rows):
             j = lambda x: x and (x if os.path.isabs(x) else os.path.join(base, x))  # noqa: E731
             out.append(dict(platform=e.get("platform"), orientation=e.get("orientation"), kind="video",
                             file=j(e["file"]), cover=j(e.get("cover")), post=j(e.get("post")),
-                            duration=e.get("duration")))
+                            duration=e.get("duration"), **_geometry(e)))
     return out + collect_files(project, job, rows)
 
 

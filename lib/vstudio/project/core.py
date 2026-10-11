@@ -812,6 +812,67 @@ class Project:
         finally:
             st.close()
 
+    def pieces(self, item=None):
+        """The making of each item as it happens, in recipe order - what the desk shows as work-in-progress tiles:
+        every stage's ``wip`` files (declared in the recipe, e.g. the vlog's graded segments) while it runs and after,
+        each finished stage's ``preview`` and the previews of a checkpoint waiting for an answer (cover options...).
+        Existing files only; one row per file: ``{stage, kind, path, label?, n, of, state: running|done|waiting,
+        checkpoint?, mtime}`` (``n`` / ``of``: its place among the stage's files of that kind)."""
+        st = Store(self.state_dir)
+        try:
+            order = [e["id"] for e in self.manifest["stages"]]
+            ann = {e["id"]: e for e in self.manifest["stages"]}
+            out = []
+            for j in st.jobs():
+                if j["state"] == "dropped" or (item and j["id"] != item):
+                    continue
+                rows = st.stage_rows(j["id"])
+                arts, seen = [], set()
+
+                def add(stage, pv, paths, state, checkpoint=None, since=0.0):
+                    def mtime(x):
+                        try:
+                            return os.path.getmtime(x)
+                        except OSError:
+                            return None
+                    # a stage running again: only this run's files (the last run's segments are being replaced)
+                    paths = [x for x in paths if x not in seen and (mtime(x) or 0) >= since]
+                    for k, path in enumerate(paths):
+                        seen.add(path)
+                        mt = mtime(path)
+                        if mt is None:
+                            continue
+                        a = dict(stage=stage, kind=pv.get("kind"), path=path, n=k + 1, of=len(paths), state=state,
+                                 mtime=mt)
+                        if pv.get("label"):
+                            a["label"] = pv["label"]
+                        if checkpoint:
+                            a["checkpoint"] = checkpoint
+                        arts.append(a)
+
+                for name in order:
+                    r = rows.get(name)
+                    if not r or r["state"] not in ("running", "done", "failed"):
+                        continue
+                    e = ann[name]
+                    state = "running" if r["state"] == "running" else "done"
+                    if e.get("wip"):
+                        add(name, e["wip"], _preview_paths(self.manifest, j, name, r, e["wip"], self.state_dir), state,
+                            since=(r.get("started") or 0) - 2 if state == "running" else 0.0)
+                    if r["state"] == "done" and e.get("preview"):
+                        add(name, e["preview"], _preview_paths(self.manifest, j, name, r, e["preview"], self.state_dir),
+                            "done")
+                for p in self.pending(item=j["id"]):
+                    xs = [x for x in p.get("previews") or [] if isinstance(x, dict) and x.get("path")
+                          and os.path.exists(str(x["path"]))]
+                    for x in xs:
+                        add(p.get("stage") or "", dict(kind=x.get("kind") or "image", label=p.get("labels")),
+                            [str(x["path"])], "waiting", checkpoint=p["id"])
+                out.append(dict(id=j["id"], state=j["state"], pieces=arts))
+            return dict(dir=self.dir, items=out)
+        finally:
+            st.close()
+
     def export(self, out_dir=None, include_unapproved=False, items=None):
         """Final files of the finished (and, when the recipe has a publish checkpoint, approved) items ->
         ``<project>/exports/<item>/[<clip>-]<platform>-<orientation>.<ext>`` (hard links; ``clip`` when one item

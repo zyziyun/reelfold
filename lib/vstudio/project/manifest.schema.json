@@ -35,6 +35,10 @@
     "en": {
      "type": "string",
      "minLength": 1
+    },
+    "fr": {
+     "type": "string",
+     "minLength": 1
     }
    }
   },
@@ -63,6 +67,7 @@
       "image",
       "images",
       "video",
+      "videos",
       "audio",
       "text",
       "markdown",
@@ -272,6 +277,10 @@
     },
     "preview": {
      "$ref": "#/$defs/preview"
+    },
+    "wip": {
+     "$ref": "#/$defs/preview",
+     "description": "files the stage writes one by one (a glob), shown while it runs and after (the desk's work-in-progress tiles)"
     },
     "only": {
      "$ref": "#/$defs/when",
