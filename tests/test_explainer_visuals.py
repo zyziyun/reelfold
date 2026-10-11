@@ -361,3 +361,156 @@ def test_the_cli_names_it_visuals(tmp_path, monkeypatch, no_run):
     monkeypatch.setattr(llm, "complete", scene_model())
     assert cli.main(["remake", "--dir", p.dir, "--item", "ep1", "--do", "visuals", "--json"]) == 0
     assert (d / "compositions" / "f01-mn.html").read_text(encoding="utf-8").startswith(S.AI_MARK)
+
+
+# --------------------------------------------------------------------------- a scene that keeps calling fetch()
+# her MCP course, 2026-10-11: after ~22 min the redo failed on "1 of 14 scenes could not be drawn (f14-mcp-a2a:
+# remove fetch())" and threw the other 13 away. Now the brief forbids the network up front, the repair round gets the
+# exact finding and its fix with the rejected version, and a scene that still fails keeps its old version.
+def fetch_scene(sid, dur, w=1920, h=1080):
+    return scene_html(sid, dur, w, h).replace("const tl =", 'fetch("/a2a/agents.json").then((r) => r.json());\n      const tl =')
+
+
+def fetching_model(prompts, always=(), once=()):
+    """Claude Code drawing scenes, calling fetch() in ``always`` scenes every time, in ``once`` only the first time."""
+    def complete(task, system, prompt, schema=None, **kw):
+        m = re.search(r"SCENE_ID = (\S+), W = (\d+), H = (\d+), DURATION = (\d+(?:\.\d+)?)", prompt)
+        sid, dur = m.group(1), float(m.group(4))
+        prompts.append((sid, prompt))
+        n = sum(1 for s, _p in prompts if s == sid)
+        make = fetch_scene if sid in always or (sid in once and n == 1) else scene_html
+        return dict(provider="claude-code", model="test", text=make(sid, dur, int(m.group(2)), int(m.group(3))))
+    return complete
+
+
+def test_the_brief_forbids_the_network_up_front():
+    for api in ("fetch()", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon", "import()", "<iframe>",
+                "localStorage"):
+        assert api in S.SYSTEM, api
+    assert "INLINE" in S.SYSTEM
+
+
+def test_fetch_is_refused_with_its_fix_but_a_code_card_showing_it_is_not():
+    bad = S.scene_problems(fetch_scene("f14", 8.0), "f14", 8.0, 1920, 1080)
+    assert bad == ["fetch() is not allowed: the scene renders offline with no network: write the data inline in the "
+                   "script as a constant (const items = [...]); to SHOW a request on a code card, put it in an SVG "
+                   "<text> label, never call it"]
+    assert S.problem_kind(bad) == "network"
+    card = scene_html("f14", 8.0).replace(
+        "const tl =", 'const code = ["const r = await fetch(\\"/tools\\")", `fetch(url)`]; // fetch() here\n      const tl =')
+    card = card.replace("<text x=\"350\"", "<text x=\"200\" y=\"200\">await fetch('/tools')</text><text x=\"350\"")
+    assert S.scene_problems(card, "f14", 8.0, 1920, 1080) == []
+    for call, what in (("new XMLHttpRequest()", "XMLHttpRequest"), ("new WebSocket('wss://x')", "WebSocket"),
+                       ("import('./x.js')", "import()"), ("localStorage.getItem('k')", "browser storage"),
+                       ("setTimeout(() => 1, 5)", "timers")):
+        html = scene_html("f1", 8.0).replace("const tl =", f"{call};\n      const tl =")
+        assert any(p.startswith(f"{what} is not allowed") for p in S.scene_problems(html, "f1", 8.0)), call
+    other = scene_html("f1", 8.0).replace("</svg>", '<image href="https://x.com/a.png"/></svg>')
+    assert any("outside file" in p for p in S.scene_problems(other, "f1", 8.0))
+
+
+def test_the_repair_round_gets_the_exact_finding_and_the_rejected_version(tmp_path):
+    d = item_dir(tmp_path)
+    prompts, log = [], []
+    res = S.author_scenes(str(d), WF, complete=fetching_model(prompts, once={"f02-usb-c"}), parallel=1,
+                          log=log.append)
+    assert res["ok"] and sorted(res["written"]) == ["f01-mn", "f02-usb-c"]
+    second = [p for s, p in prompts if s == "f02-usb-c"][1]
+    assert "fetch() is not allowed: the scene renders offline with no network: write the data inline" in second
+    assert 'fetch("/a2a/agents.json")' in second                    # her previous version, to correct
+    assert any("refused by the check" in m and "fetch()" in m for m in log)
+
+
+def test_a_scene_that_keeps_failing_is_named_plainly(tmp_path):
+    d = item_dir(tmp_path)
+    prompts = []
+    res = S.author_scenes(str(d), WF, complete=fetching_model(prompts, always={"f02-usb-c"}), parallel=1)
+    assert not res["ok"] and res["error_code"] == "scene-failed" and res["written"] == ["f01-mn"]
+    assert len([s for s, _p in prompts if s == "f02-usb-c"]) == 1 + S.REPAIRS      # the first + the repairs
+    assert res["why"] == {"f02-usb-c": "network"}
+    assert res["error"] == ("Scene 2 of 2 couldn't be drawn: it tried to load data from the internet, which a video "
+                            "can't do. Try again.")
+    assert not (d / "compositions" / "f02-usb-c.html").exists()
+
+
+def test_redo_keeps_the_old_version_of_a_scene_that_failed_and_makes_the_video(tmp_path, monkeypatch, no_run):
+    p, d = finished(tmp_path)
+    old = (d / "compositions" / "f02-usb-c.html").read_text(encoding="utf-8")
+    prompts = []
+    monkeypatch.setattr(llm, "complete", fetching_model(prompts, always={"f02-usb-c"}))
+    r = remake(p, "ep1", {"visuals": None})
+    done = r["done"][0]
+    assert done["scenes"] == ["f01-mn"] and done["note"] == "1 of 2 scenes redrawn; scene 2 kept as before"
+    assert done["kept"] == [dict(id="f02-usb-c", n=2, how="before", why="network")]
+    assert (d / "compositions" / "f01-mn.html").read_text(encoding="utf-8").startswith(S.AI_MARK)
+    assert (d / "compositions" / "f02-usb-c.html").read_text(encoding="utf-8") == old          # as before
+    assert len(no_run) == 1                                                                    # the video is made
+    vis, = [c for c in AP.choices(Project(p.dir)) if c.get("remake_as") == "visuals"]
+    assert (vis["options"], vis["kept"], vis["total"]) == (["missing"], done["kept"], 2)
+    # "Redraw scene 2": only that one is asked for, the redrawn one stays
+    prompts.clear()
+    f01 = (d / "compositions" / "f01-mn.html").read_text(encoding="utf-8")
+    monkeypatch.setattr(llm, "complete", fetching_model(prompts))
+    r = remake(Project(p.dir), "ep1", {"visuals": "missing"})
+    assert {s for s, _p in prompts} == {"f02-usb-c"} and r["done"][0]["kept"] == [] and r["done"][0]["note"] is None
+    assert (d / "compositions" / "f01-mn.html").read_text(encoding="utf-8") == f01
+    assert (d / "compositions" / "f02-usb-c.html").read_text(encoding="utf-8").startswith(S.AI_MARK)
+    vis, = [c for c in AP.choices(Project(p.dir)) if c.get("remake_as") == "visuals"]
+    assert vis["options"] == [] and "kept" not in vis
+
+
+def test_a_scene_with_no_old_version_gets_a_simple_diagram_never_text_lines(tmp_path, monkeypatch, no_run):
+    p, d = finished(tmp_path)
+    (d / "compositions" / "f02-usb-c.html").unlink()
+    monkeypatch.setattr(llm, "complete", fetching_model([], always={"f02-usb-c"}))
+    r = remake(p, "ep1", {"visuals": None})
+    assert r["done"][0]["kept"][0]["how"] == "diagram"
+    html = (d / "compositions" / "f02-usb-c.html").read_text(encoding="utf-8")
+    assert html.startswith(S.FALLBACK_MARK) and not S.is_ai_scene(str(d / "compositions" / "f02-usb-c.html"))
+    body = html.split("\n", 1)[1].strip()
+    assert S.scene_problems(body, "f02-usb-c", 4.0, 1920, 1080) == []
+    assert ">MCP 是 AI 应用的…<" in body and "<rect" in body and not S.PLACEHOLDER.search(body)
+    assert r["done"][0]["note"] == "1 of 2 scenes redrawn; scene 2 kept as a simple diagram"
+
+
+def test_fallback_diagram_follows_the_cues_in_portrait_and_english():
+    inp = dict(canvas=dict(W=1080, H=1920, legacy=False, math=(80, 300, 1000, 1400), describe=""), lang="en",
+               scenes=[])
+    sc = dict(id="f03-x", label="Agent to agent, over HTTP", duration=12.0, last=True, spoken="",
+              cues=[dict(t=0.4, text="MCP connects an agent to its tools and data."),
+                    dict(t=4.0, text="A2A lets agents talk to each other."), dict(t=8.0, text="Both work together.")])
+    body = S.fallback_scene(inp, sc).split("\n", 1)[1].strip()
+    assert S.scene_problems(body, "f03-x", 12.0, 1080, 1920) == []
+    labels = re.findall(r"<tspan[^>]*>([^<]*)</tspan>", body)
+    assert labels == ["MCP connects", "agent tools", "A2A lets", "agents talk", "Both work", "together"]
+    assert body.count("<rect") == 3 and body.count("<line") == 3            # three boxes, two arrows, the spine
+    assert "tl.to(q(\"n2\")" in body and "opacity: 0, duration: 0.6" in body       # cue times; the final fade
+
+
+def test_all_scenes_failing_keeps_the_video_and_try_again_draws_only_the_missing(tmp_path, monkeypatch, no_run):
+    p, d = finished(tmp_path)
+    before = {f: (d / "compositions" / f).read_bytes() for f in os.listdir(d / "compositions")}
+    prompts = []
+    monkeypatch.setattr(llm, "complete", fetching_model(prompts, always={"f01-mn", "f02-usb-c"}))
+    evs = []
+    with pytest.raises(RemakeError, match="2 of 2 scenes couldn't be drawn"):
+        remake(p, "ep1", {"visuals": None}, emit=evs.append)
+    fail = next(e for e in evs if e["event"] == "stage-fail")
+    assert fail["code"] == "stage-visuals-failed"
+    assert fail["params"] == dict(scene="1", id="f01-mn", total="2", n="2", why="network")
+    assert {f: (d / "compositions" / f).read_bytes() for f in os.listdir(d / "compositions")} == before
+    assert no_run == []
+    from vstudio.batch import livestatus as LS
+    assert (LS.read(p.dir) or {}).get("state") == "done"           # the project is not broken: its video stands
+    # a model that stops half-way: Try again goes on with the scenes still missing
+    prompts.clear()
+    monkeypatch.setattr(llm, "complete", lambda *a, **k: (_ for _ in ()).throw(llm.LLMError("timed out"))
+                        if "f02-usb-c" in a[2] else fetching_model(prompts)(*a, **k))
+    with pytest.raises(RemakeError, match="AI model"):
+        remake(Project(p.dir), "ep1", {"visuals": None})
+    assert {s for s, _p in prompts} == {"f01-mn"}
+    prompts.clear()
+    monkeypatch.setattr(llm, "complete", fetching_model(prompts))
+    r = remake(Project(p.dir), "ep1", {"visuals": None})
+    assert {s for s, _p in prompts} == {"f02-usb-c"}                                 # only the missing one
+    assert sorted(r["done"][0]["scenes"]) == ["f01-mn", "f02-usb-c"] and r["done"][0]["kept"] == []

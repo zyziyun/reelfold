@@ -167,7 +167,13 @@ repeated SVG nodes with document.createElementNS where useful, makes ONE paused 
 ends with `window.__timelines["SCENE_ID"] = tl;`.
 7. Never call tl.fromTo() twice on the same target (later animations of it: tl.to(), or immediateRender: false).
 8. Deterministic: no Math.random, no Date, no repeat: -1, no CSS transitions / @keyframes, no setTimeout, no <audio>, \
-no <video>, no fetch.
+no <video>.
+8b. OFFLINE and self-contained: the scene renders in a sandboxed browser with NO network; the GSAP <script> above is \
+the only outside file. Forbidden (the check refuses the scene): fetch(), XMLHttpRequest, WebSocket, EventSource, \
+navigator.sendBeacon, import() / <script type="module">, any other <script src>, <iframe>, <img> / <image> / <link> \
+/ @import / url() pointing at http(s), localStorage, sessionStorage, document.cookie. Every list, number, JSON and \
+code line the scene shows is written INLINE in the script as a constant (`const steps = [...]`). A code card that \
+SHOWS a request (e.g. `fetch("/tools")`) is fine as text in an SVG <text> or a string - never call it.
 9. Keep everything inside the drawing area given in the brief: the captions own the bottom band.
 10. Use the true minus sign "−" for negative numbers in visible text. Escape & < > in SVG text.
 
@@ -228,6 +234,99 @@ def extract_template(text):
     return m.group(0) if m else None
 
 
+# what a scene's code may not call: the render is offline and deterministic. (pattern, what it is, how to fix it) - the
+# fix goes back to the AI word for word in the repair round
+_NET_FIX = ("the scene renders offline with no network: write the data inline in the script as a constant "
+            "(const items = [...]); to SHOW a request on a code card, put it in an SVG <text> label, never call it")
+FORBIDDEN_CODE = (
+    (r"\bfetch\s*\(", "fetch()", "network", _NET_FIX),
+    (r"\bXMLHttpRequest\b", "XMLHttpRequest", "network", _NET_FIX),
+    (r"\bWebSocket\b", "WebSocket", "network", _NET_FIX),
+    (r"\bEventSource\b", "EventSource", "network", _NET_FIX),
+    (r"\bsendBeacon\b", "navigator.sendBeacon", "network", _NET_FIX),
+    (r"(?<![\w.$])import\s*\(", "import()", "network", _NET_FIX),
+    (r"\b(?:localStorage|sessionStorage)\b|document\.cookie", "browser storage", "storage",
+     "the scene has no storage: keep state in plain variables of the script"),
+    (r"Math\.random", "Math.random", "random", "renders must be deterministic: use fixed values"),
+    (r"\bnew\s+Date\b|\bDate\.now\b", "Date", "random", "renders must be deterministic: use fixed values"),
+    (r"\bset(?:Timeout|Interval)\b", "timers", "motion", "place every change on the GSAP timeline at its time"),
+)
+FORBIDDEN_MARKUP = (
+    (r"<iframe\b", "an <iframe>", "network", _NET_FIX),
+    (r"<(?:img|image|link|source)\b[^>]*(?:src|href)\s*=\s*[\"']?\s*(?:https?:)?//", "an outside file (<img> / <link>)",
+     "network", "draw it with SVG shapes; no outside images or styles"),
+    (r"@import\b|url\(\s*[\"']?\s*(?:https?:)?//", "an outside file in the CSS (@import / url(http…))", "network",
+     "only the two @font-face rules of the brief load files"),
+    (r"<script\b[^>]*type\s*=\s*[\"']?module", "<script type=\"module\">", "network",
+     "use a plain <script> with one IIFE"),
+    (r"<audio\b", "an <audio> element", "media", "the voice is added by the renderer"),
+    (r"<video\b", "a <video> element", "media", "draw it with SVG"),
+    (r"@keyframes", "CSS @keyframes", "motion", "use the GSAP timeline"),
+)
+GSAP_SRC = "https://cdn.jsdelivr.net/npm/gsap@"
+
+
+def code_only(js):
+    """A script without its comments and string literals (a code card's ``"fetch('/tools')"`` is text, not a call)."""
+    out, i, n = [], 0, len(js or "")
+    while i < n:
+        c = js[i]
+        if c == "/" and js.startswith("//", i):
+            j = js.find("\n", i)
+            i = n if j < 0 else j
+        elif c == "/" and js.startswith("/*", i):
+            j = js.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c in "'\"`":
+            j = i + 1
+            while j < n and js[j] != c:
+                j += 2 if js[j] == "\\" else 1
+            out.append(" '' ")
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def forbidden(html):
+    """[(what, kind, fix)] for each forbidden API the scene's scripts call or its markup loads."""
+    found = []
+    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script>", html or "", re.S | re.I)
+    code = "\n".join(code_only(body) for _a, body in scripts)
+    for rx, what, kind, fix in FORBIDDEN_CODE:
+        if re.search(rx, code):
+            found.append((what, kind, fix))
+    markup = re.sub(r"<script\b[^>]*>.*?</script>", "", html or "", flags=re.S | re.I)
+    for rx, what, kind, fix in FORBIDDEN_MARKUP:
+        if re.search(rx, markup, re.I) or (what.startswith("<script") and any(
+                re.search(r"type\s*=\s*[\"']?module", a, re.I) for a, _b in scripts)):
+            found.append((what, kind, fix))
+    for attrs, _body in scripts:
+        m = re.search(r"src\s*=\s*[\"']([^\"']+)", attrs)
+        if m and not m.group(1).startswith(GSAP_SRC):
+            found.append((f"the outside script {m.group(1)[:60]}", "network",
+                          "the GSAP <script> of the brief is the only outside file"))
+    seen, out = set(), []
+    for f in found:
+        if f[0] not in seen:
+            seen.add(f[0])
+            out.append(f)
+    return out
+
+
+def problem_kind(problems):
+    """The plain reason a scene was refused, for the creator: network | format | text | motion | media | other."""
+    t = " ".join(problems or []).lower()
+    for kind, rx in (("network", r"network|outside file|outside script|iframe"), ("text", r"short labels|only text"),
+                     ("motion", r"timers|keyframes|deterministic|infinite"),
+                     ("format", r"template|composition-id|data-width|data-duration|class=\"clip\"|placeholder|asset"),
+                     ("media", r"<audio>|<video>")):
+        if re.search(rx, t):
+            return kind
+    return "other"
+
+
 def scene_problems(html, sid, duration=None, W=None, H=None):
     """What keeps a scene file from rendering as a real explainer scene -> [plain problems] ([] = good)."""
     p = []
@@ -247,12 +346,10 @@ def scene_problems(html, sid, duration=None, W=None, H=None):
         p.append("it still contains a placeholder (TODO / TBD)")
     if "../" in html:
         p.append('asset paths must be project-root-relative (no "../")')
-    for bad, why in ((r"Math\.random", "Math.random (renders must be deterministic)"),
-                     (r"repeat\s*:\s*-1", "repeat: -1 (infinite tweens)"), (r"<audio\b", "an <audio> element"),
-                     (r"<video\b", "a <video> element"), (r"@keyframes", "CSS @keyframes (use the GSAP timeline)"),
-                     (r"setTimeout|setInterval", "timers (use the GSAP timeline)"), (r"\bfetch\(", "fetch()")):
-        if re.search(bad, html):
-            p.append(f"remove {why}")
+    if re.search(r"repeat\s*:\s*-1", html):
+        p.append("remove repeat: -1 (infinite tweens): every tween has an end on the timeline")
+    for what, _kind, fix in forbidden(html):
+        p.append(f"{what} is not allowed: {fix}")
     if len(DRAWN.findall(html)) < 3:
         p.append("draw the idea: diagrams / shapes / arrows in SVG (only text was found)")
     # a wall of sentences: many long text runs is the narration put on screen
@@ -338,12 +435,26 @@ def _complete():
     return llm.complete
 
 
-def _one(inp, sc, request, instruction, complete, reference, timeout, attempts=2, problems=None, previous=None):
-    """One scene -> (html, info) or raises the last error. ``problems`` / ``previous``: a repair of a scene the
-    renderer's lint refused."""
+class SceneRefused(RuntimeError):
+    """A scene the AI wrote that still failed its check after the repair rounds: ``problems`` word for word."""
+
+    def __init__(self, sid, problems):
+        super().__init__(f"{sid}: " + "; ".join(problems[:4]))
+        self.problems = list(problems)
+
+
+REPAIRS = int(os.environ.get("VSTUDIO_SCENE_REPAIRS") or 2)
+
+
+def _one(inp, sc, request, instruction, complete, reference, timeout, attempts=None, problems=None, previous=None,
+         log=None):
+    """One scene -> (html, info) or raises the last error. The first answer, then up to ``REPAIRS`` targeted repairs:
+    each one gets its own previous version back with the check's exact findings and their fix ("fetch() is not
+    allowed: ... write the data inline"). ``problems`` / ``previous`` given: a repair of a scene the renderer's lint
+    refused."""
     W, H = inp["canvas"]["W"], inp["canvas"]["H"]
     last = None
-    for _ in range(attempts):
+    for k in range(attempts or (1 + REPAIRS)):
         prompt = scene_prompt(inp, sc, request, instruction, problems, reference, previous)
         r = complete(TASK, SYSTEM, prompt, schema=None, max_tokens=16000, timeout=timeout, cli_timeout=timeout,
                      retries=1, effort=EFFORT)
@@ -351,10 +462,14 @@ def _one(inp, sc, request, instruction, complete, reference, timeout, attempts=2
             raise NeedsModel(needs_model_message(None), None)
         html = extract_template(r.get("text") or "")
         problems = scene_problems(html, sc["id"], sc["duration"], W, H) if html else \
-            ["the reply is not one <template> ... </template> file"]
+            ["the reply is not one <template> ... </template> file: reply with the complete file only"]
         if not problems:
-            return html, dict(provider=r.get("provider"), model=r.get("model"), cost_usd=r.get("cost_usd") or 0.0)
-        last = RuntimeError(f"{sc['id']}: " + "; ".join(problems[:4]))
+            return html, dict(provider=r.get("provider"), model=r.get("model"), cost_usd=r.get("cost_usd") or 0.0,
+                              repairs=k)
+        previous = html or previous           # the repair corrects this version (kept: what works in it)
+        last = SceneRefused(sc["id"], problems)
+        if log:
+            log(f"scene {sc['id']}: refused by the check ({'; '.join(problems)[:200]}) - asking for a fix")
     raise last
 
 
@@ -375,7 +490,7 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
     todo = [s for s in inp["scenes"] if (only is None or s["id"] in only) and
             not (keep_ai and is_ai_scene(os.path.join(out_dir, f"{s['id']}.html")))]
     routed = routed_provider()
-    res = dict(ok=True, written=[], failed={}, provider=None, model=None, cost_usd=0.0, error=None,
+    res = dict(ok=True, written=[], failed={}, why={}, provider=None, model=None, cost_usd=0.0, error=None,
                error_code=None, provider_name=provider_name(routed), total=len(inp["scenes"]))
     if not todo:
         return res
@@ -390,7 +505,7 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
         if stop.is_set():
             raise RuntimeError("skipped: the model did not answer the first scenes")
         t0 = time.time()
-        html, info = _one(inp, sc, request, instruction, complete, reference, limit)
+        html, info = _one(inp, sc, request, instruction, complete, reference, limit, log=log)
         path = os.path.join(out_dir, f"{sc['id']}.html")
         tmp = path + ".part"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -414,6 +529,8 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
             except Exception as e:  # noqa: BLE001  (one scene: recorded, the others go on)
                 with lock:
                     res["failed"][sc["id"]] = str(e)[:300]
+                    if isinstance(e, SceneRefused):
+                        res["why"][sc["id"]] = problem_kind(e.problems)
                     if not res["written"] and len(res["failed"]) >= n:
                         stop.set()       # the whole first wave failed: the model is not answering
                 log(f"scene {sc['id']}: {str(e)[:200]}")
@@ -436,8 +553,8 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
             path = os.path.join(out_dir, f"{sid}.html")
             prev = _read(path).replace(AI_MARK, "").strip()
             try:
-                html, _info = _one(inp, by_id[sid], request, instruction, complete, reference, limit, attempts=1,
-                                   problems=problems, previous=prev)
+                html, _info = _one(inp, by_id[sid], request, instruction, complete, reference, limit, attempts=2,
+                                   problems=problems, previous=prev, log=log)
             except Exception as e:  # noqa: BLE001  (the first version stays: the render may still take it)
                 log(f"scene {sid}: lint fix failed: {str(e)[:160]}")
                 continue
@@ -451,10 +568,193 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
         model_down = re.search(r"timed? ?out|no model|did not answer|401|auth|not logged|quota|rate.?limit|"
                                r"no usable provider|unavailable|not found|cli failed|overloaded", errs)
         res["error_code"] = "needs-model" if model_down else "scene-failed"
-        res["error"] = needs_model_message(routed) if model_down else (
-            f"{len(res['failed'])} of {res['total']} scenes could not be drawn ({next(iter(res['failed'].values()))[:160]}). "
-            "Try again.")
+        res["error"] = needs_model_message(routed) if model_down else failed_message(inp["scenes"], res)
     return res
+
+
+WHY_WORDS = {"network": "it tried to load data from the internet, which a video can't do",
+             "format": "the AI's file was not a scene the renderer can play",
+             "text": "the AI kept putting sentences on screen instead of a drawing",
+             "motion": "its animation was not on the video's timeline",
+             "media": "it tried to add sound or video of its own",
+             "other": "it did not pass the renderer's check"}
+
+
+def failed_message(scenes, res):
+    """"Scene 14 of 14 couldn't be drawn: it tried to load data from the internet ..." in plain words."""
+    n_of = {s["id"]: s["n"] for s in scenes}
+    ids = list(res["failed"])
+    first = ids[0]
+    why = WHY_WORDS.get((res.get("why") or {}).get(first) or "other", WHY_WORDS["other"])
+    total = res.get("total") or len(scenes)
+    if len(ids) == 1:
+        return f"Scene {n_of.get(first, first)} of {total} couldn't be drawn: {why}. Try again."
+    nums = ", ".join(str(n_of.get(i, i)) for i in ids[:6]) + ("…" if len(ids) > 6 else "")
+    return f"{len(ids)} of {total} scenes couldn't be drawn (scenes {nums}): {why}. Try again."
+
+
+# --------------------------------------------------------------------------- a scene no model could draw
+FALLBACK_MARK = "<!-- reelfold:scene by=fallback -->"
+_STOP = set("a an the and or but of to in on for with is are was be it this that these those as at by from so we you "
+            "they i our your its their then than into over just also very can will".split())
+
+
+def _esc(t):
+    return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def cue_label(text, cjk=10, words=4):
+    """A short on-screen label from a cue's words: its first clause, <= ``cjk`` Chinese characters or ``words``
+    English words (the captions say the rest)."""
+    t = " ".join(str(text or "").split())
+    clauses = [c.strip() for c in re.split(r"[，。！？；：、,.!?;:()（）\"“”]+", t) if c.strip()]
+    first = clauses[0] if clauses else t
+    if re.search(r"[㐀-鿿]", first):
+        width = lambda x: sum(1.0 if re.match(r"[㐀-鿿]", ch) else 0.5 for ch in x)  # noqa: E731
+        if width(first) <= cjk:
+            return first
+        out = ""
+        for tok in re.findall(r"[㐀-鿿]|[^㐀-鿿\s]+|\s+", first):   # never cut inside a Latin word
+            if width(out + tok) > cjk - 1:
+                break
+            out += tok
+        return out.strip() + "…"
+    ws = [w for w in re.findall(r"[\w'’+#/-]+", first) if w.lower() not in _STOP] or first.split()
+    return " ".join(ws[:words])
+
+
+def _lines(label, cjk):
+    """A label in at most two lines (a box is narrow when there are five)."""
+    if cjk or len(label) <= 14 or " " not in label:
+        return [label]
+    ws = label.split()
+    h = (len(ws) + 1) // 2
+    return [" ".join(ws[:h]), " ".join(ws[h:])]
+
+
+def fallback_scene(inp, sc):
+    """A simple, valid diagram drawn from the scene's own cues - one box per idea, joined by arrows that draw on the
+    voice's cue times, the newest lit, the whole flow at the end - for a scene the AI could not draw (never the
+    narration as lines of text, never a placeholder). Carries ``FALLBACK_MARK``: the next redo draws it again."""
+    cv = inp["canvas"]
+    W, H = cv["W"], cv["H"]
+    x0, y0, x1, y1 = (80, 80, 1840, 800) if cv.get("legacy", True) else (cv.get("math") or (80, 80, W - 80, 800))
+    sid, dur = sc["id"], float(sc["duration"])
+    cues = [c for c in sc.get("cues") or [] if (c.get("text") or "").strip()] or \
+        [dict(t=0.3, text=sc.get("spoken") or sc.get("label") or sid)]
+    if len(cues) < 2:         # one cue: its clauses are the steps, spread over the scene
+        parts = [c.strip() for c in re.split(r"[，。！？；,.!?;]+", cues[0]["text"]) if len(c.strip()) > 1][:3]
+        if len(parts) > 1:
+            t0 = float(cues[0].get("t") or 0.3)
+            cues = [dict(t=t0 + i * (dur - t0) * 0.6 / len(parts), text=x) for i, x in enumerate(parts)]
+    k = min(len(cues), 5)
+    picks = [cues[int(i * len(cues) / k)] for i in range(k)]
+    cjk = inp.get("lang") == "zh"
+    labels = [cue_label(c["text"]) or str(i + 1) for i, c in enumerate(picks)]
+    title = cue_label(sc.get("label") or "", cjk=12, words=4) or ""
+    roles = ["#58C4DD", "#5CD0B3", "#E88CC4", "#58C4DD", "#5CD0B3"]
+    top = y0 + (90 if title else 20)
+    across = (x1 - x0) >= (y1 - top)
+    gap = 70
+    if across:
+        bw = min(380, ((x1 - x0) - gap * (k - 1)) / k)
+        bh = 150
+        total = bw * k + gap * (k - 1)
+        boxes = [(x0 + ((x1 - x0) - total) / 2 + i * (bw + gap), top + ((y1 - top) - bh) / 2) for i in range(k)]
+    else:
+        bw = min(760, x1 - x0)
+        bh = min(150, ((y1 - top) - gap * (k - 1)) / k)
+        total = bh * k + gap * (k - 1)
+        boxes = [(x0 + ((x1 - x0) - bw) / 2, top + ((y1 - top) - total) / 2 + i * (bh + gap)) for i in range(k)]
+    fs = 30 if k >= 4 else 36
+    # a faint spine under the flow: the boxes sit on one line of thought
+    if across:
+        sy = boxes[0][1] + bh + 46
+        svg = [f'<line id="{sid}-spine" x1="{boxes[0][0]:.1f}" y1="{sy:.1f}" x2="{boxes[-1][0] + bw:.1f}" '
+               f'y2="{sy:.1f}" stroke="#2A3247" stroke-width="3"/>']
+    else:
+        sx = boxes[0][0] - 36
+        svg = [f'<line id="{sid}-spine" x1="{sx:.1f}" y1="{boxes[0][1]:.1f}" x2="{sx:.1f}" '
+               f'y2="{boxes[-1][1] + bh:.1f}" stroke="#2A3247" stroke-width="3"/>']
+    if title:
+        svg.append(f'<text id="{sid}-title" x="{x0}" y="{y0 + 44}" font-size="44" fill="#6B7488" '
+                   f'class="{sid}-t">{_esc(title)}</text>')
+    for i, ((bx, by), lab) in enumerate(zip(boxes, labels)):
+        col = "#F4D35E" if i == k - 1 and k > 1 else roles[i]
+        ls = _lines(lab, cjk)
+        cy = by + bh / 2 - (len(ls) - 1) * fs * 0.6
+        tx = "".join(f'<tspan x="{bx + bw / 2:.1f}" y="{cy + j * fs * 1.2 + fs * 0.35:.1f}">{_esc(t)}</tspan>'
+                     for j, t in enumerate(ls))
+        svg.append(f'<g id="{sid}-n{i}" opacity="0"><rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" '
+                   f'height="{bh:.1f}" rx="14" fill="#121A30" stroke="{col}" stroke-width="3"/>'
+                   f'<circle cx="{bx + 28:.1f}" cy="{by + 28:.1f}" r="12" fill="{col}"/>'
+                   f'<text text-anchor="middle" font-size="{fs}" fill="#ECEEF2" class="{sid}-t">{tx}</text></g>')
+        if i:
+            (px, py) = boxes[i - 1]
+            if across:
+                ax0, ay0, ax1, ay1 = px + bw + 8, py + bh / 2, bx - 14, by + bh / 2
+                head = f"{ax1 + 12:.1f},{ay1:.1f} {ax1 - 2:.1f},{ay1 - 9:.1f} {ax1 - 2:.1f},{ay1 + 9:.1f}"
+            else:
+                ax0, ay0, ax1, ay1 = px + bw / 2, py + bh + 8, bx + bw / 2, by - 14
+                head = f"{ax1:.1f},{ay1 + 12:.1f} {ax1 - 9:.1f},{ay1 - 2:.1f} {ax1 + 9:.1f},{ay1 - 2:.1f}"
+            ln = abs(ax1 - ax0) + abs(ay1 - ay0)
+            svg.append(f'<line id="{sid}-a{i}" x1="{ax0:.1f}" y1="{ay0:.1f}" x2="{ax1:.1f}" y2="{ay1:.1f}" '
+                       f'stroke="#6B7488" stroke-width="3" stroke-dasharray="{ln:.1f}" stroke-dashoffset="{ln:.1f}"/>'
+                       f'<polygon id="{sid}-h{i}" points="{head}" fill="#6B7488" opacity="0"/>')
+    tl = []
+    if title:
+        tl.append(f'tl.to(q("title"), {{ opacity: 1, duration: 0.6, ease: "power2.out" }}, 0.1);')
+    full = round(dur * 0.85, 2)
+    for i, c in enumerate(picks):
+        at = round(max(0.15, min(float(c.get("t") or 0) - 0.1, dur - 1.0)), 2)
+        if i:
+            tl.append(f'tl.to(q("a{i}"), {{ strokeDashoffset: 0, duration: 0.45, ease: "power1.inOut" }}, '
+                      f'{max(0.0, at - 0.3):.2f});')
+            tl.append(f'tl.to(q("h{i}"), {{ opacity: 1, duration: 0.2 }}, {at - 0.05:.2f});')
+            tl.append(f'tl.to(q("n{i - 1}"), {{ opacity: 0.55, duration: 0.4, ease: "power1.inOut" }}, {at:.2f});')
+        tl.append(f'tl.to(q("n{i}"), {{ opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }}, {at:.2f});')
+    if k > 1 and full > (picks[-1].get("t") or 0) + 0.8:
+        olds = ", ".join(f'q("n{i}")' for i in range(k - 1))
+        tl.append(f'tl.to([{olds}], {{ opacity: 1, duration: 0.5, ease: "power1.inOut" }}, {full:.2f});')
+    if sc.get("last"):
+        tl.append(f'tl.to(q("drift"), {{ opacity: 0, duration: 0.6, ease: "power1.inOut" }}, {max(0.0, dur - 0.7):.2f});')
+    hide = "gsap.set(q('title'), { opacity: 0 });" if title else ""
+    body = "\n          ".join(svg)
+    steps = "\n      ".join(tl)
+    return f"""{FALLBACK_MARK}
+<template>
+  <style>
+    @font-face {{ font-family: "Course CJK"; src: url("assets/fonts/scene-cjk-w4.woff2") format("woff2"); font-weight: 400 500; }}
+    @font-face {{ font-family: "Course CJK"; src: url("assets/fonts/scene-cjk-w7.woff2") format("woff2"); font-weight: 600 900; }}
+    #root {{ position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }}
+    #{sid}-stage {{ position: absolute; inset: 0; }}
+    #{sid}-svg {{ position: absolute; inset: 0; width: 100%; height: 100%; display: block; }}
+    .{sid}-t {{ font-family: "Course CJK", sans-serif; }}
+  </style>
+  <div id="root" data-composition-id="{sid}" data-width="{W}" data-height="{H}" data-duration="{dur:.2f}">
+    <div id="{sid}-stage" class="clip" data-start="0" data-duration="{dur:.2f}" data-track-index="1">
+      <svg id="{sid}-svg" viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">
+        <g id="{sid}-drift">
+          {body}
+        </g>
+      </svg>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {{
+      const q = (n) => document.getElementById("{sid}-" + n);
+      window.__timelines = window.__timelines || {{}};
+      {hide}
+      for (let i = 0; i < {k}; i++) gsap.set(q("n" + i), {{ y: 16 }});
+      const tl = gsap.timeline({{ paused: true }});
+      tl.to(q("drift"), {{ y: -6, duration: {dur:.2f}, ease: "sine.inOut" }}, 0);
+      {steps}
+      window.__timelines["{sid}"] = tl;
+    }})();
+  </script>
+</template>
+"""
 
 
 def scenes_complete(path, item_dir=None):

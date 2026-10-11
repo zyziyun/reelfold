@@ -412,7 +412,9 @@ def choices(project, kinds=SETTING_KINDS):
                 out.append(dict(checkpoint=cp["id"], kind=cp["kind"], item=row["id"], pick=cur.get("pick"),
                                 choice=cur.get("choice"), options=list(cur.get("options") or []),
                                 by="before" if cp["kind"] in kinds else (cur.get("choice") or "her"),
-                                **({"remake_as": cp["remake_as"]} if cp.get("remake_as") else {})))
+                                **({"remake_as": cp["remake_as"]} if cp.get("remake_as") else {}),
+                                # the explainer's visuals: the scenes a redo kept as before ("Redraw scene 14")
+                                **({k: cur[k] for k in ("kept", "total") if cur.get("kept")})))
     return out
 
 

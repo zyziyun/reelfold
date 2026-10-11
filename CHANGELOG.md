@@ -8,6 +8,17 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Redo the visuals no longer throws the whole redo away for one scene**: the scene brief forbids the network up
+  front (no `fetch()`, XHR, WebSocket, outside files: data inline), a refused scene is repaired with the check's exact
+  finding and its fix, and a scene that still fails keeps its old version (or a simple diagram from its cues) while
+  the others are redrawn and rendered — "13 of 14 scenes redrawn; scene 14 kept as before", with Redraw scene 14.
+  A code card that only shows `fetch(...)` as text is no longer refused.
+- **A redo that stopped is a notice, not a broken project**: the clip stays Ready to post (its video is unchanged)
+  and says which scene and why, in English, 简体中文 and Français, with Try again — which draws only the scenes still
+  missing. A failure pinned on a clip shows its reason and Try again, never Confirm.
+
 ## [0.2.7] - 2026-10-11
 
 ### Added

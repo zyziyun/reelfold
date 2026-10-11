@@ -97,9 +97,14 @@ read from its exports; `decisions` lists it under `choices`) and `remake: module
 on the finished item: only the vertical exports, or the copy + every post.md):
 `python -m vstudio.project remake --dir P --item I --do framing=follow [--do copy]` records the answer as hers and
 runs no other stage (`vstudio/project/remake.py`). A checkpoint may name its remake (`remake_as`): the explainer's
-scenes are `--do visuals` - every scene drawn again by the routed AI into a new folder (no model: the old video stays,
-the failure is `ai-needs-model`), then only index -> render -> export re-run; a project whose voice would be made again
-is refused.
+scenes are `--do visuals` - every scene drawn again by the routed AI into a folder of its own
+(`state/remake/<item>/visuals/compositions.next`; no model: the old video stays, the failure is `ai-needs-model`, and a
+second try draws only the scenes still missing), then only index -> render -> export re-run; a project whose voice
+would be made again is refused. A scene still refused after its repair rounds (the check's exact finding fed back)
+keeps its old version, else a simple diagram from its cues, and the video is made ("13 of 14 scenes redrawn; scene
+14 kept as before": `choices[].kept`, `--do visuals=missing` redraws just those); none drawn at all fails as
+`stage-visuals-failed {scene, total, n, why}`. A remake that fails leaves the project "done" (its video stands): the
+desk shows a notice on the clip, not Needs you.
 
 An `author` checkpoint whose file needs a model to be any good says `author.needs_ai: true` (the explainer's script,
 storyboard and scenes): the autopilot never approves the rules' draft of it - it asks the routed AI once more

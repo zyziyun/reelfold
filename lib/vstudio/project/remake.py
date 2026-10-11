@@ -136,7 +136,9 @@ def remake(project, item, todo, emit=None):
             done.append(dict({k: v for k, v in res.items() if k not in ("answer", "keep_live")}, checkpoint=cid,
                              choice=todo[cid]))
     except Exception as e:
-        LS.write(project.dir, "failed", by="project", message=f"remake failed: {str(e)[:200]}")
+        # the item's video is still the one it had (a remake writes aside and swaps at the end): the project is not
+        # broken - "done", the remake's own failure goes with the events below (the desk shows it as a notice)
+        LS.write(project.dir, "done", by="project", message=f"remake failed: {str(e)[:200]}")
         # a step that needs a model none answered (the explainer's visuals): its code, so the desk words it
         code = getattr(e, "code", None)
         emit(dict(event="stage-fail", ts=now(), job=item, stage=(order + [""])[len(done)], error=str(e)[:400],

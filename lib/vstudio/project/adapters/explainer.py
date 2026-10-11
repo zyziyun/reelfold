@@ -1,5 +1,6 @@
 """explainer: the voice checkpoint (paid TTS: voice / speed confirmed first, with a cost estimate; a paid voice
 without its key offers the free local voice instead)."""
+import json
 import os
 import re
 
@@ -522,7 +523,8 @@ def _rendered(env_or_item_dir, item_id=None):
 
 def scenes_current(project, cp, item):
     """A finished explainer's visuals (the clip page's "Redo the visuals"): who drew them -> {pick: None, choice: ai |
-    rules | her, options: []}, or None (not rendered yet)."""
+    rules | her, options: [] | ["missing"] (scenes a redo kept as before / an unfinished redo: "Redraw scene 14"),
+    kept [{id, n}], total}, or None (not rendered yet)."""
     from .. import drafts as DR
     rows = {r["id"]: r for r in project.jobs_rows()}
     row = rows.get(item) or {}
@@ -531,18 +533,43 @@ def scenes_current(project, cp, item):
     if not _rendered(item_dir) or not os.path.isdir(comp):
         return None
     side = DR.read_side(comp, cp["id"]) or {}
-    return dict(pick=None, choice=side.get("by") or "her", options=[])
+    kept = [k for k in side.get("kept") or [] if isinstance(k, dict) and k.get("id")]
+    nxt = os.path.join(project.state_dir, "remake", item, "visuals", "compositions.next")
+    return dict(pick=None, choice=side.get("by") or "her", options=["missing"] if kept or os.path.isdir(nxt) else [],
+                kept=kept, total=side.get("total"))
 
 
 VOICE_STAGES = ("prepare", "storyboard", "cue_draft", "voice", "narration", "transcribe", "align", "windows")
 
 
+class VisualsFailed(RuntimeError):
+    """A redo of the visuals that drew no scene (the model answered, every scene failed its check): the old video
+    stays; ``code`` / ``params`` let the desk word it (which scene, why) - Try again draws only the missing ones."""
+    code = "stage-visuals-failed"
+
+    def __init__(self, message, params):
+        super().__init__(message)
+        self.params = params
+
+
+def _redo_meta(path):
+    try:
+        with open(os.path.join(path, ".redo.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def scenes_remake(env, cp, choice):
-    """Redo the visuals of a finished explainer, the voice kept: every scene drawn again by the routed AI (into a
-    new folder first: no model -> ``NeedsModel`` and the old video stays as it was), then index -> render -> export
-    re-run by the project's runner (only those: the narration, its cues and timing are not touched; a project whose
-    voice would be made again is refused). ``choice``: an instruction for the visuals ("more diagrams") or None.
-    -> {answer None (recorded here, before the run), scenes, provider, status}."""
+    """Redo the visuals of a finished explainer, the voice kept: the scenes drawn again by the routed AI into a
+    folder of their own (``state/remake/<item>/visuals/compositions.next``: a redo that stops - no model - keeps
+    what it drew, and Try again draws only the scenes still missing), then index -> render -> export re-run by the
+    project's runner (only those: the narration, its cues and timing are not touched; a project whose voice would be
+    made again is refused). A scene the AI could not draw after its repair rounds does not block the others: it
+    keeps its old version (else a simple diagram drawn from its cues) and the new video is made - "13 of 14 scenes
+    redrawn; scene 14 kept as before" - and ``choice`` "missing" redraws just those later. ``choice``: an
+    instruction for the visuals ("more diagrams"), "missing", or None.
+    -> {answer None (recorded here, before the run), scenes, kept, provider, status}."""
     import shutil
     import time as T
     from . import explainer_scenes as S
@@ -565,17 +592,57 @@ def scenes_remake(env, cp, choice):
     # outside the stage folders: the run below re-runs the gate, which empties its folder (the backup went with it)
     keep = os.path.join(env.state_dir, "remake", env.job, "visuals")
     os.makedirs(keep, exist_ok=True)
-    new = os.path.join(keep, f"compositions.new-{stamp}")
-    os.makedirs(new, exist_ok=True)
-    instruction = choice if choice and choice not in ("ai", "redo") else None
-    env.log(f"remake visuals: drawing {item} again" + (f" ({instruction})" if instruction else ""))
-    res = S.author_scenes(item, env.workflow_dir, request=_request(p), instruction=instruction, out_dir=new,
-                          keep_ai=False, log=env.log)
-    if not res["ok"]:
+    new = os.path.join(keep, "compositions.next")
+    side = DR.read_side(path, cp["id"]) or {}
+    missing = choice == "missing"
+    instruction = choice if choice and choice not in ("ai", "redo", "missing") else None
+    only = sorted(k["id"] for k in side.get("kept") or [] if isinstance(k, dict) and k.get("id")) if missing else None
+    meta = _redo_meta(new)
+    if missing and not only and meta:
+        only, instruction = meta.get("only"), meta.get("instruction")      # Try again of an unfinished redo
+    want = dict(instruction=instruction, only=only)
+    if not meta or {k: meta.get(k) for k in want} != want:
         shutil.rmtree(new, ignore_errors=True)
-        if res.get("error_code") == "needs-model":
-            raise S.NeedsModel(res["error"], S.routed_provider())
-        raise RuntimeError(res["error"] or "visuals: the scenes could not be drawn")
+        os.makedirs(new)
+        if only:              # redraw some: the others are the video's current scenes
+            for f in os.listdir(path) if os.path.isdir(path) else []:
+                if f.endswith(".html") and f != "captions.html" and f[:-5] not in only:
+                    shutil.copy2(os.path.join(path, f), os.path.join(new, f))
+        with open(os.path.join(new, ".redo.json"), "w", encoding="utf-8") as f:
+            json.dump(want, f)
+        env.log(f"remake visuals: drawing {item} again" + (f" ({instruction})" if instruction else "")
+                + (f" - only {', '.join(only)}" if only else ""))
+    else:
+        env.log(f"remake visuals: going on with {item} - only the scenes still missing")
+    # every scene not drawn by the AI in the new folder (a Try again goes on where the last try stopped)
+    res = S.author_scenes(item, env.workflow_dir, request=_request(p), instruction=instruction, out_dir=new,
+                          only=set(only) if only else None, keep_ai=True, log=env.log)
+    inp = S.scene_inputs(item, env.workflow_dir)
+    target = [s for s in inp["scenes"] if not only or s["id"] in only]
+    drawn = [s["id"] for s in target if S.is_ai_scene(os.path.join(new, f"{s['id']}.html"))]
+    if not res["ok"] and res.get("error_code") == "needs-model":
+        raise S.NeedsModel(res["error"], S.routed_provider())
+    failed = [s for s in target if s["id"] not in drawn]
+    if failed and not drawn:
+        first = failed[0]
+        raise VisualsFailed(res.get("error") or S.failed_message(inp["scenes"], dict(res, total=len(inp["scenes"]))),
+                            dict(scene=str(first["n"]), id=first["id"], total=str(len(inp["scenes"])),
+                                 n=str(len(failed)), why=(res.get("why") or {}).get(first["id"]) or "other"))
+    kept = []
+    for s in failed:      # keeps its old version (else a simple diagram from its cues): the other scenes go on
+        dst = os.path.join(new, f"{s['id']}.html")
+        old = os.path.join(path, f"{s['id']}.html")
+        if os.path.isfile(old) and not S.PLACEHOLDER.search(re.sub(r"<!--.*?-->", "", S._read(old), flags=re.S)):
+            shutil.copy2(old, dst)
+            how = "before"
+        else:
+            with open(dst, "w", encoding="utf-8") as f:
+                f.write(S.fallback_scene(inp, s))
+            how = "diagram"
+        kept.append(dict(id=s["id"], n=s["n"], how=how, why=(res.get("why") or {}).get(s["id"]) or "other"))
+        env.log(f"scene {s['id']}: not redrawn ({res['failed'].get(s['id'], '')[:160]}) - kept "
+                + ("as before" if how == "before" else "as a simple diagram"))
+    os.remove(os.path.join(new, ".redo.json"))
     old = os.path.join(keep, f"compositions.before-{stamp}")
     if os.path.isdir(path):
         shutil.move(path, old)
@@ -584,9 +651,11 @@ def scenes_remake(env, cp, choice):
             shutil.copy2(cap, os.path.join(new, "captions.html"))
     shutil.move(new, path)
     scene_support(item, path, log=env.log)
-    DR.write_side(path, cp["id"], dict(by="ai", provider=res.get("provider"), model=res.get("model"),
-                                       instruction=instruction, review=_scenes_review(item, res["written"],
-                                                                                      res["total"])))
+    written = [s["id"] for s in inp["scenes"] if S.is_ai_scene(os.path.join(path, f"{s['id']}.html"))]
+    DR.write_side(path, cp["id"], dict(by="ai", provider=res.get("provider") or side.get("provider"),
+                                       model=res.get("model") or side.get("model"), instruction=instruction,
+                                       kept=kept, total=len(inp["scenes"]),
+                                       review=_scenes_review(item, written, len(inp["scenes"]))))
     try:
         env.write_payload(cp, author_payload(env, cp))
     except Exception as e:  # noqa: BLE001  (the payload is a view; the answer below is what counts)
@@ -598,9 +667,15 @@ def scenes_remake(env, cp, choice):
     if out.get("exit_code") not in (0, 7):            # done, or the new video waits for her review
         raise RuntimeError("visuals: the new scenes were drawn but the video was not made again (" +
                            str(out.get("status")) + ")")
-    return dict(answer=None, scenes=res["written"], provider=res.get("provider"), model=res.get("model"),
-                status=out.get("status"), keep_live=out.get("exit_code") != 0, backup=old if os.path.isdir(old)
-                else None)
+    total = len(inp["scenes"])
+    note = (f"{total - len(kept)} of {total} scenes redrawn; " + ", ".join(
+        f"scene {k['n']} kept {'as before' if k['how'] == 'before' else 'as a simple diagram'}" for k in kept)) \
+        if kept else None
+    if note:
+        env.log(f"remake visuals: {note}")
+    return dict(answer=None, scenes=[s["id"] for s in target if s["id"] in drawn], kept=kept, total=total,
+                note=note, provider=res.get("provider"), model=res.get("model"), status=out.get("status"),
+                keep_live=out.get("exit_code") != 0, backup=old if os.path.isdir(old) else None)
 
 
 def _request(project):
