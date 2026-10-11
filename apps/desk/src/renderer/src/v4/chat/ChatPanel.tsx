@@ -934,7 +934,8 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
                 </button>
               ))}
             </div>
-            {offline ? (
+            {/* "No model" only when none is connected: a model that timed out once is still hers (its chip stays) */}
+            {offline === 'no-model' ? (
               <button className="chip nomodel" onClick={() => go({ name: 'aiAccounts' })} data-testid="model-chip-off">
                 <i className="dot" style={{ background: 'var(--danger)' }} />
                 {t('ce.off.noModel')}
