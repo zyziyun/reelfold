@@ -535,6 +535,11 @@ export class EngineClient {
   autopilotChange(item: string, checkpoint: string, sub: string, answer: { approve: string[]; keep: string[] }) {
     return this.req<{ ok: boolean; resumed?: boolean }>('POST', `/api/autopilot/${bid(item)}/change`, { checkpoint, item: sub, answer });
   }
+  /** a standing setting of a finished clip made again in the background, only what it changes (the vertical framing:
+   * the vertical versions; the post copy: the copy and every platform's post text) - older projects too */
+  autopilotRemake(item: string, sub: string, todo: Record<string, string | null>) {
+    return this.req<{ ok: boolean; started?: boolean }>('POST', `/api/autopilot/${bid(item)}/remake`, { item: sub, do: todo });
+  }
   /** autopilot (true) or ask me first (false) for one project */
   autopilotMode(item: string, on: boolean) {
     return this.req<{ ok: boolean; resumed?: boolean }>('POST', `/api/autopilot/${bid(item)}/mode`, { on });

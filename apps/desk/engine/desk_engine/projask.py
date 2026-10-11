@@ -255,6 +255,9 @@ class ProjectAsk:
                 c.get("state") not in ("queued", "running")]
         if clips:
             allc = [c for c in allc if c["id"] in clips]
+        said = self._remake_asked(item_id, e, prompt)
+        if said:                     # "follow the subject" / "rewrite the post copy": the real action, at once
+            return self._answer_now(item_id, e, prompt, "remake", said=said)
         intent = project_intent(prompt) if e.get("kind") in ("project", "work") else None
         if intent or not allc:
             return self._answer_now(item_id, e, prompt, intent)
@@ -269,24 +272,44 @@ class ProjectAsk:
         threading.Thread(target=self._run, args=(j, e, allc, context), daemon=True).start()
         return dict(ok=True, job=job, clips=j["clips"], timeout=j["timeout"])
 
-    def _answer_now(self, item_id, e, prompt, intent):
+    def _remake_asked(self, item_id, e, prompt):
+        """The vertical framing / the post copy of the project's finished clips made again (Autopilot.remake_asked)
+        -> the reply messages, or None."""
+        if self.autopilot is None or e.get("kind") != "project":
+            return None
+        from .autopilot import remake_intent
+        from .common import BadRequest
+        want = remake_intent(prompt)
+        if not want:
+            return None
+        try:
+            return self.autopilot.remake_asked(item_id, want)
+        except BadRequest as m:
+            return [_m("remake-failed", str(m), str(m))]
+        except Exception:  # noqa: BLE001  (an older engine: answered as before)
+            return None
+
+    def _answer_now(self, item_id, e, prompt, intent, said=None):
         """A project-level ask (pause, the music, the cover, cut it again) or nothing made yet: answered at once with
-        the real controls (a finished job, polled like the others)."""
+        the real controls (a finished job, polled like the others). ``said``: the settings it made again (remake)."""
         decisions = []
         if intent in CP_KINDS and self.autopilot is not None:
             try:
                 decisions = (self.autopilot.get(item_id) or {}).get("decisions") or []
             except Exception:  # noqa: BLE001  (an older engine: no decisions to take back)
                 decisions = []
-        if intent:
+        if said:
+            actions, note = [], None
+        elif intent:
             actions, note = project_actions(e, intent, decisions)
         else:
             actions, note = [], _m("pa-nothing-made", "Nothing is made yet to change. I can pause the run, pick the music "
                                    "or the cover again, or cut it again.", "还没有做好的片子可以改。我可以暂停制作、重选配乐或封面，或者重新剪。")
         job = hashlib.sha1(f"{item_id}{prompt}{time.time()}".encode()).hexdigest()[:10]
         now = time.time()
-        res = dict(answer="actions" if actions else "nothing", groups=[], needs_rerender=None, actions=actions,
-                   intent=intent, summary=None, warnings=[note] if note else [], provider="rules", model=None,
+        res = dict(answer="remake" if said else "actions" if actions else "nothing", groups=[], needs_rerender=None, actions=actions,
+                   intent=intent, summary=None, warnings=list(said or []) + ([note] if note else []), provider="rules",
+                   model=None,
                    fallback=None, cost_usd=0.0, seconds=0.0, model_called=False, engine="desk")
         j = dict(job=job, item=item_id, prompt=prompt.strip(), state="done", stages=[], notices=[], partial=None,
                  started=now, ended=now, result=res, error=None, proc=None, stop=threading.Event(), timeout=0.0,

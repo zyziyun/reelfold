@@ -2,7 +2,7 @@
 // platform and when it goes out - in the editor's inspector (layout B) and placed one by one on the Studio's clip page
 // (layout A). The copy and the schedule are the publish drawer's own component and calendar rows (PostCopy); cover
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw } from 'lucide-react';
 import type { AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
@@ -148,74 +148,143 @@ export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
   );
 }
 
-// ---------------------------------------------------------------- landscape on vertical screens
-/** The framing of a clip made from landscape footage (the vlog's ``framing`` answer: follow the subject / fill with
- * blur), whoever chose it - the engine's decision or hers. Changing it answers that checkpoint in her name and the
- * vertical versions are made again. */
+// ---------------------------------------------------------------- landscape on vertical screens + the post copy
+/** The framing of a clip made from landscape footage (the vlog's ``framing``: follow the subject / fill with blur),
+ * whoever chose it - the engine, her, or what a project made before the recipe asked has in its exports (``by:
+ * before``). Changing it makes only the vertical versions again (``remake``). */
 export function framingOf(doc: Pick<AutopilotDoc, 'decisions' | 'choices'> | null, clip: string): { checkpoint: string; item: string; choice: string; options: string[] } | null {
-  const mine = (it: string) => it === clip || clip.startsWith(`${it}/`);
-  const c = (doc?.choices ?? []).find((x) => x.kind === 'reframe-pick' && mine(x.item));
+  const c = (doc?.choices ?? []).find((x) => x.kind === 'reframe-pick' && mineItem(x.item, clip));
   if (c) return { checkpoint: c.checkpoint, item: c.item, choice: c.choice === 'blur' ? 'blur' : 'follow', options: c.options?.length ? c.options : [...FILLS] };
-  const d = (doc?.decisions ?? []).find((x) => x.kind === 'reframe-pick' && !x.asked && mine(x.item));
+  const d = (doc?.decisions ?? []).find((x) => x.kind === 'reframe-pick' && !x.asked && mineItem(x.item, clip));
   return d ? { checkpoint: d.checkpoint, item: d.item, choice: d.params?.choice === 'blur' ? 'blur' : 'follow', options: [...FILLS] } : null;
 }
 
+/** The post copy step of a finished clip (the vlog's ``copy``), also on a project made before it existed (never
+ * written: ``choice`` null) - what "Rewrite post copy" makes again. */
+export function copyOf(doc: Pick<AutopilotDoc, 'choices'> | null, clip: string): { checkpoint: string; item: string; choice: string | null } | null {
+  const c = (doc?.choices ?? []).find((x) => x.kind === 'copy-pick' && mineItem(x.item, clip));
+  return c ? { checkpoint: c.checkpoint, item: c.item, choice: c.choice } : null;
+}
+
+const mineItem = (it: string, clip: string) => it === clip || clip.startsWith(`${it}/`);
 const FILLS = ['follow', 'blur'] as const; // the engine's option order (vstudio.project.adapters.vlog.FILLS)
 
-export function ClipFill({ item, clip }: { item: string; clip: string }) {
+/** The clip's project settings (its autopilot doc), refreshed on the bus; ``pending`` is the setting she just asked to
+ * make again, until the background remake has finished (``onDone`` then). */
+function useClipSettings(item: string, onDone?: (what: string) => void) {
   const { client, subscribe } = useEngine();
   const ui = useUi();
   const [doc, setDoc] = useState<AutopilotDoc | null>(null);
   const [n, setN] = useState(0);
-  const [mine, setMine] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const evt = useRef(0);
+  const seen = useRef(0);
   useEffect(() => {
     if (!client) return;
     let alive = true;
+    const at = evt.current;
     client
       .autopilot(item)
-      .then((d) => alive && setDoc(d))
+      .then((d) => {
+        if (!alive) return;
+        setDoc(d);
+        // finished: a reload after the engine said something happened (the run ended), with nothing running
+        if (!d.running && !d.queued && at > seen.current) {
+          seen.current = at;
+          setPending((p) => {
+            if (p) onDone?.(p);
+            return null;
+          });
+        }
+      })
       .catch(() => alive && setDoc(null));
     return () => {
       alive = false;
     };
-  }, [client, item, n]);
-  useEffect(() => subscribe((e) => void (e.type === 'inbox' || e.type === 'batches' ? setN((x) => x + 1) : undefined)), [subscribe]);
-  useEffect(() => setMine(null), [item, clip]);
-  const f = framingOf(doc, clip);
-  if (!f) return null;
-  const cur = mine ?? f.choice;
-  const pick = async (k: (typeof FILLS)[number]) => {
-    if (!client || k === cur || busy) return;
-    if (doc?.running) {
+  }, [client, item, n]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(
+    () =>
+      subscribe((e) => {
+        if (e.type === 'inbox' || e.type === 'batches') {
+          evt.current += 1;
+          setN((x) => x + 1);
+        }
+      }),
+    [subscribe],
+  );
+  const remake = async (sub: string, todo: Record<string, string | null>, what: string) => {
+    if (!client || pending) return false;
+    if (doc?.running || doc?.queued) {
       ui.toast(t('hub.changeBusy'));
-      return;
+      return false;
     }
-    const id = f.options.indexOf(k);
-    if (id < 0) return;
-    setBusy(true);
+    setPending(what);
     try {
-      await client.autopilotChange(item, f.checkpoint, f.item, { approve: [String(id)], keep: f.options.map((_x, i) => String(i)).filter((x) => x !== String(id)) });
-      setMine(k);
+      await client.autopilotRemake(item, sub, todo);
+      seen.current = evt.current; // only a later event ends it
+      setN((x) => x + 1);
+      return true;
     } catch (e) {
+      setPending(null);
       ui.toast(errText(e), { error: true });
-    } finally {
-      setBusy(false);
+      return false;
     }
   };
+  return { doc, pending, remake, busy: !!pending || !!doc?.running };
+}
+
+export function ClipFill({ item, clip }: { item: string; clip: string }) {
+  const [mine, setMine] = useState<string | null>(null);
+  const s = useClipSettings(item, () => setMine(null));
+  useEffect(() => setMine(null), [item, clip]);
+  const f = framingOf(s.doc, clip);
+  if (!f) return null;
+  const cur = mine ?? f.choice;
+  const making = s.pending === 'framing';
+  const pick = async (k: (typeof FILLS)[number]) => {
+    if (k === cur || s.busy || !f.options.includes(k)) return;
+    if (await s.remake(f.item, { [f.checkpoint]: k }, 'framing')) setMine(k);
+  };
   return (
-    <div className="ci-sec" data-testid="ci-fill" data-choice={cur}>
+    <div className="ci-sec" data-testid="ci-fill" data-choice={cur} data-busy={making ? '1' : undefined}>
       <span className="ci-lbl" data-tip={t('ci.fill.tip')}>
         {t('ci.fill')}
       </span>
       <div className="ci-chips">
         {FILLS.map((k) => (
-          <button key={k} className={`ci-chip ${cur === k ? 'on' : ''}`} aria-pressed={cur === k} disabled={busy} onClick={() => void pick(k)} data-testid={`ci-fill-${k}`}>
+          <button key={k} className={`ci-chip ${cur === k ? 'on' : ''}`} aria-pressed={cur === k} disabled={s.busy} onClick={() => void pick(k)} data-testid={`ci-fill-${k}`}>
             {cur === k && <Check className="ico" />}
             {t(`ci.fill.${k}` as MessageKey)}
           </button>
         ))}
       </div>
+      {making && (
+        <span className="ci-render running" data-testid="ci-fill-making">
+          <Loader2 className="ico spin" />
+          {t('ci.fill.making')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** "Rewrite post copy": every platform's title, text and hashtags written again (the routed AI, else from the facts)
+ * and the post text of every version replaced - in the clip's post area. */
+export function ClipCopyRewrite({ item, clip, onDone }: { item: string; clip: string; onDone?: () => void }) {
+  const ui = useUi();
+  const s = useClipSettings(item, () => {
+    ui.toast(t('ci.copy.done'));
+    onDone?.();
+  });
+  const c = copyOf(s.doc, clip);
+  if (!c) return null;
+  const writing = s.pending === 'copy';
+  return (
+    <div className="ci-copyre" data-testid="ci-copy" data-written={c.choice ?? 'never'}>
+      <button className="btn ghost sm" disabled={s.busy} onClick={() => void s.remake(c.item, { [c.checkpoint]: null }, 'copy')} data-tip={t('ci.copy.tip')} data-testid="ci-copy-rewrite">
+        {writing ? <Loader2 className="ico spin" /> : <RefreshCw className="ico" />}
+        {writing ? t('ci.copy.writing') : t('ci.copy.rewrite')}
+      </button>
     </div>
   );
 }
@@ -275,7 +344,7 @@ export function useClipSchedule(item: string, clip: string) {
       reload();
     }
   };
-  return { item, clip, loaded: !!data, g, rows, accounts, actions, off, setOff, pfs, when, scheduledWhen: g ? fmtWhen(g.day, g.time) : '', scheduleNow, tab: rows.some((r) => r.pf === tab) ? tab : firstTab(rows), setTab, shorten };
+  return { item, clip, loaded: !!data, g, rows, accounts, actions, off, setOff, pfs, when, scheduledWhen: g ? fmtWhen(g.day, g.time) : '', scheduleNow, tab: rows.some((r) => r.pf === tab) ? tab : firstTab(rows), setTab, shorten, reload };
 }
 export type ClipScheduleState = ReturnType<typeof useClipSchedule>;
 
@@ -380,6 +449,7 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip }: { d
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>
         <ClipScheduleView s={sched} />
+        {item && clip && <ClipCopyRewrite item={item} clip={clip} onDone={sched.reload} />}
       </div>
     </section>
   );

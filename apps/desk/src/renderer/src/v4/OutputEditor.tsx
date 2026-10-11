@@ -52,7 +52,7 @@ import '../theme/uxcore.css';
 import './transcript/transcript.css';
 import { keyHint } from '../lib/keys';
 import { useAutoRender } from '../lib/autoRender';
-import { CaptionLooks, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVersions, RenderPill, useClipSchedule } from './ClipInfo';
+import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVersions, RenderPill, useClipSchedule } from './ClipInfo';
 import { ProjectAIPanel } from './ProjectAIPanel';
 
 // cover, captions, versions and export live in the clip's info (ClipInfo) now; the drawer keeps the precise tools
@@ -1143,6 +1143,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             <div className="cs-lower">{lowerEl}</div>
             <div className="ci cs-post">
               <ClipScheduleView s={sched} compact />
+              <ClipCopyRewrite item={id} clip={clip} onDone={sched.reload} />
             </div>
           </section>
           <aside className="cs-ai-pane" aria-hidden={!ai.open} inert={!ai.open} data-testid="studio-ai-pane">

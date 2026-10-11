@@ -39,3 +39,4 @@
 .ce-right .ci-toggle { display: flex; align-items: center; gap: 6px; padding: 8px var(--s2); border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .ce-right .ci-toggle:hover { color: var(--text); }
 .ce-right .ci-toggle .ico { width: 14px; height: 14px; }
+.ci-copyre { display: flex; } /* Rewrite post copy, under the clip's post */

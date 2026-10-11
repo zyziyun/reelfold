@@ -2,7 +2,11 @@
 moving disk on a textured ground, a DJI .SRT flight log beside each: Seattle), platforms TikTok + YouTube, run on
 autopilot with the REAL engine to the end (no AI account: the post copy is written from the facts by the rules).
 
-    python vlog_project.py ROOT   (VSTUDIO_HOME etc. from the environment) -> {dir, decisions}
+    python vlog_project.py ROOT [--old]   (VSTUDIO_HOME etc. from the environment) -> {dir, decisions}
+
+--old: then made to look like a vlog finished before the framing / copy steps existed (her Seattle project, app
+0.2.6): no framing / copy answer, payload or stage row, no shots.json, the exports on a blurred fill with the title as
+the whole post.
 """
 import json
 import os
@@ -10,6 +14,7 @@ import subprocess
 import sys
 
 ROOT = sys.argv[1]
+OLD = "--old" in sys.argv[2:]
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."))
 sys.path[:0] = [os.path.join(REPO, "lib")]
 
@@ -40,4 +45,32 @@ proj.data["prompt"] = "使用这些视频帮我剪辑成一个西雅图红叶的
 proj.save()
 out = Project(proj.dir).run(autopilot=True)
 decs = {d["checkpoint"]: d.get("params") for d in AP.decisions(Project(proj.dir))}
+if OLD:
+    import sqlite3
+    from vstudio import export as EX
+    p = Project(proj.dir)
+    for cid in ("framing", "copy"):
+        p.data["answers"].pop(cid, None)
+        f = os.path.join(p.state_dir, "checkpoints", "main", f"{cid}.json")
+        if os.path.exists(f):
+            os.remove(f)
+    for k in ("reframe", "copy_pick"):
+        p.data["overrides"].get("main", {}).pop(k, None)
+    p.data["auto"] = ["hook", "filler", "cover"]
+    p.save()
+    db = sqlite3.connect(os.path.join(p.state_dir, "batch.db"))
+    db.execute("DELETE FROM stages WHERE stage IN ('copy', 'cp_framing', 'cp_copy')")
+    db.commit()
+    db.close()
+    work = os.path.join(proj.dir, "items", "main", "work")
+    for f in os.listdir(work):
+        if f.endswith(".shots.json"):
+            os.remove(os.path.join(work, f))
+    ex = os.path.join(proj.dir, "items", "main", "exports")
+    with open(os.path.join(ex, "manifest.json"), encoding="utf-8") as f:
+        master = json.load(f)["master"]
+    for f in os.listdir(ex):
+        os.remove(os.path.join(ex, f))
+    EX.export(master, ["tiktok", "youtube"], ex, post=dict(title="Seattle in Red"), mode="pad-blur", preset="ultrafast")
+    decs = {d["checkpoint"]: d.get("params") for d in AP.decisions(Project(proj.dir))}
 print(json.dumps(dict(dir=proj.dir, exit=out.get("exit_code"), decisions=decs), ensure_ascii=False))

@@ -338,7 +338,7 @@ export interface ProjectAction {
 }
 
 export interface ProjectAskResult {
-  answer: 'changes' | 'needs_rerender' | 'mixed' | 'nothing' | 'actions';
+  answer: 'changes' | 'needs_rerender' | 'mixed' | 'nothing' | 'actions' | 'remake';
   /** a request about the whole project's run (pause, the music, the cover, cut it again): its controls */
   actions?: ProjectAction[];
   intent?: 'pause' | 'resume' | 'music' | 'cover' | 'recut' | null;
@@ -566,12 +566,14 @@ export interface AutopilotChoice {
   checkpoint: string;
   kind: string;
   item: string;
-  pick: number;
+  /** null: nobody picked (a project made before the recipe asked: its post copy was never written) */
+  pick: number | null;
   /** the picked option's kind (framing: follow | blur; copy: ai | rules) */
   choice: string | null;
   /** the option kinds in their order (the answer is an option index) */
   options?: string[];
-  by: 'ai' | 'rules' | 'her';
+  /** before: made before the recipe asked - read from the clip's files (its exports) */
+  by: 'ai' | 'rules' | 'her' | 'before';
 }
 
 // ---------------------------------------------------------------- inbox

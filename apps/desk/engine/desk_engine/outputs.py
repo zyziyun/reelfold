@@ -1531,6 +1531,12 @@ class Outputs:
         oid = self._output_id(e, c)
         note = None
         t0 = time.time()
+        said = self._remake_asked(item_id, clip_id, e, prompt)
+        if said:                     # "follow the subject" / "rewrite the post copy": the real action, not a guess
+            r = dict(summary=None, proposals=[], dropped=[], warnings=said, engine="desk", provider=None,
+                     context=context, cost_usd=0.0, seconds=round(time.time() - t0, 2), remake=True)
+            r["turn"] = self._record_ask(e, clip_id, prompt, context, r, oid)
+            return r
         if oid:
             try:
                 extra = ["--context", json.dumps(context)] if context and self._ext else []
@@ -1561,6 +1567,24 @@ class Outputs:
         r.update(context=context, cost_usd=0.0, seconds=round(time.time() - t0, 2))
         r["turn"] = self._record_ask(e, clip_id, prompt, context, r, oid)
         return r
+
+    def _remake_asked(self, item_id, clip_id, e, prompt):
+        """The clip chat asks for a standing setting of a finished project clip (its vertical framing, its post copy):
+        made again in the background (Autopilot.remake_asked) -> the reply messages, or None (an edit as before)."""
+        ap = getattr(self, "autopilot", None)
+        if ap is None or e.get("kind") != "project":
+            return None
+        from .autopilot import remake_intent
+        want = remake_intent(prompt)
+        if not want:
+            return None
+        try:
+            return ap.remake_asked(item_id, want, clip=clip_id)
+        except BadRequest as m:
+            return [dict(code="remake-failed", message=str(m), message_zh=str(m), params={})]
+        except Exception as x:  # noqa: BLE001  (an older engine without remake: the chat answers as before)
+            print(f"[outputs] remake from the chat: {x}", file=sys.stderr, flush=True)
+            return None
 
     def _record_ask(self, e, clip_id, prompt, context, r, oid=None):
         """Records the turn where ``show`` reads the transcript: the engine's when it keeps one (a model failed and

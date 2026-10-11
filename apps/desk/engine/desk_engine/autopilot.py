@@ -11,6 +11,11 @@ references/PROJECTS.md section 3).
   POST /api/autopilot/<item>/change {checkpoint, item, answer {approve, keep}}   she changes one taste call in place
                                            (the clip editor's Undo / Change on a decision): her answer replaces the
                                            engine's, the affected stages re-run -> {ok, resumed, rerun}
+  POST /api/autopilot/<item>/remake {item, do {checkpoint: choice | null}}   a standing setting of a finished clip
+                                           made again in the background, only what it changes (the vlog's vertical
+                                           framing: the vertical exports; its post copy: the copy + every post.md),
+                                           also on a project made before the recipe had it
+                                           (``python -m vstudio.project remake``) -> {ok, started, do}
 
 The taste calls (the unsure filler cuts, the opening) come with their options in the inbox's plain-language shape,
 each ``checked`` as decided, so the editor can show them as made decisions with Undo / Change per option.
@@ -23,6 +28,40 @@ import os
 from . import inbox_labels as L
 from . import pilot
 from .common import BadRequest, need, read_json
+
+
+def _m(code, en, zh, **params):
+    return dict(code=code, message=en, message_zh=zh, params=params)
+
+
+# her words for the standing settings a finished clip can make again (zh / en / fr): the clip chat and the project
+# chat run them (``Autopilot.remake_asked``) instead of an edit the model would guess (a 9:16 version)
+_FOLLOW = (r"跟随主体|跟随画面|跟着主体|跟拍主体|主体裁切|跟随.{0,4}裁切|不要模糊|别用模糊|不用模糊|去掉模糊|取消模糊|"
+           r"不要.{0,6}模糊|follow(?:s|ing)? the (?:subject|action)|subject[- ]follow|\bno blur|without (?:the |a )?blur|"
+           r"(?:don'?t|do not) (?:use (?:a |the )?)?blur|remove the blur|suivre le sujet|suit le sujet|sans flou|"
+           r"pas de flou|enlever le flou")
+_BLUR = (r"模糊(?:背景|填充|底)|用模糊|fill(?:ed)? with (?:a )?blur|blur(?:red)? (?:background|fill|pad)|fond flou|"
+         r"remplir (?:avec du|de) flou")
+_COPY = (r"(?:重写|重新写|改写|重新生成|重做|再写|写一?下?|更新|换).{0,10}(?<!封面)(?:发布)?文案|发布文案|"
+         r"(?<!封面)文案.{0,6}(?:重写|重新写|重新生成|重做)|\bpost (?:copy|text|captions?)\b|"
+         r"\b(?:re-?write|regenerate|redo|re-?do|write)\b.{0,30}\b(?:posts?|copy|descriptions?)\b|"
+         r"\bcaptions?\b.{0,24}\bplatforms?\b|"
+         r"texte de publication|(?:r[ée]{1,2}cri\w*|refai\w*|r[ée]g[ée]n[ée]r\w*).{0,30}(?:textes?|l[ée]gendes?|"
+         r"descriptions?)")
+
+
+def remake_intent(text):
+    """A chat request -> {framing: follow | blur, copy: True} for what it asks to make again, or None."""
+    import re
+    t = (text or "").strip()
+    out = {}
+    if re.search(_FOLLOW, t, re.I):
+        out["framing"] = "follow"
+    elif re.search(_BLUR, t, re.I):
+        out["framing"] = "blur"
+    if re.search(_COPY, t, re.I):
+        out["copy"] = True
+    return out or None
 
 # decisions the editor lists per clip, with their options (the others are listed on the project page as before)
 TASTE = ("filler-confirm", "hook-pick")
@@ -104,6 +143,81 @@ class Autopilot:
             self.bus.publish("batches")
             self.bus.publish("inbox")
         return dict(ok=True, resumed=resumed, rerun=(r or {}).get("rerun") if isinstance(r, dict) else None)
+
+    def remake(self, item, sub, do):
+        """Make one standing setting of a finished clip again (``choices``: the framing, the post copy - whoever set
+        it, or what an older project has), in the background like a run: the project shows as running and the
+        clip page / chat follow it on the bus."""
+        need(isinstance(sub, str) and 0 < len(sub) <= 600, "item: the clip's item id (or a,b)")
+        need(isinstance(do, dict) and 0 < len(do) <= 4, "do: {checkpoint: choice | null}")
+        subs = [x for x in sub.split(",") if x]
+        need(0 < len(subs) <= 20, "item: the clip's item id (or a,b)")
+        _e, d, ok = self._project(item)
+        need(ok, "only a recipe project has settings to make again")
+        if pilot.running(d) or pilot.queued(d):
+            raise BadRequest("the project is running; change this when it has finished")
+        doc = self._cli().json(["decisions", "--dir", d, "--json"], timeout=60)
+        args = []
+        for cp, choice in do.items():
+            for one in subs:
+                c = next((x for x in doc.get("choices") or [] if x.get("checkpoint") == cp and x.get("item") == one),
+                         None)
+                need(c is not None, f"{cp}: not a setting of {one}")
+                need(choice is None or (isinstance(choice, str) and choice in (c.get("options") or [])),
+                     f"{cp}: one of {', '.join(c.get('options') or [])}")
+            args += ["--do", f"{cp}={choice}" if choice else cp]
+        py = self.runner.python
+        pilot.spawn(py, self.runner.env, d, bus=self.bus,
+                    args=[py, "-m", "vstudio.project", "remake", "--dir", d, "--item", sub, *args, "--json-events"])
+        if self.bus:
+            self.bus.publish("batches")
+        return dict(ok=True, started=True, do=do)
+
+    def remake_asked(self, item, want, clip=None):
+        """A chat request (``remake_intent``) on project ``item`` - one clip of it, or the whole project: the settings
+        it names that the clip has are made again in the background -> the reply messages, or None when it names
+        none this project has (the chat answers as before)."""
+        if not want:
+            return None
+        _e, d, ok = self._project(item)
+        if not ok or self.runner is None:
+            return None
+        doc = self.get(item)
+        mine = [c for c in doc.get("choices") or [] if clip is None or c.get("item") == clip or
+                str(clip).startswith(f"{c.get('item')}/")]
+        frs = [c for c in mine if c.get("kind") == "reframe-pick"]
+        cps = [c for c in mine if c.get("kind") == "copy-pick"]
+        do, msgs, subs = {}, [], set()
+        if want.get("framing") and frs:
+            todo = [c for c in frs if c.get("choice") != want["framing"]]
+            if todo:
+                do[todo[0]["checkpoint"]] = want["framing"]
+                subs |= {c["item"] for c in todo}
+            else:
+                msgs.append(_m(f"remake-already-{want['framing']}", "The vertical versions already " +
+                               ("follow the subject." if want["framing"] == "follow" else "fill with blur."),
+                               "竖屏版本已经是" + ("跟随主体裁切" if want["framing"] == "follow" else "模糊填充") + "了。"))
+        if want.get("copy") and cps:
+            do[cps[0]["checkpoint"]] = None
+            subs |= {c["item"] for c in cps}
+        if not do:
+            return msgs or None
+        if doc.get("running") or doc.get("queued"):
+            return msgs + [_m("remake-busy", "It is making something right now; ask again when it has finished.",
+                              "现在正在制作，做完后再说一次。")]
+        self.remake(item, ",".join(sorted(subs)), do)
+        if want.get("framing") in [v for v in do.values()]:
+            msgs.append(_m(f"remake-{want['framing']}",
+                           "Making the vertical versions again: " + ("the camera follows the subject, no blurred "
+                                                                    "background." if want["framing"] == "follow" else
+                                                                    "the whole frame on a blurred fill."),
+                           "正在重新导出竖屏版本：" + ("镜头跟随画面主体裁切，不用模糊背景。" if want["framing"] == "follow"
+                                              else "整幅画面放在模糊背景上。")))
+        if want.get("copy") and cps:
+            msgs.append(_m("remake-copy", "Writing the post copy again for every platform (title, text and hashtags in "
+                                          "its language); each version's post text is replaced when it is done.",
+                           "正在为每个平台重写发布文案（标题、正文和话题，按平台语言），写好后替换各版本的发布文字。"))
+        return msgs
 
     def mode(self, item, on):
         need(isinstance(on, bool), "on: true (autopilot) or false (ask me first)")

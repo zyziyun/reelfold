@@ -106,7 +106,8 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            (the Studio's row menu: delete = a request that never became a project
                                            is gone for good; her files are never touched)
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
-       POST .../change {checkpoint, item, answer}   (autopilot.py)
+       POST .../change {checkpoint, item, answer}; POST .../remake {item, do {checkpoint: choice | null}}
+       (a finished clip's vertical framing / post copy made again, older projects too)   (autopilot.py)
   GET  /api/sample                         the built-in sample recording (copied out of the app) -> {available, path, ...};
        POST /api/sample/remove {dir}       delete a project made from it (sample.py)
   POST /api/pilot/retry {item, provider?}  re-run a failed pilot (provider: every model task on it, e.g. codex)
@@ -501,6 +502,7 @@ class Api:
         self.inbox.outputs = self.outputs
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
         self.project_ask.autopilot = self.autopilot
+        self.outputs.autopilot = self.autopilot        # the clip chat's "follow the subject" / "rewrite the copy"
         if real and runner is not None:            # runs that waited in line when the app quit go back in line
             import threading
 
@@ -656,6 +658,8 @@ class Api:
                 return self.autopilot.mode(parts[1], b.get("on"))
             if parts[2:] == ["change"] and method == "POST":
                 return self.autopilot.change(parts[1], b.get("checkpoint"), b.get("item"), b.get("answer"))
+            if parts[2:] == ["remake"] and method == "POST":
+                return self.autopilot.remake(parts[1], b.get("item"), b.get("do"))
         if parts == ["sample"] and method == "GET":
             return self.sample.info()
         if parts == ["sample", "remove"] and method == "POST":
