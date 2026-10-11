@@ -132,8 +132,10 @@ def test_tts_kokoro_language_and_zh_voice():
 
 def test_voice_checkpoint_is_free_for_a_local_chinese_voice(tmp_path, monkeypatch):
     from types import SimpleNamespace
+    from vstudio import tts as T
     from vstudio.project.adapters import explainer as X
     monkeypatch.delenv("VSTUDIO_TTS_ENGINE", raising=False)
+    monkeypatch.setattr(T, "installed", lambda engine: True)   # a free local voice is installed (CI runners have none)
     (tmp_path / "SCRIPT.md").write_text(ZH_SCRIPT, encoding="utf-8")
     env = SimpleNamespace(item_dir=str(tmp_path), params={"tts_engine": "clone", "voice": "cedar", "speed": 1.0})
     pay = X.voice_payload(env, {})

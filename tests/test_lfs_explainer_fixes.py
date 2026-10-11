@@ -408,6 +408,7 @@ def test_tts_regenerates_a_take_that_drops_a_sentence(tmp_path, monkeypatch):
         return out
 
     monkeypatch.setattr(T, "synth", synth)
+    monkeypatch.setattr(T, "installed", lambda engine: True)   # a free local voice is installed (CI runners have none)
     monkeypatch.setattr(media, "duration", lambda p: 1.0)
     heard = iter([" One chip.", " One chip. Many cores."])
     monkeypatch.setattr(C, "check_take", lambda wav, text, backend="auto", **k: C.check(text, next(heard)))
