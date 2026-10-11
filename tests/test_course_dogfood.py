@@ -184,6 +184,8 @@ def test_a_course_video_from_lecture_notes_is_an_explainer(iso):
     assert not p.get("needs"), p.get("needs")
     assert [x["recipe"] for x in p["projects"]] == ["explainer"]
     assert p["projects"][0]["params"]["platforms"] == ["youtube", "bilibili"]
+    row = p["projects"][0]["items"]["rows"][0]
+    assert str(row["inputs"]["script"]).endswith(".md")      # the notes reach the script step (drafted from)
 
 
 def test_her_voice_engine_reaches_the_explainer_plan(iso, monkeypatch):

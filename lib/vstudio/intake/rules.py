@@ -585,7 +585,10 @@ def rule_projects(intent, analysis, ctx):
                     for k, (f, h) in enumerate(src[:n]):
                         topic = f"{h or f.get('title') or os.path.basename(f['path'])}（素材：{os.path.basename(f['path'])}" + \
                                 (f"，第 {k + 1} 部分" if not h else "") + "）"
-                        rows.append(dict(id=f"{k + 1:02d}", inputs={"topic": topic}, params=dict(title=(h or f.get("title") or "")[:30])))
+                        ins = {"topic": topic}
+                        if rid == "explainer" and str(f.get("path") or "").lower().endswith(".md"):
+                            ins["script"] = [f["path"]]      # her notes: the script step drafts the scenes from them
+                        rows.append(dict(id=f"{k + 1:02d}", inputs=ins, params=dict(title=(h or f.get("title") or "")[:30])))
             elif ctext:
                 rows = [dict(id=f"{k + 1:02d}", inputs={"topic": ctext}, params={}) for k in range(n or 1)]
             p["items"] = dict(method="list", count=len(rows), rows=rows)
