@@ -755,7 +755,7 @@ export const PHRASES: [MessageKey, MessageKey][] = [
   ['ce.ph.fade', 'ce.ph.fadePrompt'],
 ];
 
-export function FallbackCard({ q, failed, primary, onTool, onSay, onConnect, onRetry }: { q: string; failed: boolean; primary: boolean; onTool: (k: CardKind) => void; onSay: (s: string) => void; onConnect: () => void; onRetry: () => void }) {
+export function FallbackCard({ q, failed, why, primary, onTool, onSay, onConnect, onRetry }: { q: string; failed: boolean; why?: string | null; primary: boolean; onTool: (k: CardKind) => void; onSay: (s: string) => void; onConnect: () => void; onRetry: () => void }) {
   return (
     <div className="card2 draft" data-testid="card-offline">
       <div className="chd">
@@ -765,6 +765,11 @@ export function FallbackCard({ q, failed, primary, onTool, onSay, onConnect, onR
         <b>{failed ? t('ce.off.failed') : t('ce.off.title')}</b>
       </div>
       <div className="cbd">
+        {failed && why && (
+          <span className="why" data-testid="off-why">
+            {why}
+          </span>
+        )}
         <span>{failed ? t('ce.off.leadFailed') : t('ce.off.lead', { q })}</span>
         <div className="fld">
           <span className="lbl">{t('ce.off.tools')}</span>

@@ -15,6 +15,7 @@ import {
   lengthChange,
   markers,
   needsRender,
+  failureOf,
   offlineFrom,
   pauses,
   primaryAction,
@@ -145,6 +146,13 @@ describe('reply details', () => {
     expect(offlineFrom({ warnings: [{ code: 'no-model' }] })).toBe('no-model');
     expect(offlineFrom({ warnings: [{ code: 'llm-failed' }] })).toBe('llm-failed');
     expect(offlineFrom({ warnings: [{ code: 'no-pauses' }] })).toBeNull();
+  });
+  it('why her model did not answer (the clip chat on her Seattle vlog: Claude Code timed out, Codex failed)', () => {
+    const w = [{ code: 'llm-failed', params: { provider: 'claude-code', code_hint: 'timeout', attempts: [{ provider: 'claude-code', code: 'timeout', error: 'claude CLI timed out after 60.0 s' }, { provider: 'codex', code: 'failed', error: 'x' }] } }];
+    expect(failureOf(w)).toEqual({ provider: 'claude-code', code: 'timeout', seconds: 60 });
+    expect(failureOf([{ code: 'llm-failed', params: { provider: 'claude-code', code_hint: 'auth-expired' } }])).toEqual({ provider: 'claude-code', code: 'auth-expired', seconds: null });
+    expect(failureOf([{ code: 'no-model' }])).toBeNull();
+    expect(failureOf(null)).toBeNull();
   });
   it('length before -> after, and which compares need a render', () => {
     const l = lengthChange(doc(), [{ op: 'cut', start: 1.4, end: 2.4 }, { op: 'speed', value: 2 }]);

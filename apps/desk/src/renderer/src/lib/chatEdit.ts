@@ -230,6 +230,19 @@ export function offlineFrom(r: { provider?: string | null; warnings?: { code: st
   return null;
 }
 
+/** Why the routed model did not answer (the ``llm-failed`` warning's first attempt) -> {provider, code, seconds} for
+ * an actionable line ("Claude Code did not answer within 60 s"), or null. */
+export function failureOf(warnings: { code: string; params?: Record<string, unknown> | null }[] | null | undefined): { provider: string; code: string; seconds: number | null } | null {
+  const w = (warnings ?? []).find((x) => x.code === 'llm-failed');
+  const p = (w?.params ?? {}) as { provider?: unknown; attempts?: { provider?: unknown; code?: unknown; error?: unknown }[]; code_hint?: unknown };
+  const a = (Array.isArray(p.attempts) ? p.attempts : [])[0];
+  const provider = String(a?.provider ?? p.provider ?? '');
+  const code = String(a?.code ?? p.code_hint ?? '');
+  if (!w || !provider || !code) return null;
+  const m = /timed out after\s*([0-9.]+)\s*s/.exec(String(a?.error ?? ''));
+  return { provider, code, seconds: m ? Math.round(Number(m[1])) : null };
+}
+
 export type AskReason = 'reset' | 'export-remove' | 'most-of-clip';
 
 /** Why an AI change waits for her Apply although AI edits apply at once (ux/fewer-steps): starting the clip over

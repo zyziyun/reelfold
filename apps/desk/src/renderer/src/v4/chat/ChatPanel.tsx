@@ -10,7 +10,7 @@ import { providerName } from '../../../../shared/aiRoutes';
 import { EngineError } from '../../../../shared/engineClient';
 import type { EditOp, EffectDef } from '../../../../shared/v04';
 import { fmtClock, getLang, intlLocale, t, type MessageKey } from '../../i18n';
-import { askFirstReason, needsRenderedCompare, cardFor, cardState, contextOf, costLine, lengthChange, offlineFrom, slashCommand, slashMatches, suggestions, undoPlan, undoToCount, SLASH, type Primary, type Suggestion } from '../../lib/chatEdit';
+import { askFirstReason, needsRenderedCompare, cardFor, cardState, contextOf, costLine, failureOf, lengthChange, offlineFrom, slashCommand, slashMatches, suggestions, undoPlan, undoToCount, SLASH, type Primary, type Suggestion } from '../../lib/chatEdit';
 import { useAskAiEdits } from '../../lib/prefs';
 import { useEngine } from '../../lib/engine';
 import { go } from '../../lib/router';
@@ -635,6 +635,16 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
       </div>
     ) : null;
 
+  /** "Claude Code did not answer within 60 s" - what went wrong with her model, and what to do */
+  const failWhy = (x: ChatTurn) => {
+    const f = failureOf((x.warnings ?? []) as never);
+    if (!f) return null;
+    const provider = providerName(f.provider);
+    if (f.code === 'timeout') return t('ce.off.why.timeout', { provider, s: f.seconds ?? 60 });
+    if (f.code === 'auth-expired' || f.code === 'not-logged-in') return t('ce.off.why.expired', { provider });
+    return t('ce.off.why.failed', { provider });
+  };
+
   const aiTurn = (x: ChatTurn) => {
     const st = states[x.id];
     const off = offlineFrom({ warnings: x.warnings ?? [] });
@@ -656,7 +666,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     } else if (st === 'draft' && x.proposals.length) body = changeCard(x);
     else if (x.proposals.length) body = st === 'applied' && x.id === newestChange && !conflict[x.id] ? appliedCard(x) : doneLine(x);
     else if (off && x.id === lastAi?.id)
-      body = <FallbackCard q={x.text ?? ''} failed={off === 'llm-failed'} primary={primary === 'connect'} onTool={(k) => void openCard(k)} onSay={(s) => void send(s)} onConnect={() => go({ name: 'aiAccounts' })} onRetry={() => void send(x.text ?? '')} />;
+      body = <FallbackCard q={x.text ?? ''} failed={off === 'llm-failed'} why={failWhy(x)} primary={primary === 'connect'} onTool={(k) => void openCard(k)} onSay={(s) => void send(s)} onConnect={() => go({ name: 'aiAccounts' })} onRetry={() => void send(x.text ?? '')} />;
     return (
       <div className={`cc-ai ${hot === x.id ? 'hot' : ''}`} data-turn={x.id} data-testid="chat-ai">
         <span className="av">
