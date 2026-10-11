@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""TESTS ONLY: a stand-in for `codex exec --json ... --output-last-message F -` (vstudio.agentlog tests)."""
+import json
+import sys
+
+args = sys.argv[1:]
+prompt = sys.stdin.read()
+last = args[args.index("--output-last-message") + 1]
+for ev in [
+    dict(type="thread.started", thread_id="th1"),
+    dict(type="turn.started"),
+    dict(type="item.completed", item=dict(id="i0", type="reasoning", text="**Planning** the cut list")),
+    dict(type="item.started", item=dict(id="i1", type="command_execution", command="ls clips", status="in_progress")),
+    dict(type="item.completed", item=dict(id="i1", type="command_execution", command="ls clips",
+                                          aggregated_output="a.mp4\nb.mp4\nOPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwx", exit_code=0)),
+    dict(type="item.completed", item=dict(id="i2", type="agent_message", text='{"ok": true}')),
+    dict(type="turn.completed", usage=dict(input_tokens=300, output_tokens=20)),
+]:
+    print(json.dumps(ev), flush=True)
+with open(last, "w") as f:
+    f.write('{"ok": true}')

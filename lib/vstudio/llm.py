@@ -53,6 +53,9 @@ commas) + ONE repair retry that shows the model its broken reply. ``r["json"]`` 
 
 Retries: transient errors (429, 5xx, overloaded, connection resets, timeouts of API calls) are retried
 ``retries`` times with backoff; auth / bad-request errors and CLI timeouts are not.
+Live transcript: with env ``VSTUDIO_AGENT_LOG`` set (the desk does, per job) every call writes its turn, the head of
+the prompt, what the CLIs stream (``claude --output-format stream-json --verbose``, ``codex exec --json``: thinking,
+tool calls, replies) and its result there, redacted (``vstudio.agentlog``); without it nothing changes.
 Cost: ``PRICES`` (USD per million tokens) x usage for API providers (unknown API models: 2.5 / 10, flagged
 ``cost_estimated``); local servers and subscription CLIs cost 0 here (the CLI's notional figure is kept in
 ``usage["notional_cost_usd"]``).
@@ -66,10 +69,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+
+from . import agentlog
+
+_live = threading.local()          # the live transcript's turn of the call running on this thread (agentlog)
 
 TASKS = ("segment_plan", "proofread", "glossary", "copy", "script", "planner", "intake", "output_edit", "test")
 
@@ -592,17 +600,23 @@ def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
         cmd += ["--model", model]
     if isinstance(schema, dict):
         cmd += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
+    live = agentlog.active()
+    if live:                                   # the live pane: the same call, its events streamed as they come
+        k = cmd.index("--output-format") + 1
+        cmd[k:k + 1] = ["stream-json", "--verbose"]
     with tempfile.TemporaryDirectory(prefix="vstudio-llm-") as tmp:
+        env = strip_claude_session_env(_cli_env(CLI_STRIP_ENV, opts))
         try:
-            r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               cwd=tmp, timeout=timeout,
-                               env=strip_claude_session_env(_cli_env(CLI_STRIP_ENV, opts)))
+            if live:
+                turn = getattr(_live, "turn", None)
+                r = agentlog.run_streaming(cmd, prompt, tmp, env, timeout,
+                                           agentlog.json_lines(lambda ev: agentlog.claude_event(ev, turn)))
+            else:
+                r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                                   errors="replace", cwd=tmp, timeout=timeout, env=env)
         except subprocess.TimeoutExpired as e:
             raise LLMError(f"claude CLI timed out after {timeout} s") from e
-    try:
-        d = json.loads(r.stdout or "")
-    except ValueError:
-        d = None
+    d = _claude_result(r.stdout, live)
     if not isinstance(d, dict):
         raise LLMError(f"claude CLI failed (exit {r.returncode}): {(r.stderr or r.stdout or '').strip()[:300]}")
     if d.get("is_error") or r.returncode:
@@ -620,6 +634,27 @@ def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
         usage["notional_cost_usd"] = d["total_cost_usd"]
     mu = list((d.get("modelUsage") or {}).keys())
     return text, usage, model or (mu[0] if mu else "claude-code-default")
+
+
+def _claude_result(stdout, stream):
+    """The CLI's answer document: the JSON (``--output-format json``) or the last ``result`` event of a stream."""
+    if not stream:
+        try:
+            return json.loads(stdout or "")
+        except ValueError:
+            return None
+    d = None
+    for ln in (stdout or "").splitlines():
+        ln = ln.strip()
+        if not ln.startswith("{"):
+            continue
+        try:
+            ev = json.loads(ln)
+        except ValueError:
+            continue
+        if isinstance(ev, dict) and ev.get("type") == "result":
+            d = ev
+    return d
 
 
 def _nullable(s):
@@ -713,8 +748,13 @@ def _codex_run(exe, system, prompt, model, schema, timeout, opts):
         cmd.append("-")                                    # prompt from stdin
         full = (f"{system}\n\n---\n\n{prompt}" if system else prompt)
         try:
-            r = subprocess.run(cmd, input=full, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               cwd=tmp, timeout=timeout, env=_cli_env(CODEX_STRIP_ENV, opts))
+            if agentlog.active():              # the live pane: codex's JSON events as they come
+                turn = getattr(_live, "turn", None)
+                r = agentlog.run_streaming(cmd, full, tmp, _cli_env(CODEX_STRIP_ENV, opts), timeout,
+                                           agentlog.json_lines(lambda ev: agentlog.codex_event(ev, turn)))
+            else:
+                r = subprocess.run(cmd, input=full, capture_output=True, text=True, encoding="utf-8",
+                                   errors="replace", cwd=tmp, timeout=timeout, env=_cli_env(CODEX_STRIP_ENV, opts))
         except subprocess.TimeoutExpired as e:
             raise LLMError(f"codex CLI timed out after {timeout} s") from e
         text = open(last, encoding="utf-8").read() if os.path.exists(last) else ""
@@ -1053,9 +1093,18 @@ def _complete(task, system, prompt, schema=None, provider=None, model=None, max_
             if isinstance(v, (int, float)):
                 out["usage"][k] = out["usage"].get(k, 0) + v
 
-    text, u, used = call(sysp, prompt)
+    turn = agentlog.begin(task, p, mdl, sysp, prompt)
+    _live.turn, t0 = turn, time.time()
+    try:
+        text, u, used = call(sysp, prompt)
+    except Exception as e:
+        agentlog.fail(turn, e, p)
+        _live.turn = None
+        raise
     add(u)
     out["text"], out["model"] = text or "", used or mdl
+    if turn is not None and p not in CLI_PROVIDERS and out["text"].strip():
+        agentlog.emit("say", out["text"], turn=turn, provider=p)     # an API model: its whole reply at once
     if schema:
         try:
             out["json"] = parse_json(out["text"])
@@ -1072,6 +1121,8 @@ def _complete(task, system, prompt, schema=None, provider=None, model=None, max_
                     out["json"] = None
     out["cost_usd"] = cost_usd(p, out["model"], out["usage"], prices)
     out["cost_estimated"] = p not in LOCAL and not price_of(out["model"], prices)[1]
+    agentlog.finish(turn, out, time.time() - t0)
+    _live.turn = None
     return out
 
 

@@ -11,6 +11,9 @@ os.environ.setdefault("VSTUDIO_HOME", tempfile.mkdtemp(prefix="vstudio-home-"))
 # CLI lookup: PATH only (tests mock shutil.which; the real ~/.local/bin/claude must not be found)
 os.environ["VSTUDIO_CLI_EXTRA_DIRS"] = ""
 
+# the live transcript (vstudio.agentlog) is off unless a test turns it on
+os.environ.pop("VSTUDIO_AGENT_LOG", None)
+
 
 import pytest  # noqa: E402
 

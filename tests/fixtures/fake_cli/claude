@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""TESTS ONLY: a stand-in for `claude -p --output-format stream-json --verbose` (vstudio.agentlog tests). Prints the
+events a real Claude Code stream has (init, thinking, a tool call + its result, text, result), slowly when
+FAKE_CLI_DELAY is set, with a planted secret so the tests can see it redacted."""
+import json
+import os
+import sys
+import time
+
+prompt = sys.stdin.read()
+args = sys.argv[1:]
+stream = "stream-json" in args
+delay = float(os.environ.get("FAKE_CLI_DELAY") or 0)
+events = [
+    dict(type="system", subtype="init", model="claude-fake-1", session_id="s1", tools=[]),
+    dict(type="assistant", message=dict(content=[dict(type="thinking", thinking="Reading the request: " + prompt[:40])])),
+    dict(type="assistant", message=dict(content=[dict(type="tool_use", id="t1", name="Read",
+                                                      input=dict(file_path="/tmp/inventory.json"))])),
+    dict(type="user", message=dict(content=[dict(type="tool_result", tool_use_id="t1",
+                                                 content="27 entries; key sk-ant-api03-SECRETSECRETSECRET")])),
+    dict(type="assistant", message=dict(content=[dict(type="text", text="Two projects: a montage and three calm clips. Mail ops@example.com")])),
+]
+result = dict(type="result", subtype="success", is_error=False, result='{"projects": 2}',
+              structured_output={"projects": 2}, total_cost_usd=0.02,
+              usage=dict(input_tokens=1200, output_tokens=80), modelUsage={"claude-fake-1": {}})
+if os.environ.get("FAKE_CLI_FAIL"):
+    result = dict(type="result", subtype="error", is_error=True, result="401 token expired")
+if not stream:
+    print(json.dumps(result))
+    sys.exit(1 if result.get("is_error") else 0)
+for ev in events + [result]:
+    print(json.dumps(ev), flush=True)
+    time.sleep(delay)
+sys.exit(1 if result.get("is_error") else 0)
