@@ -80,6 +80,8 @@ export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDeci
   if (p.total && p.scheduled === 0) return { state: 'out', current: 'out', progress: 1, eta: null };
   if (p.total) return { state: 'scheduled', current: 'out', progress: 1, eta: null };
   if (s === 'done') return { state: 'ready', current: 'ready', progress: 1, eta: null };
+  // a plain work folder (made by hand or by an agent, found in a watched folder): nothing runs or waits for it
+  if (i.kind === 'work') return { state: 'ready', current: 'ready', progress: 1, eta: null };
   return { state: 'idle', current: at ?? 'plan', progress, eta };
 }
 

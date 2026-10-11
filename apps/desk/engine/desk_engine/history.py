@@ -150,12 +150,28 @@ def summarize_project(pdir):
 
 
 # ------------------------------------------------------------------ discovery
+def is_store(d):
+    """A Reelfold home / cache folder (an isolated ``VSTUDIO_HOME`` like ``_vhome``, a ``VSTUDIO_CACHE``): the
+    engine's own store, never a project of hers."""
+    try:
+        names = set(os.listdir(d))
+    except OSError:
+        return False
+    if "persona.local.yaml" in names and names & {"projects", "series", "create", "clients", "recordings",
+                                                  "projects.json", "batches.json"}:
+        return True
+    return len(names & {"tts", "intake", "asr", "fonts", "hf"}) >= 2
+
+
 def scan_folder(root, depth=2):
-    """The folder and up to ``depth`` levels below it: -> [(kind, dir)] for batch.db / project.yaml."""
+    """The folder and up to ``depth`` levels below it: -> [(kind, dir)] for batch.db / project.yaml (Reelfold
+    home / cache folders skipped: ``is_store``)."""
     root = os.path.abspath(os.path.expanduser(root))
     found = []
 
     def visit(d, level):
+        if level > 0 and is_store(d):
+            return
         if os.path.exists(os.path.join(d, "project.yaml")):
             found.append(("project", d))
             return
