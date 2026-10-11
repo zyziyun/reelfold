@@ -95,6 +95,33 @@ def voice_failure(text):
     return None
 
 
+# the explainer's voice step (workflows/explainer/scripts/tts.py): every take of a line left out a sentence ->
+# "TTS dropped sentences after retries (...):\n  line 02: ['地基先打好：Tool Calling。']" (one row per line)
+_VOICE_DROPPED = re.compile(r"TTS dropped sentences after retries")
+_DROPPED_ROW = re.compile(r"^\s*line (\d+): \[(.*)\]\s*$", re.M)
+_QUOTED = re.compile(r"'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"")
+
+
+def voice_dropped(text):
+    """The voice kept leaving out a sentence -> {code: "stage-voice-dropped", params: {line (scene number), sentence
+    (the first one left out), lines (how many scenes), fix: "rephrase-line"}}; else None."""
+    t = str(text or "")
+    m = _VOICE_DROPPED.search(t)
+    if not m:
+        return None
+    rows = _DROPPED_ROW.findall(t[m.end():])
+    if not rows:
+        return dict(code="stage-voice-dropped", params=dict(fix="rephrase-line"))
+    n, quoted = rows[0]
+    q = _QUOTED.search(quoted)
+    sentence = (q.group(1) if q and q.group(1) is not None else q.group(2) if q else quoted).strip()
+    sentence = sentence.rstrip("。．.！!？?；; ")             # the words' own end mark: the message adds its own
+    if len(sentence) > 80:
+        sentence = sentence[:79].rstrip() + "…"
+    return dict(code="stage-voice-dropped",
+                params=dict(line=str(int(n)), sentence=sentence, lines=str(len(rows)), fix="rephrase-line"))
+
+
 # a paid service without its key (vstudio.tts.MissingKey "No OpenAI key: OPENAI_API_KEY is not set ...", or an older
 # "OPENAI_API_KEY is not set in the environment"): the service by name, never the env var / a traceback
 _KEY_MISSING = re.compile(r"\bNo ([A-Za-z][\w .-]{1,30}?) key: ([A-Z][A-Z0-9_]*_API_KEY) is not set|"
@@ -187,13 +214,15 @@ def media_failure(text):
 
 def tool_failure(text):
     """An error caused by a missing / broken external tool -> {code: "tool-node" | "tool-ffmpeg",
-    params: {tool, fix}}; a missing API key -> key_failure(); the free voice not downloaded -> voice_failure(); a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
+    params: {tool, fix}}; a missing API key -> key_failure(); the free voice not downloaded -> voice_failure(); a voice that kept leaving out a sentence ->
+    voice_dropped(); a known stage failure -> {code: "stage-script-format", params: {fix}}; an ffmpeg error the
     app caused (APP_BUG: no such filter / unknown encoder ...) -> {code: "app-bug", params: {}}; ffmpeg could not
     open / read an input -> media_failure(); else None.
-    fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script | download-voice."""
+    fix: brew-reinstall-node | install-node | reinstall-app | install-ffmpeg | draft-script | download-voice |
+    rephrase-line."""
     t = str(text or "")
     low = t.lower()
-    key = key_failure(t) or voice_failure(t)
+    key = key_failure(t) or voice_failure(t) or voice_dropped(t)
     if key:
         return key
     for rx, code, fix in _KNOWN:

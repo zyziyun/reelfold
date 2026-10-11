@@ -43,6 +43,23 @@ class ToolFailureKeepsItsCode(unittest.TestCase):
         self.assertEqual(fail["stage"], "build")
         self.assertEqual(pilot.classify("ModuleNotFoundError: No module named 'vstudio'"), "engine")
 
+    def test_the_voice_leaving_out_a_sentence_keeps_its_scene_and_sentence(self):
+        """Dogfood 2026-10-11: the page said only "Something went wrong" when the voice left out a sentence."""
+        from desk_engine import pilot
+        d = tempfile.mkdtemp()
+        ev = dict(event="stage-fail", job="ep1", stage="voice", code="stage-voice-dropped",
+                  params=dict(line="2", sentence="地基先打好：Tool Calling", lines="1", fix="rephrase-line"),
+                  error="RuntimeError: tts.py exit 1:\nTTS dropped sentences after retries (...):\n  line 02: ['x']")
+        with open(os.path.join(d, pilot.LOG), "w", encoding="utf-8") as f:
+            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        with open(os.path.join(d, pilot.REC), "w", encoding="utf-8") as f:
+            json.dump(dict(pid=None, started=1.0, offset=0, exit=1, finished=2.0), f)
+        fail = pilot.failure(d)
+        self.assertEqual(fail["code"], "stage-voice-dropped")
+        self.assertEqual(fail["params"]["sentence"], "地基先打好：Tool Calling")
+        self.assertEqual(fail["params"]["fix"], "rephrase-line")
+        self.assertEqual(fail["stage"], "voice")
+
 
 if __name__ == "__main__":
     unittest.main()
