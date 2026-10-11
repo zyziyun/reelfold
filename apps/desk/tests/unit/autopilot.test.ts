@@ -100,6 +100,9 @@ describe('decisions in words', () => {
     expect(tk(w.key, w.params)).toBe('Cut 3 unsure filler words, kept 1');
     expect(tk(decisionWords({ checkpoint: 'hook', item: 'c1', kind: 'hook-pick', params: { pick: -1 } }).key)).toMatch(/No cold open/);
     expect(tk(decisionWords({ checkpoint: 'cover', item: 'c1', kind: 'cover-pick', params: { pick: 0 } }).key, { n: 1 })).toBe('Cover: frame 1');
+    const mw = decisionWords({ checkpoint: 'music', item: 'c1', kind: 'music-pick', params: { pick: 0, title: 'Slow pad with sparse piano' } });
+    expect(tk(mw.key, mw.params)).toBe('Music: Slow pad with sparse piano');
+    expect(tk(decisionWords({ checkpoint: 'music', item: 'c1', kind: 'music-pick', params: { pick: 3, title: null } }).key)).toBe('No music');
     setLang('zh-CN');
     expect(tk(w.key, w.params)).toBe('剪掉 3 处拿不准的口癖，保留 1 处');
     setLang('fr');

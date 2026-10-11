@@ -149,6 +149,11 @@ export function decisionWords(d: AutopilotDecision): { key: string; params: Reco
       return n('pick') < 0 || p.pick === undefined ? { key: 'ap.d.hookNone', params: {} } : { key: 'ap.d.hook', params: { n: n('pick') + 1 } };
     case 'cover-pick':
       return { key: 'ap.d.cover', params: { n: n('pick') + 1 } };
+    case 'music-pick': {
+      // the library track the engine picked for her words (or none): Change offers the other fits in the Inbox
+      const title = typeof p.title === 'string' ? p.title : '';
+      return title ? { key: 'ap.d.music', params: { title } } : { key: 'ap.d.musicNone', params: {} };
+    }
     case 'publish':
     case 'review':
       return { key: 'ap.d.approved', params: {} };

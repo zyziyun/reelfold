@@ -8,7 +8,18 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Added
+
+- **Vlog music is picked for you**: a vlog without your own track gets the best fit for your words and the style
+  from the license-free library (your `~/Music/Reelfold` tracks, else Reelfold's built-in beds), laid under the
+  picture at -14 LUFS. On autopilot it is a decision you can change; with Ask me first you pick from three tracks
+  or no music. A CC BY track's credit is added to the post copy.
+
 ### Fixed
+
+- **Vlog export** stopped at "Missing: 'out.music.master'": the export read the music step without depending on
+  it. It now does, a recipe that reads a step it does not depend on is rejected, and Try again on such a project
+  finishes it without re-rendering.
 
 - **Vlog, talking-head, photo-story and promo renders in the app**: the bundled ffmpeg is LGPL and has no `eq`,
   `hqdn3d` or `boxblur`, so a graded render stopped at "No such filter". Grades are now built from LGPL filters

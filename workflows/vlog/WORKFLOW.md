@@ -120,6 +120,13 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    same way, and record whatever credit its licence requires in `music/ATTRIBUTION.txt`.
    Music taste is subjective: deliver one, offer named swaps from a different cheatsheet row
    ("too cheerful" / "too epic" -> change family, not track).
+   **In a project (the app / `vstudio.project`)** the `music` checkpoint picks the track: the
+   three best fits for the request and the style from the local license-free library
+   (`python -m vstudio.music list`: your tracks in `~/Music/Reelfold` / persona `music.dirs`, a
+   `*_KevinMacLeod.mp3` from `fetch_music.sh` included, then the built-in beds Reelfold generates,
+   MIT) + "no music". Autopilot takes the best fit (a decision she can change); Ask me first offers
+   the list. A built-in is generated to the master's length; a CC BY track's credit goes into every
+   platform's post copy. No network fetch: put catalog tracks in the music folder first.
 
 8. **Deliver.** A native-4K master is large (~1.8 GB per ~3 min). Offer a smaller visually-lossless
    4K or high-bitrate 1080p (commands in recipes.md). State duration, resolution, file size, and list

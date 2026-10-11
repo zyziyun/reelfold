@@ -98,8 +98,8 @@ stages:
     resource: cpu
     deps: [render]
     fn: vstudio.project.adapters.vlog:music
-    keys: [platforms]
-    produces: [out/vlog_music.mp4 (calm + a music input)]
+    keys: [platforms, music_pick]
+    produces: [out/vlog_music.mp4 (calm + your track or the picked library track; credit -> post copy if CC BY)]
     preview: {kind: video, path: "out:master"}
   - id: cover_frames
     resource: cpu
@@ -115,7 +115,8 @@ stages:
     run:
       argv: ["{python}", "-m", "vstudio.export", "{out.music.master}", "--platforms", "{platforms_csv}", "--out",
              "{item_dir}/exports", "--mode", "pad-blur", "--preset", "{preset}",
-             {if: cover.file, args: ["--cover", "{cover.file}"]}, {if: title, args: ["--title", "{title}"]}]
+             {if: cover.file, args: ["--cover", "{cover.file}"]}, {if: title, args: ["--title", "{title}"]},
+             {if: out.music.post, args: ["--post", "{out.music.post}"]}]
       files: ["{item_dir}/exports/manifest.json"]
     produces: ["exports/<platform>-<orientation>.mp4 + cover"]
 checkpoints:
@@ -138,6 +139,22 @@ checkpoints:
       type: object
       properties: {done: {type: boolean}, content: {type: string}}
     auto: never
+  - id: music
+    kind: music-pick
+    scope: item
+    after: render
+    blocks: [music]
+    labels: {zh: "选配乐", en: "Pick the music"}
+    help:
+      zh: 从免版权曲库（你的 ~/Music/Reelfold 或内置配乐）里按你的描述和风格挑了最合适的三首，或不配乐
+      en: The three best fits for your words and the style from the license-free library (your ~/Music/Reelfold or the built-in beds), or no music
+    payload: vstudio.project.adapters.vlog:music_payload
+    apply: vstudio.project.adapters.vlog:music_apply
+    answer:
+      type: object
+      properties: {pick: {type: integer, minimum: 0}}
+      required: [pick]
+    auto: default
   - id: cover
     kind: cover-pick
     scope: item
@@ -171,5 +188,5 @@ agent:
   edit_files: ["{item_dir}/work/edit.json"]
 gaps:
   - Window / shot selection from the contact sheets is agent / human work (no automatic picker).
-  - Music pick (fetch_music.sh, CC-BY catalog) is manual; the scrapbook cover (make_cover.py) needs Chrome and is replaced here by a frame + text cover.
+  - The music is picked from the local license-free library only (your music folders + the built-in beds); a CC-BY catalog track (fetch_music.sh) is used once it sits in ~/Music/Reelfold. Calm cuts are fixed before the music (no beat alignment); the fun style cuts to the edit's own music. The scrapbook cover (make_cover.py) needs Chrome and is replaced here by a frame + text cover.
 capabilities: [grade, transitions, beat-cuts, sfx, pops, music, cover, export]

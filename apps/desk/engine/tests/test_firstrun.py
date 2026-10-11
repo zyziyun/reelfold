@@ -91,6 +91,8 @@ class EngineAnswerTest(unittest.TestCase):
         self.assertEqual(IB.engine_answer("hook-pick", ticks([2], [0, 1])), dict(pick=2))
         self.assertIsNone(IB.engine_answer("hook-pick", ticks([0, 1, 2])))             # untouched: the default
         self.assertEqual(IB.engine_answer("cover-pick", ticks([1])), dict(pick=1))
+        self.assertEqual(IB.engine_answer("music-pick", ticks([2], [0, 1, 3])), dict(pick=2))   # a track / no music
+        self.assertEqual(IB.GROUP["music-pick"], "choose")
         self.assertEqual(IB.engine_answer("publish", ticks([0, 1])), dict(approve=True))
         self.assertEqual(IB.engine_answer("publish", ticks([], [0])), dict(approve=False))
         self.assertEqual(IB.engine_answer("filler-confirm", ticks([0, 2], [1])), dict(approve=[0, 2], keep=[1]))

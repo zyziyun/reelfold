@@ -145,6 +145,17 @@ def rules(cp, pay, spend_cap=0.0):
                      pick=pick)
     if kind == "cover-pick":
         return _rule("cover-best", "the best-scored frame", default, pick=int((default or {}).get("pick", 0)))
+    if kind == "music-pick":
+        # the library track that fits her words + the style best (or none when she asked for none): one she can
+        # Change (the Inbox then offers the other tracks)
+        k = int((default or {}).get("pick", 0))
+        opts = pay.get("options") or []
+        o = opts[k] if 0 <= k < len(opts) else {}
+        track = o.get("kind") == "track"
+        return _rule("music-fit" if track else "music-none", pay.get("default_reason") or (
+            "the best fit in the music library" if track else "no music"), default, pick=k,
+            title=o.get("title") if track else None, mood=o.get("mood"), license=o.get("license"),
+            n=len([x for x in opts if x.get("kind") == "track"]))
     return _rule("default", "the suggested answer", default)
 
 

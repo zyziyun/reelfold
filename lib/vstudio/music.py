@@ -329,9 +329,84 @@ def tracks(mood=None):
                 p = os.path.join(root, fn)
                 sc = _sidecar(p)
                 m = sc.get("mood") if sc.get("mood") in STYLES else mood_of(sc.get("title") or fn, default="calm")
-                out.append(dict(id=p, title=sc.get("title") or os.path.splitext(fn)[0], mood=m, source="file", path=p,
-                                license=sc.get("license") or "yours (check you may use it)", origin=sc.get("source")))
+                t = dict(id=p, title=sc.get("title") or os.path.splitext(fn)[0], mood=m, source="file", path=p,
+                         license=sc.get("license") or "yours (check you may use it)", origin=sc.get("source"))
+                for k in ("artist", "bpm", "attribution"):
+                    if sc.get(k):
+                        t[k] = sc[k]
+                stem = os.path.splitext(fn)[0]
+                if not sc.get("license") and stem.endswith("_KevinMacLeod"):     # fetch_music.sh (incompetech)
+                    t.update(title=sc.get("title") or stem[:-len("_KevinMacLeod")].replace("_", " "),
+                             artist="Kevin MacLeod", license="CC BY 4.0", origin="incompetech.com")
+                t["credit"] = credit(t)
+                out.append(t)
     return [t for t in out if mood is None or t["mood"] == mood]
+
+
+def needs_credit(track):
+    """A licence that asks for attribution (CC BY / CC BY-SA ...; not CC0, not the built-ins)."""
+    lic = str((track or {}).get("license") or "").lower().replace("-", " ")
+    return "cc by" in lic or "attribution" in lic
+
+
+def credit(track):
+    """The credit line a track's licence asks for in the post copy (None when it asks for none)."""
+    t = track or {}
+    if t.get("attribution"):
+        return str(t["attribution"])
+    if not needs_credit(t):
+        return None
+    who = f" by {t['artist']}" if t.get("artist") else ""
+    src = f" ({t['origin']})" if t.get("origin") else ""
+    lic = str(t.get("license"))
+    url = " (https://creativecommons.org/licenses/by/4.0/)" if "4.0" in lic and "by" in lic.lower() else ""
+    return f'Music: "{t.get("title")}"{who}{src}, licensed under {lic}{url}'
+
+
+# words that say what a piece should feel like, beyond the mood keywords: (word, {mood: weight})
+VIBES = [
+    (("高级", "高端", "质感", "premium", "elegant", "classy", "luxury", "大片"), {"story": 3, "calm": 2}),
+    (("秋", "红叶", "枫", "落叶", "autumn", "fall foliage", "foliage", "maple"), {"story": 3, "warm": 2, "calm": 1}),
+    (("航拍", "drone", "aerial", "风景", "landscape", "scenery", "旅行", "travel"), {"story": 2, "calm": 2}),
+    (("海", "ocean", "beach", "夏", "summer", "sunny"), {"bright": 2, "calm": 1}),
+    (("night", "夜", "rain", "雨", "snow", "雪", "冬", "winter"), {"story": 2, "calm": 1}),
+]
+# what a vlog style asks of its bed: calm = slow crossfades (no drums), fun = a beat to cut on
+STYLE_PRIOR = {"calm": {"calm": 2, "story": 2, "warm": 1}, "fun": {"bright": 3, "tech": 1, "warm": 1}}
+NO_MUSIC = ("不要音乐", "不要配乐", "无配乐", "没有音乐", "不用配乐", "不配乐", "不加音乐", "no music", "without music",
+            "silent", "no soundtrack")
+
+
+def wants_none(text):
+    t = str(text or "").lower()
+    return any(k in t for k in NO_MUSIC)
+
+
+def rank(text="", style=None, n=None):
+    """The library ranked for a request: ``text`` (her words, the title), ``style`` (a vlog style: calm / fun) ->
+    tracks, best first, each with ``score`` and ``why`` (the words that matched). Your own files of a fitting mood
+    come before the built-in of that mood."""
+    t = str(text or "").lower()
+    score, why = {m: 0.0 for m in STYLES}, {m: [] for m in STYLES}
+    for m, kws in KEYWORDS.items():
+        for k in kws:
+            if k in t:
+                score[m] += 1.0 + 0.2 * len(k)
+                why[m].append(k)
+    for words, w in VIBES:
+        hit = [k for k in words if k in t]
+        if hit:
+            for m, x in w.items():
+                score[m] += x
+                why[m].append(hit[0])
+    for m, x in (STYLE_PRIOR.get(style or "") or {}).items():
+        score[m] += x
+    out = []
+    for tr in tracks():
+        s = score.get(tr["mood"], 0.0) + (0.5 if tr["source"] == "file" else 0.0)
+        out.append(dict(tr, score=round(s, 2), why=list(dict.fromkeys(why.get(tr["mood"]) or []))))
+    out.sort(key=lambda x: (-x["score"], 0 if x["source"] == "file" else 1, moods().index(x["mood"])))
+    return out[:n] if n else out
 
 
 def _key(mood, duration, seed):
