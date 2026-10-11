@@ -42,8 +42,9 @@ voices/<id>.safetensors - the desk app downloads one, see apps/desk/packaging/as
 ``tts.kokoro_model``, else the Hugging Face repo DEFAULT_MODEL["kokoro"] (mlx-audio downloads it). With a local folder
 nothing is fetched; a voice it lacks is an error naming the voices it has. VSTUDIO_TTS_MODELS_MANAGED=1 (the app): the
 voice is never fetched by the engine - without VSTUDIO_KOKORO_MODEL it raises ``VoiceNotDownloaded``.
-Without espeak-ng (the app's runtime: GPL, not bundled) English words missing from misaki's dictionaries are skipped. Kokoro reads Chinese only (English terms inside a Chinese sentence
-come out garbled): for 中文讲解 with English terms use ``clone`` (Qwen3-TTS reads both) or edge.
+Without espeak-ng (the app's runtime: GPL, not bundled) an English word missing from misaki's dictionaries is spelled
+from its known pieces / letters (vstudio.kokoro_g2p.SpellFallback). A Mandarin voice reads the English terms of a
+中文讲解 (MCP, Tool Calling, API) with misaki's English G2P, acronyms letter by letter (vstudio.kokoro_g2p).
 Unified from preproduction ``make_drill.tts/pick_engine/to_wav``, explainer ``tts.py`` (urllib
 OpenAI call with per-line direction), photo-story ``tts.main.synth`` (cache by text+voice+instructions).
 """

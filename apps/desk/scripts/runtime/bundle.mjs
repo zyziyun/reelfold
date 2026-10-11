@@ -9,7 +9,7 @@
 // patch_mlx_whisper.py), no "itms-services" in urllib.parse. scripts/appstore/appstore_lint.py checks the result.
 // The free offline voice (Apple silicon): Kokoro-82M via mlx-audio + misaki, without espeak-ng (GPL) or num2words
 // (LGPL) - patch_kokoro.py; its weights are a first-run download (packaging/assets.json tts-kokoro), and verify
-// synthesises a Chinese and an English sentence with them (--skip=voice: not).
+// synthesises a Chinese sentence with English terms and an English sentence with them (--skip=voice: not).
 // Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio,verify,voice]
 // The pip step runs the target's own interpreter, so build on a host of the target's OS/arch (CI matrix does).
 import fs from 'node:fs';
@@ -269,7 +269,7 @@ async function verifyVoice(env) {
   run(pyExe(), ['-c', [
     'import wave; from vstudio import tts',
     'assert tts.local_engine() == "kokoro" and tts.kokoro_ready(), tts.providers(probe=False)',
-    'for text, voice in (("你好，欢迎来到这门课。", "zf_xiaobei"), ("Welcome back. In 2024 we shipped 3 features.", "af_heart")):',
+    'for text, voice in (("你好，欢迎来到这门课：MCP 和 Tool Calling。", "zf_xiaobei"), ("Welcome back. In 2024 we shipped 3 features.", "af_heart")):',
     '    w = wave.open(tts.synth(text, engine="kokoro", voice=voice)); s = w.getnframes() / w.getframerate()',
     '    assert 1.0 < s < 15.0, (voice, s); print("voice ok", voice, round(s, 2), "s")',
   ].join('\n')], { env: venv });

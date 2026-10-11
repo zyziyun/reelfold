@@ -9,6 +9,9 @@ coverage score (share of its words found in order). A sentence under --min-cover
 
 Chinese narration (中文讲解, script_md.narration_lang) is checked the same way on zhtext tokens (one per character,
 English term or number; Chinese numerals as digits) with sentences split after 。！？, and the ASR runs in Chinese.
+There tokens are compared by sound (zhtext.sound_keys: pinyin, so 调用 / 掉用 match), acronyms letter by letter
+whatever way the ASR writes them ("MCP" / "M.C.P." / "Mcp"), and a letter the ASR wrote for a syllable ("DG" for
+地基) by its Mandarin name.
 
 Usage:  python3 vo_check.py [--project .] [LINE ...] [--min-cover 0.5] [--backend auto] [--model ...]
 Reads   <project>/SCRIPT.md, <project>/audio/vo/lineNN.wav (ASR via vstudio.asr, cached next to each wav)
@@ -53,7 +56,14 @@ def check(script, heard, min_cover=MIN_COVER, lang=None):
     """Align ``heard`` (ASR text of the take) to ``script`` (the line's spoken text).
     ``lang``: "zh" | "en" (default: the script's). Returns dict(ratio, sentences=[{text, cover, missing}], missing=[...])."""
     zh = (lang or text_lang(script)) == "zh"
-    split, tok = (zhtext.sentences, zhtext.tokens) if zh else (sentences, norm_tokens)
+    if zh:
+        spelled = zhtext.acronyms(script)
+
+        def tok(t):
+            return zhtext.sound_keys(zhtext.tokens(t, letters=True, spelled=spelled))
+        split = zhtext.sentences
+    else:
+        split, tok = sentences, norm_tokens
     sents = split(script)
     toks, owner = [], []
     for i, s in enumerate(sents):

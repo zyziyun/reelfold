@@ -7,6 +7,7 @@ Why not ``python -m mlx_audio.tts.generate``: that CLI imports its audio player 
 take, and with a local model folder it still resolves voices through the Hugging Face hub. Here the model type is
 named (a folder of any name loads), a voice file is used as is, and nothing but mlx-audio + misaki is imported - the
 same set the app's runtime bundles (Mac App Store: no audio device, no network). Writes 24 kHz mono 16-bit wav.
+Mandarin voices read English terms as English and long lines in pieces that fit the model (vstudio.kokoro_g2p).
 """
 import argparse
 import os
@@ -20,12 +21,38 @@ def synth(text, model, voice, lang=None, speed=1.0):
     from mlx_audio.tts.utils import load_model
 
     m = load_model(model, model_type="kokoro")      # named: a folder of any name (an HF snapshot hash) loads
+    lang = lang or "a"
+    if lang == "z":
+        text = "\n".join(mandarin(m, text))
+    elif lang in "ab":
+        english(m, lang)
     chunks = [np.asarray(r.audio, dtype=np.float32).reshape(-1)
-              for r in m.generate(text=text, voice=voice, speed=float(speed), lang_code=lang or "a")]
+              for r in m.generate(text=text, voice=voice, speed=float(speed), lang_code=lang, split_pattern=r"\n+")]
     chunks = [c for c in chunks if c.size]
     if not chunks:
         raise SystemExit("kokoro produced no audio (empty text, or every word was out of the dictionary)")
     return np.concatenate(chunks), int(m.sample_rate)
+
+
+def mandarin(m, text):
+    """Mandarin: English terms read as English (kokoro_g2p.MixedZhG2P on the model's "z" pipeline) and the text cut
+    into pieces that fit Kokoro's 510-phoneme window -> the pieces (one per generate segment)."""
+    from vstudio.kokoro_g2p import MixedZhG2P, chunks
+    if not hasattr(m, "_get_pipeline"):
+        raise SystemExit("mlx-audio's Kokoro model changed (no _get_pipeline): update vstudio/kokoro_synth.py")
+    pipe = m._get_pipeline("z")
+    if not isinstance(pipe.g2p, MixedZhG2P):
+        pipe.g2p = MixedZhG2P(pipe.g2p)
+    return chunks(" ".join(text.split("\n")), lambda s: len(pipe.g2p(s)[0]))
+
+
+def english(m, lang):
+    """English voices: a word in no dictionary is spelled (kokoro_g2p.SpellFallback) instead of skipped - the app's
+    runtime has no espeak-ng fallback (GPL)."""
+    from vstudio.kokoro_g2p import SpellFallback
+    g2p = m._get_pipeline(lang).g2p
+    if getattr(g2p, "fallback", None) is None and hasattr(g2p, "lexicon"):
+        g2p.fallback = SpellFallback(g2p.lexicon)
 
 
 def write_wav(path, samples, sr):

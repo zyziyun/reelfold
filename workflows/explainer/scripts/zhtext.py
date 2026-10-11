@@ -45,12 +45,50 @@ def digits(text):
     return NUM_RUN.sub(lambda m: cn_number(m.group(0)), text or "")
 
 
-def tokens(text):
-    """Comparable tokens of a Chinese (+ English terms) text."""
+ACRONYM = re.compile(r"(?<![A-Za-z])[A-Z]{2,5}(?![a-z])")
+
+
+def acronyms(text):
+    """All-caps words of ``text`` ("MCP", "API", "RAG"), lower-cased - spoken letter by letter."""
+    return {a.lower() for a in ACRONYM.findall(re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text or ""))}
+
+
+def tokens(text, letters=False, spelled=()):
+    """Comparable tokens of a Chinese (+ English terms) text.
+    ``letters``: an acronym is one token per letter ("MCP" -> m c p, as ASR may write "M.C.P." or "M C P"), and so is
+    any word in ``spelled`` (the script's acronyms, lower-cased: ASR writing "Mcp" / "rag" for "MCP" / "RAG")."""
     s = digits(text).replace("%", "百分之")
     s = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", s)   # "MCPServer" / "McpServer" -> two words
+    if letters:
+        s = ACRONYM.sub(lambda m: " ".join(m.group(0)), s)
     s = re.sub(r"(?<=\d),(?=\d{3}\b)", "", s).lower()
-    return TOKEN.findall(s)
+    out = TOKEN.findall(s)
+    if letters and spelled:
+        out = [c for t in out for c in (list(t) if t in spelled else [t])]
+    return out
+
+
+# how a Mandarin listener says a letter, as one pinyin syllable (ASR in Chinese writes "DG" for 地基 di ji)
+LETTER_SOUND = {"a": "ei", "b": "bi", "c": "xi", "d": "di", "e": "yi", "g": "ji", "i": "ai", "j": "jie", "k": "kai",
+                "n": "en", "o": "ou", "p": "pi", "q": "kiu", "t": "ti", "u": "you", "v": "wei", "y": "wai", "z": "zei"}
+
+
+def sound_keys(toks):
+    """Tokens -> how they sound: a CJK character -> its toneless pinyin (ASR homophones: 调用 / 掉用 both "diao"), a
+    single letter -> its Mandarin letter name, anything else as is. Without a pinyin backend: the tokens."""
+    try:
+        from vstudio.proofread import pinyin_of
+    except Exception:  # noqa: BLE001
+        return list(toks)
+    cjk = "".join(t for t in toks if len(t) == 1 and ord(t) > 0x2E80)
+    py = iter(pinyin_of(cjk) or [])
+    out = []
+    for t in toks:
+        if len(t) == 1 and ord(t) > 0x2E80:
+            out.append(next(py, t))
+        else:
+            out.append(LETTER_SOUND.get(t, t))
+    return out
 
 
 def sentences(text):
