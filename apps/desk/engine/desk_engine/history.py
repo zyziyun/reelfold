@@ -319,6 +319,7 @@ class History:
         self.reg = registry
         self.engine = engine
         self._lock = threading.Lock()
+        self._find_lock = threading.Lock()
         self._thumbs = set()
         self._thumbs_archived = set()
         self._media = set()
@@ -641,6 +642,7 @@ class History:
     def list(self, q=None, status=None, kind=None, type_=None, client=None, archived=False):
         """All projects (``archived=False``: the archived ones left out, counted in ``archived``) or only the archived
         ones (``archived=True``: same rows + ``archived: true, archived_at``)."""
+        begun = time.time()                         # the snapshot's age counts from when the folders were read
         self.prune()
         cfg = self._cfg()
         hidden = set(cfg.get("hidden") or [])
@@ -759,7 +761,7 @@ class History:
         for r in rows:
             r.pop("real", None)
         thumbs = {r["thumb"] for r in rows if r.get("thumb")}
-        snap = (time.time(), [dict(r) for r in rows[:MAX_ENTRIES]])
+        snap = (begun, [dict(r) for r in rows[:MAX_ENTRIES]])
         if archived:
             self._thumbs_archived, self._last_archived = thumbs, snap
             return dict(items=rows[:MAX_ENTRIES], watch=self.watch(), at=time.time(), running=running, archived=True)
@@ -782,12 +784,24 @@ class History:
         return dict(id=ent["id"], dir=store_dir, name=name)
 
     def find(self, item_id, max_age=3.0):
-        """One entry; the listing is reused for a few seconds (the output editor looks entries up per request)."""
+        """One entry; the listing is reused for a few seconds (the output editor looks entries up per request).
+        Lookups that miss at the same time share ONE new listing (the Studio asks for every recent project's clips at
+        once: 200 projects were 200 full listings, half a minute before the list showed)."""
+        asked = time.time()
         for archived in (False, True):              # an archived project still opens
-            cached = getattr(self, "_last_archived" if archived else "_last", None)
+            attr = "_last_archived" if archived else "_last"
+            cached = getattr(self, attr, None)
             rows = cached[1] if cached and time.time() - cached[0] < max_age else None
             if rows is None or not any(r["id"] == item_id for r in rows):
-                rows = self.list(archived=archived)["items"]
+                with self._find_lock:
+                    cached = getattr(self, attr, None)
+                    # listed by another lookup while this one waited: fresh enough and has it, or begun after this
+                    # one asked (as fresh as a listing of its own: not in it = not there)
+                    has = cached and any(r["id"] == item_id for r in cached[1])
+                    if cached and (cached[0] >= asked or (has and time.time() - cached[0] < max_age)):
+                        rows = cached[1]
+                    else:
+                        rows = self.list(archived=archived)["items"]
             for r in rows:
                 if r["id"] == item_id:
                     return dict(r)
