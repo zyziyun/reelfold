@@ -355,6 +355,9 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="plan and write the report only")
     ap.add_argument("--preset", default=None, help="x264 preset (default edit.json preset or medium)")
     ap.add_argument("--no-asr", action="store_true", help="never run whisper (transcript files / loudness only)")
+    ap.add_argument("--reframe-fallback", choices=["subject", "pad-blur", "center"],
+                    help="a shot without a face on another-shaped canvas: follow the subject (saliency) / the whole "
+                         "frame on a blurred fill / centre crop (default: edit.json reframe_fallback, else pad-blur)")
     a = ap.parse_args(argv)
 
     base = os.path.dirname(os.path.abspath(a.config))
@@ -362,6 +365,8 @@ def main(argv=None):
         cfg = json.load(f)
     if a.no_asr:
         cfg["asr"] = False
+    if a.reframe_fallback and "reframe_fallback" not in cfg:     # her edit.json wins
+        cfg["reframe_fallback"] = a.reframe_fallback
     out = os.path.join(base, os.path.expanduser(cfg.get("out", "fun_vlog.mp4")))
     os.makedirs(os.path.dirname(out), exist_ok=True)
     stem = os.path.splitext(out)[0]

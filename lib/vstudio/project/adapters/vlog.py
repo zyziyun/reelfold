@@ -29,6 +29,9 @@ def render(env):
             argv += ["--platform", plats[0]]
         if env.params.get("preset"):
             argv += ["--preset", env.params["preset"]]
+        # the recipe's framing choice reaches the reel too (it used to put landscape drone shots on a blurred fill
+        # in a vertical reel whatever she picked): follow = the subject, blur = the whole frame on a blurred fill
+        argv += ["--reframe-fallback", "pad-blur" if env.params.get("reframe") == "blur" else "subject"]
     env.run(argv, cwd=os.path.dirname(path), log="build.log")
     out = cfg.get("out") or ("fun_vlog.mp4" if cfg.get("style") == "fun" else "vlog_master.mp4")
     master = out if os.path.isabs(out) else os.path.join(os.path.dirname(path), out)
@@ -601,13 +604,17 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         return None
     plat = (ctx.params.get("platforms") or [cfg.get("platform") or ""])[0]
     if fun:
+        budget = fun_body_beats(target)
         shape = ('{"title": {"text": "<2-4 words>", "sub": "<short line or empty>"}, "end_card": {"text": "...", '
                  '"sub": ""}, "music_mood": "bright|warm|tech|calm|story", "shots": [{"clip": "<id>", "start": <s>, '
-                 '"dur": <s>, "place": "<short place name or omit>"}], "summary": "<one sentence>"}')
-        rules = (f"Fun beat-cut reel: about {target:.0f} s in total including a short title and end card; "
-                 f"{max(8, int(target / 1.6))}-{max(10, int(target / 1.1))} shots of 1-3 s each (the cuts land on the "
-                 "beat, so give each shot the 1-3 s where its action peaks); reuse a strong clip at different "
-                 "moments rather than a weak one; title and end card 1-4 words each.")
+                 '"beats": 1|2|4, "place": "<only on the first shot of a new place>"}], "summary": "<one sentence>"}')
+        rules = (f"Fun beat-cut reel of about {target:.0f} s. The reel adds its own hook, title, finale and outro "
+                 f"(~{FUN_OVERHEAD_BEATS} beats); YOUR shots fill the body: their beats must sum to about {budget} "
+                 f"(a beat is ~{60 / FUN_BPM:.2f} s; 1 = a flash of action, 2 = a move, 4 = a moment that breathes), "
+                 "so roughly "
+                 f"{max(6, budget // 2)} shots. start = the second where the shot's action begins (the spray, the "
+                 "turn). Reuse a strong clip at different moments rather than a weak one. Name a place only when it "
+                 "changes (each change costs a bar). Title and end card 1-4 words each.")
     else:
         shape = ('{"segments": [{"clip": "<id>", "start": <s>, "dur": <s>, "why": "<few words>"}], '
                  '"summary": "<one sentence>"}')
@@ -660,9 +667,17 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         st = min(st, dur_clip - lo - 0.1)          # a window that runs past the clip's end moves back
         du = max(lo, min(du, dur_clip - st - 0.1))
         one = dict(clip=s["clip"], start=round(st, 2), dur=round(du, 2))
-        if fun and isinstance(s.get("place"), str) and s["place"].strip():
-            one["place"] = s["place"].strip()[:40]
+        if fun:                                    # the beat grid sets the length: a beat count, not seconds
+            one.pop("dur")
+            try:
+                one["beats"] = int(s.get("beats") or 2) if int(s.get("beats") or 2) in (1, 2, 4) else 2
+            except (TypeError, ValueError):
+                one["beats"] = 2
+            if isinstance(s.get("place"), str) and s["place"].strip():
+                one["place"] = s["place"].strip()[:40]
         picks.append(one)
+    if fun and picks:
+        picks = fit_beats(picks, fun_body_beats(target))
     rules = not picks
     if rules:                                   # no model (or nothing usable): spread the length over the clips
         picks = rules_windows(by_id, list(clips), target * (1 if fun else calm_speed(cfg)), fun)
@@ -690,6 +705,26 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
                     note=err or "no AI model answered: windows spread evenly over the clips")
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(images), music_mood=mood)
+
+
+FUN_BPM = 108                 # the built-in "bright" bed (vstudio.music STYLES); her own track may differ a little
+FUN_OVERHEAD_BEATS = 30       # hook 8 + title + finale 8 + outro 8 + bar-line padding (funvlog.plan)
+
+
+def fun_body_beats(target):
+    """Beats the edit list's own shots get in a reel of ``target`` s (the rest is hook / finale / outro)."""
+    return max(12, int(round(target * FUN_BPM / 60)) - FUN_OVERHEAD_BEATS)
+
+
+def fit_beats(shots, budget):
+    """Trim the shot list to ``budget`` beats: drop the shots after the budget, keeping the last place change."""
+    out, n = [], 0
+    for s in shots:
+        if n + s.get("beats", 2) > budget and out:
+            break
+        out.append(s)
+        n += s.get("beats", 2)
+    return out
 
 
 def calm_speed(cfg):
