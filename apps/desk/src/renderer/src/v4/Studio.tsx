@@ -33,7 +33,7 @@ import { useBox, usePane } from '../lib/panes';
 import { Splitter } from './Splitter';
 import { ProjectRun, RequestRun } from './RunView';
 import { WithProjectChat } from './ProjectChat';
-import { useLoad } from '../lib/engine';
+import { useEngine, useLoad } from '../lib/engine';
 import { WatchAll } from './WatchAll';
 import { runningJobs } from '../lib/live';
 import { findRows, finding, NO_FIND, type Find } from '../lib/studioFind';
@@ -70,6 +70,39 @@ function archivedTargets(items: HistoryItem[], reqs: OpenRequest[]): ActionTarge
     ...reqs.map((r): ActionTarget => ({ key: `r:${r.id}`, kind: 'request', title: r.name || r.prompt || '', r })),
     ...items.map((i): ActionTarget => ({ key: `p:${i.id}`, kind: 'project', title: i.name, i })),
   ];
+}
+
+/** The project a request was made into (its job's ``applied`` folder -> the history item there), once the request is
+ * no longer one: asked again whenever the history changes until the project is listed. */
+function useMadeFrom(sel: string | null, items: HistoryItem[] | undefined): string | null {
+  const { client } = useEngine();
+  const [dirs, setDirs] = useState<{ sel: string; dirs: string[] } | null>(null);
+  const have = dirs?.sel === sel && dirs.dirs.length > 0;
+  useEffect(() => {
+    if (!client || !sel || have) return;
+    let alive = true;
+    let tm = 0;
+    const ask = () =>
+      client
+        .intake(sel)
+        .then((j) => {
+          if (!alive) return;
+          const ds = (j.applied ?? []).map((p) => p.dir).filter(Boolean);
+          if (ds.length) setDirs({ sel, dirs: ds });
+          else tm = window.setTimeout(ask, 800); // still making the plan into its projects
+        })
+        .catch(() => undefined); // not a request (an old link): nothing to follow
+    void ask();
+    return () => {
+      alive = false;
+      window.clearTimeout(tm);
+    };
+  }, [client, sel, have]);
+  if (!sel || !have) return null;
+  // the same folder however it is written (a trailing slash, macOS's /private/var for /var)
+  const norm = (p: string) => p.replace(/[\\/]+$/, '').replace(/^\/private(?=\/)/, '');
+  const hit = items?.find((i) => dirs.dirs.some((d) => norm(d) === norm(i.dir)));
+  return hit?.id ?? null;
 }
 
 export function Studio({ id, clip }: { id?: string; clip?: string }) {
@@ -158,14 +191,30 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const askKey = !id && q.item ? q.item : null;
   const askItem = askKey ? (inbox.items.find((x) => x.key === askKey) ?? null) : null;
   const askRow = askKey ? (allRows.find((r) => r.ask?.key === askKey) ?? (askItem?.project.id ? allRows.find((r) => r.item === askItem.project.id && (r.header || r.kind === 'project')) : undefined)) : undefined;
-  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : askRow ? askRow.key : q.sel ? (allRows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : allRows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
+  // a request she is watching that became its project (autopilot makes the plan into projects at once): the
+  // project's row, so the page moves on into the making instead of losing its place
+  const madeFrom = useMadeFrom(!id && q.sel && !allRows.some((r) => r.key === `r:${q.sel}` || r.item === q.sel) ? q.sel : null, hist?.items);
+  const madeRow = madeFrom ? (allRows.find((r) => r.item === madeFrom && (r.kind === 'project' || r.header)) ?? allRows.find((r) => r.item === madeFrom)) : undefined;
+  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : askRow ? askRow.key : q.sel ? (allRows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : allRows.some((r) => r.item === q.sel) ? `p:${q.sel}` : (madeRow?.key ?? null)) : null;
+  // the request's own row while it is one, kept on screen for the moment between the request going and its project
+  // showing up (never a skeleton or another video in between)
+  const lastReq = useRef<StudioRow | null>(null);
+  const reqRow = q.sel ? allRows.find((r) => r.key === `r:${q.sel}`) : undefined;
+  if (reqRow) lastReq.current = reqRow;
   // a project's own link (a notification, ⌘K) with one video: that video's page, its question pinned on it
-  const cur = (selKey ? (allRows.find((r) => r.key === selKey) ?? (id && !clip ? allRows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ?? null;
+  const cur =
+    (selKey ? (allRows.find((r) => r.key === selKey) ?? (id && !clip ? allRows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ??
+    (!id && q.sel && lastReq.current?.r?.id === q.sel ? lastReq.current : null);
+  // the request became its project: the address follows (Back, a reload and the list's highlight all agree)
+  useEffect(() => {
+    if (madeRow && !id) history.replaceState(null, '', rowHref(madeRow));
+    if (madeRow && !id) window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }, [madeRow?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
   const [gaveUp, setGaveUp] = useState<string | null>(null);
-  const waiting = (!!q.sel && !selKey && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
+  const waiting = (!!q.sel && !selKey && !cur && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
   useEffect(() => {
     if (!q.sel || selKey) return;
     const sel = q.sel;
@@ -173,9 +222,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     return () => window.clearTimeout(t);
   }, [q.sel, selKey]);
   useEffect(() => {
-    if (!selKey && !waiting && first && hist) history.replaceState(null, '', rowHref(first));
-    if (!selKey && !waiting && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
-  }, [selKey, waiting, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!selKey && !cur && !waiting && first && hist) history.replaceState(null, '', rowHref(first));
+    if (!selKey && !cur && !waiting && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }, [selKey, !!cur, waiting, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
   // ＋ New video from anywhere (⌘N, ⌘K): the composer opens here
   const [composer, setComposer] = useState(() => sessionStorage.getItem('studio.compose') === '1');
   useEffect(() => {
