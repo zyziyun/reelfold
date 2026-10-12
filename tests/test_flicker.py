@@ -92,3 +92,15 @@ def test_retime_keeps_an_even_cadence():
     assert F.retime(119.88, 1.0, 30) == "fps=30"
     for src, sp in ((59.94, 1.2), (29.97, 1.3), (29.97, 0.5)):
         assert "framerate=fps=30" in F.retime(src, sp, 30)
+
+
+def test_colour_flash_is_caught():
+    """A warm light leak barely moves the luma but swings the colour cast for half a second."""
+    F = _grid(np.full(240, 90.0))
+    C = np.zeros((240, 2), np.float32)
+    C[110:125, 1] = np.r_[np.linspace(0, 14, 8), np.linspace(14, 0, 7)]      # Cr up: an orange wash
+    rep = FL.measure(F, FPS, "calm", C)
+    assert not rep["ok"] and rep["events"][0]["kind"] == "colour" and rep["colour"] > 5
+    C2 = np.zeros((240, 2), np.float32)
+    C2[120:, 1] = 10.0                                                     # a cut to a warmer shot: a step
+    assert FL.measure(F, FPS, "calm", C2)["ok"]

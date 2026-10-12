@@ -18,6 +18,9 @@ What it measures (every frame, scaled down to an 8x8 grid of mean luma, 0-255):
   blink      the same over 0.1-0.3 s on a horizontal band (a quarter of the frame's height): a subtitle that is cut
              out for a frame or two before the next one fades in, a lower third that flickers, strobing cuts.
 
+  colour     the same as flash on the picture's mean colour cast (Cb / Cr): a warm light leak or a tinted dip that
+             barely changes the brightness (DJI 06's leak: 5.7; every remade film <= 3.7).
+
 A cut, a crossfade between two shots, a slow fade in / out (the first 0.5 s and the last 2 s are not judged) and
 real motion in the picture are steps or slow changes, not transients; each excursion is also reduced by 4x the
 picture's own frame-to-frame activity around it (busy water spray or a fast drone pass is not a flash). On the six
@@ -37,11 +40,11 @@ import numpy as np
 
 GRID = 8
 LIMITS = {
-    "calm": dict(flash=10.0, flash_region=20.0, blink=7.0),
+    "calm": dict(flash=10.0, flash_region=20.0, blink=7.0, colour=5.0),
     # beat reels: cuts every beat between spray, sun glitter and dark water are content, not flicker - only a whole-frame
     # flash (white flash hits, impact frames) or gross strobing fails (the 2026-10-12 jet-ski reel: 119 / 173 / 179;
     # its clean remake: 14 / 64 / 35)
-    "energetic": dict(flash=16.0, flash_region=90.0, blink=60.0),
+    "energetic": dict(flash=16.0, flash_region=90.0, blink=60.0, colour=8.0),
 }
 HEAD_S, TAIL_S = 0.5, 2.0            # the opening and the closing fade are not judged
 ACT_K = 4.0                          # a transient counts above 4x the picture's own frame-to-frame activity
@@ -74,19 +77,23 @@ def _fps(path):
     return 30.0
 
 
-def luma_grid(path, grid=GRID, fps=None):
-    """-> (frames (n, grid, grid) float32 mean luma per cell, fps). One ffmpeg decode, area-scaled."""
+def luma_grid(path, grid=GRID, fps=None, chroma=False):
+    """-> (frames (n, grid, grid) float32 mean luma per cell, fps) [, chroma (n, 2) mean Cb / Cr - 128 per frame].
+    One ffmpeg decode, area-scaled."""
     fps = fps or _fps(path)
     s = grid * 4
     out = subprocess.run([_ff(), "-v", "error", "-i", path, "-map", "0:v:0", "-vf",
-                          f"scale={s}:{s}:flags=area,format=gray", "-f", "rawvideo", "-"],
+                          f"scale={s}:{s}:flags=area,format=yuv444p", "-f", "rawvideo", "-"],
                          capture_output=True, timeout=3600)
     if out.returncode != 0:
         raise RuntimeError(f"flicker: cannot decode {path}: {out.stderr.decode(errors='replace')[-300:]}")
     a = np.frombuffer(out.stdout, np.uint8)
-    n = len(a) // (s * s)
-    F = a[:n * s * s].reshape(n, s, s).astype(np.float32)
-    return F.reshape(n, grid, 4, grid, 4).mean((2, 4)), fps
+    n = len(a) // (3 * s * s)
+    P = a[:n * 3 * s * s].reshape(n, 3, s, s).astype(np.float32)
+    F = P[:, 0].reshape(n, grid, 4, grid, 4).mean((2, 4))
+    if chroma:
+        return F, fps, P[:, 1:].mean((2, 3)) - 128.0
+    return F, fps
 
 
 def transients(Y, fps, near=0.35, far=0.6):
@@ -140,8 +147,9 @@ def _events(series, fps, limit, kind, start, merge=0.3):
     return out
 
 
-def measure(F, fps, profile="calm"):
-    """Measurements of a luma grid (see the module doc) -> report dict."""
+def measure(F, fps, profile="calm", C=None):
+    """Measurements of a luma grid (see the module doc) [+ ``C`` (n, 2) mean chroma per frame: a colour flash -
+    a warm light leak, a tinted dip - is a transient of the picture's colour cast] -> report dict."""
     lim = LIMITS.get(profile) or LIMITS["calm"]
     n = len(F)
     full = F.reshape(n, -1).mean(1) if n else np.zeros(0)
@@ -150,7 +158,7 @@ def measure(F, fps, profile="calm"):
     rep = dict(frames=n, fps=round(float(fps), 3), profile=profile, limits=lim,
                max_jump=round(float(jumps.max()) if len(jumps) else 0.0, 1),
                p99_jump=round(float(np.percentile(jumps, 99)) if len(jumps) else 0.0, 2),
-               flash=0.0, flash_region=0.0, blink=0.0, events=[])
+               flash=0.0, flash_region=0.0, blink=0.0, colour=0.0, events=[])
     if s1 - s0 < 3:
         rep["ok"] = True
         return rep
@@ -163,6 +171,10 @@ def measure(F, fps, profile="calm"):
     rep.update(flash=round(float(fl.max()), 1), flash_region=round(float(fq.max()), 1), blink=round(float(bl.max()), 1))
     ev = (_events(fl, fps, lim["flash"], "flash", s0) + _events(fq, fps, lim["flash_region"], "flash_region", s0)
           + _events(bl, fps, lim["blink"], "blink", s0))
+    if C is not None and len(C) == n:
+        fc = score(np.asarray(C, np.float32), fps).max(1)[s0:s1]
+        rep["colour"] = round(float(fc.max()), 1)
+        ev += _events(fc, fps, lim["colour"], "colour", s0)
     rep["events"] = sorted(ev, key=lambda e: e["t"])
     rep["ok"] = not rep["events"]
     return rep
@@ -170,13 +182,14 @@ def measure(F, fps, profile="calm"):
 
 def analyze(path, profile="calm"):
     """Measure a video file (see the module doc)."""
-    F, fps = luma_grid(path)
-    rep = measure(F, fps, profile)
+    F, fps, C = luma_grid(path, chroma=True)
+    rep = measure(F, fps, profile, C)
     rep["file"] = str(path)
     return rep
 
 
 WHAT = dict(flash="the whole picture flashes", flash_region="part of the picture flashes",
+            colour="the picture's colour flashes (a light leak / tinted dip)",
             blink="a band of the picture blinks (subtitle / title popping, strobing cuts)")
 
 
@@ -186,7 +199,7 @@ def describe(rep, n=6):
         return (f"no flicker (largest frame-to-frame luma change {rep['max_jump']}, flash {rep['flash']}, "
                 f"blink {rep['blink']})")
     parts = []
-    for kind in ("flash", "flash_region", "blink"):
+    for kind in ("flash", "flash_region", "blink", "colour"):
         ev = [e for e in rep["events"] if e["kind"] == kind]
         if ev:
             at = ", ".join(f"{e['t']:.1f}s" for e in ev[:n]) + (" ..." if len(ev) > n else "")
