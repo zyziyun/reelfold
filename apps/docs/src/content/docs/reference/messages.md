@@ -54,8 +54,18 @@ The desk maps `code` to its own copy (en / zh-CN / fr below; `{name}` = a param)
 | `intake.risk.aigc-credits` | AI video is paid in credits: it stops at the budget checkpoint for your approval before generating | AI 视频按积分计费：生成前会在“预算”检查点停下等你批准 | La vidéo IA se paie en crédits : elle s'arrête au point de contrôle du budget pour votre accord avant de générer |
 | `intake.risk.unsupported-platform` | {platforms}: no export preset yet; exported for the closest platform | {platforms} 还没有导出预设：先按最接近的平台导出 | {platforms} : pas encore de préréglage d'export ; exporté pour la plateforme la plus proche |
 | `intake.risk.no-projects` | No runnable project could be made from these materials and the request | 没能从这些素材和描述里拼出可执行的项目 | Impossible de composer un projet à partir de ces fichiers et de cette demande |
+| `intake.risk.unused-inputs` | Not used in any project: {files}. Say which project they belong to if you want them in | 这些素材没有用在任何项目里：{files}。要用的话告诉我放进哪个项目 | Utilisé dans aucun projet : {files}. Dites dans quel projet les mettre si vous les voulez |
 | `intake.question.mask-faces` | Whose faces should be hidden? (default: every guest but you) | 要遮哪几位的脸？（默认：除你以外的所有嘉宾） | Quels visages masquer ? (par défaut : tous les invités sauf vous) |
 | `intake.question.narration` | Narration (AI voice reads your copy) or music only? | 文艺片要旁白（AI 配音读你的文案）还是纯音乐卡点？ | Narration (voix IA qui lit votre texte) ou musique seule ? |
+| `intake.option.mask.all-but-me` | Hide everyone but me | 除我以外全部遮 | Masquer tout le monde sauf moi |
+| `intake.option.mask.none` | Hide no one (they agreed) | 都不遮（已获同意） | Ne masquer personne (accord donné) |
+| `intake.option.mask.pick` | I'll pick | 我来指定 | Je choisis |
+| `intake.option.narration.voice` | Narration | 旁白 | Narration |
+| `intake.option.narration.music` | Music only | 纯音乐 | Musique seule |
+| `intake.need.footage` | Add the recordings you want cut - this request edits your own video. Drop them here | 把要剪的录像拖进来：这个请求是剪你自己的视频 | Ajoutez les enregistrements à monter - cette demande monte votre propre vidéo. Déposez-les ici |
+| `intake.need.notion` | Which Notion pages? Paste their links (pages shared to the web), or export them in Notion (••• › Export › Markdown & CSV), unzip and drop the folder here | 要用哪些 Notion 页面？贴上页面链接（已公开分享到网页的），或在 Notion 里导出（••• › 导出 › Markdown & CSV），解压后把文件夹拖进来 | Quelles pages Notion ? Collez leurs liens (pages partagées sur le web), ou exportez-les dans Notion (••• › Exporter › Markdown & CSV), décompressez et déposez le dossier ici |
+| `intake.need.notion-private` | Couldn't read this Notion page ({url}): it isn't shared to the web. Share it, or export it (••• › Export › Markdown & CSV), unzip and drop the folder here | 读不到这个 Notion 页面（{url}）：它没有公开分享到网页。打开分享，或导出（••• › 导出 › Markdown & CSV），解压后把文件夹拖进来 | Impossible de lire cette page Notion ({url}) : elle n'est pas partagée sur le web. Partagez-la, ou exportez-la (••• › Exporter › Markdown & CSV), décompressez et déposez le dossier ici |
+| `intake.need.page-unreadable` | Couldn't read {url}. Save the page as a PDF or Markdown file and drop it here | 读不到 {url}。把这个页面存成 PDF 或 Markdown 文件拖进来 | Impossible de lire {url}. Enregistrez la page en PDF ou en Markdown et déposez-la ici |
 | `intake.question` | {text} | {text} | {text} |
 | `intake.risk` | {text} | {text} | {text} |
 | `intake.warning` | {text} | {text} | {text} |
@@ -64,6 +74,7 @@ The desk maps `code` to its own copy (en / zh-CN / fr below; `{name}` = a param)
 | `intake.warning.unknown-input` | {project} {recipe}: unknown input {key} dropped | {project} {recipe}：未知输入 {key} 已去掉 | {project} {recipe} : entrée inconnue {key} retirée |
 | `intake.warning.input-not-accepted` | {project} {recipe}: input {key} does not accept {files} | {project} {recipe}：输入 {key} 不接受 {files} | {project} {recipe} : l'entrée {key} n'accepte pas {files} |
 | `intake.warning.input-single` | {project} {recipe}: input {key} takes one file; kept {file} | {project} {recipe}：输入 {key} 只要一个文件，保留了 {file} | {project} {recipe} : l'entrée {key} prend un seul fichier ; {file} gardé |
+| `intake.warning.input-single-broll` | {project} {recipe}: input {key} takes one file; kept {file}, the other videos go to {to} | {project} {recipe}：输入 {key} 只要一个文件，保留了 {file}，其余视频放进 {to} | {project} {recipe} : l'entrée {key} prend un seul fichier ; {file} gardé, les autres vidéos vont dans {to} |
 | `intake.warning.range-dropped` | {project} row {row}: range {range} too short or outside the media, dropped | {project} 第 {row} 行：区间 {range} 太短或超出素材，已去掉 | {project} ligne {row} : plage {range} trop courte ou hors du média, retirée |
 | `intake.warning.unknown-param` | {project} {recipe}: unknown param {key} dropped | {project} {recipe}：未知参数 {key} 已去掉 | {project} {recipe} : paramètre inconnu {key} retiré |
 | `intake.warning.platform-unsupported` | {project} {recipe}: platform {platform} not supported by this recipe (dropped) | {project} {recipe}：这个配方不支持平台 {platform}（已去掉） | {project} {recipe} : plateforme {platform} non prise en charge par cette recette (retirée) |
@@ -112,14 +123,14 @@ The desk maps `code` to its own copy (en / zh-CN / fr below; `{name}` = a param)
 | `status.done` | Done | 已完成 | Terminé |
 | `status.failed` | Failed | 失败 | Échec |
 | `status.interrupted` | Interrupted | 已中断 | Interrompu |
-| `checkpoint.filler-confirm` | Confirm filler cuts | 确认去 filler | Confirmer les coupes de tics |
+| `checkpoint.filler-confirm` | Confirm filler cuts | 确认去口癖 | Confirmer les coupes de tics |
 | `inbox.filler-confirm` | Filler cuts need your yes | 有口癖剪辑等你确认 | Des coupes de tics attendent votre accord |
-| `checkpoint.hook-pick` | Pick the hook | 选 hook | Choisir l'accroche |
+| `checkpoint.hook-pick` | Pick the hook | 选开头 | Choisir l'accroche |
 | `inbox.hook-pick` | Pick the cold open | 从候选里选开场 | Choisissez l'ouverture |
 | `checkpoint.segment-approval` | Approve the segments | 确认选段 | Valider les extraits |
 | `inbox.segment-approval` | Check the proposed segments | 看一下选段 | Vérifiez les extraits proposés |
-| `checkpoint.script-lock` | Lock the script | 锁定剧本 | Verrouiller le script |
-| `inbox.script-lock` | Lock the script before generating | 生成前先锁定剧本 | Verrouillez le script avant la génération |
+| `checkpoint.script-lock` | Lock the script | 锁定脚本 | Verrouiller le script |
+| `inbox.script-lock` | Lock the script before generating | 生成前先锁定脚本 | Verrouillez le script avant la génération |
 | `checkpoint.storyboard-approval` | Approve the storyboard | 确认分镜 | Valider le storyboard |
 | `inbox.storyboard-approval` | Check the storyboard | 看一下分镜 | Vérifiez le storyboard |
 | `checkpoint.budget-approval` | Approve the budget | 批准预算 | Valider le budget |
@@ -144,6 +155,10 @@ The desk maps `code` to its own copy (en / zh-CN / fr below; `{name}` = a param)
 | `inbox.voice-pick` | Pick the voice | 选配音 | Choisissez la voix |
 | `checkpoint.media-selection` | Pick the media | 选素材 | Choisir les médias |
 | `inbox.media-selection` | Pick the media to use | 选要用的素材 | Choisissez les médias à utiliser |
+| `checkpoint.reframe-pick` | Vertical framing | 竖屏取景 | Cadrage vertical |
+| `inbox.reframe-pick` | Choose how landscape footage fills the vertical screen | 选横屏素材怎么放进竖屏 | Choisissez comment le paysage remplit l'écran vertical |
+| `checkpoint.copy-pick` | Post copy | 发布文案 | Texte de publication |
+| `inbox.copy-pick` | Choose the post copy for each platform | 选每个平台的发布文案 | Choisissez le texte de chaque plateforme |
 | `checkpoint.review` | Review | 审片 | Relecture |
 | `inbox.review` | Review the result | 看一下成片 | Regardez le résultat |
 | `job-state.planned` | To do | 待做 | À faire |

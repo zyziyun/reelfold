@@ -41,7 +41,10 @@ Say what you want and point at files: inventory, plan, revise, apply.
 usage: python -m vstudio.intake [-h] {analyze,plan,revise,apply,schema} ...
 
 python -m vstudio.intake analyze | plan | revise | apply | schema (every command: --json -> one
-document).
+document). plan / revise --json-events: one JSON event per line on stdout while it works (logs ->
+stderr), the progress the desk's plan card shows: {event: stage | progress, stage: scan | probe |
+listen | faces | transcribe | model | write, ...} (``inventory`` / ``plan.make_plan`` list the
+fields), then {event: done, plan} - or {event: error, error} and a non-zero exit.
 
 positional arguments:
   {analyze,plan,revise,apply,schema}
@@ -63,13 +66,13 @@ Every workflow as a recipe; projects, runs, checkpoints, inbox, outputs, calenda
 
 ```text
 usage: python -m vstudio.project [-h]
-                                 {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,checkpoint,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
+                                 {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,reopen,checkpoint,remake,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
                                  ...
 
 python -m vstudio.project - every workflow as a recipe; projects of N items (N=1 = one video). See
 
 positional arguments:
-  {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,checkpoint,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
+  {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,reopen,checkpoint,remake,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
     recipes             list recipe manifests
     new                 create a project
     plan-items          planner recipes: draft the items (segments of a recording)
@@ -80,7 +83,13 @@ positional arguments:
     refresh             re-read project.yaml + item files, re-plan
     run                 run until done or a checkpoint
     resume              run until done or a checkpoint
+    decisions           autopilot: the decisions in force (+ --history: every one, with blockers)
+    autopilot           autopilot on / off for a project (no run; the next run follows it)
+    reopen              autopilot: take one decision back - the checkpoint waits for you on the
+                        next run
     checkpoint          pending checkpoints / answer one
+    remake              redo a standing setting of a finished item (vertical framing, post copy,
+                        an explainer's visuals) - only what it changes, no other stage
     set                 edit params
     export              collect final files
     list                registered projects (+ adopted work folders, series)
@@ -107,9 +116,20 @@ references/PROJECTS.md.
   plan-items --dir P [--replace] [--provider X] [--count N] [--min S --max S]   planner recipes: draft the items
   show | status | preview [--item I] [--stage S] | context [--write] | refresh   --dir P [--json]
   run | resume --dir P [--pilot N] [--confirm-pilot] [--items a,b] [--auto ids|all] [--concurrency k=n]
-      [--json | --json-events]                        run until done or a checkpoint needs you (exit 7)
+      [--autopilot [--spend-cap N] [--no-judge] [--lang en|zh|fr] | --ask-first]
+      [--json | --json-events]                        run until done or a checkpoint needs you (exit 7);
+                                                      --autopilot: no pilot, every checkpoint decided by the AI
+                                                      judge + rules and recorded; only blockers wait (autopilot.py)
+  autopilot --dir P [--on | --off] [--spend-cap N] [--judge | --no-judge] [--lang L]   switch it (no run)
+  decisions --dir P [--history] [--json]              autopilot: what it decided, by whom, why
+  reopen --dir P --id X [--item I]                    autopilot: take a decision back (the next run asks you)
   checkpoint --dir P [--id X] [--item I | --items a,b] [--answer JSON | --answer-file F | --default] [--run]
                                                       list pending payloads / record an answer
+  remake --dir P --item I --do framing=follow|blur [--do copy] [--json-events]   a finished item brought up to
+                                                      date: only the vertical exports re-made / the post copy and
+                                                      every post.md written again (remake.py; older projects too);
+                                                      --do visuals: an explainer's scenes drawn again by the AI,
+                                                      render + export again, the voice kept
   set --dir P [--item I] (--param k=v ... | --set JSON)   edit params in project.yaml, then refresh
   export --dir P [--out D] [--all] [--items a,b]      final files + manifest.json (sha256)
   list                                                registered projects (lanes) with their state + adopted work
@@ -117,7 +137,8 @@ references/PROJECTS.md.
   adopt DIR [--recipe guess|NAME] [--title T] [--client C]   a plain folder made with the skill (final/, REPORT.md,
                                                       post.md, ...) -> DIR/.vstudio/work.json + registry (works.py)
   touch DIR [--status running|waiting|done|failed] [--stage S] [--progress 0..1] [--message M] [--eta S]
-      [--needs-you] [--recipe R] [--title T] [--outputs a,b]   register a job folder + its live status (heartbeat)
+      [--needs-you] [--recipe R] [--title T] [--outputs a,b]   register a job folder + its live status (heartbeat);
+                                                      a recipe project folder gets only its status (row untouched)
   output list | show | edit | preview-edl | render | undo | redo | revert | ai | chat | effects  --project P --output O   2nd-pass edit of
       one finished output (references/OUTPUT_EDIT.md): edit --ops JSON | --op NAME --param k=v | --op ai
       --instruction T [--apply]; render [--quality preview|final] [--targets primary,douyin:vertical|all] [--watermark on|off]
@@ -238,9 +259,9 @@ One clean master into a file, cover and post stub per platform.
 usage: python -m vstudio.export [-h] [--platforms PLATFORMS] [--out OUT] [--cues CUES]
                                 [--cover COVER] [--no-captions] [--title TITLE] [--post POST]
                                 [--lang LANG] [--bilingual] [--account ACCOUNT]
-                                [--mode {face,center,pad-blur,letterbox}]
-                                [--fallback {center,pad-blur,letterbox}] [--start START]
-                                [--dur DUR] [--encoder ENCODER] [--preset PRESET]
+                                [--mode {face,subject,center,pad-blur,letterbox,follow,blur}]
+                                [--shots SHOTS] [--fallback {subject,center,pad-blur,letterbox}]
+                                [--start START] [--dur DUR] [--encoder ENCODER] [--preset PRESET]
                                 [--watermark {auto,on,off}]
                                 master
 
@@ -280,9 +301,13 @@ options:
                         YouTube)
   --bilingual           post copy in English + Chinese (post.json en + zh blocks)
   --account ACCOUNT     account tier for limits, e.g. premium (X: longer videos/posts)
-  --mode {face,center,pad-blur,letterbox}
-                        reframe mode when the aspect changes
-  --fallback {center,pad-blur,letterbox}
+  --mode {face,subject,center,pad-blur,letterbox,follow,blur}
+                        reframe mode when the aspect changes: face (talking head), subject /
+                        follow (travel, drone: follow what stands out per shot), pad-blur / blur,
+                        center, letterbox
+  --shots SHOTS         shots.json {transitions: [[t0, t1], ...]} of the master (crossfades) for
+                        --mode subject
+  --fallback {subject,center,pad-blur,letterbox}
   --start START
   --dur DUR
   --encoder ENCODER     H.264 encoder (default $VSTUDIO_H264_ENCODER / persona export.h264_encoder
@@ -320,8 +345,8 @@ Face-tracked reframe between aspect ratios.
 
 ```text
 usage: python -m vstudio.reframe [-h] [--size SIZE] [--platform PLATFORM]
-                                 [--mode {face,center,pad-blur,letterbox}]
-                                 [--fallback {center,pad-blur,letterbox}] [--start START]
+                                 [--mode {face,subject,center,pad-blur,letterbox}]
+                                 [--fallback {subject,center,pad-blur,letterbox}] [--start START]
                                  [--dur DUR] [--zoom ZOOM] [--every EVERY]
                                  src dst
 
@@ -336,8 +361,8 @@ options:
   -h, --help            show this help message and exit
   --size SIZE           WxH (default from --platform)
   --platform PLATFORM   e.g. douyin or xiaohongshu:vertical (size + safe box)
-  --mode {face,center,pad-blur,letterbox}
-  --fallback {center,pad-blur,letterbox}
+  --mode {face,subject,center,pad-blur,letterbox}
+  --fallback {subject,center,pad-blur,letterbox}
   --start START
   --dur DUR
   --zoom ZOOM
@@ -373,7 +398,7 @@ pinterest:feed               1000x1500 safe=(60, 60, 940, 1340) caption=(60, 112
 pinterest:square             1080x1080 safe=(60, 60, 1020, 960) caption=(60, 780, 1020, 950) cover=(1080, 1080) title<=100 len [6, 60]/900s -14.0 LUFS/-1.5 dBTP
 snapchat:vertical            1080x1920 safe=(60, 200, 940, 1520) caption=(140, 1220, 940, 1440) cover=(1080, 1920) title<=0 len [10, 60]/60s -14.0 LUFS/-1.5 dBTP
 xiaohongshu:vertical         1080x1440 safe=(48, 60, 1032, 1290) caption=(120, 1080, 960, 1270) cover=(1080, 1440) title<=20 len [30, 180]/900s -14.0 LUFS/-1.5 dBTP
-xiaohongshu:full             1080x1920 safe=(60, 240, 1020, 1660) caption=(160, 1420, 920, 1640) cover=(1080, 1440) title<=20 len [30, 180]/900s -14.0 LUFS/-1.5 dBTP
+xiaohongshu:full             1080x1920 safe=(60, 240, 1020, 1660) caption=(160, 1420, 920, 1640) cover=(1080, 1920) title<=20 len [30, 180]/900s -14.0 LUFS/-1.5 dBTP
 xiaohongshu:horizontal       1920x1080 safe=(280, 60, 1640, 1020) caption=(280, 880, 1640, 1020) cover=(1920, 1080) title<=20 len [30, 180]/900s -14.0 LUFS/-1.5 dBTP
 douyin:vertical              1080x1920 safe=(60, 160, 930, 1480) caption=(180, 1240, 900, 1460) cover=(1080, 1920) title<=55 len [15, 60]/900s -14.0 LUFS/-1.5 dBTP
 douyin:horizontal            1920x1080 safe=(96, 60, 1824, 990) caption=(96, 870, 1824, 990) cover=(1920, 1080) title<=55 len [15, 60]/900s -14.0 LUFS/-1.5 dBTP

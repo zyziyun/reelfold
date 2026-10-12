@@ -199,7 +199,7 @@ exact = same look; near = same idea, small visual difference; approx = closest s
 | HDR to SDR <sub>`hdr-to-sdr`</sub> | zscale/tonemap for iPhone HLG | ffmpeg | `lib/vstudio/media.py:hdr_to_sdr_args` | `force=False` | iPhone HDR sources | n/a | whole clip | always for HDR sources | `media.hdr_to_sdr_args(src)` | `test_core.py` |
 | Film look <sub>`film-look`</sub> | Grain always; strong = warm desat, flicker, vignette, scratches, dust | PIL | `photostory/looks.py:film_look(C, box, gt, strong)` | `strong=False` | Archive / memory sections | low | section | strong look 1 section | Call it on any `(BOX_H, BOX_W, 3)` float32 frame with a Ctx | - |
 | Texture generators <sub>`texture-generators`</sub> | grain, light leak, ink field, torn edge, dark radial bg, paper (`grain`, `leak`, `ink`, `jag`, `bg`, `paper`) | PIL | `photostory/looks.py:make_grain/make_leak/make_ink/make_jag/make_bg/paper_bg` | `seed=fixed` | Building blocks for other effects | n/a | - | - | Need a Ctx | - |
-| Portrait retouch <sub>`portrait-retouch`</sub> | Face slim, eyes, de-shine, skin/makeup, body slim | PIL | `lib/vstudio/retouch.py:retouch` | `slim=0.05`, `smooth=0.6`, `makeup=0.5` | Covers and talking heads (creator decides) | n/a | whole clip | always subtle | `retouch.retouch(img)` | `test_retouch.py` |
+| Portrait retouch <sub>`portrait-retouch`</sub> | Face slim, eyes, de-shine, skin/makeup, body slim; video skin smoothing / beauty (tracked) | PIL | `lib/vstudio/retouch.py:retouch` | `slim=0.05`, `smooth=0.6`, `makeup=0.5`, `strength=0.5` | Covers and talking heads (creator decides); 磨皮 / 美颜 in the output editor | n/a | whole clip | always subtle | `retouch.retouch(img)`; video: `retouch.VideoRetoucher(retouch.video_knobs(0.5))(frame, t)` | `test_retouch.py` |
 
 ## 9. Audio / SFX
 
@@ -294,3 +294,29 @@ exact = same look; near = same idea, small visual difference; approx = closest s
 9. **"Hide a guest's face"**
    - Run `track_face.py` → `apply_sticker.py` → `verify_coverage.py --min-coverage 1.0`.
    - For a camera-off tile, use `cat_avatar.html` + `verify_avatar.py`.
+
+10. **"Picture-in-picture: screen recording full-screen, me as a tile"**
+   - HF: `hf.pip_windows(windows, clip, scale, x, y, tile, frame)`; windows `[{id, s, e, video, media_start, tag}]` or
+     `images: [...]` (cross-fade). Put `html` (the framed screen layers) BEFORE the face wrapper and `overlay` (tag
+     pills + the tile ring) AFTER it. The face wrapper (`#face`, transform-origin 0 0) is clipped to `clip` and scaled +
+     moved onto the tile; windows <= 0.8 s apart form one run (the face stays a tile, screens cross-fade).
+   - Only the `<video>` is timed; its wrapper is a plain container whose opacity is tweened (data-start on both =
+     HyperFrames `video_nested_in_timed_element`). The same source may be used by several windows.
+   - Geometry: promo-recut `pip_layout(GEO)` (horizontal table; vertical computed: tile above the caption band, clear
+     of the platform's button column). Hide browser chrome first: promo-recut `screen_crop.py` (`crop: auto`).
+
+11. **"Animated scene in a card slot (chart, ranking, flow...)"**
+   - HF: `hf.scene_card(id, {kind, title, items, foot}, s, e, card_w, card_h)` + `hf.scene_css(hf.scene_palette())`
+     once; kinds `hf.SCENE_KINDS`: tiles, flow, bars, stat, toast, ranking, columns, checklist, swatch. Colours come from
+     the theme / persona brand. Pass the html as a card's `inner` in `hf.screenshot_cards`.
+   - A playing clip in the slot: `hf.card_video(id, src, s, dur, media_start, label, card_w, card_h)`; then the card
+     container must NOT be timed (lint `video_nested_in_timed_element`).
+   - Content inside a card needs an explicit width/height: the card's scroller is transformed and has no height,
+     so `inset: 0` collapses to nothing.
+
+12. **"Hook montage in front, flash into the talk"**
+   - Cut: `cut.xfade_assemble(pieces, xfade=0, seek=True)` with every piece at the hook speed and 20/30 ms edge fades
+     (promo-recut `tight_cut.build_hooks`, word-safe edges via `cleanup.snap_range`).
+   - HF: the hooks clip on the body's track from 0, everything else shifted by its length; two-line captions are
+     subtitles cues with `c: "hook"`; alternate framing with `tl.set("#hook-zoom", {scale})` per hook;
+     `hf.flash(H)` over the cut into the body.

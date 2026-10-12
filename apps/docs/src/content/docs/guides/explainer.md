@@ -11,22 +11,27 @@ You get an animated concept explainer built from a topic: a script you approve, 
 
 - **A topic**, and any notes you want covered. An existing `SCRIPT.md` works too.
 - **Node with `npx hyperframes` working.** Scenes are HTML compositions rendered to video by [HyperFrames](https://hyperframes.heygen.com). Without it, this recipe can't render.
-- **A narration voice.** The default is OpenAI text-to-speech, which needs an `OPENAI_API_KEY` (about $0.015 per minute of narration with `gpt-4o-mini-tts`).
+- **A narration voice.** Reelfold uses the voice this computer has: your persona's, OpenAI when its key is set (about $0.015 per minute), else the free offline voice on Apple silicon. See [Voices for narration](/docs/guides/voices/).
 - **Fonts** for the subtitles: `./install.sh` downloads open-licensed ones (Noto Sans SC, STIX Two Text).
+- **An AI model.** The animated scenes are drawn by your AI (Claude Code, Codex, an API key or a local model). Without one, the project waits in Needs you ("The visuals need an AI model") rather than rendering a text-only video.
 - Optional: a music file of your own for the bed.
 
-This is the most hands-on recipe. The script, storyboard and subtitle pairs are drafted for you, but the animated scenes are written by an AI agent (your Claude Code or Codex), and you check them at each step.
+Starting from notes or a Notion page instead of a topic? See [Course videos from notes](/docs/guides/course-from-notes/).
 
 ## In the Mac app
 
 1. On Home, describe the explainer in the request box: the topic, who it's for, long or short, and where it goes.
-2. The plan shows the explainer recipe, the platforms (the first one sets the canvas), the voice and long or short. Adjust it in plain words.
-3. The project stops in your Inbox at each decision:
+2. On [Autopilot](/docs/app/autopilot/) it runs to a finished video, and every choice is listed under What the AI decided. With **Ask me first**, the plan shows the explainer recipe, the platforms (the first one sets the canvas), the voice and long or short; adjust it in plain words, and the project stops in your Inbox at each decision:
    - **Lock the script.** One spoken English line per scene, with its Chinese subtitle. Numbers are written the way they are spoken.
    - **Approve the storyboard.** One frame per scene with its timing and motion.
    - **Pick the voice.** Choose the voice and speed and see the cost estimate before any paid narration runs.
    - **Check the subtitle pairs.** English chunks paired with their Chinese, with questionable pairs flagged.
-4. Scenes are built, previewed and rendered, then exported per platform with a cover and post copy.
+3. Each scene is drawn by the AI on the voice's cue times, checked and kept only if it plays inside the video. Then it is rendered and exported per platform with a cover and post copy.
+4. Follow it on the [live run page](/docs/app/live-run/): the drawn scenes show up under How it is being made as they appear.
+
+## Redo the visuals
+
+Not happy with the scenes? Press **Redo the visuals** on the clip page, or tell the chat ("the visuals are too plain", "more diagrams"). Every scene is drawn again and the video is rendered again; the voice and captions stay. A scene that fails is kept as before, with **Redraw scene N**. Details: [Course videos from notes](/docs/guides/course-from-notes/#redo-the-visuals).
 
 ## With the Claude Code skill
 
@@ -62,7 +67,7 @@ One 9:16 build can ship to 小红书 full-screen, 抖音, Shorts and TikTok. A 3
 |---|---|---|
 | Mode | long | `long` (5–12 min) or `short` (60–120 s). |
 | Platforms | YouTube, B站 | The first platform decides the canvas and the caption box. |
-| Voice | `cedar` | OpenAI TTS voice; you approve a sample first. |
+| Voice | auto | The voice this computer has: persona, OpenAI with a key (`cedar`), else the free voice. |
 | Voice speed | 1.0 | 0.7–1.4. Shorts usually run at 1.1. |
 | Render quality | standard | `draft`, `standard` or `high`. |
 | Music bed | auto | A calm bed chosen for the topic, ducked under the voice, or your own file. |
@@ -76,6 +81,8 @@ One 9:16 build can ship to 小红书 full-screen, 抖音, Shorts and TikTok. A 3
 
 ## Related
 
+- [Course videos from notes](/docs/guides/course-from-notes/)
+- [Voices for narration](/docs/guides/voices/)
 - [explainer workflow reference](/docs/reference/workflows/explainer/)
 - [Covers and thumbnails](/docs/guides/covers/)
 - [One master, many platforms](/docs/guides/multi-platform/)

@@ -31,7 +31,7 @@ Code: `lib/vstudio/intake/` (inventory, docs, rules, plan, estimate, apply, cli)
 | `analyze --inputs PATH... [--asr off\|sample\|full] [--out analysis.json] [--full]` | the material summary (compact: no paths, short excerpts) + content hashes; `--out` keeps the full analysis |
 | `plan --prompt "..." --inputs PATH... [--client C] [--provider P] [--asr auto] [--auto hook,cover] [--out plan.json]` | the plan (section 3); `--analysis analysis.json` instead of `--inputs` |
 | `revise --plan plan.json --prompt "只要小红书" [--in-place \| --out new.json]` | the plan updated from a follow-up instruction; the history is kept in `revisions` |
-| `apply --plan plan.json [--out DIR] [--dry-run] [--run]` | creates the project folders (a series when the plan has several), returns ids, dirs and the pilot run commands; `--run` starts each pilot; exit 5 on an invalid plan |
+| `apply --plan plan.json [--out DIR] [--dry-run] [--run] [--autopilot]` | creates the project folders (a series when the plan has several), returns ids, dirs and the pilot run commands; `--run` starts each pilot; `--autopilot` creates them on autopilot (no pilot, the engine decides every checkpoint and records why: references/PROJECTS.md §3) and the run commands say `--autopilot`; exit 5 on an invalid plan |
 | `schema` | the plan JSON Schema |
 
 ## 2. Inventory (`analyze`)
@@ -51,6 +51,25 @@ second analyze / plan / revise is instant).
 Every material also gets a **role** (what the rule planner keys on): `call`, `lecture`, `screen-recording`,
 `talking-head`, `finished-edit` (burned captions or a final export with speech), `footage`, `podcast-audio`,
 `voice`, `music`, `photo`, `script`, `slides`, `doc`, `notes`, `subtitles`.
+
+### Requests with no files, links, "my Notion"
+
+A request with no files is planned from its words (`plan --prompt "..."` with no `--inputs`): an explainer / a
+series, 口播 scripts to record (preproduction), an AI video, slides - never "no inputs". What only she can give comes
+back as `needs` (message dicts) and the plan waits for it (no model call until she gives it):
+
+* `intake.need.footage` - the request cuts / edits her own recordings and none came with it (no project is made up);
+* `intake.need.notion` - it names her Notion and no Notion link or exported notes (a folder of .md / .html, e.g.
+  Notion > ••• > Export > Markdown & CSV, unzipped) came with it;
+* `intake.need.notion-private` / `intake.need.page-unreadable` - a pasted link could not be read.
+
+Links in the request are read first (`vstudio.intake.sources`): a web page (plain GET, 2 MB / 20 s, HTML -> Markdown
+with its headings) or a public Notion page (Notion's public page endpoint `/api/v3/loadPageChunk`, no login), kept
+as Markdown in `$VSTUDIO_CACHE/intake/sources/` and planned from like a dropped .md. A private page is said to be
+private; nothing is guessed. `--ignore-needs` plans without what is missing. No AI connector (MCP) is used by the
+planner: it plans from what was read on this machine (for private pages: export them, or share them to the web).
+A request that cannot be planned at all raises `PlanError` with a `code` (`plan-empty`: no words and no files); the
+`--json-events` error event carries it as `code: plan-<code>` for the app to word.
 
 ## 3. Plan
 
@@ -98,7 +117,7 @@ parameter extraction. `planner.fallback: true` + `planner.reason` say so.
                         "why": "..."}]},
     "params": {"platforms": ["xiaohongshu:full"], "captions": false, "speed": 1.0, "cleanup_profile": "gentle"},
     "param_sources": {"platforms": "prompt", "captions": "material", "speed": "planner"},
-    "checkpoints": [{"id": "filler", "kind": "filler-confirm", "label": "确认去 filler", "needs_you": true, "auto": "default"}],
+    "checkpoints": [{"id": "filler", "kind": "filler-confirm", "label": "确认去口癖", "needs_you": true, "auto": "default"}],
     "estimate": {"machine_min": 3.7, "wall_min": 1.8, "storage_mb": 383, "api_usd": 0.0, "credits": null,
                  "measured": true, "paid_steps": [], "basis": {"source_s": 653, "output_s": 222, "items": 3, "platforms": 1}},
     "outputs": {"platforms": ["xiaohongshu:full"], "videos": 3, "workflow_md": "workflows/talkinghead/WORKFLOW.md"}

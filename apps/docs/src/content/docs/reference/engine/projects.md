@@ -73,7 +73,7 @@ answer-derived overrides; params with `x-spec` go into a batch spec section (`as
 | `items {sources, from_input, planner, per_item, shared, variants, share_cache}` | how items form; which params / stages are per item vs shared |
 | `params` | JSON Schema object; every property has `title`, `x-zh`, `default`, ranges / enums; `x-scope: item`, `x-spec`, `x-map` |
 | `engine {batch_recipe, expand, batch_inputs, spec}` | reuse a vstudio.batch recipe's stages (`batch_recipe: name` or `{param, map}` for engine variants) |
-| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, when, paid, units, produces, preview}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter |
+| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, when, paid, units, produces, preview, wip}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter; `preview {kind, path, label {zh, en, fr?}}` = what a finished stage shows, `wip` = the files it writes one by one (a glob, e.g. the vlog's `work/clips/seg_*.mp4`), shown while it runs and after (`Project.pieces()`: the desk's work-in-progress tiles, in recipe order, only this run's files while a stage runs again) |
 | `checkpoints [...]` | section 3 |
 | `outputs {platforms, collect, files}` | supported platforms; collector (`module:fn`) or file templates for `export` |
 | `agent {workflow_md, notes, edit_files}`, `gaps`, `capabilities` | agent hook, known gaps |
@@ -97,6 +97,31 @@ A checkpoint compiles to a gate stage `cp_<id>` after `after` and before `blocks
 `state/checkpoints/<item>/<id>.json` and passes when there is nothing to decide (`skip`, or `auto: skip-if-empty`
 with no options), or when the item carries an answer whose digest still matches (`reask`, default on except for
 `author`); otherwise the item parks in `waiting` (not a failure: no circuit breaker, no red QC) and `run` exits 7.
+`recheck: module:fn` (optional) is called with the job's params at plan time; a non-empty result goes into the gate's
+key, so a change re-opens the gate on the next run (the explainer's voice: a paid engine whose key went away). A param
+with `x-resolve: module:fn` and the value `auto` gets that function's answer for this machine (the explainer's
+`tts_engine`), and `_<param>_auto: true` marks it in the job's params.
+
+A standing setting of a finished item (the vlog's vertical `framing`, its post `copy`) may also name `current:
+module:fn(project, cp, item)` (what the item has when nobody answered, e.g. a project made before the recipe asked:
+read from its exports; `decisions` lists it under `choices`) and `remake: module:fn(env, cp, choice)` (redo just that
+on the finished item: only the vertical exports, or the copy + every post.md):
+`python -m vstudio.project remake --dir P --item I --do framing=follow [--do copy]` records the answer as hers and
+runs no other stage (`vstudio/project/remake.py`). A checkpoint may name its remake (`remake_as`): the explainer's
+scenes are `--do visuals` - every scene drawn again by the routed AI into a folder of its own
+(`state/remake/<item>/visuals/compositions.next`; no model: the old video stays, the failure is `ai-needs-model`, and a
+second try draws only the scenes still missing), then only index -> render -> export re-run; a project whose voice
+would be made again is refused. A scene still refused after its repair rounds (the check's exact finding fed back)
+keeps its old version, else a simple diagram from its cues, and the video is made ("13 of 14 scenes redrawn; scene
+14 kept as before": `choices[].kept`, `--do visuals=missing` redraws just those); none drawn at all fails as
+`stage-visuals-failed {scene, total, n, why}`. A remake that fails leaves the project "done" (its video stands): the
+desk shows a notice on the clip, not Needs you.
+
+An `author` checkpoint whose file needs a model to be any good says `author.needs_ai: true` (the explainer's script,
+storyboard and scenes): the autopilot never approves the rules' draft of it - it asks the routed AI once more
+(`drafts.redraft`), else stops in Needs you (`needs-model`: "The visuals need an AI model — Claude Code didn't answer",
+payload `draft_error_code: ai-needs-model`). No author draft with a placeholder (`TODO`) is ever auto-approved
+(payload `placeholders`), and a stage's skeleton that still says TODO (the explainer storyboard) is "template" state.
 
 Payload (what the app renders): `{id, kind, scope, item, labels, help, options [...], default, previews [{kind,
 path}], answer_schema, auto, batch_by, aggregate, digest, ...kind-specific}`. Answer: JSON validated against the
@@ -110,7 +135,7 @@ params for project scope, `items_patch` for segment edits) and a digest; then th
 | `hook-pick` | talkinghead | `{pick: k}` (-1 none) or `{start, end, text}` |
 | `segment-approval` (project) | longform-to-short, call-clips, batch | `{approve: "all" \| [ids], drop: [ids], edits: {id: {start, end, title, hook}}}` |
 | `script-lock` | preproduction, explainer, ai-video | `{lock: true[, content]}` / author answer; digest = the file hash (an edit asks again) |
-| `storyboard-approval`, `author`, `media-selection` | explainer, promo, vlog, photo-story, slides, course, cover HTML | `{done: true}` or `{content: "..."}` for a file the human / agent writes (template seeded into the item) |
+| `storyboard-approval`, `author`, `media-selection` | explainer, promo, vlog, photo-story, slides, course, cover HTML | `{done: true}` (the draft as it is), `{content: "..."}`, or for promo-recut keep `{done, spans: [[a, b]]}` (exactly what she keeps); the engine drafts the file first (below) |
 | `voice-pick` | explainer | `{approve, voice, speed}` (cost estimate in the payload, before paid TTS) |
 | `budget-approval` (project) | ai-video | `{approve, budget, allow_unknown}`; payload `aggregate: [credits]` over items; never auto |
 | `take-selection` | ai-video | `{picks: {unit: take file}}` -> auto EDL |
@@ -120,8 +145,37 @@ params for project scope, `items_patch` for segment edits) and a digest; then th
 | `review` | photo-story layout, polish speed | `{approve}` / `{speed}` |
 | `publish` | every video recipe | `{approve, reason}`; sets the batch review state; `export` takes approved items only. The default approve exists only when QC is not red, so `--auto publish` = exception review |
 
+**Drafts** (`vstudio.project.drafts`): an author / script-lock / storyboard / media-selection checkpoint never hands
+her a raw file to write. When the gate reaches it the engine drafts the file - the recipe's own drafter (promo-recut
+keep: the talk is transcribed into `work/audio.json` and the AI editor cuts what the request and good editing say -
+unfinished opening, detours, self-corrections, the passages she named - plus hooks / speeds she asked for; promo-recut
+package: captions from the cut, her screen recordings / screenshots / finished clips placed where she talks about
+them, chapters, end card, cover line, post; preproduction lock: the script from the topic) or the generic AI drafter
+(template + format guide + her request -> the file, checked to parse; text formats only). The draft is recorded in
+`<file>.<checkpoint>.draft.json` ({by ai | rules, provider, sha, review}). File states: `missing`, `template` (the
+untouched seed or a SYNTHETIC example: **never an answer**, not even on autopilot), `drafted`, `hers` (edited after).
+The payload carries `draft_state`, `draft_by`, `draft_error` and `review` - the plain-language view the Inbox shows
+instead of the file: `{kind keep-spans | package | outline | text, summary {code, params}, lines [{code, params}],
+segments [{i, t, te, text, keep, label}] (keep spans), text (a script)}`. `default` is set only for drafted / hers.
+`drafts.redraft(project, cp, item, instruction)` ("tell the AI what to change", or "draft it for me" on an older
+project) drafts again and updates the stored payload in place. Without a model: promo keep keeps everything (said
+so: `draft.keep-all-rules`), packaging = captions only, other files are not drafted (the checkpoint waits for her).
+
 Auto policy: `run --auto hook,filler` (or project.yaml `auto:` / the series) answers checkpoints whose manifest says
 `auto: default` with the payload default, then continues (rounds until nothing auto-answerable is left).
+
+**Autopilot** (`run --autopilot [--spend-cap N] [--no-judge] [--lang en|zh|fr]`, kept in project.yaml
+`autopilot: {on, spend_cap, judge, lang, ask}`; `--ask-first` turns it off; `intake apply --autopilot` creates the
+projects on it; the desk app's default): no pilot stop, and every checkpoint a run reaches is decided by
+`vstudio.project.autopilot.decide` - an AI judge (task route `planner`) for the unsure filler cuts, the checkpoint's
+rules for everything else (default answer, QC verdict, drafted file; hooks stay "no cold open" unless her format asks).
+Each answer is recorded with `auto, by: ai | rules, reason, reason_code, params, provider` and a line in
+`state/autopilot.jsonl`; the payload stays in `state/checkpoints/`. Only real blockers wait for her: `consent`,
+`spend-cap` (a budget above `spend_cap` credits, default 0), `qc-red` (review of a red clip), `needs-input` (a file
+nothing could be drafted for, no default), `asked` (one she took back). A drafted file is taken with the draft's own
+summary as the reason (`reason_code: drafted`, `by: ai` for an AI draft; `hers` for a file she edited). `decisions --dir P [--history]` lists them;
+`reopen --dir P --id X [--item I]` takes one back (the next run stops there and the Inbox asks her; her answer
+replaces the AI's).
 
 ## 4. CLI / JSON contract (desk app)
 
@@ -138,14 +192,19 @@ checkpoint), `pause`, `run-end` + `checkpoint {job, checkpoint, checkpoint_kind,
 | `show --dir P --json` | `{project (project.yaml), manifest, params, status, batch, recipe_name, paths}` |
 | `status --dir P --json [--brief]` | `{state new\|planned\|running\|needs-you\|error\|paused\|interrupted\|done, items [{id, state, waiting, qc, review, progress, stages [{id, state, seconds, cached, error, gate}]}], pending, progress}` |
 | `run \| resume --dir P [--pilot N] [--confirm-pilot] [--items a,b] [--auto ids] [--concurrency k=n]` | `{status, exit_code, batch_status, ran, pending [{item, id, kind, default, payload}], items}` |
+| `run \| resume ... --autopilot` | the same + `autopilot: true, blocked [{checkpoint, item}]`; events `auto-answer {checkpoint, item, value, by, reason}`, `autopilot-blocked {checkpoint, item, blocker, reason}` |
+| `decisions --dir P [--history] --json` | `{autopilot {on, spend_cap, judge, lang, ask}, decisions [{checkpoint, kind, item, labels, value, by, reason, reason_code, params, provider, at, payload} \| {checkpoint, item, asked: true}], history?}` |
+| `reopen --dir P --id X [--item I] --json` | `{ok, checkpoint, item, rerun {item: stages}}` |
+| `autopilot --dir P [--on \| --off] [--spend-cap N] [--judge \| --no-judge] [--lang L] --json` | `{ok, autopilot}` (no run; a run going reads it before its next round) |
 | `checkpoint --dir P [--id X] [--item I] --json` | `{pending: [payload...], n}` |
 | `checkpoint --dir P --id X [--item I \| --items a,b] (--answer JSON \| --answer-file F \| --default) [--run]` | `{ok, checkpoint, answered, rerun {item: stages}, run?}` (exit 5 + `{ok: false, error}` on an invalid answer) |
 | `set --dir P [--item I] --param k=v \| --set JSON` | the `refresh` result |
 | `preview --dir P [--item I] [--stage S]` | `{items: [{id, state, previews [{stage, kind, path, checkpoint?}]}]}` |
+| (Python) `Project(P).pieces(item=None)` / `outputs.item_files(P)` | the making piece by piece `{items: [{id, state, pieces [{stage, kind, path, label?, n, of, state running\|done\|waiting, checkpoint?, mtime}]}]}`; what each item made per the recipe's `outputs.collect` `{item: {state, files [{file, platform, orientation, cover, post, duration, w, h, fps, safe_box, caption_box}]}}` (the desk's clip list, Ready count and thumbnails read it) |
 | `export --dir P [--out D] [--all] [--items a,b]` | `{ok, dir, manifest, files, items, skipped, entries [{item, platform, orientation, kind, file, sha256, cover, post}]}` |
 | `context --dir P [--write]` / `refresh --dir P` | section 5 |
 | `list` | `{projects: [{dir, name, recipe, series, state, items, pending, progress}] + adopted work folders [{kind: "work", type, state: "adopted", outputs}], series: [{id, name, recipe, client, projects}]}` (missing / temp-dir entries are pruned first) |
-| `touch DIR [--status running\|waiting\|done\|failed] [--stage S] [--progress 0..1] [--message M] [--eta S] [--needs-you] [--recipe R] [--title T] [--outputs a,b]` | the `adopt` record + `status`: registers the folder and writes `DIR/.vstudio/status.json` `{status, stage, progress, message, eta, needs_you, started, heartbeat, pid, host}` (`vstudio.batch.livestatus`; the batch runner and `run` write it too - a project's batch into the project folder; ASR / cleanup / export / AIGC polling heartbeat inside a registered folder). Readers: `livestatus.read(dir)` -> `state` running / waiting / done / failed / interrupted (a running record with no heartbeat for 10 min whose process is gone, or for 2 h) |
+| `touch DIR [--status running\|waiting\|done\|failed] [--stage S] [--progress 0..1] [--message M] [--eta S] [--needs-you] [--recipe R] [--title T] [--outputs a,b]` | the `adopt` record + `status`: registers the folder and writes `DIR/.vstudio/status.json` `{status, stage, progress, message, eta, needs_you, started, heartbeat, pid, host}` (`vstudio.batch.livestatus`; the batch runner and `run` write it too - a project's batch into the project folder; ASR / cleanup / export / AIGC polling heartbeat inside a registered folder). Readers: `livestatus.read(dir)` -> `state` running / waiting / done / failed / interrupted (a running record with no heartbeat for 10 min whose process is gone, or for 2 h). On a recipe project folder (has `project.yaml`, or its registry row is not `kind: work`) touch writes only `status.json` -> `{ok, dir, kind: "project", record: null, status}`: the registry row (name / recipe / kind) is never changed and no `work.json` is created; `adopt` refuses such a folder. `home.register(dir, ...)` keeps the row's name / recipe / kind for any argument passed as None |
 | `adopt DIR [--recipe guess\|NAME] [--title T] [--client C]` | `{ok, dir, record, kind: "work", title, recipe, type, outputs, covers, posts, sheets, notes, sources, created, updated}`: a plain folder made with the skill (final/, REPORT.md, post.md, work/ ...) gets `DIR/.vstudio/work.json` and a registry row; nothing else in DIR is written. Scripts: `vstudio.project.works.touch(dir, recipe, title, outputs)` |
 | `output list\|show\|edit\|render\|undo\|redo\|revert\|ai\|chat\|effects --project P --output O` | second-pass edit of one finished output (a project export or a work-folder final): references/OUTPUT_EDIT.md |
 | `series new\|show\|list\|update`, `inbox [answer]`, `calendar ...` | section 6 |

@@ -17,9 +17,11 @@ You stay in control of cost, quality and where your text goes. A subscription yo
 | Segment planning | Picks the segments of a long recording, with titles and hooks |
 | Caption proofreading and glossary | Fixes names and terms the speech recognizer got wrong |
 | Post copy and scripts | Writes titles, post text and scripts |
-| Output edits | Turns a plain-language edit into edit steps |
+| Output edits and chat | Turns a plain-language edit into edit steps; runs the project and clip chat |
+| Autopilot decisions | Judges the unsure choices (filler cuts, opening, cover, music) and gives its reason |
+| Explainer scenes | Drafts the script from your notes and draws each scene as a diagram or animation |
 
-Speech recognition and voice are separate: transcription runs locally by default (whisper on Apple Silicon), and narration can use a local voice, your cloned voice, or a hosted one. Every text step also works with no model at all, through a rule-based path.
+Speech recognition and voice are separate: transcription runs locally by default (whisper on Apple Silicon), and narration can use the free local voice, your cloned voice, or a hosted one (see [Voices](/docs/guides/voices/)). Most text steps also work with no model at all, through a rule-based path. Drawing an explainer's scenes is the exception: it needs a model, and without one the project waits in Needs you instead of making a text-only video.
 
 ## Three ways to connect
 
@@ -48,13 +50,42 @@ Failure reasons include an expired login, not logged in, not installed, a missin
 
 API calls are costed per token and reported with each step. Subscription CLIs and local models count as zero. In an internal test, a 72-minute lecture became 24 clips for 4 platforms (96 files) for $0.73 in API cost, about $0.03 per clip.
 
+## Time limits and effort
+
+- **Time limits.** A CLI model (Claude Code, Codex) gets a time limit per attempt, so an expired login can't hang a step. The clip chat gives it 180 s; a slow answer is better than none. When it runs out, the next provider in the chain is tried and you are told ("Claude Code didn't answer within 120 s, so Codex was used this time"); a CLI that just timed out is skipped for a while. Set your own limit per route (`timeout: 300`) or for every CLI call (`VSTUDIO_LLM_CLI_TIMEOUT=300`).
+- **Effort.** Big generations, such as drawing an explainer scene, ask Claude Code for a medium reasoning effort (`--effort medium`): about a minute per scene instead of five. Set `effort:` (`low`, `medium`, `high`) on a route to change it. An older Claude Code without `--effort` is called without it.
+- **Model.** Leave the model empty to use the CLI's own default. If you set one for Codex, it must be a model your ChatGPT account can use; a model the account doesn't support fails every call ("didn't answer").
+
 ## In the Mac app
 
-Settings → AI accounts & models shows each provider's status (an expired Claude Code login shows as expired), lets you log in to a CLI in a built-in terminal, stores API keys in the macOS keychain, and sets the default, per-task choices and fallbacks.
+Settings › **AI** shows the AI that is working and when it was checked, with **Switch AI…**. From there you sign in to Claude Code or Codex (your browser opens), **Test** a provider, add **API keys** (kept in the system keychain), find **Models on this computer**, **Change order** of the backups, and set **Different AI for specific jobs**. A changed key needs an engine restart; the page offers it. The [Mac App Store edition](/docs/help/editions/) offers API keys and local models only.
+
+## Troubleshooting
+
+| You see | Meaning | Fix |
+|---|---|---|
+| **No model** / "No AI model connected" | Nothing is connected, or every provider is unavailable | Settings › AI: sign in, add a key or start a local model, then **Test** |
+| "The model didn't answer this time" / "Claude Code didn't answer" | A model is connected but did not reply in time, or failed | **Try again** (it gets more time); check the login; add a backup in **Change order** |
+| "… login expired, so … was used this time" | The first provider's login expired; a backup answered | Sign in again in Settings › AI |
+| "… hit its usage limit" | Your plan's limit was reached; a backup answered | Wait for the limit to reset, or route heavy jobs to an API key or local model |
+| Every Codex call fails right away | The Codex model set for the route isn't available to your account | Clear the model, or pick one your account supports |
+| "The visuals need an AI model" | An explainer's scenes can't be drawn without a model | Connect one, then **Try again** |
+
+More: [Troubleshooting](/docs/help/troubleshooting/#ai-providers).
 
 ## With the Claude Code skill
 
-Put an `llm:` section in your `persona.local.yaml`, then check it from the `lib/` folder:
+Put an `llm:` section in your `persona.local.yaml`:
+
+```yaml
+llm:
+  default: {provider: claude-code, timeout: 300, fallback: [codex, ollama]}
+  tasks:
+    copy:      {provider: codex}                     # no model: the CLI's own default
+    proofread: {provider: ollama, model: "qwen3:8b"}
+```
+
+Then check it from the `lib/` folder:
 
 ```bash
 python3 -m vstudio.llm providers   # what works on this machine; nothing is sent
@@ -65,6 +96,7 @@ python3 -m vstudio.llm test --provider ollama --model llama3.2:1b   # one tiny r
 ## Related
 
 - [Privacy](/docs/concepts/privacy/)
+- [Settings](/docs/app/settings/)
 - [Persona reference](/docs/reference/persona/)
 - [Providers engine reference](/docs/reference/engine/providers/)
 - [Engine messages](/docs/reference/messages/)

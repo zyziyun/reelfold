@@ -45,6 +45,12 @@ the burned caption line boundaries), `hard` (flattened, no burned captions detec
   .vstudio/status.json                 heartbeats of this output's renders
 ```
 
+**Audio-only edits are fast.** When the edit leaves the picture of the output's own canvas as it came (no trim /
+cut / speed / grade / end fade / transition / frame effect, captions / title / theme unchanged) and only adds audio
+work (`studio-sound` 人声增强, `music-bed` 背景音乐, `sfx-placement`, `loudness`), the final stage is `remux`: the
+original file's video stream is copied and only the new audio is encoded (`outrender.picture_untouched`). A 2:28
+1080x1920 clip: 473 s (frame pass) -> 11 s.
+
 ## 3. Ops (`edit --ops '[{...}]'`; one call = one undo step; all or nothing)
 
 Times are seconds on the ORIGINAL output timeline (`"time_base": "edited"` converts from the current edited
@@ -195,6 +201,7 @@ frames rendered once into `$VSTUDIO_CACHE/output_fx/`.
 | `xfade-joins` | 转场 | timeline | transition (any `vstudio.xfade` name), duration: at a cut join = an xfade, elsewhere a flash / dip |
 | `end-fade` | 结尾淡出 | timeline | duration |
 | `vlog-grade` | 调色 | timeline | sat, contrast, warm |
+| `portrait-retouch` | 磨皮美颜 | frame | strength 0.1-1, mode skin \| beauty (whole clip; face-tracked `vstudio.retouch.VideoRetoucher`, texture kept, no face = untouched; aliases 磨皮 / 美颜 / skin / beauty) |
 
 ## 5. Render (`output render [--quality preview|final] [--targets primary,douyin:vertical|all] [--json-events]`)
 

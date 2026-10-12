@@ -23,7 +23,9 @@ Built on **HyperFrames** (HTML → video). Worked example in `example/` (model q
 
 - HyperFrames skills installed (`/hyperframes`, `/hyperframes-core`, `/hyperframes-animation`, `/hyperframes-audio`, `/media-use`) and `npx hyperframes` working. Route fresh creation through `/hyperframes` first (it writes `BRIEF.md`); this skill is the `general-video` playbook for this genre.
 - `ffmpeg`, Python 3 with `fonttools brotli`.
-- `OPENAI_API_KEY` (narration ≈ $0.015/min with `gpt-4o-mini-tts`).
+- A voice: `OPENAI_API_KEY` (narration ≈ $0.015/min with `gpt-4o-mini-tts`), or a free one (Kokoro: `pip install
+  mlx-audio "misaki[zh]"` on Apple Silicon; edge-tts). The default (`tts_engine: auto`) is the voice this machine
+  has: persona `tts.engine`, else OpenAI only with its key, else the free voice - never a paid engine without a key.
 - Optional: HeyGen CLI logged in (`heygen auth login --oauth`) for the music catalog.
 - A CJK font you may redistribute (Noto Sans SC / Source Han Sans, OFL) and STIX Two Text (OFL, Google Fonts) in `assets/fonts/`.
 
@@ -42,6 +44,12 @@ Format: `## Line N — <label> (Frame N)`, optional `**Delivery:**`, the spoken 
 - Teaching shape that works: hook (a concrete number) → everyday intuition → what is stored → the core picture (one image) → **one worked example carried through 3–5 scenes with the same numbers** → why it doesn't hurt → types/variants → real tools → trade-offs → recap.
 - Verify every number in the worked example yourself before writing it; write them at the top of SCRIPT.md as the example's ground truth.
 - ≈ 175 spoken words/min for OpenAI `cedar` at speed 1.0 — measure from the sample, don't guess.
+- **Chinese narration (中文讲解)**: write the indented block in Chinese (English terms stay English: MCP, JSON-RPC;
+  numbers as digits), no `ZH:` line (the narration is the caption), optional `EN:` English subtitle. Every script
+  detects it (`script_md.narration_lang`): TTS / ASR checks run in Chinese, cues are `中文 || English`, the 中文
+  caption leads. ≈ 260 characters/min; a local voice that reads English terms inside Chinese is `--engine clone`
+  (Qwen3-TTS, persona `tts.clone`); Kokoro's Mandarin voices (`zf_xiaobei`) read Chinese only. From a long 讲稿 /
+  Notion export: condense to the one idea per scene, keep her examples and analogies, cut stage directions.
 
 Then draft instead of writing from scratch (both only propose; you edit and verify):
 ```bash
@@ -86,6 +94,11 @@ python3 scripts/make_captions.py       # → compositions/captions.html
 ```
 
 ### 6. Build scenes
+In a Reelfold project (`vstudio.project`, recipe `explainer`) this step is the routed AI's: at the "Build the scenes"
+checkpoint every scene is drawn from its frame packet (diagrams and motion on the real cue times, this guide's design
+truth and contract; `lib/vstudio/project/adapters/explainer_scenes.py`), checked and linted before it is kept. With no
+model it waits in Needs you - never a text-only fallback. A finished explainer's visuals are redrawn, the voice kept,
+with `python -m vstudio.project remake --dir P --item I --do visuals`. By hand / with your own agent:
 1. `npx hyperframes init <dir> --non-interactive --example=blank --skill=general-video`; copy `references/design-truth.md` → `frame.md`.
 2. Edit `scenes.config.json` (ids, transitions, **time-coded shot sequences using the real cue times** from `audio/scene_cues.json`; the storyboard draft gives you the skeleton), then `python3 scripts/make_packets.py`.
 3. Build ONE scene yourself from `assets/reference-scene.html`, assemble, `npx hyperframes lint` + `snapshot`, fix — then hand the rest to parallel workers (2–3 scenes each, one wave) with `_role.md` (HyperFrames frame-worker core + general-video delta), `references/frame-worker-dispatch.md`, their packets and sketches.

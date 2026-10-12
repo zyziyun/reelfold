@@ -9,15 +9,15 @@ Yes. Reelfold is open source under the MIT licence: the engine, the Claude Code 
 
 ## Is there a download for Mac? What about Windows?
 
-The first macOS release (Apple Silicon) is coming soon on [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest). Until then, build it from source: see [Install the Mac app](/docs/start/install-mac/). Windows 10 / 11 (x64) is in preview: from v0.2.0 each release also carries an unsigned Windows installer (SmartScreen warns), or build it from source; see [Install on Windows](/docs/start/install-windows/). The engine uses faster-whisper and the `h264_mf` encoder there; most testing still happens on Macs.
+Yes. The Mac app (Apple Silicon) is on [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest), signed and notarized; see [Install the Mac app](/docs/start/install-mac/). A Mac App Store edition (Reelfold Lite) uses API keys or local models for AI. Windows 10 / 11 (x64) is in preview: each release also carries an unsigned Windows installer (SmartScreen warns), or build it from source; see [Install on Windows](/docs/start/install-windows/). What differs: [Editions](/docs/help/editions/). The engine uses faster-whisper and the `h264_mf` encoder there; most testing still happens on Macs.
 
 ## Does it post for me?
 
-No. Publishing is assisted: the app opens the platform's own upload page in its built-in browser, sets the video and types the title, text and tags. You check it and press publish yourself. The app never clicks publish and never posts on a schedule. See [Publishing](/docs/concepts/publishing/).
+No. Publishing is assisted: the app opens the platform's own upload page in its built-in browser, sets the video and types the title, text and tags. You check it and press publish yourself. The app never clicks publish. The one exception is a platform whose official posting API you connect yourself (YouTube today). See [Publishing](/docs/concepts/publishing/).
 
 ## What leaves my Mac?
 
-Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles. With a local model, nothing leaves at all. Two exceptions you opt into: the OpenAI transcription backend sends audio, and OpenAI narration sends the script text. The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
+Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles. With a local model, nothing leaves at all. Two exceptions you opt into: the OpenAI transcription backend sends audio, and OpenAI narration sends the script text (the free Kokoro voice runs on your Mac). The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
 
 ## Which AI do I need?
 
@@ -27,11 +27,11 @@ Any of these, per task:
 - An **API key**: Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs.
 - A **local model**: Ollama, LM Studio, vLLM, llama.cpp, local whisper.
 
-Without any AI, segment planning falls back to a rule-based planner. See [AI providers](/docs/concepts/ai-providers/).
+Without any AI, planning, post copy and simple edits fall back to rules. Drawing an explainer's scenes needs a model. See [AI providers](/docs/concepts/ai-providers/).
 
 ## Do I need Claude Code?
 
-Not for the Mac app; any provider above works. The skill form of Reelfold runs inside Claude Code, so that one does. The explainer recipe also needs an AI agent (Claude Code or Codex) to write its animated scenes.
+Not for the Mac app; any provider above works. The skill form of Reelfold runs inside Claude Code, so that one does. The explainer and course recipes need an AI model to draw their animated scenes; Claude Code, Codex, an API key or a local model all work.
 
 ## How is it different from Opus Clip, Descript or CapCut?
 

@@ -132,6 +132,23 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    same way, and record whatever credit its licence requires in `music/ATTRIBUTION.txt`.
    Music taste is subjective: deliver one, offer named swaps from a different cheatsheet row
    ("too cheerful" / "too epic" -> change family, not track).
+   **In a project (the app / `vstudio.project`)** the `music` checkpoint picks the track: the
+   three best fits for the request and the style from the local license-free library
+   (`python -m vstudio.music list`: your tracks in `~/Music/Reelfold` / persona `music.dirs`, a
+   `*_KevinMacLeod.mp3` from `fetch_music.sh` included, then the built-in beds Reelfold generates,
+   MIT) + "no music". Autopilot takes the best fit (a decision she can change); Ask me first offers
+   the list. A built-in is generated to the master's length; a CC BY track's credit goes into every
+   platform's post copy. No network fetch: put catalog tracks in the music folder first.
+
+   **Vertical platforms + post copy (in a project).** A landscape master going to 9:16 / 3:4 is reframed with
+   `--mode follow` (`vstudio.reframe` subject mode: the camera follows what stands out in each shot, holds on
+   static shots, eases through the crossfades; a shot that cannot be cropped is shown whole on a blurred fill).
+   The `framing` decision records it (autopilot: follow the subject); she can switch to "Fill with blur" in the
+   Inbox or on the clip page (On vertical screens). The `copy` stage writes each platform's post copy
+   (`vstudio.postcopy`): title / hook, 2-4 line body (a longer YouTube description), topic hashtags within the
+   platform's limit, the city from the DJI `.SRT` logs (offline), the music credit; 小红书 / 抖音 / B站 in her
+   request's language, YouTube / TikTok in persona `publish.copy_lang.intl` (English by default). The routed
+   `copy` model writes it, the rules when there is none; the `copy` decision says which and offers the other.
 
 8. **Deliver.** A native-4K master is large (~1.8 GB per ~3 min). Offer a smaller visually-lossless
    4K or high-bitrate 1080p (commands in recipes.md). State duration, resolution, file size, and list

@@ -23,6 +23,8 @@ Windows support is new and less tested than the Mac app, and the installer is **
 | H.264 encoding | VideoToolbox | Media Foundation (built into Windows), falling back to OpenH264 when Media Foundation has no H.264 encoder (for example Windows N without the Media Feature Pack) |
 | API keys | macOS keychain | Encrypted with Windows DPAPI under your user account |
 | Installer | Signed and notarized DMG, updates itself | Unsigned NSIS installer on GitHub Releases, so SmartScreen warns. Checks the same releases for updates |
+| Free offline voice | Kokoro, about 330 MB, for narration without a key | Not available: narration (explainers, courses) needs an OpenAI key or a voice you set in the persona |
+| Shortcuts | ⌘ | Ctrl (Ctrl+1 to Ctrl+4 for Home, Inbox, All projects, Publish) |
 
 ## Install with the installer
 
@@ -64,7 +66,7 @@ You need [Node.js 22+](https://nodejs.org/), [Python 3.12](https://www.python.or
 
 </Steps>
 
-Fonts and face models are downloaded by the app on first launch (**Settings → Models, fonts and tools**). The Whisper model is downloaded the first time you transcribe.
+Fonts and face models are downloaded by the app on first launch (**Settings › Advanced › Downloads**). The Whisper model is downloaded the first time you transcribe.
 
 ### Test builds from CI
 
@@ -72,7 +74,7 @@ Maintainers can build the same unsigned installer for any branch in CI (Actions 
 
 ## Connect your AI
 
-Open **Settings → AI accounts & models**, the same as [on the Mac](/docs/start/install-mac/#connect-your-ai). For the subscription logins, install the CLI first:
+Open **Settings › AI**, the same as [on the Mac](/docs/start/install-mac/#connect-your-ai). For the subscription logins, install the CLI first:
 
 - **Claude Code:** the native installer (`irm https://claude.ai/install.ps1 | iex`) or `npm install -g @anthropic-ai/claude-code`.
 - **Codex:** `npm install -g @openai/codex`.
@@ -88,6 +90,9 @@ By default faster-whisper runs on the CPU on Windows, because the CUDA libraries
 - Very deep folders: Windows limits paths to 260 characters unless long paths are enabled (Group Policy *Enable Win32 long paths*). Keep projects in a short folder such as `D:\Reelfold` if a render fails with a path error.
 - The publish browser, scheduled publishing and the Create page's recorder are less tested on Windows.
 - The installer and the app are unsigned, so SmartScreen (and some antivirus tools) warn until signing is set up.
+- There is no free offline voice yet; add an OpenAI key for narrated videos.
+
+How the editions compare: [Editions: Mac, App Store, Windows](/docs/help/editions/).
 
 ## Where your data lives
 

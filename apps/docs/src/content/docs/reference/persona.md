@@ -17,7 +17,7 @@ cp persona.example.yaml persona.local.yaml   # in the skill folder; git-ignored
 
 The Mac app keeps the same settings under **Settings**; the skill reads `persona.local.yaml`. Any key you leave out keeps the default shown here.
 
-> Creator persona: every taste/brand/platform default the workflows read. Copy to persona.local.yaml (gitignored) and edit; it overrides these keys.
+> Creator persona: every taste/brand/platform default the workflows read. Copy to persona.local.yaml (gitignored) and edit; it overrides these keys.  Where persona.local.yaml is read from (vstudio.config.persona_sources; all found files are deep-merged, the higher one wins per key), highest precedence first: 1. $VSTUDIO_PERSONA                        an explicit file (client personas, tests, one-off overrides) 2. $VSTUDIO_HOME/persona.local.yaml        default ~/.config/vstudio - shared by the skill, CLI and desktop app 3. <repo>/persona.local.yaml               next to this file 4. ~/.claude/skills/video-studio/persona.local.yaml   the Claude Code skill checkout 5. <repo>/persona.yaml, then this file (the defaults) The desktop app runs a bundled engine with no persona next to it: it finds yours via 2 or 4.
 
 ## Sections
 
@@ -32,9 +32,9 @@ The Mac app keeps the same settings under **Settings**; the skill reads `persona
 | [`brand`](#brand) | Your ink and ground colours. | `ink`, `ground` |
 | [`watermark`](#watermark) | your mark on every export (python -m vstudio.watermark; the desk: Settings › Watermark, | `kind`, `text`, `image`, `style`, `color`, `position`, `size`, `opacity`, `margin`, `default`, `platforms` |
 | [`fonts`](#fonts) | Your own font files per role (cjk, cjk-bold, cjk-serif, serif, mono…), including one face of a .ttc. |  |
-| [`subtitles`](#subtitles) | Caption line length, keyword highlight markup and ASR term fixes. | `max_cjk_chars`, `max_en_chars`, `highlight_markup`, `term_fixes`, `glossary` |
+| [`subtitles`](#subtitles) | Caption line length, keyword highlight markup and ASR term fixes. | `max_cjk_chars`, `max_en_chars`, `highlight_markup`, `term_fixes`, `terms`, `glossary` |
 | [`voice`](#voice) | Voice rules for scripts and post copy. | `persona`, `rules` |
-| [`publish`](#publish) | Default hashtags, named tag sets and the chapter line format. | `tags`, `tag_sets`, `chapter_line` |
+| [`publish`](#publish) | Default hashtags, named tag sets and the chapter line format. | `tags`, `tags_always`, `tag_sets`, `chapter_line`, `copy_lang` |
 | [`intake`](#intake) | How the planner treats materials (for example burned-in captions). | `burned_captions` |
 | [`cleanup`](#cleanup) | Default cleanup profile, crossfade, extra fillers and words never to cut. | `profile`, `crossfade`, `fillers_extra`, `never_cut` |
 | [`formats`](#formats) | recurring formats (python -m vstudio.formats list): first-pass defaults per kind of post. |  |
@@ -164,6 +164,8 @@ subtitles:
   max_en_chars: 90
   highlight_markup: "【】"  # 【term】 is emphasised the theme's way (marker band / accent), one per line
   term_fixes: {}           # ASR corrections, e.g. {"cloud code": "Claude Code"}
+  terms: []                # her glossary: words she says that speech models get wrong (brand, product, people),
+                           # e.g. [Reelfold, HyperFrames]: whisper is primed with them, near-miss spellings are fixed
   glossary: {}             # bilingual captions: fixed translations {source term: target term}, e.g. {"break the ice": "打破僵局"}
 ```
 
@@ -183,10 +185,13 @@ voice:                     # style rules for scripts and post copy (see workflow
 
 ```yaml
 publish:
-  tags: []                 # default hashtags appended to post copy (post_body use_persona_tags=True)
+  tags: []                 # standing hashtags, added to a post when they fit it (its words mention them)
+  tags_always: false       # true: every post gets all of them, whatever it is about
   tag_sets: {}             # named alternatives picked per post with tag_set:, e.g. {art: [看展, 艺术]}
                            # a post/spec can also set use_persona_tags: false to use only its own tags
   chapter_line: "时间线在下面，按需跳👇"
+  copy_lang: {intl: en}    # drafted post copy (vlog / travel): intl = YouTube / TikTok / X / Instagram; cn = 小红书 /
+                           # 抖音 / B站 (default: your request's language); or one platform, e.g. {tiktok: zh}
 ```
 
 ### `intake`

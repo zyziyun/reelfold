@@ -43,7 +43,7 @@ Not every job starts as a recipe project. When the skill edits a plain folder (a
 
 ## In the Mac app
 
-Home turns your request into one or more projects. All projects lists them with their live state, the Inbox shows what needs you, and each project opens to its items and outputs.
+Home turns your request into one or more projects. [All projects](/docs/app/all-projects/) lists every video with its live state, the Inbox shows what needs you, and each project opens to its [live run page](/docs/app/live-run/) while it is made and to its clips when it is done. On [Autopilot](/docs/app/autopilot/), checkpoints are answered by the AI and recorded; only blockers park in "needs you".
 
 ## With the Claude Code skill
 

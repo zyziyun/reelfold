@@ -29,10 +29,22 @@ Only to the provider you route each task to:
 | Segment planning | The transcript with timestamps | Audio, video, file paths |
 | Caption proofreading and glossary | Caption text and transcript text, your term list | Audio, video |
 | Output edits | Your instruction, the clip's captions or transcript, its edit state | Audio, video |
+| Project and clip chat, autopilot decisions | Your message or the question, the clip's transcript and settings, the options | Audio, video |
+| Explainer and course scripts and scenes | Your notes or document text, the script, the scene timings | Audio, video |
+| Post copy | The facts: place, month, your words and title, the music's name | Audio, video |
 | Hosted transcription (only if chosen) | The audio track | Video |
 | Hosted voice (only if chosen) | The narration text | Anything else |
+| Video generation, such as an AI presenter (only with your key, after you approve the spend) | What that shot needs: its prompt, and the picture or voice it animates | Your other footage |
 
-A local model, local whisper or your cloned voice sends nothing. Transcripts can contain names and private details of the people recorded; for client work, prefer a local model or a provider whose data terms your client accepts.
+A local model, local whisper, the free Kokoro voice or your cloned voice sends nothing. Transcripts can contain names and private details of the people recorded; for client work, prefer a local model or a provider whose data terms your client accepts.
+
+## Logs on your Mac
+
+The live view of a run (the Claude Code or Codex stream and the engine log) is kept on your Mac, with API keys, tokens and passwords removed. **Copy diagnostic report** (Settings › Advanced) holds versions, engine state and settings, never keys, passwords or video, and you decide where to paste it. **Report this problem** shows the whole report first (paths shortened to `~`, no file names, transcripts, prompts or keys) and opens it on GitHub for you to post yourself. Sending crash reports automatically is off by default.
+
+## Downloads
+
+The app downloads what it needs from public sources the first time: fonts, face models and the speech model, and, when a video first needs it, the free voice (about 330 MB, from Hugging Face). Nothing about you or your videos is sent with these downloads. See [Settings › Downloads](/docs/app/settings/#advanced).
 
 ## Analytics and updates
 

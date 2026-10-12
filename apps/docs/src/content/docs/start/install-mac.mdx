@@ -1,11 +1,11 @@
 ---
 title: Install the Mac app
-description: Install Reelfold for Mac on Apple Silicon, from GitHub Releases once the first build ships or from source today, then connect your own AI.
+description: Install Reelfold for Mac on Apple Silicon from GitHub Releases (signed and notarized) or from source, see what the first launch downloads, and connect your own AI.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-Reelfold for Mac is the desktop app: a request box, a board for running batches, a review inbox and assisted publishing. It is free and MIT licensed. This page gets it running and connected to an AI model.
+Reelfold for Mac is the desktop app: [Home](/docs/app/home/) to start and follow your work, an Inbox for what needs you, [All projects](/docs/app/all-projects/) for every video, and assisted publishing. It is free and MIT licensed. This page gets it running and connected to an AI model.
 
 ## Requirements
 
@@ -15,11 +15,7 @@ Reelfold for Mac is the desktop app: a request box, a board for running batches,
 
 ## Get the app
 
-<Aside type="note" title="The first macOS release is coming soon">
-Signed downloads will be published on [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest). Until the first release is out, build the app from source as shown below.
-</Aside>
-
-### Download (once released)
+### Download
 
 <Steps>
 
@@ -29,9 +25,11 @@ Signed downloads will be published on [GitHub Releases](https://github.com/zyziy
 
 </Steps>
 
-The installed app carries its own engine: Python, ffmpeg and the `vstudio` engine are bundled, so you do not need to install them yourself.
+The installed app is signed and notarized, and carries its own engine: Python, ffmpeg and the `vstudio` engine are bundled, so you do not need to install them yourself.
 
-### Build from source (available now)
+A **Mac App Store edition** (Reelfold Lite) runs in Apple's sandbox: it uses API keys or local models for AI (no Claude Code or Codex sign-in) and updates through the App Store. See [Editions](/docs/help/editions/).
+
+### Build from source
 
 You need Node 22+, Python 3.10+ and `ffmpeg` (for example `brew install node python ffmpeg`).
 
@@ -62,35 +60,37 @@ If the app picks the wrong Python, set the Python path in Settings.
 
 When Reelfold starts, it launches a local engine on your Mac (a helper process the app talks to over a private local socket; it listens on no network port). The status shows **Ready on this computer** once it is up.
 
-The installed app offers a one-time download of what the engine needs, in a banner and under **Settings → Models, fonts and tools**:
+A short first-run setup walks through AI, downloads and your platforms (you can run it again from Settings › Advanced). The installed app downloads what the engine needs in the background; progress is under **Settings › Advanced › Downloads**:
 
 | Download | Size | Needed for |
 |---|---|---|
 | Fonts and MediaPipe face models | about 62 MB | Captions, covers, face tracking, retouch |
 | Whisper large-v3-turbo | about 1.6 GB | Transcription |
+| Free voice (Kokoro) | about 330 MB | Narration without an OpenAI key; downloaded when a video first needs it |
 | Chromium (optional) | 180–360 MB | HTML covers, slides and HyperFrames-based workflows |
 
 Downloads resume if interrupted and are checked before they are installed. In a source build, `install.sh` has already fetched the fonts and face models, and the engine downloads a Whisper model on the first transcription if none is installed.
 
 ## Connect your AI
 
-Open **Settings → AI accounts & models**. Each provider shows a status (logged in, login expired, key saved, local server running).
+Open **Settings › AI**. It shows the AI that is working and when it was last checked; each provider shows a status (signed in, login expired, key saved, local server running).
 
 | Option | What you do | Billing |
 |---|---|---|
-| **Subscriptions (no API key)** | Click **Log in** next to Claude Code or Codex. A terminal opens in the app and your browser asks you to sign in. | Your Claude Pro / Max or ChatGPT subscription |
+| **Subscriptions (no API key)** | Click **Sign in** next to Claude Code or Codex (install the CLI first). Your browser opens; if it shows a code, paste it into the app. | Your Claude Pro / Max or ChatGPT subscription |
 | **API keys** | Paste a key for Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini or ElevenLabs. Keys are kept in the macOS keychain and handed only to the engine. | Pay per use |
 | **Local models** | Run Ollama, LM Studio, vLLM or llama.cpp on this Mac or your own server. Reelfold lists the models it finds. | Free; nothing leaves your network |
 
 Use **Test** on a provider to send one tiny request and confirm it answers.
 
-Under **Which AI does what** you choose a default and, if you like, a different provider per task (planning, segment picking, caption proofreading, glossary, post copy, AI edits), with fallbacks in order. When a fallback answers, the app tells you which one did. A new API key needs an engine restart; the page offers the button.
+**Change order** sets which AI is tried next when the first doesn't answer, and **Different AI for specific jobs** sets a provider per task (planning, picking segments, captions, post copy, AI edit). When a backup answers, the app tells you which one did. A new API key needs an engine restart; the page offers the button.
 
 What each step sends to the provider, and what stays local: [AI providers](/docs/concepts/ai-providers/).
 
 ## Update
 
-- **Installed app:** Reelfold checks for updates at launch and every few hours, downloads them in the background and offers **Restart to update** to the new version.
+- **Installed app:** Reelfold checks for updates at launch and every few hours, downloads them in the background and offers **Restart to update** (with what's new). If projects are running, **Restart when done** waits for them. Settings › General shows the version and **Check for updates**.
+- **App Store edition:** updates come from the Mac App Store.
 - **Source build:** pull and reinstall, then start again:
 
   ```bash
@@ -114,6 +114,8 @@ Your original footage is never moved or modified. If you came from an older Dayc
 ## Related
 
 - [Your first project](/docs/start/first-project/)
+- [Settings](/docs/app/settings/)
+- [Editions: Mac, App Store, Windows](/docs/help/editions/)
 - [Install the Claude Code skill](/docs/start/install-skill/)
 - [AI providers](/docs/concepts/ai-providers/)
 - [Troubleshooting](/docs/help/troubleshooting/)

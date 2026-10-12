@@ -51,7 +51,7 @@ Pending filler cuts across all jobs are gathered in one sheet. Only the automati
 
 ## In the Mac app
 
-Describe the batch on Home ("cut this lecture into 20 vertical clips for Douyin and Xiaohongshu"). The project runs a pilot first and lands in the Inbox when it needs you. Flagged clips are what you see in review.
+Describe the batch on Home ("cut this lecture into 20 vertical clips for Shorts, TikTok and Xiaohongshu"). On [Autopilot](/docs/app/autopilot/) it runs straight through, and clips that pass the checks are approved for you; flagged clips and real blockers land in the Inbox. With **Ask me first**, the project runs a pilot first and waits for you. In [All projects](/docs/app/all-projects/), pick many clips and **Approve**, **Schedule** or **Try again** them in one go.
 
 ## With the Claude Code skill
 

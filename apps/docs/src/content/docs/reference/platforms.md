@@ -46,7 +46,7 @@ One clean master becomes one file per platform below. Pick targets with `--platf
 | Profile | Platform | Canvas | Cover | Length (sweet spot / max) | Title max | Loudness |
 |---|---|---|---|---|---|---|
 | `xiaohongshu:vertical` | 小红书 RedNote | 1080×1440 (3:4) | 1080×1440 | 30–180 s / max 15 min | 20 | -14 LUFS / -1.5 dBTP |
-| `xiaohongshu:full` | 小红书 RedNote | 1080×1920 (9:16) | 1080×1440 | 30–180 s / max 15 min | 20 | -14 LUFS / -1.5 dBTP |
+| `xiaohongshu:full` | 小红书 RedNote | 1080×1920 (9:16) | 1080×1920 | 30–180 s / max 15 min | 20 | -14 LUFS / -1.5 dBTP |
 | `xiaohongshu:horizontal` | 小红书 RedNote | 1920×1080 (16:9) | 1920×1080 | 30–180 s / max 15 min | 20 | -14 LUFS / -1.5 dBTP |
 | `douyin:vertical` | 抖音 Douyin | 1080×1920 (9:16) | 1080×1920 | 15–60 s / max 15 min | 55 | -14 LUFS / -1.5 dBTP |
 | `douyin:horizontal` | 抖音 Douyin | 1920×1080 (16:9) | 1920×1080 | 15–60 s / max 15 min | 55 | -14 LUFS / -1.5 dBTP |
@@ -205,7 +205,8 @@ horizontal 44-60 px, 22 CJK / 48 latin. 小红书 9:16 band centred on y ≈ 152
 
 | profile | size | title-safe / feed crop | tag |
 |---|---|---|---|
-| xiaohongshu vertical/full | 1080x1440 3:4 | – | [S] |
+| xiaohongshu vertical | 1080x1440 3:4 | – | [S] |
+| xiaohongshu full | 1080x1920 9:16 (same canvas as the video) | **feed tile shows centre 3:4** → `.feed.jpg` preview | [S] + her rule: the cover has the video's size |
 | xiaohongshu horizontal | 1920x1080 | **feed shows centre 4:3** → `.feed.jpg` preview | [3P + workflows/cover] |
 | douyin / tiktok vertical | 1080x1920 | profile grid shows centre 3:4 | [3P] |
 | youtube | 1280x720, ≤ 2 MB (desktop now allows larger) | bottom-right timestamp: title-safe ends at x 1100 | [S] |
@@ -259,7 +260,13 @@ python3 -m vstudio.export work/master.mp4 --platforms x,instagram,instagram:feed
 Keep the **master caption-free** and the cues separate (`subs.Cue.to_dict` JSON or SRT). Each export then gets
 captions placed and sized for that platform's UI. Text burned into a 16:9 master gets cropped off on 3:4 / 9:16.
 Reframe: `face` mode follows the main face inside the safe box. If no face is found it uses a blurred fill
-(`pad-blur`). A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest says `scale`).
+(`pad-blur`). `subject` (alias `follow`; the vlog recipe's default) is for travel / drone footage: per shot it
+frames a sizeable face, else what stands out (`vstudio.saliency`), with a smooth path that anticipates the subject,
+holds still on static shots, resets on hard cuts and eases through the crossfades named by `--shots` (the vlog
+build writes `<master>.shots.json`); the subject sits mid safe box above the caption band. A shot that cannot be
+cropped meaningfully (two subjects too far apart, a featureless panorama) is shown whole on the blurred fill - that
+shot only; the manifest's `reframe.shots` counts follow / hold / face / pad-blur shots. `blur` = `pad-blur`.
+A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest says `scale`).
 
 - **Masters with burned overlays** (记笔记 panels, stamps, hook titles): put `keepouts` in cues.json -
   `{"cues": [...], "keepouts": [{"t0", "t1", "box": [x, y, w, h], "kind"}], "size": [W, H]}`, boxes in master

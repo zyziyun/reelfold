@@ -1,9 +1,29 @@
 ---
 title: Troubleshooting
-description: "Fixes for common Reelfold problems: ffmpeg not found, whisper downloads, missing fonts, AI login errors, slow batches, full disks and wrong caption names."
+description: "Fixes for common Reelfold problems: what the app's messages mean (voice, visuals, missing files, app bugs), ffmpeg and model downloads, AI login and No model errors, slow batches, full disks and caption names."
 ---
 
 Each entry names the symptom, the likely cause and the fix. If you see a message code such as `llm-all-failed` or `qc.loudness`, look it up in [Messages and error codes](/docs/reference/messages/).
+
+## Messages in the app
+
+When a run stops, the project moves to **Needs you** with a plain message and what to do. **Try again** re-runs only the step that failed; finished steps are kept, and a project made on autopilot goes on on autopilot.
+
+| Message | What to do |
+|---|---|
+| The voice kept leaving out a sentence in scene N: "…" | Reword or split that sentence in the script, then **Try again**. Tips: [Voices](/docs/guides/voices/#tips-for-rare-words-and-long-sentences) |
+| The voice could not read scene N, even in two halves: "…" | Same: shorter sentences, simpler wording, a rare word reworded |
+| The free voice isn't downloaded on this computer yet | **Download the free voice** (about 330 MB; progress in Settings › Advanced › Downloads), then **Try again** |
+| There's no OpenAI key in Reelfold, so this step couldn't run | **Use the free voice** (Apple silicon), or add the key in Settings › AI |
+| The visuals need an AI model — Claude Code didn't answer | **Try again** (it gets more time), or choose another model in Settings › AI. See [AI providers](/docs/concepts/ai-providers/#troubleshooting) |
+| Scene N of M couldn't be redrawn: … Your video is unchanged | Nothing is lost. **Try again** redraws only the missing scenes, or **Redraw scene N** later |
+| The script wasn't written in scenes yet — it was still your notes | **Try again**: the scenes are drafted from your notes |
+| Reelfold couldn't render this — this is a bug in the app, not a problem with your files | Press **Report this problem**. It shows the report (no file names, transcripts or keys) and opens it on GitHub for you to post |
+| "…" couldn't be read | The file is damaged or not a video Reelfold can open. Check it still plays, then **Try again** |
+| "…" is on the drive "…", which isn't connected | Connect the drive, then **Try again** |
+| Node.js didn't run / ffmpeg didn't run | The message names the fix, for example `brew reinstall node`, or reinstall Reelfold |
+
+A redo of a finished video that stops (new visuals, new vertical versions) never breaks the clip: it stays **Ready to post** with its old video, and the notice says what stopped.
 
 ## Setup and engine
 
@@ -39,10 +59,10 @@ Face tracking, retouch, cover frame picking and matting use the MediaPipe face l
 
 ### The Mac app can't find the engine
 
-If the app shows **Demo mode** instead of **Ready on this computer**, it couldn't import the engine and is running a stand-in.
+The installed app carries its own engine. If a source build says the engine isn't running or can't start, the status line in Settings names it.
 
-1. Open Settings → **Engine**. It shows the engine folder, Python and data folder **In use**.
-2. Set **Engine folder (Reelfold repo)** to the folder that contains `lib/vstudio`, and **Python** to an interpreter that has `requirements.txt` installed.
+1. Open Settings › Advanced › **Engine**. It shows the video engine, the Python and the engine data folder in use.
+2. Point the video engine at the folder that contains `lib/vstudio`, and Python at an interpreter that has `requirements.txt` installed, then **Restart the engine**.
 3. The same can come from the environment: `VSTUDIO_ENGINE_PATH` for the engine and `DESK_PYTHON` for Python. The app looks at Settings first, then those variables, then the repo it lives in.
 
 ### An old cache folder
@@ -55,7 +75,7 @@ Everything is cached under `$VSTUDIO_CACHE`, by default `~/.cache/video-studio`.
 
 The routed provider and all its fallbacks failed. The message lists which ones were tried.
 
-- Check what this Mac has: `python3 -m vstudio.llm auth status`, run from the repo's `lib` folder, or Settings → **AI accounts & models** in the app.
+- Check what this Mac has: `python3 -m vstudio.llm auth status`, run from the repo's `lib` folder, or Settings › **AI** in the app.
 - Fix the first failing one (login, key, local server), or add a fallback: in the app, per task; in the persona, `fallback: [codex, ollama]` on the route.
 
 A notice like `llm-fallback` ("Claude Code failed; Codex answered instead") is not an error. The work was done by the next provider in the chain.
@@ -64,10 +84,14 @@ A notice like `llm-fallback` ("Claude Code failed; Codex answered instead") is n
 
 The app checks Claude Code with a one-line round trip, because its own status can still say "logged in" after the token expired.
 
-- In the app: Settings → AI accounts & models → **Log in again**. The login runs in a terminal inside the app.
+- In the app: Settings › AI › **Sign in again**. Your browser opens; if it shows a code, paste it into the app.
 - In a terminal: run `claude`, then `/login` (or `claude auth login`).
 
 The engine never sees your password or token. Nothing is lost when a run stops on an expired login: sign in, run it again, and finished stages are not redone.
+
+### "No model" or "didn't answer" in the chat
+
+**No model** means nothing is connected: sign in, add a key or start a local model in Settings › AI. "The model didn't answer this time" means one is connected but did not reply in time; **Try again** gives it more time. If you set a model for Codex, make sure your account can use it; an unsupported model fails every call. Time limits, effort and fallbacks: [AI providers](/docs/concepts/ai-providers/#time-limits-and-effort).
 
 ## Batches
 

@@ -1,6 +1,6 @@
 ---
 title: Contributing
-description: Build Reelfold from source, find your way around the repo, run the tests, add an effect or a platform, translate, edit these docs and open a pull request.
+description: Build Reelfold from source, run a packaged build locally, find your way around the repo, run the tests, add an effect or a platform, translate, edit these docs and open a pull request.
 ---
 
 Reelfold is MIT-licensed and lives in one repository: the engine and Claude Code skill at the root, the Mac app, the website and these docs under `apps/`. Fixes, effects, platform profiles and translations are all welcome.
@@ -16,6 +16,44 @@ npm run desk
 ```
 
 `./install.sh` installs the Python dependencies and downloads the open-licensed fonts and MediaPipe models into `~/.cache/video-studio`. `npm install` is one workspace install for everything in `apps/`. `npm run desk` starts the app with its engine running from this checkout's `lib/`.
+
+### Useful scripts
+
+From the repo root:
+
+| Command | What it does |
+|---|---|
+| `npm run desk` (or `npm run dev`) | The Mac app in development, engine from this checkout |
+| `npm run site` / `npm run docs` | reelfold.com / these docs, with live reload |
+| `npm run build:web` | Builds the site and the docs into one folder (`apps/site/dist`, docs under `/docs`) |
+| `npm run build:docs` | The docs only |
+| `npm run test` / `npm run lint` | The app's tests / eslint + tsc |
+| `npm run check` | `scripts/check_skill.py`, the repo checks |
+
+In `apps/desk` (`npm run <script> -w apps/desk` from the root):
+
+| Command | What it does |
+|---|---|
+| `runtime` | Bundles Python, ffmpeg and the engine for this machine into `build/runtime/` (about 1 GB; downloads cached) |
+| `build:mac` | A packaged `Reelfold.app` in `dist/mac-arm64/`, unsigned, using the bundled runtime if present |
+| `dist:mac:unsigned` | A DMG and zip, unsigned |
+| `test:packaged` | Checks the packaged app: the bundled engine starts and answers |
+| `mas:local` | The Mac App Store build, signed ad hoc with the sandbox entitlements, then tested |
+| `test:e2e` | Builds, then the Playwright smoke tests |
+
+### Run a packaged build locally
+
+There is no one-step install script. To try a packaged build of your checkout:
+
+```bash
+npm ci                                  # once, at the repo root
+npm run runtime -w apps/desk            # bundled Python + ffmpeg + engine (first time, or after engine changes)
+npm run build:mac -w apps/desk          # -> apps/desk/dist/mac-arm64/Reelfold.app
+npm run test:packaged -w apps/desk      # optional: check the packaged app
+open apps/desk/dist/mac-arm64/Reelfold.app
+```
+
+The build is unsigned, so the first time macOS may ask you to confirm (right-click › Open). It shares settings and projects with an installed Reelfold, so quit the installed app before you open the local build, and don't replace `/Applications/Reelfold.app` while it is running. Signed, notarized and App Store builds are covered in `apps/desk/docs/RELEASING.md` and `apps/desk/docs/MAS.md`.
 
 ## Repo layout
 

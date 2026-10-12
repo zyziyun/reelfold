@@ -102,7 +102,6 @@ plans such a file directly (no batch.yaml; then the spec sections below can't be
 | cleanup | cpu | `cleanup.analyze` on the job range (+ hook range, one edit numbering) -> EDLs, review sheets, confirm list | |
 | apply | cpu-render | `cleanup.apply`: auto edits + `cleanup_reply`, frame-exact, word-safe | |
 | compose | cpu-render | hook + body (speed), final-time `cues.json` (hook lines, then words via the cleanup TimeMap), `post.json` | |
-| copy | cpu / `api:<provider>` (talkinghead-clips) | post title + short body for a clip without them, from the final captions (`clipcopy.draft_post`: the routed `copy` model in the persona voice, else the spoken lines segplan picks, said in `notes`); the title passes `publish.check_title` on every platform; the creator's own copy is kept; the publish checkpoint shows the draft and its source | |
 | export | cpu-render (`face` for layout face) | `vstudio.export`: per-platform canvas, captions in the caption box, loudness, cover, post | |
 | verify | asr | `cleanup.verify` re-ASR: lost content words (the re-ASR is kept as `heard.json`) | |
 | glossary | cpu / `api:claude` / `api:openai` | ONE caption glossary per source from the whole transcript: terms + recurring ASR confusions (2c) | per source |
@@ -177,8 +176,7 @@ render_trio.py, name_mask, auto_trim, cut_profile, renderer_args: [scale=2.4], n
 (prep_sources.sh: HDR -> SDR + whisper) -> `cleanup` (edit_list.py = every whisper sentence, within the row range
 when trimmed -> cut_pass1.py (word-safe edges, 气口) -> strict_pass.py apply with the row's `cleanup_reply`; CONFIRM
 rows go to the review page) -> `face` (face_track.py; optional) -> `compose` (config.py -> compose.py all
---clean-master with `talkinghead: {style, keywords, hook_speed, body_speed}`) -> proofread / copy (post title + body
-drafted when not given; the 记笔记 title is the title) / export / qc / preview.
+--clean-master with `talkinghead: {style, keywords, hook_speed, body_speed}`) -> proofread / export / qc / preview.
 Both recipes' lost-word gate is the workflow's own (no batch `verify` re-hearing); the workflow scripts run
 unchanged, as subprocesses.
 
@@ -191,8 +189,13 @@ own list: applied even when a fix deletes words, but such a fix is listed under 
 the LLM reads the WHOLE transcript and lists the domain terms and the recurring confusions (`RM -> LLM`,
 `称爆 -> 撑爆`), a second focused look goes over every latin token with its contexts, and a third look rejects
 guesses; each fix is validated (a term: latin or 2+ characters, found in the transcript, confidence >= 0.97,
-sound-alike, no words dropped or added, no translation, not case-only) and applied with word boundaries (RM never
-hits ARM / RMS). `glossary.json` keeps terms, fixes, rejected ones with the reason and the raw replies;
+sound-alike, no words dropped or added, no translation, not case-only, `from` a rare token or non-word - never
+an everyday English word such as `part -> port`, `after -> avatar`, `client side -> client ID` (`vstudio.en_common`),
+never itself a glossary term, never one half of a contradictory pair such as `OAuth -> OAuth2` + `OAuth2 -> OAuth`;
+the glossary-spelling check of `vstudio.entities` follows the same rules - whole words, a case fix only adds a
+term's capitals (`redis -> Redis`, never `Port -> port`), and in English speech a plain lowercase word is never
+respelled by sound (`radish` stays, while in Chinese speech `用radish做缓存 -> Redis`) - and a glossary.json built
+before a rule existed is re-checked when applied) and applied with word boundaries (RM never hits ARM / RMS). `glossary.json` keeps terms, fixes, rejected ones with the reason and the raw replies;
 (c) an LLM pass per job (`vstudio.proofread`, two looks for recall): it sees the cues, the glossary (known
 confusions), the verify re-ASR of the same audio (a second hearing), the low-confidence words and the topic
 (asr prompt, term-fix targets, series, chapter, notes) and returns minimal per-cue fixes as JSON
@@ -200,8 +203,15 @@ confusions), the verify re-ASR of the same audio (a second hearing), the low-con
 substitutions of mis-heard spans: on the spoken units (one per CJK character / latin word) no unit may be deleted
 (`整个的RM -> 整个LLM` drops 的) or added, each replaced run must sound alike (syllables within 1) and stay in its
 language; the cue stays >= 60 % similar; a whole-caption "from" is reduced to the words that change. A span the
-term fixes / glossary already fixed is never re-edited, and an accepted term fix is applied to the job's other cues
-with the same span (`llm-propagated`). Everything rejected is logged with the reason. Providers:
+term fixes / glossary already fixed is never re-edited; a swap of function words only (`and -> or`, `a -> the`) is
+rejected (a meaning change, not a mis-hearing). Every changed English word must be justified by the audio
+(`proofread.unjustified`): an everyday word (`make`, `part`, `client`) changes only when the ASR was unsure of it
+(p < `low_conf`) or the second hearing heard something else there - `make -> mock` on a `make` heard at p 0.97 is
+rejected, and so is any everyday-word change in a cue without confidence data; rare tokens / non-words (`Mokito`)
+and CJK are judged by the validator alone. An accepted fix is applied to the job's other cues with the same span
+(`llm-propagated`) only when its target is a glossary term (`RM -> LLM`), each copy checked again on its own cue -
+never one `and -> or` or `expir -> expiry` edit on every cue. Cached LLM results stored before a rule are re-asked,
+never re-applied. Everything rejected is logged with the reason. Providers:
 `auto` (default: the configured `vstudio.llm` route for tasks `proofread` / `glossary`, else `claude` when
 `ANTHROPIC_API_KEY` is set, else `none`), `claude` (anthropic SDK, imported lazily; `claude-opus-5-5`), `openai` (only
 when set explicitly; `OPENAI_API_KEY`; default `gpt-4.1-mini`), any other `vstudio.llm` provider (deepseek, qwen,
@@ -276,7 +286,8 @@ of regenerable outputs), `version`.
   compose -> export -> qc -> preview of that job; a new cleanup reply re-cuts from `apply`; the shared ASR is
   never repeated for the same source and settings.
 * **Resource classes** (defaults from the machine; 10 cores / 32 GB gives): `asr` 1 (whisper owns the GPU),
-  `cpu` 5, `cpu-render` 3 (x264 is itself multi-threaded), `browser` 2, `face` 2, `io` 4, `api:*` 4. Override
+  `cpu` 5, `cpu-render` 3 (x264 is itself multi-threaded), `browser` 2, `face` 2, `io` 4, `api:*` 4,
+  `agent:*` 4 (agent-runner lanes; like `api:*`, not scaled by cores). Override
   in the spec (`concurrency:`) or per run (`--concurrency cpu-render=2`).
 * **Retries**: transient only (timeouts, connection resets, 429 / 5xx, `TransientError`), exponential backoff;
   deterministic errors fail the job at once; `paid` stages never retry.
