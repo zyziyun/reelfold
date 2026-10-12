@@ -53,7 +53,7 @@ features:                                  # 3-6, in the order the demo shows th
     trim: [0.5, 8.0]                       # seconds of the shot to use (default: all; a long clip of yours: the
                                            # stretch with the most action that fills the scene)
     # seconds: 4                           # this scene's length on screen (default: from the shot, 4.5-9 s)
-    # shot: [course, course-render]        # two shots, one caption: the second takes over with the caption up
+    # shot: [course, course-render]        # two shots, one caption: both moments side by side (a split scene)
     # rate: 1.25                           # play the recording faster (idle waits already play at 4x)
     # still_at: 4.2                        # the gallery still: this second of the shot (default: its poster frame)
     # post: {en: {hook: ..., body: ..., tags: [...]}, zh: {...}}   # this clip's post (default: caption + one-liner)
@@ -65,6 +65,14 @@ pace: 1.0                                  # every scene plays its recording at 
 motion: {transition: crossfade, seconds: 0.35}   # crossfade | push | zoom | mix (push / zoom-through / rise, match
                                            # cut between a feature's shots); seconds: the hand-over (0.3 = 9 frames);
                                            # camera: push | still; beat: false = cuts not on the music's beats
+film: {variety: balanced, text: 0.4, captions: auto}   # the film's rhythm: no two scenes alike in a row (full-bleed UI,
+                                           # 2.5-4x detail cuts, split screens, the window floating with a small lower
+                                           # third, short type beats between sequences); variety calm | balanced |
+                                           # lively; text = at most this share of the runtime has words on screen;
+                                           # captions auto | type (type beats only) | lower (lower thirds) | none.
+                                           # A feature may pin layout: full | macro | split | float, or open a section
+                                           # with chapter: {en: ..., zh: ...} (a chapter card)
+type: {scale: 1.0}                         # type size (0.7-1.3); weight: 400-700 (default Inter 560, Noto Sans SC 500)
 make: [demo, loop, clips]                  # which videos (a promo only: [demo])
 demo: {min_seconds: 30, max_seconds: 60}   # + shots: [ids] (default all), renders: ["en:16:9", "zh:9:16", ...],
                                            # title_card: false (open on the first feature, no title card)

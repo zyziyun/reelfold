@@ -63,18 +63,21 @@ def build(cfg, only=None):
 
 
 def cover_time(plan):
-    """A frame that reads as a cover: the title fully in (demo), else the first caption fully in."""
+    """A frame that reads as a cover: the opening card / first type beat with its words in."""
     return cover_times(plan)[0]
 
 
 def cover_times(plan, n=4):
-    """Cover candidates in order of preference: the title / first caption fully in, then the next features' captions
-    fully in (render() takes the first one bright enough for the platforms' cover check)."""
+    """Cover candidates in order of preference: the chapter cards and type beats with their words fully in, then
+    the lower-third shots (render() takes the first one bright enough for the platforms' cover check)."""
     sc = plan["scenes"]
-    out = [min(sc[0]["dur"] - 0.5, 2.0)] if sc[0]["kind"] == "title" else []
+    out = []
     for x in sc:
-        if x["kind"] == "feature" and not x.get("part") and len(out) < n:
-            out.append(round(x["start"] + min(x["dur"] - 0.4, 2.4), 3))
+        if x.get("layout") in ("chapter", "type") and len(out) < n:
+            out.append(round(x["start"] + min(x["dur"] - 0.4, 1.6), 3))
+    for x in sc:
+        if x.get("layout") in ("float", "split") and (x.get("text") or x.get("labels")) and len(out) < n:
+            out.append(round(x["start"] + min(x["dur"] - 0.4, 1.8), 3))
     return out or [0.5]
 
 

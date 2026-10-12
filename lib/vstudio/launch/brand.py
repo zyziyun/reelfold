@@ -8,9 +8,10 @@ Fonts: ``brand.fonts.display`` / ``brand.fonts.text`` (any OFL font file: .woff2
 always uses the engine's Noto Sans SC (vstudio.config.FONTS), subset to the characters on screen. Without brand fonts
 the headlines are set in Inter (bundled here, fonts/OFL-Inter.txt) and the small text in Noto Sans SC.
 
-Backdrop (``brand.backdrop``): the films sit the product window on a soft gradient tinted with the accent, never on
-black: ``studio`` (light, default: bright, crisp around dark or light UI), ``deep`` (dark teal-black, white type) or
-``paper`` (the theme's flat paper colour).
+Backdrop (``brand.backdrop``): the film is mostly the UI itself; the floating window and the split panes sit on a
+flat field, and only type beats / chapter / end cards get a soft gradient tinted with the accent, never black:
+``studio`` (light, default), ``deep`` (dark teal-black, white type) or ``paper`` (the theme's flat paper colour).
+Chinese type is Noto Sans SC Medium (./install.sh), measured and broken after its punctuation.
 """
 import functools
 import os
@@ -25,7 +26,8 @@ COLOR_KEYS = ("paper", "ink", "ink2", "rule", "accent", "accent_ink", "marker", 
 # a few brand colours read as "red" (the old look she rejected); warn instead of silently shipping them
 RED_HUES = ((345, 360), (0, 15))
 INTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Inter-latin-wght.woff2")
-INTER_W = 660                 # headline weight when the bundled Inter sets them
+INTER_W = 560                 # type weight when the bundled Inter sets it (refined: medium-semibold, not bold)
+ZH_MEDIUM = "NotoSansSC-Medium.otf"   # Chinese type face (./install.sh); without it Regular is set a touch heavier
 BACKDROPS = ("studio", "deep", "paper")
 
 
@@ -70,15 +72,35 @@ def font_files(cfg, lang):
     """{display, text, text_bold} -> font file paths for ``lang``."""
     f = (cfg.get("brand") or {}).get("fonts") or {}
     if lang == "zh":
-        return dict(display=_engine_font("cjk-bold"), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"))
+        return dict(display=zh_display(), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"))
     disp = f.get("display") or (INTER if os.path.exists(INTER) else _engine_font("serif"))
     return dict(display=disp, text=f.get("text") or _engine_font("cjk"),
                 text_bold=f.get("text_bold") or f.get("text") or _engine_font("cjk-bold"))
 
 
+def zh_display():
+    """Chinese type: Noto Sans SC Medium when ./install.sh fetched it, else Regular (compose sets it with a hairline
+    stroke so it reads medium), else whatever the engine has."""
+    try:
+        return VC.font(ZH_MEDIUM)
+    except VC.MissingAsset:
+        return _engine_font("cjk")
+
+
+def zh_faux_medium(path):
+    """Is ``path`` a Regular face standing in for the Medium one?"""
+    return os.path.basename(path or "") != ZH_MEDIUM and "Regular" in os.path.basename(path or "")
+
+
 def display_weight(cfg, lang, default=560):
-    """CSS weight of the headlines (also used when measuring them): the bundled Inter is set semibold-bold."""
-    return INTER_W if lang != "zh" and font_files(cfg, lang)["display"] == INTER else default
+    """CSS weight of the type (also used when measuring it): ``type.weight`` (400-700), else 560 for the bundled
+    Inter / a brand face and 500 for Chinese."""
+    w = (cfg.get("type") or {}).get("weight")
+    if w:
+        return int(w)
+    if lang == "zh":
+        return 500
+    return INTER_W if font_files(cfg, lang)["display"] == INTER else default
 
 
 def _hex(c):
@@ -106,15 +128,18 @@ def backdrop(cfg):
         kind = "studio"
     ac = T["accent"]
     if kind == "studio":
-        return dict(kind=kind, top=mix("#FFFFFF", ac, 0.05), bottom=mix("#FFFFFF", ac, 0.2), glow=rgba(ac, 0.34),
+        return dict(kind=kind, top=mix("#FFFFFF", ac, 0.04), bottom=mix("#FFFFFF", ac, 0.13), glow=rgba(ac, 0.22),
+                    flat=mix("#F5F6F6", ac, 0.04),
                     glow2=rgba(mix(ac, "#FFFFFF", 0.3), 0.5), ink=mix("#0B0F0F", ac, 0.1),
                     ink2=mix("#0B0F0F", "#FFFFFF", 0.38), accent=ac, accent_text=mix(ac, "#0B0F0F", 0.42),
                     shadow="8,40,36", mark="on-light")
     if kind == "deep":
         return dict(kind=kind, top=mix("#07090A", ac, 0.1), bottom=mix("#07090A", ac, 0.26), glow=rgba(ac, 0.3),
+                    flat=mix("#0B0D0E", ac, 0.06),
                     glow2=rgba(ac, 0.18), ink="#F4F7F6", ink2=mix("#F4F7F6", ac, 0.25), accent=ac,
                     accent_text=mix(ac, "#FFFFFF", 0.2), shadow="0,0,0", mark="on-dark")
-    return dict(kind=kind, top=T["paper"], bottom=T["paper"], glow="transparent", glow2="transparent", ink=T["ink"],
+    return dict(kind=kind, top=T["paper"], bottom=T["paper"], flat=T["paper"], glow="transparent", glow2="transparent",
+                ink=T["ink"],
                 ink2=T["ink2"], accent=ac, accent_text=ac, shadow="20,20,20", mark="on-light")
 
 

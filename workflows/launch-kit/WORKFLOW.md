@@ -11,7 +11,7 @@ an Electron app, plus a shot list), or screenshots / recordings you already have
 
 | Folder | What |
 |---|---|
-| `demo/` | `demo-<lang>-16x9 / 9x16 / 1x1.mp4`, 30–60 s: title card, one scene per feature (kinetic caption + the product window, the camera punching in on each click and typed field), logo end card, a soft music bed; a `.cover.jpg` per video |
+| `demo/` | `demo-<lang>-16x9 / 9x16 / 1x1.mp4`, 30–60 s: a product film with a varied rhythm (full-bleed UI with the camera pushing onto the action, 2.5–4× detail cuts, split screens, the window floating with a small lower third, short type beats between sequences, chapter cards, a logo end card), cut on the beats of a soft music bed; a `.cover.jpg` per video |
 | `readme/` | `loop-<lang>.mp4` + `.gif`, 15 s, seamless (the last frame crossfades into the first) |
 | `clips/` | `<feature>-<lang>-1x1 / 9x16.mp4`, 10–20 s each, one feature + end card |
 | `stills/` | `ph-gallery-1-hero.png`, `ph-gallery-N-<feature>.png` (1270×760), `og-1200x630.png` |
@@ -54,10 +54,22 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    One HyperFrames project per cut × language × canvas (`kit/build/<name>/index.html`, `plan.json`, `cues.json`).
    Layout per canvas keeps every caption inside the safe area of every platform that canvas is posted to
    (`vstudio.platform` safe boxes: 16:9 X / LinkedIn / YouTube / B站, 9:16 TikTok / Shorts / Reels / 小红书 / 抖音, 1:1).
-   The look is a launch film: the product window big, rounded and shadowed on a soft gradient tinted with the accent
-   (`brand.backdrop`: studio = light, default; deep; paper - never black; a dark recording is lifted a little), large
-   tightly-tracked headlines centred above it that rise word by word through a line mask (Inter, bundled; or the
-   brand's Latin fonts; Chinese in Noto Sans SC subset to the characters on screen, broken after its punctuation),
+   The look is a product film, not one template per feature (`story.rhythm`, `film` in the config). Features are
+   grouped into short sequences; a sequence opens on a **type beat** (its first line, set large in Inter 560 / Noto
+   Sans SC Medium on a soft gradient field, the words fading up out of a blur), its lead feature gets a **full-bleed**
+   establishing shot (the UI fills the frame, no text, the camera gliding onto the action) and a **detail** cut
+   (2.5–4× on the one element that changes, the take continuing across the cut), and the rest rotate through a
+   **floating window** with a small lower-third caption, a **split** (two moments side by side / stacked, small
+   labels) and full-bleed shots. A feature with `chapter:` opens a section on a chapter card; a first line that is
+   the product's name becomes a cold open + the name card. No two adjacent scenes share a layout, and words are on
+   screen at most `film.text` (0.4) of the runtime: lower thirds, then type beats are dropped from the end until it
+   fits. `film.variety` calm | balanced | lively, `film.captions` auto | type | lower | none, `type.scale` /
+   `type.weight`, and per feature `layout:` full | macro | split | float pin it. Gradient fields only behind type;
+   footage sits on a flat light field (`brand.backdrop`: studio = light, default; deep; paper - never black; a dark
+   recording is lifted a little). Hand-overs follow the layouts: a hard cut into a detail, cut / push / rise between
+   footage, a zoom-through out of a type beat, a blur dissolve into a card - each centred on a beat.
+   Chinese is broken after its punctuation and subset to the characters on screen (Noto Sans SC Medium from
+   ./install.sh; without it Regular with a hairline stroke),
    and an end card that animates the mark (`brand.mark`), the name, the call to action and the site. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.
    Render one draft first and look at frames mid-scene and mid-transition before the full set.
 4. **Stills, copy, schedule, check.**
@@ -80,10 +92,10 @@ Hand over the takes and a `BRIEF.md` and nothing is recorded: the config's `capt
 file name without its extension), and the config checkpoint is drafted by the engine before any step reads it
 (`vstudio.project.adapters.launchkit`): the brief's shot table (a markdown table with the take file, a `0:04–0:08`
 range, the on-screen line in English and a 中文 column) becomes the features in order, one scene each (two files in a
-row = two shots under one caption, the second pushing in with the caption held); the request sets the canvases
+row = two shots under one caption, shown side by side in a split scene); the request sets the canvases
 ("16:9, 9:16 and 1:1" → `demo.renders` per language), the pace ("1.1×" → `pace`), the length, the transitions ("fast
 smooth animated transitions" → `motion: {transition: mix, seconds: 0.3}`: push (with motion blur), zoom-through and
-rise in turn, a match cut between a feature's two shots, ~9 frames, each centred on a beat of the music bed), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
+rise and hard cuts chosen from the layouts on both sides, ~9 frames, each centred on a beat of the music bed), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
 the look ("dark" → the night theme, "teal" → the accent), and `make: [demo]` for a promo. A release source is only
 written when one is really there; without one, `features` lists the config's features (or the brief's table).
 

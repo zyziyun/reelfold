@@ -185,23 +185,27 @@ def test_text_boxes_inside_every_platform_safe_area():
 
 def test_demo_loop_clip_timing(cfg, shots):
     d = S.plan(cfg, shots, "demo", "en", "16:9")
-    assert [s["kind"] for s in d["scenes"]] == ["title", "feature", "feature", "end"]
+    lays = [s["layout"] for s in d["scenes"]]
+    assert lays[0] == "chapter" and lays[-1] == "end" and S.adjacent_ok(d["scenes"])    # opening card .. end card
+    assert d["scenes"][0]["title"] == "Acme Notes" and "macro" in lays
     assert d["duration"] <= cfg["demo"]["max_seconds"]
     for a, b in zip(d["scenes"], d["scenes"][1:]):
-        assert b["start"] == pytest.approx(a["start"] + a["dur"] - S.XF, abs=1e-3)   # crossfades overlap
+        assert b["start"] == pytest.approx(a["start"] + a["dur"] - S.XF, abs=1e-3)   # transitions overlap
     lp = S.plan(cfg, shots, "loop", "en", "16:9")
     assert lp["duration"] == pytest.approx(cfg["loop"]["seconds"], abs=0.01) and lp["loop"]
     for asp in ("1:1", "9:16"):
         cl = S.plan(cfg, shots, "clip", "zh", asp, feature="review")
         assert cfg["clips"]["min_seconds"] - 0.01 <= cl["duration"] <= cfg["clips"]["max_seconds"]
-        assert cl["scenes"][0]["caption"] == "只看【标出来】的"
+        assert [s["layout"] for s in cl["scenes"]] == ["type", "full", "macro", "end"]
+        assert cl["scenes"][0]["text"] == "只看【标出来】的" and S.text_share(cl) <= 0.4 + 1e-6
 
 
 def test_demo_is_squeezed_to_max_seconds(cfg, shots):
     tight = dict(cfg, demo=dict(cfg["demo"], max_seconds=12), motion=dict(cfg["motion"], beat=False))
     d = S.plan(tight, shots, "demo", "en", "16:9")
-    assert all(s["dur"] >= 4.0 for s in d["scenes"] if s["kind"] == "feature")
-    assert d["duration"] == pytest.approx(2.6 + 3.2 + 2 * 4.0 - 3 * S.XF, abs=0.01)   # the 4 s floor wins
+    assert all(s["dur"] >= s["min"] - 1e-6 for s in d["scenes"])              # every layout keeps its floor
+    assert d["duration"] <= 12 + 1e-6 or all(s["dur"] == pytest.approx(s["min"]) for s in d["scenes"]
+                                               if s["layout"] in S.FOOTAGE)
 
 
 def test_camera_punches_in_on_actions_and_stays_inside(cfg, shots):
@@ -228,7 +232,7 @@ def test_cuts_land_on_the_beats_of_the_music_bed(cfg, shots):
     for s in d["scenes"][1:]:
         k = (s["start"] + d["xf"] / 2 - phase) / period
         assert k == pytest.approx(round(k), abs=0.01)                        # every hand-over centred on a beat
-    assert all(s["dur"] >= 4.0 for s in d["scenes"] if s["kind"] == "feature")
+    assert all(s["dur"] >= s["min"] - 1e-6 for s in d["scenes"])
     assert S.plan(cfg, shots, "loop", "en", "16:9")["beat"] is None          # a loop is silent
     assert S.plan(dict(cfg, music=None), shots, "demo", "en", "16:9")["beat"] is None
 
@@ -256,6 +260,92 @@ def test_launch_camera_establishes_then_pushes_into_the_action(cfg, shots):
         for k in keys:
             assert k["x"] <= 0.01 and k["y"] <= 0.01
             assert k["x"] + 576 * k["scale"] >= W - 0.5 and k["y"] + 360 * k["scale"] >= H - 0.5
+
+
+def _long_film(cfg, **film):
+    caps = ["Write it once.", "It files itself.", "Find anything in a second.", "Links show up on their own.",
+            "Share a page with one click.", "Search that reads your mind.", "Works offline.", "Sync everywhere.",
+            "Export to anything.", "Undo is forever."]
+    feats = [dict(id=f"f{i}", shot="plan" if i % 2 == 0 else "review", caption=dict(en=c, zh=f"功能{i}，一句话。"),
+                  seconds=4.0) for i, c in enumerate(caps)]
+    feats[4]["shot"] = ["plan", "review"]                    # two moments of one feature
+    feats[6]["chapter"] = dict(en="Everywhere", zh="随处可用")
+    return dict(cfg, features=feats, film=dict(S.film_opts(cfg), **film),
+                demo=dict(cfg["demo"], min_seconds=30, max_seconds=60))
+
+
+@pytest.mark.parametrize("variety", ["calm", "balanced", "lively"])
+def test_rhythm_planner_varies_layouts_and_caps_text(cfg, shots, variety):
+    long_cfg = _long_film(cfg, variety=variety)
+    for asp in S.LAYOUTS:
+        for lang in ("en", "zh"):
+            p = S.plan(long_cfg, shots, "demo", lang, asp)
+            sc = p["scenes"]
+            lays = [s["layout"] for s in sc]
+            assert S.adjacent_ok(sc), lays                                   # never the same layout twice in a row
+            assert S.text_share(p) <= 0.4 + 1e-6 and p["text_share"] <= 0.4 + 1e-6
+            assert lays[0] == "chapter" and lays[-1] == "end"
+            assert lays.count("chapter") == 2                                # the opening + the one chapter: feature
+            assert {"full", "split", "type"} <= set(lays), lays
+            if variety != "calm":
+                assert "macro" in lays
+            # every feature is on screen; a split carries a feature's two shots side by side
+            shown = {u for s in sc if s["layout"] in S.FOOTAGE for u in s["units"]}
+            assert shown == {f"f{i}" for i in range(10)}
+            two = next(s for s in sc if s["layout"] == "split" and s["units"] == ["f4"])
+            assert [q["shot"] for q in two["panes"]] == ["plan", "review"]
+            # no headline over the shots: words in a footage scene are only a small lower third / label
+            assert all(not s.get("text") or s["layout"] == "float" for s in sc if s["layout"] in S.FOOTAGE)
+            for i, s in enumerate(sc):
+                if s["layout"] == "macro":                                   # a detail: 2.5-4x the whole UI
+                    q = s["panes"][0]
+                    assert q["cont"] and sc[i - 1]["panes"][0]["shot"] == q["shot"]
+                    _, _, W, H = q["box"]
+                    contain = min(W / 576, H / 360)
+                    fit = max(W / 576, H / 360)
+                    for k in q["cam"]:
+                        assert 2.5 * contain * 0.95 - 1e-3 <= k["scale"] <= max(4 * contain, fit * 1.35) * 1.03 + 1e-3
+                    first = sc[i - 1]["panes"][0]["media"]["segs"]           # the take continues across the cut
+                    if first and q["media"]["segs"]:
+                        assert q["media"]["segs"][0][0] >= first[0][0]
+    tight = S.plan(_long_film(cfg, variety=variety, text=0.2), shots, "demo", "en", "16:9")
+    assert tight["text_share"] <= 0.2 + 1e-6 and tight["dropped"]            # lower thirds, then type beats go
+
+
+def test_caption_modes(cfg, shots):
+    none = S.plan(_long_film(cfg, captions="none"), shots, "demo", "en", "16:9")
+    assert not any(s.get("text") or s.get("labels") for s in none["scenes"])
+    assert {s["layout"] for s in none["scenes"]} & {"type"} == set()
+    typ = S.plan(_long_film(cfg, captions="type"), shots, "demo", "en", "16:9")
+    assert not any(s.get("text") or s.get("labels") for s in typ["scenes"] if s["layout"] in S.FOOTAGE)
+    assert any(s["layout"] == "type" for s in typ["scenes"])
+    low = S.plan(_long_film(cfg, captions="lower"), shots, "demo", "en", "16:9")
+    assert not any(s["layout"] == "type" for s in low["scenes"])
+    assert any(s.get("text") for s in low["scenes"] if s["layout"] == "float")
+    pinned = _long_film(cfg)
+    pinned["features"][1]["layout"] = "split"
+    pinned["features"][2]["layout"] = "split"
+    p = S.plan(pinned, shots, "demo", "en", "16:9")
+    assert S.adjacent_ok(p["scenes"])                                        # a clash of pins is resolved too
+
+
+def test_split_and_lower_third_stay_inside_the_text_box(cfg, shots):
+    for asp, L in S.LAYOUTS.items():
+        x0, y0, x1, y1 = L["text"]
+        for box in L["split"]:
+            if L["labels"] == "above":
+                assert box[1] - int(L["label_px"] * 1.3) - 14 >= y0
+            else:
+                assert box[1] + box[3] + 24 + L["label_px"] * 1.3 <= y1
+        fx, fy, fw, fh = L["float"]
+        assert fy + fh + 30 + L["lt_px"] * 1.3 * L["lt_lines"] <= y1 + 40
+
+
+def test_film_and_type_keys_are_checked(cfg):
+    bad = dict(cfg, film=dict(variety="wild", text=0.9, captions="loud"), type=dict(scale=3, weight=900))
+    errs = " ".join(C.validate(bad, check_files=False))
+    for want in ("film.variety", "film.text", "film.captions", "type.scale", "type.weight"):
+        assert want in errs, want
 
 
 def test_missing_shot_is_a_clear_error(cfg, shots):
@@ -298,12 +388,15 @@ def test_build_writes_a_lint_clean_shaped_project(cfg, shots, tmp_path):
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
     assert 'data-composition-id="main"' in html and 'window.__timelines["main"] = tl' in html
     assert "transform: translate" not in html                       # GSAP owns the camera transform
-    assert re.search(r'tl\.set\("#s1m", \{x: [-\d.]+, y: [-\d.]+, scale: [\d.]+\}, 0\)', html)
-    assert '<span class="w mk">one sentence</span>' in html
-    assert html.count("<video ") == 2 and 'data-volume="0"' in html
+    assert re.search(r'tl\.set\("#s1m0", \{x: [-\d.]+, y: [-\d.]+, scale: [\d.]+\}, 0\)', html)
+    assert '<span class="w mk">one sentence</span>' in html                 # the lower third, its term in accent
+    assert html.count("<video ") >= 3 and 'data-volume="0"' in html          # + the detail cut's continuation
+    assert 'data-layout="macro"' in html and 'class="lt"' in html and "box-shadow" in html
+    assert "--lk-flat" in html and html.count('class="full field"') == 2       # gradient only behind the cards
     assert "#0E9484" not in html and "#2F6F9F" in html.upper()      # the brand accent, not someone else's
     cues = json.load(open(os.path.join(proj, "cues.json"), encoding="utf-8"))["cues"]
-    assert [c["text"] for c in cues] == ["Describe it in one sentence.", "Look only at what is flagged."]
+    # a 14 s film: the second lower third is taken out to keep words under 40 % of the runtime
+    assert [c["text"] for c in cues] == ["Acme Notes", "Describe it in one sentence."]
     assert os.path.exists(os.path.join(proj, "assets", "fonts", os.path.basename(DISPLAY)))
 
 
@@ -312,7 +405,7 @@ def test_loop_has_a_tail_back_to_frame_zero(cfg, shots, tmp_path):
     CO.build(cfg, S.plan(cfg, shots, "loop", "en", "16:9"), proj, quiet=True)
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
     assert 'id="tail"' in html and "tail-first.jpg" in html
-    assert 'tl.set(["#s0k", "#s0w"], {opacity: 1}, 0)' in html
+    assert 'tl.set("#s0", {opacity: 1}, 0)' in html and 'tl.set("#tailm"' in html
 
 
 @pytest.mark.skipif(not _has_cjk_fonts(), reason="Noto SC fonts not installed (./install.sh)")
@@ -508,14 +601,16 @@ def test_speed_ramp_on_idle_stretches(tmp_path):
 def test_ramped_shot_becomes_back_to_back_clips(cfg, shots, tmp_path):
     sh = {k: dict(v, idle=[(2.0, 4.5)]) for k, v in shots.items()}
     plan = S.plan(cfg, sh, "clip", "en", "1:1", feature="plan")
-    segs = plan["scenes"][0]["media"]["segs"]
-    assert len(segs) == 3 and segs[1][2] > segs[0][2]
+    sc = next(s for s in plan["scenes"] if s["layout"] == "full")
+    k = plan["scenes"].index(sc)
+    segs = sc["panes"][0]["media"]["segs"]
+    assert len(segs) >= 2 and segs[1][2] > segs[0][2]
     proj = str(tmp_path / "ramp")
     CO.build(cfg, plan, proj, quiet=True)
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
-    starts = [float(x) for x in re.findall(r'<video id="s0v\d" [^>]*data-start="([\d.]+)"', html)]
-    durs = [float(x) for x in re.findall(r'<video id="s0v\d" [^>]*data-duration="([\d.]+)"', html)]
-    assert len(starts) == 3 and all(abs(starts[k] + durs[k] - starts[k + 1]) < 0.002 for k in range(2))
+    starts = [float(x) for x in re.findall(rf'<video id="s{k}v0\d" [^>]*data-start="([\d.]+)"', html)]
+    durs = [float(x) for x in re.findall(rf'<video id="s{k}v0\d" [^>]*data-duration="([\d.]+)"', html)]
+    assert len(starts) >= 2 and all(abs(starts[j] + durs[j] - starts[j + 1]) < 0.002 for j in range(len(starts) - 1))
 
 
 def test_music_bed_from_the_shared_library(cfg, shots, tmp_path):
@@ -638,26 +733,30 @@ def test_supplied_clips_plan_a_premium_cut(clipdir, tmp_path):
     assert os.path.exists(s0["still"]) and str(tmp_path / "kit" / "capture") in s0["still"]
     assert not (clipdir / "raw" / "01-home.mp4.idle.json").exists()       # caches never land next to her files
     p = S.plan(cfg, sh, "demo", "en", "9:16")
-    kinds = [s["kind"] for s in p["scenes"]]
-    assert kinds == ["feature", "feature", "feature", "end"]               # no title card: opens on Home
+    lays = [s["layout"] for s in p["scenes"]]
+    assert lays == ["full", "chapter", "split", "end"]          # cold open on Home, the name, both takes side by side
     assert p["transition"] == "mix" and p["xf"] == 0.3
-    a, b, c = p["scenes"][:3]
-    assert a["media"]["at"] == 0.0                                          # the opening take lands as recorded
-    beat = p["beat"][0]                                                     # cuts snap to the bed's beats
-    assert a["dur"] == pytest.approx(4.3, abs=beat) and b["dur"] == pytest.approx(2.8, abs=beat)
-    assert (b["part"], c["part"]) == (0, 1)
-    assert b["shot"] == "02-tag" and c["shot"] == "03-out"
-    assert all(seg[2] >= 1.1 for s in (a, b, c) for seg in s["media"]["segs"])
-    assert a["push"] and len(a["cam"]) >= 2 and a["cam"][1]["scale"] > a["cam"][0]["scale"] * 1.5    # pushes in
-    assert [x["text"] for x in S.caption_cues(p)] == ["Quill Notes 2.0", "Tags itself."]
+    a, ch, b = p["scenes"][:3]
+    assert ch["title"] == "Quill Notes" and ch["version"] == "2.0"   # her first line was the name: it is the card
+    assert a["panes"][0]["media"]["at"] == 0.0 and a["text"] == ""   # the opening take lands as recorded, no words
+    beat = p["beat"][0]                                              # cuts snap to the bed's beats
+    for s in p["scenes"][1:]:
+        k = (s["start"] + p["xf"] / 2 - p["beat"][1]) / beat
+        assert k == pytest.approx(round(k), abs=0.01)
+    assert [q["shot"] for q in b["panes"]] == ["02-tag", "03-out"]
+    assert all(seg[2] >= 1.1 for s in (a, b) for q in s["panes"] for seg in q["media"]["segs"])
+    cam = a["panes"][0]["cam"]
+    assert len(cam) >= 2 and cam[1]["scale"] > cam[0]["scale"]       # the full-bleed shot pushes in
+    assert S.text_share(p) <= 0.4 + 1e-6 and p["dropped"] == [["lower", "tag"]]   # a 12 s film: the cards are enough
+    assert [x["text"] for x in S.caption_cues(p)] == ["Quill Notes"]
     names = [j[0] for j in K.jobs(cfg)]
     assert names == ["demo-en-16x9", "demo-en-9x16", "demo-en-1x1", "demo-zh-16x9", "demo-zh-9x16", "demo-zh-1x1"]
     proj = CO.build(cfg, S.plan(cfg, sh, "demo", "zh", "16:9"), str(tmp_path / "b"), quiet=True)
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
-    assert 'tl.fromTo("#s1", {opacity: 1, x: 1920, filter: "blur(10px)"}' in html   # a push with motion blur
-    assert 'tl.fromTo("#s2", {opacity: 0}, {opacity: 1, duration: 0.2' in html     # second shot: a match cut
-    assert 'tl.set("#s2c .w", {opacity: 1, yPercent: 0}' in html                   # ... its caption held
-    assert "#000" not in html.split("<style>")[1].split("#root")[1][:200]         # a gradient backdrop, not black
+    assert 'tl.fromTo("#s1", {opacity: 0, filter: "blur(8px)"}' in html            # into the card: a blur dissolve
+    assert 'tl.fromTo("#s2", {opacity: 0, scale: 1.06, filter: "blur(12px)"}' in html   # out of it: a zoom-through
+    assert 'data-layout="split"' in html and 'id="s2w1"' in html                    # two windows
+    assert "#000" not in html.split("<style>")[1].split("#root")[1][:200]         # a light field, not black
     assert 'src="assets/audio/music.m4a"' in html
 
 

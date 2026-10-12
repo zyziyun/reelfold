@@ -40,6 +40,11 @@ DEFAULTS = {
     # how scenes hand over: crossfade (calm default) | push | zoom | mix (push and zoom-through alternating), and the
     # camera on a recording without capture focus boxes: push (one slow push-in on where the action is) | still
     "motion": {"transition": "crossfade", "seconds": 0.35, "camera": "push"},
+    # the film language (story.rhythm): variety calm | balanced | lively (how often detail cuts and split screens
+    # come), text = most of the runtime with words on screen, captions auto (type beats + lower thirds) | type |
+    # lower | none. type: scale (x the type sizes), weight (CSS 400-700; default Inter 560 / Noto Sans SC 500)
+    "film": {"variety": "balanced", "text": 0.4, "captions": "auto"},
+    "type": {"scale": 1.0, "weight": None},
     "make": ["demo", "loop", "clips"],   # which videos: demo (the launch video), loop (README GIF), clips (per feature)
 }
 TRANSITIONS = ("crossfade", "push", "zoom", "mix")
@@ -269,6 +274,27 @@ def validate(cfg, check_files=True):
             e.append("pace: between 0.5 and 3")
     except (TypeError, ValueError):
         e.append("pace: a number (1.1 = 10 % faster)")
+    fo = cfg.get("film") or {}
+    if fo.get("variety", "balanced") not in ("calm", "balanced", "lively"):
+        e.append(f"film.variety: one of calm, balanced, lively (got {fo.get('variety')!r})")
+    if fo.get("captions", "auto") not in ("auto", "type", "lower", "none"):
+        e.append(f"film.captions: one of auto, type, lower, none (got {fo.get('captions')!r})")
+    try:
+        if not 0.1 <= float(fo.get("text", 0.4)) <= 0.6:
+            e.append("film.text: the share of the runtime with text, between 0.1 and 0.6")
+    except (TypeError, ValueError):
+        e.append("film.text: a number (0.4 = text on screen at most 40 % of the time)")
+    ty = cfg.get("type") or {}
+    try:
+        if not 0.7 <= float(ty.get("scale") or 1.0) <= 1.3:
+            e.append("type.scale: between 0.7 and 1.3")
+        if ty.get("weight") is not None and not 400 <= int(ty["weight"]) <= 700:
+            e.append("type.weight: a CSS weight between 400 and 700")
+    except (TypeError, ValueError):
+        e.append("type.scale / type.weight: numbers")
+    for f in feats:
+        if f.get("layout") not in (None, "auto", "full", "macro", "split", "float"):
+            e.append(f"features.{f.get('id')}: layout one of auto, full, macro, split, float")
     bad = [m for m in cfg.get("make") or [] if m not in MAKE]
     if bad or not cfg.get("make"):
         e.append(f"make: pick from {', '.join(MAKE)} (got {cfg.get('make')})")

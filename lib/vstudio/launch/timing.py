@@ -227,3 +227,16 @@ def best_window(shot, dur, spans, rate=1.0, start=0.0, end=None, anchor="end"):
         if best is None or sc > best[0]:
             best = (sc, a0, b0)
     return round(best[1], 3), round(best[2], 3)
+
+
+def window(segs, a, b):
+    """The part of ``segs`` that plays between scene seconds ``a`` and ``b`` -> segs (media seconds, same rates): a
+    scene that continues another one (a detail cut) picks the take up where the cut left it."""
+    out, acc = [], 0.0
+    for m0, m1, r in segs:
+        d = (m1 - m0) / r
+        s0, s1 = max(a, acc), min(b, acc + d)
+        if s1 > s0 + 1e-4:
+            out.append((round(m0 + (s0 - acc) * r, 3), round(m0 + (s1 - acc) * r, 3), r))
+        acc += d
+    return out

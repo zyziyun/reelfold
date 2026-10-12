@@ -4,14 +4,15 @@
     proj = CO.build(cfg, plan, "kit/build/demo-en-16x9")       # writes the project, returns its dir
     CO.render(proj, "kit/demo/demo-en-16x9.mp4")             # npx hyperframes render + delivery (BT.709, faststart)
 
-The look: a launch film. The product window is big, rounded, with a soft shadow on a gradient backdrop tinted with
-the brand accent (brand.backdrop: studio | deep | paper; never black); a dark recording is lifted a little. Inside the
-window the camera opens on an establishing frame and pushes 1.6-3x onto where the action is (story.push_camera).
-Headlines are large, tightly tracked (Inter / Noto Sans SC) and rise word by word through a line mask; the 【term】
-gets a marker sweep. Scenes hand over in 6-12 frames with push / zoom-through / rise / match cuts, centred on the
-beats of the music bed. The end card animates the brand mark, name, call to action and site. No voice, no
-music bed from the shared library (vstudio.music: built-in beds generated in code, free for any use; or your
-own track with its license), no voice unless the config adds one (a TTS voice-over is labelled "AI voice").
+The look: a product film, not one template per feature. Each scene renders its layout (story.py): full-bleed UI
+(no chrome, no text, the camera gliding onto the action), a detail shot 2.5-4x on one element, two moments split side
+by side / stacked (small labels), the window floating on a flat light field with a small lower-third caption, a
+kinetic type beat (one short line, large, Inter 560 / Noto Sans SC Medium, tight tracking, words fading up out of a
+blur) on a soft gradient field, chapter cards and the end card. Gradient fields only behind type; the rest is the UI
+on a flat light field. Hand-overs follow the layouts (story beats): a hard cut into a detail, push / rise / cut
+between footage, a zoom-through out of a type beat, a blur dissolve into a card, centred on the beats of the music
+bed. No voice unless the config adds one (a TTS voice-over is labelled "AI voice"); the music bed is built in
+(vstudio.music: generated in code, free for any use) or your own track with its license.
 HyperFrames CLI: ``npx hyperframes`` (set $VSTUDIO_HYPERFRAMES to pin a version, e.g. hyperframes@0.8.130).
 """
 import html
@@ -129,64 +130,51 @@ def _vo(cfg, scene, proj, lang):
 # ------------------------------------------------------------------------------------------------ build
 CSS = """
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: {W}px; height: {H}px; overflow: hidden; background: var(--bg-bot); }
+html, body { width: {W}px; height: {H}px; overflow: hidden; background: var(--lk-flat); }
 #root { position: relative; width: {W}px; height: {H}px; overflow: hidden; color: var(--lk-ink);
-  background: linear-gradient(172deg, var(--bg-top) 0%, var(--bg-bot) 100%); }
+  background: var(--lk-flat); }
 .full { position: absolute; left: 0; top: 0; width: {W}px; height: {H}px; }
-#bg { overflow: hidden; }
-.glow { position: absolute; border-radius: 50%; will-change: transform; }
-.scene { position: absolute; left: 0; top: 0; width: {W}px; height: {H}px; opacity: 0; }
-.kicker { position: absolute; font-family: {TEXT}; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--lk-accent-text); opacity: 0; display: flex; justify-content: center; align-items: center; gap: .7em;
-  white-space: nowrap; }
-.kicker i { display: inline-block; width: 1.8em; height: 2px; background: var(--lk-accent); }
-.cap { position: absolute; font-family: {DISPLAY}; font-weight: {DW}; line-height: 1.1; letter-spacing: {TRACK};
-  color: var(--lk-ink); text-align: center; }
-.cap .w, .title .w, .oneliner .w, .cta .w { display: inline-block; opacity: 0; white-space: pre; }
-.ln { display: inline-block; white-space: nowrap; overflow: hidden; vertical-align: top;
-  padding: .02em .06em .16em; margin: 0 -.06em -.16em; }   /* the line is the mask the words rise through */
-.cap .mk { padding: 0 .1em; margin: 0 -.02em; border-radius: .14em;
-  background-image: linear-gradient(var(--lk-marker), var(--lk-marker)); background-repeat: no-repeat;
-  background-position: 0 86%; background-size: 0% 42%; }
-.win { position: absolute; overflow: hidden; border-radius: {RADIUS}px; background: #0c0d0e; opacity: 0;
-  box-shadow: 0 0 0 1px rgba(var(--lk-shadow), .10), 0 2px 6px rgba(var(--lk-shadow), .10),
-    0 24px 48px -12px rgba(var(--lk-shadow), .30), 0 60px 120px -30px rgba(var(--lk-shadow), .45); }
-.win::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+.scene { position: absolute; left: 0; top: 0; width: {W}px; height: {H}px; opacity: 0; overflow: hidden; }
+.flat { background: var(--lk-flat); }
+.field { overflow: hidden; background: linear-gradient(172deg, var(--bg-top) 0%, var(--bg-bot) 100%); }
+.glow { position: absolute; border-radius: 50%; }
+.win { position: absolute; overflow: hidden; background: #0c0d0e; }
+.win.framed { border-radius: {RADIUS}px;
+  box-shadow: 0 0 0 1px rgba(var(--lk-shadow), .08), 0 2px 6px rgba(var(--lk-shadow), .08),
+    0 30px 60px -20px rgba(var(--lk-shadow), .26), 0 70px 140px -40px rgba(var(--lk-shadow), .28); }
+.win.framed::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
 .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .cam > img, .cam > video { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; }
+.type { position: absolute; font-family: {DISPLAY}; font-weight: {TW}; line-height: {TLH}; letter-spacing: {TTRACK};
+  color: var(--lk-ink); text-align: center; {STROKE} }
+.type .w, .chap .w, .lt .w, .cta .w { display: inline-block; opacity: 0; white-space: pre; }
+.ln { display: inline-block; white-space: nowrap; }
+.mk { color: var(--lk-accent-text); }
+.lt { position: absolute; font-family: {DISPLAY}; font-weight: {LW}; line-height: 1.3; letter-spacing: {LTRACK};
+  color: var(--lk-ink); {STROKE} }
+.lt.c { text-align: center; }
 .center { position: absolute; left: 0; width: {W}px; text-align: center; }
 .mark { position: absolute; opacity: 0; }
-.title { font-family: {DISPLAY}; font-weight: {TW}; letter-spacing: {TTRACK}; color: var(--lk-ink); line-height: 1.04; }
-.oneliner { font-family: {DISPLAY}; font-weight: {OW}; color: var(--lk-ink2); line-height: 1.25; letter-spacing: -.01em; }
-.chip, .site { display: inline-block; font-family: {TEXT}; font-weight: 600; letter-spacing: .02em;
-  color: var(--lk-accent-text); border: 2px solid var(--lk-accent); border-radius: 999px; padding: .34em 1.05em;
-  opacity: 0; background: rgba(255,255,255,.04); }
-.cta { font-family: {DISPLAY}; font-weight: {OW}; color: var(--lk-ink2); line-height: 1.2; letter-spacing: -.012em; }
+.chap { font-family: {LATIN}; font-weight: {CW}; letter-spacing: {CTRACK}; color: var(--lk-ink); line-height: 1.02; }
+.eyebrow { font-family: {DISPLAY}; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--lk-accent-text); opacity: 0; }
+.ver { font-family: {LATIN}; font-weight: 500; color: var(--lk-ink2); letter-spacing: -.01em; opacity: 0; }
+.cta { font-family: {DISPLAY}; font-weight: {LW}; color: var(--lk-ink2); line-height: 1.25; letter-spacing: {LTRACK}; }
+.site { font-family: {LATIN}; font-weight: 600; letter-spacing: .01em; color: var(--lk-accent-text); opacity: 0; }
 .sub { font-family: {TEXT}; font-weight: 400; color: var(--lk-ink2); opacity: 0; }
 .ailabel { position: absolute; font-family: {TEXT}; font-size: 20px; color: var(--lk-ink2); opacity: .85; }
 """
 
 
-def _fit_caption(text, lang, layout, files, weight=DISPLAY_W):
-    x0, y0, x1, y1 = layout["text"]
-    px, lines = B.fit(text, files["display"], layout["caption_px"], int((x1 - x0) * 0.97), layout["caption_lines"], lang,
-                      weight)
-    return px, lines
+def _blur_in(js, sel, at, stagger=0.06, dur=0.75, rise=24):
+    """Words arrive: a fade with a little rise and a blur that clears (refined, no bounce)."""
+    js.append(f'tl.fromTo("{sel}", {{opacity: 0, yPercent: {rise}, filter: "blur(10px)"}}, {{opacity: 1, yPercent: 0, '
+              f'filter: "blur(0px)", duration: {dur}, ease: "power3.out", stagger: {stagger}}}, {_r(at)});')
 
 
-def _ease_in_words(tl_lines, sel, at, stagger=0.05, dur=0.7, rise=None):
-    """Words rise through their line (the .ln mask) with a stagger: the headline reveal."""
-    tl_lines.append(f'tl.fromTo("{sel}", {{opacity: 0, yPercent: 112}}, {{opacity: 1, yPercent: 0, duration: {dur}, '
-                    f'ease: "expo.out", stagger: {stagger}}}, {_r(at)});')
-
-
-def _cap_top(layout, px, nlines, kicker):
-    """Caption block top: its bottom sits ``gap`` above the window, never above the text box (+ the kicker)."""
-    x0, y0, x1, y1 = layout["text"]
-    kpx = layout["kicker_px"]
-    h = int(px * 1.1 * nlines)
-    return max(y0 + (int(kpx * 1.9) if kicker else 0), layout["win"][1] - layout.get("gap", 30) - h)
+def _fit(text, files, rng, width, lines, lang, weight):
+    return B.fit(text, files["display"], rng, int(width), lines, lang, weight)
 
 
 _LUMA = {}
@@ -213,81 +201,177 @@ def _lift(still):
 
 
 # ------------------------------------------------------------------------------------------------ transitions
-MIX = ("push", "zoom", "push", "rise")
+CUTS = ("cut", "push", "cut", "rise")
 
 
 def transition_of(plan, i):
-    """The hand-over INTO scene i: the plan's transition. "mix" cycles push / zoom-through / push / rise; a feature's
-    second shot is a match cut (the window holds, the UI changes in place, the caption stays); the end card zooms
-    through. A plain crossfade stays a crossfade everywhere."""
+    """The hand-over INTO scene i, from the layouts on both sides: a card arrives with a soft blur dissolve, footage
+    after a card zooms through, a detail shot is a hard cut on the beat, footage to footage alternates cut / push /
+    cut / rise ("mix"; a fixed motion.transition is used as is). A plain crossfade stays a crossfade everywhere."""
     tr = plan.get("transition") or "crossfade"
     sc = plan["scenes"]
-    if i >= len(sc) or tr == "crossfade":
+    if i <= 0 or i >= len(sc) or tr == "crossfade":
         return "crossfade"
-    if sc[i].get("part"):
-        return "match"
-    if sc[i]["kind"] == "end":
-        return "zoom" if tr == "mix" else "crossfade"
+    cur, prev = sc[i], sc[i - 1]
+    if cur["layout"] in S.CARDS:
+        return "fade"
+    if prev["layout"] in ("type", "chapter"):
+        return "zoom"
+    if (cur.get("panes") or [{}])[0].get("cont"):
+        return "cut"
     if tr == "mix":
-        k = sum(1 for z in sc[1:i] if not z.get("part"))
-        return MIX[k % len(MIX)]
+        k = sum(1 for j in range(1, i) if sc[j]["layout"] in S.FOOTAGE and sc[j - 1]["layout"] in S.FOOTAGE
+                and not sc[j]["panes"][0].get("cont"))
+        return CUTS[k % len(CUTS)]
     return tr
 
 
 def scene_in(sid, tr, at, d, W, H=None):
-    """GSAP for a scene arriving (``d`` s, the scene overlap; 6-12 frames). push: slides in over the outgoing one
-    with a little motion blur | zoom: through from 86 % | rise: up from below | match / crossfade: a dissolve."""
+    """GSAP for a scene arriving (``d`` s, the scene overlap; 6-12 frames). cut: on the beat (the overlap's middle) |
+    push: slides in over the outgoing one with a little motion blur | zoom: settles from 106 % out of a blur | rise: up
+    from below | fade: a blur dissolve | crossfade: a dissolve."""
     H = H or W
+    if tr == "cut":
+        return f'tl.set("#{sid}", {{opacity: 1}}, {_r(at + d / 2)});'
     if tr == "push":
         return (f'tl.fromTo("#{sid}", {{opacity: 1, x: {W}, filter: "blur(10px)"}}, {{opacity: 1, x: 0, '
                 f'filter: "blur(0px)", duration: {_r(d)}, ease: "expo.inOut"}}, {_r(at)});')
     if tr == "zoom":
-        return (f'tl.fromTo("#{sid}", {{opacity: 0, scale: 0.86, filter: "blur(12px)"}}, {{opacity: 1, scale: 1, '
+        return (f'tl.fromTo("#{sid}", {{opacity: 0, scale: 1.06, filter: "blur(12px)"}}, {{opacity: 1, scale: 1, '
                 f'filter: "blur(0px)", duration: {_r(d)}, ease: "expo.out"}}, {_r(at)});')
     if tr == "rise":
         return (f'tl.fromTo("#{sid}", {{opacity: 0, y: {int(H * 0.3)}, filter: "blur(8px)"}}, {{opacity: 1, y: 0, '
                 f'filter: "blur(0px)", duration: {_r(d)}, ease: "expo.out"}}, {_r(at)});')
-    if tr == "match":
-        return f'tl.fromTo("#{sid}", {{opacity: 0}}, {{opacity: 1, duration: {_r(min(d, 0.2))}, ease: "none"}}, {_r(at)});'
+    if tr == "fade":
+        return (f'tl.fromTo("#{sid}", {{opacity: 0, filter: "blur(8px)"}}, {{opacity: 1, filter: "blur(0px)", '
+                f'duration: {_r(d)}, ease: "power2.out"}}, {_r(at)});')
     return f'tl.fromTo("#{sid}", {{opacity: 0}}, {{opacity: 1, duration: {_r(d)}, ease: "none"}}, {_r(at)});'
 
 
 def scene_out(sid, tr, at, d, W, H=None):
     """The scene leaving as the next one arrives with ``tr``."""
     H = H or W
+    if tr == "cut":
+        return f'tl.set("#{sid}", {{opacity: 0}}, {_r(at + d / 2)});'
     if tr == "push":
         return (f'tl.to("#{sid}", {{x: -{int(W * 0.32)}, opacity: 0, duration: {_r(d)}, ease: "expo.inOut"}}, '
                 f'{_r(at)});')
     if tr == "zoom":
-        return (f'tl.to("#{sid}", {{opacity: 0, scale: 1.18, filter: "blur(12px)", duration: {_r(d)}, '
+        return (f'tl.to("#{sid}", {{opacity: 0, scale: 1.12, filter: "blur(12px)", duration: {_r(d)}, '
                 f'ease: "power2.in"}}, {_r(at)});')
     if tr == "rise":
         return (f'tl.to("#{sid}", {{opacity: 0, y: -{int(H * 0.12)}, duration: {_r(d)}, ease: "power2.in"}}, '
                 f'{_r(at)});')
-    if tr == "match":
-        return f'tl.to("#{sid}", {{opacity: 0, duration: {_r(min(d, 0.2))}, ease: "none"}}, {_r(at + d - min(d, 0.2))});'
+    if tr == "fade":
+        return f'tl.to("#{sid}", {{opacity: 0, filter: "blur(6px)", duration: {_r(d)}, ease: "power1.in"}}, {_r(at)});'
     return f'tl.to("#{sid}", {{opacity: 0, duration: {_r(d)}, ease: "none"}}, {_r(at)});'
 
 
 def _chars_html(text, cls="w"):
-    """A wordmark split per character (each rises through the line mask)."""
+    """A wordmark split per character (each arrives on its own)."""
     return '<span class="ln">' + "".join(f'<span class="{cls}">{_e(c)}</span>' if c.strip() else _e(c)
                                          for c in text) + "</span>"
 
 
-def _backdrop(body, js, W, H, total, Bk):
-    """Soft gradient + two accent glows drifting slowly over the whole film (never black, never static)."""
-    g1, g2 = int(max(W, H) * 0.9), int(max(W, H) * 0.75)
-    body.append(f'<div id="bg" class="full clip" data-start="0" data-duration="{_r(total)}" data-track-index="0">'
-                f'<div class="glow" id="g1" style="left:{int(-g1 * 0.35)}px; top:{int(-g1 * 0.45)}px; width:{g1}px; '
-                f'height:{g1}px; background: radial-gradient(closest-side, {Bk["glow"]}, transparent)"></div>'
-                f'<div class="glow" id="g2" style="left:{int(W - g2 * 0.6)}px; top:{int(H - g2 * 0.5)}px; '
-                f'width:{g2}px; height:{g2}px; background: radial-gradient(closest-side, {Bk["glow2"]}, transparent)">'
-                f'</div></div>')
-    js.append(f'tl.fromTo("#g1", {{x: 0, y: 0}}, {{x: {int(W * 0.12)}, y: {int(H * 0.08)}, duration: {_r(total)}, '
-              f'ease: "sine.inOut"}}, 0);')
-    js.append(f'tl.fromTo("#g2", {{x: 0, y: 0}}, {{x: -{int(W * 0.1)}, y: -{int(H * 0.06)}, duration: {_r(total)}, '
-              f'ease: "sine.inOut"}}, 0);')
+def _field(sid, i, W, H, st, du, Bk, js):
+    """The soft gradient field of a card (type beat / chapter / end): two accent glows drifting slowly; where they sit
+    changes card to card."""
+    g1, g2 = int(max(W, H) * 0.85), int(max(W, H) * 0.7)
+    spots = [((0.08, 0.02), (0.95, 0.98)), ((0.92, 0.05), (0.1, 0.95)), ((0.15, 0.95), (0.9, 0.1))]
+    (c1x, c1y), (c2x, c2y) = spots[i % len(spots)]
+    p1 = (int(c1x * W - g1 / 2), int(c1y * H - g1 / 2))
+    p2 = (int(c2x * W - g2 / 2), int(c2y * H - g2 / 2))
+    js.append(f'tl.fromTo("#{sid}g1", {{x: 0, y: 0}}, {{x: {int(W * 0.08)}, y: {int(H * 0.05)}, duration: {_r(du)}, '
+              f'ease: "sine.inOut"}}, {_r(st)});')
+    js.append(f'tl.fromTo("#{sid}g2", {{x: 0, y: 0}}, {{x: -{int(W * 0.06)}, y: -{int(H * 0.04)}, '
+              f'duration: {_r(du)}, ease: "sine.inOut"}}, {_r(st)});')
+    return (f'<div class="full field">'
+            f'<div class="glow" id="{sid}g1" style="left:{p1[0]}px; top:{p1[1]}px; width:{g1}px; height:{g1}px; '
+            f'background: radial-gradient(closest-side, {Bk["glow"]}, transparent)"></div>'
+            f'<div class="glow" id="{sid}g2" style="left:{p2[0]}px; top:{p2[1]}px; width:{g2}px; height:{g2}px; '
+            f'background: radial-gradient(closest-side, {Bk["glow2"]}, transparent)"></div></div>')
+
+
+def _pane_html(proj, sid, i, k, p, st, framed, js):
+    """One window of footage: the take (speed-ramped clips back to back, then its last frame held) inside a camera
+    that GSAP moves."""
+    x, y, w, h = p["box"]
+    m = p["media"]
+    sw, sh = m.get("w") or w, m.get("h") or h
+    k0 = p["cam"][0]
+    mid = f"{sid}m{k}"
+    cam = f'<div class="cam" id="{mid}" style="width:{sw}px; height:{sh}px; {_lift(m.get("still"))}">'
+    js.append(f'tl.set("#{mid}", {{x: {k0["x"]}, y: {k0["y"]}, scale: {k0["scale"]}}}, 0);')
+    tag = f"{sid}p{k}-{p['shot']}"
+    if m["kind"] == "video":
+        src = _asset(m["file"], proj, "shots")
+        segs = m.get("segs") or []
+        last_t = (segs[-1][1] if segs else m.get("end") or m["until"]) - 0.05
+        cam += f'<img src="{_frame(m["file"], last_t, proj, f"{tag}-last.jpg")}" alt="">'
+        off = 0.0
+        for kk, (m0, m1, rate) in enumerate(segs):      # speed ramp: one clip per segment, back to back
+            d = (m1 - m0) / rate
+            if off >= p["play"] - 1e-3:
+                break
+            d = min(d, p["play"] - off)
+            cam += (f'<video id="{sid}v{k}{kk}" src="{src}" muted playsinline data-start="{_r(st + off)}" '
+                    f'data-duration="{_r(d)}" data-media-start="{_r(m0)}" data-playback-rate="{round(rate, 4)}" '
+                    f'data-track-index="{3 + i % 2 + 7 * k}" data-volume="0"></video>')
+            off += d
+    else:
+        cam += f'<img src="{_asset(m["file"], proj, "shots")}" alt="">'
+    cam += "</div>"
+    for kf in p["cam"][1:]:
+        js.append(f'tl.to("#{mid}", {{x: {kf["x"]}, y: {kf["y"]}, scale: {kf["scale"]}, duration: {kf["d"]}, '
+                  f'ease: "{kf["ease"]}"}}, {_r(st + kf["t"])});')
+    return (f'<div class="win{" framed" if framed else ""}" id="{sid}w{k}" style="left:{x}px; top:{y}px; '
+            f'width:{w}px; height:{h}px">{cam}</div>')
+
+
+def _lower_third(L, box, text, lang, files, weight, W, H):
+    """The in-shot caption under the floating window: small, left-aligned with it, inside the text box ->
+    (x, y, width, px, lines) or None (it cannot fit: the scene goes without)."""
+    x0, y0, x1, y1 = L["text"]
+    bx, by, bw, bh = box
+    x = max(bx, x0)
+    y = by + bh + int(0.028 * max(W, H) if H > W else 30 * W / 1920)
+    width = x1 - x
+    for lines in range(L["lt_lines"], L["lt_lines"] + 1):
+        try:
+            px, ls = _fit(text, files, (L["lt_px"], int(L["lt_px"] * 0.78)), width * 0.97, lines, lang, weight)
+        except ValueError:
+            continue
+        if y + px * 1.3 * len(ls) <= y1 + 2:
+            return x, y, width, px, ls
+    return None
+
+
+def _labels(L, s, files, lang, weight):
+    """Split-scene labels -> [(x, y, width, px, lines, centred)]: under each pane (16:9) or above it (stacked); one
+    label for a feature shown in two shots."""
+    x0, y0, x1, y1 = L["text"]
+    out = []
+    labels = s.get("labels") or []
+    boxes = [p["box"] for p in s["panes"]]
+    one = len(labels) == 1 and len(boxes) > 1
+    for k, text in enumerate(labels):
+        if not text or k >= len(boxes):
+            continue
+        bx, by, bw, bh = boxes[k]
+        px0 = L["label_px"]
+        if L.get("labels") == "below":
+            x, width = (x0, x1 - x0) if one else (max(bx, x0), min(bx + bw, x1) - max(bx, x0))
+            y = by + bh + 24
+        else:
+            x, width = max(bx, x0), x1 - max(bx, x0)
+            y = by - int(px0 * 1.3) - 14
+        try:
+            px, ls = _fit(text, files, (px0, int(px0 * 0.72)), width * 0.97, 1, lang, weight)
+        except ValueError:
+            print(f"  label too long for its pane, left out: {text!r}")
+            continue
+        out.append((x, y, width, px, ls, one and L.get("labels") == "below"))
+    return out
 
 
 def build(cfg, plan, proj, quiet=False):
@@ -298,29 +382,36 @@ def build(cfg, plan, proj, quiet=False):
     Bk = B.backdrop(cfg)
     p = cfg["product"]
     files = B.font_files(cfg, lang)
-    dw = B.display_weight(cfg, lang)
-    k = W / 1920 if W >= H else W / 1080
-    # every string on screen, for CJK subsetting
+    tw = B.display_weight(cfg, lang)
+    lw = max(400, tw - 40)
+    scale = float((cfg.get("type") or {}).get("scale") or 1.0)
     end = cfg.get("end_card") or {}
+    zh = lang == "zh"
     strings = [p["name"], C.text(p.get("name_zh"), lang), C.text(p.get("one_liner"), lang), C.text(end.get("cta"), lang),
                C.text(end.get("sub"), lang), p.get("site", ""), p.get("version", ""), "AI voice AI 配音"]
     for s in plan["scenes"]:
-        strings += [s.get("kicker", ""), s.get("caption", "")]
-    faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"), "".join(strings), [lang])
+        strings += [s.get("text", ""), s.get("title", ""), s.get("eyebrow", ""), s.get("version", ""), s.get("sub", "")]
+        strings += list(s.get("labels") or [])
+    langs = [lang] + (["en"] if zh else [])
+    faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"), "".join(strings), langs)
     from vstudio import theme as TH
-    lk = (f":root{{--bg-top:{Bk['top']};--bg-bot:{Bk['bottom']};--lk-ink:{Bk['ink']};--lk-ink2:{Bk['ink2']};"
-          f"--lk-accent:{Bk['accent']};--lk-accent-text:{Bk['accent_text']};--lk-shadow:{Bk['shadow']};"
-          f"--lk-marker:{B.rgba(Bk['accent'], 0.34)};}}")
+    lk = (f":root{{--bg-top:{Bk['top']};--bg-bot:{Bk['bottom']};--lk-flat:{Bk['flat']};--lk-ink:{Bk['ink']};"
+          f"--lk-ink2:{Bk['ink2']};--lk-accent:{Bk['accent']};--lk-accent-text:{Bk['accent_text']};"
+          f"--lk-shadow:{Bk['shadow']};}}")
     css = TH.css_vars(T) + "\n" + lk + "\n" + B.font_css(faces) + CSS
-    zh = lang == "zh"
+    latin = B.families(faces, "en", "display") if ("en", "display") in faces else B.families(faces, lang, "display")
+    # Chinese: Latin words in the Latin face, the rest in Noto Sans SC (Medium; Regular gets a hairline stroke)
+    display = (latin.rsplit(",", 1)[0] + ", " + B.families(faces, lang, "display")) if zh else \
+        B.families(faces, lang, "display")
+    stroke = "-webkit-text-stroke: .014em currentColor;" if zh and B.zh_faux_medium(files["display"]) else ""
     css = (css.replace("{W}", str(W)).replace("{H}", str(H)).replace("{RADIUS}", str(L.get("radius", 18)))
-           .replace("{DW}", str(dw)).replace("{TW}", str(min(760, dw + 80) if not zh else 700))
-           .replace("{OW}", str(500 if not zh else 400)).replace("{TRACK}", "-.012em" if zh else "-.032em")
-           .replace("{TTRACK}", "0" if zh else "-.045em")
-           .replace("{DISPLAY}", B.families(faces, lang, "display")).replace("{TEXT}", B.families(faces, lang, "text")))
-    body, js, tracks = [], [], [1, 2]
+           .replace("{TW}", str(tw)).replace("{LW}", str(lw)).replace("{CW}", str(min(700, tw + 50)))
+           .replace("{TLH}", "1.3" if zh else "1.08").replace("{TTRACK}", ".02em" if zh else "-.022em")
+           .replace("{LTRACK}", ".02em" if zh else "-.008em").replace("{CTRACK}", "-.04em")
+           .replace("{STROKE}", stroke).replace("{LATIN}", latin)
+           .replace("{DISPLAY}", display).replace("{TEXT}", B.families(faces, lang, "text")))
+    body, js = [], []
     total = plan["duration"]
-    _backdrop(body, js, W, H, total, Bk)
     b = cfg.get("brand") or {}
     mark = _asset(b["mark"], proj, "brand") if b.get("mark") else None
     logo = _asset(b["logo"], proj, "brand") if b.get("logo") else None
@@ -328,12 +419,12 @@ def build(cfg, plan, proj, quiet=False):
     n = len(plan["scenes"])
     cues = S.caption_cues(plan)
     xf = plan["xf"]
+    tx0, ty0, tx1, ty1 = L["text"]
+    ncard = 0
     for i, s in enumerate(plan["scenes"]):
         sid, st, du = f"s{i}", s["start"], s["dur"]
-        track = tracks[i % 2]
         inner = []
         last_scene = i == n - 1
-        # scene in / out (the first scene is already there at frame 0; a loop's last scene fades to the tail)
         tr = transition_of(plan, i)
         if i == 0:
             js.append(f'tl.set("#{sid}", {{opacity: 1}}, 0);')
@@ -342,178 +433,172 @@ def build(cfg, plan, proj, quiet=False):
         if not last_scene or plan["loop"]:
             js.append(scene_out(sid, transition_of(plan, i + 1), st + du - xf, xf, W, H))
         land = st + (0.0 if i == 0 else xf * 0.55)            # the moment the new scene has arrived
-        if s["kind"] == "feature":
-            x0, y0, x1, y1 = L["text"]
-            kpx = L["kicker_px"]
-            px, lines = _fit_caption(s["caption"], lang, L, files, dw)
-            num = "" if plan["cut"] != "demo" else \
-                f"{sum(1 for z in plan['scenes'][:i + 1] if z['kind'] == 'feature' and not z.get('part')):02d}"
-            held = bool(s.get("part"))                    # the feature's second shot: its caption is already up
-            ktxt = f"{num} · {s['kicker']}" if num and s["kicker"] else s["kicker"]
-            ctop = _cap_top(L, px, len(lines), bool(ktxt))
-            ktop = ctop - int(kpx * 1.9)
-            # no kicker (her brief gives one line per shot): the empty rule stays out of the frame
-            inner.append(f'<div class="kicker" id="{sid}k" style="left:{x0}px; width:{x1 - x0}px; top:{ktop}px; '
-                         f'font-size:{kpx}px{"" if ktxt else "; display:none"}"><i></i>{_e(ktxt)}<i></i></div>')
-            inner.append(f'<div class="cap" id="{sid}c" style="left:{x0}px; top:{ctop}px; width:{x1 - x0}px; '
-                         f'font-size:{px}px">{caption_html(lines)}</div>')
-            wx, wy, ww, wh = L["win"]
-            m = s["media"]
-            sw, sh = m.get("w") or ww, m.get("h") or wh
-            k0 = s["cam"][0]
-            cam = f'<div class="cam" id="{sid}m" style="width:{sw}px; height:{sh}px; {_lift(m.get("still"))}">'
-            js.append(f'tl.set("#{sid}m", {{x: {k0["x"]}, y: {k0["y"]}, scale: {k0["scale"]}}}, 0);')
-            tag = f"{sid}-{s['shot']}"
-            if m["kind"] == "video":
-                src = _asset(m["file"], proj, "shots")
-                segs = m.get("segs") or [(m["at"], m["until"], m["rate"])]
-                last = _frame(m["file"], segs[-1][1] - 0.05, proj, f"{tag}-last.jpg")
-                cam += f'<img src="{last}" alt="">'
-                off = 0.0
-                for kk, (m0, m1, rate) in enumerate(segs):      # speed ramp: one clip per segment, back to back
-                    d = (m1 - m0) / rate
-                    if off >= s["play"] - 1e-3:
-                        break
-                    d = min(d, s["play"] - off)
-                    cam += (f'<video id="{sid}v{kk}" src="{src}" muted playsinline data-start="{_r(st + off)}" '
-                            f'data-duration="{_r(d)}" data-media-start="{_r(m0)}" data-playback-rate="{round(rate, 4)}" '
-                            f'data-track-index="{3 + i % 2}" data-volume="0"></video>')
-                    off += d
-            else:
-                cam += f'<img src="{_asset(m["file"], proj, "shots")}" alt="">'
-            cam += "</div>"
-            inner.append(f'<div class="win" id="{sid}w" style="left:{wx}px; top:{wy}px; width:{ww}px; height:{wh}px">'
-                         f'{cam}</div>')
-            loop_first = plan["loop"] and i == 0
-            if loop_first:                                   # the loop's frame 0 = its last frame: no entrance
-                js.append(f'tl.set(["#{sid}k", "#{sid}w"], {{opacity: 1}}, 0);')
-            elif i == 0:
-                # the film opens: the window rises into place, the headline follows
-                js.append(f'tl.set("#{sid}k", {{opacity: 1}}, 0);')
-                js.append(f'tl.fromTo("#{sid}w", {{opacity: 0, y: {int(60 * k)}, scale: 0.94}}, {{opacity: 1, y: 0, '
-                          f'scale: 1, duration: 0.8, ease: "expo.out"}}, 0);')
-            else:
-                # the transition carries the whole scene in: the window and kicker are simply there
-                js.append(f'tl.set(["#{sid}k", "#{sid}w"], {{opacity: 1}}, {_r(st)});')
-            if plan["loop"]:
-                js.append(f'tl.set("#{sid}k", {{opacity: 1}}, {_r(st)});')
-            if held:
-                js.append(f'tl.set("#{sid}c .w", {{opacity: 1, yPercent: 0}}, {_r(st)});')
-                js.append(f'tl.set("#{sid}c .mk", {{backgroundSize: "100% 42%"}}, {_r(st)});')
-            else:
-                stg = 0.03 if zh else 0.055
-                _ease_in_words(js, f"#{sid}c .w", land + (0.15 if i == 0 else 0.0), stagger=stg)
-                nw = sum(len(_words(C.plain(ln))) for ln in lines)
-                js.append(f'tl.to("#{sid}c .mk", {{backgroundSize: "100% 42%", duration: 0.5, ease: "power3.out"}}, '
-                          f'{_r(land + 0.3 + stg * nw)});')
-            for kf in s["cam"][1:]:
-                js.append(f'tl.to("#{sid}m", {{x: {kf["x"]}, y: {kf["y"]}, scale: {kf["scale"]}, duration: {kf["d"]}, '
-                          f'ease: "{kf["ease"]}"}}, {_r(st + kf["t"])});')
-            if vo_on and s.get("vo"):
-                vsrc, vdur = _vo(cfg, s, proj, lang)
+        lay = s["layout"]
+        if lay in S.FOOTAGE:
+            framed = lay in ("float", "split")
+            if framed:
+                inner.append('<div class="full flat"></div>')
+            for k, pane in enumerate(s["panes"]):
+                inner.append(_pane_html(proj, sid, i, k, pane, st, framed, js))
+            if i == 0 and not plan["loop"]:                  # the film opens: the frame settles out of a soft blur
+                js.append(f'tl.fromTo("#{sid}", {{scale: 1.04, filter: "blur(10px)"}}, {{scale: 1, '
+                          f'filter: "blur(0px)", duration: 0.9, ease: "expo.out"}}, 0);')
+            if lay == "float" and s.get("text"):
+                lt = _lower_third(L, s["panes"][0]["box"], s["text"], lang, files, lw, W, H)
+                if lt:
+                    x, y, width, px, ls = lt
+                    inner.append(f'<div class="lt" id="{sid}l" style="left:{x}px; top:{y}px; width:{width}px; '
+                                 f'font-size:{px}px">{caption_html(ls)}</div>')
+                    t0 = land + S.LT_IN
+                    _blur_in(js, f"#{sid}l .w", t0, stagger=0.025 if zh else 0.04, dur=0.6, rise=30)
+                    t1 = t0 + S.LT_HOLD - 0.35
+                    if t1 < st + du - xf - 0.1:
+                        js.append(f'tl.to("#{sid}l", {{opacity: 0, filter: "blur(4px)", duration: 0.35, '
+                                  f'ease: "power1.in"}}, {_r(t1)});')
+            if lay == "split":
+                for k, (x, y, width, px, ls, centred) in enumerate(_labels(L, s, files, lang, lw)):
+                    inner.append(f'<div class="lt{" c" if centred else ""}" id="{sid}b{k}" style="left:{x}px; '
+                                 f'top:{y}px; width:{width}px; font-size:{px}px">{caption_html(ls)}</div>')
+                    t0 = land + S.LT_IN + 0.15 * k
+                    _blur_in(js, f"#{sid}b{k} .w", t0, stagger=0.025 if zh else 0.04, dur=0.6, rise=30)
+                    t1 = land + S.LT_IN + S.LT_HOLD - 0.35
+                    if t1 < st + du - xf - 0.1:
+                        js.append(f'tl.to("#{sid}b{k}", {{opacity: 0, filter: "blur(4px)", duration: 0.35, '
+                                  f'ease: "power1.in"}}, {_r(t1)});')
+            if vo_on and s.get("vo") and not (s["panes"][0].get("cont")):
+                vsrc, vdur = _vo(cfg, dict(s, id=s["id"]), proj, lang)
                 body.append(f'<audio src="{vsrc}" id="{sid}vo" data-start="{_r(st + 0.35)}" data-duration="{_r(vdur)}" '
                             f'data-track-index="8" data-volume="1"></audio>')
-        elif s["kind"] == "title":
-            ty = H * (0.42 if H > W else 0.4)
-            mpx = int(L["title_px"] * 0.95)
-            if mark:
-                inner.append(f'<img class="mark" id="{sid}i" src="{mark}" alt="" style="left:{(W - mpx * 1.75) // 2}px; '
-                             f'top:{int(ty - mpx * 1.35)}px; width:{int(mpx * 1.75)}px">')
-                js.append(f'tl.fromTo("#{sid}i", {{opacity: 0, scale: .7, rotation: -6}}, {{opacity: 1, scale: 1, '
-                          f'rotation: 0, duration: .7, ease: "back.out(1.6)"}}, 0.05);')
-            name = p["name"] + (f" {C.text(p.get('name_zh'), lang)}" if zh and p.get("name_zh") else "")
-            inner.append(f'<div class="center title" id="{sid}t" style="top:{int(ty)}px; font-size:{L["title_px"]}px">'
-                         f'{_chars_html(name)}</div>')
-            _ease_in_words(js, f"#{sid}t .w", 0.2, stagger=0.035, dur=0.75)
-            ol = C.text(p.get("one_liner"), lang)
-            olw = W - 2 * L["text"][0]
-            opx, olines = B.fit(ol, files["display"], (L["oneliner_px"], int(L["oneliner_px"] * 0.7)), olw, 2, lang, 500)
-            oy = int(ty + L["title_px"] * 1.3)
-            inner.append(f'<div class="center oneliner" id="{sid}o" style="top:{oy}px; font-size:{opx}px">'
-                         f'{caption_html(olines)}</div>')
-            _ease_in_words(js, f"#{sid}o .w", 0.6, stagger=0.04)
-            if p.get("version"):
-                cy = oy + int(opx * 1.3 * len(olines) + opx * 0.9)
-                inner.append(f'<div class="center" style="top:{cy}px"><span class="chip" id="{sid}v" '
-                             f'style="font-size:{int(L["kicker_px"] * 1.05)}px">{_e(p["version"])}</span></div>')
-                js.append(f'tl.fromTo("#{sid}v", {{opacity: 0, y: 14}}, {{opacity: 1, y: 0, duration: .5, '
-                          f'ease: "expo.out"}}, 1.1);')
-        elif s["kind"] == "end":
+        else:
+            inner.append(_field(sid, ncard, W, H, st, du, Bk, js))
+            ncard += 1
+        if lay == "type":
+            lo = max(40, int(L["type_px"][1] * scale))
+            px, ls = _fit(s["text"], files, (int(L["type_px"][0] * scale), lo), L["type_w"], L["type_lines"], lang, tw)
+            lh = 1.3 if zh else 1.08
+            h = px * lh * len(ls)
+            top = int((ty0 + ty1) / 2 - h / 2 - px * 0.06)
+            left = int((tx0 + tx1) / 2 - L["type_w"] / 2)
+            inner.append(f'<div class="type" id="{sid}t" style="left:{left}px; top:{top}px; width:{L["type_w"]}px; '
+                         f'font-size:{px}px">{caption_html(ls)}</div>')
+            _blur_in(js, f"#{sid}t .w", land + 0.05, stagger=0.035 if zh else 0.07, dur=0.8)
+            js.append(f'tl.fromTo("#{sid}t", {{scale: 1}}, {{scale: 1.03, duration: {_r(du)}, ease: "sine.out"}}, '
+                      f'{_r(st)});')
+        elif lay == "chapter":
+            ty = H * (0.44 if H > W else 0.41)
+            cpx = int(L["chapter_px"] * scale)
+            grp = []
+            t0 = land + 0.05
+            if s.get("eyebrow"):
+                epx = L["eyebrow_px"] if s["eyebrow"].isascii() else int(L["eyebrow_px"] * 1.45)
+                grp.append(f'<div class="center eyebrow" id="{sid}e" style="top:{int(ty - epx * 2.2)}px; '
+                           f'font-size:{epx}px">{_e(s["eyebrow"])}</div>')
+                js.append(f'tl.fromTo("#{sid}e", {{opacity: 0, filter: "blur(6px)"}}, {{opacity: 1, '
+                          f'filter: "blur(0px)", duration: .6, ease: "power2.out"}}, {_r(t0)});')
+            elif mark and s.get("id") == "opening":
+                mw = int(cpx * 1.1)
+                grp.append(f'<img class="mark" id="{sid}i" src="{mark}" alt="" style="left:{(W - mw) // 2}px; '
+                           f'top:{int(ty - mw * 1.15)}px; width:{mw}px">')
+                js.append(f'tl.fromTo("#{sid}i", {{opacity: 0, scale: .9, filter: "blur(8px)"}}, {{opacity: 1, '
+                          f'scale: 1, filter: "blur(0px)", duration: .7, ease: "expo.out"}}, {_r(t0)});')
+            title = s.get("title") or p["name"]
+            ascii_title = all(ord(c) < 0x2E80 for c in title)
+            tpx = cpx if ascii_title else int(cpx * 0.72)
+            fam = "" if ascii_title else f' font-family:{display};'
+            grp.append(f'<div class="center chap" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px;{fam}">'
+                       f'{_chars_html(title)}</div>')
+            _blur_in(js, f"#{sid}n .w", t0 + 0.1, stagger=0.03, dur=0.8, rise=18)
+            y = ty + tpx * 1.18
+            if s.get("version"):
+                vpx = int(L["oneliner_px"] * 0.95)
+                grp.append(f'<div class="center ver" id="{sid}v" style="top:{int(y)}px; font-size:{vpx}px">'
+                           f'{_e(s["version"])}</div>')
+                js.append(f'tl.fromTo("#{sid}v", {{opacity: 0, y: 10, filter: "blur(6px)"}}, {{opacity: 1, y: 0, '
+                          f'filter: "blur(0px)", duration: .6, ease: "power3.out"}}, {_r(t0 + 0.55)});')
+                y += vpx * 1.6
+            if s.get("sub"):
+                spx, sl = _fit(s["sub"], files, (L["oneliner_px"], int(L["oneliner_px"] * 0.7)), tx1 - tx0, 2, lang, lw)
+                grp.append(f'<div class="center cta" id="{sid}o" style="top:{int(y)}px; font-size:{spx}px">'
+                           f'{caption_html(sl)}</div>')
+                _blur_in(js, f"#{sid}o .w", t0 + 0.6, stagger=0.03 if zh else 0.05, dur=0.6)
+            inner.append(f'<div class="full" id="{sid}c">' + "".join(grp) + "</div>")
+            js.append(f'tl.fromTo("#{sid}c", {{scale: 1}}, {{scale: 1.035, duration: {_r(du)}, ease: "sine.out"}}, '
+                      f'{_r(st)});')
+        elif lay == "end":
             t0 = st + xf * 0.4
             ty = H * (0.42 if H > W else 0.4)
             grp = []
             if logo:
-                lw = int(min(W * 0.46, 760))
-                grp.append(f'<img class="mark" id="{sid}l" src="{logo}" alt="" style="left:{(W - lw) // 2}px; '
-                           f'top:{int(ty)}px; width:{lw}px">')
-                js.append(f'tl.fromTo("#{sid}l", {{opacity: 0, y: 24, scale: .96}}, {{opacity: 1, y: 0, scale: 1, '
-                          f'duration: .7, ease: "expo.out"}}, {_r(t0)});')
-                cy = ty + lw * 0.34
+                lwid = int(min(W * 0.4, 680))
+                grp.append(f'<img class="mark" id="{sid}l" src="{logo}" alt="" style="left:{(W - lwid) // 2}px; '
+                           f'top:{int(ty)}px; width:{lwid}px">')
+                js.append(f'tl.fromTo("#{sid}l", {{opacity: 0, scale: .97, filter: "blur(8px)"}}, {{opacity: 1, '
+                          f'scale: 1, filter: "blur(0px)", duration: .8, ease: "expo.out"}}, {_r(t0)});')
+                cy = ty + lwid * 0.34
             else:
-                tpx = L["title_px"]
+                tpx = int(L["chapter_px"] * 0.86 * scale)
                 if mark:
-                    mw = int(tpx * 1.6)
+                    mw = int(tpx * 1.2)
                     grp.append(f'<img class="mark" id="{sid}i" src="{mark}" alt="" style="left:{(W - mw) // 2}px; '
-                               f'top:{int(ty - mw * 0.75)}px; width:{mw}px">')
-                    js.append(f'tl.fromTo("#{sid}i", {{opacity: 0, scale: .6, rotation: -8, y: 20}}, {{opacity: 1, '
-                              f'scale: 1, rotation: 0, y: 0, duration: .75, ease: "back.out(1.7)"}}, {_r(t0)});')
-                    t0 += 0.18
-                nm = (f"{C.text(p.get('name_zh'), lang)} {p['name']}" if zh and p.get("name_zh") else p["name"])
-                grp.append(f'<div class="center title" id="{sid}n" style="top:{int(ty)}px; '
-                           f'font-size:{tpx}px">{_chars_html(nm)}</div>')
-                _ease_in_words(js, f"#{sid}n .w", t0, stagger=0.035, dur=0.75)
-                cy = ty + tpx * 1.32
+                               f'top:{int(ty - mw * 1.1)}px; width:{mw}px">')
+                    js.append(f'tl.fromTo("#{sid}i", {{opacity: 0, scale: .9, filter: "blur(8px)"}}, {{opacity: 1, '
+                              f'scale: 1, filter: "blur(0px)", duration: .7, ease: "expo.out"}}, {_r(t0)});')
+                    t0 += 0.15
+                grp.append(f'<div class="center chap" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px">'
+                           f'{_chars_html(p["name"])}</div>')
+                _blur_in(js, f"#{sid}n .w", t0, stagger=0.03, dur=0.8, rise=18)
+                cy = ty + tpx * 1.25
+                if zh and p.get("name_zh"):
+                    zpx = int(L["eyebrow_px"] * 1.1)
+                    grp.append(f'<div class="center eyebrow" id="{sid}z" style="top:{int(ty - zpx * 2.2)}px; '
+                               f'font-size:{zpx}px">{_e(C.text(p.get("name_zh"), lang))}</div>')
+                    js.append(f'tl.fromTo("#{sid}z", {{opacity: 0}}, {{opacity: 1, duration: .5}}, {_r(t0 + 0.2)});')
             cta = C.text(end.get("cta"), lang) or C.text(p.get("one_liner"), lang)
-            cpx, clines = B.fit(cta, files["display"], (int(L["oneliner_px"] * 1.12), int(L["oneliner_px"] * 0.7)),
-                                W - 2 * L["text"][0], 2, lang, 500)
+            cpx, clines = _fit(cta, files, (int(L["oneliner_px"]), int(L["oneliner_px"] * 0.7)), tx1 - tx0, 2, lang, lw)
             grp.append(f'<div class="center cta" id="{sid}c" style="top:{int(cy)}px; font-size:{cpx}px">'
                        f'{caption_html(clines)}</div>')
-            _ease_in_words(js, f"#{sid}c .w", t0 + 0.35, stagger=0.03 if zh else 0.05)
-            sy = cy + cpx * 1.25 * len(clines) + cpx * 0.75
+            _blur_in(js, f"#{sid}c .w", t0 + 0.4, stagger=0.03 if zh else 0.05, dur=0.7)
+            sy = cy + cpx * 1.25 * len(clines) + cpx * 0.9
             if p.get("site"):
                 site = p["site"].replace("https://", "").replace("http://", "").rstrip("/")
-                grp.append(f'<div class="center" style="top:{int(sy)}px"><span class="site" id="{sid}s" '
-                           f'style="font-size:{int(cpx * 0.66)}px">{_e(site)}</span></div>')
-                js.append(f'tl.fromTo("#{sid}s", {{opacity: 0, y: 16, scale: .94}}, {{opacity: 1, y: 0, scale: 1, '
-                          f'duration: .6, ease: "expo.out"}}, {_r(t0 + 0.75)});')
-                sy += cpx * 1.6
+                grp.append(f'<div class="center site" id="{sid}s" style="top:{int(sy)}px; '
+                           f'font-size:{int(cpx * 0.7)}px">{_e(site)}</div>')
+                js.append(f'tl.fromTo("#{sid}s", {{opacity: 0, y: 8}}, {{opacity: 1, y: 0, duration: .6, '
+                          f'ease: "power3.out"}}, {_r(t0 + 0.8)});')
+                sy += cpx * 1.4
             sub = C.text(end.get("sub"), lang)
             if sub:
                 grp.append(f'<div class="center sub" id="{sid}u" style="top:{int(sy)}px; '
-                           f'font-size:{int(L["kicker_px"] * 0.95)}px">{_e(sub)}</div>')
+                           f'font-size:{int(L["eyebrow_px"] * 0.95)}px">{_e(sub)}</div>')
                 js.append(f'tl.fromTo("#{sid}u", {{opacity: 0}}, {{opacity: 1, duration: .4}}, {_r(t0 + 1.0)});')
-            # the card keeps a slow push while it holds
             inner.append(f'<div class="full" id="{sid}g">' + "".join(grp) + "</div>")
-            js.append(f'tl.fromTo("#{sid}g", {{scale: 1}}, {{scale: 1.04, duration: {_r(du)}, ease: "sine.out"}}, '
+            js.append(f'tl.fromTo("#{sid}g", {{scale: 1}}, {{scale: 1.03, duration: {_r(du)}, ease: "sine.out"}}, '
                       f'{_r(st)});')
         body.append(f'<div class="scene clip" id="{sid}" data-start="{_r(st)}" data-duration="{_r(du)}" '
-                    f'data-track-index="{track}">' + "".join(inner) + "</div>")
+                    f'data-track-index="{1 + i % 2}" data-layout="{lay}">' + "".join(inner) + "</div>")
     if plan["loop"]:
         # tail: a still of the first scene's opening frame fades in over the last crossfade -> seamless loop
         s0 = plan["scenes"][0]
-        m = s0["media"]
-        first = (_frame(m["file"], m["at"], proj, "tail-first.jpg") if m["kind"] == "video"
-                 else _asset(m["file"], proj, "shots"))
-        wx, wy, ww, wh = L["win"]
-        x0, _, x1, _ = L["text"]
-        k0 = s0["cam"][0]
-        sw, sh = m.get("w") or ww, m.get("h") or wh
-        kick = plan["scenes"][0]["kicker"]
-        px0, lines0 = _fit_caption(s0["caption"], lang, L, files, dw)
-        ky = _cap_top(L, px0, len(lines0), bool(kick)) - int(L["kicker_px"] * 1.9)
+        p0 = s0["panes"][0]
+        m = p0["media"]
+        first = (_frame(m["file"], (m["segs"][0][0] if m.get("segs") else m["at"]), proj, "tail-first.jpg")
+                 if m["kind"] == "video" else _asset(m["file"], proj, "shots"))
+        x, y, w, h = p0["box"]
+        k0 = p0["cam"][0]
+        sw, sh = m.get("w") or w, m.get("h") or h
+        framed = s0["layout"] in ("float", "split")
         tail_at = total - xf
         body.append(f'<div class="scene clip" id="tail" data-start="{_r(tail_at)}" data-duration="{_r(xf)}" '
-                    f'data-track-index="5"><div class="kicker" style="left:{x0}px; width:{x1 - x0}px; top:{ky}px; '
-                    f'font-size:{L["kicker_px"]}px; opacity:1"><i></i>{_e(kick)}<i></i></div>'
-                    f'<div class="win" style="left:{wx}px; top:{wy}px; width:{ww}px; height:{wh}px; opacity:1">'
-                    f'<div class="cam" id="tailm" style="width:{sw}px; height:{sh}px; {_lift(m.get("still"))}">'
-                    f'<img src="{first}" alt=""></div></div></div>')
+                    f'data-track-index="5"><div class="full flat"></div>'
+                    f'<div class="win{" framed" if framed else ""}" style="left:{x}px; top:{y}px; width:{w}px; '
+                    f'height:{h}px"><div class="cam" id="tailm" style="width:{sw}px; height:{sh}px; '
+                    f'{_lift(m.get("still"))}"><img src="{first}" alt=""></div></div></div>')
         js.append(f'tl.set("#tailm", {{x: {k0["x"]}, y: {k0["y"]}, scale: {k0["scale"]}}}, 0);')
         js.append(f'tl.fromTo("#tail", {{opacity: 0}}, {{opacity: 1, duration: {xf}, ease: "none"}}, {_r(tail_at)});')
     if vo_on:
         label = "AI 配音" if zh else "AI voice"
         body.append(f'<div class="ailabel clip" data-start="0" data-duration="{_r(total)}" data-track-index="9" '
-                    f'style="left:{L["text"][0]}px; bottom:{max(24, int(H * 0.03))}px">{label}</div>')
+                    f'style="left:{tx0}px; bottom:{max(24, int(H * 0.03))}px">{label}</div>')
     music = None if plan["loop"] else _music(cfg, proj, total)       # a loop stays silent: no seam in the bed
     if music:
         vol = 0.22 if vo_on else 0.5
@@ -543,7 +628,8 @@ window.__timelines["main"] = tl;
     with open(os.path.join(proj, "cues.json"), "w", encoding="utf-8") as f:
         json.dump({"cues": cues}, f, ensure_ascii=False, indent=1)
     if not quiet:
-        print(f"built {proj} ({plan['cut']} {lang} {plan['aspect']}, {total:.1f}s, {len(plan['scenes'])} scenes)")
+        print(f"built {proj} ({plan['cut']} {lang} {plan['aspect']}, {total:.1f}s, {len(plan['scenes'])} scenes, "
+              f"text {plan.get('text_share', 0):.0%})")
     return proj
 
 
