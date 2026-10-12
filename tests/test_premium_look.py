@@ -57,3 +57,20 @@ def test_cinema_timeline_dissolves_and_moves_the_year_on():
     assert [s.get("_tl_from") for s in T.shots[:3]] == [None, 1851, 1893]
     T = Timeline(_ctx(False), timing)                             # classic look keeps what the spec asked
     assert [s["tr"] for s in T.shots] == [None, "whip", "flash", "cut"]
+
+
+def test_cinema_cover_is_a_full_bleed_frame_with_quiet_type(tmp_path):
+    """P8: no heavy stroke / band; a long dashed title becomes title + a small line; her '|' breaks are kept."""
+    from PIL import Image
+    from vstudio.batch.edits import _cover_parts, _text_cover
+    assert _cover_parts("Eastern Washington|华盛顿东部 · 公路旅行") == (["Eastern Washington"], "华盛顿东部 · 公路旅行")
+    assert _cover_parts("Eastern Washington Road Trip — Columbia River, Dusk Deer") == (
+        ["Eastern Washington Road Trip"], "Columbia River, Dusk Deer")
+    src = tmp_path / "f.jpg"
+    Image.new("RGB", (1920, 1080), (90, 130, 170)).save(src)
+    _text_cover(str(src), "Golden Hour|Elliott Bay, Seattle", str(tmp_path / "c.jpg"), style="cinema")
+    a = np.asarray(Image.open(tmp_path / "c.jpg").convert("RGB")).astype(int)
+    assert a.shape[:2] == (1080, 1920)
+    assert abs(a[100, 960] - [90, 130, 170]).max() < 6               # the top of the frame is untouched
+    assert (a[540:, :, :].min(axis=2) < 25).mean() < 0.02            # no black stroke / band, only a soft gradient
+    assert (a[700:1000].min(axis=2) > 225).mean() > 0.003            # light title type in the lower part

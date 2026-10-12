@@ -401,7 +401,106 @@ def _wrap_cover(text, f, maxw, d):
     return lines
 
 
-def _text_cover(frame_path, text, out_path):
+def cover_style():
+    """persona ``style.cover``: "cinema" (default: serif title on a soft gradient, a premium travel / documentary
+    thumbnail) | "bold" (the old heavy white-on-black-stroke title)."""
+    try:
+        from vstudio.config import persona
+        st = (persona() or {}).get("style")
+        v = st.get("cover") if isinstance(st, dict) else None
+    except Exception:  # noqa: BLE001
+        v = None
+    return "bold" if str(v or "").lower() in ("bold", "classic", "loud") else "cinema"
+
+
+def _text_cover(frame_path, text, out_path, style=None):
+    """A frame + the cover text -> out_path. Falls back to the bare frame. ``style`` (default ``cover_style()``):
+    cinema = references/AESTHETICS.md P8 (``_cinema_cover``), bold = the old bold CJK title with a black stroke."""
+    if (style or cover_style()) == "cinema":
+        try:
+            return _cinema_cover(frame_path, text, out_path)
+        except Exception:  # noqa: BLE001  (no font: fall through to the plain path)
+            pass
+    return _bold_cover(frame_path, text, out_path)
+
+
+def _cover_parts(text):
+    """Cover text -> (title lines, small line): her breaks ("|" / newline) first; a long single title splits at its
+    dash / colon into the title and a small line."""
+    parts = [x.strip() for x in re.split(r"[|｜\n]", str(text or "")) if x.strip()]
+    if len(parts) == 1:
+        for sep in (" — ", " – ", " - ", "：", ": "):
+            if sep in parts[0] and len(parts[0]) > 26:
+                a, b = parts[0].split(sep, 1)
+                return [a.strip() + (":" if sep.strip() == ":" else "")], b.strip()
+    if len(parts) >= 2:
+        return parts[:-1][:2], parts[-1]
+    return parts, ""
+
+
+def _cinema_cover(frame_path, text, out_path):
+    """Premium travel / documentary thumbnail: the frame full-bleed, a soft dark gradient at the bottom, the title in
+    the serif (Noto Serif SC: Latin + CJK) with a soft shadow - no stroke, no box - a short champagne hairline and a
+    small letter-spaced place / sub line in the sans. Titles shrink before they wrap; each given line wraps alone."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    from vstudio.config import font
+    im = Image.open(frame_path).convert("RGB")
+    W, H = im.size
+    title, sub = _cover_parts(text)
+    if not title and not sub:
+        im.save(out_path, quality=92)
+        return out_path
+    gh = int(H * 0.5)                                   # a long, soft gradient (no band edge)
+    ramp = Image.linear_gradient("L").resize((1, gh)).point(lambda v: int(185 * (v / 255) ** 1.7))
+    im.paste(Image.new("RGB", (W, gh), (8, 8, 10)), (0, H - gh), ramp.resize((W, gh)))
+    lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lay)
+    portrait = H > W
+    maxw = W * (0.86 if portrait else 0.8)
+    size = int(min(H * 0.105, W * (0.105 if portrait else 0.072)))
+    serif = font("cjk-serif")
+    f = ImageFont.truetype(serif, size)
+    while size > H * 0.05 and any(d.textlength(t, font=f) > maxw for t in title):
+        size = int(size * 0.94)
+        f = ImageFont.truetype(serif, size)
+    lines = [x for t in title for x in _wrap_cover(t, f, maxw, d)][:3]
+    lh = int(size * 1.2)
+    sub_size = max(14, int(size * 0.3))
+    fs = ImageFont.truetype(font("cjk"), sub_size)
+    cjk_sub = bool(re.search(r"[\u3000-\u9fff]", sub))
+    sub_txt = sub if cjk_sub else sub.upper()
+    track = sub_size * (0.08 if cjk_sub else 0.2)
+
+    def spaced_w(t):
+        return sum(d.textlength(c, font=fs) for c in t) + track * max(0, len(t) - 1)
+    while sub_txt and spaced_w(sub_txt) > maxw and sub_size > 12:
+        sub_size -= 1
+        fs = ImageFont.truetype(font("cjk"), sub_size)
+        track = sub_size * (0.08 if cjk_sub else 0.2)
+    block = lh * len(lines) + (int(size * 0.22 + sub_size * 2.1) if sub_txt else 0)
+    y = H - int(H * (0.11 if portrait else 0.1)) - block
+    for ln in lines:
+        d.text((W / 2, y), ln, font=f, fill=(250, 247, 240, 255), anchor="ma")
+        y += lh
+    if sub_txt:
+        y += int(size * 0.22)                       # clear of the title's descenders
+        hw = max(18, int(W * 0.025))
+        d.line((W / 2 - hw, y, W / 2 + hw, y), fill=(201, 180, 138, 235), width=max(1, H // 540))
+        y += int(sub_size * 0.8)
+        x = W / 2 - spaced_w(sub_txt) / 2
+        for c in sub_txt:
+            d.text((x, y), c, font=fs, fill=(234, 228, 216, 255))
+            x += d.textlength(c, font=fs) + track
+    sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sh.putalpha(lay.getchannel("A").filter(ImageFilter.GaussianBlur(max(3, size // 9))).point(lambda v: int(v * 0.7)))
+    base = im.convert("RGBA")
+    base.alpha_composite(sh, (0, max(1, size // 30)))
+    base.alpha_composite(lay)
+    base.convert("RGB").save(out_path, quality=93)
+    return out_path
+
+
+def _bold_cover(frame_path, text, out_path):
     """A frame + the cover text (bottom gradient, bold CJK) -> out_path. Falls back to the bare frame."""
     from PIL import Image, ImageDraw
     im = Image.open(frame_path).convert("RGB")

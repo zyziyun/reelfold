@@ -55,6 +55,10 @@ def main():
         W, H = tuple(cfg.get("size", vplat.cover_size(C.prof)))
     else:
         W, H = tuple(cfg.get("size", (C.W, C.H)))
+    out = a.out or C.path(cfg.get("out", "cover.png"))
+    if C.cinema and cfg.get("style") != "scrapbook":
+        print("cover:", cinema_cover(C, cfg, W, H, out))
+        return
     k = min(W / 1620, H / 2160)
     q = lambda v: int(round(v * k))
     GOLD, RED = C.GOLD, C.pal["mark"]
@@ -147,10 +151,40 @@ def main():
             px = int((j + 0.5) * W / n - c.width / 2)
             cv.paste(c, (px, int(py)), c)
 
-    out = a.out or C.path(cfg.get("out", "cover.png"))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     cv.save(out)
     print("cover:", out)
+
+
+def cinema_cover(C, cfg, W, H, out):
+    """LOOK cinema (references/AESTHETICS.md P8): the hero still full-bleed (cropped to the cover's aspect around its
+    focus), the title in the serif over a soft gradient, a hairline and a small spaced line - no polaroids, no tape,
+    no red circle. COVER style="scrapbook" keeps the collage."""
+    import tempfile
+    from vstudio.batch.edits import _text_cover
+    hero = cfg.get("hero") or {}
+    src = hero.get("src") or hero.get("b") or hero.get("a") or next(
+        (p.get("src") for p in cfg.get("polaroids") or [] if p.get("src")), None)
+    if not src:
+        raise SystemExit("cover: COVER needs hero=dict(src=<still>) (or a polaroid) for the cinema cover")
+    c = tuple(hero.get("c", C.focus_of(src)[0]))
+    im = crop_aspect(C.open_img(src), c, hero.get("z", 1.0), W / H).resize((W, H), Image.LANCZOS)
+    lead, other = (C.TITLE_EN, C.TITLE_ZH) if C.EN_LEAD else (cfg.get("title") or C.TITLE_ZH or C.TITLE_EN,
+                                                            C.TITLE_EN)
+    sub = cfg.get("subtitle") or (other if other and other != lead else "")
+    if C.EN_LEAD and has_cjk(sub or "") and not has_cjk(lead or ""):
+        sub = cfg.get("kicker") if cfg.get("kicker") and not has_cjk(cfg["kicker"]) else ""
+    for sep in (": ", "：", " — ", " - "):          # a long title: its head on the cover, the rest the small line
+        if lead and sep in lead and len(lead) > 22:
+            lead, sub = (x.strip() for x in lead.split(sep, 1))
+            break
+    text = (lead or "") + (("|" + sub) if sub else "")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with tempfile.TemporaryDirectory() as td:
+        fr = os.path.join(td, "hero.jpg")
+        im.convert("RGB").save(fr, quality=95)
+        _text_cover(fr, text, out, style="cinema")
+    return out
 
 
 if __name__ == "__main__":
