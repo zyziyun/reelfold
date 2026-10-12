@@ -506,6 +506,8 @@ class Api:
         from .sample import Sample
         self.sample = Sample(engine.data_dir, vstudio_home)
         self.intake = K["Intake"](engine.data_dir, bus, runner, engine.mode, probe=probe, sample=self.sample)
+        from .goals import Goals                   # goal mode: one request -> several videos, made as a group
+        self.goals = Goals(engine.data_dir, bus, self.intake, self.history, runner if real else None, engine.mode)
         self.inbox = Inbox(engine.data_dir, self.history, runner, engine.mode, bus)
         self.inbox.outputs = self.outputs
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
@@ -536,6 +538,7 @@ class Api:
                                      history=self.history, calendar=self.calendar, outputs=self.outputs)
         self.inbox.extra.append(self.create.inbox_items)
         self.inbox.extra.append(self.intake.inbox_items)
+        self.inbox.extra.append(self.goals.inbox_items)
         from .share import Share                   # share for review: static page + feedback -> Inbox
         self.share = Share(engine.data_dir, self.history, self.outputs, self.inbox, bus)
         from .watermark import Watermark           # Settings › Watermark (vstudio.watermark settings + previews)
@@ -556,6 +559,7 @@ class Api:
             for p in j.get("applied") or []:
                 out.append(p["dir"])
         out += self.create.roots()
+        out += self.goals.roots()
         return sorted(set(out))
 
     def _route_import(self, method, parts, query, b):
@@ -659,6 +663,8 @@ class Api:
         if parts == ["home", "suggestions"] and method == "GET":
             from .homesuggest import suggestions
             return suggestions(self.history, self.intake)
+        if parts[:1] == ["goals"]:
+            return self.route_goals(method, parts[1:], b)
         if parts[:1] == ["intake"]:
             if parts == ["intake"] and method == "POST":
                 prompt = b.get("prompt") or ""
@@ -667,6 +673,14 @@ class Api:
                 need(isinstance(inputs, list) and len(inputs) <= 200, "inputs: up to 200 files / folders")
                 inputs = [_abs_path(p, "inputs[]") for p in inputs]
                 need(prompt.strip() or inputs, "say what to make or add files")
+                need(b.get("goal") in (None, True, False), "goal must be a boolean")
+                # a goal-style request ("several videos from this card"), or 「Make several videos」 in the composer:
+                # a survey + a plan of videos, made as a group (goals.py)
+                if b.get("goal") is True or (b.get("goal") is None and not b.get("recipe") and not b.get("sample_name")
+                                             and self.goals.detect(prompt, inputs)):
+                    g = self.goals.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"),
+                                         "ask" if b.get("mode") == "ask" else "autopilot")
+                    return dict(id=g["id"], goal=True)
                 return self.intake.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"), b.get("mode"),
                                          b.get("sample_name"), **({"recipe": b["recipe"]} if b.get("recipe") else {}))
             if parts == ["intake", "recent"] and method == "GET":
@@ -674,7 +688,9 @@ class Api:
             if parts == ["intake", "open"] and method == "GET":
                 ar = (query.get("archived") or [None])[0]
                 need(ar in (None, "", "0", "1"), "archived: 0|1")
-                return self.intake.open(archived=ar == "1")
+                res = self.intake.open(archived=ar == "1")
+                self.goals.mark(res.get("items"), "id")         # a goal's requests sit under its group
+                return res
             if parts[1:] in (["archive"], ["restore"], ["delete"]) and len(parts) == 2 and method == "POST":
                 ids = b.get("ids")
                 need(isinstance(ids, list) and 0 < len(ids) <= 200 and all(isinstance(x, str) and PID_RE.match(x) for x in ids),
@@ -789,6 +805,33 @@ class Api:
                 return self.inbox.redraft(b.get("key"), b.get("instruction"))
         return None
 
+    def route_goals(self, method, parts, b):
+        """/api/goals[/<id>[/<verb>]] (goals.py)."""
+        G = self.goals
+        if not parts:
+            if method == "GET":
+                return G.list()
+            if method == "POST":
+                prompt = b.get("prompt") or ""
+                inputs = b.get("inputs") or []
+                need(isinstance(inputs, list) and len(inputs) <= 200, "inputs: up to 200 files / folders")
+                need(b.get("mode") in (None, "autopilot", "ask"), "mode: autopilot | ask")
+                return G.start(prompt, [_abs_path(p, "inputs[]") for p in inputs], b.get("platforms"), b.get("lang"),
+                               b.get("mode") or "autopilot")
+        need(len(parts) >= 1 and PID_RE.match(parts[0]), "bad goal id")
+        gid = parts[0]
+        if len(parts) == 1 and method == "GET":
+            return G.view(gid)
+        if len(parts) == 2 and method == "POST":
+            verb = parts[1]
+            if verb == "edit":
+                return G.edit(gid, b.get("ops"))
+            if verb == "video":
+                return G.video(gid, b.get("video"), b.get("action"))
+            if verb in ("approve", "stop", "retry", "clear", "dismiss"):
+                return getattr(G, verb)(gid)
+        return None
+
     def route_v02(self, method, parts, query, body):
         s = self.studio
         q = lambda k: (query.get(k) or [None])[0]  # noqa: E731
@@ -840,7 +883,9 @@ class Api:
                 need(cl is None or len(cl) <= 200, "bad client")
                 ar = q("archived")
                 need(ar in (None, "", "0", "1", "true", "false"), "archived: 0|1")
-                return h.list(q=qq, status=st, kind=kind, type_=ty, client=cl, archived=ar in ("1", "true"))
+                res = h.list(q=qq, status=st, kind=kind, type_=ty, client=cl, archived=ar in ("1", "true"))
+                self.goals.mark(res.get("items"), "dir")       # a goal's projects sit under its group
+                return res
             if len(parts) >= 3 and parts[1] == "item":
                 need(ID_RE.match(parts[2]), "bad item id")
                 if len(parts) == 3 and method == "GET":
