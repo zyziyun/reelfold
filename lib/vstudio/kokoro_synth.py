@@ -10,17 +10,19 @@ same set the app's runtime bundles (Mac App Store: no audio device, no network).
 Mandarin voices read English terms as English and long lines in pieces that fit the model (vstudio.kokoro_g2p).
 """
 import argparse
+import math
 import os
 import sys
 import wave
 
 
 def synth(text, model, voice, lang=None, speed=1.0):
-    """-> (samples float32 numpy array, sample_rate)."""
+    """-> (samples float32 numpy array, sample_rate). ``model``: a folder / HF repo, or a loaded Kokoro model."""
     import numpy as np
     from mlx_audio.tts.utils import load_model
 
-    m = load_model(model, model_type="kokoro")      # named: a folder of any name (an HF snapshot hash) loads
+    exact_interpolate()
+    m = model if hasattr(model, "generate") else load_model(model, model_type="kokoro")   # named: any folder loads
     lang = lang or "a"
     if lang == "z":
         text = "\n".join(mandarin(m, text))
@@ -32,6 +34,42 @@ def synth(text, model, voice, lang=None, speed=1.0):
     if not chunks:
         raise SystemExit("kokoro produced no audio (empty text, or every word was out of the dictionary)")
     return np.concatenate(chunks), int(m.sample_rate)
+
+
+def scaled_size(n, scale):
+    """Output length of resampling ``n`` steps by ``scale``: the exact integer when n * scale is one up to float error
+    (n = 300 * k, scale = 1 / 300 -> k), else rounded up as mlx-audio does."""
+    x = float(n) * float(scale)
+    r = round(x)
+    return max(1, int(r if abs(x - r) < 1e-6 else math.ceil(x)))
+
+
+def exact_interpolate():
+    """Kokoro's vocoder (mlx-audio istftnet.SineGen) resamples its F0 track by 1/300 and back by 300, sizing each
+    step as ``ceil(n * scale)`` in floating point. For about one frame count in five (n = 1782 * 300: 534600 / 300
+    -> 1782.0000000000002 -> 1783) the sine source comes back 300 samples longer than the voiced/unvoiced mask and
+    the take dies with "[broadcast_shapes] Shapes (1,534600,1) and (1,534900,9)" - a fixed function of the line's
+    phoneme durations, so the same line failed on every retry and only rewording it got through. mlx-audio 0.5.x
+    trims the sine to length afterwards; 0.4.x (a pip install outside the app) does not. Sizing the two resamples
+    exactly fixes both."""
+    try:
+        from mlx_audio.tts.models.kokoro import istftnet
+    except ImportError:
+        return
+    orig = getattr(istftnet, "interpolate", None)
+    if orig is None or getattr(orig, "_vstudio_exact", False):
+        return
+
+    def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corners=None):
+        if size is None and scale_factor is not None:
+            dims = input.shape[2:]
+            scales = scale_factor if isinstance(scale_factor, (list, tuple)) else [scale_factor] * len(dims)
+            size = [scaled_size(n, s) for n, s in zip(dims, scales)]
+            size = size[0] if len(size) == 1 else size
+        return orig(input, size=size, mode=mode, align_corners=align_corners)
+
+    interpolate._vstudio_exact = True
+    istftnet.interpolate = interpolate
 
 
 def mandarin(m, text):

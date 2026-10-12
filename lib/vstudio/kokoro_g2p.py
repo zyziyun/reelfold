@@ -162,13 +162,23 @@ class MixedZhG2P:
 MAX_PHONEMES = 500           # Kokoro reads at most 510 phonemes per chunk; mlx-audio cuts the rest off silently
 _SENT_END = re.compile(r"(?<=[。！？!?；;])|(?<=\.)\s+")
 _CLAUSE_END = re.compile(r"(?<=[，、：,:—])")
+_WORD_END = re.compile(r"(?<=\s)")
+
+
+def _cut(text, n):
+    """``text`` in ``n`` pieces of about equal length (a run-on with no mark or space left to split at)."""
+    k = -(-len(text) // max(1, n))
+    return [text[i:i + k] for i in range(0, len(text), k)]
 
 
 def chunks(text, measure, limit=MAX_PHONEMES):
     """Split ``text`` into pieces whose phonemes (``measure(piece)`` = their length) fit Kokoro's window: whole
-    sentences joined while they fit, a sentence too long on its own split at its commas. mlx-audio only splits
-    Chinese at ASCII . ! ? and truncates past 510 phonemes, which silently dropped the end of long lines."""
-    def pack(parts, splitter):
+    sentences joined while they fit, a sentence too long on its own split at its commas, a clause still too long at
+    its spaces, and a run-on with neither cut into even pieces. mlx-audio only splits Chinese at ASCII . ! ? and
+    truncates past 510 phonemes, which silently dropped the end of long lines."""
+    levels = (_CLAUSE_END.split, _WORD_END.split, lambda p: _cut(p, measure(p) // limit + 1), None)
+
+    def pack(parts, level):
         out, cur = [], ""
         for p in parts:
             if not p.strip():
@@ -176,11 +186,17 @@ def chunks(text, measure, limit=MAX_PHONEMES):
             if cur and measure(cur + p) > limit:
                 out.append(cur)
                 cur = ""
-            if not cur and measure(p) > limit and splitter is not None:
-                out.extend(pack(splitter.split(p), None))
-                continue
+            split = levels[level]
+            if not cur and split is not None and measure(p) > limit:
+                pieces = split(p)
+                if len(pieces) > 1:
+                    out.extend(pack(pieces, level + 1))
+                    continue
+                if level + 1 < len(levels) and levels[level + 1] is not None:
+                    out.extend(pack([p], level + 1))
+                    continue
             cur += p
         if cur.strip():
             out.append(cur)
         return out
-    return [c.strip() for c in pack(_SENT_END.split(text.strip()), _CLAUSE_END) if c.strip()]
+    return [c.strip() for c in pack(_SENT_END.split(text.strip()), 0) if c.strip()]
