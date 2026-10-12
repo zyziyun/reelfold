@@ -38,7 +38,10 @@ import numpy as np
 GRID = 8
 LIMITS = {
     "calm": dict(flash=10.0, flash_region=20.0, blink=7.0),
-    "energetic": dict(flash=16.0, flash_region=30.0, blink=12.0),
+    # beat reels: cuts every beat between spray, sun glitter and dark water are content, not flicker - only a whole-frame
+    # flash (white flash hits, impact frames) or gross strobing fails (the 2026-10-12 jet-ski reel: 119 / 173 / 179;
+    # its clean remake: 14 / 64 / 35)
+    "energetic": dict(flash=16.0, flash_region=90.0, blink=60.0),
 }
 HEAD_S, TAIL_S = 0.5, 2.0            # the opening and the closing fade are not judged
 ACT_K = 4.0                          # a transient counts above 4x the picture's own frame-to-frame activity
