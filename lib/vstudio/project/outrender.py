@@ -184,6 +184,19 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     studio = next((dict(strength=e["params"].get("strength") or "standard")
                    for e in effs if e["effect"] == "studio-sound"), None)
     audio = dict(sfx=sfx, music=music, lufs=lufs, tp=tp, has_audio=info["has_audio"])
+    if music and music.get("replace") and info["has_audio"]:
+        # a swap, not a second bed: the finished mix stays only where someone speaks (its old music can't be
+        # taken out from under a voice), the new bed carries the rest
+        W = OUT.cached_words(doc) or []
+        spans = []
+        for w in W:
+            sp = tl.span(max(0.0, w["t"] - 0.15), w["te"] + 0.15)
+            if sp:
+                if spans and sp[0] <= spans[-1][1] + 0.3:
+                    spans[-1][1] = round(sp[1], 3)
+                else:
+                    spans.append([round(sp[0], 3), round(sp[1], 3)])
+        audio["keep"] = spans
     if studio:
         audio["studio"] = studio
     if tg.get("lang") and tg.get("lines"):        # a language version: a new voice over a music bed
@@ -625,6 +638,18 @@ def run_audio(spec, src, out, duration, workdir):
     has_a = m.probe(src)["has_audio"] and not spec.get("voice")
     if spec.get("voice"):                            # a language version: the new voice replaces the old mix
         x = voice_track(spec["voice"], duration, workdir)
+    elif has_a and spec.get("keep") is not None:     # the soundtrack swapped: the old mix only under the speech
+        x = A.decode_audio(src, sr=A.SR, channels=2)
+        g = np.zeros(len(x), np.float32)
+        ramp = int(0.06 * A.SR)
+        for a, b in spec["keep"]:
+            i0, i1 = max(0, int(a * A.SR)), min(len(x), int(b * A.SR))
+            if i1 > i0:
+                g[i0:i1] = 1.0
+        if ramp > 1 and g.any():
+            k = np.ones(ramp, np.float32) / ramp
+            g = np.convolve(g, k, mode="same").astype(np.float32)
+        x = x * g[:, None]
     elif has_a:
         x = A.decode_audio(src, sr=A.SR, channels=2)
         if spec.get("studio"):

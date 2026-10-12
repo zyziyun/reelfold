@@ -17,6 +17,18 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   /effect, /cover, /export, /help, and no slash command is ever sent to the model. The live pane names the model.
 - **Codex model your login cannot use**: a `model` in `~/.codex/config.toml` that a ChatGPT login rejects is
   flagged in Settings › AI with a one-click fix, and a call that hits it says so plainly instead of a raw 400.
+- **Import a finished video to edit it again**: drop videos made anywhere (another Reelfold run, CapCut / 剪映, Final
+  Cut, Premiere, a phone app) with or without the footage they came from, or use File › Import Finished Video… (⌘I).
+  The composer tells finished videos from footage; each folder of platform versions becomes one clip with its
+  covers and post copy, several clips one project. Your files stay as they are: Reelfold edits copies (APFS clones)
+  and only reads the footage. The clip opens in the editor on its words (transcribed in the background), and every
+  second-pass tool works on it: chat edits, cuts, captions, music (a new bed can replace the old soundtrack), covers,
+  new sizes, Rewrite post copy.
+- **Shots matched to the footage**: the shots of an imported video are found in its footage by their frames; pick
+  another take of any shot from stills (or ask the chat), and a wider version (a 16:9 cut of a vertical video) is
+  rebuilt from the full source frame with the finished grade.
+- **A version in another language**: what is said is translated, voiced again and captioned (an English YouTube
+  version of a Chinese clip); with footage linked the picture comes without the old burned text.
 
 ### Fixed
 

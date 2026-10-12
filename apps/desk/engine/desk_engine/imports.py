@@ -146,6 +146,9 @@ class Imports:
 
     def _after(self, item, d, clips):
         """Background, one clip after another: the engine's transcript of its first version, then its shot match."""
+        for c in clips:                      # in line for their shot match: the page says it is coming
+            if c.get("sources"):
+                self._clip_state(item, c["id"])["match"] = dict(state="running", progress=0.0)
         for c in clips:
             self._transcribe(item, d, c)
         for c in clips:

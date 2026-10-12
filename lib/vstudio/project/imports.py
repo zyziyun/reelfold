@@ -444,10 +444,11 @@ def import_(inputs, sources=None, title=None, dest=None, plan=None, on_event=Non
         src_all = sorted(set(src_all) | set(extra["sources"]) |
                          {v["file"] for c in extra["clips"] for v in c["versions"]} -
                          {v["file"] for c in clips for v in c["versions"]})
-    src_all = [os.path.realpath(s) for s in src_all]
-    pairs = pair_sources(clips, src_all)
-    name = title or (clips[0]["title"] if len(clips) == 1 else
-                     os.path.basename(os.path.commonpath([c["folder"] for c in clips])) or clips[0]["title"])
+    # paired by the folders she sees (01-x/ of links into a card), stored as the real files they point to
+    pairs = {k: sorted({os.path.realpath(p) for p in v}) for k, v in pair_sources(clips, src_all).items()}
+    src_all = sorted({os.path.realpath(s) for s in src_all})
+    name = title or (clips[0]["title"] if len(clips) == 1 else _group_name([c["folder"] for c in clips])
+                     or clips[0]["title"])
     stamp = time.strftime("%Y%m%d-%H%M%S")
     d = os.path.abspath(dest or os.path.join(projects_root(), f"import-{stamp}-{_slug(name, 30) or 'video'}"))
     if os.path.exists(d) and os.listdir(d):
@@ -500,6 +501,17 @@ def import_(inputs, sources=None, title=None, dest=None, plan=None, on_event=Non
     first = out_clips[0]
     return dict(ok=True, dir=d, title=name, clips=out_clips, sources=src_all,
                 first=dict(clip=first["id"], file=os.path.join(d, first["versions"][0]["file"])))
+
+
+def _group_name(folders):
+    """Several clips: the folder they share, above an output folder (``dji-2026/out/01-x`` -> ``dji-2026``)."""
+    try:
+        d = os.path.commonpath(folders)
+    except ValueError:
+        return None
+    while os.path.basename(d).lower() in OUT_DIRS and os.path.dirname(d) != d:
+        d = os.path.dirname(d)
+    return os.path.basename(d) or None
 
 
 def _write_post(path, post):

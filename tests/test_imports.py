@@ -245,3 +245,44 @@ def test_cli_check_and_import(footage, tmp_path):
     assert chk["verdict"] == "mixed" and chk["counts"]["clips"] == 1
     imp = json.loads(run("import", str(footage["out"]), "--title", "Night flight").stdout)
     assert imp["title"] == "Night flight" and imp["first"]["clip"] == "01-night-flight"
+
+
+def test_music_swap_drops_the_old_soundtrack(footage):
+    """music-bed replace on a finished video with no speech: the old mix (a 330 Hz tone here) is gone, the new bed
+    plays; a second bed without replace keeps it under."""
+    d, oid = _imported(footage)
+    from vstudio import audio
+
+    def tone(path):
+        x = audio.decode_audio(path, sr=48000, channels=1)[:, 0][48000:48000 * 4]
+        f = np.abs(np.fft.rfft(x))
+        hz = np.fft.rfftfreq(len(x), 1 / 48000)
+        band = (hz > 320) & (hz < 340)
+        return f[band].sum() / f.sum()
+    O.edit(d, oid, [{"op": "effect_add", "effect": "music-bed", "start": 0, "params": {"mood": "calm"}}])
+    under = R.render(d, oid, quality="preview")["targets"][0]["file"]
+    t_under = tone(under)
+    assert t_under > 0.05                                       # added under: the old tone is still there
+    sh = O.show(d, oid)
+    fx = next(e for e in sh["effects"] if e["effect"] == "music-bed")
+    O.edit(d, oid, [{"op": "effect_update", "id": fx["id"], "params": {"replace": True}}])
+    swapped = R.render(d, oid, quality="preview")["targets"][0]["file"]
+    assert tone(swapped) < t_under * 0.5, (tone(swapped), t_under)   # swapped: only the new bed
+
+
+def test_footage_pairs_by_folder_even_through_links(footage, tmp_path):
+    """Two exported clips (01-, 02-) and their footage as folders of links into a card: each clip gets the footage
+    of its own folder (the number they share), stored as the real files; the group is named above out/."""
+    root = tmp_path / "trip"
+    for k, (name, src) in enumerate((("01-night", "DJI_0001.MP4"), ("02-day", "DJI_0002.MP4"))):
+        o = root / "out" / f"0{k + 1}-cut"
+        o.mkdir(parents=True)
+        shutil.copy(footage["out"] / "youtube.mp4", o / "youtube.mp4")
+        f = root / name
+        f.mkdir()
+        os.symlink(footage["raw"] / src, f / src)
+    r = IM.import_([str(root)])
+    assert r["title"] == "trip"
+    by = {c["id"]: c["sources"] for c in r["clips"]}
+    assert by["01-cut"] == [os.path.realpath(footage["raw"] / "DJI_0001.MP4")]
+    assert by["02-cut"] == [os.path.realpath(footage["raw"] / "DJI_0002.MP4")]

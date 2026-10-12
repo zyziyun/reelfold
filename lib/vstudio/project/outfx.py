@@ -181,7 +181,9 @@ SPECS = {
         what_zh="铺背景音乐，人声处自动压低（自己的音乐文件，或内置的免版权氛围音乐）",
         params=dict(file=_str(None, "音乐文件"), mood=_str(None, "内置音乐风格",
                                                          enum=["calm", "warm", "bright", "tech", "story"]),
-                    duck_db=_num(-10, -30, 0, "压低 dB"), music_lufs=_num(-30, -45, -14, "音乐响度 LUFS"))),
+                    duck_db=_num(-10, -30, 0, "压低 dB"), music_lufs=_num(-30, -45, -14, "音乐响度 LUFS"),
+                    replace={"type": "boolean", "default": False,
+                             "x-zh": "换掉原来的配乐（成片：只留说话的地方，其余用新音乐）"})),
     "studio-sound": dict(
         zh="人声增强", en="Studio sound", kind="audio", stage="audio", default_dur=None,
         what_zh="降噪、去回声、人声 EQ（整条片子，本地处理，不上传）",

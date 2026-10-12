@@ -116,7 +116,7 @@ export function ImportDialog({ paths, sources: initial, onClose }: { paths: stri
       setError(errText(e));
     }
   };
-  const nFootage = check ? check.clips.reduce((n, c) => Math.max(n, c.sources), 0) || check.counts.raw : 0;
+  const nFootage = check ? check.counts.raw : 0;
   const can = !!check && check.clips.length > 0 && !job;
   return (
     <Modal title={t('im.title')} onClose={job ? () => undefined : onClose}>

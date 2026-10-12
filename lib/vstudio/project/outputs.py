@@ -1516,7 +1516,13 @@ def normalize(doc, st, op):
             except ValueError as ex:
                 raise _err("bad-param", str(ex), f"特效参数无效：{ex}", effect=cur["effect"]) from None
             n.update(start=round(s, 3), end=round(e, 3), params=params)
-    elif k == "cover":
+    if k in ("effect_add", "effect_update") and n.get("params", {}).get("replace") and \
+            (n.get("effect") == "music-bed" or any(e["id"] == n.get("id") and e["effect"] == "music-bed"
+                                                    for e in st["effects"])):
+        if rec["mode"] == "flattened" and cached_words(doc):
+            warns.append(msg("music-under-voice", "the old music stays under the speech (it is mixed into the voice); "
+                             "the new music carries everything else", "说话处仍有原来的配乐（已混进人声），其余部分换成新音乐"))
+    if k == "cover":
         if op.get("clear"):
             n["cover"] = None
         else:
