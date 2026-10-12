@@ -87,5 +87,7 @@ describe('a made file', () => {
     expect(platformsFor({ platform: 'youtube', w: 1920, h: 1080, aspect: '16:9' }, ['youtube', 'xiaohongshu:full', 'bilibili'])).toEqual(['youtube', 'bilibili']);
     expect(platformsFor({ platform: 'xiaohongshu', w: 1080, h: 1920, aspect: '9:16' }, ['youtube', 'xiaohongshu:full', 'bilibili'])).toEqual(['xiaohongshu']);
     expect(platformsFor({ w: 1080, h: 1920, aspect: '9:16' }, ['youtube-shorts', 'bilibili'])).toEqual(['youtube-shorts']);
+    // a version of its own (the Chinese one): its file is its own platform's only
+    expect(platformsFor({ platform: 'bilibili', w: 1920, h: 1080, aspect: '16:9' }, [])).toEqual(['bilibili']);
   });
 });

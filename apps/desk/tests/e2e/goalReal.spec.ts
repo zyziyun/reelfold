@@ -185,7 +185,7 @@ test('every video is made: the goal finishes with what was made per platform and
   await expect(made).toHaveCount(2);
   await expect(made.first().getByTestId('goal-made-file').first()).toBeVisible({ timeout: 30000 });
   expect(await made.first().getByTestId('goal-made-file').count()).toBeGreaterThanOrEqual(2); // one per platform
-  await expect(made.first().getByTestId('goal-made-post')).toBeVisible();
+  await expect(made.first().getByTestId('goal-made-post').first()).toBeVisible(); // one per version (a language each)
   // the made projects sit in the group, not twice in Ready to post
   const items = g.videos.flatMap((v) => (v.projects ?? []).map((p) => p.item));
   expect(items.length).toBeGreaterThanOrEqual(2);

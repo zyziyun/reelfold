@@ -447,7 +447,9 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
           <div className="goalv-clipbody">
             <div className="goalv-files" data-testid="goal-made-files">
               {c.files.map((f) => {
-                const pls = platformsFor(f, v.platforms);
+                // one version (one clip): its file of a canvas is for every platform on that canvas; several versions
+                // (a language each): each file is its own platform's
+                const pls = platformsFor(f, (clips ?? []).length > 1 ? [] : v.platforms);
                 return (
                 <button key={f.path} className="goalv-file" onClick={() => void window.desk.showItem(f.path)} data-tip={t('goal.showFile')} data-testid="goal-made-file">
                   {pls.length ? pls.map((p) => <PlatformIcon key={p} id={p} size={14} />) : <FolderOpen className="ico" />}
