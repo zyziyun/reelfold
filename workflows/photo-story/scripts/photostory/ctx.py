@@ -190,6 +190,8 @@ class Ctx:
         self.LUFS = float(loud.get("lufs", (P.get("audio") or {}).get("loudness_lufs", -14)))
         self.TP = float(loud.get("tp", -1.5))
         self.MODE = str(g("MODE", "narration")).lower()
+        # a Chinese narration (TTS language zh): its 中文 subtitle leads, the English sits under it
+        self.ZH_LEAD = str((dict(g("TTS", {}) or {})).get("language") or "") == "zh"
 
         pal = dict(DEFAULT_PALETTE)
         pal.update({k: hex_rgb(v) for k, v in (g("PALETTE", {}) or {}).items()})

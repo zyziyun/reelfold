@@ -27,7 +27,8 @@ def draw_runs(C, d, x, y, line, f, base, stroke):
 
 
 def make_sub(C, en, zh):
-    """EN line(s) on top, 中文 below, centred in the subtitle band. Either may be empty."""
+    """EN line(s) on top, 中文 below (中文 on top when the narration is Chinese), centred in the subtitle band.
+    Either may be empty."""
     zh = (zh or "").rstrip("，。、：；")
     en = en or ""
     if C.prof is not None:
@@ -43,13 +44,15 @@ def make_sub(C, en, zh):
     G = C.t(14) if le and lz else 0
     stroke = max(1, round(2 * C.S + 0.3))
     y = (lay.height - (LE * len(le) + G + LZ * len(lz))) // 2 - C.t(6)
-    for ln in le:
-        draw_runs(C, d, (C.W - d.textlength(strip_markup(ln), font=fe)) / 2, y, ln, fe, C.pal["sub_en"], stroke)
-        y += LE
-    y += G
-    for ln in lz:
-        draw_runs(C, d, (C.W - d.textlength(strip_markup(ln), font=fz)) / 2, y, ln, fz, C.pal["sub_zh"], stroke)
-        y += LZ
+    blocks = [(le, fe, C.pal["sub_en"], LE), (lz, fz, C.pal["sub_zh"], LZ)]
+    if getattr(C, "ZH_LEAD", False):
+        blocks.reverse()
+    for j, (lines, f, col, lh) in enumerate(blocks):
+        if j == 1:
+            y += G
+        for ln in lines:
+            draw_runs(C, d, (C.W - d.textlength(strip_markup(ln), font=f)) / 2, y, ln, f, col, stroke)
+            y += lh
     return to_arr(lay)
 
 
@@ -85,8 +88,9 @@ def _make_sub_fit(C, en, zh, title=False):
         k -= 0.05
     stroke = 0 if title else max(1, round(2 * C.S + 0.3))
     y = (lay.height - tot) // 2
-    order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, (214, 198, 168) if title else C.pal["sub_en"], LE)] if title \
-        else [(le, fe, C.pal["sub_en"], LE), (lz, fz, C.pal["sub_zh"], LZ)]
+    # 中文 first in a title, and when the narrator speaks Chinese (the English is then the translation under it)
+    order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, (214, 198, 168) if title else C.pal["sub_en"], LE)] \
+        if title or getattr(C, "ZH_LEAD", False) else [(le, fe, C.pal["sub_en"], LE), (lz, fz, C.pal["sub_zh"], LZ)]
     for j, (lines, f, col, lh) in enumerate(order):
         if j == 1:
             y += G
