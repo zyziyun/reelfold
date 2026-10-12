@@ -27,7 +27,7 @@ mkdirSync(OUT, { recursive: true });
 
 const page = (lang, c) => {
   const zhl = lang === 'zh';
-  const shot = `file://${join(ROOT, 'src/assets/app', zhl ? 'making-zh.png' : 'making-en.png')}`;
+  const shot = `file://${join(ROOT, 'src/assets/app', zhl ? 'making-zh.webp' : 'making-en.webp')}`;
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>
 @font-face{font-family:IS;src:url(${F('newsreader-latin-opsz-normal.woff2')})}
 @font-face{font-family:IS;font-style:italic;src:url(${F('newsreader-latin-opsz-italic.woff2')})}
