@@ -7,7 +7,7 @@ the MediaPipe face landmarker (`vstudio.config.model("face_landmarker")`).
 ## 1. Prep
 ```bash
 PROMPT="以下是普通话口播，提到 TermA、TermB、Product-X" \
-  bash $V/prep_sources.sh . ../clip1.MOV ../clip2.MOV ../clip3.MOV
+  python3 $V/prep_sources.py . ../clip1.MOV ../clip2.MOV ../clip3.MOV
 ```
 - iPhone clips are HLG 10-bit HEVC with rotation -90, and some are 120fps.
   - macOS: `avconvert -p Preset1920x1080` tone-maps them to SDR 1080x1920 H.264.

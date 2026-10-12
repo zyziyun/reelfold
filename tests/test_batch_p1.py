@@ -161,7 +161,7 @@ def test_talkinghead_folder_end_to_end_with_fake_scripts(tmp_path, monkeypatch):
     def fake_run(cmd, cwd, log, env=None, timeout=None):
         name = os.path.basename(str(cmd[1]))
         seen.append((name, [str(c) for c in cmd[2:]], dict(env or {})))
-        if name == "prep_sources.sh":
+        if name == "prep_sources.py":
             src = str(cmd[3])
             shutil.copyfile(src, os.path.join(cwd, "sdr1.mp4"))
             open(os.path.join(cwd, "a1.wav"), "wb").write(b"RIFF")
@@ -198,8 +198,8 @@ def test_talkinghead_folder_end_to_end_with_fake_scripts(tmp_path, monkeypatch):
     res = run_batch(r["batch_dir"], echo=False)
     assert res["exit_code"] == 0, res
     names = [n for n, _, _ in seen]
-    assert names.count("prep_sources.sh") == 2 and names.count("compose.py") == 2
-    prep_env = next(e for n, _, e in seen if n == "prep_sources.sh")
+    assert names.count("prep_sources.py") == 2 and names.count("compose.py") == 2
+    prep_env = next(e for n, _, e in seen if n == "prep_sources.py")
     assert prep_env["PROMPT"] == "RAG" and prep_env["PLATFORM"] == "douyin"
     st = Store(r["batch_dir"])
     for jid in ("c2", "clip-one"):

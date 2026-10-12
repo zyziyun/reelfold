@@ -15,7 +15,7 @@ platform.
       face: true                                       # face track (punch-in caps, overlays off the face)
     defaults: {platforms: [xiaohongshu:full, douyin]}
 
-Stages: probe -> asr(prep_sources.sh -> sdr1.mp4, a1.wav, a1.json) -> cleanup(cpu-render: edit_list.py with
+Stages: probe -> asr(prep_sources.py -> sdr1.mp4, a1.wav, a1.json) -> cleanup(cpu-render: edit_list.py with
 every whisper sentence -> cut_pass1.py (word-safe edges, 气口) -> strict_pass.py apply (AUTO rows + the job's
 ``cleanup_reply``); the review page lists the CONFIRM rows) -> face(face: face_track.py) -> glossary -> notes(the
 记笔记 panels, chapters and 3-8 keywords drafted from the cleaned body: notes.json; a project recipe reviews the
@@ -236,11 +236,11 @@ def run_prep(ctx):
         env["PROMPT"] = str(o["prompt"])
     if _th(ctx.spec).get("orient"):
         env["ORIENT"] = _th(ctx.spec)["orient"]
-    _run(["bash", os.path.join(VDIR, "prep_sources.sh"), ctx.dir, p["source"]], ctx.dir, "prep_sources.log", env)
+    _run(_py("prep_sources.py", ctx.dir, p["source"]), ctx.dir, "prep_sources.log", env)
     files = [ctx.path(f) for f in ("sdr1.mp4", "a1.wav", "a1.json")]
     for f in files:
         if not os.path.exists(f):
-            raise RuntimeError(f"prep_sources.sh wrote no {os.path.basename(f)}")
+            raise RuntimeError(f"prep_sources.py wrote no {os.path.basename(f)}")
     out = dict(sdr=files[0], wav=files[1], whisper=files[2], transcript=files[2], files=files)
     if os.path.exists(ctx.path("prep.json")):
         out["prep"] = ctx.path("prep.json")

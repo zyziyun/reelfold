@@ -79,7 +79,7 @@ SUBS = SEGJ['subs']; BODY_T = SEGJ['total']
 HOOKS = C.HOOKS; HS = G('HOOK_SPEED', _SPEED['hook']); BS = G('BODY_SPEED', _SPEED['body']); XF = G('XF', 0.3)
 GRADE = FF.lgpl_graph(G('GRADE', None) or FF.DEFAULT_TH_GRADE)   # LGPL; an "eq=..." / "hqdn3d=..." GRADE is translated
 
-# ---------------- source upscale (prep_sources.sh writes prep.json: how much the picture was enlarged) ----------------
+# ---------------- source upscale (prep_sources.py writes prep.json: how much the picture was enlarged) ----------------
 def _src_upscale():
     if G('SRC_UPSCALE', None):
         return float(C.SRC_UPSCALE)
