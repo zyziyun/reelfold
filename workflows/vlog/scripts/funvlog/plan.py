@@ -241,6 +241,9 @@ class Planner:
         self.n0 = int(round(float(bv.beat_n(0.0))))
         self.phase = (int(bv.downbeat_phase) - self.n0) % BT.BAR
         self.u = 1 if self.period >= 0.42 else 2
+        # clean (premium default): no shot shorter than 2 units - a 1-beat shot between two differently lit shots
+        # strobes (a 0.55 s bright spray between dark water: the flicker QC's "flash"); hooks / finales step 2-2-2
+        self.min_u = 2 if transition_style(cfg) == "clean" else 1
         pace = cfg.get("pace", "fast")
         self.pace = {"fast": 1, "relaxed": 2}.get(pace, 1)
         self.scores = {}
@@ -350,13 +353,16 @@ class Planner:
 
     # ---- lengths
     def pattern_beats(self, pattern):
+        return max(self.min_u * self.u, self._pattern_beats(pattern))
+
+    def _pattern_beats(self, pattern):
         return {"every-beat": self.u * self.pace, "every-2": 2 * self.u * self.pace, "every-bar": 4,
                 "accelerate": self.u * self.pace, "drop": self.u * self.pace}.get(pattern, 2 * self.u)
 
     def shot_beats(self, s, pattern):
         P = self.period
         if s.get("beats"):
-            return max(1, int(s["beats"]))
+            return max(getattr(self, "min_u", 1) * self.u if not s.get("speech") else 1, int(s["beats"]))
         if s["kind"] == "photo":
             return max(2 * self.u, 4 if pattern == "every-bar" else 0)
         if s.get("speech"):
@@ -496,10 +502,12 @@ class Planner:
         if given is not None:
             hook_n = min(len(given), 6)
         else:
-            hook_n = min(5, len(pool)) if self.cfg.get("hook", True) else 0
+            hook_n = min(5 if self.min_u == 1 else 4, len(pool)) if self.cfg.get("hook", True) else 0
+        if self.min_u > 1:
+            hook_n = min(hook_n, 4)
         if hook_n >= (1 if given else 3):
             end_n = 8 * u
-            lad = tuple(x * u for x in (2, 2, 1, 1, 1))[:hook_n - 1]
+            lad = tuple(x * u for x in ((2, 2, 1, 1, 1) if self.min_u == 1 else (2, 2, 2)))[:hook_n - 1]
             cuts = self.bv.cut_plan(hook_n, self.bt(0) + 1e-3, self.bt(end_n) + 1e-6, "accelerate", ladder=lad)
             ns = [0] + [int(round(float(self.bv.beat_n(c)) - self.n0)) for c in cuts]
             ns = [x for k, x in enumerate(ns) if k == 0 or x > ns[k - 1]]
@@ -533,7 +541,9 @@ class Planner:
         if given is not None:
             fin_n = min(len(given), 6)
         else:
-            fin_n = min(5, len(pool)) if self.cfg.get("finale", True) else 0
+            fin_n = min(5 if self.min_u == 1 else 4, len(pool)) if self.cfg.get("finale", True) else 0
+        if self.min_u > 1:
+            fin_n = min(fin_n, 4)
         if fin_n >= (1 if given else 3):
             if not self.is_bar(n):
                 ext = self.next_bar(n) - n
@@ -541,7 +551,7 @@ class Planner:
                 n += ext
             meta["finale_n"] = n
             end_n = n + 8 * u
-            lad = tuple(x * u for x in (2, 2, 1, 1, 1))[:fin_n - 1]
+            lad = tuple(x * u for x in ((2, 2, 1, 1, 1) if self.min_u == 1 else (2, 2, 2)))[:fin_n - 1]
             cuts = self.bv.cut_plan(fin_n, self.bt(n) + 1e-3, self.bt(end_n) + 1e-6, "accelerate", ladder=lad)
             ns = [n] + [int(round(float(self.bv.beat_n(c)) - self.n0)) for c in cuts]
             ns = [x for k, x in enumerate(ns) if k == 0 or x > ns[k - 1]]
@@ -607,7 +617,7 @@ class Planner:
                 n += ext
         # a drop inside this shot -> cut exactly on it (not through speech)
         for d in drops:
-            if d not in meta["drops_used"] and n < d < n + nb and not s.get("speech") and d - n >= 1:
+            if d not in meta["drops_used"] and n < d < n + nb and not s.get("speech") and d - n >= self.min_u * self.u:
                 nb = d - n
                 meta["drops_used"].append(d)
                 break

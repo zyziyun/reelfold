@@ -357,7 +357,7 @@ def whip_params(W, fps):
     return k, dist, 2 * dist / k               # frames per side, travel, peak px/frame
 
 
-def apply_transition(img, kind, off, fps, direction=1, seed=0):
+def apply_transition(img, kind, off, fps, direction=1, seed=0, flash=True):
     """Effect for the frame ``off`` frames from the cut (negative = before, 0 = first frame of B)."""
     import cv2
     H, W = img.shape[:2]
@@ -388,7 +388,7 @@ def apply_transition(img, kind, off, fps, direction=1, seed=0):
             u = off / max(1, post - 1)
             s = 1.0 + 0.16 * (1 - u) ** 2.2
             out = _zoom(img, s)
-            if off == 0:
+            if off == 0 and flash:                 # expressive only: a brightened impact frame (flickers)
                 out = cv2.add(out, np.full_like(out, 28))
         return out
     if kind == "flash":

@@ -241,6 +241,7 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
     fallback = cfg.get("reframe_fallback", "center")
     photo_k = 0
     report["shots"] = []
+    report["exposure"] = match_exposure(cfg, tl)
     t_start = time.time()
     for s in tl:
         n = s["f1"] - s["f0"]
@@ -266,7 +267,7 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
                 vf = media.hdr_to_sdr_args(s["src"], transfer=media.probe(s["src"])["transfer"],
                                            force=hdr_mode in (True, "true"))
             vf = ",".join(x for x in (vf, FR.grade_chain(grade, cfg.get("warm", True), cfg.get("sharpen", False),
-                                                          float(s.get("bright", 0.0)))) if x)
+                                                          float(s.get("bright", 0.0)) + s.get("_match", 0.0))) if x)
             if cfg.get("deflicker", True):        # the drone's exposure pumping, evened out inside the clip
                 vf += ",deflicker=size=5:mode=am"
             fmode = s.get("fit") or mode
@@ -285,7 +286,8 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
             if s.get("bg_blur"):
                 img = FR.soft_bg(img)
             for c in fx.get(f, ()):
-                img = FR.apply_transition(img, c["kind"], f - c["frame"], fps, c.get("dir", 1), seed=c["i"])
+                img = FR.apply_transition(img, c["kind"], f - c["frame"], fps, c.get("dir", 1), seed=c["i"],
+                                          flash=PL.transition_style(cfg) != "clean")
             t = f / fps
             for e in els:
                 if e.active(t):
@@ -312,6 +314,31 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
         w_clean.close()
     report["render_s"] = round(time.time() - t_start, 1)
     return w_main.path, (w_clean.path if w_clean else None), w_main.n
+
+
+def match_exposure(cfg, tl, strength=None, cap=0.06):
+    """Fewer exposure jumps at the cuts: each video shot's brightness moves ``strength`` (``match_exposure``, 0.5) of
+    the way toward the reel's median luma, at most +-``cap`` (spray stays white, the step to dark water is smaller).
+    Sets s["_match"]; returns [[src, luma, offset]]."""
+    k = float(cfg.get("match_exposure", 0.5) if strength is None else strength)
+    vids = [s for s in tl if s.get("kind") == "video" and s.get("src")]
+    if k <= 0 or len(vids) < 2:
+        return []
+    lum = []
+    for s in vids:
+        t = float(s.get("start") or 0.0) + 0.3
+        r = subprocess.run([media.ffmpeg_bin(), "-v", "error", "-ss", f"{t:.3f}", "-i", s["src"], "-frames:v", "1",
+                            "-vf", "scale=64:36,format=gray", "-f", "rawvideo", "-"], capture_output=True)
+        lum.append(sum(r.stdout) / len(r.stdout) / 255.0 if r.stdout else None)
+    known = sorted(v for v in lum if v is not None)
+    if not known:
+        return []
+    med = known[len(known) // 2]
+    out = []
+    for s, v in zip(vids, lum):
+        s["_match"] = 0.0 if v is None else round(max(-cap, min(cap, (med - v) * k)), 3)
+        out.append([os.path.basename(s["src"]), None if v is None else round(v, 3), s["_match"]])
+    return out
 
 
 def accent_pieces(cfg, tl, warnings):

@@ -929,8 +929,8 @@ def quote_block(lines, width, theme=None, card=False, speaker=None, scale=1.0, s
 def _bare_quote(rows, width, T, speaker, u, sweep, size):
     """A line of text on the picture (cinema): centred, the quote face in the over-video ink, a short accent
     hairline above, the sub line smaller and quieter - no card, no quote marks."""
-    fm = load_font(T["font_quote"], _s(size, u))
-    fsub = load_font(T["font_body"], _s(size * 0.5, u))
+    fm = load_font(T["font_quote"], _s(size * 1.15, u))      # >= 5 % of the frame height on video (A6)
+    fsub = load_font(T["font_body"], _s(size * 0.55, u))
     W = int(width)
     blocks = []
     for txt, role in rows:
@@ -1088,8 +1088,8 @@ def lower_third(name, role=None, theme=None, scale=1.0, width=None):
     u = scale
     if T.get("bare"):
         latin = not any("\u3000" <= ch <= "\u9fff" for ch in name)
-        fn = load_font(T["font_strong"], _s(30, u))
-        fr = load_font(T["font_body"], _s(22, u))
+        fn = load_font(T["font_strong"], _s(36, u))
+        fr = load_font(T["font_body"], _s(26, u))
         tr = T["label_track"] if latin else 0.08
         label = name.upper() if latin else name
         nw = text_width(label, fn) + fn.size * tr * max(0, len(label) - 1)

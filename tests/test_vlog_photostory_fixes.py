@@ -379,3 +379,14 @@ def test_photostory_duck_curve_is_lib():
     x[m] = 0.3 * np.sin(2 * np.pi * 220 * t[m])[:, None]
     assert np.allclose(duck_curve(x, -10, n), A.duck_curve(x, -10, n, threshold_db=-42.0))
     assert np.all(duck_curve(None, -10, n) == 1)
+
+
+def test_clean_reels_have_no_one_beat_shots():
+    """A 1-beat shot between two differently lit shots strobes (DJI 05: a 0.55 s bright spray between dark water)."""
+    pl = _bare_planner()
+    pl.u, pl.period, pl.pace = 1, 0.55, 1
+    pl.min_u = 2
+    assert pl.pattern_beats("every-beat") == 2 and pl.pattern_beats("accelerate") == 2
+    assert pl.shot_beats(dict(kind="video", beats=1), "every-beat") == 2
+    pl.min_u = 1
+    assert pl.pattern_beats("every-beat") == 1
