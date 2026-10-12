@@ -643,7 +643,8 @@ def test_engine_drafts_the_config_from_her_clips_brief_and_request(clipdir, tmp_
     assert raw["demo"]["renders"] == ["en:16:9", "en:9:16", "en:1:1", "zh:16:9", "zh:9:16", "zh:1:1"]
     assert raw["brand"] == {"theme": "night", "colors": {"accent": "#4FBFAE"}}
     assert raw["product"] == {"name": "Quill Notes", "version": "v2.0", "site": "https://quillnotes.app",
-                              "name_zh": "速记", "one_liner": {"en": "Free for Mac.", "zh": "免费的 Mac 应用。"}}
+                              "name_zh": "速记", "one_liner": {"en": "Free for Mac.", "zh": "免费的 Mac 应用。"},
+                              "description": {"en": "Quill Notes is the notes app that files itself."}}
     assert raw["end_card"] == {"cta": {"en": "Free for Mac.", "zh": "免费的 Mac 应用。"}}
     assert raw["features"][1] == {"id": "02-tag", "shot": ["02-tag", "03-out"],
                                   "caption": {"en": "Tags itself.", "zh": "自己打标签。"}, "seconds": 5.0}

@@ -147,10 +147,11 @@ def _product(req, brief, end):
         one["en"] = strip(end_en)
     if strip(end_zh):
         one["zh"] = strip(end_zh)
-    if not one and brief:
-        m = re.search(r",\s+the ([^.\n]{8,120})\.", brief)
-        if m:
-            one["en"] = FE._plain(m.group(1))[:1].upper() + FE._plain(m.group(1))[1:]
+    m = re.search(r",\s+the ([^.\n]{8,160})\.", FE._plain(brief or ""))   # "**Reelfold 0.2.7**, the free ... app."
+    if m and name:
+        p["description"] = {"en": f"{name} is the {m.group(1).strip()}."}
+    if not one and m:
+        one["en"] = m.group(1)[:1].upper() + m.group(1)[1:]
     p["one_liner"] = one
     return p
 
