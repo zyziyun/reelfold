@@ -433,6 +433,9 @@ def grab_frame(src, t, out, vf=None, preroll=25.0, quality=None):
     return out
 
 
+SEEK_SHEET_MIN_EVERY = 2.0      # tiles at least this far apart: seek to each instead of decoding the whole clip
+
+
 def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label=True, start=None):
     """Labelled grid of stills, one every ``every`` s (first at every/2) -> JPEG/PNG ``out``.
 
@@ -445,16 +448,31 @@ def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label
     dur = duration(src)
     t0 = start if start is not None else every / 2
     with tempfile.TemporaryDirectory() as tmp:
-        # select (not fps=1/N): fps emits the frame nearest the MIDDLE of each N-second bucket, so every
-        # label was ~N/2 s early (a QA sheet must say exactly when an avatar / name tag shows).
-        sel = f"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,{every - 0.5 / 30:.4f})'"
-        run(["ffmpeg", "-y", "-ss", f"{t0:.3f}", "-i", src, "-vf", f"{sel},scale={thumb_w}:-2",
-             "-fps_mode", "vfr", "-frames:v", str(max_frames), os.path.join(tmp, "f%04d.png")])
+        if every >= SEEK_SHEET_MIN_EVERY:
+            # one seek per tile: only the GOP around each tile is read, not the whole file - a 4K drone clip on an
+            # SD card / NAS (~10-30 MB/s) took minutes per clip to decode end to end for 30 thumbnails
+            from concurrent.futures import ThreadPoolExecutor
+            tiles = [t0 + i * every for i in range(max_frames) if t0 + i * every < dur]
+
+            def grab(k):
+                run(["ffmpeg", "-y", "-ss", f"{tiles[k]:.3f}", "-i", src, "-frames:v", "1", "-vf",
+                     f"scale={thumb_w}:-2", os.path.join(tmp, f"f{k + 1:04d}.png")], check=False)
+            with ThreadPoolExecutor(max_workers=3) as ex:
+                list(ex.map(grab, range(len(tiles))))
+        else:
+            # select (not fps=1/N): fps emits the frame nearest the MIDDLE of each N-second bucket, so every
+            # label was ~N/2 s early (a QA sheet must say exactly when an avatar / name tag shows).
+            sel = f"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,{every - 0.5 / 30:.4f})'"
+            run(["ffmpeg", "-y", "-ss", f"{t0:.3f}", "-i", src, "-vf", f"{sel},scale={thumb_w}:-2",
+                 "-fps_mode", "vfr", "-frames:v", str(max_frames), os.path.join(tmp, "f%04d.png")])
         files = sorted(f for f in os.listdir(tmp) if f.endswith(".png"))
         if not files:
             raise FFmpegError(f"no frames from {src}")
         thumbs = [Image.open(os.path.join(tmp, f)).convert("RGB") for f in files]
-    ts = [t0 + i * every for i in range(len(thumbs)) if t0 + i * every < dur + every]
+    if every >= SEEK_SHEET_MIN_EVERY:               # a tile that failed leaves a gap: label each by its own time
+        ts = [tiles[int(f[1:5]) - 1] for f in files]
+    else:
+        ts = [t0 + i * every for i in range(len(thumbs)) if t0 + i * every < dur + every]
     tw, th = thumbs[0].size
     lab = 26 if label else 0
     cols = max(1, min(cols, len(thumbs)))      # a short clip: one row as wide as its stills, no black empty cells
