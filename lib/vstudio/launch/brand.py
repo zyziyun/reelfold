@@ -49,8 +49,17 @@ def warnings(cfg):
     return out
 
 
+INTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Inter-latin-wght.woff2")
+
+
 def _engine_font(role):
-    return VC.font(role)
+    """The engine's font for ``role``; when ./install.sh has not fetched it (a fresh checkout, CI) the bundled Inter
+    stands in (config.font already warned), so building a project never fails on a missing font file: glyphs Inter
+    lacks (Chinese) fall back to the system's fonts in the browser."""
+    try:
+        return VC.font(role)
+    except VC.MissingAsset:
+        return INTER
 
 
 def font_files(cfg, lang):

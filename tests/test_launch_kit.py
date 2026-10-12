@@ -127,8 +127,10 @@ def shots(cfg):
 
 
 def _has_cjk_fonts():
+    from vstudio import config as VC
     try:
-        B.font_files({"brand": {}}, "zh")
+        VC.font("cjk-bold")
+        VC.font("cjk-serif-bold")
         return True
     except Exception:                                    # noqa: BLE001 - fonts come from install.sh
         return False
@@ -232,6 +234,16 @@ def test_fit_measures_the_font():
     assert len(lines) <= 3 and all(B.measure(ln, DISPLAY, px) <= 600 for ln in lines)
     with pytest.raises(ValueError, match="caption too long"):
         B.fit("word " * 60, DISPLAY, (56, 40), 600, 1)
+
+
+def test_a_missing_engine_font_never_stops_a_build(monkeypatch):
+    from vstudio import config as VC
+
+    def gone(role):
+        raise VC.MissingAsset(f"font '{role}' not found")
+    monkeypatch.setattr(VC, "font", gone)
+    files = B.font_files({"brand": {}}, "zh")
+    assert set(files.values()) == {B.INTER} and os.path.exists(B.INTER)
 
 
 def test_red_accent_is_flagged():

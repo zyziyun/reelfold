@@ -40,7 +40,8 @@ the renderer). Auto-update uses electron-updater and the dependencies listed abo
 ### Brand
 
 The Reelfold wordmark is drawn from outlines of the Inter typeface (Rasmus Andersson, https://github.com/rsms/inter),
-SIL Open Font License 1.1 (https://openfontlicense.org). Inter itself is not shipped as a font file.
+SIL Open Font License 1.1 (https://openfontlicense.org). The launch-kit videos set their headlines in Inter too
+(Latin subset in lib/vstudio/launch/fonts/, its OFL-1.1 licence alongside).
 
 ## Engine runtime (bundled)
 
