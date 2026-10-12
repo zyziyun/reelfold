@@ -457,6 +457,7 @@ def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label
     ts = [t0 + i * every for i in range(len(thumbs)) if t0 + i * every < dur + every]
     tw, th = thumbs[0].size
     lab = 26 if label else 0
+    cols = max(1, min(cols, len(thumbs)))      # a short clip: one row as wide as its stills, no black empty cells
     rows = (len(thumbs) + cols - 1) // cols
     sheet = Image.new("RGB", (cols * tw, rows * (th + lab)), "black")
     d = ImageDraw.Draw(sheet)

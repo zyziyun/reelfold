@@ -87,7 +87,7 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
                 const label = pieceLabel(p);
                 return (
                   <button key={p.path} className={`wp-tile ${p.state}`} onClick={() => setBig(p)} title={label} data-testid="work-piece" data-stage={p.stage} data-kind={p.kind} data-state={p.state}>
-                    <Thumb src={isVideo(p) ? null : p.path} video={isVideo(p) ? p.path : null} ratio="16/9" />
+                    <Thumb src={isVideo(p) ? null : p.path} video={isVideo(p) ? p.path : null} v={p.mtime} ratio="16/9" />
                     <span className="wp-l clamp1" data-testid="work-piece-label">
                       {p === newest && <i className="dot run" aria-label={t('wp.making')} />}
                       {p.state === 'waiting' && <i className="dot you" aria-label={t('wp.waiting')} />}

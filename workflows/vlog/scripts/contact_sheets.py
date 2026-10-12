@@ -8,7 +8,8 @@ shaky, approach/retreat tails, pocket shots).
 
 One frame every EVERY_SEC seconds, tiled 5 across x 6 down (30 tiles = the first
 30*EVERY_SEC seconds; raise EVERY_SEC for long takes). Read left->right,
-top->bottom: each tile is labelled with its source time (tile n = (n-1)*EVERY_SEC).
+top->bottom: each tile is labelled with its source time (tile n = (n-1)*EVERY_SEC); a short clip's
+sheet is one row of just its stills.
 Portrait clips get portrait tiles (rotation metadata honoured).
 Thin wrapper over vstudio.media.contact_sheet (PIL labels, no drawtext needed); plain Python so the
 recipe's sheets stage runs on Windows too (no bash there, or WSL's without a distribution).

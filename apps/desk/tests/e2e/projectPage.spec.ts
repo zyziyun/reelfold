@@ -164,6 +164,14 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   await expect(page.locator('[data-testid=work-piece][data-stage=render]').first()).toBeVisible({ timeout: 90000 });
   await expect(run).toBeVisible(); // still being made
   await expect(page.locator('[data-testid=work-piece][data-stage=render][data-kind=videos]').first()).toContainText(/Graded segment \d/);
+  // never a black tile: a contact sheet loads (its URL carries the file's version, so one read while it was being
+  // written loads again), a graded segment shows a frame inside it, not its first (a fade-in from black)
+  await expect
+    .poll(() => page.locator('[data-testid=work-piece][data-stage=sheets] img').first().evaluate((e: HTMLImageElement) => (e.complete && e.naturalWidth > 0 && /\?v=/.test(e.src) ? 'ok' : e.src)), { timeout: 30000 })
+    .toBe('ok');
+  await expect
+    .poll(() => page.locator('[data-testid=work-piece][data-stage=render][data-kind=videos] video').first().evaluate((e: HTMLVideoElement) => (e.readyState >= 2 && e.currentTime > 0 && /\?v=/.test(e.src) ? 'ok' : `${e.readyState} ${e.currentTime}`)), { timeout: 30000 })
+    .toBe('ok');
   await noMissingWords();
   await shot('P4-running-pieces-chat');
   // a piece opens big, with "Ask AI about this" (the chat, her words started)

@@ -285,6 +285,13 @@ def test_syllables_and_loop_score():
     assert asr.loop_score([{"text": "我觉得效果真的很不错"}]) == 0
 
 
+def test_contact_sheet_of_a_short_clip_has_no_empty_cells(tmp, av):
+    from PIL import Image
+    out, ts = media.contact_sheet(str(av), str(tmp / "cs_short.jpg"), every=2.0, cols=5, thumb_w=80, start=0)
+    w, _ = Image.open(out).size
+    assert len(ts) < 5 and w == 80 * len(ts)
+
+
 def test_contact_sheet_labels_are_exact(tmp, av):
     _, ts = media.contact_sheet(str(av), str(tmp / "cs_exact.jpg"), every=2.0, start=0)
     assert ts[:3] == [0, 2.0, 4.0]

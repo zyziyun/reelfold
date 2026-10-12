@@ -36,6 +36,12 @@ export function StatusPill({ s, label, testId }: { s: Status4 | null; label?: st
 }
 
 /** A 3:4 (or given ratio) thumbnail; with `video`, hovering plays it muted and moving the mouse scrubs. */
+/** Where a video's still is taken (seconds): 40% in, at most 3 s in for a long one, never its first frame. */
+export function posterAt(duration: number): number {
+  if (!(duration > 0)) return 0;
+  return Math.min(duration * 0.4, 3, Math.max(0, duration - 0.05));
+}
+
 export function Thumb({
   src,
   video,
@@ -44,10 +50,14 @@ export function Thumb({
   label,
   play,
   className = '',
+  v: ver,
   children,
 }: {
   src?: string | null;
   video?: string | null;
+  /** the file's version (mtime, a render key): a file written again in place, or one still being written when it
+   * was first shown, loads again instead of keeping a black / broken frame */
+  v?: string | number | null;
   ratio?: string;
   dur?: number | null;
   label?: ReactNode;
@@ -60,6 +70,13 @@ export function Thumb({
   const [ready, setReady] = useState(false);
   const [x, setX] = useState<number | null>(null);
   const [broken, setBroken] = useState(false);
+  // a new version of the file: try it again (an image read while it was being written may have failed)
+  const [seen, setSeen] = useState(ver);
+  if (seen !== ver) {
+    setSeen(ver);
+    setBroken(false);
+    setReady(false);
+  }
   useEffect(() => {
     const el = v.current;
     if (!el) return;
@@ -85,17 +102,22 @@ export function Thumb({
       onMouseLeave={() => setHover(false)}
       onMouseMove={video ? onMove : undefined}
     >
-      {src && !broken ? <img src={media(src)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} /> : !video ? label ?? <Film className="ico lg" /> : null}
+      {src && !broken ? <img key={String(ver ?? '')} src={media(src, ver)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} /> : !video ? label ?? <Film className="ico lg" /> : null}
       {video && (hover || !src || broken) && (
         <video
           ref={v}
           className={`hov ${ready ? 'ready' : ''}`}
           style={!src || broken ? { opacity: 1, position: 'static' } : undefined}
-          src={media(video)}
+          src={media(video, ver)}
           muted
           playsInline
           loop
           preload="metadata"
+          // a still of the video, not its first frame (black at a fade-in): a frame well inside it
+          onLoadedMetadata={(e) => {
+            const el = e.currentTarget;
+            if (!hover && el.duration > 0 && Number.isFinite(el.duration)) el.currentTime = posterAt(el.duration);
+          }}
           onLoadedData={() => setReady(true)}
         />
       )}
