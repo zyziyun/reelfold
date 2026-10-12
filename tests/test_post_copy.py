@@ -88,7 +88,7 @@ def test_a_failing_model_raises_instead_of_inventing_copy():
 def _fake_th(raw_lines):
     def fake_run(cmd, cwd, log, env=None, timeout=None):
         name = os.path.basename(str(cmd[1]))
-        if name == "prep_sources.sh":
+        if name == "prep_sources.py":
             shutil.copyfile(str(cmd[3]), os.path.join(cwd, "sdr1.mp4"))
             open(os.path.join(cwd, "a1.wav"), "wb").write(b"RIFF")
             json.dump(dict(language="zh", segments=[dict(start=k * 3.0, end=k * 3.0 + 2.5, text=x, words=[

@@ -173,7 +173,7 @@ track (QC `face-mask-coverage`: under 100 % is red); then proofread / export (ca
 render_trio.py, name_mask, auto_trim, cut_profile, renderer_args: [scale=2.4], notes_panels}`.
 
 `talkinghead-folder` runs the talkinghead V track per clip of `inputs.folder` / `inputs.clips`: `asr`
-(prep_sources.sh: HDR -> SDR + whisper) -> `cleanup` (edit_list.py = every whisper sentence, within the row range
+(prep_sources.py: HDR -> SDR + whisper) -> `cleanup` (edit_list.py = every whisper sentence, within the row range
 when trimmed -> cut_pass1.py (word-safe edges, 气口) -> strict_pass.py apply with the row's `cleanup_reply`; CONFIRM
 rows go to the review page) -> `face` (face_track.py; optional) -> `compose` (config.py -> compose.py all
 --clean-master with `talkinghead: {style, keywords, hook_speed, body_speed}`) -> proofread / export / qc / preview.

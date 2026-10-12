@@ -89,7 +89,7 @@ whisper *drop* the prompted word, so test with and without it.
 
 ## iPhone HDR clips
 HLG 10-bit HEVC with a -90 rotation, sometimes 120fps. A plain ffmpeg re-encode (no tone-map) looks
-washed out. `prep_sources.sh` uses macOS `avconvert -p Preset1920x1080` when present (correct SDR H.264),
+washed out. `prep_sources.py` uses macOS `avconvert -p Preset1920x1080` when present (correct SDR H.264),
 else ffmpeg `zscale` + `tonemap=hable` (needs ffmpeg built with libzimg; Homebrew's default formula
 lacks it), else `libplacebo`, else it warns. Force a backend with `TONEMAP=ffmpeg|avconvert`.
 Compare one frame from each backend before committing to a long retouch.

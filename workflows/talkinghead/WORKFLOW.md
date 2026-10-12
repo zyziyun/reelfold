@@ -85,7 +85,7 @@ On the V track the style is just the `STYLE` dict in the config, so switching la
 Run in a WORK dir (e.g. `mkdir -p work && cd work`), `V=$VSTUDIO/workflows/talkinghead/scripts/vertical`.
 Full notes in `references/vertical_pipeline.md`.
 
-1. **HDR→SDR, audio, word-level whisper.** `PROMPT="术语 列表" bash $V/prep_sources.sh . ../clip1.MOV ../clip2.MOV`
+1. **HDR→SDR, audio, word-level whisper.** `PROMPT="术语 列表" python3 $V/prep_sources.py . ../clip1.MOV ../clip2.MOV`
    → `sdrN.mp4`, `aN.wav`, `aN.json`, `prep.json` (`vstudio.media.to_sdr`: `avconvert` for HDR on macOS, ffmpeg zscale
    tonemap elsewhere; whisper is cached next to the wav). Landscape clips are reframed to 9:16 (Horizontal footage).
 2. **Keep list**, one entry per sentence (sid = list index): write `edit_list.py` from `examples/v_edit_list_example.py`.
@@ -221,11 +221,11 @@ or a panel filling the caption area), render a master per UI with `compose.py co
 16:9 or a different layout, always re-render with `--platform`.
 
 ## Horizontal footage (webcam / camera, 精剪 / 记笔记 styles)
-- **Vertical output:** `bash $V/prep_sources.sh . ../webcam.mp4` reframes a landscape clip to 1080x1920 with
+- **Vertical output:** `python3 $V/prep_sources.py . ../webcam.mp4` reframes a landscape clip to 1080x1920 with
   `vstudio.reframe` face mode: per-frame face detection, One Euro smoothed target, virtual camera with a dead zone,
   eased pans and shot-cut resets, the face kept in the platform safe box (eye line ~1/3 down). No face → pad-blur.
   `prep.json` records the mode, face hit rate and the **upscale** (a 1080p webcam cropped to 9:16 is enlarged 1.78x).
-- **Horizontal output:** `ORIENT=horizontal bash $V/prep_sources.sh . ../webcam.mp4` keeps 16:9; then run the same
+- **Horizontal output:** `ORIENT=horizontal python3 $V/prep_sources.py . ../webcam.mp4` keeps 16:9; then run the same
   steps and `compose.py config.py all --platform youtube` (or `bilibili`, `xiaohongshu:horizontal`).
 - **Punch-in on an upscaled crop.** compose caps every zoom: `upscale x zoom <= STYLE max_upscale` (2.0), zoomed face
   width `<= STYLE max_face_frac` (0.62) of the canvas, and the zoomed face must stay below the progress bar. A webcam

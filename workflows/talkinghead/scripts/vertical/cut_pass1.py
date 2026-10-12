@@ -10,7 +10,7 @@ usage (in WORK): python cut_pass1.py edit_list.py [--analyze-only]
      (fillers, repeats, restarts, re-takes) wait for the creator's reply and are applied by strict_pass.py on
      the (retouched) body, so the expensive retouch is never redone.
   -> body_v.mp4 body_a.wav segs.json + segs.pass1.json (immutable root every later pass derives from; carries the
-     raw -> body map). (reads a<N>.wav / a<N>.json and sdr<N>.mp4 from prep_sources.sh)
+     raw -> body map). (reads a<N>.wav / a<N>.json and sdr<N>.mp4 from prep_sources.py)
 edit_list.py defines  E = [(clip_no, [(t0, t1), ...], "subtitle|with|manual breaks"), ...]
 one entry per sentence; its index becomes the sentence id (sid) used everywhere later. Optional:
   PROFILE = "gentle" | "standard" | "tight"     (default persona cleanup.profile, else standard)
@@ -34,7 +34,7 @@ clips = sorted({e[0] for e in E})
 rs = {}                                       # (sid, k) -> [clip, a, b]
 for c in clips:
     if not os.path.exists(f'a{c}.json'):
-        raise SystemExit(f'a{c}.json missing: run prep_sources.sh (whisper words are needed for the cleanup)')
+        raise SystemExit(f'a{c}.json missing: run prep_sources.py (whisper words are needed for the cleanup)')
     words = cleanup.load_words(f'a{c}.json')
     mine = [(sid, k, t0, t1) for sid, (cc, rr, _) in enumerate(E) if cc == c for k, (t0, t1) in enumerate(rr)]
     en = cleanup.energy_of(f'a{c}.wav', words, [(t0, t1) for _, _, t0, t1 in mine], PROFILE, OV)

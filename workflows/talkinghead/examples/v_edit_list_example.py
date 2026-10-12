@@ -3,7 +3,7 @@ SYNTHETIC example: placeholder sentences and times, showing every knob.
 
 Each entry = one spoken sentence = one sid (its list index), used by every later step:
     (clip_no, [(t0, t1), ...], "subtitle|with|manual line breaks")
-- clip_no: 1..N in the order the clips were given to prep_sources.sh
+- clip_no: 1..N in the order the clips were given to prep_sources.py
 - ranges: whisper word bounds in that clip's timeline (a[N].json). Word STARTS swallow the pause
   before them, word ENDS are reliable. Two ranges = the words between them are cut out.
 - text must match the audio word for word; '|' forces a line break (~14 CJK chars per line max).
