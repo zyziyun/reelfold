@@ -156,3 +156,13 @@ def test_photostory_subtitles_follow_the_platform(tmp_path):
         en, zh = C.sub_pair("It rises 605 feet", "塔高 605 英尺")
         assert (en, zh) == (("It rises 605 feet", "") if want == "en" else ("", "塔高 605 英尺"))
         assert C.shown("Space Needle · 太空针塔") == ("Space Needle" if want == "en" else "太空针塔")
+
+
+def test_a_slow_still_never_sinks_the_spec_draft(monkeypatch, tmp_path):
+    import subprocess
+    from vstudio.project.adapters import photostory as PS
+
+    def slow(*a, **k):
+        raise subprocess.TimeoutExpired(a[0], 300)
+    monkeypatch.setattr(PS.subprocess, "run", slow)
+    assert PS._frame("clip.mp4", 4.2, str(tmp_path / "f.jpg")) is False

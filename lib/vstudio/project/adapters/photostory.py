@@ -56,8 +56,11 @@ def _frame(src, t, out):
     from vstudio import media
     ff = media.ffmpeg_bin() if hasattr(media, "ffmpeg_bin") else "ffmpeg"
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    subprocess.run([ff, "-v", "error", "-y", "-ss", f"{max(0.0, float(t)):.2f}", "-i", src, "-frames:v", "1",
-                    "-vf", "scale='min(2160,iw)':-2", "-q:v", "2", out], capture_output=True, timeout=120)
+    try:                                   # a 4K HEVC seek on a busy machine can be slow: one still never sinks the draft
+        subprocess.run([ff, "-v", "error", "-y", "-ss", f"{max(0.0, float(t)):.2f}", "-i", src, "-frames:v", "1",
+                        "-vf", "scale='min(2160,iw)':-2", "-q:v", "2", out], capture_output=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        return False
     return os.path.exists(out)
 
 
