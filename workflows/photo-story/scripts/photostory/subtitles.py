@@ -176,14 +176,14 @@ class Header:
 
     def _title_fonts(self, hc):
         C = self.C
-        fz = font_for(C.TITLE_ZH, 0.30 * hc, "cjk-serif", "cjk-serif") if C.TITLE_ZH else None
-        fe = font_for(C.TITLE_EN, 0.15 * hc, "serif-italic", "cjk") if C.TITLE_EN else None
+        fz = font_for(C.HEAD_MAIN, 0.30 * hc, "cjk-serif", "cjk-serif") if C.HEAD_MAIN else None
+        fe = font_for(C.HEAD_SUB, 0.15 * hc, "serif-italic", "cjk") if C.HEAD_SUB else None
         return fz, fe
 
     def _title_w(self, hc):
         fz, fe = self._title_fonts(hc)
-        w = max([_D.textlength(self.C.TITLE_ZH, font=fz) if fz else 0,
-                 _D.textlength(self.C.TITLE_EN, font=fe) if fe else 0])
+        w = max([_D.textlength(self.C.HEAD_MAIN, font=fz) if fz else 0,
+                 _D.textlength(self.C.HEAD_SUB, font=fe) if fe else 0])
         return int(min(w, (self.tx1 - self.tx0) * 0.5))
 
     def _make(self, cur):
@@ -192,7 +192,7 @@ class Header:
         d = ImageDraw.Draw(lay)
         if self.wide:
             hc = C.HDR - oy
-            for k, name in enumerate(C.SECTIONS):
+            for k, name in enumerate(C.HEAD_SECTIONS):
                 col = C.GOLD if k == cur else (150, 140, 125) if k < cur else (95, 90, 82)
                 fl = _fit(name, "cjk", max(14, 0.17 * hc), self.sw)
                 d.text((self.x0 + k * (self.sw + self.g), self.bar_y + self.bar_h + int(0.08 * hc)), name, font=fl,
@@ -201,27 +201,27 @@ class Header:
             mw = self.title_w
             y = oy + int(0.22 * hc)
             if fz:
-                fz = _fit(C.TITLE_ZH, "cjk-serif", fz.size, mw)
-                d.text((self.tx0, y), C.TITLE_ZH, font=fz, fill=C.pal["ink"] + (255,))
-                y = d.textbbox((self.tx0, y), C.TITLE_ZH, font=fz)[3] + int(0.08 * hc)
+                fz = _fit(C.HEAD_MAIN, "cjk-serif", fz.size, mw)
+                d.text((self.tx0, y), C.HEAD_MAIN, font=fz, fill=C.pal["ink"] + (255,))
+                y = d.textbbox((self.tx0, y), C.HEAD_MAIN, font=fz)[3] + int(0.08 * hc)
             if fe:
-                fe = _fit(C.TITLE_EN, "serif-italic", fe.size, mw) if not has_cjk_text(C.TITLE_EN) else fe
-                d.text((self.tx0, y), C.TITLE_EN, font=fe, fill=(190, 172, 140, 255))
+                fe = _fit(C.HEAD_SUB, "serif-italic", fe.size, mw) if not has_cjk_text(C.HEAD_SUB) else fe
+                d.text((self.tx0, y), C.HEAD_SUB, font=fe, fill=(190, 172, 140, 255))
             return to_arr(lay)
         size = max(14, 28 * hs) if C.prof is None else max(28 * hs, 0.017 * C.H)   # platform: readable on a phone
         extra = 0 if C.prof is None else max(0.0, size - 28 * hs) * 1.2              # push the title below them
-        for k, name in enumerate(C.SECTIONS):
+        for k, name in enumerate(C.HEAD_SECTIONS):
             col = C.GOLD if k == cur else (150, 140, 125) if k < cur else (95, 90, 82)
             fl = _fit(name, "cjk", size, self.sw)
             d.text((self.x0 + k * (self.sw + self.g), oy + int(74 * hs)), name, font=fl, fill=col + (255,))
         y = oy + int(118 * hs + extra)
-        if C.TITLE_ZH:
-            ft = _fit(C.TITLE_ZH, "cjk-serif", 80 * hs - extra * 0.6, self.tx1 - self.tx0)
-            d.text((C.W / 2, y), C.TITLE_ZH, font=ft, fill=C.pal["ink"] + (255,), anchor="mt")
-            y = d.textbbox((C.W / 2, y), C.TITLE_ZH, font=ft, anchor="mt")[3] + int(16 * hs)
-        if C.TITLE_EN:
-            fe = font_for(C.TITLE_EN, max(12, 34 * hs), "serif-italic", "cjk")
-            d.text((C.W / 2, min(y, C.HDR - int(46 * hs))), C.TITLE_EN, font=fe, fill=(190, 172, 140, 255), anchor="mt")
+        if C.HEAD_MAIN:
+            ft = _fit(C.HEAD_MAIN, "cjk-serif", 80 * hs - extra * 0.6, self.tx1 - self.tx0)
+            d.text((C.W / 2, y), C.HEAD_MAIN, font=ft, fill=C.pal["ink"] + (255,), anchor="mt")
+            y = d.textbbox((C.W / 2, y), C.HEAD_MAIN, font=ft, anchor="mt")[3] + int(16 * hs)
+        if C.HEAD_SUB:
+            fe = font_for(C.HEAD_SUB, max(12, 34 * hs), "serif-italic", "cjk")
+            d.text((C.W / 2, min(y, C.HDR - int(46 * hs))), C.HEAD_SUB, font=fe, fill=(190, 172, 140, 255), anchor="mt")
         return to_arr(lay)
 
     def draw(self, frame, sec, gt, sec_bounds):
@@ -255,6 +255,8 @@ def make_chapter(C, s):
     lay.paste(Image.new("RGBA", (W, bh), (8, 6, 4, 255)), (0, H // 2 - bh // 2), band)
     d = ImageDraw.Draw(lay)
     name, name_en = C.SECTIONS[s], C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
+    if getattr(C, "EN_LEAD", False) and name_en:          # English narration: the English name leads
+        name, name_en = name_en, name
     fn = font("serif-italic", C.b(120))
     fz = _fit(name, "cjk-serif", C.b(120), min(W * 0.9, (C.SAFE[2] - C.SAFE[0]) * 0.92))
     fe = font_for(name_en, C.b(54), "serif-italic", "cjk")

@@ -192,6 +192,7 @@ class Ctx:
         self.MODE = str(g("MODE", "narration")).lower()
         # a Chinese narration (TTS language zh): its 中文 subtitle leads, the English sits under it
         self.ZH_LEAD = str((dict(g("TTS", {}) or {})).get("language") or "") == "zh"
+        # an English narration (TTS language "en") leads its header with the English title / chapter names
 
         pal = dict(DEFAULT_PALETTE)
         pal.update({k: hex_rgb(v) for k, v in (g("PALETTE", {}) or {}).items()})
@@ -199,8 +200,13 @@ class Ctx:
         self.GOLD = pal["accent"]
 
         self.TITLE_ZH, self.TITLE_EN = g("TITLE_ZH", ""), g("TITLE_EN", "")
+        self.EN_LEAD = str((dict(g("TTS", {}) or {})).get("language") or "") == "en" and bool(self.TITLE_EN)
+        self.HEAD_MAIN, self.HEAD_SUB = ((self.TITLE_EN, self.TITLE_ZH) if self.EN_LEAD
+                                         else (self.TITLE_ZH, self.TITLE_EN))
         self.SECTIONS = list(g("SECTIONS", ["Story"]))
         self.SECTIONS_EN = list(g("SECTIONS_EN", [""] * len(self.SECTIONS)))
+        self.HEAD_SECTIONS = ([e or z for z, e in zip(self.SECTIONS, self.SECTIONS_EN + [""] * len(self.SECTIONS))]
+                              if self.EN_LEAD else self.SECTIONS)
         self.FILM_SECTIONS = set(g("FILM_SECTIONS", set()))
         self.VCROP = dict(g("VCROP", {}) or {})
         self.VEQ = set(g("VEQ", set()) or set())

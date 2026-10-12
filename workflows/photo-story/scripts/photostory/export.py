@@ -97,7 +97,7 @@ def main():
     if len(C.SECTIONS) > 1:
         for s, name in enumerate(C.SECTIONS):
             en = C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
-            lab = f"{name} {en}" if en and en != name else name
+            lab = en if (C.EN_LEAD and en) else f"{name} {en}" if en and en != name else name
             chapters.append((T.sec_bounds[s], lab if not cap or len(lab) <= cap else name))
     body = "\n\n".join(p for p in (post.get("intro"), post.get("outro")) if p)
     text = publish.post_body(None, body, chapters=chapters, tags=post.get("tags"), platform=pl,
