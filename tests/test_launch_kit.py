@@ -161,9 +161,10 @@ def test_example_config_is_valid_yaml_with_every_section():
     ex = os.path.join(ROOT, "workflows", "launch-kit", "examples", "launch.config.example.yaml")
     with open(ex, encoding="utf-8") as f:
         d = yaml.safe_load(f)
-    for k in ("product", "brand", "languages", "platforms", "release", "capture", "features", "demo", "loop", "clips",
-              "gallery", "post", "schedule"):
+    for k in ("product", "brand", "languages", "platforms", "capture", "features", "pace", "motion", "make", "demo",
+              "loop", "clips", "gallery", "post", "schedule"):
         assert k in d, k
+    assert "release" not in d          # optional: the seeded example must not name a CHANGELOG.md she never gave
     assert C.validate(C._merge(C.DEFAULTS, d), check_files=False) == []
 
 
@@ -218,7 +219,7 @@ def test_camera_punches_in_on_actions_and_stays_inside(cfg, shots):
 
 
 def test_missing_shot_is_a_clear_error(cfg, shots):
-    with pytest.raises(KeyError, match="run the capture step"):
+    with pytest.raises(C.ConfigError, match="run the capture step"):
         S.plan(dict(cfg, features=cfg["features"] + [{"id": "ghost", "caption": "x"}], demo=dict(cfg["demo"],
                shots=["ghost"])), shots, "demo", "en", "16:9")
 
@@ -476,3 +477,198 @@ def test_music_bed_from_the_shared_library(cfg, shots, tmp_path):
     proj2 = str(tmp_path / "silent")
     CO.build(dict(cfg, music=None), S.plan(cfg, shots, "clip", "en", "1:1", feature="plan"), proj2, quiet=True)
     assert "<audio" not in open(os.path.join(proj2, "index.html"), encoding="utf-8").read()
+
+
+# ------------------------------------------------------------------------------------------------ her clips + a brief
+BRIEF = """# Quill Notes 2.0 — launch promo brief
+
+**What:** a short promo for **Quill Notes 2.0**, the notes app that files itself. Dark space, one teal accent.
+
+| # | Take (`raw/`) | Use | On screen (EN) | 中文 |
+|---|---|---|---|---|
+| 1 | `01-home.mp4` | 0:00–0:04 · Home lands | Quill Notes 2.0 | Quill Notes 2.0 |
+| 2 | `02-tag.mp4` + `03-out.mp4` | 0:04–0:09 · tags, then the result | Tags itself. | 自己打标签。 |
+| 3 | end card | 0:09–0:12 · logo | Quill Notes — free for Mac. quillnotes.app | 速记 Quill Notes —— 免费的 Mac 应用。quillnotes.app |
+"""
+REQUEST = ("Make a 12-second premium launch promo for Quill Notes 2.0 from the clips in this folder, following "
+           "BRIEF.md: open on Home with no hook, tight cuts at 1.1× with fast smooth animated transitions, the "
+           "built-in tech music bed, and export 16:9, 9:16 and 1:1 in English and Chinese.")
+
+
+def _moving_clip(path, d=6):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x202020:s=640x400:r=30:d={d}",
+                    "-f", "lavfi", "-i", f"color=c=white:s=40x40:r=30:d={d}", "-filter_complex",
+                    "[0][1]overlay=x='40+mod(t*60\\,300)':y=150", "-pix_fmt", "yuv420p", str(path)], check=True)
+
+
+@pytest.fixture(scope="module")
+def clipdir(tmp_path_factory):
+    d = tmp_path_factory.mktemp("clips")
+    raw = d / "raw"
+    raw.mkdir()
+    for n in ("01-home", "02-tag", "03-out"):
+        _moving_clip(raw / f"{n}.mp4")
+    (d / "BRIEF.md").write_text(BRIEF, encoding="utf-8")
+    return d
+
+
+def test_brief_shot_table_becomes_features(clipdir):
+    got = FE.from_brief(BRIEF, [str(p) for p in (clipdir / "raw").iterdir()])
+    assert [f["id"] for f in got["features"]] == ["01-home", "02-tag"]
+    assert got["features"][1]["shots"] == ["02-tag.mp4", "03-out.mp4"]
+    assert got["features"][1]["caption"] == {"en": "Tags itself.", "zh": "自己打标签。"}
+    assert got["features"][0]["seconds"] == 4.0 and got["features"][1]["seconds"] == 5.0
+    assert got["end"]["zh"].startswith("速记")
+    assert FE.from_brief("no table here", []) == {"features": [], "end": None}
+
+
+def test_features_step_without_a_changelog_drafts_from_the_brief(clipdir, tmp_path):
+    """Dogfood 2026-10-11: the seeded example named a CHANGELOG.md she never gave -> FileNotFoundError traceback."""
+    (tmp_path / "inputs").mkdir()
+    (tmp_path / "inputs" / "BRIEF.md").write_text(BRIEF, encoding="utf-8")
+    (tmp_path / "launch.config.yaml").write_text("release: {changelog: CHANGELOG.md}\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "workflows", "launch-kit", "scripts", "launch_kit.py"),
+                        "features", str(tmp_path / "launch.config.yaml")], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "Traceback" not in r.stderr and "CHANGELOG.md is not in the project" in r.stderr
+    d = yaml.safe_load(r.stdout)
+    assert [f["id"] for f in d["features"]] == ["01-home", "02-tag"]
+    assert d["features"][1]["shot"] == ["02-tag", "03-out"]
+
+
+def test_a_failing_step_is_one_plain_line_with_a_code(tmp_path):
+    from vstudio import proctail
+    (tmp_path / "launch.config.yaml").write_text("languages: [en]\n", encoding="utf-8")
+    script = os.path.join(ROOT, "workflows", "launch-kit", "scripts", "launch_kit.py")
+    for step in ("capture", "build", "render"):
+        r = subprocess.run([sys.executable, script, step, str(tmp_path / "launch.config.yaml")], capture_output=True,
+                           text=True)
+        assert r.returncode == 2, (step, r.stderr)
+        assert "Traceback" not in r.stderr and r.stderr.startswith("launch-kit config:"), r.stderr
+        assert "product.name is required" in r.stderr
+        assert proctail.tool_failure(f"RuntimeError: launch_kit.py exit 2:\n{r.stderr}") == dict(
+            code="stage-launch-config", params=dict(fix="ask-fix-config"))
+    r = subprocess.run([sys.executable, script, "features", str(tmp_path / "nope.yaml")], capture_output=True, text=True)
+    assert r.returncode == 2 and "Traceback" not in r.stderr and "nope.yaml is not there" in r.stderr
+
+
+def _clip_cfg(clipdir, tmp_path, **over):
+    raw = clipdir / "raw"
+    cfg = {"out": str(tmp_path / "kit"),
+           "product": {"name": "Quill Notes", "version": "v2.0", "one_liner": {"en": "Free for Mac", "zh": "免费"}},
+           "brand": {"theme": "night", "colors": {"accent": "#4FBFAE"}}, "languages": ["en", "zh"],
+           "capture": {"clips": [str(raw / "01-home.mp4"), str(raw / "02-tag.mp4"), str(raw / "03-out.mp4")]},
+           "features": [{"id": "home", "shot": "01-home", "caption": {"en": "Quill Notes 2.0", "zh": "速记 2.0"},
+                         "seconds": 4},
+                        {"id": "tag", "shot": ["02-tag", "03-out"], "caption": {"en": "Tags itself.",
+                                                                                 "zh": "自己打标签。"}, "seconds": 5}],
+           "pace": 1.1, "motion": {"transition": "mix", "seconds": 0.3},
+           "demo": {"title_card": False, "min_seconds": 8, "max_seconds": 20,
+                    "renders": ["en:16:9", "en:9:16", "en:1:1", "zh:16:9", "zh:9:16", "zh:1:1"]},
+           "make": ["demo"], "music": "tech"}
+    cfg.update(over)
+    p = tmp_path / "launch.config.yaml"
+    p.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
+    return C.load(str(p))
+
+
+def test_supplied_clips_plan_a_premium_cut(clipdir, tmp_path):
+    from vstudio.launch import kit as K
+    cfg = _clip_cfg(clipdir, tmp_path)
+    sh = C.load_shots(cfg)
+    assert set(sh) == {"01-home", "02-tag", "03-out"}
+    s0 = sh["01-home"]
+    assert (s0["w"], s0["h"]) == (640, 400) and s0["focus"] and s0["auto_focus"]
+    assert os.path.exists(s0["still"]) and str(tmp_path / "kit" / "capture") in s0["still"]
+    assert not (clipdir / "raw" / "01-home.mp4.idle.json").exists()       # caches never land next to her files
+    p = S.plan(cfg, sh, "demo", "en", "9:16")
+    kinds = [s["kind"] for s in p["scenes"]]
+    assert kinds == ["feature", "feature", "feature", "end"]               # no title card: opens on Home
+    assert p["transition"] == "mix" and p["xf"] == 0.3
+    a, b, c = p["scenes"][:3]
+    assert a["media"]["at"] == 0.0                                          # the opening take lands as recorded
+    assert a["dur"] == pytest.approx(4.3) and b["dur"] == pytest.approx(2.8) and (b["part"], c["part"]) == (0, 1)
+    assert b["shot"] == "02-tag" and c["shot"] == "03-out"
+    assert all(seg[2] >= 1.1 for s in (a, b, c) for seg in s["media"]["segs"])
+    assert a["push"] and len(a["cam"]) == 2 and a["cam"][1]["scale"] > a["cam"][0]["scale"]
+    assert [x["text"] for x in S.caption_cues(p)] == ["Quill Notes 2.0", "Tags itself."]
+    names = [j[0] for j in K.jobs(cfg)]
+    assert names == ["demo-en-16x9", "demo-en-9x16", "demo-en-1x1", "demo-zh-16x9", "demo-zh-9x16", "demo-zh-1x1"]
+    proj = CO.build(cfg, S.plan(cfg, sh, "demo", "zh", "16:9"), str(tmp_path / "b"), quiet=True)
+    html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
+    assert 'tl.fromTo("#s1", {opacity: 0, x: 307}' in html                  # push in (16 % of the width)
+    assert 'tl.fromTo("#s2", {opacity: 0, x: 307}' in html                  # the second shot pushes, caption held
+    assert 'tl.set("#s2c .w", {opacity: 1, y: 0}' in html
+    assert 'src="assets/audio/music.m4a"' in html
+
+
+def test_bad_motion_and_make_are_config_errors(clipdir, tmp_path):
+    with pytest.raises(C.ConfigError, match="motion.transition"):
+        _clip_cfg(clipdir, tmp_path, motion={"transition": "wipe"})
+    with pytest.raises(C.ConfigError, match="make:"):
+        _clip_cfg(clipdir, tmp_path, make=["poster"])
+
+
+def _ctx(tmp_path, clipdir, request=REQUEST, langs=("en", "zh")):
+    from vstudio.project import drafts as DR
+    pdir = tmp_path / "proj"
+    item = pdir / "items" / "main"
+    (item / "inputs").mkdir(parents=True)
+    shots = sorted(str(p) for p in (clipdir / "raw").iterdir() if p.suffix == ".mp4")
+    for s in shots + [str(clipdir / "BRIEF.md")]:
+        os.symlink(s, item / "inputs" / os.path.basename(s))
+    (pdir / "project.yaml").write_text(yaml.safe_dump({"prompt": request, "autopilot": {"lang": "en"}}),
+                                       encoding="utf-8")
+    params = {"_inputs": {"notes": str(clipdir / "BRIEF.md"), "shots": shots}, "languages": list(langs),
+              "_item_dir": str(item)}
+    return DR.Ctx(str(pdir), "main", params, "launch-kit"), item
+
+
+def test_engine_drafts_the_config_from_her_clips_brief_and_request(clipdir, tmp_path):
+    from vstudio.project import drafts as DR
+    from vstudio.project import manifests as M
+    m = M.reload()["launch-kit"]
+    cp = next(c for c in m["checkpoints"] if c["id"] == "config")
+    assert "features" in cp["blocks"]                    # features reads her config, never the seeded example
+    ctx, item = _ctx(tmp_path, clipdir)
+    path = str(item / "launch.config.yaml")
+    tpl = os.path.join(ROOT, cp["author"]["template"])
+    rec = DR.ensure(ctx, cp, path, tpl, complete=lambda *a, **k: pytest.fail("no AI needed for a shot table"))
+    assert rec["by"] == "rules" and DR.state(path, tpl, cp, "launch-kit") == "drafted"
+    raw = yaml.safe_load(open(path, encoding="utf-8"))
+    assert "release" not in raw
+    assert raw["capture"]["clips"] == ["inputs/01-home.mp4", "inputs/02-tag.mp4", "inputs/03-out.mp4"]
+    assert raw["pace"] == 1.1 and raw["motion"]["transition"] == "mix" and raw["make"] == ["demo"]
+    assert raw["demo"]["title_card"] is False and raw["music"] == "tech"
+    assert raw["demo"]["renders"] == ["en:16:9", "en:9:16", "en:1:1", "zh:16:9", "zh:9:16", "zh:1:1"]
+    assert raw["brand"] == {"theme": "night", "colors": {"accent": "#4FBFAE"}}
+    assert raw["product"] == {"name": "Quill Notes", "version": "v2.0", "site": "https://quillnotes.app",
+                              "name_zh": "速记", "one_liner": {"en": "Free for Mac.", "zh": "免费的 Mac 应用。"}}
+    assert raw["end_card"] == {"cta": {"en": "Free for Mac.", "zh": "免费的 Mac 应用。"}}
+    assert raw["features"][1] == {"id": "02-tag", "shot": ["02-tag", "03-out"],
+                                  "caption": {"en": "Tags itself.", "zh": "自己打标签。"}, "seconds": 5.0}
+    assert "&id" not in open(path, encoding="utf-8").read()       # no YAML anchors in a file she may edit
+    cfg = C.load(path)                                             # valid as drafted
+    assert C.renders(cfg, "demo")[-1] == ("zh", "1:1")
+
+
+def test_an_older_apps_seeded_example_is_never_her_answer(tmp_path):
+    """Her project was seeded by 0.2.7's example (not byte-identical to today's template): still the example."""
+    from vstudio.project import drafts as DR
+    from vstudio.project import manifests as M
+    cp = next(c for c in M.reload()["launch-kit"]["checkpoints"] if c["id"] == "config")
+    old = tmp_path / "launch.config.yaml"
+    old.write_text("product:\n  name: Acme Notes\n  site: https://acme.example\nrelease:\n  changelog: CHANGELOG.md\n",
+                   encoding="utf-8")
+    assert DR.state(str(old), os.path.join(ROOT, cp["author"]["template"]), cp, "launch-kit") == "template"
+
+
+def test_ai_draft_naming_a_missing_changelog_drops_it(tmp_path):
+    from vstudio.project.adapters import launchkit as LK
+    p = tmp_path / "launch.config.yaml"
+    p.write_text("product: {name: X}\nrelease: {changelog: CHANGELOG.md, version: 1.0}\n", encoding="utf-8")
+    assert LK.drop_missing_release(str(p)) is True
+    assert "release" not in yaml.safe_load(p.read_text(encoding="utf-8"))
+    (tmp_path / "CHANGELOG.md").write_text("## [1.0]\n- x\n", encoding="utf-8")
+    p.write_text("release: {changelog: CHANGELOG.md}\n", encoding="utf-8")
+    assert LK.drop_missing_release(str(p)) is False

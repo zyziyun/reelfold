@@ -5,8 +5,8 @@ version: 1
 workflow: launch-kit
 labels: {zh: "产品发布视频", en: "Launch kit"}
 description:
-  zh: 你的产品（官网 / 应用）+ 更新日志 → 真实操作录屏 → 30–60 秒演示视频（16:9 / 9:16 / 1:1，动态字幕、推近操作处、片尾）、README 循环 GIF、每个功能一条短片、Product Hunt 图、各平台中英文文案、发布排期
-  en: your product (site or app) + release notes -> real interaction recordings -> a 30-60 s demo (16:9, 9:16, 1:1; kinetic captions, punch-ins on the action, logo end card), a README loop GIF, one short clip per feature, Product Hunt stills, post copy per platform in EN + 中文, a posting schedule
+  zh: 你的产品（官网 / 应用）+ 更新日志或一份 brief + 你已有的录屏（或自动录制真实操作）→ 30–60 秒演示视频（16:9 / 9:16 / 1:1，动态字幕、推近操作处、片尾）、README 循环 GIF、每个功能一条短片、Product Hunt 图、各平台中英文文案、发布排期
+  en: your product (site or app) + release notes or a brief + recordings you already have (or real interaction recordings made for you) -> a 30-60 s demo (16:9, 9:16, 1:1; kinetic captions, punch-ins on the action, logo end card), a README loop GIF, one short clip per feature, Product Hunt stills, post copy per platform in EN + 中文, a posting schedule
 category: package
 inputs:
   - key: notes
@@ -68,7 +68,7 @@ stages:
       argv: ["{python}", "{workflow_dir}/scripts/launch_kit.py", "features", "{item_dir}/launch.config.yaml"]
       stdout: "{item_dir}/work/features.draft.yaml"
       files: ["{item_dir}/work/features.draft.yaml"]
-    produces: [work/features.draft.yaml (a feature list drafted from the changelog / git range / notes)]
+    produces: [work/features.draft.yaml (the feature list - from the changelog / git range / notes when there is one, else the config / the brief's shot table)]
     preview: {kind: text, path: "{item_dir}/work/features.draft.yaml"}
   - id: capture
     resource: browser
@@ -78,7 +78,7 @@ stages:
       argv: ["{python}", "{workflow_dir}/scripts/launch_kit.py", "capture", "{item_dir}/launch.config.yaml"]
       files: []
       optional_files: ["{item_dir}/capture/shots.json"]
-    produces: [capture/<shot>.mp4, capture/<shot>.png, capture/shots.json]
+    produces: [capture/<shot>.mp4, capture/<shot>.png, capture/shots.json (or her own recordings in capture.clips, read as they are)]
     preview: {kind: images, path: "{item_dir}/capture/*.png"}
   - id: render
     resource: browser
@@ -130,11 +130,13 @@ checkpoints:
     kind: author
     scope: item
     after: prepare
-    blocks: [capture]
+    # the features step reads this file: it waits for her config (drafted from her clips + brief), never the
+    # seeded example (whose CHANGELOG.md is not in her project)
+    blocks: [features, capture]
     labels: {zh: "产品、品牌与功能", en: "Product, brand and features"}
     help:
-      zh: 在 launch.config.yaml 写产品名、一句话介绍、品牌色和字体、要展示的 3–6 个功能（每个一句屏幕字幕）和录制脚本
-      en: Write the product, one-liner, brand colours and fonts, the 3-6 features to show (one on-screen line each) and the shot list in launch.config.yaml
+      zh: 在 launch.config.yaml 写产品名、一句话介绍、品牌色和字体、要展示的功能（每个一句屏幕字幕）和用哪段录屏（你给的录屏，或录制脚本）
+      en: Write the product, one-liner, brand colours and fonts, the features to show (one on-screen line each) and which recording shows each (your own clips, or a shot list to record) in launch.config.yaml
     author:
       file: "{item_dir}/launch.config.yaml"
       template: workflows/launch-kit/examples/launch.config.example.yaml

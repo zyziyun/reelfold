@@ -9,6 +9,7 @@ Every function returns ``[{id, title, kind, scope, detail, source}]``: ``kind`` 
 security, ``title`` is one short line a caption can start from. Chores (ci, docs, test, build, style, refactor,
 chore) never become features. The list is a draft: the creator picks 4-6 and writes the on-screen captions.
 """
+import os
 import re
 import subprocess
 
@@ -135,8 +136,14 @@ def from_markdown(body, source="notes"):
     return _unique(out)
 
 
+class SourceMissing(ValueError):
+    """The release source the config names is not there (a CHANGELOG.md that was never supplied)."""
+
+
 def from_changelog(path, version=None):
     """CHANGELOG.md -> features of one version (default: the first section, usually "Unreleased" or the newest)."""
+    if not os.path.isfile(path):
+        raise SourceMissing(f"release.changelog: {os.path.basename(path)} is not in the project")
     with open(path, encoding="utf-8") as f:
         secs = changelog_sections(f.read())
     if not secs:
@@ -172,3 +179,85 @@ def load(release):
     if release.get("notes"):
         return from_notes(release["notes"])
     raise ValueError("release: give changelog, git {repo, range} or notes")
+
+
+# ------------------------------------------------------------------------------------------------ a brief's shot table
+CJK_RE = re.compile(r"[㐀-鿿]")
+TIME_RE = re.compile(r"(\d+):(\d{2}(?:\.\d+)?)\s*[–—-]\s*(\d+):(\d{2}(?:\.\d+)?)")
+FILE_RE = re.compile(r"[\w.\-]+\.(?:mp4|mov|m4v|webm|png|jpe?g)", re.I)
+
+
+def _cells(line):
+    s = line.strip()
+    if not (s.startswith("|") and s.count("|") >= 3):
+        return None
+    return [c.strip() for c in s.strip("|").split("|")]
+
+
+def _clean_line(s):
+    return _plain(s).strip().strip("“”\"'").strip()
+
+
+def from_brief(text, files=None):
+    """A brief's shot table (a markdown table with a column naming the take files and the on-screen line per row,
+    in English and 中文) -> {features: [{id, shots [file names], caption {en, zh?}, seconds?, use}], end: {en, zh}?}.
+    ``files``: the names of the takes she supplied (rows naming none of them are skipped). The rule for the
+    columns: the one whose cells name files is the take; a header saying "on screen" / "caption" / "line" /
+    "text" (or 字幕 / 文案) is the English line; a header saying 中文 / Chinese / zh, or cells mostly in Chinese,
+    is the Chinese line; a "0:04–0:08" range anywhere in the row is the scene length. No table -> empty."""
+    names = {os.path.basename(f) for f in files or []}
+    lines = (text or "").splitlines()
+    feats, end = [], None
+    i = 0
+    while i < len(lines):
+        head = _cells(lines[i])
+        sep = _cells(lines[i + 1]) if i + 1 < len(lines) else None
+        if not head or not sep or not all(re.fullmatch(r":?-{2,}:?", c or "") for c in sep):
+            i += 1
+            continue
+        rows = []
+        j = i + 2
+        while j < len(lines) and _cells(lines[j]) is not None:
+            rows.append(_cells(lines[j]))
+            j += 1
+        i = j
+        low = [h.lower() for h in head]
+        filecol = max(range(len(head)), key=lambda k: sum(bool(FILE_RE.search(r[k] if k < len(r) else ""))
+                                                          for r in rows))
+        if not any(FILE_RE.search(r[filecol] if filecol < len(r) else "") for r in rows):
+            continue
+        zh = next((k for k, h in enumerate(low) if re.search(r"中文|chinese|\bzh\b", h)), None)
+        en = next((k for k, h in enumerate(low) if k != zh and re.search(
+            r"on.?screen|caption|\bline\b|\btext\b|字幕|文案|屏幕", h)), None)
+        if zh is None:                                  # a column whose cells are mostly Chinese
+            for k in range(len(head)):
+                if k in (filecol, en):
+                    continue
+                cjk = sum(bool(CJK_RE.search(r[k] if k < len(r) else "")) for r in rows)
+                if cjk >= max(1, len(rows) // 2):
+                    zh = k
+                    break
+        if en is None:
+            continue
+        for r in rows:
+            r = r + [""] * (len(head) - len(r))
+            take = [m for m in FILE_RE.findall(r[filecol]) if not names or m in names]
+            cap = {"en": _clean_line(r[en])}
+            if zh is not None and _clean_line(r[zh]):
+                cap["zh"] = _clean_line(r[zh])
+            tm = next((TIME_RE.search(c) for c in r if TIME_RE.search(c)), None)
+            secs = None
+            if tm:
+                secs = round((int(tm[3]) * 60 + float(tm[4])) - (int(tm[1]) * 60 + float(tm[2])), 2)
+            use = next((_plain(c) for k, c in enumerate(r) if k not in (filecol, en, zh) and TIME_RE.search(c)), "")
+            if not take:
+                if re.search(r"end.?card|片尾|outro", " ".join(r), re.I) and cap["en"]:
+                    end = dict(cap, seconds=secs)
+                continue
+            if not cap["en"]:
+                continue
+            feats.append(dict(id=slug(os.path.splitext(take[0])[0], 40), shots=take, caption=cap,
+                              seconds=secs if secs and secs > 0 else None, use=use))
+        if feats:
+            break
+    return dict(features=_unique(feats), end=end)

@@ -6,8 +6,8 @@ gallery stills and an OG image, post copy per platform in English and 中文, an
 a talking-head promo of something you made (that is `promo-recut`) or a concept explainer (`explainer`).
 
 **Inputs → Outputs.** A product (name, one-liner, site), release notes (a CHANGELOG section, a git range of
-Conventional Commits, or pasted notes), the product itself to record (a URL or an Electron app, plus a shot list),
-or screenshots / recordings you already have, and the brand (logo, icon, colours, fonts) → `kit/`:
+Conventional Commits, or pasted notes) or a brief with the on-screen lines, the product itself to record (a URL or
+an Electron app, plus a shot list), or screenshots / recordings you already have (`capture.clips`), and the brand (logo, icon, colours, fonts) → `kit/`:
 
 | Folder | What |
 |---|---|
@@ -71,6 +71,28 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    model routed the step fails instead of inventing text. `--apply` adds the schedule to the publish calendar
    (`vstudio.project.pubcal`) as **planned** posts for the accounts in `schedule.accounts`. Nothing is ever posted.
    `$LK all launch.config.yaml` runs steps 3–4.
+
+## From recordings you already have + a brief (no changelog)
+
+Hand over the takes and a `BRIEF.md` and nothing is recorded: the config's `capture.clips` lists the takes (id = the
+file name without its extension), and the config checkpoint is drafted by the engine before any step reads it
+(`vstudio.project.adapters.launchkit`): the brief's shot table (a markdown table with the take file, a `0:04–0:08`
+range, the on-screen line in English and a 中文 column) becomes the features in order, one scene each (two files in a
+row = two shots under one caption, the second pushing in with the caption held); the request sets the canvases
+("16:9, 9:16 and 1:1" → `demo.renders` per language), the pace ("1.1×" → `pace`), the length, the transitions ("fast
+smooth animated transitions" → `motion: {transition: mix, seconds: 0.3}`: push and zoom-through alternating, ~9
+frames), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
+the look ("dark" → the night theme, "teal" → the accent), and `make: [demo]` for a promo. A release source is only
+written when one is really there; without one, `features` lists the config's features (or the brief's table).
+
+On a supplied take the camera finds the action itself (`timing.motion`: where the screen changes between low-res
+frames) and makes one slow push-in on it (`motion.camera: push`; on 9:16 it starts centred on it); a take longer than
+its scene plays the stretch that fills the scene at the cut's pace, preferring the one that ends on the take's
+result (the opening take plays from its first frame). Caches (idle spans, motion, posters) go under
+`<out>/capture/`, never next to her files.
+
+A step that fails prints one plain line (`launch-kit config: …` → failure code `stage-launch-config`, or
+`launch-kit <step> failed: …`), never a Python traceback (`VSTUDIO_DEBUG=1` shows it).
 
 ## Defaults and rules
 

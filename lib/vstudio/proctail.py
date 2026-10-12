@@ -81,7 +81,9 @@ _TOOLS = (
 
 # failures with a known cause and a known fix the app can word ("the script wasn't in lines - draft it for me")
 _KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in the script format"),
-           "stage-script-format", "draft-script"),)
+           "stage-script-format", "draft-script"),
+          # the launch kit's settings miss something the video needs (vstudio.launch: "launch-kit config: ...")
+          (re.compile(r"launch-kit config:"), "stage-launch-config", "ask-fix-config"))
 
 
 # the app's free voice (Kokoro) before its one-time download (vstudio.tts.VoiceNotDownloaded): the desk offers it

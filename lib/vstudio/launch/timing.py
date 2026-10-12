@@ -25,7 +25,7 @@ def idle_spans(shot):
         return []
     if shot.get("idle") is not None:
         return [tuple(x) for x in shot["idle"]]
-    cache = f + ".idle.json"
+    cache = (shot.get("cache") or f) + ".idle.json"
     try:
         with open(cache, encoding="utf-8") as fh:
             c = json.load(fh)
@@ -49,6 +49,7 @@ def idle_spans(shot):
             spans.append((s, e))
     spans = [(round(a, 3), round(b, 3)) for a, b in spans if b - a >= MIN_IDLE]
     try:
+        os.makedirs(os.path.dirname(os.path.abspath(cache)), exist_ok=True)
         with open(cache, "w", encoding="utf-8") as fh:
             json.dump(dict(mtime=os.path.getmtime(f), noise=NOISE, spans=spans), fh)
     except OSError:
@@ -102,3 +103,127 @@ def to_scene(segs, t):
             return acc + max(0.0, t - m0) / r
         acc += (m1 - m0) / r
     return acc
+
+
+# ------------------------------------------------------------------------------------------------ motion (clips)
+# Recordings she supplies (not made by capture.mjs) carry no focus boxes. Where the screen changes between frames is
+# where the action is (the click, the typed field, the list that scrolls): a cheap low-res frame difference finds it.
+MOTION_FPS = 5
+MOTION_SIZE = (160, 100)
+MOTION_DIFF = 14              # grey-level change that counts (UI anti-aliasing / video noise stays under it)
+MOTION_MIN = 0.0015           # changed fraction of the frame that counts as an action
+MOTION_FULL = 0.55            # a change bigger than this is a page switch: no focus (show the whole window)
+
+
+def _cache_path(shot, kind):
+    return (shot.get("cache") or shot["file"]) + f".{kind}.json"
+
+
+def motion(shot):
+    """Activity of a video shot -> {fps, energy [changed fraction per sample], focus [{t, x, y, w, h, kind}]};
+    cached (``<cache or file>.motion.json``). Focus boxes are normalised and merged over a run of active samples."""
+    if shot.get("kind") == "image":
+        return dict(fps=MOTION_FPS, energy=[], focus=[])
+    f = shot["file"]
+    cache = _cache_path(shot, "motion")
+    try:
+        with open(cache, encoding="utf-8") as fh:
+            c = json.load(fh)
+        if c.get("mtime") == os.path.getmtime(f) and c.get("v") == 1:
+            return c
+    except (OSError, ValueError):
+        pass
+    import numpy as np
+    w, h = MOTION_SIZE
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-v", "error", "-i", f, "-vf",
+                        f"fps={MOTION_FPS},scale={w}:{h}:flags=area,format=gray", "-f", "rawvideo", "-"],
+                       capture_output=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"could not read the frames of {os.path.basename(f)}: "
+                           f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
+    fr = np.frombuffer(r.stdout, dtype=np.uint8)
+    n = fr.size // (w * h)
+    fr = fr[: n * w * h].reshape(n, h, w).astype(np.int16)
+    energy, boxes = [0.0], [None]
+    for i in range(1, n):
+        ch = np.abs(fr[i] - fr[i - 1]) > MOTION_DIFF
+        frac = float(ch.mean())
+        energy.append(round(frac, 5))
+        if MOTION_MIN <= frac <= MOTION_FULL:
+            ys, xs = np.nonzero(ch)
+            x0, x1 = np.percentile(xs, [4, 96])
+            y0, y1 = np.percentile(ys, [4, 96])
+            boxes.append((x0 / w, y0 / h, (x1 + 1) / w, (y1 + 1) / h))
+        else:
+            boxes.append(None)
+    focus, run = [], None
+    for i, b in enumerate(boxes + [None]):
+        if b is not None:
+            run = [i, i, *b] if run is None else [run[0], i, min(run[2], b[0]), min(run[3], b[1]),
+                                                     max(run[4], b[2]), max(run[5], b[3])]
+            continue
+        if run is not None:
+            i0, _, x0, y0, x1, y1 = run
+            if (x1 - x0) * (y1 - y0) <= MOTION_FULL:
+                focus.append(dict(t=round(max(0.0, (i0 - 1) / MOTION_FPS), 3), x=round(x0, 4), y=round(y0, 4),
+                                  w=round(x1 - x0, 4), h=round(y1 - y0, 4), kind="motion"))
+            run = None
+    out = dict(v=1, mtime=os.path.getmtime(f), fps=MOTION_FPS, energy=energy, focus=focus)
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(cache)), exist_ok=True)
+        with open(cache, "w", encoding="utf-8") as fh:
+            json.dump(out, fh)
+    except OSError:
+        pass
+    return out
+
+
+END_BONUS = 1.0               # a stretch that ends on the take's last frame (its result) counts this much more
+
+
+def best_window(shot, dur, spans, rate=1.0, start=0.0, end=None, anchor="end"):
+    """The stretch of a long take that fills a ``dur`` s scene at ``rate`` (idle stretches ramped) -> (a, b) media
+    seconds: the most action, and a take she trimmed ends on its result, so a stretch that ends there is preferred
+    (``anchor`` "end"); "start" = from its first frame (the opening shot lands as recorded). A take that is already
+    short enough plays whole."""
+    end = float(end if end is not None else shot.get("duration") or 0.0)
+    if length(segments(start, end, spans, rate)) <= dur * 1.05:
+        return start, end
+    if anchor == "start":
+        lo, hi = start + 0.5, end
+        for _ in range(18):
+            mid = (lo + hi) / 2
+            if length(segments(start, mid, spans, rate)) < dur:
+                lo = mid
+            else:
+                hi = mid
+        return start, round(hi, 3)
+    en = motion(shot).get("energy") or []
+    fps = MOTION_FPS
+
+    def act(a, b):
+        return sum(en[int(a * fps): int(b * fps) + 1])
+    best, cands = None, []
+    a = start
+    while a < end - 0.5:
+        lo, hi = a + 0.5, end                                  # the shortest b whose ramped length fills the scene
+        if length(segments(a, hi, spans, rate)) < dur:
+            break
+        for _ in range(18):
+            mid = (lo + hi) / 2
+            if length(segments(a, mid, spans, rate)) < dur:
+                lo = mid
+            else:
+                hi = mid
+        cands.append((act(a, hi), a, hi))
+        a += 0.25
+    if not cands:
+        return max(start, end - dur * rate), end
+    top = max(c[0] for c in cands)
+    # the stretch that reaches the end (the last start that still fills the scene) gets the result bonus
+    last = max(cands, key=lambda c: c[1])
+    for sc, a0, b0 in cands:
+        sc = sc + (END_BONUS * top if (a0, b0) == last[1:] or b0 >= end - 0.05 else 0.0) + 1e-6 * a0
+        if best is None or sc > best[0]:
+            best = (sc, a0, b0)
+    return round(best[1], 3), round(best[2], 3)

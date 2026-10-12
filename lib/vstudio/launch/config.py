@@ -28,7 +28,7 @@ DEFAULTS = {
     "platforms": DEFAULT_PLATFORMS,
     "brand": {"theme": "editorial", "colors": {}, "fonts": {}},
     "demo": {"shots": None, "min_seconds": 30, "max_seconds": 60, "title_seconds": 2.6, "end_seconds": 3.2,
-             "renders": None},
+             "renders": None, "title_card": True},
     "loop": {"shots": None, "seconds": 15, "width": 960, "gif_fps": 15},
     "clips": {"shots": None, "min_seconds": 10, "max_seconds": 20, "end_seconds": 2.4, "renders": None},
     "voiceover": {"enabled": False, "engine": "auto", "voice": None},
@@ -36,7 +36,14 @@ DEFAULTS = {
     "gallery": {"shots": None, "lang": "en"},
     "schedule": {"start": None, "slots": {}, "accounts": {}},
     "post": None,
+    "pace": 1.0,                  # every feature plays at this speed (feature.rate wins); 1.1 = a tighter cut
+    # how scenes hand over: crossfade (calm default) | push | zoom | mix (push and zoom-through alternating), and the
+    # camera on a recording without capture focus boxes: push (one slow push-in on where the action is) | still
+    "motion": {"transition": "crossfade", "seconds": 0.35, "camera": "push"},
+    "make": ["demo", "loop", "clips"],   # which videos: demo (the launch video), loop (README GIF), clips (per feature)
 }
+TRANSITIONS = ("crossfade", "push", "zoom", "mix")
+MAKE = ("demo", "loop", "clips")
 
 
 class ConfigError(ValueError):
@@ -81,26 +88,70 @@ def _abs(root, p):
 
 
 def load_shots(cfg):
-    """capture.shots (shots.json written by scripts/capture.mjs) + capture.images (screenshots) ->
+    """capture.shots (shots.json written by scripts/capture.mjs) + capture.clips (recordings she already has) +
+    capture.images (screenshots) ->
     {id: {id, kind video|image, file, still, w, h, duration, focus [{t, x, y, w, h, kind}], caption, title}}."""
     cap = cfg.get("capture") or {}
     out = {}
     sj = cap.get("shots")
-    if sj:
+    if sj and (os.path.exists(sj) or not (cap.get("clips") or cap.get("images"))):
         with open(sj, encoding="utf-8") as f:
             d = json.load(f)
         base = os.path.dirname(sj)
         for s in d.get("shots") or []:
             out[s["id"]] = dict(s, kind="video", file=_abs(base, s["file"]), still=_abs(base, s.get("still")),
                                 focus=list(s.get("focus") or []))
+    for c in clip_list(cfg):
+        out[c["id"]] = clip_shot(cfg, c)
     for im in cap.get("images") or []:
         im = dict(im)
-        im["file"] = im["file"]
         out[im["id"]] = dict(id=im["id"], kind="image", file=im["file"], still=im["file"], w=im.get("w"),
                              h=im.get("h"), duration=float(im.get("duration", 6.0)), title=im.get("title"),
                              caption=im.get("caption"),
                              focus=[dict(dict(t=1.2, kind="focus"), **f) for f in im.get("focus") or []])
     return out
+
+
+def _clip_id(path):
+    from .features import slug
+    return slug(os.path.splitext(os.path.basename(path))[0], 40)
+
+
+def clip_list(cfg):
+    """capture.clips: recordings she already has (a path, or {id, file, focus?}) -> [{id, file, focus?}]; the id
+    defaults to the file name without its extension ("01-home-landing")."""
+    out = []
+    for c in (cfg.get("capture") or {}).get("clips") or []:
+        c = {"file": c} if isinstance(c, str) else dict(c)
+        if not c.get("file"):
+            continue
+        c.setdefault("id", _clip_id(c["file"]))
+        out.append(c)
+    return out
+
+
+def clip_shot(cfg, c):
+    """One supplied recording -> a shot like capture.mjs writes: size and length probed, a poster still grabbed
+    and the focus boxes found from where the screen changes (vstudio.launch.timing.motion), cached under
+    <out>/capture/ (never next to her files)."""
+    from vstudio import media
+    from . import timing as TM
+    cdir = os.path.join(cfg["out"], "capture")
+    os.makedirs(cdir, exist_ok=True)
+    info = media.probe(c["file"])
+    if not info.get("has_video"):
+        raise ConfigError(f"capture.clips.{c['id']}: {os.path.basename(c['file'])} has no video")
+    dur = float(info["duration"] or 0)
+    shot = dict(id=c["id"], kind="video", file=c["file"], w=info.get("display_w") or info["w"],
+                h=info.get("display_h") or info["h"], duration=round(dur, 3), title=c.get("title"),
+                caption=c.get("caption"), cache=os.path.join(cdir, c["id"]), clip=True)
+    still = os.path.join(cdir, c["id"] + ".png")
+    if not os.path.exists(still) or os.path.getmtime(still) < os.path.getmtime(c["file"]):
+        media.grab_frame(c["file"], max(0.0, min(dur - 0.1, dur * 0.6)), still)
+    shot["still"] = still
+    shot["focus"] = list(c["focus"]) if c.get("focus") else TM.motion(shot)["focus"]
+    shot["auto_focus"] = not c.get("focus")
+    return shot
 
 
 def load(path, overrides=None):
@@ -129,6 +180,10 @@ def load(path, overrides=None):
             cap[k] = _abs(root, cap[k])
     for im in cap.get("images") or []:
         im["file"] = _abs(root, im["file"])
+    cap["clips"] = [_abs(root, c) if isinstance(c, str) else dict(c, file=_abs(root, c.get("file")))
+                    for c in cap.get("clips") or []]
+    if isinstance(cfg.get("make"), str):
+        cfg["make"] = [cfg["make"]]
     cfg["music"] = music_spec(cfg.get("music"), root)
     errs = validate(cfg)
     if errs:
@@ -192,11 +247,42 @@ def validate(cfg, check_files=True):
             if v and not os.path.exists(v):
                 e.append(f"brand.fonts.{k} not found: {v}")
         cap = cfg.get("capture") or {}
-        if cap.get("shots") and not os.path.exists(cap["shots"]) and not cap.get("shot_list"):
+        if cap.get("shots") and not os.path.exists(cap["shots"]) and not cap.get("shot_list") \
+                and not cap.get("clips"):
             e.append(f"capture.shots not found: {cap['shots']} (run the capture step first)")
         for im in cap.get("images") or []:
             if not os.path.exists(im["file"]):
                 e.append(f"capture.images.{im.get('id')}: not found: {im['file']}")
+    mo = cfg.get("motion") or {}
+    if mo.get("transition") not in TRANSITIONS:
+        e.append(f"motion.transition: one of {', '.join(TRANSITIONS)} (got {mo.get('transition')!r})")
+    try:
+        if not 0.15 <= float(mo.get("seconds", 0.35)) <= 1.2:
+            e.append("motion.seconds: between 0.15 and 1.2")
+    except (TypeError, ValueError):
+        e.append("motion.seconds: a number of seconds")
+    try:
+        if not 0.5 <= float(cfg.get("pace") or 1.0) <= 3.0:
+            e.append("pace: between 0.5 and 3")
+    except (TypeError, ValueError):
+        e.append("pace: a number (1.1 = 10 % faster)")
+    bad = [m for m in cfg.get("make") or [] if m not in MAKE]
+    if bad or not cfg.get("make"):
+        e.append(f"make: pick from {', '.join(MAKE)} (got {cfg.get('make')})")
+    for f in feats:
+        sids = f.get("shot") if isinstance(f.get("shot"), list) else None
+        if sids is not None and not sids:
+            e.append(f"features.{f.get('id')}: shot is an empty list")
+        if f.get("seconds") is not None:
+            try:
+                if float(f["seconds"]) < 1.0:
+                    e.append(f"features.{f.get('id')}: seconds must be at least 1")
+            except (TypeError, ValueError):
+                e.append(f"features.{f.get('id')}: seconds must be a number")
+    if check_files:
+        for c in clip_list(cfg):
+            if not os.path.isfile(c["file"]):
+                e.append(f"capture.clips.{c['id']}: not found: {c['file']}")
     vo = cfg.get("voiceover") or {}
     if vo.get("enabled"):
         for f in feats:
@@ -233,6 +319,11 @@ def parse_render(r):
     if asp not in ASPECTS:
         raise ValueError(f"{r}: want LANG:ASPECT with aspect one of {', '.join(ASPECTS)}")
     return lang, asp
+
+
+def makes(cfg, what):
+    """Is ``what`` (demo | loop | clips) one of the videos the config asks for?"""
+    return what in (cfg.get("make") or MAKE)
 
 
 def renders(cfg, cut):

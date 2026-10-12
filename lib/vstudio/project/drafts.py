@@ -181,9 +181,10 @@ def _unfinished(recipe, cp_id):
     """A checkpoint whose file a stage writes as a skeleton the engine still has to fill: unfinished = "template"
     (drafted, never an answer). The explainer's storyboard (its shots say "TODO: what appears") and its scenes folder
     (a scene of scenes.config.json without its composition)."""
-    from .adapters import explainer
+    from .adapters import explainer, launchkit
     return {("explainer", "storyboard"): explainer.storyboard_unfinished,
-            ("explainer", "scenes"): explainer.scenes_unfinished}.get((recipe, cp_id))
+            ("explainer", "scenes"): explainer.scenes_unfinished,
+            ("launch-kit", "config"): launchkit.config_unfinished}.get((recipe, cp_id))
 
 
 PLACEHOLDER = re.compile(r"\bTODO\b")
@@ -215,8 +216,8 @@ def _part_present(recipe, cp_id):
 
 # --------------------------------------------------------------------------- drafting
 def _drafter(recipe, cp_id):
-    from .adapters import explainer, preproduction, promo
-    return {("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
+    from .adapters import explainer, launchkit, preproduction, promo
+    return {("launch-kit", "config"): launchkit.draft_config, ("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
             ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues,
             ("explainer", "script"): explainer.draft_script, ("explainer", "storyboard"): explainer.draft_storyboard,
             ("explainer", "scenes"): explainer.draft_scenes}.get((recipe, cp_id))

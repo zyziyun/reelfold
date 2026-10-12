@@ -29,13 +29,13 @@ def jobs(cfg, only=None):
     """[(name, cut, lang, aspect, feature, video path)] for everything the config asks for."""
     out_dir = cfg["out"]
     js = []
-    for lang, asp in C.renders(cfg, "demo"):
+    for lang, asp in C.renders(cfg, "demo") if C.makes(cfg, "demo") else []:
         n = f"demo-{lang}-{CANVAS_TAG[asp]}"
         js.append((n, "demo", lang, asp, None, os.path.join(out_dir, "demo", n + ".mp4")))
-    for lang, asp in C.renders(cfg, "loop"):
+    for lang, asp in C.renders(cfg, "loop") if C.makes(cfg, "loop") else []:
         n = f"loop-{lang}"
         js.append((n, "loop", lang, asp, None, os.path.join(out_dir, "readme", n + ".mp4")))
-    for fid in C.cut_features(cfg, "clips"):
+    for fid in C.cut_features(cfg, "clips") if C.makes(cfg, "clips") else []:
         for lang, asp in C.renders(cfg, "clips"):
             n = f"{fid}-{lang}-{CANVAS_TAG[asp]}"
             js.append((n, "clip", lang, asp, fid, os.path.join(out_dir, "clips", n + ".mp4")))
@@ -48,7 +48,8 @@ def jobs(cfg, only=None):
 def shots(cfg):
     sh = C.load_shots(cfg)
     if not sh:
-        raise C.ConfigError("no shots: run the capture step (capture.shot_list) or list capture.images")
+        raise C.ConfigError("no shots: list your recordings under capture.clips, screenshots under capture.images, "
+                            "or record the product (capture.shot_list)")
     return sh
 
 

@@ -171,6 +171,43 @@ def _ease_in_words(tl_lines, sel, at, stagger=0.055, dur=0.42, rise="0.38em"):
                     f'ease: "power3.out", stagger: {stagger}}}, {_r(at)});')
 
 
+# ------------------------------------------------------------------------------------------------ transitions
+def transition_of(plan, i):
+    """The hand-over INTO scene i: the plan's transition; "mix" alternates push and zoom-through. A feature's
+    second shot pushes (same caption, the picture moves on); the end card always crossfades (calm close)."""
+    tr = plan.get("transition") or "crossfade"
+    sc = plan["scenes"]
+    if i >= len(sc) or tr == "crossfade":
+        return "crossfade"
+    if sc[i]["kind"] == "end":
+        return "crossfade"
+    if tr == "mix":
+        return "push" if sc[i].get("part") or i % 2 else "zoom"
+    return tr
+
+
+def scene_in(sid, tr, at, d, W):
+    """GSAP for a scene arriving (``d`` s, the scene overlap): crossfade | push (slides in from the right) | zoom
+    (grows in from 94 %). Only opacity / x / scale on the scene div, which has no CSS transform."""
+    if tr == "push":
+        return (f'tl.fromTo("#{sid}", {{opacity: 0, x: {int(W * 0.16)}}}, {{opacity: 1, x: 0, duration: {_r(d)}, '
+                f'ease: "power3.out"}}, {_r(at)});')
+    if tr == "zoom":
+        return (f'tl.fromTo("#{sid}", {{opacity: 0, scale: 0.94}}, {{opacity: 1, scale: 1, duration: {_r(d)}, '
+                f'ease: "power3.out"}}, {_r(at)});')
+    return f'tl.fromTo("#{sid}", {{opacity: 0}}, {{opacity: 1, duration: {_r(d)}, ease: "none"}}, {_r(at)});'
+
+
+def scene_out(sid, tr, at, d, W):
+    """The scene leaving as the next one arrives with ``tr``: push slides it left, zoom pushes through it."""
+    if tr == "push":
+        return (f'tl.to("#{sid}", {{opacity: 0, x: -{int(W * 0.16)}, duration: {_r(d)}, ease: "power3.in"}}, '
+                f'{_r(at)});')
+    if tr == "zoom":
+        return f'tl.to("#{sid}", {{opacity: 0, scale: 1.08, duration: {_r(d)}, ease: "power3.in"}}, {_r(at)});'
+    return f'tl.to("#{sid}", {{opacity: 0, duration: {_r(d)}, ease: "none"}}, {_r(at)});'
+
+
 def build(cfg, plan, proj, quiet=False):
     """Write ``proj``/index.html (+ assets, plan.json, cues.json) for a story plan. Returns proj."""
     os.makedirs(proj, exist_ok=True)
@@ -204,23 +241,27 @@ def build(cfg, plan, proj, quiet=False):
         inner = []
         last_scene = i == n - 1
         # scene in / out (the first scene is already there at frame 0; a loop's last scene fades to the tail)
+        tr = transition_of(plan, i)
         if i == 0:
             js.append(f'tl.set("#{sid}", {{opacity: 1}}, 0);')
         else:
-            js.append(f'tl.fromTo("#{sid}", {{opacity: 0}}, {{opacity: 1, duration: {plan["xf"]}, ease: "none"}}, {_r(st)});')
+            js.append(scene_in(sid, tr, st, plan["xf"], W))
         if not last_scene or plan["loop"]:
-            js.append(f'tl.to("#{sid}", {{opacity: 0, duration: {plan["xf"]}, ease: "none"}}, {_r(st + du - plan["xf"])});')
+            js.append(scene_out(sid, transition_of(plan, i + 1), st + du - plan["xf"], plan["xf"], W))
         if s["kind"] == "feature":
             x0, y0, x1, y1 = L["text"]
             kpx = L["kicker_px"]
             px, lines = _fit_caption(s["caption"], lang, L, files)
-            num = "" if plan["cut"] != "demo" else f"{sum(1 for z in plan['scenes'][:i + 1] if z['kind'] == 'feature'):02d}"
+            num = "" if plan["cut"] != "demo" else \
+                f"{sum(1 for z in plan['scenes'][:i + 1] if z['kind'] == 'feature' and not z.get('part')):02d}"
+            held = bool(s.get("part"))                    # the feature's second shot: its caption is already up
             ktxt = f"{num} · {s['kicker']}" if num and s["kicker"] else s["kicker"]
             # the caption sits on the window (bottom-anchored), the kicker on the caption
             ctop = max(y0 + int(kpx * 1.9), L["win"][1] - L.get("gap", 36) - int(px * 1.16 * len(lines)))
             ktop = ctop - int(kpx * 1.9)
-            inner.append(f'<div class="kicker" id="{sid}k" style="left:{x0}px; top:{ktop}px; font-size:{kpx}px">'
-                         f'<i></i>{_e(ktxt)}</div>')
+            # no kicker (her brief gives one line per shot): the empty rule stays out of the frame
+            inner.append(f'<div class="kicker" id="{sid}k" style="left:{x0}px; top:{ktop}px; font-size:{kpx}px'
+                         f'{"" if ktxt else "; display:none"}"><i></i>{_e(ktxt)}</div>')
             inner.append(f'<div class="cap" id="{sid}c" style="left:{x0}px; top:{ctop}px; width:{x1 - x0}px; '
                          f'font-size:{px}px">{caption_html(lines)}</div>')
             wx, wy, ww, wh = L["win"]
@@ -253,6 +294,9 @@ def build(cfg, plan, proj, quiet=False):
             loop_first = plan["loop"] and i == 0
             if loop_first:                                   # the loop's frame 0 = its last frame: no entrance
                 js.append(f'tl.set(["#{sid}k", "#{sid}w"], {{opacity: 1}}, 0);')
+            elif held or tr != "crossfade":
+                # a moving transition carries the whole scene in: the window and kicker are simply there
+                js.append(f'tl.set(["#{sid}k", "#{sid}w"], {{opacity: 1}}, {_r(st)});')
             else:
                 js.append(f'tl.fromTo("#{sid}k", {{opacity: 0, x: -14}}, {{opacity: 1, x: 0, duration: 0.4, '
                           f'ease: "power2.out"}}, {_r(st + 0.05)});')
@@ -260,10 +304,14 @@ def build(cfg, plan, proj, quiet=False):
                           f'ease: "power3.out"}}, {_r(st)});')
             if plan["loop"]:
                 js.append(f'tl.set("#{sid}k", {{opacity: 1}}, {_r(st)});')
-            _ease_in_words(js, f"#{sid}c .w", st + 0.2)
-            nw = sum(len(_words(C.plain(ln))) for ln in lines)
-            js.append(f'tl.to("#{sid}c .mk", {{backgroundSize: "100% 46%", duration: 0.55, ease: "power2.out"}}, '
-                      f'{_r(st + 0.25 + 0.055 * nw * 0.5 + 0.3)});')
+            if held:
+                js.append(f'tl.set("#{sid}c .w", {{opacity: 1, y: 0}}, {_r(st)});')
+                js.append(f'tl.set("#{sid}c .mk", {{backgroundSize: "100% 46%"}}, {_r(st)});')
+            else:
+                _ease_in_words(js, f"#{sid}c .w", st + 0.2)
+                nw = sum(len(_words(C.plain(ln))) for ln in lines)
+                js.append(f'tl.to("#{sid}c .mk", {{backgroundSize: "100% 46%", duration: 0.55, ease: "power2.out"}}, '
+                          f'{_r(st + 0.25 + 0.055 * nw * 0.5 + 0.3)});')
             for k in s["cam"][1:]:
                 js.append(f'tl.to("#{sid}m", {{x: {k["x"]}, y: {k["y"]}, scale: {k["scale"]}, duration: {k["d"]}, '
                           f'ease: "{k["ease"]}"}}, {_r(st + k["t"])});')
@@ -306,8 +354,10 @@ def build(cfg, plan, proj, quiet=False):
                           f'ease: "power3.out"}}, {_r(st + 0.1)});')
                 cy = ty + lw * 0.32
             else:
+                nm = (f"{C.text(p.get('name_zh'), lang)} {p['name']}" if lang == "zh" and p.get("name_zh")
+                      else p["name"])
                 inner.append(f'<div class="center title" id="{sid}n" style="top:{int(ty)}px; '
-                             f'font-size:{L["title_px"]}px">{caption_html([p["name"]])}</div>')
+                             f'font-size:{L["title_px"]}px">{caption_html([nm])}</div>')
                 _ease_in_words(js, f"#{sid}n .w", st + 0.1)
                 cy = ty + L["title_px"] * 1.4
             cta = C.text(end.get("cta"), lang) or C.text(p.get("one_liner"), lang)

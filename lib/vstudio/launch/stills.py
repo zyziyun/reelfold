@@ -18,6 +18,7 @@ from vstudio import theme as TH
 
 from . import brand as B
 from . import config as C
+from . import story as S
 
 PH = (1270, 760)
 OG = (1200, 630)
@@ -165,7 +166,7 @@ def og(cfg, shots, lang, out, workdir, size=OG):
     shot = None
     if ids:
         feat = C.feature(cfg, ids[0])
-        shot = shots.get(feat.get("shot") or feat["id"])
+        shot = shots.get(S.shot_ids(feat)[0])
     img = _img(shot.get("still") or shot["file"], workdir) if shot else None
     body = ((f'<img src="{logo}" style="position:absolute;left:72px;top:64px;height:52px">' if logo else
              f"<div style='position:absolute;left:72px;top:60px;font-size:44px;font-weight:700'>{_e(p['name'])}</div>")
@@ -188,7 +189,7 @@ def make_all(cfg, shots, out_dir, langs=None):
         made.append(hero(cfg, lang, os.path.join(out_dir, f"ph-gallery-1-hero{sfx}.png"), work))
         for i, fid in enumerate(C.cut_features(cfg, "gallery"), start=2):
             feat = C.feature(cfg, fid)
-            shot = shots[feat.get("shot") or fid]
+            shot = shots[S.shot_ids(feat)[0]]
             made.append(feature_still(cfg, shot, feat, lang, os.path.join(out_dir, f"ph-gallery-{i}-{fid}{sfx}.png"),
                                       work))
         made.append(og(cfg, shots, lang, os.path.join(out_dir, f"og-1200x630{sfx}.png"), work))

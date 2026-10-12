@@ -38,7 +38,7 @@ def clamp(v, lo, hi):
 def shot_for(feat, shots):
     sid = feat.get("shot") or feat["id"]
     if sid not in shots:
-        raise KeyError(f"feature '{feat['id']}': no shot '{sid}' (have: {', '.join(sorted(shots)) or 'none'}); "
+        raise C.ConfigError(f"feature '{feat['id']}': no shot '{sid}' (have: {', '.join(sorted(shots)) or 'none'}); "
                        "run the capture step or add capture.images")
     return shots[sid]
 
@@ -48,7 +48,7 @@ def media_window(feat, shot):
     a, b = (feat.get("trim") or [0, shot.get("duration") or 6.0])[:2]
     b = min(float(b), float(shot.get("duration") or b))
     if b - float(a) < 1.0:
-        raise ValueError(f"feature '{feat['id']}': trim {a}-{b} is shorter than 1 s")
+        raise C.ConfigError(f"feature '{feat['id']}': trim {a}-{b} is shorter than 1 s")
     return float(a), b
 
 
@@ -114,35 +114,98 @@ def camera(layout, shot, t0, t1, dur, tmap=None):
 
 
 # ------------------------------------------------------------------------------------------------ plans
-def _feature_scene(cfg, shots, fid, lang, layout, dur_hint, cut):
+def shot_ids(feat):
+    """A feature's shots in order: ``shot`` is one id or a list (one scene per shot, the caption stays up)."""
+    sid = feat.get("shot") or feat["id"]
+    return [str(x) for x in sid] if isinstance(sid, list) else [sid]
+
+
+def xf_of(cfg):
+    return float((cfg.get("motion") or {}).get("seconds", XF))
+
+
+def _feature_scenes(cfg, shots, fid, lang, layout, dur_hint, cut, opening=False):
+    """One scene per shot of the feature (``shot: [a, b]`` = two scenes sharing the caption, ``part`` 0, 1).
+    ``opening``: the cut's first scene (no title card): its take plays from its first frame."""
     feat = C.feature(cfg, fid)
+    sids = shot_ids(feat)
+    out = []
+    for k, sid in enumerate(sids):
+        f = dict(feat, shot=sid)
+        if k and isinstance(feat.get("trim"), list) and feat["trim"] and isinstance(feat["trim"][0], list):
+            f["trim"] = feat["trim"][k]
+        elif isinstance(feat.get("trim"), list) and feat["trim"] and isinstance(feat["trim"][0], list):
+            f["trim"] = feat["trim"][0]
+        sc = _feature_scene(cfg, shots, f, lang, layout, dur_hint, cut, share=len(sids),
+                            anchor="start" if opening and k == 0 else "end")
+        sc["part"], sc["parts"] = k, len(sids)
+        out.append(sc)
+    return out
+
+
+def _feature_scene(cfg, shots, feat, lang, layout, dur_hint, cut, share=1, anchor="end"):
     shot = shot_for(feat, shots)
-    a, b = media_window(feat, shot)
-    rate = float(feat.get("rate", 1.0))
+    rate = float(feat.get("rate") or cfg.get("pace") or 1.0)
     # idle stretches of a recording (waiting for the app) play fast unless the feature says ramp: false
     spans = TM.idle_spans(shot) if shot["kind"] == "video" and feat.get("ramp", True) else []
+    want = float(feat["seconds"]) / share if feat.get("seconds") else None
+    if feat.get("trim"):
+        a, b = media_window(feat, shot)
+    elif shot.get("clip") and shot["kind"] == "video":
+        # a take she supplied is longer than its scene: play the stretch with the action at the cut's pace, not
+        # the whole take squeezed into a few seconds
+        target = want or dur_hint(5.0 if cut == "demo" else 1e9)
+        a, b = TM.best_window(shot, target + xf_of(cfg), spans, rate, anchor=anchor)
+    else:
+        a, b = media_window(feat, shot)
     segs = TM.segments(a, b, spans, rate)
     natural = TM.length(segs)
-    return dict(kind="feature", id=fid, shot=shot["id"], media=dict(kind=shot["kind"], file=shot["file"],
+    return dict(kind="feature", id=feat["id"], shot=shot["id"], media=dict(kind=shot["kind"], file=shot["file"],
                 still=shot.get("still"), w=shot.get("w"), h=shot.get("h"), at=a, until=b, rate=rate, segs=segs),
-                natural=natural, dur=dur_hint(natural),
+                natural=natural, dur=round(want + xf_of(cfg), 3) if want else dur_hint(natural),
+                fixed=bool(want), push=bool(shot.get("auto_focus")) and (cfg.get("motion") or {}).get("camera",
+                                                                                                   "push") == "push",
                 kicker=C.text(feat.get("kicker"), lang), caption=C.text(feat.get("caption"), lang),
                 vo=C.text(feat.get("vo"), lang) if (cfg.get("voiceover") or {}).get("enabled") else "")
 
 
-def _place(scenes, layout, shots, cfg):
+def push_camera(layout, shot, t0, t1, dur, tmap=None):
+    """One slow push-in for a scene from a supplied recording: open on the window (on a narrow window: centred on
+    where the action is), then ease in on the area where the screen changes most over the whole scene."""
+    win = layout["win"]
+    z0 = layout["base_zoom"]
+    fit, sw, sh = _fit(win, shot)
+    narrow = (win[2] / win[3]) < (sw / sh) * 0.8
+    ev = [f for f in shot.get("focus") or [] if t0 <= f["t"] <= t1]
+    if ev:
+        x0 = min(f["x"] for f in ev)
+        y0 = min(f["y"] for f in ev)
+        x1 = max(f["x"] + f.get("w", 0) for f in ev)
+        y1 = max(f["y"] + f.get("h", 0) for f in ev)
+        cx, cy, bw, bh = (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0
+    else:
+        cx, cy, bw, bh = 0.5, 0.5, 1.0, 1.0
+    # zoom until the area of action fills ~85 % of the window; a calm move: 1.06x .. 1.4x
+    vis_w, vis_h = win[2] / (sw * fit), win[3] / (sh * fit)          # the part of the shot the window shows at 1x
+    z = clamp(0.85 / max(bw / vis_w, bh / vis_h, 1e-3), 1.06, 1.4)
+    start = (cx, cy) if narrow else (0.5, 0.5)
+    return [dict(t=0.0, d=0.0, ease="none", **cam_pose(win, shot, *start, z0)),
+            dict(t=0.0, d=round(dur, 3), ease="sine.inOut", **cam_pose(win, shot, cx, cy, z0 * z))]
+
+
+def _place(scenes, layout, shots, cfg, xf=XF):
     t = 0.0
     for i, s in enumerate(scenes):
         s["start"] = round(t, 3)
         if s["kind"] == "feature":
-            feat = C.feature(cfg, s["id"])
-            shot = shot_for(feat, shots)
+            shot = shots[s["shot"]]
             m = s["media"]
             m["segs"] = TM.fit(m["segs"], s["dur"])                    # a short scene plays the take faster
             s["play"] = round(min(s["dur"], TM.length(m["segs"])), 3)   # the rest holds the last frame
             segs = m["segs"]
-            s["cam"] = camera(layout, shot, m["at"], m["until"], s["dur"], lambda t, g=segs: TM.to_scene(g, t))
-        t += s["dur"] - (XF if i < len(scenes) - 1 else 0.0)
+            cam = push_camera if s.get("push") else camera
+            s["cam"] = cam(layout, shot, m["at"], m["until"], s["dur"], lambda t, g=segs: TM.to_scene(g, t))
+        t += s["dur"] - (xf if i < len(scenes) - 1 else 0.0)
     return round(t, 3)
 
 
@@ -152,48 +215,64 @@ def plan(cfg, shots, cut, lang, aspect, feature=None):
         raise ValueError(f"aspect {aspect}: one of {', '.join(LAYOUTS)}")
     W, H = C.ASPECTS[aspect]
     layout = dict(LAYOUTS[aspect])
+    xf = xf_of(cfg)
     scenes = []
     if cut == "demo":
         d = cfg["demo"]
         ids = C.cut_features(cfg, "demo")
-        fixed = d["title_seconds"] + d["end_seconds"] - XF * (len(ids) + 1)
-        scenes = [_feature_scene(cfg, shots, fid, lang, layout, lambda n: clamp(n, 4.5, 9.0), cut) for fid in ids]
+        title = d.get("title_card", True)
+        for k, fid in enumerate(ids):
+            scenes += _feature_scenes(cfg, shots, fid, lang, layout, lambda n: clamp(n, 4.5, 9.0), cut,
+                                      opening=k == 0 and not title)
+        fixed = (d["title_seconds"] if title else 0.0) + d["end_seconds"] - xf * (len(scenes) - (0 if title else 1))
         body = sum(s["dur"] for s in scenes)
         if fixed + body > d["max_seconds"]:                  # squeeze every scene evenly, never under 4 s
             k = (d["max_seconds"] - fixed) / body
             for s in scenes:
-                s["dur"] = round(max(4.0, s["dur"] * k), 3)
+                s["dur"] = round(max(min(4.0, s["dur"]) if s.get("fixed") else 4.0, s["dur"] * k), 3)
         elif fixed + body < d["min_seconds"]:                # hold each shot's last frame a little longer
             extra = (d["min_seconds"] - fixed - body) / max(1, len(scenes))
             for s in scenes:
                 s["dur"] = round(s["dur"] + min(extra, 2.5), 3)
-        scenes = ([dict(kind="title", dur=d["title_seconds"])] + scenes + [dict(kind="end", dur=d["end_seconds"])])
+        scenes = (([dict(kind="title", dur=d["title_seconds"])] if title else []) + scenes
+                  + [dict(kind="end", dur=d["end_seconds"])])
     elif cut == "loop":
         lp = cfg["loop"]
         ids = C.cut_features(cfg, "loop")
-        each = (lp["seconds"] + XF * len(ids)) / len(ids)    # the closing crossfade back to frame 0 overlaps too
-        scenes = [_feature_scene(cfg, shots, fid, lang, layout, lambda n, e=each: e, cut) for fid in ids]
+        each = (lp["seconds"] + xf * len(ids)) / len(ids)    # the closing crossfade back to frame 0 overlaps too
+        for fid in ids:
+            scenes += _feature_scenes(cfg, shots, fid, lang, layout, lambda n, e=each: e, cut)[:1]
+        for s in scenes:
+            s["dur"], s["fixed"] = round(each, 3), False
     elif cut == "clip":
         cp = cfg["clips"]
         if not feature:
             raise ValueError("clip needs a feature id")
-        lo, hi = cp["min_seconds"] - cp["end_seconds"] + XF, cp["max_seconds"] - cp["end_seconds"] + XF
-        scenes = [_feature_scene(cfg, shots, feature, lang, layout,
-                                 lambda n: clamp(n + 1.2, lo, hi), cut), dict(kind="end", dur=cp["end_seconds"])]
+        lo, hi = cp["min_seconds"] - cp["end_seconds"] + xf, cp["max_seconds"] - cp["end_seconds"] + xf
+        scenes = _feature_scenes(cfg, shots, feature, lang, layout, lambda n: clamp(n + 1.2, lo, hi), cut)
+        if len(scenes) > 1:
+            for s in scenes:
+                s["dur"] = round(max(s["dur"], lo / len(scenes) + xf), 3)
+        scenes.append(dict(kind="end", dur=cp["end_seconds"]))
     else:
         raise ValueError(f"cut {cut}: demo | loop | clip")
-    total = _place(scenes, layout, shots, cfg)
+    total = _place(scenes, layout, shots, cfg, xf)
     if cut == "loop":
-        total = round(total - XF, 3)                         # last scene crossfades into the first frame
+        total = round(total - xf, 3)                         # last scene crossfades into the first frame
+    tr = (cfg.get("motion") or {}).get("transition", "crossfade")
     return dict(cut=cut, lang=lang, aspect=aspect, W=W, H=H, duration=total, layout=layout, scenes=scenes,
-                feature=feature, xf=XF, loop=cut == "loop")
+                feature=feature, xf=xf, loop=cut == "loop", transition="crossfade" if cut == "loop" else tr)
 
 
 def caption_cues(p):
-    """[{start, end, text}] of the on-screen captions (firstpass checks their spelling / terms)."""
+    """[{start, end, text}] of the on-screen captions (firstpass checks their spelling / terms); a feature shown
+    over two shots is one cue."""
     out = []
     for s in p["scenes"]:
         if s["kind"] == "feature" and s.get("caption"):
+            if s.get("part") and out and out[-1]["text"] == C.plain(s["caption"]):
+                out[-1]["end"] = round(s["start"] + s["dur"], 3)
+                continue
             out.append(dict(start=s["start"], end=round(s["start"] + s["dur"], 3), text=C.plain(s["caption"])))
     return out
 
