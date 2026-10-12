@@ -86,3 +86,20 @@ def test_cinema_cover_is_a_full_bleed_frame_with_quiet_type(tmp_path):
     assert edge.min() > 18 and (np.abs(np.diff(edge[:, 60, 2])) <= 3).all()  # never a black band or a hard band edge
     if _has_fonts():                                                 # CI without ./install.sh fonts: layout only
         assert (a[700:1000].min(axis=2) > 200).mean() > 0.002        # light title type in the lower part
+
+
+def test_effect_texts_per_version_language():
+    """YouTube shows English, Xiaohongshu / Bilibili Chinese: text_zh / sub_zh params of an output effect."""
+    from vstudio import platform as P
+    from vstudio.project import outfx as FX
+    from vstudio.project import outrender as OR
+    clean, warns = FX.validate("quote-card", dict(text="Gold settles on the water.", text_zh="金色，落在水面",
+                                                  sub_en="x", bogus_zh="y"))
+    assert clean["text_zh"] == "金色，落在水面" and "bogus_zh" not in clean and any("bogus_zh" in w for w in warns)
+    assert FX.localize(clean, "zh")["text"] == "金色，落在水面"
+    assert FX.localize(clean, "en")["text"] == "Gold settles on the water." and "text_zh" not in FX.localize(clean, "en")
+    assert OR.target_lang(dict(profile=P.profile("youtube"))) == "en"
+    assert OR.target_lang(dict(profile=P.profile("youtube-shorts"))) == "en"
+    assert OR.target_lang(dict(profile=P.profile("bilibili"))) == "zh"
+    assert OR.target_lang(dict(profile=P.profile("xiaohongshu:full"))) == "zh"
+    assert OR.target_lang(dict(profile=None)) is None

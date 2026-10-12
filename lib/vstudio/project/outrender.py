@@ -231,10 +231,23 @@ def _recipe_of(rec):
         return None
 
 
+def target_lang(tg):
+    """The language a version shows: "en" on international platforms (YouTube, TikTok, Instagram, X ...), "zh" on
+    Chinese ones (Xiaohongshu, Bilibili, Douyin ...); None for the primary file without a platform profile."""
+    prof = tg.get("profile")
+    if prof is None:
+        return None
+    from vstudio import postcopy as PC
+    return "zh" if PC.platform_key(prof.key) in PC.CN_PLATFORMS else "en"
+
+
 def visual_spec(rec, st, tl, tg, band):
     """Everything the frame pass draws, in edited seconds (JSON: it is part of the final key)."""
     layers = []
+    lang = target_lang(tg)
     for e in st["effects"]:
+        if any(str(k).endswith(FX.LANG_SUFFIXES) for k in (e.get("params") or {})):
+            e = dict(e, params=FX.localize(e["params"], lang))
         sp = FX.SPECS[e["effect"]]
         if sp["stage"] != "frame":
             continue

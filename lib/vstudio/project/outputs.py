@@ -2164,6 +2164,10 @@ Rules:
 - Use only the ops listed and only effect ids from the effect catalogue (never invent an effect, op or param).
 - Times are seconds on the ORIGINAL output timeline (the transcript / captions below use it).
 - Positions are fractions of the canvas (x, y = centre, 0..1). Keep text short and in the content's language.
+- On-screen text and the platforms' languages: YouTube / TikTok / Instagram / X versions are always English;
+  Xiaohongshu / Bilibili / Douyin versions are Chinese. When the clip goes to both groups, write the English in the
+  text params (text, sub, name, role, title, label ...) and the Chinese in the same param + "_zh" (text_zh, sub_zh,
+  ...); each version shows its own language. Premium look: few words, no exclamation marks, no emoji.
 - Respect the capability flags (e.g. a flattened output cannot restyle or edit burned-in captions).
 - Prefer few, purposeful ops; do not repeat existing effects.
 - `output.speech` says whether anyone speaks in the clip. With speech false there is no voice: never say music is

@@ -327,6 +327,29 @@ def _coerce(name, d, v):
     return v
 
 
+LANG_SUFFIXES = ("_zh", "_en")
+
+
+def lang_variant(p, spec):
+    """``text_zh`` / ``sub_en`` ...: the other-language version of a string param of the effect (or None)."""
+    for suf in LANG_SUFFIXES:
+        base = p[:-len(suf)] if p.endswith(suf) else None
+        if base and base in spec and spec[base].get("type", "string") == "string" and "enum" not in spec[base]:
+            return base
+    return None
+
+
+def localize(params, lang):
+    """Params for one version: ``<p>_<lang>`` (when set) replaces ``<p>``; every language variant is dropped.
+    ``lang`` None (the primary file in its own language) keeps the base texts."""
+    out = {k: v for k, v in (params or {}).items() if not k.endswith(LANG_SUFFIXES)}
+    if lang:
+        for k, v in (params or {}).items():
+            if k.endswith("_" + lang) and v not in (None, "") and k[:-len(lang) - 1] in out:
+                out[k[:-len(lang) - 1]] = v
+    return out
+
+
 def validate(eid, params, partial=False):
     """-> (clean params with defaults filled, warnings). Unknown params are dropped (warned), values coerced /
     clamped, bad enum values reset to the default. Raises ValueError for an unknown effect or a missing required
@@ -337,6 +360,9 @@ def validate(eid, params, partial=False):
     spec = SPECS[k]["params"]
     clean, warns = ({} if partial else {p: d.get("default") for p, d in spec.items()}), []
     for p, v in (params or {}).items():
+        if p not in spec and lang_variant(p, spec):
+            clean[p] = None if v is None else str(v)       # text_zh / sub_en ...: that language's version of a text
+            continue
         if p not in spec:
             warns.append(f"{k}: unknown param {p!r} dropped")
             continue
