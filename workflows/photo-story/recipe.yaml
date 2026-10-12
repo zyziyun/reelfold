@@ -129,6 +129,13 @@ stages:
       files: []
       optional_files: ["{item_dir}/out/subtitles.srt", "{item_dir}/out/post.md", "{item_dir}/out/transcript.md"]
     produces: [out/subtitles.srt, out/cues.json, out/transcript.md, out/voice.mp3, out/post.md]
+  - id: platforms
+    resource: cpu-render
+    deps: [export, cover]
+    fn: vstudio.project.adapters.photostory:more_platforms
+    keys: [platforms, mode]
+    watch: ["{item_dir}/work/spec.py"]
+    produces: ["out/<platform>/ (each other platform: its own canvas render when the shape differs, cover, post.md)"]
 checkpoints:
   - id: story
     kind: media-selection
@@ -165,7 +172,7 @@ checkpoints:
   - id: publish
     kind: publish
     scope: item
-    after: export
+    after: platforms
     needs: [render, cover]
     labels: {zh: "审片发布", en: "Review and publish"}
     payload: vstudio.project.adapters.common:publish_payload
@@ -179,7 +186,8 @@ outputs:
   platforms: ["xiaohongshu:vertical", "xiaohongshu:full", douyin, youtube, youtube-shorts, bilibili, "bilibili:vertical"]
   collect: vstudio.project.adapters.common:collect_files
   files: ["{item_dir}/out/story.mp4", "{item_dir}/out/cover.png", "{item_dir}/out/subtitles.srt", "{item_dir}/out/post.md",
-          "{item_dir}/out/voice.mp3"]
+          "{item_dir}/out/voice.mp3", "{item_dir}/out/*/story.mp4", "{item_dir}/out/*/cover.png",
+          "{item_dir}/out/*/post.md"]
 agent:
   workflow_md: workflows/photo-story/WORKFLOW.md
   notes: The spec is Python (work/spec.py); paths inside are relative to work/ (inputs are linked in ../inputs). Refresh after editing.

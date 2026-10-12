@@ -264,3 +264,52 @@ def spec_language(path):
         return None
     return m.group(1) if m else None
 
+
+
+# --------------------------------------------------------------------------- the other platforms (stage ``platforms``)
+def _canvas(name):
+    from vstudio import platform as P
+    try:
+        p = P.profile(name)
+        return int(p.w), int(p.h)
+    except (KeyError, ValueError):
+        return None
+
+
+def more_platforms(env):
+    """The story is laid out for the first platform (render / cover / export ``--platform``); every other one gets
+    its own copy: another canvas (Bilibili 16:9 next to a 3:4 Xiaohongshu story) is rendered again on the same voice
+    and timing - a photo story's header, picture box and subtitle band are laid out per canvas, a reframed file
+    would crop them - and every platform gets its own cover and post copy (its title / hashtag rules) in
+    ``out/<platform>/``. -> {files, platforms: [{platform, file, cover, post}]}"""
+    plats = list(env.params.get("platforms") or [])
+    spec = os.path.join(env.item_dir, "work", "spec.py")
+    first = _canvas(plats[0]) if plats else None
+    scripts = os.path.join(env.workflow_dir, "scripts", "photostory")
+    py = env.fmt("{python}")
+    mode = env.params.get("mode") or "narration"
+    out, files = [], []
+    for p in plats[1:]:
+        slug = re.sub(r"[^a-z0-9]+", "-", p.lower()).strip("-")
+        d = os.path.join(env.item_dir, "out", slug)
+        os.makedirs(d, exist_ok=True)
+        rec = dict(platform=p)
+        cv = _canvas(p)
+        if cv and cv != first:
+            vid = os.path.join(d, "story.mp4")
+            env.run([py, os.path.join(scripts, "render.py"), spec, "--out", vid, "--platform", p, "--mode", mode],
+                    log=f"render-{slug}.log")
+            rec["file"] = vid
+            files.append(vid)
+        else:
+            rec["file"] = os.path.join(env.item_dir, "out", "story.mp4")     # the same canvas: the same video
+        cov = os.path.join(d, "cover.png")
+        env.run([py, os.path.join(scripts, "cover.py"), spec, "--out", cov, "--platform", p], log=f"cover-{slug}.log")
+        env.run([py, os.path.join(scripts, "export.py"), spec, "--out", d, "--platform", p, "--mode", mode,
+                 "--no-voice"], log=f"export-{slug}.log")
+        rec.update(cover=cov, post=os.path.join(d, "post.md"))
+        files += [cov, rec["post"]]
+        out.append(rec)
+    from ..build import file_sha
+    return dict(files=[f for f in files if os.path.exists(f)], platforms=out,
+                digest="".join(file_sha(f) or "" for f in files if os.path.exists(f))[:64] or "none")

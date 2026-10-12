@@ -229,3 +229,30 @@ def test_photo_story_spec_refs_are_repaired_not_left_to_crash_the_render():
     assert [f["name"] for f in PS._frames_asked({"frames": [dict(name="needle", clip="x", t=1)]}, spec)] == [
         "needle", "skyline"]
     assert PS._clip_id("DJI_0335", ids) == "DJI_20260624222712_0335_D" and PS._clip_id("nope", ids) is None
+
+
+def test_photo_story_renders_another_canvas_for_each_other_platform(tmp_path):
+    """Bilibili 16:9 next to a 3:4 Xiaohongshu story is laid out again (header / subtitle band per canvas); a
+    platform with the first one's canvas reuses the video; every platform gets its own cover and post copy."""
+    from vstudio.project.adapters import photostory as PS
+    runs = []
+
+    class Env:
+        params = dict(platforms=["xiaohongshu:full", "bilibili", "douyin"], mode="narration")
+        item_dir, workflow_dir = str(tmp_path), "/wf"
+
+        def fmt(self, t):
+            return "py"
+
+        def run(self, argv, log=None):
+            runs.append(argv)
+            out = argv[argv.index("--out") + 1]
+            target = out if out.endswith((".mp4", ".png")) else os.path.join(out, "post.md")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            open(target, "w").write("x")
+    r = PS.more_platforms(Env())
+    rendered = [a for a in runs if a[1].endswith("render.py")]
+    assert len(rendered) == 1 and "bilibili" in rendered[0]
+    assert [p["platform"] for p in r["platforms"]] == ["bilibili", "douyin"]
+    assert r["platforms"][1]["file"].endswith(os.path.join("out", "story.mp4"))
+    assert all(os.path.exists(p["post"]) for p in r["platforms"])
