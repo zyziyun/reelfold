@@ -184,3 +184,12 @@ def test_photo_story_voice_speaks_the_chinese_cue():
     assert PT.narration_texts(chunks, {"1962": "nineteen sixty-two"}, "en")[0] == [
         "The Space Needle opened in nineteen sixty-two."]
     assert PT.norm("太空针 Needle") == ["太", "空", "针", "needle"]
+
+
+def test_each_version_narrates_in_its_own_language():
+    from vstudio.project.adapters.photostory import narration_is_chinese as zh
+    ask = "Narrate in Chinese for Xiaohongshu and Bilibili and in English for YouTube"
+    assert zh(ask, "Seattle Center 1962 — 中文版") and not zh(ask, "Seattle Center 1962 — English version")
+    assert zh(ask, "History", "西雅图简史", item="zh-version") and not zh(ask, "History", "In 2 Minutes",
+                                                                        item="en-version")
+    assert zh("a calm voice-over in Chinese about seasons", "Autumn essay") and not zh("Narrate it.", "Trip")

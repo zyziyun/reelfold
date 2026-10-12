@@ -59,6 +59,24 @@ def _wants_music(request):
                                                          re.I))
 
 
+def narration_is_chinese(request, name=None, title=None, language=None, item=None):
+    """This version's narration: its own language first ("中文版" / "English version" in the project's name, an
+    item id like zh-version / en-version, the language of its title), else what the request asks the narration to be."""
+    if language in ("zh", "en"):
+        return language == "zh"
+    nm = f"{name or ''} {item or ''}"
+    if re.search(r"english|英文|(^|[\s_-])en([\s_-]|$)", nm, re.I):
+        return False
+    if re.search(r"中文|chinese|(^|[\s_-])(zh|cn)([\s_-]|$)", nm, re.I):
+        return True
+    t = str(title or "").strip()
+    if t:
+        return bool(re.search(r"[\u4e00-\u9fff]", t))
+    rq = str(request or "")
+    return bool(re.search(r"(narrat\w*|voice[- ]?over|旁白|配音|讲解)[^.。]{0,30}(in )?(chinese|mandarin|中文)|"
+                          r"(chinese|mandarin|中文)[^.。]{0,12}(narrat\w*|voice[- ]?over|旁白|配音)", rq, re.I))
+
+
 def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     """Checkpoint ``story``: the spec from her request + footage (module doc). -> record or None."""
     from vstudio import footage
@@ -70,9 +88,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids) if vids else ("", [], [])
     by_id = {f["id"]: f for f in facts}
     target = _target(request)
-    lang_zh = (ctx.params.get("language") == "zh") or bool(re.search(r"[一-鿿]", str(ctx.params.get("title")
-                                                                                            or ""))) \
-        or bool(re.search(r"中文|Chinese", str((ctx.data or {}).get("name") or ""), re.I))
+    lang_zh = narration_is_chinese(request, (ctx.data or {}).get("name"), ctx.params.get("title"),
+                                   ctx.params.get("language"), ctx.item)
     lang_note = ('this version is narrated in Chinese: TTS = dict(language="zh") (the narrator speaks the 中文 of each '
                  "cue; the English shows as the subtitle under it)." if lang_zh else
                  'this version is narrated in English: TTS = dict(language="en").')
