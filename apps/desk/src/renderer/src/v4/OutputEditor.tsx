@@ -776,7 +776,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   const sourceTimes = lowerTab === 'transcript' || pending || pinCuts.length > 0 || (!!before && !sameTimeline);
   const useFresh = fresh.length > 0 && (!sourceTimes || renderedAfter);
   const files: ClipFile[] = useFresh
-    ? [...fresh.map((r) => ({ path: r.file, aspect: r.target === 'primary' ? (doc.files[0]?.aspect ?? '3:4') : r.target, label: t('editor.editedVersion') })), ...doc.files.map((f) => ({ ...f, label: t('c.original') }))]
+    ? [...fresh.map((r) => ({ path: r.file, v: r.key ?? r.at, aspect: r.target === 'primary' ? (doc.files[0]?.aspect ?? '3:4') : r.target, label: t('editor.editedVersion') })), ...doc.files.map((f) => ({ ...f, label: t('c.original') }))]
     : doc.files;
   const playerCuts = useFresh
     ? []

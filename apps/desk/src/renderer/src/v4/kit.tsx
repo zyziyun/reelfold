@@ -5,7 +5,9 @@ import { ChevronRight, ExternalLink, Film, Play } from 'lucide-react';
 import { fmtClock, t } from '../i18n';
 import { STATUS_KEY, type Status4 } from '../lib/status';
 
-export const media = (p: string | null | undefined) => (p ? window.desk.mediaUrl(p) : '');
+/** vsmedia URL of a file; `v` (a content version, e.g. a render key) goes in the query: a file replaced in place gets
+ * a new URL, or Chromium reuses the bytes it cached for the old one (the main process ignores the query). */
+export const media = (p: string | null | undefined, v?: string | number | null) => (p ? window.desk.mediaUrl(p) + (v != null && v !== '' ? `?v=${encodeURIComponent(String(v))}` : '') : '');
 
 /** Seconds since ``since`` (epoch s or ms), ticking once a second: "0:42", "3:05". */
 export function Elapsed({ since, testId }: { since: number | null | undefined; testId?: string }) {

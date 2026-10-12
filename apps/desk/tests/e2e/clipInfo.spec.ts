@@ -143,3 +143,42 @@ test('cover, captions, schedule and copy on the clip editor; the clip re-renders
   expect(clicks).toBe(4);
   fs.writeFileSync(path.join(SHOTS, 'clicks.json'), JSON.stringify({ title_copy_cover_schedule: clicks, screens: 1 }));
 });
+
+// An AI edit renders the clip again into the SAME file (renders/primary.final.mp4, replaced in place): the edited
+// version must play after each render - the player loads the new file (a versioned URL: Chromium keeps a URL's media
+// bytes for minutes and mixed the old file into the new one -> "This file can't be played here").
+test('after an AI edit re-renders the clip, the edited version plays (no stale media, no error)', async () => {
+  test.setTimeout(300000);
+  const player = page.getByTestId('editor-player');
+  const video = player.getByTestId('player-video');
+  await page.getByTestId('tab-timeline').click();
+  type Doc = { renders: { target: string; quality?: string; fresh?: boolean; at?: string; duration?: number }[] };
+  const final = (d: Doc) => d.renders.find((r) => r.target === 'primary' && r.quality === 'final' && r.fresh);
+  const playsEdited = async () => {
+    await expect(video).toHaveAttribute('src', /%2Frenders%2Fprimary\.final\.mp4/, { timeout: 30000 });
+    // the file on disk, not what the player cached of the one it replaced
+    const want = final(await api<Doc>(`/api/outputs/${id}/talk`))!.duration!;
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.duration), { timeout: 20000 }).toBeCloseTo(want, 1);
+    const t0 = await video.evaluate((v: HTMLVideoElement) => ((v.muted = true), v.currentTime));
+    await player.getByTestId('player-play').click();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20000 }).toBeGreaterThan(t0 + 0.5);
+    expect(await video.evaluate((v: HTMLVideoElement) => v.error?.code ?? 0)).toBe(0);
+    await expect(player.getByText('This file can’t be played here.')).toHaveCount(0);
+    await player.getByTestId('player-play').click(); // pause
+  };
+  await playsEdited();
+  const fresh = (d: Doc) => final(d)?.at ?? '';
+  const at0 = fresh(await api<Doc>(`/api/outputs/${id}/talk`));
+  expect(at0).not.toBe('');
+  // the AI's change (what the clip chat applies): faster -> a new, shorter final render at the same path
+  await api(`/api/outputs/${id}/talk/edit`, { ops: [{ op: 'speed', value: 1.25 }], by: 'ai', note: 'test' });
+  await expect
+    .poll(async () => {
+      const at = fresh(await api<Doc>(`/api/outputs/${id}/talk`));
+      return at && at !== at0;
+    }, { timeout: 180000 })
+    .toBe(true);
+  await expect(page.getByTestId('ci-render')).toHaveAttribute('data-phase', 'done', { timeout: 60000 });
+  await playsEdited();
+  await shot('B4-edited-plays');
+});

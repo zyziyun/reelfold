@@ -71,6 +71,8 @@ function savedVolume(): number {
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** waits before each reload of a file that failed to load (then the error shows) */
+const RETRIES = [300, 1000, 2500];
 
 export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref) {
   const box = useRef<HTMLDivElement | null>(null);
@@ -136,21 +138,51 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
     [seek, setSel, aspect],
   );
 
-  // keep position when switching size versions
+  // keep position (and playing) when the file under the player changes: another size version, a new render of the
+  // same version (its `v`), or a reload after a load error
   const keepAt = useRef(0);
+  const resume = useRef(false);
+  // a load error is retried with a fresh URL before it is shown: the file may have been replaced while it played (a
+  // render writes the same path again) or be missing for a moment between the two
+  const [retry, setRetry] = useState(0); // a reload's nonce in the URL
+  const fails = useRef(0); // failed loads in a row
+  const retryTm = useRef(0);
+  const ver = file?.v ?? null;
+  const src = file ? media(file.path, retry ? `${ver ?? ''}~${retry}` : ver) : '';
+  const lastFile = useRef({ path: file?.path, v: ver });
   useEffect(() => {
+    const was = lastFile.current;
+    lastFile.current = { path: file?.path, v: ver };
+    if (was.path === file?.path && was.v === ver) return;
     const el = v.current;
-    if (!el) return;
-    const at = keepAt.current;
-    const onMeta = () => {
-      setDur(el.duration || dur);
-      if (at) el.currentTime = at;
-      setErr(false);
-    };
-    el.addEventListener('loadedmetadata', onMeta);
-    return () => el.removeEventListener('loadedmetadata', onMeta);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file?.path]);
+    if (el && was.path === file?.path) {
+      keepAt.current = el.currentTime;
+      resume.current = !el.paused;
+    }
+    window.clearTimeout(retryTm.current);
+    fails.current = 0;
+    setRetry(0);
+    setErr(false);
+  }, [file?.path, ver]);
+  useEffect(() => () => window.clearTimeout(retryTm.current), []);
+  const onMeta = (el: HTMLVideoElement) => {
+    setDur(el.duration || dur);
+    if (el.videoWidth && el.videoHeight) setAr(el.videoWidth / el.videoHeight);
+    if (keepAt.current) el.currentTime = Math.min(keepAt.current, el.duration || keepAt.current);
+    keepAt.current = 0;
+    fails.current = 0;
+    setErr(false);
+    if (resume.current) void el.play().catch(() => undefined);
+    resume.current = false;
+  };
+  const onError = (el: HTMLVideoElement) => {
+    const n = fails.current++;
+    if (n >= RETRIES.length) return setErr(true);
+    keepAt.current = el.currentTime || keepAt.current;
+    resume.current = resume.current || rate > 0;
+    window.clearTimeout(retryTm.current);
+    retryTm.current = window.setTimeout(() => setRetry((x) => x + 1), RETRIES[n]);
+  };
 
   // play loop: time, selection loop, skip cuts / outside trim, reverse shuttle
   useEffect(() => {
@@ -363,7 +395,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
           <div className="frame" style={ar ? ({ '--ar': ar } as CSSProperties) : undefined}>
             <video
               ref={v}
-              src={media(file.path)}
+              src={src}
               preload="auto"
               playsInline
               autoPlay={p.autoPlay}
@@ -373,12 +405,8 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
                 const b = (e.target as HTMLVideoElement).buffered;
                 setBuffered(Array.from({ length: b.length }, (_, i) => [b.start(i), b.end(i)] as [number, number]));
               }}
-              onLoadedMetadata={(e) => {
-                const el = e.target as HTMLVideoElement;
-                setDur(el.duration || dur);
-                if (el.videoWidth && el.videoHeight) setAr(el.videoWidth / el.videoHeight);
-              }}
-              onError={() => setErr(true)}
+              onLoadedMetadata={(e) => onMeta(e.target as HTMLVideoElement)}
+              onError={(e) => onError(e.target as HTMLVideoElement)}
               onClick={() => toggle()}
               data-testid="player-video"
             />
@@ -426,7 +454,11 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
         ) : (
           <div className="muted" style={{ padding: 48 }}>{t('player.noVideo')}</div>
         )}
-        {err && <div className="note" style={{ position: 'absolute', bottom: 12 }}>{t('player.cantPlay')}</div>}
+        {err && (
+          <div className="note" style={{ position: 'absolute', bottom: 12 }} data-testid="player-error">
+            {t('player.cantPlay')}
+          </div>
+        )}
       </div>
       <Scrubber
         duration={dur}

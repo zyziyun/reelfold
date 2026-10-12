@@ -815,7 +815,9 @@ def manifest_path(doc):
 
 
 def render_status(rec, doc, st):
-    """Existing renders of the output and whether each is fresh (its key matches the current edit state)."""
+    """Existing renders of the output and whether each is fresh (its key matches the current edit state). ``key``
+    names the content: every render replaces ``renders/<target>.<quality>.mp4`` in place, so a player keys its media
+    URL on it (a browser keeps a URL's bytes for minutes and would mix the old file into the new one)."""
     man = read_json(manifest_path(doc), {}) or {}
     out = []
     for tg in targets_of(rec, st):
@@ -826,14 +828,15 @@ def render_status(rec, doc, st):
             key = plan(rec, doc, st, tg, q)["final"]["key"]
             out.append(dict(target=tg["target"], quality=q, file=r["file"], exists=os.path.exists(r["file"]),
                             cover=r.get("cover"), fresh=r.get("key") == key and os.path.exists(r["file"]), at=r.get("at"),
-                            duration=r.get("duration")))
+                            duration=r.get("duration"), key=r.get("key")))
     return out
 
 
 def fresh_finals(d, output):
     """The output as it should be published: its edit's FINAL renders that are fresh (key = the current edit state)
     -> {target: {file, cover, w, h, duration}} ({} when it was never edited, or edited since its last render - the
-    original file / a stale render must not go out as if it were the edit). Reads only the edit doc + the render
+    original file / a stale render must not go out as if it were the edit; ``key`` versions the file, see
+    render_status). Reads only the edit doc + the render
     manifest (no media work)."""
     rec, doc = OUT._load(d, output)
     if not doc.d.get("steps"):
@@ -849,7 +852,7 @@ def fresh_finals(d, output):
         if r.get("key") != plan(rec, doc, st, tg, "final")["final"]["key"]:
             continue
         out[tg["target"]] = dict(file=r["file"], cover=r.get("cover") if r.get("cover") and os.path.exists(r["cover"])
-                                 else None, w=tg["w"], h=tg["h"], duration=r.get("duration"))
+                                 else None, w=tg["w"], h=tg["h"], duration=r.get("duration"), key=r.get("key"))
     return out
 
 
