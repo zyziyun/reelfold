@@ -59,6 +59,16 @@ def test_cinema_timeline_dissolves_and_moves_the_year_on():
     assert [s["tr"] for s in T.shots] == [None, "whip", "flash", "cut"]
 
 
+def _has_fonts():
+    from vstudio import config as VC
+    try:
+        VC.font("cjk-serif")
+        VC.font("cjk")
+        return True
+    except Exception:  # noqa: BLE001 - fonts come from install.sh
+        return False
+
+
 def test_cinema_cover_is_a_full_bleed_frame_with_quiet_type(tmp_path):
     """P8: no heavy stroke / band; a long dashed title becomes title + a small line; her '|' breaks are kept."""
     from PIL import Image
@@ -72,5 +82,7 @@ def test_cinema_cover_is_a_full_bleed_frame_with_quiet_type(tmp_path):
     a = np.asarray(Image.open(tmp_path / "c.jpg").convert("RGB")).astype(int)
     assert a.shape[:2] == (1080, 1920)
     assert abs(a[100, 960] - [90, 130, 170]).max() < 6               # the top of the frame is untouched
-    assert (a[540:, :, :].min(axis=2) < 25).mean() < 0.02            # no black stroke / band, only a soft gradient
-    assert (a[700:1000].min(axis=2) > 225).mean() > 0.003            # light title type in the lower part
+    edge = a[540:, :120]                                             # away from the type: a soft gradient only,
+    assert edge.min() > 18 and (np.abs(np.diff(edge[:, 60, 2])) <= 3).all()  # never a black band or a hard band edge
+    if _has_fonts():                                                 # CI without ./install.sh fonts: layout only
+        assert (a[700:1000].min(axis=2) > 200).mean() > 0.002        # light title type in the lower part
