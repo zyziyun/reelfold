@@ -1,0 +1,166 @@
+# Which tests a change runs in the quick tier (a push / PR). Read by .github/scripts/select_tests.py; how it traces a
+# change to tests is described at the top of that script and in docs/CI_CD.md. Paths are repo-relative globs
+# (`*` = within a folder, `**` = any depth); spec names are files in apps/desk/tests/e2e.
+# The full tier (nightly, tags v*, release/**, tier=full) ignores this file and runs everything.
+
+# Any of these changed: every test of the suite runs (the build, the test harness or the dependencies changed).
+full:                     # both suites
+  - package.json
+  - package-lock.json
+  - requirements.txt
+  - tests/requirements.txt
+  - .github/actions/**
+  - .github/scripts/ci-changes.sh
+  - .github/scripts/select_tests.py
+  - .github/test-map.yml
+full_desk:
+  - .github/workflows/desk-ci.yml
+  - apps/desk/package.json
+  - apps/desk/playwright.config.ts
+  - apps/desk/vite.config.ts
+  - apps/desk/tsconfig.json
+  - apps/desk/scripts/build.mjs
+  - apps/desk/scripts/startCheck.mjs
+  - apps/desk/packaging/**
+  - apps/desk/src/renderer/index.html
+  - apps/desk/src/main/testHooks.ts
+  - apps/desk/engine/tests/_isolate.py
+  - apps/desk/tests/e2e/closeApp.ts
+full_engine:
+  - .github/workflows/engine.yml
+  - pyproject.toml
+  - tests/conftest.py
+
+# No test reads these.
+ignore:
+  - '**/*.md'
+  - '**/LICENSE'
+  - apps/desk/release-notes/**
+  - apps/desk/docs/**
+  - docs/**
+
+# The quick, broad specs a change runs when nothing more specific is known (main process, preload, unmapped desk code).
+e2e_smoke:
+  - smoke.spec.ts
+  - studio.spec.ts
+  - noMock.spec.ts
+  - settings.spec.ts
+
+# The same for an engine change the desk loads (apps/desk/engine, lib/): specs on the real engine sidecar.
+e2e_real_smoke:
+  - studioReal.spec.ts
+  - homeReal.spec.ts
+  - inboxReal.spec.ts
+  - tryAgain.spec.ts
+  - draftReview.spec.ts
+
+# Specs for code the trace cannot follow (main process, engine). Added to what the trace finds.
+e2e:
+  apps/desk/src/main/publish/**: [publish.spec.ts, publishBoard.spec.ts, publishLoop.spec.ts, cdp.spec.ts, cdpAll.spec.ts]
+  apps/desk/src/shared/publish/**: [publish.spec.ts, publishBoard.spec.ts, publishLoop.spec.ts, cdp.spec.ts, cdpAll.spec.ts]
+  apps/desk/adapters/**: [cdpAll.spec.ts, publish.spec.ts]
+  apps/desk/src/main/aiAccounts.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
+  apps/desk/src/shared/aiModels.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
+  apps/desk/src/shared/aiRoutes.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
+  apps/desk/src/main/recorder.ts: [recordEdit.spec.ts]
+  apps/desk/src/shared/recIpc.ts: [recordEdit.spec.ts]
+  apps/desk/src/main/updater.ts: [update.spec.ts, release.spec.ts]
+  apps/desk/src/main/trash.ts: [history.spec.ts, rowActions.spec.ts]
+  apps/desk/src/main/cleanupPolicy.ts: [history.spec.ts, rowActions.spec.ts]
+  apps/desk/src/main/historyWatch.ts: [history.spec.ts, workNotMade.spec.ts, homeReal.spec.ts]
+  apps/desk/src/main/engine.ts: [smoke.spec.ts, studioReal.spec.ts, homeRequests.spec.ts]
+  apps/desk/src/main/engineTransport.ts: [smoke.spec.ts, studioReal.spec.ts, homeRequests.spec.ts]
+  apps/desk/src/main/runtime.ts: [firstrun.spec.ts, firstrun-downloads.spec.ts]
+  apps/desk/src/main/assets.ts: [firstrun-downloads.spec.ts, settings.spec.ts]
+  apps/desk/src/main/media.ts: [fullscreen.spec.ts, clipInfo.spec.ts, timeline.spec.ts]
+  apps/desk/src/main/appProtocol.ts: [fullscreen.spec.ts, clipInfo.spec.ts, timeline.spec.ts]
+  apps/desk/src/main/htmlRender.ts: [explainerVisuals.spec.ts]
+  apps/desk/src/main/terminal.ts: [projectAi.spec.ts, chatEdit.spec.ts]
+  apps/desk/src/main/v02.ts: [v02.spec.ts, v04.spec.ts]
+  apps/desk/src/main/identity.ts: [usage.spec.ts, settings.spec.ts]
+  apps/desk/src/main/secrets.ts: [aiAccounts.spec.ts, voiceKey.spec.ts]
+  apps/desk/src/renderer/src/i18n/**: [i18nStrict.spec.ts, smoke.spec.ts]
+  apps/desk/engine/server.py: [smoke.spec.ts, studio.spec.ts, studioReal.spec.ts, homeReal.spec.ts, tryAgain.spec.ts]
+  apps/desk/engine/desk_engine/real.py: [studioReal.spec.ts, homeReal.spec.ts, inboxReal.spec.ts, projectPage.spec.ts, tryAgain.spec.ts]
+  apps/desk/engine/desk_engine/app.py: [smoke.spec.ts, studio.spec.ts, studioReal.spec.ts, homeReal.spec.ts]
+  apps/desk/engine/desk_engine/common.py: [smoke.spec.ts, studio.spec.ts, studioReal.spec.ts, homeReal.spec.ts]
+  apps/desk/engine/desk_engine/caps.py: [smoke.spec.ts, aiAccounts.spec.ts, modelSwitch.spec.ts]
+  apps/desk/engine/desk_engine/outputs.py: [clipInfo.spec.ts, projectPage.spec.ts, fewerSteps.spec.ts, draftReview.spec.ts]
+  apps/desk/engine/desk_engine/works.py: [projectPage.spec.ts, studioScale.spec.ts, workNotMade.spec.ts]
+  apps/desk/engine/desk_engine/intake.py: [planLang.spec.ts, homeRequests.spec.ts, voiceKey.spec.ts]
+  apps/desk/engine/desk_engine/planning.py: [planLang.spec.ts, homeRequests.spec.ts]
+  apps/desk/engine/desk_engine/projask.py: [projectAi.spec.ts, modelSwitch.spec.ts]
+  apps/desk/engine/desk_engine/deliver.py: [publish.spec.ts, publishLoop.spec.ts]
+  apps/desk/engine/desk_engine/calendar.py: [publishBoard.spec.ts, studioScaleSchedule.spec.ts, weekPlan.spec.ts]
+  apps/desk/engine/desk_engine/schedule_text.py: [publishBoard.spec.ts, studioScaleSchedule.spec.ts]
+  apps/desk/engine/desk_engine/homesuggest.py: [homeReal.spec.ts, homeRequests.spec.ts]
+  apps/desk/engine/desk_engine/workpkg.py: [workNotMade.spec.ts, projectPage.spec.ts]
+  apps/desk/engine/desk_engine/live.py: [history.spec.ts, runView.spec.ts]
+  apps/desk/engine/desk_engine/pilot.py: [autopilot.spec.ts, runView.spec.ts]
+  apps/desk/engine/desk_engine/v02store.py: [v02.spec.ts, v04.spec.ts]
+  apps/desk/engine/desk_engine/sample.py: [firstrun.spec.ts]
+  apps/desk/engine/desk_engine/inbox_labels.py: [inboxReal.spec.ts, i18nStrict.spec.ts]
+  apps/desk/engine/desk_engine/proc.py: [studioReal.spec.ts, tryAgain.spec.ts]
+  apps/desk/engine/tests/fixtures/desk_mock/**: [smoke.spec.ts, studio.spec.ts, create.spec.ts, runView.spec.ts]
+  lib/vstudio/project/**: [projectPage.spec.ts, homeReal.spec.ts, inboxReal.spec.ts]
+  lib/vstudio/batch/**: [studioReal.spec.ts, homeReal.spec.ts, tryAgain.spec.ts]
+  lib/vstudio/llm*.py: [modelSwitch.spec.ts, aiAccounts.spec.ts]
+  lib/vstudio/create/**: [create.spec.ts, recordEdit.spec.ts, explainerVisuals.spec.ts]
+  lib/vstudio/intake/**: [planLang.spec.ts, homeRequests.spec.ts, voiceKey.spec.ts]
+  lib/vstudio/launch/**: [promoFixes.spec.ts]
+  lib/vstudio/postcopy.py: [vlogRefresh.spec.ts, publishLoop.spec.ts]
+  lib/vstudio/reframe.py: [vlogFraming.spec.ts]
+  lib/vstudio/platform.py: [publish.spec.ts, vlogFraming.spec.ts]
+  lib/vstudio/tts.py: [voiceKey.spec.ts, explainerVisuals.spec.ts]
+  lib/vstudio/messages.py: [i18nStrict.spec.ts, inboxReal.spec.ts]
+
+# Globs whose automatic trace is skipped (it would reach nearly every spec); only their `e2e:` entries run.
+e2e_no_trace:
+  - apps/desk/src/renderer/src/i18n/**
+  - apps/desk/src/renderer/src/theme/**
+
+# A test id that this many specs use is a landmark (home, the studio list, the composer: most specs wait on it). A
+# changed view selects the specs through its other ids; only when it has nothing else do landmark ids count.
+e2e_landmark_specs: 8
+
+# Sharding: a selection is split by these estimates (seconds, from a CI run on macos-14; unlisted specs count as
+# e2e_default_weight), one shard per e2e_seconds_per_shard, at most 4.
+e2e_default_weight: 20
+e2e_seconds_per_shard: 300
+e2e_weights:
+  smoke-all.spec.ts: 308
+  projectPage.spec.ts: 182
+  explainerVisuals.spec.ts: 127
+  fewerSteps.spec.ts: 97
+  clipInfo.spec.ts: 88
+  vlogFraming.spec.ts: 84
+  vlogRefresh.spec.ts: 79
+  i18nStrict.spec.ts: 72
+  studioReal.spec.ts: 72
+  studioScaleSchedule.spec.ts: 54
+  v04.spec.ts: 52
+  homeScale.spec.ts: 51
+  autopilot.spec.ts: 50
+  homeReal.spec.ts: 50
+  promoFixes.spec.ts: 49
+  chatEdit.spec.ts: 46
+  runView.spec.ts: 46
+  create.spec.ts: 39
+  recordEdit.spec.ts: 39
+  homeRequests.spec.ts: 37
+  uxcore.spec.ts: 34
+  inboxReal.spec.ts: 32
+  studioScale.spec.ts: 29
+  update.spec.ts: 26
+  release.spec.ts: 25
+
+# The sidecar unittests (apps/desk/engine/tests) an engine change runs when no test imports the changed file.
+sidecar_smoke:
+  - test_server.py
+  - test_real_engine.py
+
+# The same for the engine pytest (tests/).
+pytest_smoke:
+  - test_core.py
+  - test_registry_hygiene.py
+  - test_platform.py

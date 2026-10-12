@@ -1,12 +1,17 @@
-# Reelfold desk app (apps/desk), as parallel jobs so a push finishes in ~10-15 min instead of ~25-80:
-#   changes               what this run has to do: `run` (desk files changed) and `full` (the full tier, below)
-#   checks (macOS)        check_skill, lint + typecheck, unit tests, sidecar real-engine tests, scripts tests
-#   e2e (macOS, 4 shards) the Electron e2e suite (hidden windows, mock + real engine), playwright --shard=i/4
+# Reelfold desk app (apps/desk), as parallel jobs:
+#   changes               what this run has to do: `run` (desk files changed), `full` (the full tier, below) and, in
+#                         the quick tier, WHICH tests: .github/scripts/select_tests.py traces the changed files to the
+#                         e2e specs, sidecar unittests and unit tests they can affect (rules: .github/test-map.yml) and
+#                         lists them, with the reason for each, in this job's summary
+#   checks (macOS)        check_skill, lint + typecheck, then the picked unit tests (vitest related), sidecar
+#                         real-engine tests and scripts tests (every one of them in the full tier)
+#   e2e (macOS, 1-4)      the picked Electron e2e specs (hidden windows, mock + real engine), split over as many shards
+#                         as their estimated time needs; the full tier runs the whole suite in 4 (--shard=i/4)
 #   test                  aggregator, the required check: green only when checks + every e2e shard passed, or when no
-#                         desk file changed (a no-op, so a docs-only change is not left waiting). Keep this name: the
-#                         release automation waits on Desk CI's job named `test`.
+#                         desk test can see the change (a no-op, so a docs-only change is not left waiting). Keep this
+#                         name: the release automation waits on Desk CI's job named `test`.
 #   e2e report (merged)   merges the shards' blob reports into one HTML report artifact (desk-e2e-report)
-#   Windows checks        lint, unit, build, app start, sidecar engine tests on windows-latest (every run)
+#   Windows checks        lint, unit, build, app start, the picked sidecar engine tests on windows-latest (every run)
 #   full tier             + engine pytest on Windows and the Windows e2e suite in 4 shards. Runs nightly, on tags (v*),
 #                         release/** branches, manual runs (tier=full, the default) and when CI / lockfile / packaging
 #                         files change. `Windows` rolls the Windows jobs up; it fails the run but is not part of `test`.
@@ -41,9 +46,16 @@ jobs:
     outputs:
       run: ${{ steps.c.outputs.run }}
       full: ${{ steps.c.outputs.full }}
+      relevant: ${{ steps.s.outputs.relevant }}
+      e2e: ${{ steps.s.outputs.e2e }}
+      e2e_matrix: ${{ steps.s.outputs.e2e_matrix }}
+      unit: ${{ steps.s.outputs.unit }}
+      unit_files: ${{ steps.s.outputs.unit_files }}
+      sidecar: ${{ steps.s.outputs.sidecar }}
+      sidecar_tests: ${{ steps.s.outputs.sidecar_tests }}
+      scripts: ${{ steps.s.outputs.scripts }}
     steps:
-      - uses: actions/checkout@v7
-        with: { sparse-checkout: .github, sparse-checkout-cone-mode: false }
+      - uses: actions/checkout@v7 # the whole tree: the selection reads the sources (imports, test ids)
       - id: c
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,13 +69,24 @@ jobs:
           TIER: ${{ inputs.tier }}
         run: >-
           bash .github/scripts/ci-changes.sh
-          '^(apps/desk/|lib/|requirements\.txt$|package\.json$|package-lock\.json$|\.github/workflows/desk-ci\.yml$|\.github/actions/desk-setup/|\.github/scripts/ci-changes\.sh$)'
+          '^(apps/desk/|lib/|requirements\.txt$|package\.json$|package-lock\.json$|\.github/workflows/desk-ci\.yml$|\.github/actions/desk-setup/|\.github/scripts/ci-changes\.sh$|\.github/scripts/select_tests\.py$|\.github/test-map\.yml$)'
           '^(\.github/workflows/desk-ci\.yml$|\.github/actions/desk-setup/|package-lock\.json$|requirements\.txt$|tests/requirements\.txt$|apps/desk/package\.json$|apps/desk/packaging/|apps/desk/playwright\.config\.ts$|apps/desk/scripts/startCheck\.mjs$)'
+      - name: Pick the tests (the summary lists them and why)
+        id: s
+        if: steps.c.outputs.run == 'true'
+        env:
+          FULL: ${{ steps.c.outputs.full }}
+          KNOWN: ${{ steps.c.outputs.known }}
+        run: |
+          flags=()
+          [ "$FULL" = true ] && flags+=(--full)
+          [ "$KNOWN" = true ] || flags+=(--all)
+          python3 .github/scripts/select_tests.py --suite desk --changed "$RUNNER_TEMP/changed.txt" "${flags[@]}"
 
   checks:
     name: checks (lint, unit, engine, scripts)
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: needs.changes.outputs.run == 'true' && needs.changes.outputs.relevant != 'false'
     runs-on: macos-14
     timeout-minutes: 30
     defaults:
@@ -76,27 +99,29 @@ jobs:
         working-directory: .
         run: python scripts/check_skill.py
       - run: npm run lint
-      # each check below runs even after a failure, so one run shows all of them
-      - name: Unit tests
-        if: success() || failure()
-        run: npm run test:unit
-      - name: Sidecar real-engine tests
-        if: success() || failure()
-        run: npm run test:engine
+      # each check below runs even after a failure, so one run shows all of them; `changes` picked which tests
+      - name: Unit tests (${{ needs.changes.outputs.unit }})
+        if: (success() || failure()) && needs.changes.outputs.unit != 'none'
+        env: { FILES: '${{ needs.changes.outputs.unit_files }}', SEL: '${{ needs.changes.outputs.unit }}' }
+        run: if [ "$SEL" = all ]; then npm run test:unit; else npx vitest related --run --passWithNoTests $FILES; fi
+      - name: Sidecar real-engine tests (${{ needs.changes.outputs.sidecar }})
+        if: (success() || failure()) && needs.changes.outputs.sidecar != 'none'
+        env: { TESTS: '${{ needs.changes.outputs.sidecar_tests }}', SEL: '${{ needs.changes.outputs.sidecar }}' }
+        run: if [ "$SEL" = all ]; then npm run test:engine; else cd engine/tests && python3 -m unittest $TESTS; fi
       - name: Scripts tests (App Store lint + runtime patch)
-        if: success() || failure()
+        if: (success() || failure()) && needs.changes.outputs.scripts == 'true'
         run: npm run test:scripts
 
   e2e:
-    name: e2e (${{ matrix.shard }}/4)
+    name: e2e (${{ matrix.shard }})
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: needs.changes.outputs.run == 'true' && needs.changes.outputs.e2e != 'none'
     runs-on: macos-14
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      # {index, shard: "i/n", args: the spec files, or --shard=i/4 for the whole suite}, from select_tests.py
+      matrix: ${{ fromJSON(needs.changes.outputs.e2e_matrix || '{"include":[{"index":0,"shard":"-","args":""}]}') }}
     defaults:
       run:
         working-directory: apps/desk
@@ -104,24 +129,24 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/desk-setup
       - run: npm run build
-      - name: Electron e2e shard ${{ matrix.shard }}/4 (hidden windows, mock + real engine)
-        env: { PW_BLOB: '1' }
-        run: npx playwright test --shard=${{ matrix.shard }}/4
+      - name: Electron e2e shard ${{ matrix.shard }} (hidden windows, mock + real engine)
+        env: { PW_BLOB: '1', ARGS: '${{ matrix.args }}' }
+        run: npx playwright test $ARGS
       - uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
-          name: desk-e2e-blob-${{ matrix.shard }}
+          name: desk-e2e-blob-${{ matrix.index }}
           path: apps/desk/blob-report
           retention-days: 3
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: desk-test-results-${{ matrix.shard }}
+          name: desk-test-results-${{ matrix.index }}
           path: apps/desk/test-results
           retention-days: 7
 
   test:
-    # the required / awaited check: green only when every macOS job above passed (or nothing desk-related changed)
+    # the required / awaited check: green only when every macOS job above passed (or no desk test can see the change)
     name: test
     needs: [changes, checks, e2e]
     if: always()
@@ -132,13 +157,16 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
+          PICKED: ${{ needs.changes.outputs.e2e }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
           CHECKS: ${{ needs.checks.result }}
           E2E: ${{ needs.e2e.result }}
         run: |
-          echo "changes: $CHANGES (run: $RUN), checks: $CHECKS, e2e shards: $E2E"
+          echo "changes: $CHANGES (run: $RUN, e2e picked: $PICKED), checks: $CHECKS, e2e shards: $E2E"
           [ "$CHANGES" = success ] || exit 1
-          if [ "$RUN" = false ]; then echo "no desk changes: nothing to test"; exit 0; fi
-          [ "$CHECKS" = success ] && [ "$E2E" = success ]
+          if [ "$RUN" = false ] || [ "$RELEVANT" = false ]; then echo "no desk changes (or docs only): nothing to test"; exit 0; fi
+          [ "$CHECKS" = success ] || exit 1
+          if [ "$PICKED" = none ]; then echo "no e2e spec can see this change"; [ "$E2E" = skipped ]; else [ "$E2E" = success ]; fi
 
   e2e-report:
     name: e2e report (merged)
@@ -166,7 +194,7 @@ jobs:
   windows-checks:
     name: Windows checks (lint, unit, start, engine)
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: needs.changes.outputs.run == 'true' && needs.changes.outputs.relevant != 'false'
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -180,18 +208,20 @@ jobs:
       - uses: ./.github/actions/desk-setup
         with: { engine-deps: tests }
       - run: npm run lint
-      - name: Unit tests
-        if: success() || failure()
-        run: npm run test:unit
+      - name: Unit tests (${{ needs.changes.outputs.unit }})
+        if: (success() || failure()) && needs.changes.outputs.unit != 'none'
+        env: { FILES: '${{ needs.changes.outputs.unit_files }}', SEL: '${{ needs.changes.outputs.unit }}' }
+        run: if [ "$SEL" = all ]; then npm run test:unit; else npx vitest related --run --passWithNoTests $FILES; fi
       - name: Build
         if: success() || failure()
         run: npm run build
       - name: App start check (main log)
         if: success() || failure()
         run: node scripts/startCheck.mjs 45
-      - name: Sidecar engine tests
-        if: success() || failure()
-        run: python -m unittest discover -s engine/tests
+      - name: Sidecar engine tests (${{ needs.changes.outputs.sidecar }})
+        if: (success() || failure()) && needs.changes.outputs.sidecar != 'none'
+        env: { TESTS: '${{ needs.changes.outputs.sidecar_tests }}', SEL: '${{ needs.changes.outputs.sidecar }}' }
+        run: if [ "$SEL" = all ]; then python -m unittest discover -s engine/tests; else cd engine/tests && python -m unittest $TESTS; fi
       - name: Engine pytest (full tier; parallel, pytest-xdist)
         if: (success() || failure()) && needs.changes.outputs.full == 'true'
         working-directory: .
@@ -246,11 +276,12 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
           FULL: ${{ needs.changes.outputs.full }}
+          RELEVANT: ${{ needs.changes.outputs.relevant }}
           CHECKS: ${{ needs.windows-checks.result }}
           E2E: ${{ needs.windows-e2e.result }}
         run: |
           echo "changes: $CHANGES (run: $RUN, full: $FULL), windows checks: $CHECKS, e2e shards: $E2E"
           [ "$CHANGES" = success ] || exit 1
-          if [ "$RUN" = false ]; then echo "no desk changes: nothing to test"; exit 0; fi
+          if [ "$RUN" = false ] || [ "$RELEVANT" = false ]; then echo "no desk changes (or docs only): nothing to test"; exit 0; fi
           [ "$CHECKS" = success ] || exit 1
           if [ "$FULL" = true ]; then [ "$E2E" = success ]; else echo "quick tier: Windows e2e runs nightly / on tags"; fi
