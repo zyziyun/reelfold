@@ -275,7 +275,7 @@ class Goals:
         old = {v["id"]: v for v in g.get("videos") or []}
         g["videos"] = [dict(old.get(v["id"]) or {}, **{k: v.get(k) for k in (
             "id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills", "stories", "platforms",
-            "request", "inputs", "merged_into")}, planned_out=bool(v.get("dropped")), state="planned")
+            "request", "inputs", "merged_into", "recipe")}, planned_out=bool(v.get("dropped")), state="planned")
             for v in doc.get("videos") or []]
         if self.history is not None:                # the story thumbnails / sheets are shown on the plan card
             pics = [p for s in g["survey"]["stories"] for p in [*(s.get("thumbs") or []), s.get("sheet")] if p]
@@ -451,9 +451,11 @@ class Goals:
         return g
 
     def _begin(self, g, v, now):
+        # no model answered the survey: none will plan the video either - its recipe is fixed for the rules
+        fixed = v.get("recipe") if (g.get("planner") or {}).get("fallback") else None
         try:
             r = self.intake.start(v["request"], list(v.get("inputs") or []), v.get("platforms"), g.get("lang"),
-                                  "autopilot")
+                                  "autopilot", **({"recipe": fixed} if fixed else {}))
         except Exception as e:  # noqa: BLE001
             self._failed(g, v, getattr(e, "code", None) or "intake", now, str(e))
             return

@@ -25,7 +25,8 @@ def plan_doc(n=4, fallback=False):
                for k in range(n)]
     vids = [dict(id=f"v{k + 1}", title=f"Video {k + 1}", kind="film" if k else "history", theme="t", why="w",
                  length_s=45, clips=3, stories=[f"s{k + 1}"], platforms=["youtube", "xiaohongshu"],
-                 request=f"Make video {k + 1}", inputs=[f"/c/{k}.MP4"]) for k in range(n)]
+                 request=f"Make video {k + 1}", inputs=[f"/c/{k}.MP4"], recipe="photo-story" if not k else "vlog")
+            for k in range(n)]
     return dict(kind="vstudio.intake.goal", version=1, id="x", goal="Many videos", prompt="p",
                 survey=dict(stories=stories, totals=dict(videos=3 * n), notes=[]), videos=vids,
                 planner=dict(provider="none", fallback=fallback), platforms=["youtube", "xiaohongshu"], ui_lang="en")
@@ -37,9 +38,9 @@ class FakeIntake:
     def __init__(self):
         self.jobs, self.calls = {}, []
 
-    def start(self, prompt, inputs, platforms=None, lang=None, mode=None):
+    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, recipe=None):
         rid = f"{len(self.jobs) + 1:012x}"
-        self.jobs[rid] = dict(id=rid, state="running", prompt=prompt, inputs=inputs, mode=mode)
+        self.jobs[rid] = dict(id=rid, state="running", prompt=prompt, inputs=inputs, mode=mode, recipe=recipe)
         self.calls.append(("start", rid, prompt))
         return dict(id=rid)
 
@@ -143,6 +144,8 @@ class PlanToGroup(Base):
         self.assertEqual(v["counts"]["making"], GO.PARALLEL)
         self.assertEqual(v["counts"]["waiting"], 5 - GO.PARALLEL)
         self.assertEqual([c[2] for c in self.intake.calls if c[0] == "start"], [f"Make video {k + 1}" for k in range(3)])
+        # the survey's plan came from a model: each video's own planner picks its recipe
+        self.assertEqual({j.get("recipe") for j in self.intake.jobs.values()}, {None})
         # one video's request becomes a project: still in flight, so nothing new starts
         rid = v["videos"][0]["intake"]
         d1 = self.proj("p1")
@@ -166,6 +169,12 @@ class FailureAndCompletion(Base):
         gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
         self.wait(G, gid, "running")
         return G, gid
+
+    def test_without_a_model_each_video_is_planned_for_its_kinds_recipe(self):
+        G = self.goals(plan_doc(2, fallback=True))
+        gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
+        self.wait(G, gid, "running")
+        self.assertEqual([j["recipe"] for j in self.intake.jobs.values()], ["photo-story", "vlog"])
 
     def test_a_failed_plan_is_retried_once_then_dropped(self):
         G, gid = self._running()

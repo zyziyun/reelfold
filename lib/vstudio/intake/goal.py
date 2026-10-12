@@ -48,6 +48,10 @@ MAX_CLIPS = 400
 MAX_PHOTOS = 800
 SHEET_TILES = 15
 KINDS = ("history", "film", "reel", "vlog", "essay", "photos")
+# the recipe each kind is made with (the AI planner of each video's own request decides; without a model the video is
+# planned for this recipe by the rules - footage films are vlogs, narrated pieces photo stories)
+RECIPE = {"history": "photo-story", "film": "vlog", "reel": "vlog", "vlog": "vlog", "essay": "photo-story",
+          "photos": "photo-story"}
 CN_PLATFORMS = ("xiaohongshu", "bilibili", "douyin", "wechat-channels", "kuaishou", "weibo", "zhihu")
 PLATFORM_WORD = {"youtube": "YouTube", "youtube-shorts": "YouTube Shorts", "tiktok": "TikTok",
                  "instagram": "Instagram", "facebook": "Facebook", "x": "X", "xiaohongshu": "Xiaohongshu",
@@ -576,6 +580,7 @@ def _finish_video(v, by_id, platforms):
     v["clips"] = sum((by_id.get(s) or {}).get("videos") or 0 for s in v.get("stories") or [])
     v["stills"] = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
     v["request"] = request_text(v, by_id)
+    v["recipe"] = RECIPE[v["kind"]]
     return v
 
 

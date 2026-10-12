@@ -13,7 +13,7 @@ import { useInbox } from '../lib/inbox';
 import { inboxTitle } from '../lib/inboxView';
 import { keyHint } from '../lib/keys';
 import { reviewInRow } from '../lib/nav';
-import { href, routeQuery, useRouteQuery } from '../lib/router';
+import { href, routeQuery } from '../lib/router';
 import { goalActive, useGoals } from '../lib/goals';
 import { GoalGroup, GoalPage } from './GoalView';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
@@ -121,7 +121,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const dfind = useDeferredValue(find);
   const rows = useMemo(() => findRows(allRows, dfind, posts), [allRows, dfind, posts]);
   const groups = useMemo(() => grouped(rows), [rows]);
-  useRouteQuery(); // a new ?goal= / ?sel= is a new page
+  useGoalParam(); // a new ?goal= is a new page (the route itself stays #/studio)
   const q = routeQuery();
   // goal mode: the groups of videos one request asked for, each above the list with its videos under it; their
   // requests / projects being made or ready sit in the group, not twice in the groups below
@@ -237,6 +237,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     return () => window.clearTimeout(t);
   }, [q.sel, selKey]);
   useEffect(() => {
+    // the address already names a video or a goal (a render between the address changing and the page following
+    // it): never replaced by the first row
+    if (/^#\/studio\/[0-9a-f]{12}/.test(location.hash) || routeQuery(location.hash).goal) return;
     if (!selKey && !cur && !waiting && first && hist) history.replaceState(null, '', rowHref(first));
     if (!selKey && !cur && !waiting && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
   }, [selKey, !!cur, waiting, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -545,6 +548,21 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
       {ra.modal}
     </div>
   );
+}
+
+/** Re-render when the address's ``goal`` / ``v`` change (#/studio?goal=…: the route itself stays the Studio); any
+ * other address change is the route's own. */
+function useGoalParam() {
+  const read = () => {
+    const q = routeQuery();
+    return `${q.goal ?? ''}\u0000${q.v ?? ''}`;
+  };
+  const [, setV] = useState(read);
+  useEffect(() => {
+    const on = () => setV(read());
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
 }
 
 function lineOf(r: StudioRow): string {

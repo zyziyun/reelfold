@@ -123,7 +123,9 @@ export function Home() {
   const [many, setMany] = useState(false); // 「Several videos」: a goal (survey + a group of videos)
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const { data: recent } = useLoad((c) => c.recentPrompts(), [sent]);
-  const firstRun = !!hist && hist.items.length === 0;
+  // a goal being read or made is work under way (its videos are not projects yet): not the first-run page
+  const { goals: homeGoals } = useGoals();
+  const firstRun = !!hist && hist.items.length === 0 && !homeGoals.length;
   const wp = useWeekPlan();
 
   useEffect(() => {

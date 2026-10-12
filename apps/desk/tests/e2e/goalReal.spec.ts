@@ -2,8 +2,9 @@
 // window hidden, the Studio on. Her own request ("make several videos from my DJI card, each with its own theme") with
 // a small DJI-like card (fixture/goal_card.py: three stories, DJI .SRT GPS, a panorama folder): the request becomes a
 // goal - the footage is surveyed into stories and a plan card of videos waits for her (Settings: ask me first) - she
-// renames one and drops one, makes them, and the group shows each video's own progress in the Studio list, on its run
-// page and on Home, until every video is made; the summary lists each video's files per platform and its post.
+// renames one, drops and keeps one, merges two, makes them, and the group shows each video's own progress in the
+// Studio list, on its run page and on Home, until every video is made; the summary lists each video's files per
+// platform and its post.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -122,18 +123,30 @@ test('her request becomes a goal: the footage is surveyed into stories and a pla
   await shot('01-plan-card');
 });
 
-test('she renames one, drops one and makes the rest', async () => {
+test('she renames one, drops and keeps one, merges two and makes them', async () => {
   test.setTimeout(60000);
   const cards = page.getByTestId('goal-plan-video');
   const title = cards.nth(0).getByTestId('goal-plan-title');
   await title.fill('Night at the Space Needle');
   await title.press('Enter');
   await expect.poll(async () => (await api<G>(`/api/goals/${gid}`)).videos[0].title).toBe('Night at the Space Needle');
+  // the card's request follows the edit (what the video's own plan starts from)
+  expect((await api<{ videos: { request: string }[] }>(`/api/goals/${gid}`)).videos[0].request).toContain('Title: "Night at the Space Needle"');
   await cards.nth(2).getByTestId('goal-plan-drop').click();
   await expect(cards.nth(2)).toHaveAttribute('data-out', 'true');
   await expect(page.getByTestId('goal-approve')).toHaveText('Make these 2 videos');
-  // the card's request follows the edit (what the video's own plan starts from)
-  expect((await api<{ videos: { request: string }[] }>(`/api/goals/${gid}`)).videos[0].request).toContain('Title: "Night at the Space Needle"');
+  await shot('02-plan-dropped');
+  await cards.nth(2).getByTestId('goal-plan-keep').click();
+  await expect(cards.nth(2)).not.toHaveAttribute('data-out', 'true');
+  await expect(page.getByTestId('goal-approve')).toHaveText('Make these 3 videos');
+  // noon and after dark at the same spot: one video
+  await cards.nth(1).getByTestId('goal-plan-pick').check();
+  await cards.nth(2).getByTestId('goal-plan-pick').check();
+  await page.getByTestId('goal-merge').click();
+  await expect(cards.nth(2)).toHaveAttribute('data-out', 'true');
+  await expect(cards.nth(2).getByTestId('goal-plan-out')).toContainText('Merged into');
+  await expect(cards.nth(1).getByTestId('goal-plan-where')).toContainText('4 clips');
+  await expect(page.getByTestId('goal-approve')).toHaveText('Make these 2 videos');
   await shot('02-plan-edited');
   await page.getByTestId('goal-approve').click();
   await expect(page.getByTestId('goal-page')).toHaveAttribute('data-state', 'running', { timeout: 15000 });
