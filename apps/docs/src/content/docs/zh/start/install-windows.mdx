@@ -23,6 +23,8 @@ Windows 支持刚加入，测试得比 Mac 版少；安装包暂时**没有代�
 | H.264 编码 | VideoToolbox | Windows 自带的 Media Foundation；没有可用的 Media Foundation H.264 编码器时（例如没装媒体功能包的 Windows N 版）自动改用 OpenH264 |
 | API key | macOS 钥匙串 | 用 Windows DPAPI 按你的用户账户加密保存 |
 | 安装包 | 已签名、已公证的 DMG，自动更新 | GitHub Releases 上的未签名 NSIS 安装包，SmartScreen 会提示；同样从 Releases 检查更新 |
+| 免费离线配音 | Kokoro，约 330 MB，没有密钥也能配音 | 没有：配音（讲解视频、课程）需要 OpenAI 密钥或你在 persona 里设的声音 |
+| 快捷键 | ⌘ | Ctrl（Ctrl+1 到 Ctrl+4 是首页、收件箱、全部项目、发布） |
 
 ## 用安装包安装
 
@@ -64,7 +66,7 @@ Windows 支持刚加入，测试得比 Mac 版少；安装包暂时**没有代�
 
 </Steps>
 
-字体和人脸模型会在首次启动时由应用下载（**设置 → 模型、字体和工具**）。Whisper 模型在第一次转写时下载。
+字体和人脸模型会在首次启动时由应用下载（**设置 › 高级 › 下载内容**）。Whisper 模型在第一次转写时下载。
 
 ### CI 测试版
 
@@ -72,7 +74,7 @@ Windows 支持刚加入，测试得比 Mac 版少；安装包暂时**没有代�
 
 ## 接上你的 AI
 
-打开 **设置 → AI 账户与模型**，和 [Mac 版](/docs/zh/start/install-mac/) 一样。用订阅登录之前先装好命令行工具：
+打开 **设置 › AI**，和 [Mac 版](/docs/zh/start/install-mac/) 一样。用订阅登录之前先装好命令行工具：
 
 - **Claude Code：** 原生安装器（`irm https://claude.ai/install.ps1 | iex`）或 `npm install -g @anthropic-ai/claude-code`。
 - **Codex：** `npm install -g @openai/codex`。
@@ -88,6 +90,9 @@ Windows 上 faster-whisper 默认用 CPU，因为它需要的 CUDA 库（CUDA 12
 - 路径太深：Windows 默认限制路径 260 个字符，除非开启长路径（组策略「启用 Win32 长路径」）。如果渲染报路径错误，把项目放在短一点的目录，例如 `D:\Reelfold`。
 - 发布浏览器、定时发布和「创作」页的录制在 Windows 上测试得较少。
 - 安装包和应用都没有签名，在配置签名之前 SmartScreen（以及部分杀毒软件）会提示。
+- 还没有免费离线配音；要做有配音的视频，请添加 OpenAI 密钥。
+
+各版本的对比：[版本区别：Mac、App Store、Windows](/docs/zh/help/editions/)。
 
 ## 数据放在哪里
 
@@ -105,4 +110,4 @@ Windows 上 faster-whisper 默认用 CPU，因为它需要的 CUDA 库（CUDA 12
 - [安装 Mac 应用](/docs/zh/start/install-mac/)
 - [安装 Claude Code 技能](/docs/zh/start/install-skill/)
 - [AI 服务](/docs/zh/concepts/ai-providers/)
-- [常见问题排查](/docs/zh/help/troubleshooting/)
+- [问题排查](/docs/zh/help/troubleshooting/)

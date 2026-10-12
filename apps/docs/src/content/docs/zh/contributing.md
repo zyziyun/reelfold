@@ -1,6 +1,6 @@
 ---
 title: 参与贡献
-description: 从源码构建千剪，了解仓库结构，跑测试，添加效果或平台配置，参与翻译，修改这份文档，以及提交 Pull Request 的约定。
+description: 从源码构建千剪，在本机跑打包版，了解仓库结构，跑测试，添加效果或平台配置，参与翻译，修改这份文档，以及提交 Pull Request 的约定。
 ---
 
 千剪（Reelfold）以 MIT 协议开源，全部在一个仓库里：根目录是引擎和 Claude Code 技能，`apps/` 下是 Mac 应用、网站和这份文档。修 bug、加效果、补平台配置、做翻译都欢迎。
@@ -16,6 +16,44 @@ npm run desk
 ```
 
 `./install.sh` 会安装 Python 依赖，并把开源授权的字体和 MediaPipe 模型下载到 `~/.cache/video-studio`。`npm install` 一次装好 `apps/` 下所有工作区。`npm run desk` 启动应用，引擎直接用这份代码里的 `lib/`。
+
+### 常用脚本
+
+在仓库根目录：
+
+| 命令 | 作用 |
+|---|---|
+| `npm run desk`（或 `npm run dev`） | 开发模式的 Mac 应用，引擎用这份代码 |
+| `npm run site` / `npm run docs` | reelfold.com / 这份文档，改动实时刷新 |
+| `npm run build:web` | 把网站和文档构建到一个文件夹（`apps/site/dist`，文档在 `/docs` 下） |
+| `npm run build:docs` | 只构建文档 |
+| `npm run test` / `npm run lint` | 应用的测试 / eslint + tsc |
+| `npm run check` | `scripts/check_skill.py`，仓库检查 |
+
+在 `apps/desk` 里（在根目录用 `npm run <脚本> -w apps/desk`）：
+
+| 命令 | 作用 |
+|---|---|
+| `runtime` | 把这台机器用的 Python、ffmpeg 和引擎打包到 `build/runtime/`（约 1 GB；下载会缓存） |
+| `build:mac` | 打包出 `dist/mac-arm64/Reelfold.app`，不签名，有打包好的 runtime 就用它 |
+| `dist:mac:unsigned` | 不签名的 DMG 和 zip |
+| `test:packaged` | 检查打包版：内置引擎能启动、能响应 |
+| `mas:local` | Mac App Store 版，用沙盒权限做临时签名，然后测试 |
+| `test:e2e` | 先构建，再跑 Playwright 冒烟测试 |
+
+### 在本机跑打包版
+
+没有一步到位的安装脚本。想试试你这份代码的打包版：
+
+```bash
+npm ci                                  # 在仓库根目录，只需一次
+npm run runtime -w apps/desk            # 打包 Python + ffmpeg + 引擎（第一次，或改了引擎之后）
+npm run build:mac -w apps/desk          # -> apps/desk/dist/mac-arm64/Reelfold.app
+npm run test:packaged -w apps/desk      # 可选：检查打包版
+open apps/desk/dist/mac-arm64/Reelfold.app
+```
+
+这个版本没有签名，第一次打开时 macOS 可能要你确认（右键 › 打开）。它和已安装的千剪共用设置和项目，所以打开本地版之前先退出已安装的应用，也不要在它运行时替换 `/Applications/Reelfold.app`。签名、公证和 App Store 版的构建见 `apps/desk/docs/RELEASING.md` 和 `apps/desk/docs/MAS.md`。
 
 ## 仓库结构
 

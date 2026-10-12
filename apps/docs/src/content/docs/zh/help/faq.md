@@ -9,15 +9,15 @@ description: 关于千剪的价格和开源协议、Windows 支持、哪些数�
 
 ## 有 Mac 安装包吗？Windows 呢？
 
-第一个 macOS 版本（Apple Silicon）即将发布在 [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest)。在那之前可以从源码构建，见[安装 Mac 应用](/docs/zh/start/install-mac/)。Windows 10 / 11（x64）目前是预览版：从 v0.2.0 起每个版本都附带未签名的 Windows 安装包（SmartScreen 会提示），也可以从源码构建，见[在 Windows 上安装](/docs/zh/start/install-windows/)。那里引擎用 faster-whisper 和 `h264_mf` 编码器；大部分测试仍在 Mac 上做。
+有。Mac 应用（Apple Silicon）在 [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest) 上，已签名并公证，见[安装 Mac 应用](/docs/zh/start/install-mac/)。Mac App Store 版（千剪 Lite）的 AI 用 API 密钥或本地模型。Windows 10 / 11（x64）目前是预览版：每个版本都附带未签名的 Windows 安装包（SmartScreen 会提示），也可以从源码构建，见[在 Windows 上安装](/docs/zh/start/install-windows/)。各版本的区别见[版本区别](/docs/zh/help/editions/)。那里引擎用 faster-whisper 和 `h264_mf` 编码器；大部分测试仍在 Mac 上做。
 
 ## 它会替我发帖吗？
 
-不会。发布是辅助式的：应用在内置浏览器里打开平台自己的上传页，放好视频，填好标题、正文和标签。你检查之后自己点发布。应用从不点发布按钮，也不会定时自动发。见[发布](/docs/zh/concepts/publishing/)。
+不会。发布是辅助式的：应用在内置浏览器里打开平台自己的上传页，放好视频，填好标题、正文和标签。你检查之后自己点发布。应用从不点发布按钮。唯一的例外是你自己接入了官方发布 API 的平台（目前是 YouTube）。见[发布](/docs/zh/concepts/publishing/)。
 
 ## 哪些东西会离开我的电脑？
 
-视频和音频都留在你的 Mac 上，转写和渲染都在本地。只有 AI 步骤需要的内容会发给你选的 AI 服务：逐字稿、字幕和标题这类文字。用本地模型的话，什么都不会发出去。两个需要你主动开启的例外：OpenAI 转写会上传音频，OpenAI 配音会上传脚本文字。应用还可以分享匿名使用次数，但只有你打开才会发送（[具体发送什么](/docs/zh/concepts/usage-counts/)）。见[隐私](/docs/zh/concepts/privacy/)。
+视频和音频都留在你的 Mac 上，转写和渲染都在本地。只有 AI 步骤需要的内容会发给你选的 AI 服务：逐字稿、字幕和标题这类文字。用本地模型的话，什么都不会发出去。两个需要你主动开启的例外：OpenAI 转写会上传音频，OpenAI 配音会上传脚本文字（免费的 Kokoro 配音在你的 Mac 上运行）。应用还可以分享匿名使用次数，但只有你打开才会发送（[具体发送什么](/docs/zh/concepts/usage-counts/)）。见[隐私](/docs/zh/concepts/privacy/)。
 
 ## 需要什么 AI？
 
@@ -27,11 +27,11 @@ description: 关于千剪的价格和开源协议、Windows 支持、哪些数�
 - **API key**：Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、OpenRouter、Gemini、ElevenLabs。
 - **本地模型**：Ollama、LM Studio、vLLM、llama.cpp、本地 whisper。
 
-完全不配 AI 的话，选段会退回规则规划。见[AI 服务](/docs/zh/concepts/ai-providers/)。
+完全不配 AI 的话，规划、发布文案和简单修改会退回规则方案；画讲解视频的场景必须有模型。见[AI 服务](/docs/zh/concepts/ai-providers/)。
 
 ## 一定要有 Claude Code 吗？
 
-用 Mac 应用不需要，上面任何一种都行。千剪的技能形态是跑在 Claude Code 里的，那个需要。另外讲解视频配方要靠一个 AI 智能体（Claude Code 或 Codex）来写动画场景。
+用 Mac 应用不需要，上面任何一种都行。千剪的技能形态是跑在 Claude Code 里的，那个需要。另外讲解视频和课程配方要靠 AI 模型来画动画场景；Claude Code、Codex、API 密钥或本地模型都可以。
 
 ## 和 Opus Clip、Descript、剪映有什么不同？
 

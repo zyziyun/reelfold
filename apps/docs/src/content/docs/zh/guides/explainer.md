@@ -11,22 +11,27 @@ description: 从一个选题做出 3Blue1Brown 风格的讲解视频：脚本、
 
 - **一个选题**，以及你想讲到的要点。已有的 `SCRIPT.md` 也可以直接用。
 - **Node，并且 `npx hyperframes` 能跑。** 场景是用 [HyperFrames](https://hyperframes.heygen.com) 把 HTML 渲染成视频的，没有它就渲染不出来。
-- **配音。** 默认用 OpenAI 的语音合成，需要 `OPENAI_API_KEY`（用 `gpt-4o-mini-tts` 大约每分钟旁白 0.015 美元）。
+- **配音。** 千剪用这台电脑现有的声音：你 persona 里设的；有密钥时用 OpenAI（大约每分钟 0.015 美元）；否则用 Apple 芯片上免费的离线配音。见 [配音](/docs/zh/guides/voices/)。
 - **字幕字体**：`./install.sh` 会下载开源授权的字体（Noto Sans SC、STIX Two Text）。
+- **一个 AI 模型。** 动画场景由你的 AI 来画（Claude Code、Codex、API 密钥或本地模型）。没有模型时项目会停在「要你看」（「画面需要 AI 模型来画」），不会渲染出只有文字的视频。
 - 可选：你自己的背景音乐文件。
 
-这是最需要你参与的一种配方。脚本、分镜和字幕配对都会先起草好，但动画场景要由 AI 智能体（你的 Claude Code 或 Codex）来写，每一步都需要你看一眼。
+手里是讲稿或 Notion 页面，而不是一个选题？见 [讲稿做成课程视频](/docs/zh/guides/course-from-notes/)。
 
 ## 在 Mac 应用里
 
 1. 在首页的输入框里描述这条讲解视频：讲什么、给谁看、长片还是短片、发哪里。
-2. 计划里会显示讲解视频配方、发布平台（第一个平台决定画布）、配音和长短。直接用一句话改。
-3. 项目会在每个需要你拍板的地方停下，出现在收件箱里：
+2. [自动驾驶](/docs/zh/app/autopilot/)下会一直做到成片，每个选择都列在「AI 做的选择」里。选了**先问我**，方案里会显示讲解视频配方、发布平台（第一个平台决定画布）、配音和长短，直接用一句话改；项目会在每个需要你拍板的地方停下，出现在收件箱里：
    - **锁定剧本。** 一个场景一句英文旁白，配一句中文字幕。数字按读出来的样子写。
    - **确认分镜。** 每个场景一帧，带时长和动效。
    - **选配音。** 选音色和语速，付费配音开始前先看到费用估算。
    - **检查字幕配对。** 英文分句和中文一一对应，可疑的配对会被标出来。
-4. 场景搭好、预览、渲染，然后按平台导出，每个平台带封面和发布文案。
+3. AI 按配音的时间点画出每一段场景，检查通过、能在视频里播放才保留。然后渲染，按平台导出，每个平台带封面和发布文案。
+4. 在[实时运行页](/docs/zh/app/live-run/)上看进度：画好的场景会陆续出现在「正在做的每一步」里。
+
+## 重新设计画面
+
+对画面不满意？在成片页面点**重新设计画面**，或者跟对话说（「画面太素了」「多一点图解」）。每一段都重新画、重新渲染，配音和字幕不变。没画好的那段会保留原样，并提供**重画第 N 段**。详见 [讲稿做成课程视频](/docs/zh/guides/course-from-notes/#重新设计画面)。
 
 ## 用 Claude Code 技能
 
@@ -62,7 +67,7 @@ python3 -m vstudio.export renders/short.mp4 --platforms xiaohongshu:full,douyin,
 |---|---|---|
 | 长短 | 长片 | `long`（5–12 分钟）或 `short`（60–120 秒）。 |
 | 发布平台 | YouTube、B站 | 第一个平台决定画布和字幕区。 |
-| 配音音色 | `cedar` | OpenAI TTS 音色，先试听再确认。 |
+| 配音音色 | auto | 这台电脑现有的声音：persona 里设的；有密钥时用 OpenAI（`cedar`）；否则用免费配音。 |
 | 配音语速 | 1.0 | 0.7–1.4，短片一般用 1.1。 |
 | 渲染质量 | standard | `draft`、`standard` 或 `high`。 |
 | 背景音乐 | 自动 | 按主题挑一段安静的音乐，在人声下自动压低；也可以用你自己的文件。 |
@@ -76,6 +81,8 @@ python3 -m vstudio.export renders/short.mp4 --platforms xiaohongshu:full,douyin,
 
 ## 相关
 
+- [讲稿做成课程视频](/docs/zh/guides/course-from-notes/)
+- [配音](/docs/zh/guides/voices/)
 - [explainer 工作流参考](/docs/zh/reference/workflows/explainer/)
 - [封面和缩略图](/docs/zh/guides/covers/)
 - [一个母版发多个平台](/docs/zh/guides/multi-platform/)
