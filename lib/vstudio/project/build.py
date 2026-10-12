@@ -112,7 +112,7 @@ class Env:
         e = dict(os.environ)
         e["PYTHONPATH"] = LIB + (os.pathsep + e["PYTHONPATH"] if e.get("PYTHONPATH") else "")
         # the engine's own Python for the workflow's shell wrappers: a Homebrew python3 first on PATH (the desk adds
-        # its bin dirs) may lack Pillow / numpy - contact_sheets.sh failed in a dev desk that way
+        # its bin dirs) may lack Pillow / numpy - contact_sheets failed in a dev desk that way
         e.setdefault("VSTUDIO_PYTHON", sys.executable)
         e.update({k: str(v) for k, v in (env or {}).items()})
         cwd = cwd or self.item_dir

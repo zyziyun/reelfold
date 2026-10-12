@@ -73,7 +73,7 @@ Swaps (old -> new):
   (loop, fades, two-pass linear `audio.loudnorm_2pass` inside), then a video-copy mux.
 - `make_cover.py:chrome_candidates`/`render`/`stage_fonts` -> `render.find_chrome` / `render.html_to_png`
   (`use_persona=False, fonts=False`) / `render.stage_fonts` + `render.font_face_css`.
-- `contact_sheets.sh` -> thin bash wrapper (same CLI) over `media.contact_sheet` (cols 5, max 30, start 0).
+- `contact_sheets.sh` -> `contact_sheets.py` (same CLI) over `media.contact_sheet` (cols 5, max 30, start 0); the .sh only forwards to it (the recipe runs the .py: no bash on Windows).
 NOT swapped: the crossfade join in `build_vlog.py:main` stays local (see Lib requests).
 
 Behaviour changes:
