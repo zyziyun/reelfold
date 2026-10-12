@@ -37,6 +37,7 @@ gblur
 highpass
 highshelf
 loudnorm
+lutrgb
 lutyuv
 noise
 null

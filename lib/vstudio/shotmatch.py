@@ -615,6 +615,11 @@ def fit_box(box, src_wh, aspect, widest=False):
     return [round(x, 4), round(y, 4), round(w, 4), round(h, 4)]
 
 
+def _blur():
+    from .ffmpeg_filters import blur
+    return blur(sigma=24)                       # gblur: the app's LGPL ffmpeg has no boxblur
+
+
 def piece_filter(box, W, H, fps, speed=1.0, grade=None, fbox=None):
     """The -vf for a source piece: crop ``box`` (fractions), scale onto W x H (``fbox``: only that part of the canvas,
     over a blurred fill of the same picture), the finished grade, the speed, the canvas frame rate."""
@@ -631,5 +636,5 @@ def piece_filter(box, W, H, fps, speed=1.0, grade=None, fbox=None):
     fx, fy, fw_, fh_ = fbox
     pw, ph = _even(W * fw_), _even(H * fh_)
     return (f"{crop}{g}{sp},split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-            f"boxblur=20:2[bg];[b]scale={pw}:{ph}:flags=lanczos[fg];[bg][fg]overlay={int(round(W * fx))}:"
+            f"{_blur()}[bg];[b]scale={pw}:{ph}:flags=lanczos[fg];[bg][fg]overlay={int(round(W * fx))}:"
             f"{int(round(H * fy))}{tail}")
