@@ -31,6 +31,7 @@ import { PlatformPicker } from './PlatformPicker';
 import { DownloadStrip, useAssets } from '../components/assets';
 import { downloadSummary } from '../lib/firstRun';
 import { useUi } from './ui';
+import { openImport, pickImport, useImportHint } from './imports/Import';
 import { WEEK_WORDS } from '../../../shared/weekPlan';
 import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { WeekPlanCard } from '../weekplan/WeekPlanCard';
@@ -105,6 +106,7 @@ export function Home() {
   }, []);
   const [prompt, setPrompt] = useState(draft.prompt ?? '');
   const [files, setFiles] = useState<string[]>(draft.files ?? []);
+  const importHint = useImportHint(files);
   const [sent, setSent] = useState(0);
   // a request made before the one-time downloads finished: planned by itself once they are in (and the engine
   // restarted onto them), never against a half-installed speech model
@@ -301,6 +303,15 @@ export function Home() {
               ))}
             </div>
           )}
+          {!planning && importHint && (
+            <div className="ux-import-hint" data-testid="composer-import-hint">
+              <Film className="ico" />
+              <span data-tip={t('im.hintTip')}>{t('im.hint', { n: importHint.counts.finished })}</span>
+              <button className="btn sm primary" onClick={() => (openImport(files), setFiles([]))} data-testid="composer-import">
+                {t('im.go')}
+              </button>
+            </div>
+          )}
           {!planning && (
             <div className="foot">
               <button
@@ -310,6 +321,7 @@ export function Home() {
                   ui.menu({ clientX: r.left, clientY: r.bottom + 6 }, [
                     { label: t('home.addFiles'), icon: <Plus className="ico" />, run: () => addFiles('files'), testId: 'add-files' },
                     { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
+                    { label: t('im.menu'), icon: <Film className="ico" />, run: () => void pickImport(), testId: 'composer-import-menu' },
                     // the built-in recording, to see the whole way once (first run has its own card)
                     ...(firstRun ? [] : [{ label: t('sample.try'), icon: <Play className="ico" />, run: () => void trySample(), testId: 'idea-sample' }]),
                   ]);

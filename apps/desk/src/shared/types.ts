@@ -306,5 +306,8 @@ export type StreamEvent =
   | { type: 'inbox'; ts: number }
   | { type: 'calendar'; ts: number }
   | { type: 'weekplan'; id: string; state: string; ts: number }
+  | { type: 'import'; job: string; state: 'copying' | 'done' | 'failed'; progress?: number; item?: string; clip?: string; error?: { code?: string; message?: string }; ts: number }
+  | { type: 'import-match'; item: string; clip: string; state: 'running' | 'done' | 'failed'; progress?: number; matched?: number; shots?: number; error?: string; ts: number }
+  | { type: 'import-copy'; item: string; clip: string; state: 'running' | 'done' | 'failed'; error?: string; ts: number }
   /** a watched job's live transcript grew (desk_engine.live): fetch it from your cursor */
   | { type: 'live'; key: string; ts: number };

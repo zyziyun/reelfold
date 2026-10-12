@@ -35,6 +35,7 @@ import { Project } from './v4/Project';
 import { Projects } from './v4/Projects';
 import { UiProvider } from './v4/ui';
 import { SupportLayer } from './support/Support';
+import { ImportHost } from './v4/imports/Import';
 import { CreateNavIcon, CreateScreen, setCreatePrefs, useCreateEnabled } from './create';
 import { setStudioPrefs, useStudioEnabled } from './lib/studioFlag';
 import { useStudioView } from './lib/studioView';
@@ -265,6 +266,7 @@ export function App() {
                 <UpdateProvider>
                   <Shell key={settings?.lang} onSettings={apply} />
                   <SupportLayer key={`sup-${settings?.lang}`} />
+                  <ImportHost />
                 </UpdateProvider>
               </UiProvider>
             </StudioProvider>

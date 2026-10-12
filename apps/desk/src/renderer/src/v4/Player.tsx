@@ -7,6 +7,7 @@ import { Maximize2, Minimize2, Pause, Play, Repeat, ScanLine, StepBack, StepForw
 import type { CaptionCue, ClipFile, EffectInstance } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtLen, t } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { clamp, frameTime, loopTime, safeAreas, seekKey, shuttle, step, timecode, volumeStep } from '../lib/player';
 import { screenOwner, useNativeFullscreen } from '../lib/fullscreen';
 import { isTyping } from './ui';
@@ -502,7 +503,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
                 }}
                 data-testid={`size-${f.aspect}`}
               >
-                {f.label ? `${f.label} ${/^\d+:\d+$/.test(f.aspect) ? f.aspect : ''}`.trim() : /^\d+:\d+$/.test(f.aspect) ? f.aspect : t('c.original')}
+                {f.label ? `${f.platform && f.label !== t('c.original') ? platformName(f.platform) : f.label} ${/^\d+:\d+$/.test(f.aspect) ? f.aspect : ''}`.trim() : /^\d+:\d+$/.test(f.aspect) ? f.aspect : t('c.original')}
               </button>
             ))}
           </div>

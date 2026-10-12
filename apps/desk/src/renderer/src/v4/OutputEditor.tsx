@@ -52,6 +52,7 @@ import '../theme/uxcore.css';
 import './transcript/transcript.css';
 import { keyHint } from '../lib/keys';
 import { useAutoRender } from '../lib/autoRender';
+import { ClipImported } from './imports/ClipImported';
 import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVersions, ClipVisualsRedo, RenderPill, useClipSchedule } from './ClipInfo';
 import { ProjectAIPanel } from './ProjectAIPanel';
 
@@ -1129,6 +1130,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               </div>
               <ClipFill item={id} clip={clip} onRemade={reload} />
               <ClipVisualsRedo item={id} clip={clip} />
+              {odoc.imported && <ClipImported doc={odoc} item={id} clip={clip} strip={strip} edit={edit} onSeek={(x) => pl.current?.seek(x)} />}
             </div>
           </section>
           <Splitter
@@ -1149,7 +1151,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             <div className="cs-lower">{lowerEl}</div>
             <div className="ci cs-post">
               <ClipScheduleView s={sched} compact />
-              <ClipCopyRewrite item={id} clip={clip} onDone={sched.reload} />
+              <ClipCopyRewrite item={id} clip={clip} onDone={sched.reload} imported={!!odoc.imported} />
             </div>
           </section>
           <aside className="cs-ai-pane" aria-hidden={!ai.open} inert={!ai.open} data-testid="studio-ai-pane">

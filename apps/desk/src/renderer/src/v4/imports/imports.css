@@ -1,0 +1,44 @@
+/* Import finished videos: the dialog and the imported clip's section (flat, small labels, chips - like clip info). */
+.im-dlg { display: flex; flex-direction: column; gap: 12px; min-width: min(560px, 80vw); max-width: 640px; }
+.im-wait, .im-sum, .im-note, .im-err { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
+.im-wait .ico.spin { animation: tp-spin 900ms linear infinite; }
+.im-note { color: var(--text-faint); font-size: 12.5px; }
+.im-err { color: var(--danger); }
+.im-sum .ico { width: 15px; height: 15px; color: var(--accent); }
+.im-clips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.im-clips li { display: flex; gap: 10px; align-items: center; padding: 6px; border-radius: 10px; background: var(--surface-2); }
+.im-thumb { width: 44px; height: 44px; flex: none; border-radius: 7px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--text-faint); }
+.im-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.im-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.im-t { font-size: 13px; color: var(--text); }
+.im-vers { display: flex; flex-wrap: wrap; gap: 5px; }
+.im-ver { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 7px; border: 1px solid var(--border-strong); font-size: 12px; color: var(--text-muted); }
+.im-ver i { font-style: normal; color: var(--text-faint); }
+.im-ver .ico { width: 11px; height: 11px; color: var(--text-faint); }
+.im-foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--text-muted); }
+.im-foot-row > span { display: inline-flex; align-items: center; gap: 6px; }
+.im-foot-row .ico.ok { width: 13px; height: 13px; color: var(--accent); }
+.im-btns { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.im-btns .ico.spin, .im-sec .ico.spin { animation: tp-spin 900ms linear infinite; }
+.im-status, .im-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.im-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+.im-ok .ico { width: 13px; height: 13px; color: var(--accent); }
+.im-shots { display: flex; flex-wrap: wrap; gap: 4px; }
+.im-shot { position: relative; padding: 0; border: 2px solid transparent; border-radius: 6px; background: var(--surface-2); overflow: hidden; cursor: pointer; line-height: 0; }
+.im-shot:hover:not(:disabled) { border-color: var(--border-strong); }
+.im-shot.on { border-color: var(--accent); }
+.im-shot.swapped { border-color: var(--accent-soft); }
+.im-shot .im-n { display: inline-flex; width: 46px; height: 26px; align-items: center; justify-content: center; font-size: 12px; line-height: 1; color: var(--text-muted); }
+.im-shot .im-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.im-takes { display: flex; flex-direction: column; gap: 6px; }
+.im-take-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.im-take { display: flex; flex-direction: column; gap: 3px; width: 112px; padding: 3px; border: 1px solid var(--border-strong); border-radius: 8px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11.5px; cursor: pointer; text-align: left; }
+.im-take:hover { border-color: var(--accent); color: var(--text); }
+.im-take img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 5px; }
+.im-take span { display: inline-flex; align-items: center; gap: 4px; }
+.im-take .ico { width: 11px; height: 11px; }
+.im-lang select { height: 28px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; padding: 0 6px; }
+.im-lang .muted { font-size: 12.5px; color: var(--text-faint); }
+.ux-import-hint { display: flex; align-items: center; gap: 8px; margin: 0 2px; padding: 7px 10px; border-radius: 10px; background: var(--accent-soft); color: var(--text); font-size: 12.5px; }
+.ux-import-hint .ico { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.ux-import-hint > span { flex: 1; min-width: 0; }

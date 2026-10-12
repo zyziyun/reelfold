@@ -10,6 +10,7 @@ type Lang = 'en' | 'zh-CN' | 'fr';
 
 const L = {
   en: {
+    importFinished: 'Import Finished Video…',
     hide: `Hide ${APP_NAME}`,
     hideOthers: 'Hide Others',
     showAll: 'Show All',
@@ -39,6 +40,7 @@ const L = {
     close: 'Close Window',
   },
   'zh-CN': {
+    importFinished: '导入成片…',
     hide: `隐藏 ${APP_NAME_ZH} ${APP_NAME}`,
     hideOthers: '隐藏其他',
     showAll: '全部显示',
@@ -68,6 +70,7 @@ const L = {
     close: '关闭窗口',
   },
   fr: {
+    importFinished: 'Importer une vidéo finie…',
     hide: `Masquer ${APP_NAME}`,
     hideOthers: 'Masquer les autres',
     showAll: 'Tout afficher',
@@ -106,6 +109,8 @@ export interface MenuDeps {
   iconPath?: string;
   /** Help › Send feedback… (the renderer opens its feedback form; nothing is sent from the app) */
   onFeedback?: () => void;
+  /** File › Import Finished Video… (pick finished videos; the renderer's import dialog takes them) */
+  onImport?: () => void;
 }
 
 function licencesFile(res: string): string | null {
@@ -204,7 +209,14 @@ export function installAppMenu(d: MenuDeps) {
             ],
           } satisfies MenuItemConstructorOptions,
         ]
-      : [{ label: t.file, submenu: [{ label: t.quit, role: 'quit' }] } satisfies MenuItemConstructorOptions]),
+      : []),
+    {
+      label: t.file,
+      submenu: [
+        ...(d.onImport ? [{ label: t.importFinished, accelerator: 'CmdOrCtrl+I', click: () => d.onImport?.() }] : []),
+        ...(mac ? [] : ([{ type: 'separator' }, { label: t.quit, role: 'quit' }] as MenuItemConstructorOptions[])),
+      ],
+    } satisfies MenuItemConstructorOptions,
     {
       label: t.edit,
       submenu: [

@@ -1,6 +1,8 @@
 // v0.4 engine documents: outputs (player + second-pass editor), intake (composer -> plan card), inbox, calendar.
 // Mirrors engine/desk_engine/{outputs,intake,inbox,calendar}.py.
 
+import type { ImportedDoc } from './imports';
+
 export type Aspect = '3:4' | '9:16' | '16:9' | string;
 
 export interface ClipFile {
@@ -47,6 +49,9 @@ export interface Clip {
   edited?: boolean;
   /** edited since its last render: the original still goes out until the background render is done */
   edited_stale?: boolean;
+  /** imported from elsewhere: the post copy of every version, by platform */
+  posts?: Record<string, PostCopy>;
+  imported?: { sources: number } | null;
 }
 
 /** One piece of a project's making (a graded segment, a contact sheet, the cover options, the master): what the recipe
@@ -165,7 +170,8 @@ export type EditOp =
   | { op: 'effect_update'; id: string; start?: number; end?: number; params?: Record<string, unknown> }
   | { op: 'effect_remove'; id: string }
   | { op: 'cover'; t?: number; text?: string; style?: 'card' | 'plain' | 'band'; clear?: boolean }
-  | { op: 'export_add'; target: string; layout?: 'auto' | 'band' }
+  | { op: 'export_add'; target: string; layout?: 'auto' | 'band'; lang?: string }
+  | { op: 'shot_swap'; shot: number; source?: string; t?: number; restore?: boolean }
   | { op: 'export_remove'; target: string }
   | { op: 'reset' };
 
@@ -237,7 +243,9 @@ export interface OutputDoc {
   speed: number;
   title_band: { text: string; sub?: string } | null;
   cover_edit: { t?: number; text?: string; style?: string } | null;
-  exports: { target: string; layout?: string }[];
+  exports: { target: string; layout?: string; lang?: string | null }[];
+  /** a finished video imported for second-pass editing: its footage and matched shots */
+  imported?: ImportedDoc | null;
   steps: Step[];
   undo: number;
   redo: number;

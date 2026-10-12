@@ -1704,10 +1704,10 @@ def describe(op, value=None):
         sw = op.get("swap")
         if not sw:
             return msg("op-shot-restore", f"shot {op['shot'] + 1} back to the original take",
-                       f"第 {op['shot'] + 1} 个镜头换回原来的", shot=op["shot"])
+                       f"第 {op['shot'] + 1} 个镜头换回原来的", shot=op["shot"], n=op["shot"] + 1)
         return msg("op-shot-swap", f"shot {op['shot'] + 1}: another take from {os.path.basename(sw['source'])} at "
                    f"{sw['t']:g}s", f"第 {op['shot'] + 1} 个镜头换成 {os.path.basename(sw['source'])} 的 {sw['t']:g} 秒",
-                   shot=op["shot"], source=os.path.basename(sw["source"]), t=sw["t"])
+                   shot=op["shot"], n=op["shot"] + 1, source=os.path.basename(sw["source"]), t=sw["t"])
     if k == "caption_add":
         return msg("op-caption-add", f"add {len(op['cues'])} caption(s)", f"新增 {len(op['cues'])} 条字幕",
                    n=len(op["cues"]))

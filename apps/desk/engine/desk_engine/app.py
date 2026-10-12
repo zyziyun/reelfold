@@ -112,6 +112,7 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   POST /api/import/check {inputs[]}        finished videos vs footage in what was dropped (imports.py); POST
        /api/import {inputs[], sources?[], title?} -> {job} + ``import`` events; GET /api/import/job/<job>;
        GET /api/import/<item>; POST .../match {clip?} (``import-match``); POST .../copy {clip} (``import-copy``);
+       POST .../sources {clip, sources[]} (footage linked afterwards, then matched);
        GET .../takes?clip=&shot= (other takes of a shot, with stills)
   GET  /api/home/suggestions               Home's chips from her own signals (homesuggest.py): requests sent more
                                            than once, fresh recordings in a watched folder no project uses yet
@@ -581,6 +582,11 @@ class Api:
             c = b.get("clip")
             need(c is None or (isinstance(c, str) and len(c) <= 200), "clip: a clip id")
             return self.imports.match(parts[1], c)
+        if parts[2:] == ["sources"] and method == "POST":
+            need(isinstance(b.get("clip"), str) and 0 < len(b["clip"]) <= 200, "clip: a clip id")
+            src = paths(b.get("sources") or [], "sources")
+            need(src, "sources: footage files / folders")
+            return self.imports.link(parts[1], b["clip"], src)
         if parts[2:] == ["copy"] and method == "POST":
             need(isinstance(b.get("clip"), str) and 0 < len(b["clip"]) <= 200, "clip: a clip id")
             return self.imports.copy(parts[1], b["clip"])

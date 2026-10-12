@@ -3,7 +3,7 @@
 // yourself, a series / storyboard (Create), the sample. The request becomes a row of the Studio at once (planned and
 // run on autopilot unless Settings says "Ask me first") and the box is free for the next one.
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, ChevronDown, ChevronRight, Clapperboard, Circle, File as FileIcon, FileText, Folder, FolderOpen, Image as ImageIcon, MoreHorizontal, Music, Paperclip, Play, Plus, Sparkles, Video, X } from 'lucide-react';
+import { CalendarDays, Film, ChevronDown, ChevronRight, Clapperboard, Circle, File as FileIcon, FileText, Folder, FolderOpen, Image as ImageIcon, MoreHorizontal, Music, Paperclip, Play, Plus, Sparkles, Video, X } from 'lucide-react';
 import { WEEK_WORDS } from '../../../shared/weekPlan';
 import { homePlatforms } from '../../../shared/platforms';
 import { IS_LITE } from '../../../shared/edition';
@@ -19,6 +19,7 @@ import { PlatformChip } from './Home';
 import { errText } from './msg';
 import { useUi } from './ui';
 import { useComposerSlash } from './ComposerSlash';
+import { openImport, pickImport, useImportHint } from './imports/Import';
 
 const base = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? p;
 const isImage = (p: string) => /\.(jpe?g|png|webp)$/i.test(p);
@@ -72,6 +73,12 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   }, [ui.dropped, ui]);
 
   const ready = !!(prompt.trim() || files.length);
+  // what she dropped are finished videos (made here or anywhere): editing them again is one click away
+  const importHint = useImportHint(files);
+  const importNow = () => {
+    openImport(files);
+    setFiles([]);
+  };
   const send = async (p: { prompt: string; files: string[]; sample?: boolean }) => {
     if (!client || busy || !(p.prompt || p.files.length)) return;
     if (!p.sample && p.files.length && WEEK_WORDS.test(p.prompt)) {
@@ -141,6 +148,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     ui.menu({ clientX: r.left, clientY: r.bottom + 6 }, [
       { label: t('home.addFiles'), icon: <Plus className="ico" />, run: () => addFiles('files'), testId: 'add-files' },
       { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
+      { label: t('im.menu'), icon: <Film className="ico" />, run: () => void pickImport(), testId: 'composer-import' },
       ...(files.length ? [{ label: t('wp.make'), icon: <CalendarDays className="ico" />, run: () => void wp.actions.start(files, prompt.trim()).then((ok) => ok && (setPrompt(''), setFiles([]))), testId: 'composer-week' }] : []),
       ...(createOn ? [{ label: t('nav.create'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: [] })), testId: 'composer-create' }] : []),
       { label: t('sample.try'), icon: <Play className="ico" />, run: () => void sample(), testId: 'composer-sample' },
@@ -178,6 +186,15 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
       />
       {slash.menu}
       {files.length > 0 && <AttachedFiles files={files} onChange={setFiles} />}
+      {importHint && (
+        <div className="ux-import-hint" data-testid="composer-import-hint">
+          <Film className="ico" />
+          <span data-tip={t('im.hintTip')}>{t('im.hint', { n: importHint.counts.finished })}</span>
+          <button className="btn sm primary" onClick={importNow} data-testid="composer-import">
+            {t('im.go')}
+          </button>
+        </div>
+      )}
       <div className="foot">
         <button className="btn icon ux-attach" onClick={() => void addFiles('files')} aria-label={t('home.attach')} data-tip={t('home.attachTip')} data-testid="composer-attach">
           <Paperclip className="ico" />

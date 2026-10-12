@@ -233,7 +233,7 @@ export interface DeskApi {
     /** quit, install the downloaded update and relaunch; -> the state (error, in plain words, when it cannot) */
     install(): Promise<UpdateStateMsg>;
   };
-  on(event: 'publish:state' | 'publish:fillStep' | 'engine:status' | 'assets:progress' | 'update:state' | 'history:changed' | 'notify:open' | 'term:data' | 'term:exit' | 'ai:routes' | 'publish:due' | 'publish:posted' | 'publish:channels' | 'support:problem' | 'support:open', cb: (data: unknown) => void): () => void;
+  on(event: 'publish:state' | 'publish:fillStep' | 'engine:status' | 'assets:progress' | 'update:state' | 'history:changed' | 'notify:open' | 'term:data' | 'term:exit' | 'ai:routes' | 'publish:due' | 'publish:posted' | 'publish:channels' | 'support:problem' | 'support:open' | 'import:open', cb: (data: unknown) => void): () => void;
   /** watch these folders for live job changes ('history:changed' events); -> the folders watched */
   watchHistory(roots: string[]): Promise<string[]>;
   /** Lite (Mac App Store) build: ask once to keep reading dropped files after a relaunch (no-op elsewhere) */

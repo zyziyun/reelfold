@@ -230,6 +230,18 @@ class Imports:
         threading.Thread(target=run, daemon=True).start()
         return dict(ok=True, clips=todo, state="running")
 
+    def link(self, item, clip, sources):
+        """Footage linked afterwards (a folder picked on the clip page) -> matched right away."""
+        IM = self._engine()
+        e = self._entry(item)
+        try:
+            got = IM.link_sources(e["dir"], clip, sources)
+        except IM.ImportError_ as ex:
+            raise EngineMessage(ex.info) from ex
+        threading.Thread(target=self._match, args=(item, e["dir"], clip), daemon=True).start()
+        self._emit("output-edit", item=item, clip=clip)
+        return dict(ok=True, sources=len(got))
+
     def copy(self, item, clip):
         IM = self._engine()
         e = self._entry(item)

@@ -529,6 +529,32 @@ def version_of(d, rel):
     return None
 
 
+def link_sources(d, clip, sources):
+    """Link footage to an imported clip afterwards (files or folders; footage among them only) -> the clip's
+    sources. Its old shot match is dropped (``match_shots`` makes it again)."""
+    m = manifest(d)
+    if not m:
+        raise ImportError_("not-imported", f"{d} was not made by an import", "这个文件夹不是导入的", dir=d)
+    c = next((x for x in m["clips"] if x["id"] == clip), None)
+    if not c:
+        raise ImportError_("unknown-clip", f"no clip {clip!r}", f"没有片段 {clip!r}", clip=clip)
+    found = classify(list(sources))
+    new = [os.path.realpath(p) for p in found["sources"]] + \
+        [os.path.realpath(v["file"]) for x in found["clips"] for v in x["versions"]]
+    new = [p for p in new if not p.startswith(os.path.realpath(d) + os.sep)]
+    if not new:
+        raise ImportError_("no-footage-found", "no video footage in what was given", "没有找到视频素材")
+    c["sources"] = sorted(set(c.get("sources") or []) | set(new))
+    m["sources"] = sorted(set(m.get("sources") or []) | set(new))
+    write_json(manifest_path(d), m)
+    for v in c["versions"]:
+        try:
+            os.remove(shots_path(d, v["file"]))
+        except OSError:
+            pass
+    return c["sources"]
+
+
 def shots_path(d, rel):
     return os.path.join(d, ".vstudio", "shots", re.sub(r"[^\w.-]+", "_", rel.replace("/", "__")) + ".json")
 

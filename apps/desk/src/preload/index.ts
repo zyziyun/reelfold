@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { DeskApi } from '../shared/deskApi';
 
-const EVENTS = new Set(['publish:state', 'publish:fillStep', 'engine:status', 'assets:progress', 'update:state', 'history:changed', 'notify:open', 'term:data', 'term:exit', 'ai:routes', 'publish:due', 'publish:posted', 'publish:channels', 'support:problem', 'support:open']);
+const EVENTS = new Set(['publish:state', 'publish:fillStep', 'engine:status', 'assets:progress', 'update:state', 'history:changed', 'notify:open', 'term:data', 'term:exit', 'ai:routes', 'publish:due', 'publish:posted', 'publish:channels', 'support:problem', 'support:open', 'import:open']);
 
 const call = (channel: string, payload?: unknown) => ipcRenderer.invoke(channel, payload);
 

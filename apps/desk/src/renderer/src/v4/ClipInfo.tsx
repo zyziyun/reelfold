@@ -24,6 +24,7 @@ import { firstTab, PostCopy, type Row } from '../publish/PostCopy';
 import { useAccounts, usePublishData } from '../publish/usePublish';
 import '../publish/publish.css';
 import './clipinfo.css';
+import { ClipImported, ImportCopyRewrite } from './imports/ClipImported';
 
 type EditFn = (ops: EditOp[], undoToast?: boolean) => Promise<boolean>;
 
@@ -121,10 +122,12 @@ export function CaptionLooks({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
 
 // ---------------------------------------------------------------- versions
 const VERSIONS = ['9:16', '16:9', '3:4'] as const; // international first
+const ASPECT_TARGET: Record<string, string> = { '3:4': 'xiaohongshu:vertical', '9:16': 'douyin:vertical', '16:9': 'youtube:horizontal' };
 
 export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
   const orig = new Set(doc.files.map((f) => f.aspect));
-  const added = new Set(doc.exports.map((e) => e.target));
+  // the engine keeps an export by its platform target (3:4 -> xiaohongshu:vertical): the chip is on either way
+  const added = new Set(doc.exports.flatMap((e) => [e.target, ...Object.entries(ASPECT_TARGET).filter(([, x]) => x === e.target).map(([a]) => a)]));
   const flat = doc.mode === 'flattened';
   return (
     <div className="ci-chips" data-testid="ci-versions">
@@ -369,7 +372,12 @@ function visualsFailText(f: PilotFailure): string {
 
 /** "Rewrite post copy": every platform's title, text and hashtags written again (the routed AI, else from the facts)
  * and the post text of every version replaced - in the clip's post area. */
-export function ClipCopyRewrite({ item, clip, onDone }: { item: string; clip: string; onDone?: () => void }) {
+export function ClipCopyRewrite({ item, clip, onDone, imported }: { item: string; clip: string; onDone?: () => void; imported?: boolean }) {
+  if (imported) return <ImportCopyRewrite item={item} clip={clip} onDone={onDone} />;
+  return <ProjectCopyRewrite item={item} clip={clip} onDone={onDone} />;
+}
+
+function ProjectCopyRewrite({ item, clip, onDone }: { item: string; clip: string; onDone?: () => void }) {
   const ui = useUi();
   const s = useClipSettings(item, () => {
     ui.toast(t('ci.copy.done'));
@@ -546,10 +554,11 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip, onRem
       </div>
       {item && clip && <ClipFill item={item} clip={clip} onRemade={onRemade} />}
       {item && clip && <ClipVisualsRedo item={item} clip={clip} />}
+      {item && clip && doc.imported && <ClipImported doc={doc} item={item} clip={clip} strip={strip} edit={edit} />}
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>
         <ClipScheduleView s={sched} />
-        {item && clip && <ClipCopyRewrite item={item} clip={clip} onDone={sched.reload} />}
+        {item && clip && <ClipCopyRewrite item={item} clip={clip} onDone={sched.reload} imported={!!doc.imported} />}
       </div>
     </section>
   );

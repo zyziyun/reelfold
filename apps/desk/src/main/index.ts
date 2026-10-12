@@ -1083,7 +1083,17 @@ async function reportMigratedProfile() {
 }
 
 function menu() {
-  installAppMenu({ lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win) });
+  installAppMenu({ lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
+}
+
+/** File › Import Finished Video…: pick finished videos (files or folders) -> the renderer's import dialog. */
+async function importFinished() {
+  if (!win) return;
+  const r = await pick({ properties: process.platform === 'win32' ? ['openFile', 'multiSelections'] : ['openFile', 'openDirectory', 'multiSelections'] });
+  if (r.canceled || !r.filePaths.length) return;
+  win.show();
+  win.focus();
+  win.webContents.send('import:open', { paths: r.filePaths });
 }
 
 if (!app.requestSingleInstanceLock()) {

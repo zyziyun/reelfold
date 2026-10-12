@@ -46,6 +46,7 @@ import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
 import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
+import type { ImportCheck, ImportInfo, ImportJob, ImportTakes } from './imports';
 import { CreateClient } from './create';
 
 export class EngineError extends Error {
@@ -382,6 +383,33 @@ export class EngineClient {
   /** the timeline's filmstrip sprite + audio peaks (made once per file, cached by the engine) */
   outputStrip(item: string, clip: string, signal?: AbortSignal) {
     return this.req<StripInfo>('GET', `/api/outputs/${bid(item)}/${clipId(clip)}/strip`, undefined, signal);
+  }
+  // ---------------------------------------------------------------- finished videos imported for second-pass editing
+  /** what was dropped: finished videos (per clip, with versions) vs footage - nothing is written */
+  importCheck(inputs: string[]) {
+    return this.req<ImportCheck>('POST', '/api/import/check', { inputs });
+  }
+  /** copy (clone) the finished videos into a project of their own, link the footage -> {job}; ``import`` events */
+  importStart(inputs: string[], sources: string[] = [], title?: string) {
+    return this.req<ImportJob>('POST', '/api/import', { inputs, sources, ...(title ? { title } : {}) });
+  }
+  importJob(job: string) {
+    return this.req<ImportJob>('GET', `/api/import/job/${encodeURIComponent(job)}`);
+  }
+  importInfo(item: string) {
+    return this.req<ImportInfo>('GET', `/api/import/${bid(item)}`);
+  }
+  importMatch(item: string, clip?: string) {
+    return this.req<{ ok: boolean; clips: string[] }>('POST', `/api/import/${bid(item)}/match`, clip ? { clip } : {});
+  }
+  importLink(item: string, clip: string, sources: string[]) {
+    return this.req<{ ok: boolean; sources: number }>('POST', `/api/import/${bid(item)}/sources`, { clip, sources });
+  }
+  importCopy(item: string, clip: string) {
+    return this.req<{ ok: boolean; state: string }>('POST', `/api/import/${bid(item)}/copy`, { clip });
+  }
+  importTakes(item: string, clip: string, shot: number) {
+    return this.req<ImportTakes>('GET', `/api/import/${bid(item)}/takes?clip=${encodeURIComponent(clip)}&shot=${shot}`);
   }
   /** 「听一遍这条片子」: transcribe the output in the background; output-transcribe events follow */
   transcribeOutput(item: string, clip: string) {
