@@ -1546,3 +1546,4 @@ def validate(plan):
         if (p.get("items") or {}).get("method") not in METHODS:
             errs.append(f"{p['id']}: items.method must be one of {METHODS}")
     return errs
+# ci probe: an engine module change
