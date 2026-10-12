@@ -78,17 +78,22 @@ if os.environ.get("EXPLAINER_FAKE_VOICE"):
     _tts.installed = lambda e: True
     _asr.transcribe = _transcribe
 if os.environ.get("EXPLAINER_FAKE_BIN"):
-    # the app puts Homebrew / ~/.local/bin first on PATH: the stand-ins are pinned here instead
+    # the app puts Homebrew / ~/.local/bin first on PATH: the stand-ins are pinned here instead. They are Python
+    # scripts run by this Python: Windows cannot exec a "#!" script (WinError 193 - Claude Code "unavailable", the
+    # run stopped at the storyboard and nothing after it was made)
+    import sys as _sys
     _bin = os.environ["EXPLAINER_FAKE_BIN"]
+    _claude = os.path.join(_bin, "claude")
     from vstudio import llm as _llm
-    _find = _llm.find_cli
-    _llm.find_cli = lambda name, opts=None: os.path.join(_bin, "claude") if name == "claude" else _find(name, opts)
+    _find, _argv = _llm.find_cli, _llm.cli_argv
+    _llm.find_cli = lambda name, opts=None: _claude if name == "claude" else _find(name, opts)
+    _llm.cli_argv = lambda exe, windows=None: [_sys.executable, _claude] if exe == _claude else _argv(exe, windows)
     from vstudio.project import build as _build
     _run = _build.Env.run
 
     def _env_run(self, argv, *a, **k):
         if argv and str(argv[0]) == "npx":
-            argv = [os.path.join(_bin, "npx"), *argv[1:]]
+            argv = [_sys.executable, os.path.join(_bin, "npx"), *argv[1:]]
         return _run(self, argv, *a, **k)
     _build.Env.run = _env_run
 '''
@@ -221,8 +226,22 @@ for _ in range(3):
         break
 item = os.path.join(plain.dir, "items", "ep1")
 comp = os.path.join(item, "compositions")
-win = json.load(open(os.path.join(item, "audio", "scenes.json")))["scenes"]
-cfg = json.load(open(os.path.join(item, "scenes.config.json")))["scenes"]
+if not os.path.exists(os.path.join(item, "audio", "scenes.json")):
+    # say where the run stopped (and why) instead of a bare FileNotFoundError
+    jobs = os.path.join(plain.dir, "state", "jobs", "ep1")
+    logs = []
+    for st in sorted(os.listdir(jobs)) if os.path.isdir(jobs) else []:
+        for f in ("run.log", "checkpoint.json"):
+            fp = os.path.join(jobs, st, f)
+            if os.path.isfile(fp):
+                logs.append(f"--- {st}/{f}\n" + open(fp, encoding="utf-8", errors="replace").read()[-1500:])
+    cl = os.path.join(ROOT, "claude.log")
+    sys.exit("fixture: the plain project made no audio/scenes.json; pending: "
+             + json.dumps([x["id"] for x in Project(plain.dir).pending()]) + "\nclaude.log:\n"
+             + (open(cl, encoding="utf-8").read() if os.path.exists(cl) else "(Claude Code stand-in never ran)\n")
+             + "\n".join(logs))
+win = json.load(open(os.path.join(item, "audio", "scenes.json"), encoding="utf-8"))["scenes"]
+cfg = json.load(open(os.path.join(item, "scenes.config.json"), encoding="utf-8"))["scenes"]
 os.makedirs(comp, exist_ok=True)
 for sc, w in zip(cfg, win):
     with open(os.path.join(comp, f"{sc['id']}.html"), "w", encoding="utf-8") as f:
