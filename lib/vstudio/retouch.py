@@ -173,8 +173,9 @@ def guided_filter(I, p, r, eps):
     cv2.ximgproc when opencv-contrib is installed. I, p float32 same shape (single channel)."""
     r = max(1, int(round(r)))
     I = np.asarray(I, np.float32); p = np.asarray(p, np.float32)
-    if hasattr(cv2, "ximgproc"):
-        return cv2.ximgproc.guidedFilter(I, p, r, eps)
+    gf = getattr(getattr(cv2, "ximgproc", None), "guidedFilter", None)   # ximgproc can be there without it
+    if gf is not None:
+        return gf(I, p, r, eps)
     mI, mp_ = _box(I, r), _box(p, r)
     cov = _box(I * p, r) - mI * mp_
     var = _box(I * I, r) - mI * mI
