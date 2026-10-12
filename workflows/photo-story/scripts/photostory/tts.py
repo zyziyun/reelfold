@@ -40,7 +40,19 @@ DEFAULTS = dict(voice="marin", model="gpt-4o-mini-tts", tries=3, good=0.93, use_
                              "enthusiastic, never salesy. Pacing: calm and clear, slightly slower than conversation.",
                 sample_voices=["marin", "coral", "nova"], language="en")
 
-norm = lambda s: re.findall(r"[a-z0-9]+", s.lower().replace("’", "").replace("'", ""))
+# words (latin) and single characters (CJK): the take's transcript is matched per token in either language
+norm = lambda s: re.findall(r"[a-z0-9]+|[\u3400-\u9fff]", s.lower().replace("’", "").replace("'", ""))
+OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse",
+                 "marin", "cedar"}
+
+
+def narration_texts(chunks, say, language):
+    """The words the narrator speaks for one unit's (en, zh) cues: the 中文 when the narration is Chinese
+    (TTS language "zh"), else the English (SAY spoken forms applied to the English only)."""
+    if language == "zh":
+        zh = [(z or e).replace("**", "") for e, z in chunks]
+        return zh, zh
+    return [spoken(en, say) for en, zh in chunks], [en.replace("**", "") for en, zh in chunks]
 
 
 def spoken(en, say):
@@ -80,7 +92,8 @@ def main():
     ap.add_argument("units", nargs="*", type=int, help="only these unit indices")
     ap.add_argument("--voice", help="override TTS voice")
     ap.add_argument("--sample", action="store_true", help="synthesise one line in several voices")
-    ap.add_argument("--engine", choices=["openai", "clone"], help="override VOICE/TTS engine")
+    ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "clone"],
+                    help="override VOICE/TTS engine (auto: OpenAI with its key, else the free local voice)")
     a = ap.parse_args()
 
     spec = load_spec(a.spec)
@@ -88,8 +101,11 @@ def main():
     cfg = dict(DEFAULTS)
     cfg.update(getattr(spec, "TTS", {}) or {})
     cfg.update(getattr(spec, "VOICE", {}) or {})
-    engine = a.engine or cfg.get("engine", "openai")
+    engine = a.engine if a.engine and a.engine != "auto" else cfg.get("engine") or "auto"
+    if engine == "auto":
+        engine = vtts.available_engine()
     clone = engine == "clone"
+    local = engine not in ("openai", "clone")
     if clone:
         user_cfg = {**(getattr(spec, "TTS", {}) or {}), **(getattr(spec, "VOICE", {}) or {})}
         cfg["tries"] = user_cfg.get("tries", 4)
@@ -100,9 +116,15 @@ def main():
                                um, lang)
         cfg["model"] = cc["model"]
         print(f"clone voice: ref {os.path.basename(cc['ref_wav'])} ({cc['ref_hash']}), model {cc['model']}, {lang}")
-    elif not os.environ.get("OPENAI_API_KEY"):
+    elif engine == "openai" and not os.environ.get("OPENAI_API_KEY"):
         sys.exit("OPENAI_API_KEY is not set in the environment")
     voice = a.voice or cfg["voice"]
+    if local and (not voice or voice in OPENAI_VOICES):   # an OpenAI voice name means nothing to the local voice
+        voice = vtts.zh_voice(engine) if cfg["language"] == "zh" else None
+        voice = voice or vtts.DEFAULT_VOICE.get(engine)
+    if local:
+        cfg["tries"] = 1                      # a local voice says a line the same way every time: one take
+    print(f"voice: {engine} {voice} ({cfg['language']})", flush=True)
     say = getattr(spec, "SAY", {}) or {}
     out = tts_dir(C)
     os.makedirs(os.path.join(out, "cache"), exist_ok=True)
@@ -113,6 +135,9 @@ def main():
         if clone:   # each seed is its own cached take, so retries never repeat the same take
             vtts.synth(text, engine="clone", ref_wav=cc["ref_wav"], ref_text=cc["ref_text"], model=cc["model"],
                        language=cc["language"], seed=seed, out=path)
+        elif local:
+            vtts.synth(text, engine=engine, voice=v, speed=float(cfg.get("speed") or 1.0), out=path,
+                       cache=not fresh)
         else:
             vtts.synth(text, engine="openai", voice=v, instructions=cfg["instructions"], model=cfg["model"],
                        out=path, cache=not fresh)
@@ -142,12 +167,13 @@ def main():
     for i, (sec, chunks, _) in enumerate(spec.SCRIPT):
         if want is not None and i not in want:
             continue
-        texts = [spoken(en, say) for en, zh in chunks]
-        disp = [en.replace("**", "") for en, zh in chunks]
-        say_text = " ".join(texts if cfg["use_say"] else disp)
+        texts, disp = narration_texts(chunks, say, cfg["language"])
+        say_text = ("" if cfg["language"] == "zh" else " ").join(texts if cfg["use_say"] else disp)
         exps = [norm(" ".join(texts)), norm(" ".join(disp))]
         if clone:
             key = hashlib.md5(f"clone|{cc['ref_hash']}|{cc['model']}|{cc['language']}|{say_text}".encode()).hexdigest()[:16]
+        elif local:
+            key = hashlib.md5(f"{engine}|{voice}|{cfg.get('speed') or 1.0}|{say_text}".encode()).hexdigest()[:16]
         else:   # unchanged key -> existing OpenAI caches stay valid
             key = hashlib.md5(f"{voice}|{cfg['model']}|{cfg['instructions']}|{say_text}".encode()).hexdigest()[:16]
         cw, cj = os.path.join(out, "cache", f"{key}.wav"), os.path.join(out, "cache", f"{key}.json")

@@ -58,9 +58,9 @@ params:
       title: TTS voice
       x-zh: 配音音色
     tts_engine:
-      enum: [openai, clone]
-      default: openai
-      title: TTS engine (clone = local Qwen3-TTS)
+      enum: [auto, openai, kokoro, clone]
+      default: auto
+      title: TTS engine (auto = OpenAI with its key, else the free local voice; clone = local Qwen3-TTS)
       x-zh: 配音引擎
     title:
       type: string

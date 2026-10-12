@@ -79,7 +79,7 @@ def project(p, src_s, out_s, n_items, n_platforms, client_cfg=None):
         api += TTS_USD_PER_MIN * out_s / 60
         paid.append("配音 TTS")
     if rid == "photo-story" and params.get("mode", "narration") == "narration" and \
-            (params.get("tts_engine") or "openai") == "openai":
+            _explainer_engine(params) == "openai":
         api += TTS_USD_PER_MIN * out_s / 60 * 0.8
         paid.append("旁白 TTS")
     credits = None

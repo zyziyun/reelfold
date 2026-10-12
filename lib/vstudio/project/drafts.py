@@ -29,6 +29,7 @@ from . import manifests as M
 
 SIDE = ".draft.json"
 TEXT_EXT = (".yaml", ".yml", ".json", ".md", ".txt", ".html", ".htm")
+DATA_PY = (".py",)          # a spec module of plain data (photo-story's spec.py): data_module_ok, never code
 DOC_CHARS = 9000
 TEMPLATE_CHARS = 12000
 # her source documents (lecture notes, a Notion export, an article): enough of each that a script is written from
@@ -181,10 +182,11 @@ def _unfinished(recipe, cp_id):
     """A checkpoint whose file a stage writes as a skeleton the engine still has to fill: unfinished = "template"
     (drafted, never an answer). The explainer's storyboard (its shots say "TODO: what appears") and its scenes folder
     (a scene of scenes.config.json without its composition)."""
-    from .adapters import explainer, launchkit
+    from .adapters import explainer, launchkit, vlog
     return {("explainer", "storyboard"): explainer.storyboard_unfinished,
             ("explainer", "scenes"): explainer.scenes_unfinished,
-            ("launch-kit", "config"): launchkit.config_unfinished}.get((recipe, cp_id))
+            ("launch-kit", "config"): launchkit.config_unfinished,
+            ("vlog", "edit"): vlog.edit_unfinished}.get((recipe, cp_id))
 
 
 PLACEHOLDER = re.compile(r"\bTODO\b")
@@ -216,8 +218,9 @@ def _part_present(recipe, cp_id):
 
 # --------------------------------------------------------------------------- drafting
 def _drafter(recipe, cp_id):
-    from .adapters import explainer, launchkit, preproduction, promo
-    return {("launch-kit", "config"): launchkit.draft_config, ("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
+    from .adapters import explainer, launchkit, photostory, preproduction, promo, vlog
+    return {("launch-kit", "config"): launchkit.draft_config, ("vlog", "edit"): vlog.draft_edit,
+            ("photo-story", "story"): photostory.draft_spec, ("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
             ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues,
             ("explainer", "script"): explainer.draft_script, ("explainer", "storyboard"): explainer.draft_storyboard,
             ("explainer", "scenes"): explainer.draft_scenes}.get((recipe, cp_id))
@@ -297,10 +300,60 @@ def _materials_text(ctx):
     return "\n".join(out[:80])
 
 
+def footage_eyes(ctx, echo=None):
+    """Her video inputs -> (facts text, contact sheets) for a drafter that writes from footage (vstudio.footage): a
+    photo story's spec picks clips and in-points from what the model sees, not from file names."""
+    from vstudio import footage
+    vids = [p for v in ctx.inputs.values() for p in (v if isinstance(v, list) else [v]) if footage.is_video(p)]
+    if not vids:
+        return "", []
+    try:
+        text, imgs, _facts = footage.context(list(dict.fromkeys(vids)), os.path.join(ctx.item_dir, "work",
+                                                                                    "draft_sheets"), echo=echo)
+    except Exception:  # noqa: BLE001  (no sheets: the draft is written from the file names, as before)
+        return "", []
+    return text, imgs
+
+
+def data_module_ok(text):
+    """A spec module the engine will import (photo-story spec.py) is drafted only when it is plain data: a docstring
+    and NAME = <literals / tuples / lists / dicts / dict(k=...)> - no import, call, attribute, loop or function."""
+    import ast
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return False
+
+    def ok(n):
+        if isinstance(n, ast.Constant):
+            return True
+        if isinstance(n, (ast.Tuple, ast.List, ast.Set)):
+            return all(ok(x) for x in n.elts)
+        if isinstance(n, ast.Dict):
+            return all(k is None or ok(k) for k in n.keys) and all(ok(v) for v in n.values)
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.USub, ast.UAdd)):
+            return ok(n.operand)
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            return ok(n.left) and ok(n.right)
+        if isinstance(n, ast.Call):
+            return (isinstance(n.func, ast.Name) and n.func.id == "dict" and not n.args
+                    and all(k.arg and ok(k.value) for k in n.keywords))
+        return False
+    for st in tree.body:
+        if isinstance(st, ast.Expr) and isinstance(st.value, ast.Constant):
+            continue
+        if isinstance(st, ast.Assign) and all(isinstance(t, ast.Name) for t in st.targets) and ok(st.value):
+            continue
+        return False
+    return bool(tree.body)
+
+
 def _valid(path, text):
     ext = os.path.splitext(path)[1].lower()
     if not text or not text.strip():
         return False
+    if ext in DATA_PY:
+        return data_module_ok(text)
     if ext in (".yaml", ".yml"):
         import yaml
         try:
@@ -322,18 +375,22 @@ def generic(ctx, cp, path, template=None, instruction=None, complete=None, templ
     """The AI writes the file from the template + the format guide + her request. Only text formats (never a
     folder or code the engine would execute). ``template_text``: the structure when there is no template file.
     -> record or None."""
-    if os.path.isdir(path) or not path.lower().endswith(TEXT_EXT):
+    if os.path.isdir(path) or not path.lower().endswith((*TEXT_EXT, *DATA_PY)):
         return None
     a = cp.get("author") or {}
     tpl = template_text or (_read(template, TEMPLATE_CHARS) if template else "")
     cur = _read(path, TEMPLATE_CHARS) if state(path, template, cp, ctx.recipe) in ("drafted", "hers") else ""
     doc = _read(os.path.join(M.ROOT, a["doc"]), DOC_CHARS) if a.get("doc") else ""
     lang = ctx.lang()
+    ftext, imgs = footage_eyes(ctx)
     body = "\n\n".join(x for x in [
         f"Request: {ctx.request() or '(none)'}",
         f"Write: {os.path.basename(path)} ({a.get('format') or 'text'}) for the step "
         f"\"{(cp.get('labels') or {}).get('en') or cp['id']}\": {(cp.get('help') or {}).get('en') or ''}",
         f"Materials:\n{_materials_text(ctx)}" if ctx.inputs else "",
+        ("Footage (id = the file name without extension; one contact sheet per clip is attached, its tiles "
+         "labelled with the clip's seconds - pick clips and in-points from what you SEE; never write GPS "
+         f"coordinates into any text):\n{ftext}") if ftext else "",
         f"Current file (change only what the instruction asks):\n{cur}" if cur and instruction else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
         f"Template (structure only):\n{tpl}" if tpl else "",
@@ -344,9 +401,9 @@ def generic(ctx, cp, path, template=None, instruction=None, complete=None, templ
         complete = llm.complete
     # a whole lecture as materials (tens of thousands of characters) takes a subscription CLI several minutes to
     # condense: the time limit grows with what it has to read (240 s for a short request, at most 10 min)
-    limit = min(600.0, 240.0 + len(body) / 300.0)
+    limit = min(900.0, 240.0 + len(body) / 300.0 + 20.0 * len(imgs))
     r = complete("planner", GENERIC_SYSTEM, body, schema=True, max_tokens=8000, timeout=limit, cli_timeout=limit,
-                 retries=1)
+                 retries=1, **({"images": imgs} if imgs else {}))
     if not isinstance(r, dict) or r.get("provider") == "none":
         return None
     js = r.get("json") if isinstance(r.get("json"), dict) else {}
