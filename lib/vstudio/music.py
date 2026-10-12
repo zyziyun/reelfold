@@ -426,6 +426,82 @@ def make(mood="calm", duration=60.0, out=None, seed=0):
     return out
 
 
+def detect_beat(path, sr=11025, lo_bpm=70, hi_bpm=180):
+    """Beat grid of a music file -> (period s, phase s): onset strength (spectral flux) -> tempo by autocorrelation,
+    phase by the comb that collects the most onsets. Cached by path + mtime. Used to put a film's cuts on the beat."""
+    import subprocess
+    key = hashlib.sha1(json.dumps([os.path.abspath(path), os.path.getmtime(path), 1]).encode()).hexdigest()[:12]
+    cache = os.path.join(_cache(), f"beat-{key}.json")
+    try:
+        with open(cache, encoding="utf-8") as fh:
+            c = json.load(fh)
+        return float(c["period"]), float(c["phase"])
+    except (OSError, ValueError, KeyError):
+        pass
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-t", "90", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
+                       capture_output=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"could not read {os.path.basename(path)}: {r.stderr.decode('utf-8', 'replace')[-200:]}")
+    x = np.frombuffer(r.stdout, dtype=np.float32)
+    hop, n = 128, 1024
+    if x.size < n * 8:
+        raise ValueError(f"{os.path.basename(path)} is too short to find a beat")
+    frames = np.lib.stride_tricks.sliding_window_view(x, n)[::hop] * np.hanning(n)
+    mag = np.log1p(np.abs(np.fft.rfft(frames, axis=1)) * 10)
+    flux = np.maximum(np.diff(mag, axis=0), 0).sum(axis=1)
+    flux = flux - np.convolve(flux, np.ones(16) / 16, mode="same")        # local mean out: onsets, not loudness
+    flux = np.maximum(flux, 0)
+    fps = sr / hop
+    ac = np.correlate(flux, flux, mode="full")[flux.size - 1:]
+    lags = np.arange(int(fps * 60 / hi_bpm), int(fps * 60 / lo_bpm) + 1)
+    # a faint preference for ~110 bpm so a half / double tempo does not win on noise
+    w = np.exp(-0.5 * (np.log2((60 * fps / lags) / 110.0) / 0.9) ** 2)
+    lag = int(lags[np.argmax(ac[lags] * w)])
+    # refine: the autocorrelation peak near 8 beats away pins the tempo 8x finer (no drift over a minute)
+    lagf = float(lag)
+    for mult in (4, 8, 16):
+        c0 = int(round(lagf * mult))
+        if c0 + 6 >= ac.size:
+            break
+        win = np.arange(c0 - 4, c0 + 5)
+        pk = int(win[np.argmax(ac[win])])
+        a, b, c = ac[pk - 1], ac[pk], ac[pk + 1]
+        den = a - 2 * b + c
+        lagf = (pk + (0.5 * (a - c) / den if den else 0.0)) / mult
+    period = lagf / fps
+    best, phase = -1.0, 0.0
+    for k in range(int(lagf)):
+        idx = np.arange(k, flux.size, lagf).astype(int)
+        sc = float(flux[idx].sum())
+        if sc > best:
+            best, phase = sc, k / fps
+    phase = (phase + (n / 2 + hop) / sr) % period            # frame index -> the time of the onset itself
+    try:
+        with open(cache, "w", encoding="utf-8") as fh:
+            json.dump(dict(period=period, phase=phase), fh)
+    except OSError:
+        pass
+    return round(period, 5), round(phase, 4)
+
+
+def beat_grid(spec):
+    """(period s, phase s) of a music spec (a built-in mood: exact, from its tempo; a file: detect_beat) or None."""
+    if not spec:
+        return None
+    s = str(spec)
+    if s.startswith("builtin:"):
+        s = s.split(":", 1)[1]
+    if s in STYLES:
+        return 60.0 / STYLES[s]["bpm"], 0.0
+    p = os.path.expanduser(s)
+    if os.path.exists(p):
+        try:
+            return detect_beat(p)
+        except (RuntimeError, ValueError):
+            return None
+    return None
+
+
 def resolve(spec, duration=60.0, seed=0, text=None):
     """``spec`` = an existing file | 'builtin:<mood>' | a mood | a library track title | None (mood from ``text``:
     your own track of that mood, else the built-in) -> a playable file path. Built-ins are generated to

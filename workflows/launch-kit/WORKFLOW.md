@@ -54,9 +54,11 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    One HyperFrames project per cut × language × canvas (`kit/build/<name>/index.html`, `plan.json`, `cues.json`).
    Layout per canvas keeps every caption inside the safe area of every platform that canvas is posted to
    (`vstudio.platform` safe boxes: 16:9 X / LinkedIn / YouTube / B站, 9:16 TikTok / Shorts / Reels / 小红书 / 抖音, 1:1).
-   The look is the brand on top of a `vstudio.theme` preset (editorial by default: paper, ink, one accent, a marker
-   sweep under the highlighted word); fonts are the brand's Latin fonts, Chinese uses Noto Serif / Sans SC subset to
-   the characters on screen. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.
+   The look is a launch film: the product window big, rounded and shadowed on a soft gradient tinted with the accent
+   (`brand.backdrop`: studio = light, default; deep; paper - never black; a dark recording is lifted a little), large
+   tightly-tracked headlines centred above it that rise word by word through a line mask (Inter, bundled; or the
+   brand's Latin fonts; Chinese in Noto Sans SC subset to the characters on screen, broken after its punctuation),
+   and an end card that animates the mark (`brand.mark`), the name, the call to action and the site. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.
    Render one draft first and look at frames mid-scene and mid-transition before the full set.
 4. **Stills, copy, schedule, check.**
    ```bash
@@ -80,13 +82,14 @@ file name without its extension), and the config checkpoint is drafted by the en
 range, the on-screen line in English and a 中文 column) becomes the features in order, one scene each (two files in a
 row = two shots under one caption, the second pushing in with the caption held); the request sets the canvases
 ("16:9, 9:16 and 1:1" → `demo.renders` per language), the pace ("1.1×" → `pace`), the length, the transitions ("fast
-smooth animated transitions" → `motion: {transition: mix, seconds: 0.3}`: push and zoom-through alternating, ~9
-frames), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
+smooth animated transitions" → `motion: {transition: mix, seconds: 0.3}`: push (with motion blur), zoom-through and
+rise in turn, a match cut between a feature's two shots, ~9 frames, each centred on a beat of the music bed), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
 the look ("dark" → the night theme, "teal" → the accent), and `make: [demo]` for a promo. A release source is only
 written when one is really there; without one, `features` lists the config's features (or the brief's table).
 
 On a supplied take the camera finds the action itself (`timing.motion`: where the screen changes between low-res
-frames) and makes one slow push-in on it (`motion.camera: push`; on 9:16 it starts centred on it); a take longer than
+frames): an establishing frame, a fast eased push to 1.6-3× onto it so the UI text reads, a calm follow when the
+action moves, a slow creep to the cut (`motion.camera: push`, `story.push_camera`); a take longer than
 its scene plays the stretch that fills the scene at the cut's pace, preferring the one that ends on the take's
 result (the opening take plays from its first frame). Caches (idle spans, motion, posters) go under
 `<out>/capture/`, never next to her files.

@@ -64,11 +64,42 @@ def build(cfg, only=None):
 
 def cover_time(plan):
     """A frame that reads as a cover: the title fully in (demo), else the first caption fully in."""
+    return cover_times(plan)[0]
+
+
+def cover_times(plan, n=4):
+    """Cover candidates in order of preference: the title / first caption fully in, then the next features' captions
+    fully in (render() takes the first one bright enough for the platforms' cover check)."""
     sc = plan["scenes"]
-    if sc[0]["kind"] == "title":
-        return min(sc[0]["dur"] - 0.5, 2.0)
-    s = next(x for x in sc if x["kind"] == "feature")
-    return s["start"] + min(s["dur"] - 0.4, 2.4)
+    out = [min(sc[0]["dur"] - 0.5, 2.0)] if sc[0]["kind"] == "title" else []
+    for x in sc:
+        if x["kind"] == "feature" and not x.get("part") and len(out) < n:
+            out.append(round(x["start"] + min(x["dur"] - 0.4, 2.4), 3))
+    return out or [0.5]
+
+
+COVER_LUMA = 0.40             # vstudio.firstpass cover-bright floor
+
+
+def pick_cover(video, plan, out):
+    """The first candidate frame whose mean luma passes the cover check, else the brightest -> out (JPEG)."""
+    from PIL import Image, ImageStat
+    best = None
+    for k, t in enumerate(cover_times(plan)):
+        tmp = out[:-4] + f".cand{k}.jpg"
+        CO.cover(video, t, tmp)
+        with Image.open(tmp) as im:
+            y = ImageStat.Stat(im.convert("L").resize((192, 108))).mean[0] / 255
+        if best is None or y > best[0]:
+            if best:
+                os.remove(best[1])
+            best = (y, tmp)
+        else:
+            os.remove(tmp)
+        if y >= COVER_LUMA:
+            break
+    os.replace(best[1], out)
+    return out
 
 
 def render(cfg, only=None, quality="delivery", rebuild=True):
@@ -81,7 +112,7 @@ def render(cfg, only=None, quality="delivery", rebuild=True):
         CO.render(proj, video, quality=quality)
         with open(os.path.join(proj, "plan.json"), encoding="utf-8") as f:
             plan = json.load(f)
-        CO.cover(video, cover_time(plan), video[:-4] + ".cover.jpg")
+        pick_cover(video, plan, video[:-4] + ".cover.jpg")
         if cut == "loop":
             CO.gif(video, video[:-4] + ".gif", width=cfg["loop"]["width"], fps=cfg["loop"]["gif_fps"])
         done.append(video)

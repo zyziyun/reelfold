@@ -198,7 +198,7 @@ def test_demo_loop_clip_timing(cfg, shots):
 
 
 def test_demo_is_squeezed_to_max_seconds(cfg, shots):
-    tight = dict(cfg, demo=dict(cfg["demo"], max_seconds=12))
+    tight = dict(cfg, demo=dict(cfg["demo"], max_seconds=12), motion=dict(cfg["motion"], beat=False))
     d = S.plan(tight, shots, "demo", "en", "16:9")
     assert all(s["dur"] >= 4.0 for s in d["scenes"] if s["kind"] == "feature")
     assert d["duration"] == pytest.approx(2.6 + 3.2 + 2 * 4.0 - 3 * S.XF, abs=0.01)   # the 4 s floor wins
@@ -218,6 +218,44 @@ def test_camera_punches_in_on_actions_and_stays_inside(cfg, shots):
             assert k["x"] + 576 * k["scale"] >= W - 0.5 and k["y"] + 360 * k["scale"] >= H - 0.5
         punch = next(k for k in keys[1:] if k["scale"] > keys[0]["scale"] * 1.05) if asp != "9:16" else keys[1]
         assert punch["t"] == pytest.approx(1.0 - S.LEAD, abs=0.01) or punch["t"] >= 0
+
+
+def test_cuts_land_on_the_beats_of_the_music_bed(cfg, shots):
+    from vstudio import music as MU
+    d = S.plan(cfg, shots, "demo", "en", "16:9")
+    period, phase = d["beat"]
+    assert period == pytest.approx(60 / MU.STYLES["tech"]["bpm"])            # the built-in bed's exact tempo
+    for s in d["scenes"][1:]:
+        k = (s["start"] + d["xf"] / 2 - phase) / period
+        assert k == pytest.approx(round(k), abs=0.01)                        # every hand-over centred on a beat
+    assert all(s["dur"] >= 4.0 for s in d["scenes"] if s["kind"] == "feature")
+    assert S.plan(cfg, shots, "loop", "en", "16:9")["beat"] is None          # a loop is silent
+    assert S.plan(dict(cfg, music=None), shots, "demo", "en", "16:9")["beat"] is None
+
+
+def test_beat_detection_finds_the_tempo_of_a_bed(tmp_path):
+    from vstudio import music as MU
+    wav = MU.make("bright", 24.0, out=str(tmp_path / "bed.wav"))
+    period, phase = MU.detect_beat(wav)
+    assert period == pytest.approx(60 / MU.STYLES["bright"]["bpm"], rel=0.01)
+    assert min(phase, period - phase) < 0.06                                 # the grid starts on the downbeat
+
+
+def test_launch_camera_establishes_then_pushes_into_the_action(cfg, shots):
+    for asp in S.LAYOUTS:
+        L = S.LAYOUTS[asp]
+        keys = S.push_camera(L, shots["plan"], 0.0, 6.0, 5.0)
+        _, _, W, H = L["win"]
+        fit = max(W / 576, H / 360)
+        zlo, zhi = L["zoom"]
+        assert keys[0]["t"] == 0 and keys[0]["scale"] < fit * 1.1           # establishing: the whole window
+        push = keys[1]
+        assert zlo * fit - 1e-3 <= push["scale"] <= zhi * fit * 1.06 and push["d"] <= 1.1
+        for a, b in zip(keys[1:], keys[2:]):
+            assert b["t"] >= a["t"] + a["d"] - 1e-3                          # moves never overlap: no jitter
+        for k in keys:
+            assert k["x"] <= 0.01 and k["y"] <= 0.01
+            assert k["x"] + 576 * k["scale"] >= W - 0.5 and k["y"] + 360 * k["scale"] >= H - 0.5
 
 
 def test_missing_shot_is_a_clear_error(cfg, shots):
@@ -284,6 +322,12 @@ def test_zh_build_subsets_cjk(cfg, shots, tmp_path):
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
     assert 'lang="zh-CN"' in html and "LK-zh-display" in html
     assert any(f.startswith("zh-display") for f in os.listdir(os.path.join(proj, "assets", "fonts")))
+
+
+@pytest.mark.skipif(not _has_cjk_fonts(), reason="Noto SC fonts not installed (./install.sh)")
+def test_chinese_headlines_break_after_punctuation():
+    f = B.font_files({"brand": {}}, "zh")["display"]
+    assert B.fit("说一句，拖一个文件夹。", f, (96, 64), 756, 3, "zh")[1] == ["说一句，", "拖一个文件夹。"]
 
 
 def test_caption_html_words_and_marker():
@@ -599,18 +643,21 @@ def test_supplied_clips_plan_a_premium_cut(clipdir, tmp_path):
     assert p["transition"] == "mix" and p["xf"] == 0.3
     a, b, c = p["scenes"][:3]
     assert a["media"]["at"] == 0.0                                          # the opening take lands as recorded
-    assert a["dur"] == pytest.approx(4.3) and b["dur"] == pytest.approx(2.8) and (b["part"], c["part"]) == (0, 1)
+    beat = p["beat"][0]                                                     # cuts snap to the bed's beats
+    assert a["dur"] == pytest.approx(4.3, abs=beat) and b["dur"] == pytest.approx(2.8, abs=beat)
+    assert (b["part"], c["part"]) == (0, 1)
     assert b["shot"] == "02-tag" and c["shot"] == "03-out"
     assert all(seg[2] >= 1.1 for s in (a, b, c) for seg in s["media"]["segs"])
-    assert a["push"] and len(a["cam"]) == 2 and a["cam"][1]["scale"] > a["cam"][0]["scale"]
+    assert a["push"] and len(a["cam"]) >= 2 and a["cam"][1]["scale"] > a["cam"][0]["scale"] * 1.5    # pushes in
     assert [x["text"] for x in S.caption_cues(p)] == ["Quill Notes 2.0", "Tags itself."]
     names = [j[0] for j in K.jobs(cfg)]
     assert names == ["demo-en-16x9", "demo-en-9x16", "demo-en-1x1", "demo-zh-16x9", "demo-zh-9x16", "demo-zh-1x1"]
     proj = CO.build(cfg, S.plan(cfg, sh, "demo", "zh", "16:9"), str(tmp_path / "b"), quiet=True)
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
-    assert 'tl.fromTo("#s1", {opacity: 0, x: 307}' in html                  # push in (16 % of the width)
-    assert 'tl.fromTo("#s2", {opacity: 0, x: 307}' in html                  # the second shot pushes, caption held
-    assert 'tl.set("#s2c .w", {opacity: 1, y: 0}' in html
+    assert 'tl.fromTo("#s1", {opacity: 1, x: 1920, filter: "blur(10px)"}' in html   # a push with motion blur
+    assert 'tl.fromTo("#s2", {opacity: 0}, {opacity: 1, duration: 0.2' in html     # second shot: a match cut
+    assert 'tl.set("#s2c .w", {opacity: 1, yPercent: 0}' in html                   # ... its caption held
+    assert "#000" not in html.split("<style>")[1].split("#root")[1][:200]         # a gradient backdrop, not black
     assert 'src="assets/audio/music.m4a"' in html
 
 

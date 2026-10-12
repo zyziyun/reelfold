@@ -253,6 +253,9 @@ def validate(cfg, check_files=True):
         for im in cap.get("images") or []:
             if not os.path.exists(im["file"]):
                 e.append(f"capture.images.{im.get('id')}: not found: {im['file']}")
+    bd = (cfg.get("brand") or {}).get("backdrop")
+    if bd and bd not in ("studio", "deep", "paper"):
+        e.append(f"brand.backdrop: one of studio, deep, paper (got {bd!r})")
     mo = cfg.get("motion") or {}
     if mo.get("transition") not in TRANSITIONS:
         e.append(f"motion.transition: one of {', '.join(TRANSITIONS)} (got {mo.get('transition')!r})")

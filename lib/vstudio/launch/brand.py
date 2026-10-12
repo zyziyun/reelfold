@@ -5,8 +5,12 @@
     px, lines = fit(text, role_file, (56, 40), width, max_lines, lang)
 
 Fonts: ``brand.fonts.display`` / ``brand.fonts.text`` (any OFL font file: .woff2/.ttf/.otf) for Latin; Chinese text
-always uses the engine's Noto Serif SC / Noto Sans SC (vstudio.config.FONTS), subset to the characters on screen.
-Without brand fonts the theme's own roles are used (STIX Two Text serif for display, Noto Sans SC for text).
+always uses the engine's Noto Sans SC (vstudio.config.FONTS), subset to the characters on screen. Without brand fonts
+the headlines are set in Inter (bundled here, fonts/OFL-Inter.txt) and the small text in Noto Sans SC.
+
+Backdrop (``brand.backdrop``): the films sit the product window on a soft gradient tinted with the accent, never on
+black: ``studio`` (light, default: bright, crisp around dark or light UI), ``deep`` (dark teal-black, white type) or
+``paper`` (the theme's flat paper colour).
 """
 import functools
 import os
@@ -20,6 +24,9 @@ from vstudio import theme as TH
 COLOR_KEYS = ("paper", "ink", "ink2", "rule", "accent", "accent_ink", "marker", "card", "card_ink")
 # a few brand colours read as "red" (the old look she rejected); warn instead of silently shipping them
 RED_HUES = ((345, 360), (0, 15))
+INTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Inter-latin-wght.woff2")
+INTER_W = 660                 # headline weight when the bundled Inter sets them
+BACKDROPS = ("studio", "deep", "paper")
 
 
 def theme(cfg):
@@ -49,9 +56,6 @@ def warnings(cfg):
     return out
 
 
-INTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Inter-latin-wght.woff2")
-
-
 def _engine_font(role):
     """The engine's font for ``role``; when ./install.sh has not fetched it (a fresh checkout, CI) the bundled Inter
     stands in (config.font already warned), so building a project never fails on a missing font file: glyphs Inter
@@ -66,9 +70,52 @@ def font_files(cfg, lang):
     """{display, text, text_bold} -> font file paths for ``lang``."""
     f = (cfg.get("brand") or {}).get("fonts") or {}
     if lang == "zh":
-        return dict(display=_engine_font("cjk-serif-bold"), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"))
-    return dict(display=f.get("display") or _engine_font("serif"), text=f.get("text") or _engine_font("cjk"),
+        return dict(display=_engine_font("cjk-bold"), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"))
+    disp = f.get("display") or (INTER if os.path.exists(INTER) else _engine_font("serif"))
+    return dict(display=disp, text=f.get("text") or _engine_font("cjk"),
                 text_bold=f.get("text_bold") or f.get("text") or _engine_font("cjk-bold"))
+
+
+def display_weight(cfg, lang, default=560):
+    """CSS weight of the headlines (also used when measuring them): the bundled Inter is set semibold-bold."""
+    return INTER_W if lang != "zh" and font_files(cfg, lang)["display"] == INTER else default
+
+
+def _hex(c):
+    h = c.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def mix(a, b, t):
+    """Colour a -> b by t (0..1), '#RRGGBB'."""
+    ra, rb = _hex(a), _hex(b)
+    return "#" + "".join(f"{round(x + (y - x) * t):02X}" for x, y in zip(ra, rb))
+
+
+def rgba(c, alpha):
+    r, g, b = _hex(c)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def backdrop(cfg):
+    """The film's backdrop + type colours from the accent -> {kind, top, bottom, glow, ink, ink2, accent, accent_ink,
+    shadow, mark}. ``mark`` = which brand symbol reads on it (on-light / on-dark)."""
+    T = theme(cfg)
+    kind = (cfg.get("brand") or {}).get("backdrop") or "studio"
+    if kind not in BACKDROPS:
+        kind = "studio"
+    ac = T["accent"]
+    if kind == "studio":
+        return dict(kind=kind, top=mix("#FFFFFF", ac, 0.05), bottom=mix("#FFFFFF", ac, 0.2), glow=rgba(ac, 0.34),
+                    glow2=rgba(mix(ac, "#FFFFFF", 0.3), 0.5), ink=mix("#0B0F0F", ac, 0.1),
+                    ink2=mix("#0B0F0F", "#FFFFFF", 0.38), accent=ac, accent_text=mix(ac, "#0B0F0F", 0.42),
+                    shadow="8,40,36", mark="on-light")
+    if kind == "deep":
+        return dict(kind=kind, top=mix("#07090A", ac, 0.1), bottom=mix("#07090A", ac, 0.26), glow=rgba(ac, 0.3),
+                    glow2=rgba(ac, 0.18), ink="#F4F7F6", ink2=mix("#F4F7F6", ac, 0.25), accent=ac,
+                    accent_text=mix(ac, "#FFFFFF", 0.2), shadow="0,0,0", mark="on-dark")
+    return dict(kind=kind, top=T["paper"], bottom=T["paper"], glow="transparent", glow2="transparent", ink=T["ink"],
+                ink2=T["ink2"], accent=ac, accent_text=ac, shadow="20,20,20", mark="on-light")
 
 
 @functools.lru_cache(maxsize=32)
@@ -156,8 +203,30 @@ def fit(text, path, px_range, width, max_lines, lang="en", weight=None):
     for px in range(int(hi), int(lo) - 1, -2):
         lines = wrap(text, path, px, width, lang, weight)
         if len(lines) <= max_lines and all(measure(ln, path, px, weight) <= width for ln in lines):
+            if lang == "zh" and len(lines) > 1:
+                # Chinese breaks after its punctuation (说一句，/ 拖一个文件夹。), even a little smaller
+                for p2 in range(px, max(int(lo), int(px * 0.8)) - 1, -2):
+                    ph = _phrase_lines(text, path, p2, width, max_lines, weight)
+                    if ph:
+                        return p2, ph
             return px, _balance(lines, text, path, px, width, lang, weight)
     raise ValueError(f"caption too long for {max_lines} line(s) at {lo}px in {width}px: {text!r}")
+
+
+def _phrase_lines(text, path, px, width, max_lines, weight=None):
+    """Chinese text cut only after ，、；：！？ into <= max_lines lines that each fit ``width``, or None."""
+    parts = [p for p in re.split(r"(?<=[，、；：！？,;:])", text) if p]
+    if len(parts) < 2:
+        return None
+    lines = []
+    for p in parts:
+        if lines and measure(lines[-1] + p, path, px, weight) <= width:
+            lines[-1] += p
+        else:
+            lines.append(p)
+    if len(lines) < 2 or len(lines) > max_lines or any(measure(ln, path, px, weight) > width for ln in lines):
+        return None
+    return lines
 
 
 def _balance(lines, text, path, px, width, lang, weight):

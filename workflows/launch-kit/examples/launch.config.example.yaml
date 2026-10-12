@@ -16,8 +16,9 @@ brand:
   theme: editorial                         # vstudio.theme preset: editorial | mono | soft | night
   colors: {paper: "#F6F3EE", ink: "#1E1B18", accent: "#2F6F9F", marker: "#CFE0EE"}   # one accent; avoid red
   logo: brand/wordmark.svg                 # end card + gallery
-  mark: brand/icon.png                     # title card
-  fonts:                                   # optional OFL font files (Latin); Chinese uses Noto Serif / Sans SC
+  mark: brand/icon.png                     # title card + end card (above the name)
+  backdrop: studio                         # behind the product window: studio (light gradient) | deep | paper
+  fonts:                                   # optional OFL font files (Latin; default Inter); Chinese uses Noto Sans SC
     display: brand/fonts/Newsreader.woff2
     text: brand/fonts/Inter.woff2
 
@@ -61,8 +62,9 @@ features:                                  # 3-6, in the order the demo shows th
     caption: {en: "Related notes 【link up】 on their own.", zh: "相关笔记【自动关联】"}
 
 pace: 1.0                                  # every scene plays its recording at this speed (1.1 = a tighter cut)
-motion: {transition: crossfade, seconds: 0.35}   # crossfade | push | zoom | mix (push + zoom-through alternating);
-                                           # seconds: the hand-over (0.3 = 9 frames, fast); camera: push | still
+motion: {transition: crossfade, seconds: 0.35}   # crossfade | push | zoom | mix (push / zoom-through / rise, match
+                                           # cut between a feature's shots); seconds: the hand-over (0.3 = 9 frames);
+                                           # camera: push | still; beat: false = cuts not on the music's beats
 make: [demo, loop, clips]                  # which videos (a promo only: [demo])
 demo: {min_seconds: 30, max_seconds: 60}   # + shots: [ids] (default all), renders: ["en:16:9", "zh:9:16", ...],
                                            # title_card: false (open on the first feature, no title card)
