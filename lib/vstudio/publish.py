@@ -237,17 +237,28 @@ def persona_tags(tag_set=None, warn=print):
     return list(_p("publish.tags", []) or [])
 
 
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+
+
 def relevant_tags(tags, about):
     """The persona's standing tags that fit this post: a tag whose words are in the post (title, hook, body, its own
     tags) - #北美求职 / #SDE stay off a post about video editing. ``publish.tags_always: true`` keeps them all."""
     if not about or _p("publish.tags_always", False):
         return list(tags)
     text = re.sub(r"[\s#_\-]+", "", str(about)).lower()
+    raw = str(about).lower()
+
+    def found(x):
+        # a short latin piece (an acronym: AI, SDE) only as a word of its own - "ai" is inside "fair" / "Bay
+        # Trail", which put #AIEngineer / #AI面试 on a video about the 1962 World's Fair
+        if re.fullmatch(r"[a-z0-9]{1,3}", x):
+            return re.search(rf"(?<![a-z0-9]){re.escape(x)}(?![a-z0-9])", raw) is not None
+        return x in text
     out = []
     for t in tags:
         k = re.sub(r"[\s#_\-]+", "", str(t)).lower()
         parts = [k] + [w.lower() for w in re.findall(r"[A-Z]?[a-z]{3,}|[A-Z]{2,}(?![a-z])", str(t).lstrip("#"))]
-        if k and any(x and x in text for x in parts):
+        if k and any(x and found(x) for x in parts):
             out.append(t)
     return out
 
@@ -326,6 +337,9 @@ def post_body(hook, body, chapters=None, links=None, tags=None, platform=None, t
         out += [""] + [f"{lab}{sep(lab)}{url}" for lab, url in links]
     if chapters:
         intro = chapter_intro if chapter_intro is not None else _p("publish.chapter_line", "")
+        if chapter_intro is None and intro and _CJK.search(str(intro)) and not _CJK.search(
+                " ".join(str(x) for x in (title, hook, *paras) if x)):
+            intro = ""                   # her 中文 chapter line stays off an English post
         if pl == "youtube":
             intro = chapter_intro if chapter_intro is not None else (intro or "Chapters")
         out += [""] + ([intro] if intro else []) + chapter_lines(chapters, platform=pl, warn=warn)
