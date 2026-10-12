@@ -195,3 +195,21 @@ test('▶ Play full screen on a clip card opens straight in system full screen; 
   await expect(page.getByTestId('clip-card')).toBeVisible();
   await expect.poll(winFull, { timeout: 10000 }).toBe(false);
 });
+
+test('▶ Play full screen: Esc before the player re-rendered as full screen still closes it', async () => {
+  await page.evaluate(() => window.desk.setSettings({ studio: false })); // the project page's clip cards (Studio off)
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await openProject();
+  // hold back the first fullscreenchange, as a hidden window on Windows that has not painted its next frame does: the
+  // player is the full-screen element, but nothing has seen it become one when Esc comes
+  await page.evaluate(() => window.addEventListener('fullscreenchange', (e) => e.stopImmediatePropagation(), { capture: true, once: true }));
+  await page.getByTestId('clip-card').getByTestId('clip-play').click();
+  await expect.poll(fsEl).toBe('player');
+  await expect(page.getByTestId('player')).toHaveAttribute('data-native-full', '0');
+  await page.keyboard.press('Escape');
+  await expect.poll(fsEl).toBeNull();
+  await expect(page.getByTestId('player-overlay')).toHaveCount(0); // watched full screen, back where she was
+  await expect(page.getByTestId('clip-card')).toBeVisible();
+  await expect.poll(winFull, { timeout: 10000 }).toBe(false);
+});
