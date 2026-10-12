@@ -1002,6 +1002,9 @@ const v04Fr: Record<keyof typeof v04En, string> = {
 
   'player.fullscreen': 'Plein écran',
   'player.exitFullscreen': 'Quitter le plein écran',
+  'player.volume': 'Volume',
+  'player.mute': 'Couper le son',
+  'player.unmute': 'Rétablir le son',
   'player.play': 'Lire',
   'player.pause': 'Pause',
   'player.speed': 'Vitesse',

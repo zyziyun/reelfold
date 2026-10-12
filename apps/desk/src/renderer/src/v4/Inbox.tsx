@@ -4,7 +4,7 @@
 // first (never file paths or raw numbers: the engine gives labels + choices), and ONE primary button. Resolving an
 // item moves on to the next one with an Undo toast; "Review all in a row" opens the triage queue in the editor.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, FileText, Film, Inbox as InboxIcon, Pause, Play, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, FileText, Film, Inbox as InboxIcon, Maximize2, Minimize2, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import type { InboxItem, InboxOption } from '../../../shared/v04';
 import { fmtClock, has, intlLocale, t } from '../i18n';
 import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, secsLabel } from '../lib/inboxView';
@@ -21,6 +21,8 @@ import { TriageBar } from './TriageBar';
 import { ImportFeedback } from './ShareDialog';
 import { isTyping, useUi } from './ui';
 import { ensureFreeVoice } from '../lib/freeVoice';
+import { useNativeFullscreen } from '../lib/fullscreen';
+import { FULL_SEEK, volumeStep } from '../lib/player';
 import '../theme/uxcore.css';
 
 export { answerOf, clipName, inboxClip, inboxSub, inboxTitle, issueText, money, optionLabel, secsLabel };
@@ -577,6 +579,37 @@ export function CutPreview({ opts, cur, onPick, play = 0 }: { opts: InboxOption[
   // free = she dragged or clicked the bar: play from there and stop looping the 6 s window until the next cut is picked
   const [free, setFree] = useState(false);
   const bar = useRef<HTMLDivElement | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
+  const [vol, setVol] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const togglePlay = () => (v.current?.paused ? void v.current.play().catch(() => undefined) : v.current?.pause());
+  // ⤢: the same system full screen as the clip player (Space, ←/→ 5 s, ↑/↓ volume, M, Esc back to the sheet)
+  const fs = useNativeFullscreen(stage, {
+    onKey: (e) => {
+      const el = v.current;
+      if (e.key === 'Escape') return void (e.preventDefault(), fs.exit());
+      if (!el || e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.tagName === 'INPUT') return;
+      if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        el.currentTime = Math.min(Math.max(el.currentTime + (e.key === 'ArrowRight' ? FULL_SEEK : -FULL_SEEK), 0), dur || el.duration || 0);
+        setTime(el.currentTime);
+        setFree(true);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMuted(false);
+        setVol((x) => volumeStep(x, e.key === 'ArrowUp' ? 1 : -1));
+      } else if (e.key.toLowerCase() === 'm') setMuted((x) => !x);
+      else if (e.key.toLowerCase() === 'f') fs.toggle();
+    },
+  });
+  useEffect(() => {
+    if (!v.current) return;
+    v.current.volume = vol;
+    v.current.muted = muted || vol === 0;
+  }, [vol, muted]); // the element keeps them across a src change
   const o = cur ?? opts.find((x) => x.file) ?? null;
   const canBefore = !!o?.before?.file;
   const showSide = side === 'before' && canBefore ? 'before' : 'after';
@@ -614,7 +647,7 @@ export function CutPreview({ opts, cur, onPick, play = 0 }: { opts: InboxOption[
   }, [src, a, play]);
   return (
     <div className="ux-cutpv" data-testid="cut-preview" data-side={showSide}>
-      <div className="ux-cutpv-stage">
+      <div className={`ux-cutpv-stage ${fs.on ? 'full' : ''}`} ref={stage} tabIndex={-1} data-full={fs.on ? '1' : '0'} data-native-full={fs.native ? '1' : '0'} data-testid="cut-preview-stage">
         {src ? (
           <video
             ref={v}
@@ -630,7 +663,8 @@ export function CutPreview({ opts, cur, onPick, play = 0 }: { opts: InboxOption[
               setTime(el.currentTime);
               if (!free && (el.currentTime >= b || (dur && el.currentTime >= dur - 0.05))) el.currentTime = a; // loop the 6 s window
             }}
-            onClick={() => (v.current?.paused ? void v.current.play().catch(() => undefined) : v.current?.pause())}
+            onClick={togglePlay}
+            onDoubleClick={fs.toggle}
             data-testid="cut-preview-video"
           />
         ) : (
@@ -689,6 +723,15 @@ export function CutPreview({ opts, cur, onPick, play = 0 }: { opts: InboxOption[
               ))}
           </div>
           <span className="num">{fmtClock(dur)}</span>
+          <button className="ux-pvicon" onClick={() => (vol === 0 ? (setVol(1), setMuted(false)) : setMuted((x) => !x))} aria-label={muted || vol === 0 ? t('player.unmute') : t('player.mute')} title={muted || vol === 0 ? t('player.unmute') : t('player.mute')} data-testid="cut-preview-mute">
+            {muted || vol === 0 ? <VolumeX className="ico" /> : <Volume2 className="ico" />}
+          </button>
+          {fs.on && (
+            <input className="ux-pvvol" type="range" min={0} max={1} step={0.05} value={muted ? 0 : vol} onChange={(e) => (setVol(Number(e.target.value)), setMuted(false))} onPointerUp={(e) => e.currentTarget.blur()} aria-label={t('player.volume')} data-testid="cut-preview-volume" />
+          )}
+          <button className="ux-pvicon" onClick={fs.toggle} aria-label={fs.on ? t('player.exitFullscreen') : t('player.fullscreen')} title={`${fs.on ? t('player.exitFullscreen') : t('player.fullscreen')} · F`} data-testid="cut-preview-fullscreen">
+            {fs.on ? <Minimize2 className="ico" /> : <Maximize2 className="ico" />}
+          </button>
         </div>
       </div>
     </div>

@@ -154,6 +154,16 @@
 .ux-pvctl { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 12px; background: rgba(20, 18, 16, 0.62); backdrop-filter: blur(6px); color: #fff; font-size: 12px; }
 .ux-pvplay { width: 28px; height: 28px; border-radius: 50%; border: 0; background: #fff; color: #1a1816; display: flex; align-items: center; justify-content: center; flex: none; }
 .ux-pvplay .ico { width: 14px; height: 14px; }
+.ux-pvicon { width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: rgba(255, 255, 255, 0.85); display: flex; align-items: center; justify-content: center; flex: none; }
+.ux-pvicon:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.ux-pvicon .ico { width: 15px; height: 15px; }
+.ux-pvvol { width: 84px; accent-color: #fff; flex: none; }
+/* system full screen: the whole video on black (pillarboxed for 9:16), the controls along the bottom */
+.ux-cutpv-stage:fullscreen, .ux-cutpv-stage.full { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; background: #000; outline: none; }
+.ux-cutpv-stage.full { position: fixed; inset: 0; z-index: 200; }
+.ux-cutpv-stage:fullscreen video, .ux-cutpv-stage.full video { object-fit: contain; }
+.ux-cutpv-stage:fullscreen .ux-pvctl, .ux-cutpv-stage.full .ux-pvctl { left: 24px; right: 24px; bottom: 20px; padding: 8px 12px 8px 8px; font-size: 13px; }
+.ux-cutpv-stage:focus { outline: none; }
 .ux-pvbar { position: relative; flex: 1; height: 16px; cursor: pointer; touch-action: none; }
 .ux-pvbar:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.7); outline-offset: 2px; border-radius: 4px; }
 .ux-pvbar::before { content: ''; position: absolute; left: 0; right: 0; top: 7px; height: 2px; border-radius: 1px; background: rgba(255, 255, 255, 0.35); }

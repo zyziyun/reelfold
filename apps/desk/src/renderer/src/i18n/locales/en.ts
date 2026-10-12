@@ -317,6 +317,9 @@ export const v04En = {
 
   'player.fullscreen': 'Full screen',
   'player.exitFullscreen': 'Exit full screen',
+  'player.volume': 'Volume',
+  'player.mute': 'Mute',
+  'player.unmute': 'Unmute',
   'player.play': 'Play',
   'player.pause': 'Pause',
   'player.speed': 'Speed',

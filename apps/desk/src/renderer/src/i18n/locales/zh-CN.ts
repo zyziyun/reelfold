@@ -318,6 +318,9 @@ const v04Zh: Record<keyof typeof v04En, string> = {
 
   'player.fullscreen': '全屏',
   'player.exitFullscreen': '退出全屏',
+  'player.volume': '音量',
+  'player.mute': '静音',
+  'player.unmute': '取消静音',
   'player.play': '播放',
   'player.pause': '暂停',
   'player.speed': '速度',
