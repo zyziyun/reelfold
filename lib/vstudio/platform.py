@@ -19,6 +19,7 @@ and post-copy limits (title / text / hashtags / link handling) for
     P.youtube_format(9 / 16, 75) -> "shorts";  P.check_format(p, aspect, seconds) -> warnings
     P.link_policy(p)     -> {"clickable": False, ...}   (check_text warns about links that won't work)
     P.publishing(name)   -> {"mode": "assisted", "upload_url": ..., "api": {...}}   (see references/PUBLISHING.md)
+    P.lang_for("youtube-shorts") -> "en"   (YouTube is ALWAYS English; Chinese platforms "zh")  P.split_by_lang([...])
 
 Order: every list of platforms shown to a person (pickers, publish page, accounts, calendar, website) uses
 ``ORDER``: English / global first, then Chinese, then other-language platforms; ``ordered`` floats the platforms
@@ -39,6 +40,7 @@ Back-compat with older persona keys: ``platforms.<name>.title_max`` (also read b
 canvas; applied to the 1920-tall orientation).
 """
 import copy
+import re
 from dataclasses import asdict, dataclass, field
 
 ALIASES = {"fb": "facebook", "facebook-reels": "facebook", "meta": "facebook", "脸书": "facebook",
@@ -590,6 +592,53 @@ SHORTS_MAX_S = 180
 
 # Platforms whose post copy defaults to English when the content is English (vstudio.publish.localize_post).
 INTL_PLATFORMS = set(GROUPS["global"]) | set(GROUPS["intl"])
+
+# Platforms whose language is FIXED, whatever the request's language or a persona setting: YouTube (and Shorts) is
+# always English - title, captions, on-screen lines, narration, cover title, post copy. The Chinese version of a
+# video goes to the Chinese platforms (小红书 / B站 / 抖音 ...).
+FIXED_LANG = {"youtube": "en", "youtube-shorts": "en"}
+
+
+def lang_for(name, default=None):
+    """The language a platform's version is made in: "en" for YouTube / Shorts (always, ``FIXED_LANG``) and the
+    English / global group, "zh" for the Chinese platforms, "en" for the other-language group (its copy is English
+    unless the persona says otherwise). ``default`` for an unknown name (None)."""
+    base = _lang_base(name)
+    if base in FIXED_LANG:
+        return FIXED_LANG[base]
+    g = group_of(base) if base else None
+    if g == "zh":
+        return "zh"
+    if g in ("global", "intl"):
+        return "en"
+    return default
+
+
+def lang_fixed(name):
+    """True when a platform's language never follows the request or the persona (YouTube / Shorts: English)."""
+    return _lang_base(name) in FIXED_LANG
+
+
+def _lang_base(name):
+    """Any spelling of a platform -> its registry name: "YouTube Shorts", "youtube_shorts", "youtube-shorts:vertical",
+    a package key "youtube-shorts-vertical" / "xiaohongshu-full", an alias ("小红书", "yt")."""
+    s = re.sub(r"[\s_]+", "-", str(name or "").strip().lower()).split(":")[0]
+    if not s:
+        return ""
+    base = canonical(s)
+    if base in ORDER:
+        return base
+    hits = [n for n in ORDER if s.startswith(n + "-")]
+    return max(hits, key=len) if hits else base
+
+
+def split_by_lang(names):
+    """Platform keys grouped by the language of their version -> {"en": [...], "zh": [...]} (display order:
+    international first; unknown names go with English). Empty languages are left out."""
+    out = {}
+    for n in ordered(list(names or [])):
+        out.setdefault(lang_for(n, "en"), []).append(n)
+    return {k: out[k] for k in ("en", "zh") if k in out}
 
 # How a post reaches each platform. Default everywhere: ASSISTED publishing - the desk opens the platform's own
 # upload page in its built-in browser (one persistent login per account), sets the file and types the copy; the

@@ -29,15 +29,16 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   1-2 shots per unit; "still" motion for moving drone footage (it already moves). Use only the clip ids listed.
 - Stills: list in "frames" the frames to cut from clips ({{name, clip, t}}); refer to them by name (an image source,
   e.g. "cover_a") in COVER (hero / polaroids) and, if you like, in photo shots. Give at least 3 frames for the COVER.
-- Narration language: {lang_note}
+- Voice: {lang_note}
 - Each cue is (English, 中文); keep the English <= ~90 characters and the 中文 <= ~38 characters per cue, 1-3 cues per unit.
-  Length: about {target} s of narration in total (Chinese ~4.3 characters per second, English ~2.6 words per second).
+  Length: about {target} s {length_of} in total (Chinese ~4.3 characters per second, English ~2.6 words per second).
 - Do not write PLATFORM, CANVAS, OUT, TTS voice / model / engine, VOICE, ROUTE or SAY. {bgm_note}
-- TITLE_ZH / TITLE_EN, SECTIONS / SECTIONS_EN (2-4 short chapter names), COVER (kicker, title, subtitle, tagline
-  (before, keyword, after), hero=dict(src=<frame>), polaroids from frames with short captions) and POST (title, intro,
-  tags) in the request's language for this version. Each platform posts in its audience's language (Chinese on
-  Xiaohongshu / Bilibili / Douyin, English on YouTube / TikTok / Instagram): also write POST_EN (an English POST) when
-  POST is Chinese, or POST_ZH when POST is English - same facts, its own hashtags.
+- This version is for {platforms}: its words are in {words_lang}. TITLE_ZH / TITLE_EN, SECTIONS / SECTIONS_EN (2-4
+  short chapter names), COVER (kicker, title, subtitle, tagline (before, keyword, after), hero=dict(src=<frame>),
+  polaroids from frames with short captions) and POST (title, intro, tags) in {words_lang}. YouTube / YouTube Shorts is
+  ALWAYS English (title, subtitles, cover, post); Chinese goes to Xiaohongshu / Bilibili / Douyin. Also write POST_EN
+  (an English POST) when POST is Chinese, or POST_ZH when POST is English - same facts, its own hashtags - and
+  COVER_EN (the COVER's texts in English) when the COVER is Chinese.
 - Premium look (references/AESTHETICS.md P1-P9): LOOK = "cinema" (full-bleed picture, no header; leave LOOK out to
   get it). Transitions: only "fade" (a slow dissolve; the default, so you may omit tr) or "cut" - never flash, whip,
   leak, zoom, iris, ink, blinds, tear or slideup. Hold the beautiful shots: one shot per unit when the clip has a
@@ -68,11 +69,19 @@ def _wants_music(request):
                                                          re.I))
 
 
-def narration_is_chinese(request, name=None, title=None, language=None, item=None):
-    """This version's narration: its own language first ("中文版" / "English version" in the project's name, an
-    item id like zh-version / en-version, the language of its title), else what the request asks the narration to be."""
+def narration_is_chinese(request, name=None, title=None, language=None, item=None, platforms=None):
+    """This version's language: its own first (``language``; its platforms - YouTube is always English, 小红书 / B站
+    Chinese, vstudio.platform.lang_for; "中文版" / "English version" in the project's name, an item id like
+    zh-version / en-version, the language of its title), else what the request asks the narration to be."""
     if language in ("zh", "en"):
         return language == "zh"
+    if platforms:
+        from vstudio import platform as P
+        langs = {P.lang_for(p, "en") for p in platforms}
+        if any(P.lang_fixed(p) for p in platforms) or langs == {"en"}:
+            return False                     # a version that goes to YouTube is English, whatever else it names
+        if langs == {"zh"}:
+            return True
     nm = f"{name or ''} {item or ''}"
     if re.search(r"english|英文|(^|[\s_-])en([\s_-]|$)", nm, re.I):
         return False
@@ -97,11 +106,27 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids) if vids else ("", [], [])
     by_id = {f["id"]: f for f in facts}
     target = _target(request)
+    plats = list(ctx.params.get("platforms") or [])
     lang_zh = narration_is_chinese(request, (ctx.data or {}).get("name"), ctx.params.get("title"),
-                                   ctx.params.get("language"), ctx.item)
-    lang_note = ('this version is narrated in Chinese: TTS = dict(language="zh") (the narrator speaks the 中文 of each '
-                 "cue; the English shows as the subtitle under it)." if lang_zh else
-                 'this version is narrated in English: TTS = dict(language="en").')
+                                   ctx.params.get("language"), ctx.item, plats)
+    music_mode = str(ctx.params.get("mode") or "narration") == "music"
+    from vstudio import narration as N
+    vp = N.voice_plan("zh" if lang_zh else "en", ctx.params.get("tts_engine") or "auto")
+    if music_mode:                           # a mood piece: no voice-over, music + a few refined on-screen lines
+        vp = dict(vp, narrate=None, note=None)
+        lang_note = ('no voice-over: MODE = "music"; the cues are a few refined on-screen lines (short, quiet, '
+                     "poetic, never a running commentary), one per shot or two"
+                     + ('; SUB_LEAD = "zh" (the 中文 line leads).' if lang_zh else "."))
+    elif vp["narrate"] == "zh":
+        lang_note = ('this version is narrated in Chinese: TTS = dict(language="zh") (the narrator speaks the 中文 of each '
+                     "cue; the English shows as the subtitle under it).")
+    elif lang_zh:
+        lang_note = ('this Chinese version is narrated in English (no natural Chinese voice is set up): TTS = '
+                     'dict(language="en") and SUB_LEAD = "zh" (the narrator reads the English of each cue; the 中文 '
+                     "subtitle leads, the English sits under it). Write the English for the ear.")
+    else:
+        lang_note = 'this version is narrated in English: TTS = dict(language="en").'
+    plat_names = ", ".join(plats) or "its platforms"
     bgm = None
     if _wants_music(request):
         from vstudio import music as MU
@@ -119,7 +144,9 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
                    20000)
     cur = DR._read(path, DR.TEMPLATE_CHARS) if instruction and DR.state(path, template, cp, ctx.recipe) in (
         "drafted", "hers") else ""
-    guide = GUIDE.format(first=ids[0] if ids else "CLIP", lang_note=lang_note, target=int(target), bgm_note=bgm_note)
+    guide = GUIDE.format(first=ids[0] if ids else "CLIP", lang_note=lang_note, target=int(target), bgm_note=bgm_note,
+                         length_of="of on-screen lines" if music_mode else "of narration", platforms=plat_names,
+                         words_lang="Chinese" if lang_zh else "English")
     body = "\n\n".join(x for x in [
         f"Request: {request or '(none)'}",
         f"This project: {(ctx.data or {}).get('name') or ''} {ctx.params.get('title') or ''}".strip(),
@@ -165,18 +192,68 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
             return None
         for n in missing:
             text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
-    if not lang_zh:
+    text = enforce_voice(text, vp, lang_zh, music_mode)
+    if vp.get("narrate") == "en":
         text = add_respellings(text, complete)
     os.makedirs(work, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text if text.endswith("\n") else text + "\n")
     summ = str(js.get("summary") or "").strip()[:300]
+    note = N.note_text(vp.get("note"), ctx.lang())
+    if note:                                 # why this Chinese version speaks English, and how to change it
+        summ = f"{summ} {note}".strip()
     rv = DR.outline_review(path, None)
     if summ:
         rv["summary"] = dict(code="draft.generic", params=dict(text=summ))
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
-                language="zh" if lang_zh else "en")
+                language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"))
+
+
+def _set_global(text, name, value):
+    """``NAME = <value>`` in a spec module: the model's assignment replaced, else appended."""
+    if isinstance(value, dict) and all(isinstance(k, str) and k.isidentifier() for k in value):
+        line = f"{name} = dict(" + ", ".join(f"{k}={v!r}" for k, v in value.items()) + ")"
+    else:
+        line = f"{name} = {value!r}"
+    pat = re.compile(rf"(?m)^{name}\s*=.*$")
+    if pat.search(text):
+        import ast
+        try:
+            tree = ast.parse(text)
+            for st in tree.body:
+                if isinstance(st, ast.Assign) and isinstance(st.targets[0], ast.Name) and st.targets[0].id == name:
+                    lines = text.split("\n")
+                    return "\n".join(lines[:st.lineno - 1] + [line] + lines[st.end_lineno:])
+        except SyntaxError:
+            pass
+        return pat.sub(lambda _m: line, text, count=1)
+    return text.rstrip("\n") + "\n" + line + "\n"
+
+
+def enforce_voice(text, vp, lang_zh, music_mode=False):
+    """The voice policy written into the spec, whatever the model wrote: the narration language (TTS language),
+    which subtitle leads (SUB_LEAD) and MODE for a piece with no voice - never the built-in Chinese voice unless
+    ``vp`` (narration.voice_plan) chose Chinese."""
+    if music_mode:
+        text = _set_global(text, "MODE", "music")
+        return _set_global(text, "SUB_LEAD", "zh" if lang_zh else "en")
+    tts_cfg = _spec_value(text, "TTS")
+    tts_cfg = dict(tts_cfg) if isinstance(tts_cfg, dict) else {}
+    tts_cfg["language"] = vp.get("narrate") or "en"
+    text = _set_global(text, "TTS", tts_cfg)
+    return _set_global(text, "SUB_LEAD", vp.get("sub_lead") or ("zh" if lang_zh else "en"))
+
+
+def _spec_value(text, name):
+    import ast
+    try:
+        for st in ast.parse(text).body:
+            if isinstance(st, ast.Assign) and isinstance(st.targets[0], ast.Name) and st.targets[0].id == name:
+                return eval(compile(ast.Expression(st.value), "<spec>", "eval"), {"__builtins__": {}}, {"dict": dict})
+    except Exception:  # noqa: BLE001
+        return None
+    return None
 
 
 def _frames_asked(js, text):

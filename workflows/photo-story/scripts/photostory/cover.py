@@ -25,6 +25,32 @@ from photostory.ctx import Ctx, _font_path, font_for, load_spec
 from photostory.util import crop_aspect, has_cjk
 
 
+def _zh(t):
+    s = " ".join(map(str, t)) if isinstance(t, (list, tuple)) else str(t or "")
+    return any("\u3400" <= ch <= "\u9fff" for ch in s)
+
+
+def english_cover(spec, C):
+    """The cover of an English-only platform (YouTube / Shorts): spec COVER_EN over COVER when the spec has one;
+    every text still in Chinese is replaced (title -> TITLE_EN) or left out (kicker, subtitle, tagline, captions)."""
+    cfg = dict(getattr(spec, "COVER", {}) or {})
+    cfg.update(dict(getattr(spec, "COVER_EN", {}) or {}))
+    if _zh(cfg.get("title", C.TITLE_ZH or C.TITLE_EN)):
+        cfg["title"] = C.TITLE_EN or ""
+    cfg.setdefault("title", C.TITLE_EN or "")
+    sub = cfg.get("subtitle", "")
+    cfg["subtitle"] = "" if _zh(sub) or str(sub).strip() == str(cfg["title"]).strip() else sub
+    for k in ("kicker", "tagline"):
+        if _zh(cfg.get(k)):
+            cfg.pop(k)
+    cfg["polaroids"] = [dict(p, caption=None) if _zh(p.get("caption")) else p for p in cfg.get("polaroids") or []]
+    hero = dict(cfg.get("hero") or {})
+    if hero.get("a") and (_zh(hero.get("labels")) or "labels" not in hero):
+        hero["labels"] = ("Draft", "Final")          # the split hero's default labels are bilingual
+        cfg["hero"] = hero
+    return cfg
+
+
 def polaroid(im, size, rot, k, cap=None, seed=0):
     """vstudio.cover.polaroid with the story's caption font (sans for latin, cjk for 中文)."""
     role = "cjk" if cap and has_cjk(cap) else "sans"
@@ -49,7 +75,7 @@ def main():
     if a.platform:
         spec.PLATFORM = a.platform
     C = Ctx(spec)
-    cfg = dict(getattr(spec, "COVER", {}) or {})
+    cfg = english_cover(spec, C) if C.SUBS == "en" else dict(getattr(spec, "COVER", {}) or {})
     if C.prof is not None:
         from vstudio import platform as vplat
         W, H = tuple(cfg.get("size", vplat.cover_size(C.prof)))

@@ -176,6 +176,11 @@ def parse_prompt(text):
         intent["narration"] = False
     elif re.search(r"旁白|配音|解说", t):
         intent["narration"] = True
+    else:                                   # "no narration, just music" / "with a voice-over" (vstudio.narration)
+        from vstudio import narration as NR
+        w = NR.wants_voice(text)
+        if w is not None:
+            intent["narration"] = w
     if re.search(r"不要\s*hook|不加\s*hook|不要开头预告", t):
         intent["hook"] = False
     elif re.search(r"加\s*hook|高光预告|冷开场", t):
@@ -642,8 +647,10 @@ def rule_projects(intent, analysis, ctx):
                     p["inputs"]["photos"] = [f["path"] for f in imgs]
                 if clips:
                     p["inputs"]["clips"] = [f["path"] for f in clips]
-                if intent.get("narration") is False or (music and intent.get("narration") is not True):
-                    p["params"]["mode"] = "music"
+                from vstudio import narration as NR
+                if intent.get("narration") is False or (music and intent.get("narration") is not True) or (
+                        intent.get("narration") is None and NR.is_mood_piece(intent.get("text"))):
+                    p["params"]["mode"] = "music"          # a mood piece: no voice-over by default
             else:
                 p["inputs"]["footage"] = [f["path"] for f in clips]
                 if imgs:

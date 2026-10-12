@@ -104,6 +104,32 @@ def load_cues(path):
     return [_cue_from_dict(d) for d in data]
 
 
+def _is_zh(text):
+    return any("\u3400" <= c <= "\u9fff" for c in str(text or ""))
+
+
+def cues_for_platform(prof, cues):
+    """Captions in the platform's language. YouTube / Shorts is English only (vstudio.platform.FIXED_LANG): a
+    bilingual cue keeps its English line and drops the Chinese one (中文 text + English alt -> the alt alone); a cue
+    with no English at all is kept and named in a warning (the master needs English cues). Other platforms: as is.
+    -> (cues, warnings)"""
+    if not cues or not P.lang_fixed(prof.name) or P.lang_for(prof.name) != "en":
+        return list(cues or []), []
+    from .subs import Cue
+    out, bare = [], 0
+    for c in cues:
+        text, alt = c.text or "", c.alt or ""
+        if _is_zh(text) and alt and not _is_zh(alt):
+            text, alt = alt, ""
+        elif alt and _is_zh(alt):
+            alt = ""
+        if _is_zh(text):
+            bare += 1
+        out.append(Cue(c.start, c.end, text, alt, c.meta))
+    warn = [f"{prof.name}: captions are English only, but {bare} cue(s) have no English line"] if bare else []
+    return out, warn
+
+
 def load_keepouts(path, master_size=None):
     """``keepouts`` of a cues.json -> [{t0, t1, box: (x, y, w, h) in master px}]. A box whose values are
     all <= 1 is a fraction of the frame; a top-level ``size`` [W, H] different from ``master_size``
@@ -570,6 +596,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         warnings.append(f"{len(wide)} of {len(pl['shots'])} shots shown whole on a blurred fill: "
                         + "; ".join(dict.fromkeys(x["reason"] for x in wide)))
     cue_list = load_cues(cues) if (cues is not None and captions) else []
+    cue_list, lang_warn = cues_for_platform(prof, cue_list)
+    warnings += lang_warn
     kos = load_keepouts(cues, (info["display_w"], info["display_h"])) if cue_list else []
     if start:
         from .subs import Cue

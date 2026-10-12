@@ -94,6 +94,7 @@ model = a.model if engine == "openai" or a.model != "gpt-4o-mini-tts" else None
 root = pathlib.Path(a.project)
 (root / "audio/vo").mkdir(parents=True, exist_ok=True)
 blocks = re.split(r"\n## Line ", (root / "SCRIPT.md").read_text())[1:]
+warned_zh = False
 for b in blocks:
     n = int(b.split(" ", 1)[0])
     if a.lines and str(n) not in a.lines:
@@ -104,6 +105,10 @@ for b in blocks:
     instr = a.direction + (" For this part: " + m.group(1) if m else "")
     out = str(root / f"audio/vo/line{n:02d}.wav")
     fresh = a.fresh
+    if lang == "zh" and engine == "kokoro" and not voice and not tts.zh_local_opt_in() and not warned_zh:
+        # her script is Chinese, so it is read as written - but say why a Chinese version is usually English
+        print("note: " + tts.ZH_LOCAL_NOTE["en"], flush=True)
+        warned_zh = True
     for attempt in range(1 + max(0, a.retries)):
         v = voice or (tts.zh_voice(engine) if lang == "zh" else None)
         err = take(n, text, out, engine=engine, voice=v, speed=a.speed,

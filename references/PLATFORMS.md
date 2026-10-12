@@ -21,6 +21,12 @@ Reddit, Pinterest, Snapchat), then **Chinese** (小红书, 抖音, 视频号, B�
 (Dailymotion, Kwai). `platform.ordered(names, connected=[...])` puts platforms with a connected account first
 *within* their group. `PLATFORMS` (the dict) keeps its old insertion order so lookups that scan it are unchanged.
 
+**Language per platform.** `platform.lang_for(name)`: YouTube and YouTube Shorts are **always English** (`FIXED_LANG`;
+no persona `publish.copy_lang` changes it) - title, captions, on-screen lines, narration, cover title, post copy; the
+Chinese platforms are Chinese; the other ones English by default. `split_by_lang(names)` groups a version's platforms
+(international first). The intake planner makes a YouTube version and a Chinese version separate projects; `export`
+burns English-only captions on YouTube; `publish.localize_post` never posts Chinese copy there.
+
 **YouTube = one channel, two formats.** `youtube` (long-form, 16:9) and `youtube-shorts` (vertical or square,
 ≤ 3 min [S: https://support.google.com/youtube/answer/15424877]) stay two export targets but share one account:
 `channel_of("youtube-shorts") == "youtube"`, `FORMATS["youtube"]`. `youtube_format(aspect, seconds)` says which one

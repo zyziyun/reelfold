@@ -147,6 +147,15 @@ Rules:
   about things a checkpoint already covers (segment approval, filler cuts, cover pick, publish review).
 - Platforms: use the ids in the recipe's "platforms" list ("xiaohongshu:full" = 9:16, "xiaohongshu:vertical" = 3:4).
   Give a bare platform name ("xiaohongshu") unless the creator named a shape: the creator's persona picks it.
+- Language per platform: YouTube and YouTube Shorts are ALWAYS English - title, captions / subtitles, on-screen lines,
+  narration, cover title, post copy - whatever language the request is in. Chinese versions go to Xiaohongshu /
+  Bilibili / Douyin (and the other Chinese platforms). When one video goes to both, plan two projects of the same
+  recipe: the English version (YouTube ..., listed first) and the Chinese version (name them "... (English)" /
+  "... (中文)"), each with only its own platforms.
+- Voice: a beautiful-footage film (a vlog, a photo-story mood / essay piece: golden hour, scenery, autumn) has NO
+  voice-over unless she asks for one - photo-story "mode": "music" (music + a few refined on-screen lines). A history /
+  explainer piece is narrated; a Chinese version is narrated in Chinese only when "Chinese voice" (at the end) says
+  a good one is set up.
 - summary_zh: ONE short paragraph for the creator, in the language of her request (Chinese for a Chinese request,
   English for an English one): what will be made from what, key settings, what she will be asked to confirm.
   No markdown.
@@ -696,6 +705,89 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
         params["layout_mode"], sources["layout_mode"] = ("split" if src.get("screen_share") else "reframe"), "material"
 
 
+def zh_voice_line(ctx=None):
+    """The planner's one line about the Chinese voice here (vstudio.tts.zh_voice_engine)."""
+    from vstudio import tts
+    eng = tts.zh_voice_engine((ctx or {}).get("tts_engine") or "auto")
+    if eng:
+        return f"{eng} - a Chinese version may be narrated in Chinese."
+    return ("only the built-in one, which sounds robotic - a Chinese version is narrated in English with Chinese "
+            "subtitles (or has no voice); never plan the built-in Chinese voice.")
+
+
+# recipes whose words (narration, subtitles, on-screen lines, cover, post) are written for the version: one project
+# per language when a video goes to YouTube (always English) and to Chinese platforms
+LANG_RECIPES = ("photo-story", "explainer", "vlog")
+
+
+def split_by_language(projects, questions=None):
+    """A project of a LANG_RECIPES recipe whose platforms mix YouTube / Shorts (always English) and Chinese platforms
+    becomes two: the English version (YouTube and the other international platforms, first) and the Chinese version
+    (小红书 / B站 / 抖音 ...). Question indices follow. -> (projects, questions)"""
+    from vstudio import platform as P
+    out, moved = [], {}
+    for k, p in enumerate(projects):
+        plats = list((p.get("params") or {}).get("platforms") or [])
+        groups = P.split_by_lang(plats)
+        moved[k] = len(out)
+        if p.get("recipe") not in LANG_RECIPES or not any(P.lang_fixed(x) for x in plats) or "zh" not in groups:
+            out.append(p)
+            continue
+        hint = name_lang(p.get("name"))
+        if hint in groups:                       # the model's own language version: only its language's platforms
+            p["params"]["platforms"] = groups[hint]
+            p.setdefault("param_sources", {})["platforms"] = "language"
+            p["language"] = hint
+            out.append(p)
+            continue
+        base = re.sub(r"\s*[(（]\s*(english|中文|chinese|英文)\s*[)）]\s*$", "", str(p.get("name") or ""), flags=re.I)
+        for lang in ("en", "zh"):
+            q = copy.deepcopy(p)
+            q["params"]["platforms"] = groups[lang]
+            q.setdefault("param_sources", {})["platforms"] = "language"
+            q["name"] = (base + (" (English)" if lang == "en" else " (中文)"))[:40]
+            q["language"] = lang
+            out.append(q)
+    for i, q in enumerate(out):
+        q["id"] = f"p{i + 1}"
+    qs = []
+    for q in questions or []:
+        q = dict(q)
+        if isinstance(q.get("project"), int) and q["project"] in moved:
+            q["project"] = moved[q["project"]]
+        qs.append(q)
+    return out, qs
+
+
+def name_lang(name):
+    """The language a project's name says it is ("... English version", "(中文)", "zh", "EN"), else None."""
+    n = str(name or "")
+    if re.search(r"english|英文|英语|(^|[\s_(（-])en([\s_)）-]|$)", n, re.I):
+        return "en"
+    if re.search(r"中文|汉语|chinese|(^|[\s_(（-])(zh|cn)([\s_)）-]|$)", n, re.I):
+        return "zh"
+    return None
+
+
+def voice_risks(projects, ui_lang="en"):
+    """A plain-words note for the plan card when a Chinese version will be narrated in English (no good Chinese
+    voice set up; vstudio.narration.voice_plan) - once."""
+    from vstudio import narration as NR
+    from vstudio import platform as P
+    for p in projects:
+        plats = (p.get("params") or {}).get("platforms") or []
+        if not plats or {P.lang_for(x, "en") for x in plats} != {"zh"}:
+            continue
+        told = p.get("recipe") == "explainer" or (p.get("recipe") == "photo-story" and
+                                                   (p.get("params") or {}).get("mode", "narration") != "music")
+        if not told:
+            continue
+        vp = NR.voice_plan("zh", (p.get("params") or {}).get("tts_engine") or "auto")
+        if vp["note"]:
+            return [NR.note_text(vp["note"], ui_lang)]
+    return []
+
+
 def platform_split(raw_projects, intent):
     """The model split the request's platforms between its projects (Chinese lines for Xiaohongshu + Bilibili, English
     for YouTube): every project names some of them and together they name all. Then each keeps its own platforms;
@@ -755,6 +847,12 @@ def _apply_intent(m, params, sources, intent, items):
             sources.pop("crop_bottom", None)
     if intent.get("narration") is False and m["id"] == "photo-story":
         params["mode"], sources["mode"] = "music", "prompt"
+    elif intent.get("narration") is True and m["id"] == "photo-story":
+        params["mode"], sources["mode"] = "narration", "prompt"
+    elif m["id"] == "photo-story" and "mode" in props:
+        from vstudio import narration as NR
+        if NR.default_mode("photo-story", intent.get("text")) == "music":
+            params["mode"], sources["mode"] = "music", "policy"     # a mood piece: music + lines, no voice-over
 
 
 def _name(n, rid, idx):
@@ -1000,7 +1098,7 @@ def _call_model(prompt, analysis, ctx, transcripts, provider=None, model=None, c
         info.update(fallback=True, reason="no model routed for task intake (rule planner)")
         return None, info
     I.emit(on_event, stage="model", provider=route.provider, model=route.model)
-    system = SYSTEM.format(phrases=PHRASE_TABLE)
+    system = SYSTEM.format(phrases=PHRASE_TABLE) + "\n\nChinese voice: " + zh_voice_line(ctx)
     body = _prompt_doc(prompt, analysis, ctx, transcripts, current, instruction, ui_lang)
     t0 = time.time()
     try:
@@ -1209,6 +1307,8 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
         questions, risks = (questions or rq), (risks + [r for r in rr if r not in risks])
         info["fallback"] = info.get("route") != "fixed"
         info.setdefault("reason", "rule planner")
+    projects, questions = split_by_language(projects, questions)     # YouTube is always English: its own version
+    risks += [r for r in voice_risks(projects, ui_lang) if r not in risks]
     if any(n["code"] == "intake.need.footage" for n in needs):
         projects, questions, risks = [], [], []       # nothing is made up without her recordings
     elif not projects and not media and not ignore_needs:

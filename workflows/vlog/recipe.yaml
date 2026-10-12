@@ -131,7 +131,10 @@ stages:
              "{item_dir}/exports", "--mode", "{reframe}", "--preset", "{preset}",
              {if: out.render.shots, args: ["--shots", "{out.render.shots}"]},
              {if: cover.file, args: ["--cover", "{cover.file}"]}, {if: cover.v916, args: ["--cover", "{cover.v916}"]},
-             {if: cover.v34, args: ["--cover", "{cover.v34}"]}, {if: title, args: ["--title", "{title}"]},
+             {if: cover.v34, args: ["--cover", "{cover.v34}"]},
+             {if: cover.en, args: ["--cover", "youtube={cover.en}"]},
+             {if: cover.en_v916, args: ["--cover", "youtube-shorts={cover.en_v916}"]},
+             {if: title, args: ["--title", "{title}"]},
              {if: out.music.post, args: ["--post", "{out.music.post}"]},
              {if: out.copy.post, args: ["--post", "{out.copy.post}"]},
              {if: copy_pick.file, args: ["--post", "{copy_pick.file}"]}]

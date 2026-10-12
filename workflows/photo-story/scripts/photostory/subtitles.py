@@ -1,6 +1,7 @@
 """Text layers: bilingual subtitles (**highlight**, balanced no-orphan wrapping), picture labels,
 running header with section progress, chapter cards. All return float32 RGBA arrays."""
 import math
+import re
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -32,6 +33,8 @@ def draw_runs(C, d, x, y, line, f, base, stroke):
 def make_sub(C, en, zh):
     """EN line(s) on top, 中文 below (中文 on top when the narration is Chinese), centred in the subtitle band.
     Either may be empty."""
+    if hasattr(C, "sub_pair"):
+        en, zh = C.sub_pair(en, zh)
     zh = (zh or "").rstrip("，。、：；")
     en = en or ""
     if C.prof is not None or getattr(C, "cinema", False):
@@ -114,6 +117,8 @@ def _make_sub_fit(C, en, zh, title=False):
 
 def make_title_text(C, en, zh):
     """MODE "music": a spec line as quiet title text (中文 serif + English italic), no speech-style stroke."""
+    if hasattr(C, "sub_pair"):
+        en, zh = C.sub_pair(en, zh)
     zh = (zh or "").rstrip("，。、：；")
     return _make_sub_fit(C, en or "", zh, title=True)
 
@@ -128,9 +133,17 @@ def sub_backdrop(C):
     return arr
 
 
+def english_only(text):
+    """"PHOTOS · 张照片" -> "PHOTOS": the parts of a bilingual label with no Chinese ("" when none is left)."""
+    parts = [x.strip() for x in re.split(r"\s*[·•/／|｜]\s*", str(text or "")) if x.strip()]
+    return " · ".join(x for x in parts if not re.search(r"[\u3400-\u9fff]", x))
+
+
 def make_label(C, text):
     """Rounded dark tag with an accent tick, bottom-left of the picture. Cinema look: no box - small letter-spaced
-    type over a thin accent rule, on a soft shadow (a documentary place caption)."""
+    type over a thin accent rule, on a soft shadow (a documentary place caption). English only on YouTube (C.SUBS)."""
+    if hasattr(C, "shown"):
+        text = C.shown(text)
     if getattr(C, "cinema", False):
         size = max(12, C.b(34))
         f = font_for(text, size, "sans", "cjk")
@@ -286,6 +299,8 @@ def make_chapter(C, s):
     name, name_en = C.SECTIONS[s], C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
     if getattr(C, "EN_LEAD", False) and name_en:          # English narration: the English name leads
         name, name_en = name_en, name
+    if getattr(C, "SUBS", "both") == "en" and re.search(r"[\u4e00-\u9fff]", name_en or ""):
+        name_en = ""                                       # English only (YouTube): no Chinese chapter name
     fn = font("serif-italic", C.b(120))
     fz = _fit(name, "cjk-serif", C.b(120), min(W * 0.9, (C.SAFE[2] - C.SAFE[0]) * 0.92))
     fe = font_for(name_en, C.b(54), "serif-italic", "cjk")
@@ -306,6 +321,8 @@ def _chapter_cinema(C, s):
     name, name_en = C.SECTIONS[s], C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
     if getattr(C, "EN_LEAD", False) and name_en:
         name, name_en = name_en, name
+    if getattr(C, "SUBS", "both") == "en" and re.search(r"[\u4e00-\u9fff]", name_en or ""):
+        name_en = ""                                       # English only (YouTube): no Chinese chapter name
     maxw = min(W * 0.8, (C.SAFE[2] - C.SAFE[0]) * 0.86)
     fz = _fit(name, "cjk-serif", C.b(84), maxw)
     fn = font("sans", C.b(28))

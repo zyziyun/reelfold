@@ -118,6 +118,12 @@ def main():
         print(f"clone voice: ref {os.path.basename(cc['ref_wav'])} ({cc['ref_hash']}), model {cc['model']}, {lang}")
     elif engine == "openai" and not os.environ.get("OPENAI_API_KEY"):
         sys.exit("OPENAI_API_KEY is not set in the environment")
+    picked_zh = str(a.voice or cfg.get("voice") or "").startswith(("zf_", "zm_"))   # she named a Chinese voice
+    if cfg["language"] == "zh" and engine == "kokoro" and not (picked_zh or vtts.zh_local_opt_in()):
+        # the built-in Chinese voice is opt-in (it sounds robotic): the English lines are narrated, the 中文
+        # subtitles still lead (Ctx.ZH_LEAD reads the spec's TTS language)
+        print("note: " + vtts.ZH_LOCAL_NOTE["en"], flush=True)
+        cfg["language"] = "en"
     voice = a.voice or cfg["voice"]
     if local and (not voice or voice in OPENAI_VOICES):   # an OpenAI voice name means nothing to the local voice
         voice = vtts.zh_voice(engine) if cfg["language"] == "zh" else None

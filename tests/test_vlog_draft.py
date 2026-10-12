@@ -172,11 +172,23 @@ def test_photo_story_spec_is_drafted_as_data_with_frames_and_music(tmp_path, cli
                                                     dict(name="../evil", clip=stem, t=1)], summary="ok"),
                     provider="claude-code", model="t")
     path = str(tmp_path / "item" / "work" / "spec.py")
-    rec = PS.draft_spec(ctx, dict(id="story", author=dict(doc="workflows/photo-story/WORKFLOW.md")), path,
-                        complete=complete)
+    os.environ["VSTUDIO_ZH_LOCAL_VOICE"] = "1"      # she turned the built-in Chinese voice on: Chinese narration
+    try:
+        rec = PS.draft_spec(ctx, dict(id="story", author=dict(doc="workflows/photo-story/WORKFLOW.md")), path,
+                            complete=complete)
+    finally:
+        os.environ.pop("VSTUDIO_ZH_LOCAL_VOICE", None)
     assert rec["by"] == "ai" and rec["frames"] == 1 and rec["language"] == "zh" and rec["bgm"].startswith("music_")
     assert os.path.isfile(tmp_path / "item" / "work" / "frames" / "cover_a.jpg") and len(seen["images"]) == 2
     assert 'language="zh"' in seen["body"] and "BGM = \"music_" in seen["body"] and PS.spec_language(path) == "zh"
+    assert rec["narration"] == "zh" and rec["voice_note"] is None
+    # no good Chinese voice (the default): the Chinese version is narrated in English, its 中文 subtitles lead,
+    # and the draft says why in plain words
+    os.remove(path)
+    rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
+    assert rec["language"] == "zh" and rec["narration"] == "en" and PS.spec_language(path) == "en"
+    assert "SUB_LEAD = 'zh'" in open(path).read() and "robotic" in rec["review"]["summary"]["params"]["text"]
+    assert 'SUB_LEAD = "zh"' in seen["body"]
     evil = dict(json=dict(content="import os\nX = 1\n"), provider="claude-code", model="t")
     os.remove(path)
     assert PS.draft_spec(ctx, dict(id="story", author={}), path, complete=lambda *a, **k: evil) is None
@@ -321,4 +333,5 @@ def test_photo_story_post_in_each_platforms_language():
         POST_EN = dict(title="When the Leaves Let Go", intro="An autumn essay.")
     zh = dict(title="红叶落时", intro="秋日随笔。")
     assert PE.post_for(Spec, zh, "youtube-shorts")["title"] == "When the Leaves Let Go"
-    assert PE.post_for(Spec, zh, "xiaohongshu") is zh and PE.post_for(object, zh, "youtube") is zh
+    assert PE.post_for(Spec, zh, "xiaohongshu") is zh and PE.post_for(object, zh, "tiktok") is zh
+    assert PE.post_for(object, zh, "youtube")["title"] == ""       # YouTube: never the Chinese post

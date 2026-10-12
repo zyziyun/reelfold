@@ -525,8 +525,25 @@ DRAFT_SYSTEM = (
     "Look at every sheet, then choose the windows that make HER video: the subject clearly framed, the move smooth; "
     "never take-off / landing, a camera still tilting into place, empty tails, shaky or dark-and-noisy parts unless "
     "the request wants night. Order them so the video tells its story (the request's places and moments, the light "
-    "of the day). Hit the requested length. On-screen words are in the language the request asks for (default: the "
-    "request's language); never put GPS coordinates in any text. Reply with JSON only.")
+    "of the day). Hit the requested length. On-screen words (title, place names, end card) are in the language "
+    "given for this version's platforms - YouTube / YouTube Shorts is always English; never put GPS coordinates in any "
+    "text. No voice-over: the footage, the music and a few words carry it. Reply with JSON only.")
+
+
+def onscreen_lang(platforms, request=""):
+    """The language of a vlog version's on-screen words: English when it goes to YouTube / Shorts (always English,
+    vstudio.platform.lang_for) or only to international platforms; Chinese when only to Chinese ones; else the
+    request's language."""
+    from vstudio import platform as P
+    plats = [p for p in platforms or [] if p]
+    if plats:
+        if any(P.lang_fixed(p) for p in plats):
+            return "en"
+        langs = {P.lang_for(p, "en") for p in plats}
+        if len(langs) == 1:
+            return langs.pop()
+    from vstudio.publish import detect_lang
+    return detect_lang(request or "") or "en"
 
 
 def edit_unfinished(path):
@@ -633,9 +650,11 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
     if instruction and DR.state(path, None, cp, ctx.recipe) in ("drafted", "hers"):
         cur = json.dumps({k: cfg.get(k) for k in ("segments", "shots", "title", "end_card") if k in cfg},
                          ensure_ascii=False)[:6000]
+    words = onscreen_lang(ctx.params.get("platforms") or [plat], request)
     body = "\n\n".join(x for x in [
         f"Request: {request or '(none)'}",
         f"Platform canvas: {plat or 'unknown'}",
+        f"On-screen words in: {'Chinese' if words == 'zh' else 'English'}",
         rules,
         "Clips (id: facts; the contact sheet of each clip is attached, tiles labelled with clip seconds):\n" + text,
         f"Current edit (change only what the instruction asks):\n{cur}" if cur else "",

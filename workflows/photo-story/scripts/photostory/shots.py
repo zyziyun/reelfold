@@ -446,6 +446,8 @@ class QuoteShot:
         self.C, self.sh = C, sh
         self.bg = blurred_bg(C, C.open_img(arg), 0.32, 30)
         self.en, self.zh, self.who = (tuple(sh["q"]) + ("", "", ""))[:3]
+        if hasattr(C, "sub_pair"):
+            self.en, self.zh = C.sub_pair(self.en, self.zh)      # English only on YouTube
         self.cache = {}
         self.fe = font_for(self.en, C.b(76), "serif-italic", "cjk-serif")
         self.fz = font("cjk-serif", C.b(62))
@@ -537,10 +539,10 @@ class RouteShot:
             d.line((gx, 0, gx, C.BOX_H), fill=(120, 100, 70, 28), width=1)
         for gy in range(0, C.BOX_H, step):
             d.line((0, gy, C.BOX_W, gy), fill=(120, 100, 70, 28), width=1)
-        title = R.get("title", "")
+        title = C.shown(R.get("title", ""))
         if title:
             d.text((C.b(80), C.b(60)), title, font=font_for(title, C.b(64), "serif-italic", "cjk-serif"), fill=(70, 52, 36, 255))
-        note = R.get("note", "示意图，非精确比例 · schematic, not to scale")
+        note = C.shown(R.get("note", "示意图，非精确比例 · schematic, not to scale"))
         if note:
             d.text((C.b(80), C.BOX_H - C.b(80)), note, font=font_for(note, C.b(30), "sans", "cjk"), fill=(110, 92, 70, 255))
         cx, cy = C.BOX_W - C.b(170), C.BOX_H - C.b(230)   # north arrow
@@ -549,6 +551,8 @@ class RouteShot:
         d.text((cx, cy - C.b(110)), "N", font=font("serif-italic", C.b(46)), fill=(70, 52, 36, 255), anchor="mm")
         fz = font("cjk-serif", C.b(56))
         for name, v in self.cities.items():
+            if getattr(C, "SUBS", "both") == "en":
+                v = dict(v, zh="")                              # English only on YouTube: no Chinese city names
             x, y = self.xy(name)
             r = C.b(14)
             d.ellipse((x - r, y - r, x + r, y + r), fill=(70, 52, 36, 255))

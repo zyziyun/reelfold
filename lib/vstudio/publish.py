@@ -381,14 +381,26 @@ def localize_post(post, platform, content_lang=None, lang=None, bilingual=None, 
     Language: ``lang`` arg > ``lang_by_platform`` > ``post.lang`` > the content language (``content_lang``, e.g.
     detected from the cues): English content -> English copy on X / Instagram / TikTok / YouTube (INTL_PLATFORMS);
     Chinese platforms take the content language too. A missing block falls back to the other language / flat keys.
-    bilingual (arg or ``post.bilingual``): English first, then Chinese (titles "EN / 中文", tags merged)."""
-    from .platform import INTL_PLATFORMS
+    bilingual (arg or ``post.bilingual``): English first, then Chinese (titles "EN / 中文", tags merged).
+    YouTube / Shorts is always English (vstudio.platform.FIXED_LANG): no ``lang`` / bilingual / Chinese block wins
+    there; a post.json with no English copy is used as is, with a warning."""
+    from .platform import INTL_PLATFORMS, lang_fixed, lang_for
     pl = platform_name(platform)
     per = post.get("per_platform") or {}
     own = per.get(pl) or per.get("youtube" if pl == "youtube-shorts" else pl)
     pl = "youtube" if pl == "youtube-shorts" else pl
     flat = {k: post.get(k) for k in _COPY_KEYS if post.get(k) is not None}
-    if isinstance(own, dict) and not (bilingual or post.get("bilingual")):
+    if lang_fixed(pl):
+        fixed = lang_for(pl)
+        lang, bilingual = fixed, False
+        if isinstance(own, dict) and (own.get("lang") or detect_lang(str(own.get("title") or ""))) not in (fixed, None):
+            own = None                                   # a Chinese per-platform block never posts on YouTube
+        has = (isinstance(own, dict) or isinstance(post.get(fixed), dict)
+               or detect_lang([str(flat.get("title") or ""), str(flat.get("hook") or "")]) in (fixed, None))
+        if not has and warn:
+            warn(f"{pl}: is {fixed}-only, but post.json has no {fixed} copy; add an '{fixed}' block")
+    bi_post = bool(post.get("bilingual")) and not lang_fixed(pl)
+    if isinstance(own, dict) and not (bilingual or bi_post):
         # a drafted post per platform (vstudio.postcopy: its own language, length and tags) wins over the flat copy
         b = dict(flat, **{k: v for k, v in own.items() if k in _COPY_KEYS and v not in (None, "")})
         b["lang"] = own.get("lang") or lang or content_lang
@@ -397,7 +409,7 @@ def localize_post(post, platform, content_lang=None, lang=None, bilingual=None, 
     want = (lang or (post.get("lang_by_platform") or {}).get(pl) or post.get("lang") or content_lang
             or ("en" if pl in INTL_PLATFORMS and "en" in blocks else None) or ("zh" if "zh" in blocks else None))
     if bilingual is None:
-        bilingual = bool(post.get("bilingual"))
+        bilingual = bi_post
     if bilingual and len(blocks) == 2:
         en, zh = blocks["en"], blocks["zh"]
 

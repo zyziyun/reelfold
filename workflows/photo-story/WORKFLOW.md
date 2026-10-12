@@ -57,6 +57,21 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
    python3 .../export.py work/spec.py        # subtitles.srt, transcript.md, voice.mp3 (-16 LUFS), post.md
    ```
 
+## Voice and language per version
+- **YouTube / YouTube Shorts is always English** (`vstudio.platform.lang_for`): rendered for `PLATFORM = "youtube"`
+  the subtitles, header and chapter names are English only (`SUBS` is forced to `"en"`), the cover takes `COVER_EN`
+  (or `COVER` with every Chinese text replaced by `TITLE_EN` / left out) and the post is `POST_EN`. The Chinese
+  version goes to 小红书 / B站 / 抖音; the intake planner makes the two versions separate projects.
+- A mood / scenery piece (an autumn essay, golden hour) has **no voice-over** by default: `MODE = "music"` with a few
+  refined on-screen lines, unless the request asks for narration.
+- A told piece (history, explainer) is narrated. Its Chinese version is narrated in Chinese only when a good Chinese
+  voice is set up (an OpenAI key, your cloned voice, a TTS server): the built-in Chinese voice (Kokoro) sounds
+  robotic and is opt-in (persona `tts.zh_local: true`). Otherwise the English is narrated and the 中文 subtitles lead:
+  `TTS = dict(language="en")` + `SUB_LEAD = "zh"`. tts.py applies the same rule to an older spec that still says
+  `language="zh"` (unless you name a Chinese voice, `--voice zf_xiaobei`).
+- The local English voice reads curated names from phonemes (`vstudio.kokoro_lexicon`: Elliott, Elvis, Puget,
+  Dreyfus, Yamasaki ...); other unknown names get `SAY_TTS` respellings from the drafter.
+
 ## Modes
 - **narration** (default): the TTS `timing.json` drives the timeline; optional `BGM` bed under the voice.
 - **music** (`MODE = "music"` or `render.py --mode music`, no TTS): `beats.analyze(BGM)` drives it. Every shot gets a
@@ -157,6 +172,8 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `FILM_CAPTION` | caption under film-strip frames, `{n}` / `{name}` |
 | `TTS` | `dir voice model instructions tries good use_say sample_voices sample_line whisper faster_model language` |
 | `SAY` | spoken forms for numbers/names (alignment; also TTS input when `use_say`) |
+| `SUB_LEAD`, `SUBS` | which subtitle line leads (`"zh"`: 中文 on top - a Chinese narration, or a Chinese version narrated in English) / which lines show: `"both"` (default), `"en"`, `"zh"` (YouTube: always `"en"`) |
+| `COVER_EN`, `POST_EN`, `POST_ZH` | the cover texts / post in the other language (YouTube posts English, 小红书 / B站 Chinese) |
 | `BGM`, `BGM_LUFS`, `BGM_DUCK`, `OUT`, `AUDIO_BITRATE`, `FPS`, `PACING` | music bed (your own licensed file) at `BGM_LUFS` loudness (default persona `audio.music_lufs`, -30), `BGM_DUCK` dB while the voice speaks (default 0 = static bed), output; `PACING` = `gap sec_gap tail lead end_fade`. `BGM_VOLUME` is no longer used |
 | `COVER`, `POST`, `VOCAB` | cover.py layout data / post copy (`title intro outro tags platform use_persona_tags tag_set`; `platform` picks the `vstudio.publish` format, default persona `platforms.default`; `tags` are the post's own, persona `publish.tags` are appended unless `use_persona_tags=False`; `tag_set="art"` appends persona `publish.tag_sets.art` instead) / optional study table |
 

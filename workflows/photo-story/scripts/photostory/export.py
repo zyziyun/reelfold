@@ -41,7 +41,14 @@ def post_for(spec, post, platform):
     want = PC.copy_lang(platform)
     have = "zh" if re.search(r"[\u4e00-\u9fff]", f"{post.get('title', '')}{post.get('intro', '')}") else "en"
     alt = getattr(spec, "POST_EN" if want == "en" else "POST_ZH", None)
-    return dict(alt) if want != have and isinstance(alt, dict) and alt else post
+    if want != have and isinstance(alt, dict) and alt:
+        return dict(alt)
+    if want == "en" != have and vplat.lang_fixed(platform):
+        # YouTube is English only: never the Chinese post there - the English title and chapter names at least
+        print(f"! {platform}: the spec has no POST_EN; posting the English title only (add POST_EN)")
+        return dict(title=getattr(spec, "TITLE_EN", "") or "", intro="", tags=[],
+                    **{k: v for k, v in post.items() if k in ("use_persona_tags", "tag_set")})
+    return post
 
 
 def tag_args(post):
@@ -82,8 +89,10 @@ def main():
     out = a.out or os.path.dirname(C.path(getattr(spec, "OUT", "out/story.mp4")))
     os.makedirs(out, exist_ok=True)
 
-    srt_write([Cue(s["start"], s["end"], s["en"] or "", s["zh"] or "") for s in T.subs],
-              os.path.join(out, "subtitles.srt"), which="both")
+    # the subtitle file as the video shows it: English only on YouTube (C.SUBS), 中文 first when it leads
+    pairs = [(s, *C.sub_pair(s["en"] or "", s["zh"] or "")) for s in T.subs]
+    srt_write([Cue(s["start"], s["end"], z, e) if C.ZH_LEAD else Cue(s["start"], s["end"], e, z)
+               for s, e, z in pairs], os.path.join(out, "subtitles.srt"), which="both")
     json.dump([Cue(s["start"], s["end"], clean(s["zh"]), clean(s["en"])).to_dict() for s in T.subs],
               open(os.path.join(out, "cues.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -115,8 +124,9 @@ def main():
             lab = en if ((C.EN_LEAD or post_en) and en) else f"{name} {en}" if en and en != name else name
             chapters.append((T.sec_bounds[s], lab if not cap or len(lab) <= cap else name))
     body = "\n\n".join(p for p in (post.get("intro"), post.get("outro")) if p)
+    title = post.get("title") or ((C.TITLE_EN or C.TITLE_ZH) if post_en else (C.TITLE_ZH or C.TITLE_EN))
     text = publish.post_body(None, body, chapters=chapters, tags=post.get("tags"), platform=pl,
-                             title=post.get("title", C.TITLE_ZH or C.TITLE_EN), **tag_args(post))
+                             title=title, **tag_args(post))
     open(os.path.join(out, "post.md"), "w", encoding="utf-8").write(text)
 
     if not a.no_voice and has_audio:

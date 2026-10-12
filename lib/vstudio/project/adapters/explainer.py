@@ -278,6 +278,8 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
     req = ctx.request()
     minutes = target_minutes(ctx.params, req)
     zh = ctx.lang() == "zh" or bool(re.search(r"中文|讲解|普通话|Chinese", req))
+    vp = explainer_voice(ctx.params, zh)
+    zh_voice, note = vp["narrate"] == "zh", vp["note"]
     scenes = max(4, round(minutes * 2))
     want = instruction or (
         f"Condense the materials into ONE explainer of about {minutes:g} minutes: about {scenes} '## Line N' scenes, "
@@ -285,14 +287,16 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
         " of narration in total. Keep the parts the request names, one idea per scene, the materials' own examples "
         "and analogies; drop stage directions, code listings and chat leftovers. "
         + ("Narrate in Chinese (中文讲解): the indented block is Chinese, English terms stay English, numbers as digits; "
-           "no ZH: line." if zh else "Narrate in English with a ZH: subtitle line per scene."))
+           "no ZH: line." if zh_voice else
+           "Narrate in English with a ZH: subtitle line per scene (the Chinese version shows the Chinese subtitles; "
+           "no Chinese voice is used)." if zh else "Narrate in English with a ZH: subtitle line per scene."))
     rec = None
     try:
         rec = DR.generic(ctx, cp, path, template=template, instruction=want, complete=complete)
     except Exception:  # noqa: BLE001  (no model / a reply that failed: the rules below still write a script)
         rec = None
     if rec and script_format_ok(path):
-        return rec
+        return _with_voice_note(rec, note, ctx.lang())
     texts = []
     for v in ctx.inputs.values():
         for p in (v if isinstance(v, list) else [v]):
@@ -305,6 +309,29 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
         f.write(notes_to_script("\n\n".join(texts), "zh" if zh else "en", minutes,
                                 str(ctx.params.get("title") or "")))
     return dict(by="rules", instruction=None, review=DR.outline_review(path, None))
+
+
+def explainer_voice(params, zh):
+    """The episode's voice (vstudio.narration.voice_plan): an English version (YouTube is always English) is narrated
+    in English; a Chinese one in Chinese only with a good Chinese voice set up, else in English with ZH: subtitles."""
+    from vstudio import narration as N
+    from vstudio import platform as P
+    plats = list((params or {}).get("platforms") or [])
+    if plats and (any(P.lang_fixed(p) for p in plats) or {P.lang_for(p, "en") for p in plats} == {"en"}):
+        zh = False
+    return N.voice_plan("zh" if zh else "en", (params or {}).get("tts_engine") or "auto")
+
+
+def _with_voice_note(rec, note, lang):
+    """The draft record with the voice note (why a Chinese version speaks English) as its review's first line."""
+    if not note or not isinstance(rec, dict):
+        return rec
+    from vstudio import narration as N
+    rv = rec.get("review") if isinstance(rec.get("review"), dict) else None
+    if rv is not None:
+        rv["lines"] = [dict(code="draft.line", params=dict(label=N.note_text(note, lang)))] + list(rv.get("lines") or [])
+    rec["voice_note"] = note
+    return rec
 
 
 # --------------------------------------------------------------------------- the storyboard: a shot plan, no TODO

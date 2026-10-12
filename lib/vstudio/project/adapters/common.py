@@ -502,9 +502,45 @@ def cover_apply(a):
         if crop:
             cv[key] = _text_cover(crop, text, a.answer_path(f"cover_{int(t * 1000)}_{key}_"
                                                             f"{sha1_json([text, retouched])[:8]}.jpg"))
+    # YouTube / Shorts is always English (vstudio.platform.lang_for): a cover text with Chinese in it gets an English
+    # twin for those targets ("Golden Hour · 黄金时刻 | Elliott Bay" -> "Golden Hour | Elliott Bay"; none: no text)
+    if _has_cjk(text) and _goes_to_youtube(a.params.get("platforms")):
+        en = english_cover_text(text)
+        tag = sha1_json([en, retouched])[:8]
+        cv["en"] = _text_cover(frame, en, a.answer_path(f"cover_{int(t * 1000)}_en_{tag}.jpg"))
+        src916 = _crop_of(cv, a, t, "v916") or frame
+        cv["en_v916"] = _text_cover(src916, en, a.answer_path(f"cover_{int(t * 1000)}_v916_en_{tag}.jpg"))
+        cv["text_en"] = en
     if retouched is not None:
         cv["retouched"] = retouched
     return dict(params=dict(cover=cv))
+
+
+def _crop_of(cv, a, t, key):
+    """The subject crop ``cover_apply`` cut for ``key`` (v916 / v34), when it cut one."""
+    p = a.answer_path(f"cover_frame_{int(t * 1000)}_{key}.jpg")
+    return p if cv.get(key) and os.path.exists(p) else None
+
+
+def _has_cjk(text):
+    return bool(re.search(r"[\u3400-\u9fff]", str(text or "")))
+
+
+def _goes_to_youtube(platforms):
+    from vstudio import platform as P
+    plats = platforms if isinstance(platforms, (list, tuple)) else str(platforms or "").split(",")
+    return any(P.lang_fixed(p) for p in plats if str(p).strip())
+
+
+def english_cover_text(text):
+    """A bilingual cover text in English only: per line ("|" / newline), the parts ("·" / "/" / "—") with no Chinese;
+    a line with nothing English left is dropped. "" when nothing is English."""
+    out = []
+    for line in re.split(r"\s*[|｜\n]\s*", str(text or "")):
+        parts = [x.strip() for x in re.split(r"\s*[·•/／—]\s*", line) if x.strip() and not _has_cjk(x)]
+        if parts:
+            out.append(" · ".join(parts))
+    return " | ".join(out)
 
 
 def subject_crop(frame, aspect, out):

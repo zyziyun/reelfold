@@ -100,6 +100,7 @@ def _count_label(C, n, en, zh):
 
 
 def _tag(C, txt):
+    txt = C.shown(txt) if hasattr(C, "shown") else txt       # English only on YouTube
     key = ("tag", txt)
     cache = _cache(C)
     if key not in cache:
@@ -211,6 +212,8 @@ def overlays(C, sh, f, lt):
             paste_rgba(f, _year_label(C, fmt.format(int(round(yr)))), int(x) - C.b(130), y - C.b(100), alpha)
     if "count" in sh:
         n, en, zh = (tuple(sh["count"]) + ("", ""))[:3]
+        if hasattr(C, "sub_pair"):
+            en, zh = C.sub_pair(en, zh)              # English only on YouTube
         q = ease((lt - 0.2) / 1.0)
         a = min(1, (lt - 0.1) / 0.3, (dur - lt) / 0.3)
         if a > 0:

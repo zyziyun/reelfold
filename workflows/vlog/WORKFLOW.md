@@ -134,8 +134,10 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    The `framing` decision records it (autopilot: follow the subject); she can switch to "Fill with blur" in the
    Inbox or on the clip page (On vertical screens). The `copy` stage writes each platform's post copy
    (`vstudio.postcopy`): title / hook, 2-4 line body (a longer YouTube description), topic hashtags within the
-   platform's limit, the city from the DJI `.SRT` logs (offline), the music credit; 小红书 / 抖音 / B站 in her
-   request's language, YouTube / TikTok in persona `publish.copy_lang.intl` (English by default). The routed
+   platform's limit, the city from the DJI `.SRT` logs (offline), the music credit; 小红书 / 抖音 / B站 in Chinese
+   (persona `publish.copy_lang.cn`), TikTok / X in persona `publish.copy_lang.intl` (English by default), YouTube /
+   Shorts always in English. On-screen words follow the version's platforms (English when it goes to YouTube), and a
+   cover text with Chinese in it gets an English twin for YouTube / Shorts (`cover.en`, `cover.en_v916`). The routed
    `copy` model writes it, the rules when there is none; the `copy` decision says which and offers the other.
 
 8. **Deliver.** A native-4K master is large (~1.8 GB per ~3 min). Offer a smaller visually-lossless

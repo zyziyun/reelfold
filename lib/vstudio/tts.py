@@ -243,6 +243,62 @@ def default_voice(engine="auto"):
     return _voice(pick_engine(engine), None)
 
 
+# ---------------------------------------------------------------------------------------- Chinese narration policy
+# The bundled local Chinese voice (Kokoro zf_*) sounds robotic: it is opt-in. A Chinese version is narrated in Chinese
+# only by a better voice (OpenAI with its key, the creator's cloned voice, a voice she set in her persona, a TTS
+# server); otherwise in English with Chinese subtitles leading (or with no voice at all for a mood / scenery piece).
+ZH_LOCAL_ENV = "VSTUDIO_ZH_LOCAL_VOICE"
+ZH_LOCAL_NOTE = {
+    "en": "The built-in Chinese voice sounds robotic, so the Chinese version uses English narration with Chinese "
+          "subtitles. Turn on 'local Chinese voice' (persona tts.zh_local: true) if you still want it, or add an "
+          "OpenAI key or your own cloned voice for natural Chinese narration.",
+    "zh": "内置的中文配音听起来很机械，所以中文版用英文旁白 + 中文字幕。如果仍想用它，请打开「本地中文配音」"
+          "（persona tts.zh_local: true）；或者添加 OpenAI 密钥、克隆自己的声音，就能有自然的中文旁白。"}
+
+
+def _truthy(v):
+    return v is True or str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def zh_local_opt_in():
+    """She asked for the built-in Chinese voice anyway: env VSTUDIO_ZH_LOCAL_VOICE=1, persona ``tts.zh_local: true``
+    or ``voice.zh_local: true``."""
+    if _truthy(os.environ.get(ZH_LOCAL_ENV, "")):
+        return True
+    if _truthy(_tts_cfg().get("zh_local")):
+        return True
+    try:
+        from .config import persona
+        return _truthy((persona().get("voice") or {}).get("zh_local"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def zh_voice_engine(engine="auto"):
+    """The engine that would read a Chinese narration well enough to use it by default, or None (then: English
+    narration with Chinese subtitles). OpenAI with its key, ElevenLabs with its key, a cloned voice with its
+    reference, a TTS server, Microsoft's online voices (edge) -> that engine; the built-in Kokoro voice only when
+    ``zh_local_opt_in``. An engine that cannot run here (no key, no reference) -> None."""
+    e = available_engine(engine)
+    if e == "kokoro":
+        return e if zh_local_opt_in() else None
+    if missing_key(e):
+        return None
+    if e == "clone":
+        try:
+            clone_config()
+        except RuntimeError:
+            return None
+    if e == "openai-compatible" and not server_config().get("base_url"):
+        return None
+    return e
+
+
+def zh_narration_ok(engine="auto"):
+    """True when a Chinese version may be narrated in Chinese (``zh_voice_engine`` found a voice for it)."""
+    return zh_voice_engine(engine) is not None
+
+
 def zh_voice(engine):
     """The Chinese voice of ``engine`` (persona tts.<engine>_voice_zh, else ZH_VOICE); None = the engine's default."""
     v = (_tts_cfg() or {}).get(f"{engine}_voice_zh")

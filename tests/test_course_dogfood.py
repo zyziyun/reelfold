@@ -188,8 +188,10 @@ def test_a_course_video_from_lecture_notes_is_an_explainer(iso):
     p = PL.make_plan("把这节讲稿做成一集有丰富交互感的科普课程视频（画面：图解动画、代码片段、对比表、要点卡），中文讲解，适合 YouTube 和 B站",
                      [str(d)], provider="none", asr="off")
     assert not p.get("needs"), p.get("needs")
-    assert [x["recipe"] for x in p["projects"]] == ["explainer"]
-    assert p["projects"][0]["params"]["platforms"] == ["youtube", "bilibili"]
+    # YouTube is always English: an English version for YouTube, the Chinese one (中文讲解) for B站
+    assert [x["recipe"] for x in p["projects"]] == ["explainer", "explainer"]
+    assert [x["params"]["platforms"] for x in p["projects"]] == [["youtube"], ["bilibili"]]
+    assert [x["language"] for x in p["projects"]] == ["en", "zh"]
     row = p["projects"][0]["items"]["rows"][0]
     assert str(row["inputs"]["script"]).endswith(".md")      # the notes reach the script step (drafted from)
 

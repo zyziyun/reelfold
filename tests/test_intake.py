@@ -283,7 +283,9 @@ def test_model_platform_split_between_projects_is_kept(tmp_path):
     assert chans == [["xiaohongshu", "bilibili"], ["youtube"]]
     plan = PL.make_plan(prompt, analysis=a, asr="off", call=reply((["xiaohongshu:full"], ["youtube"])))
     chans = [sorted(x.split(":")[0] for x in p["params"]["platforms"]) for p in plan["projects"]]
-    assert chans == [["bilibili", "xiaohongshu", "youtube"]] * 2      # Bilibili named by none: the request wins
+    # Bilibili named by none: the request wins - and each language version keeps its language's platforms
+    # (YouTube is always English: never on the Chinese version)
+    assert chans == [["bilibili", "xiaohongshu"], ["youtube"]]
 
 
 def test_model_garbage_falls_back(tmp_path):

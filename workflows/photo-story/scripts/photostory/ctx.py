@@ -203,8 +203,19 @@ class Ctx:
         self.LUFS = float(loud.get("lufs", (P.get("audio") or {}).get("loudness_lufs", -14)))
         self.TP = float(loud.get("tp", -1.5))
         self.MODE = str(g("MODE", "narration")).lower()
-        # a Chinese narration (TTS language zh): its 中文 subtitle leads, the English sits under it
-        self.ZH_LEAD = str((dict(g("TTS", {}) or {})).get("language") or "") == "zh"
+        # a Chinese narration (TTS language zh), or a Chinese version narrated in English because no good Chinese
+        # voice is set up (SUB_LEAD = "zh"): its 中文 subtitle leads, the English sits under it
+        tts_lang = str((dict(g("TTS", {}) or {})).get("language") or "")
+        self.ZH_LEAD = tts_lang == "zh" or str(g("SUB_LEAD", "") or "") == "zh"
+        # which subtitle lines show: "both" (default), "en", "zh". YouTube / Shorts is English only, whatever the
+        # spec says (vstudio.platform.FIXED_LANG): no Chinese subtitle, header or chapter name there
+        self.SUBS = str(g("SUBS", "both") or "both").lower()
+        if self.prof is not None:
+            from vstudio import platform as vplat
+            if vplat.lang_fixed(self.prof.name):
+                self.SUBS = vplat.lang_for(self.prof.name)
+        if self.SUBS == "en":
+            self.ZH_LEAD = False
         # an English narration (TTS language "en") leads its header with the English title / chapter names
 
         pal = dict(DEFAULT_PALETTE)
@@ -215,9 +226,11 @@ class Ctx:
         self.GOLD = pal["accent"]
 
         self.TITLE_ZH, self.TITLE_EN = g("TITLE_ZH", ""), g("TITLE_EN", "")
-        self.EN_LEAD = str((dict(g("TTS", {}) or {})).get("language") or "") == "en" and bool(self.TITLE_EN)
+        self.EN_LEAD = (tts_lang == "en" and not self.ZH_LEAD or self.SUBS == "en") and bool(self.TITLE_EN)
         self.HEAD_MAIN, self.HEAD_SUB = ((self.TITLE_EN, self.TITLE_ZH) if self.EN_LEAD
                                          else (self.TITLE_ZH, self.TITLE_EN))
+        if self.SUBS == "en":
+            self.HEAD_MAIN, self.HEAD_SUB = (self.TITLE_EN or self.HEAD_MAIN), ""
         self.SECTIONS = list(g("SECTIONS", ["Story"]))
         self.SECTIONS_EN = list(g("SECTIONS_EN", [""] * len(self.SECTIONS)))
         self.HEAD_SECTIONS = ([e or z for z, e in zip(self.SECTIONS, self.SECTIONS_EN + [""] * len(self.SECTIONS))]
@@ -249,6 +262,27 @@ class Ctx:
         self.DIAG = xx / self.BOX_W * 0.75 + yy / self.BOX_H * 0.25
 
     # ---------------------------------------------------------------- paths / media
+    def sub_pair(self, en, zh):
+        """A cue's (English, 中文) as shown: the language ``SUBS`` hides is blanked (English only on YouTube); a cue
+        with nothing left in the shown language keeps the other one rather than showing nothing."""
+        if self.SUBS == "en" and en:
+            return en, ""
+        if self.SUBS == "zh" and zh:
+            return "", zh
+        return en, zh
+
+    def shown(self, text):
+        """A bilingual on-picture text ("Pyramid · 金字塔构图") as shown: its English parts only on an English-only
+        platform (SUBS "en", YouTube), unchanged elsewhere or when no English part is left."""
+        t = str(text or "")
+        if self.SUBS != "en" or not any("\u3400" <= ch <= "\u9fff" for ch in t):
+            return text
+        import re as _re
+        parts = [_re.sub(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+", " ", x).strip()
+                 for x in _re.split(r"\s*[·•/／|｜]\s*", t)]
+        en = " · ".join(_re.sub(r"\s+", " ", x) for x in parts if _re.search(r"[A-Za-z0-9]", x))
+        return en or text
+
     def path(self, p):
         if p is None:
             return None

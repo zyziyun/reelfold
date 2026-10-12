@@ -11,7 +11,8 @@ the DJI flight logs), the music credit when the track asks for one - per platfor
 
 Language per platform (``copy_lang``): persona ``publish.copy_lang.<platform>`` > the Chinese platforms take
 persona ``publish.copy_lang.cn`` (default Chinese) > the international ones take persona ``publish.copy_lang.intl``
-(default English). Her own title is kept on the platforms in its language.
+(default English). YouTube / YouTube Shorts is ALWAYS English (``vstudio.platform.lang_for``; no setting changes
+it): the Chinese version goes to the Chinese platforms. Her own title is kept on the platforms in its language.
 
 ``draft``: the routed ``copy`` model (vstudio.llm; Claude Code / any API / a local model) writes each language once
 from the facts (place, month, aerial or not, her words, her title, the music); every answer is checked (non-empty,
@@ -78,8 +79,12 @@ def copy_lang(platform, request=None):
     """The language of one platform's copy: persona ``publish.copy_lang.<platform>``; a Chinese platform ->
     ``publish.copy_lang.cn`` (default zh: its audience reads Chinese, whatever language she typed the request in -
     an English request used to get English copy on 小红书 / B站); an international one -> ``publish.copy_lang.intl``
-    (default en). ``request`` is kept for callers; it no longer decides."""
+    (default en). YouTube / Shorts is always English (vstudio.platform.FIXED_LANG: no persona key changes it).
+    ``request`` is kept for callers; it no longer decides."""
+    from . import platform as P
     pl = platform_key(platform)
+    if P.lang_fixed(pl):
+        return P.lang_for(pl)
     cfg = _persona("publish.copy_lang", {}) or {}
     if isinstance(cfg, str):
         cfg = {"intl": cfg}

@@ -119,8 +119,9 @@ publish:
   tag_sets: {}             # named alternatives picked per post with tag_set:, e.g. {art: [看展, 艺术]}
                            # a post/spec can also set use_persona_tags: false to use only its own tags
   chapter_line: "时间线在下面，按需跳👇"
-  copy_lang: {intl: en}    # drafted post copy (vlog / travel): intl = YouTube / TikTok / X / Instagram; cn = 小红书 /
-                           # 抖音 / B站 (default: your request's language); or one platform, e.g. {tiktok: zh}
+  copy_lang: {intl: en}    # drafted post copy (vlog / travel): intl = TikTok / X / Instagram; cn = 小红书 /
+                           # 抖音 / B站 (default Chinese); or one platform, e.g. {tiktok: zh}. YouTube / Shorts is
+                           # always English (no setting changes it)
 
 intake:                    # one sentence + materials -> plan (python -m vstudio.intake)
   burned_captions: band    # a finished edit with burned-in captions, cut again: band = crop the old captions off,
@@ -156,3 +157,6 @@ formats: {}                # recurring formats (python -m vstudio.formats list):
 #     copy: {provider: deepseek}
 # asr: {backend: auto}                          # mlx | faster | openai | openai-compatible (+ base_url, model)
 # tts: {engine: auto, server: {base_url: "http://localhost:8880/v1", model: kokoro, voice: af_heart}}
+# tts: {zh_local: true}   # "local Chinese voice": the built-in Chinese voice sounds robotic, so a Chinese version is
+#                         # narrated in English with Chinese subtitles unless a better voice is set up (an OpenAI key,
+#                         # your cloned voice tts.clone, a TTS server). true = use the built-in one anyway.
