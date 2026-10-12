@@ -457,7 +457,8 @@ def _cinema_cover(frame_path, text, out_path):
     d = ImageDraw.Draw(lay)
     portrait = H > W
     maxw = W * (0.86 if portrait else 0.8)
-    size = int(min(H * 0.105, W * (0.105 if portrait else 0.072)))
+    short_cjk = all(len(t) <= 8 for t in title) and bool(re.search(r"[\u3000-\u9fff]", "".join(title)))
+    size = int(min(H * 0.105, W * ((0.14 if short_cjk else 0.105) if portrait else 0.072)))
     serif = font("cjk-serif")
     f = ImageFont.truetype(serif, size)
     while size > H * 0.05 and any(d.textlength(t, font=f) > maxw for t in title):
