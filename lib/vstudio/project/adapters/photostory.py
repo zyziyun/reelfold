@@ -35,7 +35,9 @@ GUIDE = """Notes for this spec (they override the template where they differ):
 - Do not write PLATFORM, CANVAS, OUT, TTS voice / model / engine, VOICE, ROUTE or SAY. {bgm_note}
 - TITLE_ZH / TITLE_EN, SECTIONS / SECTIONS_EN (2-4 short chapter names), COVER (kicker, title, subtitle, tagline
   (before, keyword, after), hero=dict(src=<frame>), polaroids from frames with short captions) and POST (title, intro,
-  tags) in the request's language for this version.
+  tags) in the request's language for this version. Each platform posts in its audience's language (Chinese on
+  Xiaohongshu / Bilibili / Douyin, English on YouTube / TikTok / Instagram): also write POST_EN (an English POST) when
+  POST is Chinese, or POST_ZH when POST is English - same facts, its own hashtags.
 - Never the word SYNTHETIC; never the template's example content."""
 
 

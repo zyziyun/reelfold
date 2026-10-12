@@ -18,6 +18,7 @@ import argparse
 import inspect
 import json
 import os
+import re
 import tempfile
 
 from vstudio import audio, media, publish
@@ -29,6 +30,18 @@ from photostory.ctx import Ctx, check_profile, load_spec
 from photostory.timeline import Timeline, load_timing, place_voice
 
 clean = lambda s: strip_markup(s or "")
+
+
+def post_for(spec, post, platform):
+    """Each platform's post in its audience's language (vstudio.postcopy.copy_lang: 中文 on 小红书 / B站 / 抖音,
+    English on YouTube / TikTok ...): the spec's POST, or POST_EN / POST_ZH when POST is in the other language."""
+    if not platform:
+        return post
+    from vstudio import postcopy as PC
+    want = PC.copy_lang(platform)
+    have = "zh" if re.search(r"[\u4e00-\u9fff]", f"{post.get('title', '')}{post.get('intro', '')}") else "en"
+    alt = getattr(spec, "POST_EN" if want == "en" else "POST_ZH", None)
+    return dict(alt) if want != have and isinstance(alt, dict) and alt else post
 
 
 def tag_args(post):
@@ -92,6 +105,7 @@ def main():
 
     post = dict(getattr(spec, "POST", {}) or {})
     pl = publish.platform_name(post.get("platform") or (C.prof.name if C.prof is not None else None))
+    post = post_for(spec, post, pl)
     cap = publish.XHS_CHAPTER_LABEL_MAX if pl in ("xiaohongshu", "xhs") else None
     chapters = []
     if len(C.SECTIONS) > 1:

@@ -307,3 +307,14 @@ def test_english_narration_gets_respellings_for_names_the_local_voice_lacks():
     out = PS.add_respellings(spec, complete)
     assert "SAY_TTS = {'Puget': 'pew jet', 'Elliott': 'ell yacht'}" in out and "ell ee it" in asks[1]
     assert PS.add_respellings('SCRIPT = [(0, [("Seattle at night.", "甲")], [])]\n', complete).count("SAY_TTS") == 0
+
+
+def test_photo_story_post_in_each_platforms_language():
+    sys.path.insert(0, os.path.join(ROOT, "workflows/photo-story/scripts"))
+    from photostory import export as PE
+
+    class Spec:
+        POST_EN = dict(title="When the Leaves Let Go", intro="An autumn essay.")
+    zh = dict(title="红叶落时", intro="秋日随笔。")
+    assert PE.post_for(Spec, zh, "youtube-shorts")["title"] == "When the Leaves Let Go"
+    assert PE.post_for(Spec, zh, "xiaohongshu") is zh and PE.post_for(object, zh, "youtube") is zh
