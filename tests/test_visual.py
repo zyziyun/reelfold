@@ -175,6 +175,42 @@ def test_find_chrome_never_raises():
     assert p is None or os.path.exists(p)
 
 
+def test_windows_chrome_is_checked_by_its_version_resource_not_by_running_it(tmp_path, monkeypatch):
+    # Chrome / Edge on Windows never answer --version (they start the browser): every one was rejected after 15 s
+    exe = tmp_path / "chrome.exe"
+    exe.write_bytes(b"MZ")
+    monkeypatch.setattr(render.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(render, "_OK", {})
+    shell = tmp_path / "chrome-headless-shell.exe"
+    shell.write_bytes(b"MZ")
+    ran = []
+
+    def run(args, **k):
+        if args[0] != str(shell):
+            pytest.fail("ran the browser to check it")
+        ran.append(args)
+        return render.subprocess.CompletedProcess(args, 0)
+    monkeypatch.setattr(render.subprocess, "run", run)
+    monkeypatch.setattr(render, "_win_file_version", lambda p: "154.0.8037.58" if p == str(exe) else None)
+    assert render._works(str(exe))
+    assert not render._works(str(tmp_path / "missing.exe"))
+    assert render._works(str(shell)) and ran == [[str(shell), "--version"]]   # no version resource: it is asked
+    monkeypatch.setattr(render, "CHROME_PATHS", {"Windows": [os.path.join("%VS_TEST_CHROME%" if os.name == "nt" else "$VS_TEST_CHROME", "chrome.exe")]})
+    monkeypatch.setenv("VS_TEST_CHROME", str(tmp_path))
+    monkeypatch.delenv("CHROME", raising=False)
+    monkeypatch.delenv("HYPERFRAMES_BROWSER_PATH", raising=False)
+    monkeypatch.delenv("VSTUDIO_NO_CHROME", raising=False)
+    monkeypatch.setattr(render, "headless_shells", lambda home=None: [])
+    monkeypatch.setattr(render, "CHROME_NAMES", [])
+    assert render.find_chromes() == [str(exe)]                  # %LOCALAPPDATA%-style paths are expanded
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the Windows version resource")
+def test_win_file_version_reads_an_exe():
+    assert render._win_file_version(sys.executable).count(".") == 3
+    assert render._win_file_version(__file__) is None
+
+
 def test_headless_shell_lookup(tmp_path, monkeypatch):
     """chrome-headless-shell (no app bundle: no macOS notification prompt) from the HyperFrames / Puppeteer caches,
     newest first, after $CHROME / $HYPERFRAMES_BROWSER_PATH and before any full browser."""
