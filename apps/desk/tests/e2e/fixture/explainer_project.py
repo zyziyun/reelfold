@@ -100,7 +100,26 @@ if os.environ.get("EXPLAINER_FAKE_BIN"):
 
 CLAUDE = r'''#!{python}
 """Claude Code, for the test: plans a storyboard, draws a scene; "times out" while ROOT/claude-down exists."""
-import json, os, re, sys
+import json, os, re, sys, time
+def append_line(path, line):
+    """One line to a log the parallel stand-ins share: under a lock file, because Windows' append is a seek + write,
+    so two processes writing at once can lose a line (a scene call missing from claude.log)."""
+    lock = path + ".lock"
+    for _ in range(1000):
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL)
+            break
+        except FileExistsError:
+            time.sleep(0.01)
+    else:
+        fd = None
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line)
+    finally:
+        if fd is not None:
+            os.close(fd)
+            os.remove(lock)
 argv = sys.argv[1:]
 if "-p" not in argv:
     # `auth status --json` / `--version` (the login check before and after a call): answered without reading stdin,
@@ -111,8 +130,7 @@ system = argv[argv.index("--system-prompt") + 1] if "--system-prompt" in argv el
 prompt = sys.stdin.read()
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sid_m = re.search(r"SCENE_ID = (\S+),", prompt)
-with open(os.path.join(root, "claude.log"), "a", encoding="utf-8") as f:
-    f.write(json.dumps(dict(kind="scene" if "motion designer" in system else "plan" if "director" in system else
+append_line(os.path.join(root, "claude.log"), json.dumps(dict(kind="scene" if "motion designer" in system else "plan" if "director" in system else
                             "other", effort=argv[argv.index("--effort") + 1] if "--effort" in argv else None,
                             scene=sid_m.group(1) if sid_m else None, offline="XMLHttpRequest" in system,
                             fetch_fix="fetch() is not allowed" in prompt)) + "\n")
