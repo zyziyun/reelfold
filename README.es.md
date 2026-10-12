@@ -29,9 +29,10 @@ Una herramienta de vídeo gratuita y de código abierto para quien edita por lot
 
 ## Instalación
 
-**App para Mac** (Apple Silicon, gratuita). Se descarga desde
-[Releases](https://github.com/zyziyun/reelfold/releases/latest) en cuanto salga la primera versión (muy pronto);
-mientras tanto, [compílala desde el código fuente](https://reelfold.com/docs/es/start/install-mac/).
+**App para Mac** (Apple Silicon, gratuita): firmada y notarizada, desde
+[Releases](https://github.com/zyziyun/reelfold/releases/latest), o
+[compílala desde el código fuente](https://reelfold.com/docs/es/start/install-mac/). En piloto automático, una
+frase basta para llegar a los clips terminados, con cada decisión anotada; Windows está en vista previa.
 
 **Skill de Claude Code** (el mismo motor, todavía llamado `video-studio`):
 

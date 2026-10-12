@@ -28,9 +28,9 @@
 
 ## 安装
 
-**Mac 版**（Apple 芯片，免费）：第一个正式版发布后（即将推出）从
-[Releases](https://github.com/zyziyun/reelfold/releases/latest) 下载；在那之前可以
-[从源码构建](https://reelfold.com/docs/zh/start/install-mac/)。
+**Mac 版**（Apple 芯片，免费）：从 [Releases](https://github.com/zyziyun/reelfold/releases/latest)
+下载已签名、已公证的版本，或者[从源码构建](https://reelfold.com/docs/zh/start/install-mac/)。自动驾驶下，
+一句话就能做到成片，每个选择都有记录；Windows 版是预览版。
 
 **Claude Code 技能**（同一套引擎，技能名仍是 `video-studio`）：
 

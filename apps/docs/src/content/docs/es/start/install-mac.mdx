@@ -1,11 +1,11 @@
 ---
 title: Instala la app para Mac
-description: Instala Reelfold para Mac en Apple Silicon, desde GitHub Releases cuando salga la primera versión o desde el código fuente hoy mismo, y conecta tu propia IA.
+description: Instala Reelfold para Mac en Apple Silicon desde GitHub Releases (firmada y notarizada) o desde el código fuente, mira qué descarga el primer arranque y conecta tu propia IA.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
-Reelfold para Mac es la app de escritorio: un cuadro de peticiones, un tablero para los lotes en marcha, una bandeja de revisión y publicación asistida. Es gratis y tiene licencia MIT. Esta página te ayuda a ponerla en marcha y conectarla a un modelo de IA.
+Reelfold para Mac es la app de escritorio: [Home](/docs/es/app/home/) para empezar y seguir tu trabajo, un Inbox para lo que te espera, [All projects](/docs/es/app/all-projects/) para cada video, y publicación asistida. Es gratis y tiene licencia MIT. Esta página te ayuda a ponerla en marcha y conectarla a un modelo de IA.
 
 ## Requisitos
 
@@ -15,11 +15,7 @@ Reelfold para Mac es la app de escritorio: un cuadro de peticiones, un tablero p
 
 ## Consigue la app
 
-<Aside type="note" title="La primera versión para macOS llegará pronto">
-Las descargas firmadas se publicarán en [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest). Hasta que salga la primera versión, compila la app desde el código fuente como se indica más abajo.
-</Aside>
-
-### Descarga (cuando esté disponible)
+### Descarga
 
 <Steps>
 
@@ -29,9 +25,11 @@ Las descargas firmadas se publicarán en [GitHub Releases](https://github.com/zy
 
 </Steps>
 
-La app instalada lleva su propio motor: Python, ffmpeg y el motor `vstudio` vienen incluidos, así que no tienes que instalarlos tú.
+La app instalada está firmada y notarizada, y lleva su propio motor: Python, ffmpeg y el motor `vstudio` vienen incluidos, así que no tienes que instalarlos tú.
 
-### Compila desde el código fuente (disponible ya)
+Una **edición para la Mac App Store** (Reelfold Lite) funciona dentro del sandbox de Apple: usa claves de API o modelos locales para la IA (sin inicio de sesión de Claude Code ni Codex) y se actualiza desde la App Store. Consulta [Ediciones](/docs/es/help/editions/).
+
+### Compila desde el código fuente
 
 Necesitas Node 22+, Python 3.10+ y `ffmpeg` (por ejemplo, `brew install node python ffmpeg`).
 
@@ -62,35 +60,37 @@ Si la app elige el Python equivocado, indica la ruta correcta en **Settings**.
 
 Al iniciarse, Reelfold lanza un motor local en tu Mac (un proceso auxiliar con el que la app habla por un socket local privado; no escucha en ningún puerto de red). Cuando está listo, el estado muestra **Ready on this computer**.
 
-La app instalada ofrece descargar una sola vez lo que necesita el motor, desde un aviso y en **Settings → Models, fonts and tools**:
+Una breve configuración inicial repasa la IA, las descargas y tus plataformas (puedes repetirla desde Settings › Advanced). La app instalada descarga en segundo plano lo que necesita el motor; el progreso está en **Settings › Advanced › Downloads**:
 
 | Descarga | Tamaño | Para qué sirve |
 |---|---|---|
 | Fuentes y modelos faciales de MediaPipe | unos 62 MB | Subtítulos, portadas, seguimiento facial, retoque |
 | Whisper large-v3-turbo | unos 1,6 GB | Transcripción |
+| Voz gratuita (Kokoro) | unos 330 MB | Narración sin clave de OpenAI; se descarga la primera vez que un video la necesita |
 | Chromium (opcional) | de 180 a 360 MB | Portadas en HTML, diapositivas y workflows basados en HyperFrames |
 
 Las descargas se reanudan si se interrumpen y se verifican antes de instalarse. Si compilaste desde el código fuente, `install.sh` ya descargó las fuentes y los modelos faciales, y el motor baja un modelo de Whisper en la primera transcripción si no hay ninguno instalado.
 
 ## Conecta tu IA
 
-Abre **Settings → AI accounts & models**. Cada proveedor muestra un estado (sesión iniciada, sesión caducada, clave guardada, servidor local en marcha).
+Abre **Settings › AI**. Muestra la IA que está funcionando y cuándo se comprobó; cada proveedor muestra un estado (sesión iniciada, sesión caducada, clave guardada, servidor local en marcha).
 
 | Opción | Qué haces | Facturación |
 |---|---|---|
-| **Suscripciones (sin clave de API)** | Haz clic en **Log in** junto a Claude Code o Codex. Se abre una terminal dentro de la app y tu navegador te pide iniciar sesión. | Tu suscripción a Claude Pro / Max o ChatGPT |
+| **Suscripciones (sin clave de API)** | Instala primero la CLI y haz clic en **Sign in** junto a Claude Code o Codex. Se abre tu navegador; si muestra un código, pégalo en la app. | Tu suscripción a Claude Pro / Max o ChatGPT |
 | **Claves de API** | Pega una clave de Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini o ElevenLabs. Las claves se guardan en el llavero de macOS y solo se entregan al motor. | Pago por uso |
 | **Modelos locales** | Ejecuta Ollama, LM Studio, vLLM o llama.cpp en este Mac o en tu propio servidor. Reelfold muestra los modelos que encuentra. | Gratis; nada sale de tu red |
 
 Usa **Test** en un proveedor para enviar una petición mínima y confirmar que responde.
 
-En **Which AI does what** eliges un proveedor predeterminado y, si quieres, otro distinto para cada tarea (planificación, selección de fragmentos, corrección de subtítulos, glosario, texto de publicación, ediciones con IA), con alternativas en orden. Cuando responde una alternativa, la app te dice cuál fue. Una clave de API nueva requiere reiniciar el motor; la página te ofrece el botón.
+**Change order** decide qué IA se prueba después cuando la primera no responde, y **Different AI for specific jobs** elige un proveedor por tarea (planificación, selección de fragmentos, subtítulos, texto de publicación, edición con IA). Cuando responde una alternativa, la app te dice cuál fue. Una clave de API nueva requiere reiniciar el motor; la página te ofrece el botón.
 
 Qué envía cada paso al proveedor y qué se queda en local: [Proveedores de IA](/docs/es/concepts/ai-providers/).
 
 ## Actualiza
 
-- **App instalada:** Reelfold busca actualizaciones al arrancar y cada pocas horas, las descarga en segundo plano y te ofrece **Restart to update** a la nueva versión.
+- **App instalada:** Reelfold busca actualizaciones al arrancar y cada pocas horas, las descarga en segundo plano y te ofrece **Restart to update** (con las novedades). Si hay proyectos en marcha, puede esperar a que terminen. Settings › General muestra la versión y **Check for updates**.
+- **Edición App Store:** las actualizaciones llegan desde la Mac App Store.
 - **Compilada desde el código fuente:** trae los cambios, reinstala y vuelve a iniciar:
 
   ```bash
@@ -114,6 +114,7 @@ Tu material original nunca se mueve ni se modifica. Si vienes de una versión an
 ## Relacionado
 
 - [Tu primer proyecto](/docs/es/start/first-project/)
+- [Ediciones: Mac, App Store, Windows](/docs/es/help/editions/)
 - [Instala el skill de Claude Code](/docs/es/start/install-skill/)
 - [Proveedores de IA](/docs/es/concepts/ai-providers/)
 - [Solución de problemas](/docs/es/help/troubleshooting/)

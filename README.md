@@ -29,8 +29,10 @@ Free, open-source video tool for people who cut in batches. 千剪：一条素�
 
 ## Get it
 
-**Mac app** (Apple Silicon, free). Download from [Releases](https://github.com/zyziyun/reelfold/releases/latest) once
-the first build is out (coming soon); until then, [build from source](https://reelfold.com/docs/start/install-mac/).
+**Mac app** (Apple Silicon, free): signed and notarized, from
+[Releases](https://github.com/zyziyun/reelfold/releases/latest), or
+[build from source](https://reelfold.com/docs/start/install-mac/). On Autopilot it takes one sentence to finished
+clips and logs every choice it made; Windows is in preview.
 
 **Claude Code skill** (same engine, still named `video-studio`):
 

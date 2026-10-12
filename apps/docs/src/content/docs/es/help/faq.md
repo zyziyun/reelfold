@@ -9,15 +9,15 @@ Sí. Reelfold es de código abierto con licencia MIT: el motor, el skill de Clau
 
 ## ¿Hay una descarga para Mac? ¿Y para Windows?
 
-La primera versión para macOS (Apple Silicon) llegará pronto a [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest). Mientras tanto, compílala desde el código fuente: consulta [Instala la app para Mac](/docs/es/start/install-mac/). Windows 10 / 11 (x64) está en vista previa: desde la v0.2.0 cada versión incluye también un instalador para Windows sin firmar (SmartScreen muestra un aviso), o compílalo desde el código; consulta [Install on Windows](/docs/start/install-windows/). El motor usa allí faster-whisper y el codificador `h264_mf`; la mayoría de las pruebas se hacen en Mac.
+Sí. La app para Mac (Apple Silicon) está en [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest), firmada y notarizada: consulta [Instala la app para Mac](/docs/es/start/install-mac/). Una edición para la Mac App Store (Reelfold Lite) usa claves de API o modelos locales para la IA. Windows 10 / 11 (x64) está en vista previa: cada versión incluye también un instalador para Windows sin firmar (SmartScreen muestra un aviso), o compílalo desde el código; consulta [Install on Windows](/docs/start/install-windows/). Las diferencias: [Ediciones](/docs/es/help/editions/). El motor usa allí faster-whisper y el codificador `h264_mf`; la mayoría de las pruebas se hacen en Mac.
 
 ## ¿Publica por mí?
 
-No. La publicación es asistida: la app abre la página de subida de la plataforma en su navegador integrado, coloca el video y escribe el título, el texto y las etiquetas. Tú lo revisas y pulsas publicar. La app nunca hace clic en publicar ni publica según un calendario. Consulta [Publicación](/docs/es/concepts/publishing/).
+No. La publicación es asistida: la app abre la página de subida de la plataforma en su navegador integrado, coloca el video y escribe el título, el texto y las etiquetas. Tú lo revisas y pulsas publicar. La app nunca hace clic en publicar. La única excepción es una plataforma cuya API oficial de publicación conectas tú (hoy, YouTube). Consulta [Publicación](/docs/es/concepts/publishing/).
 
 ## ¿Qué sale de mi Mac?
 
-Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: solo texto, como la transcripción, los subtítulos y los títulos. Con un modelo local, no sale nada. Hay dos excepciones que activas tú: el motor de transcripción de OpenAI envía el audio y la narración de OpenAI envía el texto del guion. Consulta [Privacidad](/docs/es/concepts/privacy/).
+Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: solo texto, como la transcripción, los subtítulos y los títulos. Con un modelo local, no sale nada. Hay dos excepciones que activas tú: el motor de transcripción de OpenAI envía el audio y la narración de OpenAI envía el texto del guion (la voz gratuita Kokoro funciona en tu Mac). Consulta [Privacidad](/docs/es/concepts/privacy/).
 
 ## ¿Qué IA necesito?
 
@@ -31,7 +31,7 @@ Sin ninguna IA, la planificación de fragmentos recurre a un planificador basado
 
 ## ¿Necesito Claude Code?
 
-Para la app para Mac, no: sirve cualquier proveedor de los de arriba. La versión skill de Reelfold se ejecuta dentro de Claude Code, así que para esa sí. La receta de videos explicativos también necesita un agente de IA (Claude Code o Codex) para escribir sus escenas animadas.
+Para la app para Mac, no: sirve cualquier proveedor de los de arriba. La versión skill de Reelfold se ejecuta dentro de Claude Code, así que para esa sí. Las recetas de videos explicativos y de cursos necesitan un modelo de IA para dibujar sus escenas animadas: sirven Claude Code, Codex, una clave de API o un modelo local.
 
 ## ¿En qué se diferencia de Opus Clip, Descript o CapCut?
 

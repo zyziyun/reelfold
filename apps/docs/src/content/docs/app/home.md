@@ -1,5 +1,7 @@
 ---
-title: Home
+title: The Home screen
+sidebar:
+  label: Home
 description: "Reelfold's Home screen: start a video in one sentence, follow suggestions from your own work, and see what needs you, what is running and what goes out today."
 ---
 

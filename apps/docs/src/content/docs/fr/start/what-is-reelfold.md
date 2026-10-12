@@ -14,8 +14,8 @@ Les deux versions font tourner le même moteur : une recette qui marche dans l�
 | | Reelfold pour Mac | Le skill Claude Code |
 |---|---|---|
 | Ce que c’est | Une app de bureau (`apps/desk`, Electron) | Le moteur sous forme de skill pour [Claude Code](https://claude.com/claude-code) (la racine du dépôt) |
-| Comment vous lui parlez | Une zone de demande sur l’Accueil : « On crée quoi aujourd’hui ? » | En langage courant, à Claude, dans votre terminal |
-| Idéal pour | Des lots suivis sur un tableau, une grille de relecture, la publication assistée | Travailler dans un dossier, écrire des scripts, des retouches ponctuelles |
+| Comment vous lui parlez | Une phrase sur l’Accueil, puis un chat sur chaque projet et chaque clip | En langage courant, à Claude, dans votre terminal |
+| Idéal pour | Des lots en pilote automatique, des centaines de vidéos dans une seule liste, la publication assistée | Travailler dans un dossier, écrire des scripts, des retouches ponctuelles |
 | Plateforme | macOS sur Apple Silicon (Windows x64 en préversion) | Partout où tournent Claude Code, Python 3.10+ et ffmpeg |
 | Installation | [Installer l’app Mac](/docs/fr/start/install-mac/) | [Installer le skill](/docs/fr/start/install-skill/) |
 
@@ -24,12 +24,12 @@ Côté skill, `SKILL.md` aiguille chaque demande vers un workflow (`workflows/<n
 ## Le déroulé d’une tâche
 
 1. **Décrire.** Dites ce que vous préparez et ajoutez vos fichiers : un clip face caméra, un cours de 70 minutes, un dossier de rushes de voyage, un script. Par exemple : « Découpe ce cours en 10 clips verticaux pour TikTok et Shorts, moins d’une minute chacun. »
-2. **Planifier.** Reelfold analyse les fichiers et propose un plan : quel workflow, combien de clips, quelles plateformes, combien de temps et quel coût éventuel. Vous l’ajustez avec vos mots (« seulement 3 clips », « pas de 9:16 ») avant que quoi que ce soit ne démarre.
-3. **Lancer le lot.** Les montages tournent sur votre Mac, plusieurs à la fois. Un clip pilote passe en premier pour que vous validiez le rendu avant que le reste ne soit produit.
-4. **Relire.** Chaque fichier passe des contrôles automatiques (mots manquants, images figées, volume sonore, durée). Vous ne voyez que ce qui a été signalé, plus les décisions qui vous reviennent : quelles coupes d’hésitations accepter, quelle ouverture garder, quelle couverture choisir.
+2. **Planifier.** Reelfold analyse les fichiers et établit un plan : quel workflow, combien de clips, quelles plateformes, combien de temps et quel coût éventuel.
+3. **Produire.** Les montages tournent sur votre Mac. En [pilote automatique](/docs/fr/app/autopilot/) (par défaut), l’IA fait elle-même les choix courants (coupes d’hésitations incertaines, ouverture, couverture, musique) et note chacun avec sa raison, pour que vous puissiez le changer plus tard. Avec **Me demander d’abord**, vous validez le plan et un clip pilote avant que le reste ne soit produit. Vous pouvez suivre le travail sur la [page de suivi en direct](/docs/fr/app/live-run/).
+4. **Relire.** Chaque fichier passe des contrôles automatiques (mots manquants, images figées, volume sonore, durée). Seuls les vrais blocages et les clips signalés arrivent dans votre boîte de réception. Chaque clip terminé peut être modifié avec vos mots.
 5. **Publier.** La publication est assistée. L’app Mac ouvre la page de mise en ligne de chaque plateforme dans son navigateur intégré, puis renseigne le fichier et le texte. C’est vous qui cliquez sur publier. Reelfold ne publie jamais de lui-même.
 
-Pour en savoir plus sur chaque étape : [Projets](/docs/fr/concepts/projects/), [Lots et relecture](/docs/fr/concepts/batch-review/), [Publication](/docs/fr/concepts/publishing/).
+Pour en savoir plus sur chaque étape : [Accueil](/docs/fr/app/home/), [Pilote automatique](/docs/fr/app/autopilot/), [Lots et relecture](/docs/fr/concepts/batch-review/), [Publication](/docs/fr/concepts/publishing/).
 
 ## Pour qui
 

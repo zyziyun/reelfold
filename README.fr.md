@@ -29,9 +29,10 @@ Un outil vidéo gratuit et open source pour celles et ceux qui montent en série
 
 ## Installation
 
-**Application Mac** (Apple Silicon, gratuite). À télécharger depuis
-[Releases](https://github.com/zyziyun/reelfold/releases/latest) dès la première version (bientôt) ; en attendant,
-[compilez depuis les sources](https://reelfold.com/docs/fr/start/install-mac/).
+**Application Mac** (Apple Silicon, gratuite) : signée et notarisée, sur
+[Releases](https://github.com/zyziyun/reelfold/releases/latest), ou
+[compilée depuis les sources](https://reelfold.com/docs/fr/start/install-mac/). En pilote automatique, une phrase
+suffit pour aller jusqu’aux clips finis, chaque choix étant noté ; Windows est en préversion.
 
 **Skill Claude Code** (le même moteur, toujours nommé `video-studio`) :
 

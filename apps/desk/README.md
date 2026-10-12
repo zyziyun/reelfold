@@ -4,7 +4,10 @@ The Reelfold desktop app: an Electron workbench on the open-source engine (`pyth
 `vstudio.project`; the Claude Code skill is still called `video-studio`), in `apps/desk/` of the
 [Reelfold monorepo](../../README.md). MIT, like the rest of the repo (see `LICENSE`).
 Formerly "Daycut" and, before that, the separate `video-studio-desk` repo (history kept via git subtree).
-Batches → board → review → job detail (transcript edits) → publish (built-in browser with assisted fill).
+Sidebar: Home (composer, suggestions, Inbox top, running jobs, today's posts) · Inbox · All projects (every video
+in one list with search, filters, J/K/↵/E/S/X keys and bulk actions; beside it the live run page or the clip page with
+its chat) · Publish (calendar, assisted fill in the built-in browser). New projects run on Autopilot unless Settings ›
+General says Ask me first. User docs: [reelfold.com/docs/app/home](https://reelfold.com/docs/app/home/).
 
 ```bash
 npm install          # here or at the repo root: one npm workspace install (node_modules at the repo root)
@@ -28,7 +31,7 @@ Tests only: `DESK_ENGINE_MOCK=1` starts the in-memory test engine from `engine/t
 batches, rule plans, simulated pilots, fake Create services and AI). A dev build only: a packaged app ignores it and does
 not ship `engine/tests`. A `vstudio` that cannot be imported fails the start with the reason; nothing fake stands in.
 
-AI accounts & models (Settings → AI accounts & models, `#/settings/ai`): provider status from the engine
+AI accounts & models (Settings › AI, `#/settings/ai`): provider status from the engine
 (`python -m vstudio.llm auth status --json`; Claude Code is checked with a one-line round-trip, so an expired login
 shows as expired), CLI logins in an in-app terminal (xterm.js + node-pty, else a Python PTY, else `script`; the command
 comes from `vstudio.llm auth login`, API keys / base URLs are removed from its environment), API keys in the OS

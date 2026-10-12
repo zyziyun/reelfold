@@ -47,8 +47,9 @@ Format: `## Line N — <label> (Frame N)`, optional `**Delivery:**`, the spoken 
 - **Chinese narration (中文讲解)**: write the indented block in Chinese (English terms stay English: MCP, JSON-RPC;
   numbers as digits), no `ZH:` line (the narration is the caption), optional `EN:` English subtitle. Every script
   detects it (`script_md.narration_lang`): TTS / ASR checks run in Chinese, cues are `中文 || English`, the 中文
-  caption leads. ≈ 260 characters/min; a local voice that reads English terms inside Chinese is `--engine clone`
-  (Qwen3-TTS, persona `tts.clone`); Kokoro's Mandarin voices (`zf_xiaobei`) read Chinese only. From a long 讲稿 /
+  caption leads. ≈ 260 characters/min; both local voices read the English terms inside Chinese in English: Kokoro's
+  Mandarin voice (`zf_xiaobei`, `vstudio.kokoro_g2p`: acronyms letter by letter) and `--engine clone` (Qwen3-TTS,
+  persona `tts.clone`). From a long 讲稿 /
   Notion export: condense to the one idea per scene, keep her examples and analogies, cut stage directions.
 
 Then draft instead of writing from scratch (both only propose; you edit and verify):

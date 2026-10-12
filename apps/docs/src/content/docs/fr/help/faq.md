@@ -9,15 +9,15 @@ Oui. Reelfold est open source sous licence MIT : le moteur, le skill Claude Cod
 
 ## Existe-t-il une version à télécharger pour Mac ? Et pour Windows ?
 
-La première version macOS (Apple Silicon) arrive bientôt sur [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest). En attendant, compilez-la depuis les sources : voir [Installer l’app Mac](/docs/fr/start/install-mac/). Windows 10 / 11 (x64) est en préversion : à partir de la v0.2.0, chaque version inclut aussi un installateur Windows non signé (SmartScreen affiche un avertissement), ou compilez depuis les sources ; voir [Install on Windows](/docs/start/install-windows/). Le moteur y utilise faster-whisper et l’encodeur `h264_mf` ; l’essentiel des tests se fait encore sur Mac.
+Oui. L’app Mac (Apple Silicon) est sur [GitHub Releases](https://github.com/zyziyun/reelfold/releases/latest), signée et notarisée : voir [Installer l’app Mac](/docs/fr/start/install-mac/). Une édition Mac App Store (Reelfold Lite) utilise des clés d’API ou des modèles locaux pour l’IA. Windows 10 / 11 (x64) est en préversion : chaque version inclut aussi un installateur Windows non signé (SmartScreen affiche un avertissement), ou compilez depuis les sources ; voir [Install on Windows](/docs/start/install-windows/). Les différences : [Éditions](/docs/fr/help/editions/). Le moteur y utilise faster-whisper et l’encodeur `h264_mf` ; l’essentiel des tests se fait encore sur Mac.
 
 ## Est-ce qu’il publie à ma place ?
 
-Non. La publication est assistée : l’app ouvre la page de mise en ligne de la plateforme dans son navigateur intégré, y place la vidéo et saisit le titre, le texte et les hashtags. Vous vérifiez, puis vous cliquez vous-même sur publier. L’app ne clique jamais sur publier et ne publie jamais selon un planning. Voir [Publication](/docs/fr/concepts/publishing/).
+Non. La publication est assistée : l’app ouvre la page de mise en ligne de la plateforme dans son navigateur intégré, y place la vidéo et saisit le titre, le texte et les hashtags. Vous vérifiez, puis vous cliquez vous-même sur publier. L’app ne clique jamais sur publier. Seule exception : une plateforme dont vous connectez vous-même l’API officielle de publication (YouTube aujourd’hui). Voir [Publication](/docs/fr/concepts/publishing/).
 
 ## Qu’est-ce qui quitte mon Mac ?
 
-Votre vidéo et votre audio restent sur votre Mac : la transcription et le rendu tournent en local. Seul ce dont une étape d’IA a besoin part chez le fournisseur que vous avez choisi : du texte uniquement, comme la transcription, les sous-titres et les titres. Avec un modèle local, rien ne sort. Deux exceptions, que vous activez vous-même : le moteur de transcription OpenAI envoie l’audio, et la narration OpenAI envoie le texte du script. Voir [Confidentialité](/docs/fr/concepts/privacy/).
+Votre vidéo et votre audio restent sur votre Mac : la transcription et le rendu tournent en local. Seul ce dont une étape d’IA a besoin part chez le fournisseur que vous avez choisi : du texte uniquement, comme la transcription, les sous-titres et les titres. Avec un modèle local, rien ne sort. Deux exceptions, que vous activez vous-même : le moteur de transcription OpenAI envoie l’audio, et la narration OpenAI envoie le texte du script (la voix gratuite Kokoro tourne sur votre Mac). Voir [Confidentialité](/docs/fr/concepts/privacy/).
 
 ## De quelle IA ai-je besoin ?
 
@@ -31,7 +31,7 @@ Sans aucune IA, la planification des segments se rabat sur un planificateur à b
 
 ## Ai-je besoin de Claude Code ?
 
-Pas pour l’app Mac : n’importe quel fournisseur ci-dessus convient. La version skill de Reelfold tourne dans Claude Code, donc pour celle-là, oui. La recette des vidéos explicatives a aussi besoin d’un agent IA (Claude Code ou Codex) pour écrire ses scènes animées.
+Pas pour l’app Mac : n’importe quel fournisseur ci-dessus convient. La version skill de Reelfold tourne dans Claude Code, donc pour celle-là, oui. Les recettes de vidéos explicatives et de cours ont besoin d’un modèle d’IA pour dessiner leurs scènes animées : Claude Code, Codex, une clé d’API ou un modèle local conviennent.
 
 ## Qu’est-ce qui le distingue d’Opus Clip, Descript ou CapCut ?
 
