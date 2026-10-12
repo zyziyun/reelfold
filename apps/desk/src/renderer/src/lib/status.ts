@@ -32,7 +32,9 @@ export function itemStatus(i: Pick<HistoryItem, 'live' | 'status' | 'counts' | '
       return 'done';
     case 'in-progress':
       if (c && c.failed > 0) return 'error';
-      if (i.kind === 'work') return now - (i.updated ?? 0) < 7200 ? 'run' : null;
+      // a plain folder (her brief + footage, made by hand or another agent): nothing runs in it unless its own
+      // status file says so (``live`` above) - a recently edited folder is never "Making"
+      if (i.kind === 'work') return null;
       return 'you';
     case 'planned':
       return null;

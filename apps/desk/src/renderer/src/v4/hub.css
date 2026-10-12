@@ -32,6 +32,7 @@
 .hub-card > .row { display: flex; align-items: center; gap: var(--s1); }
 .hub-card b { font-weight: 600; }
 .hub-fail { display: flex; flex-direction: column; gap: var(--s1); }
+.hub-worknone { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1); }
 
 .hub-steps { list-style: none; display: flex; margin: 6px 0 0; padding: 0; }
 .hub-steps li { flex: 1; position: relative; text-align: center; padding-top: 20px; font-size: 12px; color: var(--text-faint); min-width: 0; }

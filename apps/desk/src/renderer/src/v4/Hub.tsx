@@ -13,7 +13,7 @@ import { useEngine, useLoad } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { clipHref, inboxHref, projectHref } from '../lib/nav';
-import { decisionWords, hubGroups, postsOf, requestPipeline, STEPS, stepState, type GroupId, type HubRow, type Pipeline } from '../lib/pipeline';
+import { decisionWords, hubGroups, postsOf, requestPipeline, STEPS, stepState, workNotMade, type GroupId, type HubRow, type Pipeline } from '../lib/pipeline';
 import { href, routeQuery } from '../lib/router';
 import { useIntakeJob } from '../lib/useIntakeJob';
 import { studioEnabled } from '../lib/studioFlag';
@@ -170,6 +170,8 @@ export function stateLine(p: Pipeline, i?: HistoryItem, r?: OpenRequest): string
       const step = t(`hub.step.${p.current}` as MessageKey);
       return [step, msg, p.eta ? t('hub.left', { t: fmtMinutes(Math.max(1, Math.round(p.eta / 60))) }) : null].filter(Boolean).join(' · ');
     }
+    case 'idle':
+      return i && workNotMade(i) ? t('hub.s.workIdle') : t('hub.s.idle');
     default:
       return t(`hub.s.${p.state}` as MessageKey);
   }
@@ -357,6 +359,22 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
           )}
         </div>
         {p.state === 'queued' && <p className="muted small">{t('hub.queuedLong')}</p>}
+        {p.state === 'idle' && workNotMade(i) && (
+          <div className="hub-worknone" role="status" data-testid="hub-work-none">
+            <p className="muted small">{t('hub.work.none')}</p>
+            <button
+              className="btn soft sm"
+              onClick={() => {
+                ui.setDropped([i.dir]);
+                newVideo();
+              }}
+              data-testid="hub-work-make"
+            >
+              <Sparkles className="ico" />
+              {t('hub.work.make')}
+            </button>
+          </div>
+        )}
         {p.state === 'you' && <p className="muted small">{t('hub.youLong')}</p>}
         {i.failure && (
           <div className="hub-fail" role="alert">
@@ -364,7 +382,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
             <FailureActions item={i.id} failure={i.failure} />
           </div>
         )}
-        <Steps p={p} />
+        {!(p.state === 'idle' && workNotMade(i)) && <Steps p={p} />}
         {feedOpen && <ProgressFeed item={i.id} clips={clips} running={live || p.state === 'run'} />}
       </div>
       {ap?.supported !== false && <Decisions item={i.id} doc={ap} clips={clips} busy={p.state === 'run'} onChanged={() => (reloadAp(), reloadHist())} />}

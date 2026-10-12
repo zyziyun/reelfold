@@ -66,6 +66,13 @@ export function requestPipeline(r: OpenRequest): Pipeline {
   return { state: 'planning', current: p?.stage === 'transcribe' ? 'transcribe' : 'plan', progress: frac, eta: null };
 }
 
+/** A folder found in a watched folder (or adopted) with nothing made in it yet and nothing running in it: her brief and
+ * footage waiting for a request. Reelfold never ran anything there - "not made yet" with a way to make it, never a
+ * run stuck at Plan. */
+export function workNotMade(i: Pick<HistoryItem, 'kind' | 'counts' | 'live' | 'status'> & Partial<Pick<HistoryItem, 'pilot' | 'queued' | 'failure' | 'stopped'>>): boolean {
+  return i.kind === 'work' && !(i.counts?.total ?? 0) && i.status !== 'done' && !i.live && !i.pilot && !i.queued && !i.failure && !i.stopped;
+}
+
 /** A project's place in the pipeline. ``hasDecision``: the Inbox holds a question for it. */
 export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDecision = false): Pipeline {
   const s = itemStatus(i);
@@ -83,6 +90,7 @@ export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDeci
   if (p.total && p.scheduled === 0) return { state: 'out', current: 'out', progress: 1, eta: null };
   if (p.total) return { state: 'scheduled', current: 'out', progress: 1, eta: null };
   if (s === 'done') return { state: 'ready', current: 'ready', progress: 1, eta: null };
+  if (workNotMade(i)) return { state: 'idle', current: 'plan', progress: null, eta: null };
   // a plain work folder (made by hand or by an agent, found in a watched folder): nothing runs or waits for it
   if (i.kind === 'work') return { state: 'ready', current: 'ready', progress: 1, eta: null };
   return { state: 'idle', current: at ?? 'plan', progress, eta };
