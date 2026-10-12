@@ -213,3 +213,19 @@ def test_standing_tags_and_chapter_line_fit_the_post(monkeypatch):
     zh = P.post_body(None, "夜航西雅图。", chapters=[(0, "开场"), (20, "太空针塔")], platform="xiaohongshu",
                      title="西雅图 1962", use_persona_tags=False)
     assert "时间线" not in en and "Chapters" in en and "时间线在下面" in zh
+
+
+def test_photo_story_spec_refs_are_repaired_not_left_to_crash_the_render():
+    """A drafted spec named clip "..._0336_D" with another clip's time stamp, and a still no frame was cut for."""
+    from vstudio.project.adapters import photostory as PS
+    ids = {"DJI_20260624222712_0335_D": 1, "DJI_20260624223151_0336_D": 1}
+    spec = ('SCRIPT = [(0, [("a", "甲")], [("vDJI_20260624222712_0336_D", 1, "still", dict(off=2.0)), '
+            '("film:skyline,needle", 1, "still", {}), ("route:home", 1, "still", {})])]\n'
+            'COVER = dict(hero=dict(src="needle"), polaroids=[dict(src="arches")])\n'
+            'frames = [dict(name="skyline", clip="DJI_20260624222712_0335_D", t=3)]\n')
+    fixed = PS.fix_video_refs(spec, ids)
+    assert '"vDJI_20260624223151_0336_D"' in fixed
+    assert PS.image_refs(fixed, set(ids)) == ["skyline", "needle", "arches"]
+    assert [f["name"] for f in PS._frames_asked({"frames": [dict(name="needle", clip="x", t=1)]}, spec)] == [
+        "needle", "skyline"]
+    assert PS._clip_id("DJI_0335", ids) == "DJI_20260624222712_0335_D" and PS._clip_id("nope", ids) is None

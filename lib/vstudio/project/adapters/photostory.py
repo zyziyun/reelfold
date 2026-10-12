@@ -134,17 +134,28 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     text = js.get("content")
     if not isinstance(text, str) or not DR.data_module_ok(text) or "SYNTHETIC" in text[:600]:
         return None
-    cut = 0
-    for fr in js.get("frames") or []:
-        if not isinstance(fr, dict) or fr.get("clip") not in by_id or not re.match(r"^[\w-]{1,60}$",
-                                                                                   str(fr.get("name") or "")):
+    cut, made = 0, []
+    for fr in _frames_asked(js, text):
+        cid = _clip_id(fr.get("clip"), by_id)
+        if cid is None or not re.match(r"^[\w-]{1,60}$", str(fr.get("name") or "")):
             continue
         try:
-            t = min(float(fr.get("t") or 0), max(0.0, by_id[fr["clip"]]["dur"] - 0.2))
+            t = min(float(fr.get("t") or 0), max(0.0, by_id[cid]["dur"] - 0.2))
         except (TypeError, ValueError):
             continue
-        if _frame(by_id[fr["clip"]]["path"], t, os.path.join(work, "frames", f"{fr['name']}.jpg")):
+        if _frame(by_id[cid]["path"], t, os.path.join(work, "frames", f"{fr['name']}.jpg")):
             cut += 1
+            made.append(fr["name"])
+    # a still the spec names that no frame was cut for would stop the render ("image not found"): it becomes one
+    # of the frames that exist (a cover polaroid shows another still) - never a crash three stages later
+    text = fix_video_refs(text, by_id)
+    missing = [n for n in image_refs(text, set(by_id)) if n not in made and not os.path.exists(
+        os.path.join(work, "frames", f"{n}.jpg"))]
+    if missing:
+        if not made:
+            return None
+        for n in missing:
+            text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
     os.makedirs(work, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text if text.endswith("\n") else text + "\n")
@@ -155,6 +166,94 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
                 language="zh" if lang_zh else "en")
+
+
+def _frames_asked(js, text):
+    """The stills to cut: the reply's ``frames``, and a ``frames = [...]`` list the model put in the spec itself."""
+    out = [f for f in js.get("frames") or [] if isinstance(f, dict)]
+    import ast
+    try:
+        for st in ast.parse(text).body:
+            if isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id.lower() == "frames"
+                                                  for t in st.targets):
+                v = ast.literal_eval(st.value) if not isinstance(st.value, ast.List) else [
+                    {k.arg: ast.literal_eval(k.value) for k in e.keywords} if isinstance(e, ast.Call) else
+                    ast.literal_eval(e) for e in st.value.elts]
+                out += [f for f in v if isinstance(f, dict)]
+    except (SyntaxError, ValueError):
+        pass
+    seen, uniq = set(), []
+    for f in out:
+        if f.get("name") not in seen:
+            seen.add(f.get("name"))
+            uniq.append(f)
+    return uniq
+
+
+def _clip_id(cid, by_id):
+    """The model's clip id -> a real one: exact, else the one whose DJI number (``_0336_``) matches."""
+    if cid in by_id:
+        return cid
+    m = re.search(r"_(\d{3,5})_[A-Z]$|_(\d{3,5})$", str(cid or ""))
+    num = (m.group(1) or m.group(2)) if m else None
+    hits = [k for k in by_id if num and re.search(rf"_{num}(_[A-Z])?$", k)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def fix_video_refs(text, by_id):
+    """A video shot naming a clip that is not there ("vDJI_..._0336_D" with another clip's time stamp) -> the clip
+    with that DJI number when exactly one has it."""
+    def sub(m):
+        cid = m.group(1)
+        if cid in by_id:
+            return m.group(0)
+        real = _clip_id(cid, by_id)
+        return "v" + real if real else m.group(0)
+    return re.sub(r"(?<=[\"':,|])v([A-Za-z0-9][\w-]{2,80})(?=[\"',|])", sub, text)
+
+
+SOURCE_KINDS_NO_IMAGE = ("route",)
+
+
+def image_refs(text, video_ids):
+    """The still images a spec's SCRIPT shots and COVER name (not "v<clip>" videos, not route maps)."""
+    import ast
+    names = []
+
+    def src(v):
+        if not isinstance(v, str) or not v:
+            return
+        kind, _, rest = v.partition(":")
+        if rest and kind in SOURCE_KINDS_NO_IMAGE:
+            return
+        for n in re.split(r"[,|]", rest if rest else v):
+            n = n.strip()
+            if n and not (n.startswith("v") and n[1:] in video_ids):
+                names.append(n)
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    for st in tree.body:
+        if not (isinstance(st, ast.Assign) and isinstance(st.targets[0], ast.Name)):
+            continue
+        name = st.targets[0].id
+        try:
+            val = eval(compile(ast.Expression(st.value), "<spec>", "eval"), {"__builtins__": {}}, {"dict": dict}) \
+                if name in ("SCRIPT", "COVER") else None
+        except Exception:  # noqa: BLE001
+            continue
+        if name == "SCRIPT":
+            for unit in val or []:
+                for shot in (unit[2] if len(unit) > 2 else []):
+                    src(shot[0] if shot else None)
+        elif name == "COVER" and isinstance(val, dict):
+            hero = val.get("hero") or {}
+            for k in ("src", "a", "b"):
+                src(hero.get(k))
+            for pz in val.get("polaroids") or []:
+                src((pz or {}).get("src"))
+    return list(dict.fromkeys(names))
 
 
 def spec_language(path):
