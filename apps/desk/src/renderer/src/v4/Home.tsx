@@ -15,6 +15,7 @@ import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtTime, getLang, t, tk, type MessageKey } from '../i18n';
 import { platformName } from '../lib/platformName';
 import { useEngine, useLoad } from '../lib/engine';
+import type { EngineClient } from '../../../shared/engineClient';
 import { DueBanner } from '../publish/DueBanner';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
@@ -79,6 +80,9 @@ const today = () => {
 
 /** Home waits this long for its slowest source before showing what it has. */
 const HOME_GIVE_UP_MS = 8000;
+/** What Home's own sources last answered in this window: coming back to Home shows them at once (no skeleton) and
+ * the fresh answers replace them in place. */
+const homeCache: { cal: Awaited<ReturnType<EngineClient['calendar']>> | null; sug: Awaited<ReturnType<EngineClient['homeSuggestions']>> | null; day: string } = { cal: null, sug: null, day: '' };
 
 /** Remember the last request + files so a reload never loses what she typed. */
 const DRAFT = 'v4.composer';
@@ -456,8 +460,13 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
   const studio = useStudioEnabled();
   const st = useStudioData();
   const { subscribe } = useEngine();
-  const { data: cal, error: calErr, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
-  const { data: sug, error: sugErr } = useLoad((c) => c.homeSuggestions(), [data?.items.length]);
+  const { data: calNow, error: calErr, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
+  const { data: sugNow, error: sugErr } = useLoad((c) => c.homeSuggestions(), [data?.items.length]);
+  if (homeCache.day !== today()) Object.assign(homeCache, { cal: null, sug: null, day: today() });
+  if (calNow) homeCache.cal = calNow;
+  if (sugNow) homeCache.sug = sugNow;
+  const cal = calNow ?? homeCache.cal;
+  const sug = sugNow ?? homeCache.sug;
   useEffect(() => subscribe((e) => void (e.type === 'calendar' && reloadCal())), [subscribe]); // eslint-disable-line react-hooks/exhaustive-deps
   const mine = useMyPlatforms();
   const pick = useChipAction(fill, addFile);
@@ -469,7 +478,8 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
   const waiting = items.filter((i) => i.queued).length;
   const signals = useMemo(() => homeSignals(sug ?? null, items, cal?.posts ?? [], mine), [sug, items, cal, mine]);
   const waits = [!data && 'history', !requestsLoaded && 'requests', !inbox.loaded && 'inbox', cal === null && calErr === null && 'calendar', sug === null && sugErr === null && 'suggestions', studio && !st.ready && 'videos'].filter(Boolean) as string[];
-  const [settled, setSettled] = useState(false);
+  // everything already known (Home seen before in this window, the app's lists loaded): no skeleton at all
+  const [settled, setSettled] = useState(() => !waits.length);
   useEffect(() => {
     if (!waits.length && !settled) setSettled(true);
   }, [waits.length, settled]);

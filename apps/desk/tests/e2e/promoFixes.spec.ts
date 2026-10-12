@@ -169,3 +169,21 @@ test('the Publish header counts posts, the same number that is scheduled ("3 pos
   await expect(page.getByTestId('pb-sub')).toContainText('3 posts next week', { timeout: 30000 });
   await shot('F4-publish-count');
 });
+
+test('coming back to Home shows it at once: no loading skeleton when its data is already known', async () => {
+  test.setTimeout(120000);
+  await hash('#/');
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId('home-skeleton')).toHaveCount(0, { timeout: 60000 });
+  await hash('#/publish');
+  await expect(page.getByTestId('calendar')).toBeVisible({ timeout: 30000 });
+  await page.evaluate(() => {
+    const w = window as unknown as { sk: number };
+    w.sk = 0;
+    new MutationObserver(() => void (document.querySelector('[data-testid=home-skeleton]') && (w.sk += 1))).observe(document.body, { subtree: true, childList: true });
+  });
+  await hash('#/');
+  await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 });
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => (window as unknown as { sk: number }).sk)).toBe(0);
+});
