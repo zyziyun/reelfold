@@ -283,10 +283,11 @@ def add_respellings(text, complete):
     try:
         from vstudio import kokoro_g2p as K
         from misaki import en
-        lex = en.G2P(trf=False, british=False, fallback=None, unk="").lexicon
+        g2p = en.G2P(trf=False, british=False, fallback=None, unk="")
+        lex = g2p.lexicon
     except Exception:  # noqa: BLE001  (no local English voice here: nothing to respell)
         return text
-    words = K.unknown_words(_english_cues(text), lex)[:40]
+    words = K.unknown_words(_english_cues(text), g2p)[:40]
     keep, tried = {}, {}
     for _round in range(2):                      # once more for the ones whose respelling used unknown syllables
         todo = [w for w in words if w not in keep]

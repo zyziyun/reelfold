@@ -115,22 +115,22 @@ class SpellFallback:
         return (ps or None), 1
 
 
-def unknown_words(text, lexicon=None):
-    """The words of ``text`` the local English voice has no pronunciation for (neither misaki dictionary; acronyms
-    and numbers are fine - they are spelled / read): names like Puget, Elliott, Dreyfus come out letter by letter."""
-    if lexicon is None:
+def unknown_words(text, g2p=None):
+    """The words of ``text`` the local English voice has no pronunciation for (misaki without espeak-ng: neither
+    dictionary, nor an inflection of a dictionary word; acronyms are spelled, numbers read): names like Puget,
+    Elliott, Dreyfus came out letter by letter. ``g2p``: a misaki G2P built with ``fallback=None``."""
+    if g2p is None:
         from misaki import en
-        lexicon = en.G2P(trf=False, british=False, fallback=None, unk="").lexicon
+        g2p = en.G2P(trf=False, british=False, fallback=None, unk="")
     out = []
-    for w in re.findall(r"[A-Za-z][A-Za-z']+", text or ""):
-        w = w.strip("'")
-        if len(w) < 3 or w.isupper():
-            continue
-        if any(k in lexicon.golds or k in lexicon.silvers for k in (w, w.lower(), w.capitalize())):
-            continue
-        if w.endswith("'s") and (w[:-2] in lexicon.golds or w[:-2].lower() in lexicon.golds):
-            continue
-        out.append(w)
+    try:
+        _ps, toks = g2p(text or "")
+    except Exception:  # noqa: BLE001
+        return out
+    for t in toks or []:
+        w = str(getattr(t, "text", "") or "")
+        if getattr(t, "phonemes", None) is None and re.fullmatch(r"[A-Za-z][A-Za-z']{2,}", w) and not w.isupper():
+            out.append(w)
     return list(dict.fromkeys(out))
 
 
