@@ -79,7 +79,8 @@ export function windowsCommand(cmd: string[], platform: NodeJS.Platform = proces
 }
 
 /** A PTY through Python's pty module (the engine's Python is always there): works with piped stdio, unlike
- * `script`, which needs a terminal on its own stdin. Exit code passed through. */
+ * `script`, which needs a terminal on its own stdin. Exit code passed through. A keystroke that arrives after the CLI
+ * closed its side (EIO on the master) is dropped, not a traceback that turns the CLI's exit code into 1. */
 export const PY_PTY = [
   'import fcntl,os,pty,select,struct,sys,termios',
   'cols,rows=int(sys.argv[1]),int(sys.argv[2]);cmd=sys.argv[3:]',
@@ -97,8 +98,10 @@ export const PY_PTY = [
   '  os.write(out,d)',
   ' if inp in r:',
   '  d=os.read(inp,4096)',
-  '  if d: os.write(fd,d)',
-  '  else: fds=[fd]',
+  '  if not d: fds=[fd]',
+  '  else:',
+  '   try: os.write(fd,d)',
+  '   except OSError: pass',
   '_,st=os.waitpid(pid,0)',
   'sys.exit(os.waitstatus_to_exitcode(st))',
 ].join('\n');
@@ -150,6 +153,7 @@ export function startTerminal(
   child.stderr.setEncoding('utf8');
   child.stdout.on('data', (d: string) => h.onData(d));
   child.stderr.on('data', (d: string) => h.onData(d));
+  child.stdin.on('error', () => {}); // EPIPE: a keystroke after the CLI exited goes nowhere
   let done = false;
   const finish = (code: number | null) => {
     if (done) return;

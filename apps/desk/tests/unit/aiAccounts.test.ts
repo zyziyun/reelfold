@@ -113,10 +113,14 @@ describe('login terminal', () => {
     const r = await new Promise<{ out: string; code: number | null; backend: string }>((resolve) => {
       process.env.DESK_NO_PTY = '1';
       let out = '';
+      let sent = false;
       const s = startTerminal(['/bin/sh', '-c', 'if [ -t 0 ]; then echo tty; fi; printf "code: "; read c; echo "got $c"; exit 4'], { PATH: '/usr/bin:/bin' }, { cols: 80, rows: 24 }, {
         onData: (d) => {
           out += d;
-          if (out.includes('code: ') && !out.includes('got')) s.write('abc\r');
+          if (out.includes('code: ') && !sent) {
+            sent = true;
+            s.write('abc\r');
+          }
         },
         onExit: (code) => resolve({ out, code, backend: s.backend }),
       }, os.tmpdir(), py);
@@ -126,6 +130,23 @@ describe('login terminal', () => {
     expect(r.out).toContain('tty');
     expect(r.out).toContain('got abc');
     expect(r.code).toBe(4);
+  });
+
+  it.runIf(process.platform !== 'win32')('without node-pty: keystrokes after the CLI exited keep its exit code (EIO dropped)', async () => {
+    const py = ['/opt/homebrew/bin/python3', '/usr/bin/python3'].find((p) => fs.existsSync(p))!;
+    // input on every output chunk: some of it reaches the PTY after the CLI closed its side (a race; ~1 in 4 runs
+    // raised EIO and exited 1 before the fix), so a few runs make the regression show reliably
+    for (let i = 0; i < 8; i++) {
+      const code = await new Promise<number | null>((resolve) => {
+        process.env.DESK_NO_PTY = '1';
+        const s = startTerminal(['/bin/sh', '-c', 'i=0; while [ $i -lt 400 ]; do echo line $i; i=$((i+1)); done; exit 4'], { PATH: '/usr/bin:/bin' }, { cols: 80, rows: 24 }, {
+          onData: () => s.write('x'),
+          onExit: resolve,
+        }, os.tmpdir(), py);
+        delete process.env.DESK_NO_PTY;
+      });
+      expect(code).toBe(4);
+    }
   });
 
   it('Windows: a .cmd shim runs through cmd.exe, executables as they are', () => {
