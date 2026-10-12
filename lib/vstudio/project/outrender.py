@@ -21,6 +21,7 @@ project / work folder (the owner's previous record is restored afterwards).
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -369,7 +370,9 @@ def run_pieces(spec, file, out, quality, workdir):
         else:
             vf = SM.piece_filter(pc["box"], W, H, fps, speed=pc.get("speed") or 1.0, grade=pc.get("grade"),
                                  fbox=pc.get("fbox"))
-            cmd = ["ffmpeg", "-y", "-ss", f"{max(0.0, pc['t']):.4f}", "-i", pc["src"]]
+            # camera footage (4K HEVC, 10-bit): decoded by VideoToolbox on a Mac (several times faster)
+            hw = ["-hwaccel", "videotoolbox"] if sys.platform == "darwin" else []
+            cmd = ["ffmpeg", "-y", *hw, "-ss", f"{max(0.0, pc['t']):.4f}", "-i", pc["src"]]
             if spec.get("op") == "splice" and bands is None:
                 bands = title_bar(file, finfo["duration"], fw, fh)
             if bands and spec.get("op") == "splice":   # the finished video's title bar stays over the new take
@@ -377,12 +380,23 @@ def run_pieces(spec, file, out, quality, workdir):
                 for k, (y0, y1) in enumerate(bands):
                     g += (f";[1:v]crop={fw}:{y1 - y0}:0:{y0},fps={fps:g},format=yuv420p,setsar=1[b{k}]"
                           f";[p{k}][b{k}]overlay=0:{y0}[p{k + 1}]")
-                m.run(cmd + ["-ss", f"{pc['a']:.4f}", "-i", file, "-an", "-filter_complex", g, "-map",
-                             f"[p{len(bands)}]", "-frames:v", str(n), *enc, dst])
+                tail_ = ["-ss", f"{pc['a']:.4f}", "-i", file, "-an", "-filter_complex", g, "-map",
+                         f"[p{len(bands)}]", "-frames:v", str(n), *enc, dst]
+                try:
+                    m.run(cmd + tail_)
+                except Exception:  # noqa: BLE001
+                    m.run([x for i, x in enumerate(cmd) if x != "-hwaccel" and (i == 0 or cmd[i - 1] != "-hwaccel")]
+                          + tail_)
                 parts.append(dst)
                 continue
         vf += ",tpad=stop_mode=clone:stop_duration=30"     # a source that ends early holds its last frame
-        m.run(cmd + ["-an", "-vf", vf, "-frames:v", str(n), *enc, dst])
+        try:
+            m.run(cmd + ["-an", "-vf", vf, "-frames:v", str(n), *enc, dst])
+        except Exception:  # noqa: BLE001  (no hardware decoder for this file: the software one)
+            if "-hwaccel" not in cmd:
+                raise
+            m.run([x for i, x in enumerate(cmd) if x != "-hwaccel" and (i == 0 or cmd[i - 1] != "-hwaccel")]
+                  + ["-an", "-vf", vf, "-frames:v", str(n), *enc, dst])
         parts.append(dst)
     lst = os.path.join(workdir, "pieces.txt")
     with open(lst, "w", encoding="utf-8") as f:
