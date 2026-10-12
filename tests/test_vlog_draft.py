@@ -195,6 +195,35 @@ def test_photo_story_spec_is_drafted_as_data_with_frames_and_music(tmp_path, cli
     assert not os.path.exists(path)
 
 
+def test_photo_story_spec_with_a_string_left_open_is_fixed_by_the_model_once(tmp_path, clips):
+    """A real autopilot run lost its history explainer: the drafted spec left one Chinese string open, the draft was
+    thrown away and the step waited for her. The model now sees the SyntaxError and fixes its spec once."""
+    from vstudio.project.adapters import photostory as PS
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    ctx = DR.Ctx(str(proj), "main", dict(_inputs=dict(clips=list(clips)), _item_dir=str(tmp_path / "item")),
+                 "photo-story")
+    ctx.request_text = "a 60-second history explainer, narrated in English"
+    broken = 'TITLE_EN = "Waterfront"\nPOST = dict(intro="ninety seconds of rails,\n  "piers and parks")\n'
+    fixed = 'TITLE_EN = "Waterfront"\nPOST = dict(intro=("ninety seconds of rails, " "piers and parks"))\n'
+    calls = []
+
+    def complete(task, system, body, **kw):
+        calls.append(body)
+        return dict(json=dict(content=broken if len(calls) == 1 else fixed, summary="ok"), provider="claude-code",
+                    model="t")
+    path = str(tmp_path / "item" / "work" / "spec.py")
+    rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
+    assert rec and rec["by"] == "ai" and len(calls) == 2 and "SyntaxError at line 2" in calls[1]
+    assert open(path).read().startswith('TITLE_EN = "Waterfront"\nPOST = dict(intro=("ninety')
+    calls.clear()
+    os.remove(path)
+    assert PS.draft_spec(ctx, dict(id="story", author={}), path,
+                         complete=lambda *a, **k: (calls.append(1), dict(json=dict(content=broken),
+                                                                          provider="claude-code"))[1]) is None
+    assert len(calls) == 2                      # one repair, never a loop
+
+
 def test_photo_story_voice_speaks_the_chinese_cue():
     sys.path.insert(0, os.path.join(ROOT, "workflows/photo-story/scripts"))
     from photostory import tts as PT

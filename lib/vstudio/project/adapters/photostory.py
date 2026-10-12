@@ -168,6 +168,14 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         return None
     js = r.get("json") if isinstance(r.get("json"), dict) else {}
     text = js.get("content")
+    if isinstance(text, str) and "SYNTHETIC" not in text[:600] and not DR.data_module_ok(text):
+        # a long spec with one string left open (a Chinese intro broken over two lines) was thrown away and the step
+        # waited for her: the model is shown what is wrong and fixes its own spec once
+        r2 = complete("planner", SYSTEM, body + "\n\n" + _repair_note(text), schema=True, max_tokens=16000,
+                      timeout=limit, cli_timeout=limit, retries=1, effort="medium")
+        js2 = r2.get("json") if isinstance(r2, dict) and isinstance(r2.get("json"), dict) else {}
+        if isinstance(js2.get("content"), str) and DR.data_module_ok(js2["content"]):
+            r, js, text = r2, dict(js, **js2), js2["content"]
     if not isinstance(text, str) or not DR.data_module_ok(text) or "SYNTHETIC" in text[:600]:
         return None
     cut, made = 0, []
@@ -254,6 +262,19 @@ def _spec_value(text, name):
     except Exception:  # noqa: BLE001
         return None
     return None
+
+
+def _repair_note(text):
+    """What is wrong with a drafted spec that is not a plain-data module, for the model's one repair."""
+    import ast
+    try:
+        ast.parse(text)
+        why = "a statement that is not NAME = <literal> (no import, call, attribute, loop or function)"
+    except SyntaxError as e:
+        why = f"SyntaxError at line {e.lineno}: {e.msg}"
+    return (f"Your previous reply's content is not a plain-data Python module ({why}). Return the whole reply "
+            f"again with the content fixed: every string closed on its line (join long text with adjacent "
+            f"\"...\" \"...\" pieces inside parentheses), only NAME = literals.\n\nPrevious content:\n{text}")
 
 
 def _frames_asked(js, text):
