@@ -304,16 +304,17 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | asr-mlx | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (MLX conversion by mlx-community). | huggingface.co |
 | asr-ct2 | darwin-x64, win32-x64 | OpenAI Whisper large-v3-turbo weights, MIT (CTranslate2 conversion). | huggingface.co |
 | tts-kokoro | darwin-arm64 | Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community). | huggingface.co |
-| chromium-darwin-arm64 | darwin-arm64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
-| chromium-darwin-x64 | darwin-x64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
-| chromium-win32-x64 | win32-x64 | Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
+| chromium-darwin-arm64 | darwin-arm64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
+| chromium-darwin-x64 | darwin-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
+| chromium-win32-x64 | win32-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 
 Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
 segmenter) — Apache-2.0, Google. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
 CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
-silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community). Chromium
-snapshot builds — BSD-3-Clause and third-party licences.
+silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community).
+chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
+HyperFrames) — BSD-3-Clause and third-party licences, the full text in LICENSE.headless_shell inside the download.
 
 The free voice's text front end (misaki, Apache-2.0) runs without its optional GPL / LGPL helpers: no espeak-ng
 (espeakng-loader / phonemizer, GPL-3.0; English words missing from misaki's dictionaries are skipped instead) and no

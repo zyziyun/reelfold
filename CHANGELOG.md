@@ -8,6 +8,13 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more "Chromium" notifications prompt on macOS**: the optional browser for HTML covers, slides and HyperFrames
+  is now `chrome-headless-shell` (a bare executable with no app bundle, 98 MB instead of 176 MB on Apple silicon),
+  also used by HyperFrames instead of its own copy. An installed Chromium.app is replaced by itself in the background
+  (Settings › Downloads) and removed once the engine runs on the new one.
+
 ## [0.2.7] - 2026-10-11
 
 ### Added

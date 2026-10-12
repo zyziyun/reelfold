@@ -50,7 +50,7 @@ You rarely need these.
   | Fonts and face models | about 62 MB | Captions, covers, face tracking, retouch |
   | Speech recognition (Whisper large-v3-turbo) | about 1.6 GB | Transcription |
   | Free voice (Kokoro, Apple silicon) | about 330 MB | Narration without an OpenAI key. See [Voices](/docs/guides/voices/) |
-  | Chromium (optional, not in the App Store edition) | 180–360 MB | HTML covers, slides, some workflows |
+  | Chromium (optional, not in the App Store edition) | 100–120 MB | HTML covers, slides, some workflows |
 
 - **Engine**: the video engine in use (built into the app, or a folder you point at), the Python, the engine's data folder, **Restart the engine**.
 - **Style defaults**: import a style file (fonts, brand colours, platform habits) or go back to the Reelfold default.

@@ -1,4 +1,4 @@
-"""HTML -> PNG with headless Chrome/Chromium (portable lookup) or Playwright, plus font staging/subsetting
+"""HTML -> PNG with headless Chrome/Chromium (portable lookup, chrome-headless-shell first) or Playwright, plus font staging/subsetting
 and persona CSS variables for HTML / HyperFrames projects.
 
     from vstudio.render import find_chrome, html_to_png, stage_fonts, subset_font, persona_css
@@ -35,7 +35,47 @@ CHROME_PATHS = {
                 r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"],
 }
 CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome", "msedge"]
+# chrome-headless-shell (Chrome for Testing): a bare executable, no app bundle, so on macOS it never registers as an app
+# (no "Chromium would like to send notifications" prompt, no Dock icon, no keychain item). HyperFrames and Puppeteer
+# keep copies here; preferred over a full browser.
+HEADLESS_SHELL_CACHES = [os.path.join("~", ".cache", "hyperframes", "chrome", "chrome-headless-shell"),
+                         os.path.join("~", ".cache", "puppeteer", "chrome-headless-shell")]
+# for a full Chrome / Chromium / Edge (a fallback): no first-run UI, default-browser check, notification or push
+# permission, keychain access or background networking - a render is a throwaway page, not a browser session
+QUIET_FLAGS = ["--no-first-run", "--no-default-browser-check", "--disable-notifications",
+               "--disable-features=PushMessaging,MediaRouter,DialMediaRouteProvider,Translate",
+               "--disable-background-networking", "--disable-component-update", "--disable-sync",
+               "--disable-default-apps", "--disable-extensions", "--use-mock-keychain", "--password-store=basic"]
 _OK = {}
+
+
+def _version_key(name):
+    """'mac_arm-152.0.7977.30' -> (152, 0, 7977, 30) for newest-first sorting."""
+    out = []
+    for part in name.rsplit("-", 1)[-1].split("."):
+        if not part.isdigit():
+            break
+        out.append(int(part))
+    return tuple(out)
+
+
+def headless_shells(home=None):
+    """chrome-headless-shell binaries in the HyperFrames / Puppeteer caches, newest version first (unverified)."""
+    exe = "chrome-headless-shell.exe" if platform.system() == "Windows" else "chrome-headless-shell"
+    out = []
+    for cache in HEADLESS_SHELL_CACHES:
+        root = cache.replace("~", home, 1) if home else os.path.expanduser(cache)
+        try:
+            versions = sorted(os.listdir(root), key=_version_key, reverse=True)
+        except OSError:
+            continue
+        for v in versions:
+            try:
+                subs = sorted(os.listdir(os.path.join(root, v)))
+            except OSError:
+                continue
+            out += [p for p in (os.path.join(root, v, d, exe) for d in subs) if os.path.isfile(p)]
+    return out
 
 
 def _works(path, timeout=15):
@@ -50,15 +90,17 @@ def _works(path, timeout=15):
 
 
 def chrome_candidates():
-    """Every plausible binary, $CHROME first, then PATH names, then per-OS install paths (unverified).
-    None when VSTUDIO_NO_CHROME=1 (the desk's sandboxed Mac App Store build: it cannot run another browser and renders
-    HTML itself, see VSTUDIO_HTML_RENDER_SOCKET)."""
+    """Every plausible binary, $CHROME first, then $HYPERFRAMES_BROWSER_PATH, cached chrome-headless-shells, PATH
+    names, then per-OS install paths (unverified). None when VSTUDIO_NO_CHROME=1 (the desk's sandboxed Mac App Store
+    build: it cannot run another browser and renders HTML itself, see VSTUDIO_HTML_RENDER_SOCKET)."""
     if os.environ.get("VSTUDIO_NO_CHROME") == "1":
         return []
     out = []
-    env = os.environ.get("CHROME")
-    if env and os.path.exists(env):
-        out.append(env)
+    for var in ("CHROME", "HYPERFRAMES_BROWSER_PATH"):
+        env = os.environ.get(var)
+        if env and os.path.exists(env):
+            out.append(env)
+    out += headless_shells()
     out += [p for p in (shutil.which(n) for n in CHROME_NAMES) if p]
     out += [p for p in CHROME_PATHS.get(platform.system(), []) if os.path.exists(p)]
     return list(dict.fromkeys(out))
@@ -218,7 +260,7 @@ def html_to_png(html, out, size=(1080, 1920), scale=1, wait=2000, query="", use_
             return _host_render(page, png, w, h, scale, wait, query, transparent)
         for chrome in find_chromes():
             args = [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--force-device-scale-factor={scale}",
-                    f"--window-size={w},{h}", f"--virtual-time-budget={wait}", f"--screenshot={png}"]
+                    f"--window-size={w},{h}", f"--virtual-time-budget={wait}", f"--screenshot={png}", *QUIET_FLAGS]
             if transparent:
                 args.append("--default-background-color=00000000")
             try:

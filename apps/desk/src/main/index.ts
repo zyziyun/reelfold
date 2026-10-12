@@ -250,6 +250,8 @@ function startEngine(): Promise<EngineInfo> {
   // first engine already has them - no restart at start-up
   const p = Promise.all([old ? old.stop() : Promise.resolve(), assets.scan()]).then(() => {
     if (gen !== engineGen) throw new SupersededError();
+    // no engine runs now: the folders of replaced asset versions (the old Chromium.app) can go
+    assets.prune();
     const cfg = resolvedConfig();
     const next = new EngineProcess({
       engineDir: path.join(RES, 'engine'),
@@ -1139,6 +1141,10 @@ if (!app.requestSingleInstanceLock()) {
       hfHub: hfHubDir(),
     });
     mainLog(`[assets] dir ${assetsDir()} · engine cache ${engineCacheDir()} · hf hub ${hfHubDir() ?? '-'}`);
+    // an older version installed (the Chromium.app snapshot before chrome-headless-shell): fetch the new one in the
+    // background (Settings > Downloads shows it); the engine switches over when idle, the old folder goes after that
+    const upgrades = assets.upgrades();
+    if (upgrades.length) void assets.install(upgrades).catch((e) => mainLog(`[assets] ${(e as Error)?.stack ?? e}`));
     // already on disk (CLI install.sh, Hugging Face cache)? startEngine() scans first, so the first engine has them
     pstore = new PublishStore(path.join(app.getPath('userData'), 'publish'));
     vault = new ApiVault(app.getPath('userData'), safeStorage);

@@ -1,6 +1,6 @@
 // Generate packaging/assets.json: the large assets the app downloads on first run (not shipped in the installer),
 // each with a pinned URL, size and sha256. Small files are downloaded and hashed here; Hugging Face LFS files use
-// the LFS sha256 from the API (no 1.6 GB download needed). Chromium zips are downloaded once to hash them.
+// the LFS sha256 from the API (no 1.6 GB download needed). The headless browser zips are downloaded once to hash them.
 //   node scripts/runtime/assets-lock.mjs [--skip-chromium]
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -19,7 +19,11 @@ const PINS = {
   // (zf_xiaobei = vstudio.tts.ZH_VOICE, af_heart = DEFAULT_VOICE) and two more English ones
   kokoro: { repo: 'mlx-community/Kokoro-82M-bf16', rev: 'a71e4d38b236d968966a2002c4c895dbd12b1c3c',
     voices: ['zf_xiaobei', 'af_heart', 'am_michael', 'bf_emma'] },
-  chromium: { 'darwin-arm64': ['Mac_Arm', 1712143, 'chrome-mac.zip'], 'darwin-x64': ['Mac', 1712146, 'chrome-mac.zip'], 'win32-x64': ['Win_x64', 1712024, 'chrome-win.zip'] },
+  // the headless browser for HTML covers / slides and HyperFrames: chrome-headless-shell from Chrome for Testing, not a
+  // Chromium.app snapshot - a bare executable with no app bundle, so macOS never sees an app that could ask for
+  // notifications. The version is the one HyperFrames manages itself (CHROME_VERSION in the hyperframes CLI), so its
+  // renders run on the browser it is tested with and it does not download a second copy.
+  headlessShell: { version: '152.0.7977.30', platforms: { 'darwin-arm64': 'mac-arm64', 'darwin-x64': 'mac-x64', 'win32-x64': 'win64' } },
 };
 const skipChromium = process.argv.includes('--skip-chromium');
 const prev = (() => {
@@ -123,24 +127,31 @@ groups.push({
   licence: 'Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community).',
   files: await hf(PINS.kokoro, '.', ['config.json', 'kokoro-v1_0.safetensors', ...PINS.kokoro.voices.map((v) => `voices/${v}.safetensors`)]),
 });
-for (const [target, [dir, rev, zip]] of Object.entries(PINS.chromium)) {
-  const url = `https://storage.googleapis.com/chromium-browser-snapshots/${dir}/${rev}/${zip}`;
+const CFT = 'https://storage.googleapis.com/chrome-for-testing-public';
+for (const [target, plat] of Object.entries(PINS.headlessShell.platforms)) {
+  const { version } = PINS.headlessShell;
+  const name = `chrome-headless-shell-${plat}`;
+  const url = `${CFT}/${version}/${plat}/${name}.zip`;
   const old = prev?.groups.find((g) => g.id === `chromium-${target}`)?.files[0];
   let f;
   if (old?.url === url) f = old;
   else if (skipChromium) continue;
   else {
-    log('chromium', target, url);
-    f = { url, dest: zip, ...(await hashUrl(url)) };
+    log('chrome-headless-shell', target, url);
+    f = { url, dest: `${name}.zip`, ...(await hashUrl(url)) };
   }
+  const exe = `${name}/chrome-headless-shell${target.startsWith('win32') ? '.exe' : ''}`;
   groups.push({
+    // the id stays chromium-<target> (the Settings row, the Lite filter); a new root + sha256 makes an older install
+    // an upgrade the desk downloads by itself, then removes the old folder (AssetManager.upgrades)
     id: `chromium-${target}`,
     required: false,
     targets: [target],
-    root: `chromium/${rev}`,
+    root: `chrome-headless-shell/${version}`,
     extract: true,
-    env: { CHROME: target.startsWith('win32') ? 'chrome-win/chrome.exe' : 'chrome-mac/Chromium.app/Contents/MacOS/Chromium' },
-    licence: 'Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames.',
+    // HYPERFRAMES_BROWSER_PATH: HyperFrames renders / checks use the same binary instead of downloading their own
+    env: { CHROME: exe, HYPERFRAMES_BROWSER_PATH: exe },
+    licence: 'chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames.',
     files: [f],
   });
 }

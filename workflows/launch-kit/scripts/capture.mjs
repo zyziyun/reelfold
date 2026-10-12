@@ -7,9 +7,10 @@
 //                    [--keep-going]
 //
 // Targets: --electron APP_DIR (Playwright _electron.launch; the window is driven hidden: Chromium keeps painting a
-// hidden BrowserWindow, so the screencast still gets frames and nothing covers your screen) or --url URL (system
-// Chrome via channel "chrome", else Playwright's bundled Chromium). --env K=V adds / overrides an env var of the
-// Electron process (K= sets it empty); --env-json reads {K: V} JSON (null removes K from the inherited env).
+// hidden BrowserWindow, so the screencast still gets frames and nothing covers your screen) or --url URL ($CHROME,
+// e.g. the desk's chrome-headless-shell, else system Chrome via channel "chrome", else Playwright's bundled Chromium).
+// --env K=V adds / overrides an env var of the Electron process (K= sets it empty); --env-json reads {K: V} JSON (null
+// removes K from the inherited env).
 //
 // Recording: CDP Page.startScreencast (jpeg q95, or png) at size x scale device pixels (1440x900 @2 -> 2880x1800);
 // frames arrive with their own timestamps when something repaints, and are laid onto a constant-fps timeline
@@ -135,10 +136,20 @@ if (electronDir) {
     win.setContentSize(w, h);
   }, [W, H]);
 } else {
-  try {
-    browser = await pw.chromium.launch({ channel: 'chrome', headless: true });
-  } catch {
-    browser = await pw.chromium.launch({ headless: true });
+  // $CHROME first (the desk's chrome-headless-shell: no app bundle, so no macOS notification prompt), then the
+  // installed Google Chrome, then Playwright's own browser
+  const tries = [
+    ...(process.env.CHROME && fs.existsSync(process.env.CHROME) ? [{ executablePath: process.env.CHROME }] : []),
+    { channel: 'chrome' },
+    {},
+  ];
+  for (const [i, opt] of tries.entries()) {
+    try {
+      browser = await pw.chromium.launch({ ...opt, headless: true });
+      break;
+    } catch (e) {
+      if (i === tries.length - 1) throw e;
+    }
   }
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE });
   page = await ctx.newPage();

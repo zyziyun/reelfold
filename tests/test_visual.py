@@ -175,6 +175,29 @@ def test_find_chrome_never_raises():
     assert p is None or os.path.exists(p)
 
 
+def test_headless_shell_lookup(tmp_path, monkeypatch):
+    """chrome-headless-shell (no app bundle: no macOS notification prompt) from the HyperFrames / Puppeteer caches,
+    newest first, after $CHROME / $HYPERFRAMES_BROWSER_PATH and before any full browser."""
+    exe = "chrome-headless-shell.exe" if sys.platform == "win32" else "chrome-headless-shell"
+    made = {}
+    for cache, ver in [("hyperframes/chrome", "mac_arm-150.0.7871.124"), ("hyperframes/chrome", "mac_arm-152.0.7977.30"),
+                       ("puppeteer", "mac_arm-145.0.7632.67")]:
+        d = tmp_path / ".cache" / cache / "chrome-headless-shell" / ver / "chrome-headless-shell-mac-arm64"
+        d.mkdir(parents=True)
+        (d / exe).write_bytes(b"")
+        made[ver] = str(d / exe)
+    assert render.headless_shells(home=str(tmp_path)) == [made["mac_arm-152.0.7977.30"], made["mac_arm-150.0.7871.124"],
+                                                           made["mac_arm-145.0.7632.67"]]
+    own = tmp_path / "own-shell"
+    own.write_bytes(b"")
+    monkeypatch.delenv("VSTUDIO_NO_CHROME", raising=False)
+    monkeypatch.setenv("CHROME", str(own))
+    monkeypatch.setenv("HYPERFRAMES_BROWSER_PATH", str(own))
+    monkeypatch.setattr(render, "headless_shells", lambda home=None: [made["mac_arm-152.0.7977.30"]])
+    assert render.chrome_candidates()[:2] == [str(own), made["mac_arm-152.0.7977.30"]]
+    assert "--disable-notifications" in render.QUIET_FLAGS and "--no-first-run" in render.QUIET_FLAGS
+
+
 def test_persona_css_and_fonts(tmp_path):
     css = render.persona_css()
     assert css.startswith(":root{") and "--accent:" in css

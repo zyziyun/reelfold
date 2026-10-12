@@ -67,7 +67,7 @@ import { Steps } from '@astrojs/starlight/components';
 | 字体和 MediaPipe 人脸模型 | 约 62 MB | 字幕、封面、人脸跟踪、修图 |
 | Whisper large-v3-turbo | 约 1.6 GB | 语音转写 |
 | 免费配音（Kokoro） | 约 330 MB | 没有 OpenAI 密钥时的配音；第一次有视频要用时才下载 |
-| Chromium（可选） | 180–360 MB | HTML 封面、幻灯片和基于 HyperFrames 的工作流 |
+| Chromium（可选） | 100–120 MB | HTML 封面、幻灯片和基于 HyperFrames 的工作流 |
 
 下载中断可以续传，装之前会先校验。源码构建时，字体和人脸模型已经由 `install.sh` 下好；如果还没有 Whisper 模型，第一次转写时引擎会自动下载。
 

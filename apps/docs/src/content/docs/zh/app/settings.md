@@ -50,7 +50,7 @@ description: 千剪的设置一览：通用（自动驾驶、平台、监看的�
   | 字体和人脸模型 | 约 62 MB | 字幕、封面、人脸跟踪、美颜 |
   | 语音识别（Whisper large-v3-turbo） | 约 1.6 GB | 转写 |
   | 免费配音（Kokoro，Apple 芯片） | 约 330 MB | 没有 OpenAI 密钥时的配音。见 [配音](/docs/zh/guides/voices/) |
-  | Chromium（可选，App Store 版没有） | 180–360 MB | HTML 封面、幻灯片、部分工作流 |
+  | Chromium（可选，App Store 版没有） | 100–120 MB | HTML 封面、幻灯片、部分工作流 |
 
 - **引擎**：正在用的视频引擎（应用内置，或你指定的文件夹）、Python、引擎数据文件夹，**重启引擎**。
 - **风格默认值**：导入风格文件（字体、品牌色、平台习惯），或恢复千剪默认。

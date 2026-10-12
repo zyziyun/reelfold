@@ -42,8 +42,11 @@ with sha256 in `packaging/assets.json`, into the app data folder (`~/Library/App
 Whisper large-v3-turbo (1.6 GB, takes over once installed), the free voice `tts-kokoro` (Kokoro-82M v1.0 + 4 voices,
 329 MB, Apple silicon; also started when a video first takes the free voice - the voice step's "Download the free
 voice") and
-Chromium for HTML covers/slides/HyperFrames (180–360 MB). Downloads resume, are verified before they are installed and
-never leave a half-installed folder.
+a headless Chromium for HTML covers/slides/HyperFrames (100–120 MB: `chrome-headless-shell` from Chrome for Testing,
+pinned to the version HyperFrames manages - a bare executable with no app bundle, so macOS never shows a "Chromium"
+notifications prompt; HyperFrames gets it through `HYPERFRAMES_BROWSER_PATH`). Downloads resume, are verified before
+they are installed and never leave a half-installed folder. A group whose pins changed (the 0.2.7 Chromium.app
+snapshot) is downloaded again by itself at start; the old folder is removed once the engine restarts on the new one.
 
 Sizes (macOS arm64, v0.1.0): app 1.3 GB on disk, DMG 468 MB, updater zip 477 MB. Most of it is MLX (210 MB),
 OpenCV (138 MB), llvmlite (125 MB) and ffmpeg's libraries (155 MB).
@@ -244,7 +247,7 @@ that pattern), the rest is sealed by the app signature.
   `requirements.txt` changes, run `npm run runtime:lock` (re-resolves `packaging/requirements/*.txt` with uv, the ffmpeg lists with micromamba, and
   the asset hashes), `node scripts/runtime/licenses.mjs`, `npm run runtime`, `npm run test:packaged`, commit.
 - New Python / ffmpeg / micromamba: edit the version in `runtime.lock.json`, then the same steps.
-- `runtime:lock` needs `uv` on PATH; `assets-lock.mjs` downloads each Chromium zip once to hash it (~750 MB).
+- `runtime:lock` needs `uv` on PATH; `assets-lock.mjs` downloads each chrome-headless-shell zip once to hash it (~320 MB).
 
 ## Microsoft Store (MSIX) — later phase
 
