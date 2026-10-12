@@ -149,9 +149,11 @@ export function useNativeFullscreen(ref: RefObject<HTMLElement | null>, o: { onE
   }, [ref]);
 
   const toggle = useCallback(() => {
-    if (native || fallback) void exit();
+    // the live state too: the fullscreenchange that sets `native` can still be on its way (it comes with a frame)
+    const el = ref.current;
+    if (native || fallback || (!!el && screenOwner() === el)) void exit();
     else void enter();
-  }, [native, fallback, enter, exit]);
+  }, [native, fallback, enter, exit, ref]);
 
   return useMemo(
     () => ({ native, fallback, on: native || fallback, enter, exit, toggle, escSpent: () => escSpent(lastExitAt, performance.now()) }),

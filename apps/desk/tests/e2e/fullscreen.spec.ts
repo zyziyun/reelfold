@@ -166,6 +166,21 @@ test('a 9:16 version is pillarboxed: full height, centred on black', async () =>
   await expect.poll(winFull, { timeout: 10000 }).toBe(false); // the Space has closed before the next test
 });
 
+test('Esc leaves full screen even before the page has heard it began (a hidden window on Windows paints late)', async () => {
+  const P = '[data-testid=editor-player]';
+  const player = page.locator(P);
+  // hold back the first fullscreenchange, as a window that has not painted its next frame yet does: the player is the
+  // full-screen element but has not re-rendered as full screen
+  await page.evaluate(() => window.addEventListener('fullscreenchange', (e) => e.stopImmediatePropagation(), { capture: true, once: true }));
+  await player.getByTestId('fullscreen').click();
+  await expect.poll(fsEl).toBe('editor-player');
+  await expect(player).toHaveAttribute('data-native-full', '0');
+  await page.keyboard.press('Escape');
+  await expect.poll(fsEl).toBeNull();
+  await expect(page.getByTestId('editor')).toBeVisible();
+  await expect.poll(winFull, { timeout: 10000 }).toBe(false);
+});
+
 test('▶ Play full screen on a clip card opens straight in system full screen; Esc is back on the project page', async () => {
   await page.evaluate(() => window.desk.setSettings({ studio: false })); // the project page's clip cards (Studio off)
   await page.reload();
