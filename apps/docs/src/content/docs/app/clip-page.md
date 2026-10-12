@@ -29,7 +29,7 @@ The editor opens on the **Transcript** when the clip has speech, and on the **Ti
 - **Pickups**: select words and **Re-record** (R) or **Add after** (⇧R). Your camera opens, you say the line again, and it is put in with the loudness and room tone matched.
 - **Export**: pick the platforms; each gets its own version, captions inside its safe area, loudness at its target, and your [watermark](/docs/guides/watermark/) unless you untick it for this video.
 
-Every edit is one Undo step (⌘Z), and the project's **Changes** list keeps them all.
+Every edit is one Undo step (⌘Z).
 
 ## Related
 

@@ -13,7 +13,7 @@ Open Settings with ⌘, (Ctrl+, on Windows). The status line at the top says whe
 - **Folders to look in**: All projects finds your work in these folders, and a new recording in one of them becomes a suggestion on Home.
 - **Tidy up raw footage**: optional clean-up after delivery. You confirm every file, and it only goes to the Bin.
 - **I make videos for other people**: adds clients to projects, delivery and numbers.
-- The version, **Check for updates**, and opt-in usage counts. See [Privacy: what Reelfold sends](/docs/concepts/usage-counts/).
+- The version and **Check for updates** (the App Store edition updates through the App Store). Optional usage counts are off unless you turn them on; see [Privacy: what Reelfold sends](/docs/concepts/usage-counts/).
 
 ## AI
 
