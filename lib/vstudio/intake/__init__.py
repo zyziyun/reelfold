@@ -12,5 +12,6 @@ adds checkpoints and estimates, and creates the projects:
 
 Modules: inventory (walk + per-kind analyzers + cache), docs (text extraction), rules (phrase table, prompt
 parsing, rule planner, focus matcher, rule revisions), plan (model call, validation, defaults, checkpoints,
-estimates, summary, revise), estimate, apply (projects + series), cli. Docs: references/INTAKE.md.
+estimates, summary, revise), estimate, apply (projects + series), goal (a goal-style request: survey the footage
+into stories, plan several videos, each its own request), cli. Docs: references/INTAKE.md.
 """

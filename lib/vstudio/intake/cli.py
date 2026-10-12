@@ -1,4 +1,9 @@
-"""python -m vstudio.intake analyze | plan | revise | apply | schema  (every command: --json -> one document).
+"""python -m vstudio.intake analyze | plan | revise | apply | goal | goal-edit | schema  (every command: --json -> one
+document).
+
+goal: one goal-style request ("make as many videos as you can from this card") -> a survey of the footage (stories by
+time + place + light) and a plan of several videos, each with the request its own ``plan`` starts from (goal.py).
+goal-edit: her edits on that plan card (drop / rename / kind / length / merge / platforms).
 
 plan / revise --json-events: one JSON event per line on stdout while it works (logs -> stderr), the progress the
 desk's plan card shows: {event: stage | progress, stage: scan | probe | listen | faces | transcribe | model | write,
@@ -121,6 +126,46 @@ def cmd_apply(a):
     return 0
 
 
+def cmd_goal(a):
+    from . import goal as G
+    make = lambda ev: G.make_goal(a.prompt, a.inputs or [], platforms=a.platforms, ui_lang=a.ui_lang,  # noqa: E731
+                                  provider=a.provider, model=a.model, on_event=ev, timeout=a.timeout)
+    if not a.json_events:
+        try:
+            doc = make(None)
+        except ValueError as e:
+            _out(a, dict(ok=False, error=str(e), code="plan-empty"), f"error: {e}")
+            return 5
+        _save(a.out, doc)
+        _out(a, doc, "\n".join([doc["goal"]] + [f"{v['id']} {v['kind']:8} {v['length_s']:>4}s {v['title']}: "
+                                                  f"{v['request']}" for v in doc["videos"]]))
+        return 0
+    from vstudio.batch.cli import json_event_sink
+    emit, stream = json_event_sink()
+    try:
+        doc = make(emit)
+        _save(a.out, doc)
+    except Exception as e:
+        emit(dict(event="error", ts=round(time.time(), 2), error=f"{type(e).__name__}: {e}"[:600],
+                  code="plan-empty" if isinstance(e, ValueError) else None))
+        raise
+    emit(dict(event="done", ts=round(time.time(), 2), plan=doc))
+    stream.flush()
+    return 0
+
+
+def cmd_goal_edit(a):
+    from . import goal as G
+    try:
+        doc = G.edit_goal(_load(a.goal), json.loads(a.ops))
+    except ValueError as e:
+        _out(a, dict(ok=False, error=str(e)), f"error: {e}")
+        return 5
+    _save(a.out or (a.goal if a.in_place else None), doc)
+    _out(a, doc, "\n".join(f"{v['id']} {'(dropped) ' if v.get('dropped') else ''}{v['title']}" for v in doc["videos"]))
+    return 0
+
+
 def cmd_schema(a):
     _out(a, PL.schema())
     return 0
@@ -185,6 +230,23 @@ def build_parser():
     p.add_argument("--autopilot", action="store_true",
                    help="create the projects on autopilot: no pilot, the engine decides every checkpoint itself")
     p.add_argument("--dry-run", action="store_true")
+
+    p = add("goal", cmd_goal, "a goal-style request (several videos from a folder / card) -> survey + a plan of videos")
+    p.add_argument("--prompt", required=True)
+    p.add_argument("--inputs", nargs="+", help="folders / files (also read from paths named in --prompt)")
+    p.add_argument("--platforms", nargs="+", help="platform ids when the request names none")
+    p.add_argument("--provider", help="LLM provider for task intake (default: the route; none = rules only)")
+    p.add_argument("--model")
+    p.add_argument("--timeout", type=float, help="seconds per CLI provider attempt")
+    p.add_argument("--ui-lang", choices=sorted(PL.REPLY_LANGS), help="language of the plan card's lines")
+    p.add_argument("--out", help="write the goal JSON here")
+    p.add_argument("--json-events", action="store_true", help="progress events on stdout, then {event: done, plan}")
+
+    p = add("goal-edit", cmd_goal_edit, "apply plan-card edits to a goal JSON (rebuilds each video's request)")
+    p.add_argument("--goal", required=True)
+    p.add_argument("--ops", required=True, help='JSON list, e.g. [{"op": "drop", "video": "v2"}]')
+    p.add_argument("--out")
+    p.add_argument("--in-place", action="store_true", help="overwrite --goal")
 
     add("schema", cmd_schema, "the plan JSON Schema")
     return ap
