@@ -38,6 +38,13 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   tags) in the request's language for this version. Each platform posts in its audience's language (Chinese on
   Xiaohongshu / Bilibili / Douyin, English on YouTube / TikTok / Instagram): also write POST_EN (an English POST) when
   POST is Chinese, or POST_ZH when POST is English - same facts, its own hashtags.
+- Premium look (references/AESTHETICS.md P1-P9): LOOK = "cinema" (full-bleed picture, no header; leave LOOK out to
+  get it). Transitions: only "fade" (a slow dissolve; the default, so you may omit tr) or "cut" - never flash, whip,
+  leak, zoom, iris, ink, blinds, tear or slideup. Hold the beautiful shots: one shot per unit when the clip has a
+  long steady move, at most two; pick in-points on steady, well-exposed moves (no take-off, no fast yaw). Picture
+  labels (label=) only for real places, 1-4 words, no emoji; timeline tl= only for dated facts, in date order.
+  COVER: hero=dict(src=<the single most beautiful still>), a short title (<= 3 words + year if any) and a short
+  subtitle; no polaroids, tagline or kicker needed. Cues: calm, factual, short; no exclamation marks, no emoji.
 - Never the word SYNTHETIC; never the template's example content."""
 
 

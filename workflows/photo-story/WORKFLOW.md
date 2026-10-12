@@ -143,6 +143,8 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `CLIP_DUCK`, `AMBIENT_DUCK`, `CLIP_LUFS`, `AMBIENT_LUFS` | clip-audio levels / ducking (see Video clip audio) |
 | `CLEANUP` | 气口 / filler cleanup profile for every `audio="keep"` clip (default off; see Video clip audio) |
 | `CANVAS` | `"3:4"` 1080x1440 · `"3:4-hd"` 1620x2160 · `"9:16"` 1080x1920 · `"16:9"` 1920x1080 · `"WxH"` |
+| `LOOK` | `"cinema"` (default; persona `style.look`): full-bleed picture, no running header, the title once over the opening shot, refined type (Noto Serif SC + Noto Sans SC Regular, soft shadows, no boxes), every transition a 0.8 s dissolve or a cut, captions crossfade, full-bleed cover. `"classic"`: the header / chapter band / boxed labels / scrapbook cover design |
+| `QC` | `dict(flicker="fail" | "warn" | "off")`: `vstudio.flicker` on the full render (default fail) |
 | `LAYOUT` | `header`, `sub` (fraction of H or px), `overlay_subs`. Portrait default: header 13.9 %, picture box, sub band 16.7 %. Landscape default: header 15 % and subtitles overlaid on the picture over a gradient |
 | `PALETTE` | `accent ground paper ink mark route sub_en sub_zh` (hex or RGB) |
 | `TITLE_ZH/EN`, `SECTIONS`, `SECTIONS_EN` | running header + chapter cards (cards for sections ≥ 1, `CHAPTER_CARD` seconds, 0 = off) |

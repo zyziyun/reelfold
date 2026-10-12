@@ -32,16 +32,19 @@ Relative paths (`src_dir`, `out`) resolve against the edit.json folder.
 | `res` | master `[W,H]` | `[3840,2160]` 4K, `[1920,1080]`, `[1080,1920]` vertical |
 | `fps` | output fps | `30` |
 | `xfade` | crossfade seconds between segments | `0.8` |
-| `transition` | ffmpeg xfade transition name | `"fade"` (also `dissolve`, `smoothleft`, `fadeblack`...) |
+| `transition` | ffmpeg xfade transition name | `"fade"` (also `dissolve`, `smoothleft`; dips through black / white - `fadeblack`, `fadewhite` - become `fade` unless `"allow_dips": true`: they flash) |
 | `fade_out` | fade-to-black seconds at the end | `1.5` |
 | `fit` | how off-aspect clips fill the frame: `crop` / `pad` / `blur` / `stretch` | `"crop"` |
 | `hdr` | `auto` tone-maps HLG/PQ clips to BT.709; `true` forces; `false` skips | `"auto"` |
 | `ambient_audio` | keep each clip's own sound, tempo-matched and crossfaded | `false` |
 | `grade` | base `eq` values (overrides persona `vlog.grade`) | see below |
-| `warm` / `sharpen` | gentle colorbalance warm push / light unsharp | `true` / `true` |
+| `warm` / `sharpen` | gentle colorbalance warm push / light unsharp | `true` / `false` (a sharpened 4K -> 1080 downscale shimmers) |
+| `match_exposure` | pull each segment's brightness this far toward the film's median (max +-0.06) | `0.6` (0 = off) |
+| `deflicker` | even out the drone's exposure pumping inside each clip | `true` |
+| `qc` | `{"flicker": "fail" | "warn" | "off"}`: `vstudio.flicker` on the master | `fail` |
 | `stabilize` | built-in `deshake` + small zoom-crop (also per segment) | `false` |
 | `stab_rx`, `stab_ry`, `stab_zoom` | deshake search range (x16, max 64) and keep fraction | `32`, `32`, `0.93` |
-| `default_speed` / `empty_speed` | speed for subject / `kind:"empty"` segments | persona `vlog.speed_subject` 1.2 / `vlog.speed_empty` 1.3 |
+| `default_speed` / `empty_speed` | speed for subject / `kind:"empty"` segments | persona `vlog.speed_subject` 1.0 / `vlog.speed_empty` 1.0 |
 | `seg_crf` / `final_crf` | x264 quality (lower = better) | `12` / `18` |
 | `workers` | parallel segment encodes | `3` |
 | `out` | master path | `"vlog_master.mp4"` |
@@ -73,17 +76,19 @@ when the subject is central; otherwise `fit:"blur"`.
 
 ## Colour grade values
 Dim / flat evening footage; lifts it without looking fake:
-- `brightness 0.05`, `contrast 1.12`, `saturation 1.18`, `gamma 1.04`
-- plus a gentle warm push (`colorbalance`) and light `unsharp`, on by default (`warm`, `sharpen`).
+- `brightness 0`, `contrast 1.04`, `saturation 1.04`, `gamma 1.0` - restrained (references/AESTHETICS.md P3; the old
+  `0.05 / 1.12 / 1.18 / 1.04` + sharpen looked cheap on DJI footage)
+- plus a gentle warm push (`colorbalance`, `warm`); `unsharp` only with `"sharpen": true`.
 - **No vignette** on already-dim footage: it crushes the corners and reads as "too dark".
 - Lift one dull shot with per-segment `bright` (e.g. +0.08), not the global grade.
 - Midday / phone footage is usually already punchy: try `contrast 1.05`, `saturation 1.08`, `brightness 0`.
 - Set your house look once in persona `vlog.grade`; edit.json `grade` overrides it per video.
 
 ## Speed / pacing
-Aerial and walking footage is slow by nature; a mild global speed-up keeps it watchable:
-- subject moments: ~1.2x (still breathe)
-- empty / establishing 空镜: ~1.3x
+Premium default: real time (1.0x). Hold the beautiful aerials longer (7-14 s windows) instead of speeding them up.
+Any speed plays with an even cadence (`ffmpeg_filters.retime`: a whole frame step decimates, anything else blends);
+1.2x / 1.3x on 60p or 30p used to drop frames unevenly and judder.
+- a lively walk / city timelapse may take 1.1-1.2x (blended, smooth)
 - trim weak shots shorter rather than relying on speed alone.
 - slow-mo: `speed < 1` on 60 fps sources (0.5x = 30 unique fps at 30 fps output, buttery; 0.6x fine).
 - With `ambient_audio`, audio is time-stretched with `atempo` (pitch kept); above ~1.4x ambient sound
