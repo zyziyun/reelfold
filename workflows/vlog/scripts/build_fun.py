@@ -400,6 +400,7 @@ def main(argv=None):
     warnings += P.check_length(prof, T)
     safe, capbox = P.safe_box(prof), P.caption_box(prof)
     g = G.Geometry(prof, safe, capbox)
+    g.refined = PL.transition_style(cfg) == "clean"
     els, reveals = build_elements(cfg, g, tl, cuts, meta, pl, fps)
     cue_sheet = A.cue_sheet_for(cut_events(cuts), reveals, kind="travel-fun", beats=bv) if cfg.get("sfx", True) else []
     cap_cues = captions(tl, prof) if cfg.get("captions", True) else []

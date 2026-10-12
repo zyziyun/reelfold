@@ -139,6 +139,9 @@ class Geometry:
         self.vertical = self.H > self.W
         self.unit = min(self.W, self.H) / 1080.0          # 1.0 on 1080-wide vertical / 1080-tall horizontal
         self.brand = D.brand()
+        # refined (the clean default, references/AESTHETICS.md P5): serif title, spaced small labels, soft shadows,
+        # eased fades - no stroked bold type, pills, pins or bounces. False = the original pop look.
+        self.refined = False
 
     @property
     def sw(self):
@@ -149,6 +152,28 @@ class Geometry:
         return self.safe[3] - self.safe[1]
 
 
+ACCENT_REFINED = (201, 180, 138)
+
+
+def _spaced_layer(text, role, size, fill, track=0.18, shadow=150):
+    """Letter-spaced single line on a soft shadow (refined labels)."""
+    from vstudio.overlays import draw_tracked
+    f = D.load_font(role, max(10, int(size)))
+    cjk = any("\u3000" <= ch <= "\u9fff" for ch in text)
+    t = text if cjk else text.upper()
+    tr = 0.06 if cjk else track
+    w = int(D.text_width(t, f) + f.size * tr * len(t)) + 8
+    asc, desc = f.getmetrics()
+    im = Image.new("RGBA", (w, asc + desc + 6), (0, 0, 0, 0))
+    draw_tracked(ImageDraw.Draw(im), (2, 2), t, f, fill, tr)
+    return D.shadow(im, blur=max(4, f.size // 4), offset=(0, 2), alpha=shadow)[0]
+
+
+def _serif_layer(text, size, maxw, fill=(250, 247, 240, 255)):
+    f = D.fit_font(text, "cjk-serif", size, maxw, min_size=int(size * 0.5))
+    return D.text_layer(text, f, fill=fill, stroke=0, shadow_alpha=170, pad=12), f
+
+
 # ----------------------------------------------------------------------------- title
 class TitlePop(Element):
     kind = "title"
@@ -157,11 +182,19 @@ class TitlePop(Element):
         super().__init__(t0, t0 + 0.35 + hold + 0.2)
         self.g, self.hold = g, hold
         size = int(g.H * (0.075 if g.vertical else 0.1))
-        f = D.fit_font(text, "cjk-bold", size, g.sw * 0.92, min_size=int(size * 0.5))
-        acc = g.brand["accent"]
-        main = D.text_layer(text, f, fill=(255, 255, 255, 255), stroke=max(4, f.size // 12),
-                            stroke_fill=acc + (255,), shadow_alpha=160, pad=10)
-        layers = [main]
+        if g.refined:
+            main, f = _serif_layer(text, int(size * 0.9), g.sw * 0.88)
+            layers = [main]
+            if sub:
+                rule = Image.new("RGBA", (int(60 * g.unit), max(2, int(2 * g.unit))), ACCENT_REFINED + (235,))
+                layers += [rule, _spaced_layer(sub, "cjk", f.size * 0.3, (236, 230, 218, 255))]
+            sub = None
+        else:
+            f = D.fit_font(text, "cjk-bold", size, g.sw * 0.92, min_size=int(size * 0.5))
+            acc = g.brand["accent"]
+            main = D.text_layer(text, f, fill=(255, 255, 255, 255), stroke=max(4, f.size // 12),
+                                stroke_fill=acc + (255,), shadow_alpha=160, pad=10)
+            layers = [main]
         if sub:
             fs = D.fit_font(sub, "cjk-bold", int(f.size * 0.42), g.sw * 0.8, min_size=18)
             asc, desc = fs.getmetrics()
@@ -184,6 +217,10 @@ class TitlePop(Element):
 
     def draw(self, img, t):
         u = t - self.t0
+        if self.g.refined:                       # eased fade and a 2 % settle, no bounce
+            a = min(clamp01(u / 0.5), 1.0 - clamp01((u - 0.35 - self.hold) / 0.4))
+            _paste(img, self.arr, self.cx, self.cy, 0.98 + 0.02 * out_cubic(u / 0.8), out_cubic(a))
+            return
         if u < 0.35:
             s, a = 0.3 + 0.7 * out_back(u / 0.35, 2.2), clamp01(u / 0.12)
         elif u < 0.35 + self.hold:
@@ -213,6 +250,17 @@ class LocationTag(Element):
         super().__init__(t0, t0 + 0.35 + hold + 0.25)
         self.g, self.hold = g, hold
         size = int(g.H * (0.04 if g.vertical else 0.05))
+        if g.refined:                            # a hairline over the spaced place name, no pill / pin
+            lab = _spaced_layer(place, "cjk", size * 0.62, (246, 242, 234, 255))
+            im = Image.new("RGBA", (lab.width, lab.height + int(14 * g.unit)), (0, 0, 0, 0))
+            ImageDraw.Draw(im).rectangle([int(12 * g.unit), 0, int(60 * g.unit), max(1, int(2 * g.unit)) - 1],
+                                         fill=ACCENT_REFINED + (235,))
+            im.alpha_composite(lab, (0, int(10 * g.unit)))
+            self.arr, self.pad = _rgba_arr(im), 0
+            self.x_end = g.safe[0] + int(24 * g.unit)
+            self.y = g.safe[1] + int(28 * g.unit)
+            self.box = (self.x_end, self.y, self.x_end + im.width, self.y + im.height)
+            return
         f = D.fit_font(place, "cjk-bold", size, g.sw * 0.7, min_size=int(size * 0.6))
         asc, desc = f.getmetrics()
         pin = pin_icon(f.size * 0.85, g.brand["accent"])
@@ -237,6 +285,10 @@ class LocationTag(Element):
     def draw(self, img, t):
         u = t - self.t0
         w = self.arr.shape[1]
+        if self.g.refined:
+            a = min(clamp01(u / 0.5), 1.0 - clamp01((u - 0.35 - self.hold) / 0.4))
+            D.alpha_paste(img, self.arr, (self.x_end, self.y), opacity=out_cubic(a), bgr=True)
+            return
         if u < 0.35:
             x = self.x_end - (1 - out_cubic(u / 0.35)) * (w + self.x_end + 10)
         elif u < 0.35 + self.hold:
@@ -509,11 +561,18 @@ class EndCard(Element):
 
     def __init__(self, g, text, t0, t1, sub=None):
         super().__init__(t0, t1)
+        self.refined = g.refined
         size = int(g.H * (0.06 if g.vertical else 0.085))
-        f = D.fit_font(text, "cjk-bold", size, g.sw * 0.9, min_size=int(size * 0.5))
-        self.main = _rgba_arr(D.text_layer(text, f, fill=(255, 255, 255, 255), stroke=max(3, f.size // 14),
-                                           stroke_fill=(10, 10, 14, 255), shadow_alpha=160, pad=10))
-        self.sub = None
+        if g.refined:
+            m, f = _serif_layer(text, int(size * 0.85), g.sw * 0.86)
+            self.main = _rgba_arr(m)
+            self.sub = _rgba_arr(_spaced_layer(sub, "cjk", f.size * 0.32, (236, 230, 218, 255))) if sub else None
+            sub = None
+        else:
+            f = D.fit_font(text, "cjk-bold", size, g.sw * 0.9, min_size=int(size * 0.5))
+            self.main = _rgba_arr(D.text_layer(text, f, fill=(255, 255, 255, 255), stroke=max(3, f.size // 14),
+                                               stroke_fill=(10, 10, 14, 255), shadow_alpha=160, pad=10))
+            self.sub = None
         if sub:
             fs = D.fit_font(sub, "cjk-bold", int(f.size * 0.5), g.sw * 0.8, min_size=18)
             self.sub = _rgba_arr(D.text_layer(sub, fs, fill=g.brand["highlight"] + (255,), stroke=3,
@@ -527,6 +586,13 @@ class EndCard(Element):
 
     def draw(self, img, t):
         u = t - self.t0
+        if self.refined:                         # a slow, shallow dim (no 0.4 s plunge) and eased type
+            dim = 0.3 * out_cubic(u / 1.2)
+            img[:] = (img.astype(np.float32) * (1 - dim)).astype(np.uint8)
+            _paste(img, self.main, self.cx, self.cy, 1.0, out_cubic(u / 0.8))
+            if self.sub is not None:
+                _paste(img, self.sub, self.cx, self.sub_cy, 1.0, out_cubic((u - 0.4) / 0.8))
+            return
         dim = 0.55 * clamp01(u / 0.4)
         img[:] = (img.astype(np.float32) * (1 - dim)).astype(np.uint8)
         s = 0.5 + 0.5 * out_back(u / 0.4, 1.9) if u < 0.4 else 1.0
