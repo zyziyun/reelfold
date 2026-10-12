@@ -237,8 +237,8 @@ def target_lang(tg):
     prof = tg.get("profile")
     if prof is None:
         return None
-    from vstudio import postcopy as PC
-    return "zh" if PC.platform_key(prof.key) in PC.CN_PLATFORMS else "en"
+    from vstudio import platform as P
+    return P.lang_for(prof.key, "en")
 
 
 def visual_spec(rec, st, tl, tg, band):
