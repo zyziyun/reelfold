@@ -1,8 +1,10 @@
 # Engine (repo root: lib/vstudio, workflows/, scripts/) - pytest + the skill's pre-publish check.
-#   changes   what this run has to do: `run` (engine files changed) and `full` (the full tier)
-#   pytest    pytest in parallel (pytest-xdist, -n auto). A normal push / PR skips the tests marked `slow` (long real
-#             renders, see pyproject.toml); the full tier runs them too: nightly, tags (v*), release/**, manual runs
-#             (tier=full, the default) and changes to CI / requirements / pyproject.toml.
+#   changes   what this run has to do: `run` (engine files changed), `full` (the full tier) and, in the quick tier,
+#             which test files: .github/scripts/select_tests.py scans the imports and runs the tests whose import
+#             closure holds a changed module (rules: .github/test-map.yml), listed with the reason in its summary
+#   pytest    check_skill, then the picked tests in parallel (pytest-xdist, -n auto). A normal push / PR skips the
+#             tests marked `slow` (long real renders, see pyproject.toml); the full tier runs every test: nightly, tags
+#             (v*), release/**, manual runs (tier=full, the default) and changes to CI / requirements / pyproject.toml.
 #   test      aggregator, the required check: green when pytest passed, or when no engine file changed (a no-op).
 # Concurrency is per ref: PR / feature-branch runs supersede each other, main / release/** queue, tags never cancel.
 name: Engine
@@ -32,9 +34,10 @@ jobs:
     outputs:
       run: ${{ steps.c.outputs.run }}
       full: ${{ steps.c.outputs.full }}
+      pytest: ${{ steps.s.outputs.pytest }}
+      pytest_files: ${{ steps.s.outputs.pytest_files }}
     steps:
-      - uses: actions/checkout@v7
-        with: { sparse-checkout: .github, sparse-checkout-cone-mode: false }
+      - uses: actions/checkout@v7 # the whole tree: the selection reads the imports
       - id: c
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,14 +52,27 @@ jobs:
         # apps/desk/packaging/ffmpeg: the bundled ffmpeg's filter list (tests/test_ffmpeg_filters.py)
         run: >-
           bash .github/scripts/ci-changes.sh
-          '^(lib/|workflows/|tests/|scripts/|references/|SKILL\.md$|requirements\.txt$|pyproject\.toml$|apps/desk/packaging/ffmpeg/|\.github/workflows/engine\.yml$|\.github/scripts/ci-changes\.sh$)'
+          '^(lib/|workflows/|tests/|scripts/|references/|SKILL\.md$|requirements\.txt$|pyproject\.toml$|apps/desk/packaging/ffmpeg/|\.github/workflows/engine\.yml$|\.github/scripts/ci-changes\.sh$|\.github/scripts/select_tests\.py$|\.github/test-map\.yml$)'
           '^(\.github/workflows/engine\.yml$|\.github/scripts/ci-changes\.sh$|requirements\.txt$|tests/requirements\.txt$|pyproject\.toml$|tests/conftest\.py$)'
+      - name: Pick the tests (the summary lists them and why)
+        id: s
+        if: steps.c.outputs.run == 'true'
+        env:
+          FULL: ${{ steps.c.outputs.full }}
+          KNOWN: ${{ steps.c.outputs.known }}
+        run: |
+          flags=()
+          [ "$FULL" = true ] && flags+=(--full)
+          [ "$KNOWN" = true ] || flags+=(--all)
+          python3 .github/scripts/select_tests.py --suite engine --changed "$RUNNER_TEMP/changed.txt" "${flags[@]}"
 
   pytest:
     needs: changes
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      PICKED: ${{ needs.changes.outputs.pytest }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -66,18 +82,25 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             tests/requirements.txt
+      - name: check_skill (frontmatter, personal paths, secrets - also scans apps/; stdlib only)
+        run: python scripts/check_skill.py
       - name: ffmpeg + GL runtime (mediapipe needs libEGL / libGLESv2)
+        if: env.PICKED != 'none'
         run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libegl1 libgles2
       - name: Python deps (runtime + tests/requirements.txt)
+        if: env.PICKED != 'none'
         run: python -m pip install -r tests/requirements.txt
       - name: deps are importable (fail here, not as 8 odd test errors)
+        if: env.PICKED != 'none'
         run: python -c "import yaml, jsonschema, numpy, cv2, mediapipe, xdist; print('deps ok')"
-      - name: check_skill (frontmatter, personal paths, secrets - also scans apps/)
-        run: python scripts/check_skill.py
-      - name: pytest (parallel; ${{ needs.changes.outputs.full == 'true' && 'full tier, slow tests included' || 'slow tests skipped' }})
+      - name: pytest (${{ needs.changes.outputs.pytest }}; ${{ needs.changes.outputs.full == 'true' && 'full tier, slow tests included' || 'slow tests skipped' }})
+        if: env.PICKED != 'none'
         env:
           MARK: ${{ needs.changes.outputs.full != 'true' && 'not slow' || '' }} # ('' = every test)
-        run: python -m pytest -q -n auto --dist worksteal -m "$MARK" --durations=15
+          FILES: ${{ needs.changes.outputs.pytest_files }} # ('' = every test file)
+        run: |
+          # exit 5 = every picked test is marked slow (deselected in the quick tier): nothing to run is not a failure
+          python -m pytest -q -n auto --dist worksteal -m "$MARK" --durations=15 $FILES || { rc=$?; [ $rc = 5 ] || exit $rc; }
 
   test:
     # the required check: green only when pytest passed (or nothing engine-related changed)

@@ -7,13 +7,13 @@ Everything ships from GitHub Actions; nobody deploys or builds a release by hand
 | `deploy-web.yml` (Deploy web) | PRs and pushes to `main` touching the site, docs or the docs generator inputs; `release: published`; manual | Regenerates the docs reference pages from the engine, builds site + docs (`scripts/build-web.sh`), runs the site + docs checks and `check_skill`. On a published release or a manual run on `main` it then deploys (a push to `main` only builds and checks, so the live site never describes an unreleased app) to the Cloudflare Worker `reelfold-site` (reelfold.com) and smoke-tests `/`, `/zh/`, `/docs/`. PRs never deploy. |
 | `desk-release.yml` (Desk release) | tag `v*`; manual (dry run by default) | Builds, signs, notarizes, staples and verifies the macOS arm64 app with `apps/desk/scripts/release-mac.sh`, then creates / updates a **draft** GitHub Release with the DMG, zip, blockmap, `latest-mac.yml` and release notes. Never publishes. |
 | `site.yml` (Site) | PRs and pushes | Checks only (site build). |
-| `desk-ci.yml` (Desk CI) | PRs; pushes to `main`, `release/**`; tags `v*`; nightly; manual (`tier`: full / quick) | Parallel jobs, ~10-15 min. `changes` decides whether desk files changed (if not, every job is skipped and `test` passes as a no-op). macOS: `checks` (lint, unit, sidecar engine, scripts) and `e2e (i/4)` (Electron e2e, `playwright --shard=i/4`), then the aggregator **`test`** (green only when all of them passed; the required check, and the release automation waits on this name). `e2e report (merged)` uploads one HTML report (`desk-e2e-report`). Windows: `Windows checks` on every run; the **full tier** adds the engine pytest on Windows and `Windows e2e (i/4)`; all rolled up in **`Windows`**, which fails the run but is not part of `test`. |
-| `engine.yml` (Engine) | PRs; pushes to `main`, `release/**`; tags `v*`; nightly; manual (`tier`) | `changes`, then `pytest` in parallel (`pytest -n auto`, pytest-xdist, slowest tests listed at the end), then the aggregator **`test`** (no-op when no engine file changed). A normal push / PR skips the tests marked `slow` (long real renders); the full tier runs them. |
+| `desk-ci.yml` (Desk CI) | PRs; pushes to `main`, `release/**`; tags `v*`; nightly; manual (`tier`: full / quick) | Parallel jobs. `changes` decides whether desk files changed (if not, every job is skipped and `test` passes as a no-op) and, in the quick tier, which tests the change can affect (below). macOS: `checks` (lint + typecheck always; the picked unit, sidecar engine and scripts tests) and `e2e (i/n)` (the picked Electron e2e specs, 1-4 shards; the whole suite in 4 in the full tier), then the aggregator **`test`** (green only when all of them passed; the required check, and the release automation waits on this name). `e2e report (merged)` uploads one HTML report (`desk-e2e-report`). Windows: `Windows checks` on every run; the **full tier** adds the engine pytest on Windows and `Windows e2e (i/4)`; all rolled up in **`Windows`**, which fails the run but is not part of `test`. |
+| `engine.yml` (Engine) | PRs; pushes to `main`, `release/**`; tags `v*`; nightly; manual (`tier`) | `changes` (with the picked test files, below), then `pytest`: `check_skill`, then the picked tests in parallel (`pytest -n auto`, pytest-xdist, slowest tests listed at the end), then the aggregator **`test`** (no-op when no engine file changed). A normal push / PR skips the tests marked `slow` (long real renders); the full tier runs them. |
 | `deploy-telemetry.yml` (Deploy telemetry) | PRs and pushes to `main` touching `apps/telemetry`; manual | Unit tests + typecheck. On `main`: finds or creates the D1 database `reelfold-usage`, applies `apps/telemetry/migrations`, deploys the Worker `reelfold-telemetry` on `t.reelfold.com`, sets `STATS_TOKEN`, smoke-tests `/api/v1/health`. |
 | `metrics-weekly.yml` (Weekly metrics) | Mondays 02:00 UTC; manual | `scripts/metrics/github_stats.py` + `scripts/metrics/usage.py` into the run summary, one CSV row each into the `metrics-history` artifact. Totals only. |
 
-**Tiers.** A normal push or PR runs the quick tier: everything above except the Windows engine pytest, the Windows e2e
-suite and the engine tests marked `slow`. The **full tier** runs all of it: nightly, on tags `v*`, on `release/**`
+**Tiers.** A normal push or PR runs the quick tier: **only the tests the change can affect** (next section), and never
+the Windows engine pytest, the Windows e2e suite or the engine tests marked `slow`. The **full tier** runs all of it: nightly, on tags `v*`, on `release/**`
 branches, on manual runs (`tier=full`, the default) and when CI files, lockfiles, requirements, `pyproject.toml` or the
 desk packaging change (`.github/scripts/ci-changes.sh` has the lists). Runs of `main` and `release/**` queue instead of
 cancelling each other, so every `main` commit gets a result; a PR or feature-branch run is cancelled by a newer push to
@@ -21,7 +21,32 @@ the same ref; tag runs are never cancelled. Caches: npm, the Electron / electron
 `package-lock.json`), the Windows ffmpeg (per month); python deps go in with uv (no cache needed); the release workflow also
 caches its runtime downloads (keyed on the runtime lock and requirement files). Locally, the e2e suite can be split the
 same way: `npx playwright test --shard=1/4` in `apps/desk` (after `npm run build`); `pytest -n auto -m "not slow"` is
-the engine's quick tier.
+the engine's quick tier over every test.
+
+**Which tests a change runs (quick tier).** The `changes` job of each workflow runs
+`.github/scripts/select_tests.py` over the changed files; its summary (the job's page on GitHub) lists every picked
+test and why. The rules, and the lists to tune, are in `.github/test-map.yml`:
+
+- **Desk e2e** (`apps/desk/tests/e2e`). The specs drive the built app, so their imports never reach the renderer
+  (Playwright's `--only-changed` would find nothing); they find elements by `data-testid` instead. A changed renderer
+  file brings its own test ids (a hook, stylesheet or helper without any: those of the nearest files importing it,
+  type-only imports ignored), and the specs using one of them run. Ids most specs wait on (`home`, the Studio list, the
+  composer: `e2e_landmark_specs`) count only when the file renders nothing more specific. Main process, preload, the
+  engine sidecar and `lib/`: the `e2e:` globs, the specs named like the module (`updater.ts` → `update.spec.ts`), the
+  specs whose python fixture imports it, else the smoke set (`e2e_smoke`, `e2e_real_smoke` for engine code the desk
+  loads). A changed spec, or a helper / fixture it uses, runs that spec. The picked specs are split by their estimated
+  time (`e2e_weights`): one shard up to ~5 min, at most 4.
+- **Sidecar unittests** (`apps/desk/engine/tests`) and **engine pytest** (`tests/`): a static import scan. A test runs
+  when its import closure holds a changed module (its own imports wherever they are, past that module-level imports
+  only: the engine imports lazily inside functions everywhere, and following those would pick nearly every test). A
+  module no test imports runs the tests that name it, else `sidecar_smoke` / `pytest_smoke`. A changed test runs itself.
+- **Desk unit tests**: `vitest related` on the changed desk files.
+- **Everything** (the quick tier's whole suite): a change to a `full` / `full_desk` / `full_engine` path (lockfiles,
+  requirements, CI files, the e2e harness, the build config), or a run without a change list (a new branch, a manual
+  `tier=quick` run). Docs (`ignore:`) run nothing, and `test` passes as a no-op.
+
+Locally: `git diff --name-only origin/main | python3 .github/scripts/select_tests.py --suite desk --changed -`
+(or `--suite engine`) prints the same selection; `tests/test_ci_select.py` checks the rules.
 
 The website's download buttons follow the releases by themselves: the site build asks the GitHub API whether a
 published release with a `.dmg` exists (`apps/site/src/lib/releaseStatus.ts`), and publishing a release triggers a
