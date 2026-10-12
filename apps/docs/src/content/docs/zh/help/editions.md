@@ -22,7 +22,7 @@ description: 从 GitHub 下载的千剪 Mac 版、Mac App Store 版（千剪 Lit
 
 ## Mac App Store 版
 
-App Store 版叫**千剪 Lite**，运行在苹果的沙盒里。实际使用中：
+App Store 版在商店里叫 **Reelfold**（应用里显示为千剪 Lite），运行在苹果的沙盒里。它还在等苹果审核，暂时还不能在商店下载。实际使用中：
 
 - **AI**：添加 API 密钥（Anthropic、OpenAI、DeepSeek、通义千问等），或用 Ollama、LM Studio 在这台 Mac 上跑模型。沙盒里的应用不能运行你自己装的 Claude Code 或 Codex 命令行，所以没有这两个登录。讲解视频的画面等 AI 步骤，用密钥或本地模型一样能做。
 - **文件夹**：千剪能读你在打开面板里选的、或拖到窗口上的文件和文件夹，并记住这个授权。监看的文件夹只能是你选过的。

@@ -22,7 +22,7 @@ Reelfold is one app built three ways. Projects, transcription, cleanup, captions
 
 ## Mac App Store edition
 
-The App Store edition is called **Reelfold Lite** and runs in Apple's sandbox. In practice:
+The App Store edition is listed as **Reelfold** (it calls itself Reelfold Lite inside the app) and runs in Apple's sandbox. It is waiting for Apple's review, so it isn't on the store yet. In practice:
 
 - **AI**: add an API key (Anthropic, OpenAI, DeepSeek, Qwen and more) or run a model on this Mac with Ollama or LM Studio. A sandboxed app can't run the Claude Code or Codex command-line tools you installed, so those sign-ins aren't offered. Explainer scenes and other AI steps work the same with a key or a local model.
 - **Folders**: Reelfold can read the files and folders you choose in an Open panel or drop on the window, and keeps that permission. Folders to look in are limited to ones you picked.
