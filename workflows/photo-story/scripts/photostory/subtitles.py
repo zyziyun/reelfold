@@ -71,7 +71,8 @@ def _sub_lines(C, d, en, zh, k, maxw, title=False):
         fz = font_for(zh, zs, "cjk-serif", "cjk-serif")
         fe = font_for(en, es, "serif-italic", "cjk")
     elif getattr(C, "cinema", False):     # refined: regular weight, a little smaller, no stroke (soft shadow)
-        zs, es = C.ZH_SIZE * k * 0.86, C.ZH_SIZE * k * 0.86 * 52 / 66
+        zs = C.ZH_SIZE * k * 0.86
+        es = zs * (52 / 66 if zh else 0.98)          # English alone (YouTube) reads at the main size (A6)
         fz = font("cjk", zs)
         fe = font_for(en, es, "sans", "cjk")
     else:

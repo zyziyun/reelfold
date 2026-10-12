@@ -200,7 +200,11 @@ def overlays(C, sh, f, lt):
         q = ease((lt - 0.25) / 1.1) if a_yr != b_yr else 1.0
         yr = a_yr + (b_yr - a_yr) * q
         alpha = min(1, lt / 0.3, (dur - lt) / 0.3)
-        if alpha > 0:
+        if alpha > 0 and B - A < 1:                  # a one-year "timeline": just the year, no bar
+            y0, x0, _x1 = _tl_geom(C)
+            fmt = C.TIMELINE.get("format", "{:d}")
+            paste_rgba(f, _year_label(C, fmt.format(int(round(b_yr)))), x0 - C.b(130), y0 + C.b(20), alpha)
+        elif alpha > 0:
             paste_rgba(f, _timeline_base(C, A, B), 0, 0, alpha)
             y0, x0, x1 = _tl_geom(C)
             x = x0 + (yr - A) / max(1e-6, B - A) * (x1 - x0)
