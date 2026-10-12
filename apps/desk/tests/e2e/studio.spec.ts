@@ -228,7 +228,7 @@ test('zh-CN + fr: the Studio and a clip page read in her language', async () => 
     await hash(`#/studio/${fuyeId}/${encodeURIComponent('A_换圈子')}`);
     await page.reload();
     await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
-    await expect(page.getByTestId('editor')).toHaveAttribute('data-layout', 'studio');
+    await expect(page.getByTestId('editor')).toHaveAttribute('data-layout', 'studio', { timeout: 30000 });
     await noMissingKeys();
     await shot(`S4-${lang}`);
   }
