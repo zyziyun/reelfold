@@ -35,6 +35,16 @@ def footage(d, n=3, secs=4):
     return out
 
 
+def _stage_logs(d):
+    """The tail of each stage's run.log (what a failed run says, in the assertion)."""
+    out = []
+    for root, _dirs, files in os.walk(os.path.join(d, "state", "jobs")):
+        if "run.log" in files:
+            with open(os.path.join(root, "run.log"), encoding="utf-8", errors="replace") as f:
+                out.append(f"--- {os.path.relpath(root, d)}\n{f.read()[-3000:]}")
+    return "\n".join(out)
+
+
 @unittest.skipUnless(HAVE_FFMPEG, "ffmpeg not installed")
 class FinishedVlogTest(unittest.TestCase):
     @classmethod
@@ -44,6 +54,7 @@ class FinishedVlogTest(unittest.TestCase):
                                                "VSTUDIO_CACHE": os.path.join(cls.root, "cache"),
                                                "VSTUDIO_MUSIC_DIRS": "", "VSTUDIO_LLM_PROVIDER": "none"})
         cls.env.start()
+        cls.addClassCleanup(cls.env.stop)        # also when the run below fails (tearDownClass would not run)
         from vstudio.project.core import Project
         media = os.path.join(cls.root, "media")
         os.makedirs(media)
@@ -53,12 +64,8 @@ class FinishedVlogTest(unittest.TestCase):
         p.data["prompt"] = "a calm red leaves film with music"
         p.save()
         r = p.run(autopilot=True)
-        assert r["exit_code"] == 0, r
+        assert r["exit_code"] == 0, (r, _stage_logs(p.dir))
         cls.dir = p.dir
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.env.stop()
 
     def setUp(self):
         data = os.path.join(self.root, f"desk-{self._testMethodName}")
