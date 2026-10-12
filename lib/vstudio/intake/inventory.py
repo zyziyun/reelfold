@@ -149,12 +149,15 @@ def walk(inputs, max_files=MAX_FILES, max_depth=MAX_DEPTH):
                 if fn.startswith(".") or fn.endswith((".asr.json", ".part", ".tmp")):
                     continue
                 fp = os.path.join(d, fn)
-                if os.path.islink(fp) or fp in seen:
+                # a symlinked file counts (a folder of links into a card / NAS is a common way to stage material),
+                # once per real file; symlinked folders stay skipped (loops)
+                real = os.path.realpath(fp) if os.path.islink(fp) else fp
+                if fp in seen or real in seen or not os.path.isfile(real):
                     continue
                 if len(out) >= max_files:
                     notes.append(f"stopped at {max_files} files (MAX_FILES) under {raw}")
                     return out, notes
-                seen.add(fp)
+                seen.update((fp, real))
                 out.append((fp, p))
     return out, notes
 
