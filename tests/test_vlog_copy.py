@@ -224,3 +224,7 @@ def test_vlog_autopilot_records_framing_and_copy_and_she_can_change_them(tmp_pat
     assert out["exit_code"] == 0, out
     tk = open(os.path.join(ex, "tiktok-vertical.post.md"), encoding="utf-8").read()
     assert "Every street" not in tk and "Seattle" in tk and "#" in tk
+
+
+def test_a_mixed_chinese_title_stays_off_the_english_post():
+    assert PC.title_lang("Elliott Bay 黄金时刻") == "zh" and PC.title_lang("Golden Hour") == "en"

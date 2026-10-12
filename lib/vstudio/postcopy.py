@@ -64,6 +64,12 @@ def platform_key(target):
     return publish.platform_name(str(target).split(":")[0])
 
 
+def title_lang(t):
+    """Her title's language: any Chinese in it makes it a Chinese title ("Elliott Bay 黄金时刻" read as English and
+    led the YouTube post); else what publish.detect_lang says."""
+    return "zh" if re.search(r"[\u4e00-\u9fff]", str(t or "")) else publish.detect_lang(str(t or ""))
+
+
 def detect_request_lang(text):
     return publish.detect_lang(text or "") if (text or "").strip() else None
 
@@ -212,7 +218,7 @@ def rules_post(ctx, platform, lang):
     cr = _credit_line(ctx, lang)
     if cr:
         lines.append(cr)
-    title = ctx["title"] if ctx.get("title") and publish.detect_lang(ctx["title"]) == lang else _rules_title(ctx, lang)
+    title = ctx["title"] if ctx.get("title") and title_lang(ctx["title"]) == lang else _rules_title(ctx, lang)
     return dict(title=title, body="\n".join(lines), tags=rules_tags(ctx, lang, platform), lang=lang)
 
 
@@ -288,7 +294,7 @@ def ai_post(block, ctx, platform, lang, notes):
     base = rules_post(ctx, platform, lang)
     b = block if isinstance(block, dict) else {}
     title = _clean_text(b.get("title")).replace("\n", " ") or base["title"]
-    if ctx.get("title") and publish.detect_lang(ctx["title"]) == lang:
+    if ctx.get("title") and title_lang(ctx["title"]) == lang:
         title = ctx["title"]
     if pl in LONG_BODY:
         body = _lines(b.get("description"), 6) or base["body"]
