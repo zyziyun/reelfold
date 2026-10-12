@@ -256,7 +256,7 @@ class Goals:
         sv = doc.get("survey") or {}
         g["survey"] = dict(totals=sv.get("totals"), notes=sv.get("notes"),
                            stories=[{k: s.get(k) for k in ("id", "place", "date", "start", "end", "time_of_day", "videos",
-                                                          "photos", "panoramas", "seconds", "aerial", "thumbs", "sheet")}
+                                                          "photos", "panoramas", "seconds", "aerial", "thumbs", "sheet", "folder")}
                                     for s in sv.get("stories") or []])
         old = {v["id"]: v for v in g.get("videos") or []}
         g["videos"] = [dict(old.get(v["id"]) or {}, **{k: v.get(k) for k in (
@@ -626,7 +626,7 @@ class Goals:
             n = sum(1 for v in g.get("videos") or [] if not v.get("planned_out"))
             out.append(dict(key=f"goal-{g['id']}-{g['state']}", kind=kind, group="choose" if kind == "plan" else "other",
                             project=dict(id=None, name=name, kind="plan", thumb=None, type="other"),
-                            code="inbox.goalReady" if kind == "plan" else "inbox.planFailed",
+                            code="goal.inbox" if kind == "plan" else "inbox.planFailed",
                             params=dict(name=name, n=n), text=None, minutes=1, need=None,
                             error_code=g.get("error_code") if kind == "failed" else None, source="goal",
                             href=f"#/studio?goal={g['id']}", at=g.get("updated") or time.time()))
@@ -636,8 +636,11 @@ class Goals:
         return detect(prompt, inputs)
 
     def roots(self):
+        """Folders the UI may show files from: her footage and the survey's frames / contact sheets."""
         out = []
         for g in self._all():
             for p in g.get("inputs") or []:
                 out.append(p if os.path.isdir(p) else os.path.dirname(p))
-        return out
+            for s in (g.get("survey") or {}).get("stories") or []:
+                out += [os.path.dirname(p) for p in [*(s.get("thumbs") or []), s.get("sheet")] if p]
+        return sorted(set(out))

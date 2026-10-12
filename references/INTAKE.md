@@ -21,6 +21,8 @@ Code: `lib/vstudio/intake/` (inventory, docs, rules, plan, estimate, apply, cli)
 | `plan --prompt "..." --inputs PATH... [--client C] [--provider P] [--asr auto] [--auto hook,cover] [--out plan.json]` | the plan (section 3); `--analysis analysis.json` instead of `--inputs` |
 | `revise --plan plan.json --prompt "只要小红书" [--in-place \| --out new.json]` | the plan updated from a follow-up instruction; the history is kept in `revisions` |
 | `apply --plan plan.json [--out DIR] [--dry-run] [--run] [--autopilot]` | creates the project folders (a series when the plan has several), returns ids, dirs and the pilot run commands; `--run` starts each pilot; `--autopilot` creates them on autopilot (no pilot, the engine decides every checkpoint and records why: references/PROJECTS.md §3) and the run commands say `--autopilot`; exit 5 on an invalid plan |
+| `goal --prompt "..." [--inputs DIR...] [--platforms P...] [--ui-lang en\|zh\|fr] [--out goal.json] [--json-events]` | a goal-style request (several videos from one folder / SD card): the survey + a plan of videos (section 8); folders named in the prompt (`/Volumes/dji/DCIM`) are read too |
+| `goal-edit --goal goal.json --ops JSON [--in-place]` | the plan card's edits (`drop` / `restore` / `rename` / `kind` / `length` / `merge` / `platforms`); each touched video's `request` is rebuilt |
 | `schema` | the plan JSON Schema |
 
 ## 2. Inventory (`analyze`)
@@ -169,3 +171,29 @@ provider codex): role finished-edit detected (talking head, burned captions, fin
 for the focus, plan = talkinghead x 3 focus rows (301-363 s and 450-535 s: 副业 / 跨行业 感悟; 535-610 s: 自媒体), captions
 kept (`captions: false`), gentle cleanup, 1.0x, `xiaohongshu:full`, about 2 min wall, $0 (subscription CLI), in
 about 70 s end to end on first analysis.
+
+## 8. Goals: several videos from one folder (`goal`)
+
+"在 /Volumes/dji/DCIM 做多个视频，每个主题不同，可以并行" is not one plan but a **goal**: `goal.py` surveys the folder and
+proposes several videos, each of which then starts as an ordinary request (`plan --prompt <video.request> --inputs
+<its clips>`). `is_goal(prompt, inputs)` recognises one (several / as many as possible videos + a folder dropped or
+named in the words); the desk sends it there (its composer also has 「Several videos」).
+
+* **Survey** (read-only: nothing is written next to the footage, so an SD card stays untouched): the walk follows
+  symlinked files; DJI `PANORAMA/<nnn_nnnn>` tile folders count as one panorama each. Per clip `vstudio.footage.facts`
+  (length, shape, the `.SRT` flight log: time + GPS, the nearest well-known city from `vstudio.places`) and one small
+  keyframe (cached under the intake cache by path + size + mtime); per photo its EXIF time + GPS (cached).
+* **Stories**: items in time order; a new story after a 3 h pause, a move of more than 5 km or a new day, then a
+  split where the light jumps (mean brightness by 0.2+) across a pause of 15+ min (golden hour -> night). One
+  contact sheet per story is what the model looks at.
+* **Plan**: the routed model (task `intake`) proposes up to 8 videos: `title` / `title_zh`, `kind` (`history` - the
+  place has a story; the request asks for well-known, verifiable facts only; `film` - just beautiful: music and a few
+  short lines; `reel` - action, cut on the beat, vertical first; `vlog` - a trip across stories; `essay` - a
+  reflective voice-over; `photos`), its stories, `length_s` (never more than the footage carries), a one-line English
+  `brief`, and the plan card's `theme` / `why` in the UI language. No model (or no usable answer): one music film per
+  story with enough footage (`planner.fallback`). YouTube is always English, Xiaohongshu / Bilibili / Douyin Chinese:
+  each `request` names the languages per platform.
+* The desk keeps the goal (desk `engine/desk_engine/goals.py`): a group whose videos run a few at a time on
+  autopilot; a failure or a stall is retried once, then the video is dropped with its reason; the goal is done when
+  every video is made or dropped, and the unfinished ones can be cleared.
+

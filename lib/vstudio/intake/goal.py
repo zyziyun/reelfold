@@ -438,7 +438,10 @@ def stories(scan_doc, sheet_dir=None):
                  geo=[round(geo[0], 3), round(geo[1], 3)] if geo else None,
                  clips=[x["path"] for x in vids], stills=[x["path"] for x in phs],
                  panorama_dirs=[x["path"] for x in pns],
-                 thumbs=[x["frame"] for x in vids if x.get("frame")][:4] or [x["path"] for x in phs][:4],
+                 thumbs=([x["frame"] for x in vids if x.get("frame")] or [x["path"] for x in phs] or
+                         [x["first"] for x in pns if x.get("first")])[:4],
+                 folder=os.path.basename(c[0]["path"].rstrip(os.sep)) if c[0]["kind"] == "panorama" else
+                 os.path.basename(os.path.dirname(c[0]["path"])),
                  short_clips=sum(1 for x in vids if (x.get("dur") or 0) < 15))
         if sheet_dir:
             try:
@@ -503,7 +506,7 @@ def _where(v, by_id):
         n = (s.get("place") or {}).get("en")
         if n and n not in names:
             names.append(n)
-    return " and ".join(names[:3]) if names else "these places"
+    return " and ".join(names[:3]) if names else None
 
 
 def request_text(v, by_id):
@@ -515,30 +518,30 @@ def request_text(v, by_id):
     where = _where(v, by_id)
     brief = (v.get("brief") or v.get("title") or "").strip().rstrip(".")
     aerial = any((by_id.get(s) or {}).get("aerial") for s in v.get("stories") or [])
-    shots = "drone shots" if aerial else "shots"
+    shots = ("drone shots" if aerial else "shots") + (f" of {where}" if where else "")
+    trip = ("drone shots" if aerial else "shots") + (f" ({where})" if where else "")
     kind = v.get("kind") if v.get("kind") in KINDS else "film"
     title = f'Title: "{v["title"]}". ' if v.get("title") else ""
     if kind == "history":
-        body = (f"Make a {L}-second history explainer from these {shots} of {where}: {brief}. "
+        body = (f"Make a {L}-second history explainer from these {shots}: {brief}. "
                 f"{_narrate(plats)}; state only well-known, verifiable facts, with on-screen place "
                 f"labels. Calm cinematic music under the voice.")
     elif kind == "reel":
-        body = (f"Make a {L}-second upbeat short from these {shots} of {where}: {brief}. Fast cuts on the beat, "
+        body = (f"Make a {L}-second upbeat short from these {shots}: {brief}. Fast cuts on the beat, "
                 f"energetic music, no voice. Vertical first.")
     elif kind == "vlog":
-        body = (f"Make a {L}-second trip vlog from these {shots} ({where}): {brief}. No voice, warm music, short "
+        body = (f"Make a {L}-second trip vlog from these {trip}: {brief}. No voice, warm music, short "
                 f"place and time captions ({_langs(plats)}).")
     elif kind == "essay":
-        body = (f"Make a {L}-second reflective essay from these {shots} of {where}: {brief}. A calm, high-end "
+        body = (f"Make a {L}-second reflective essay from these {shots}: {brief}. A calm, high-end "
                 f"reflective voice-over ({_langs(plats)}), soft piano, slow cuts.")
     elif kind == "photos":
-        body = (f"Make a {L}-second photo story from these photos of {where}: {brief}. Slow moves over each still, "
-                f"a premium music bed, short reflective lines on screen "
-                f"({_langs(plats)}).")
+        body = (f"Make a {L}-second photo story from these photos{f' of {where}' if where else ''}: {brief}. Slow "
+                f"moves over each still, a premium music bed, short reflective lines on screen ({_langs(plats)}).")
     else:
-        body = (f"Make a {L}-second cinematic film from these {shots} of {where}: {brief}. No voice, a slow premium "
-                f"music bed and a few short high-end reflective lines on screen "
-                f"({_langs(plats)}). Unhurried cuts that follow the light.")
+        body = (f"Make a {L}-second cinematic film from these {shots}: {brief}. No voice, a slow premium "
+                f"music bed and a few short high-end reflective lines on screen ({_langs(plats)}). Unhurried cuts "
+                f"that follow the light.")
     return f"{title}{body} {export}."
 
 
@@ -595,7 +598,8 @@ Propose videos (at most {max_videos}{exact}). Rules:
 - length_s: what the footage can carry (about half the story's seconds for a film, never more than 0.8 of it), 20-120.
 - title: short, specific, in English; title_zh: the same in Chinese.
 - brief: ONE English sentence for the editor: what is in the shots and the angle (the landmarks you recognise; for
-  history the facts to cover by topic). Never GPS coordinates.
+  history the topics to cover - no dates, numbers or "first / largest" claims: the writer checks those against
+  well-known sources). Never GPS coordinates.
 - theme and why: one short line each, in {ui_lang}, for her plan card.
 - platforms: the ids she asked for ({platforms}); YouTube is always English, Xiaohongshu / Bilibili Chinese (the
   editor handles the languages - just list the platforms).
@@ -625,6 +629,7 @@ def _ui(ui_lang):
 def rule_videos(story_list, platforms, ui_lang="en", want=None):
     """No model: one video per story with enough footage, biggest first; a trip vlog over the small leftovers."""
     lang = _ui(ui_lang)
+    by_story = {s["id"]: s for s in story_list}
     big = sorted([s for s in story_list if s["seconds"] >= MIN_STORY_S or s["photos"] >= 6],
                  key=lambda s: -(s["seconds"] + 3 * s["photos"]))
     cap = want or MAX_VIDEOS
@@ -641,6 +646,14 @@ def rule_videos(story_list, platforms, ui_lang="en", want=None):
                         f"{' near ' + place['en'] if place.get('en') else ''}",
                         theme=THEME[kind][lang], why=WHY[lang].format(n=s["videos"] or s["photos"], secs=int(s["seconds"])),
                         platforms=list(platforms)))
+    # two stories of one place and light ("Seattle · evening" twice): the day, then the clock tells them apart
+    for k, v in enumerate(out):
+        s = by_story[v["stories"][0]]
+        twins = [x for x in out if x["title"] == v["title"]]
+        if len(twins) > 1 and s.get("start"):
+            dates = {by_story[x["stories"][0]].get("date") for x in twins}
+            tag = s["start"][5:10] if len(dates) == len(twins) else s["start"][11:16]
+            v["title"], v["title_zh"] = f"{v['title']} · {tag}", f"{v['title_zh']} · {tag}"
     left = [s for s in story_list if s not in big[:cap]]
     days = {s.get("date") for s in left if s.get("date")}
     if len(out) < cap and len(left) >= 3 and len(days) >= 2 and sum(s["seconds"] for s in left) >= 30:

@@ -121,7 +121,7 @@ class PlanToGroup(Base):
         self.assertEqual(v["counts"]["total"], 4)
         self.assertEqual([x["state"] for x in v["videos"]], ["planned"] * 4)
         self.assertEqual(len(v["survey"]["stories"]), 4)
-        self.assertEqual(G.inbox_items()[0]["code"], "inbox.goalReady")
+        self.assertEqual(G.inbox_items()[0]["code"], "goal.inbox")
         # the plan card: rename + drop (the engine's edit_goal rebuilds the requests)
         v = G.edit(gid, [{"op": "rename", "video": "v1", "title": "Space Needle"}, {"op": "drop", "video": "v4"}])
         self.assertEqual(v["videos"][0]["title"], "Space Needle")
