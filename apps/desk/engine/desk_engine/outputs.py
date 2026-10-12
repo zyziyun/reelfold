@@ -256,6 +256,15 @@ def _engine_item_files(pdir):
         return {}
 
 
+def _ver(p):
+    """A file's content version for its media URL (its mtime, ms): a remake (the framing, the music) writes the
+    export again in place, and the player / thumbs must load the new bytes, not the ones cached for the path."""
+    try:
+        return str(os.stat(p).st_mtime_ns // 1_000_000)
+    except OSError:
+        return None
+
+
 def _file_row(p, e):
     asp = WK.aspect_of(e.get("w"), e.get("h")) or WK.aspect_from_name(p) or "原尺寸"
     return dict(path=p, aspect=asp, w=e.get("w"), h=e.get("h"), fps=e.get("fps"), duration=e.get("duration"),
@@ -374,8 +383,16 @@ def _ready(d, clips):
     return clips
 
 
+def _versioned(c):
+    """The clip with its media's versions: each file's ``v`` (a render's key, else its mtime) and ``cover_v``."""
+    out = dict(c, files=[dict(f, v=f.get("v") or _ver(f["path"])) for f in c.get("files") or []])
+    if c.get("cover"):
+        out["cover_v"] = c.get("cover_v") or _ver(c["cover"])
+    return out
+
+
 def _public_clip(c):
-    return {k: v for k, v in c.items() if k not in ("jobdir", "workdir")}
+    return {k: v for k, v in _versioned(c).items() if k not in ("jobdir", "workdir")}
 
 
 # ------------------------------------------------------------------ op validation (desk side, before the engine)
@@ -992,7 +1009,7 @@ class Outputs:
         if not words and file:
             words = _mapped_words(file, dur)
         return dict(id=c["id"], title=c["title"], title_custom=bool(c.get("title_custom")), state=c["state"], file=file,
-                    files=c["files"], cover=c.get("cover"), cover_v=c.get("cover_v"),
+                    files=_versioned(c)["files"], cover=c.get("cover"), cover_v=_versioned(c).get("cover_v"),
                     post=c.get("post"), duration=dur, fps=(main or {}).get("fps") or info.get("fps") or 30,
                     w=(main or {}).get("w") or info.get("w"), h=(main or {}).get("h") or info.get("h"),
                     words=words, captions=captions, mode=mode,

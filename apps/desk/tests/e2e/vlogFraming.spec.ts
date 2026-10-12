@@ -123,7 +123,26 @@ test('On vertical screens on the clip page: Fill with blur re-makes the vertical
   await page.waitForURL(/^app:\/\/desk\//);
   const fill2 = page.getByTestId('clip-info').getByTestId('ci-fill');
   await expect(fill2).toHaveAttribute('data-choice', 'blur', { timeout: 60000 });
+  type Outs = { clips: { id: string; files: { path: string; aspect: string; v?: string | null }[] }[] };
+  const vertical = async () => (await api<Outs>(`/api/outputs/${encodeURIComponent(id)}`)).clips[0].files.find((f) => f.aspect === '9:16');
+  const v0 = (await vertical())?.v;
+  expect(v0).toBeTruthy();
+  // the vertical version plays in the clip's player before the re-render (Chromium caches its bytes)
+  const player = page.getByTestId('editor-player');
+  const video = player.getByTestId('player-video');
+  await player.getByRole('button', { name: '9:16', exact: true }).click();
+  await expect(video).toHaveAttribute('src', new RegExp(`v=${v0}`), { timeout: 30000 });
   await page.getByTestId('ci-fill-follow').click();
   await expect(page.locator('.toast.error')).toHaveCount(0);
   await expect.poll(tiktokMode, { timeout: 240000, intervals: [2000] }).toBe('subject');
+  // the file was written again in place: a new version, and the player loads and plays that one (b221faa)
+  await expect.poll(async () => (await vertical())?.v, { timeout: 60000 }).not.toBe(v0);
+  const v1 = (await vertical())!.v!;
+  await expect(video).toHaveAttribute('src', new RegExp(`v=${v1}`), { timeout: 60000 });
+  const t0 = await video.evaluate((v: HTMLVideoElement) => ((v.muted = true), v.currentTime));
+  await player.getByTestId('player-play').click();
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20000 }).toBeGreaterThan(t0 + 0.5);
+  expect(await video.evaluate((v: HTMLVideoElement) => v.error?.code ?? 0)).toBe(0);
+  await expect(player.getByTestId('player-error')).toHaveCount(0);
+  await shot('V3-follow-plays');
 });

@@ -237,9 +237,11 @@ function useClipSettings(item: string, onDone?: (what: string, doc: AutopilotDoc
   return { doc, pending, remake, busy: !!pending || !!doc?.running };
 }
 
-export function ClipFill({ item, clip }: { item: string; clip: string }) {
+/** ``onRemade``: the vertical version was made again (its file replaced in place) - the page reloads the clip, so
+ * the player loads the new file under its new version. */
+export function ClipFill({ item, clip, onRemade }: { item: string; clip: string; onRemade?: () => void }) {
   const [mine, setMine] = useState<string | null>(null);
-  const s = useClipSettings(item, () => setMine(null));
+  const s = useClipSettings(item, () => (setMine(null), onRemade?.()));
   useEffect(() => setMine(null), [item, clip]);
   const f = framingOf(s.doc, clip);
   if (!f) return null;
@@ -527,7 +529,7 @@ export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState;
 }
 
 // ---------------------------------------------------------------- the inspector (layout B)
-export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip }: { doc: OutputDoc; strip: StripInfo | null; time: number; edit: EditFn; sched: ClipScheduleState; item?: string; clip?: string }) {
+export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip, onRemade }: { doc: OutputDoc; strip: StripInfo | null; time: number; edit: EditFn; sched: ClipScheduleState; item?: string; clip?: string; onRemade?: () => void }) {
   return (
     <section className="ci" data-testid="clip-info">
       <div className="ci-sec">
@@ -542,7 +544,7 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip }: { d
         <span className="ci-lbl">{t('ci.versions')}</span>
         <ClipVersions doc={doc} edit={edit} />
       </div>
-      {item && clip && <ClipFill item={item} clip={clip} />}
+      {item && clip && <ClipFill item={item} clip={clip} onRemade={onRemade} />}
       {item && clip && <ClipVisualsRedo item={item} clip={clip} />}
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>

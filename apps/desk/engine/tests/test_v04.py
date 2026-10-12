@@ -743,6 +743,22 @@ class PublishedTest(Fixture):
         self.assertEqual(self.o._clip(self.item, c["id"])[1]["files"][0]["path"], f0)   # the editor's own file
 
 
+class MediaVersionTest(Fixture):
+    """A remake (the framing, the music) writes a clip's export and cover again in place: the listing's versions
+    change with them, so the player and the thumbs load the new bytes."""
+
+    def test_a_file_written_again_gets_a_new_version(self):
+        c = self.o.clips(self.item)["clips"][0]
+        f0, v0 = c["files"][0]["path"], c["files"][0]["v"]
+        self.assertTrue(v0)
+        st = os.stat(f0)
+        os.utime(f0, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+        if c.get("cover"):
+            self.assertTrue(c["cover_v"])
+        c2 = self.o.clips(self.item)["clips"][0]
+        self.assertNotEqual(c2["files"][0]["v"], v0)
+
+
 class RenderQueueTest(Fixture):
     def test_renders_of_one_clip_run_one_after_the_other(self):
         """A background render and her Export never write the same stage files at once: the second waits."""
