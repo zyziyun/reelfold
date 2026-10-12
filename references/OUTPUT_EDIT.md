@@ -212,8 +212,11 @@ A finished motion-design promo with no speech (vstudio.project.outkit). `output 
 film itself - its look ("more premium"), pacing, camera, transitions, backdrop, music, how the features show
 ("show the features clearly", "focus on the calendar") - without the model and without ops: `route: launch-kit`,
 `kit {item, config, cut, patch, applied}` (`patch` = launch.config.yaml keys: `pace`, `motion`, `brand.backdrop`,
-`music`, `features [{id, seconds}]`) and one message per change (`kit-feature-time`, `kit-transition`,
-`kit-backdrop`, `kit-pace`, `kit-camera-*`, `kit-music*`, `kit-feature-focus`; `kit-what` when it names nothing the
+`music`, `features [{id, seconds}]`, `film {variety, text, captions}`, `type {weight, scale}`) and one message per
+change (`kit-feature-time`, `kit-transition`, `kit-backdrop`, `kit-pace`, `kit-camera-*`, `kit-music*`,
+`kit-feature-focus`; "every shot looks the same / 每一帧都一样 / more variety" → `kit-film-variety` (film.variety:
+lively) + `kit-film-text`; "the titles are ugly / 标题太丑" → `kit-type` (type weight 520, scale 0.9) +
+`kit-film-text` (words on screen at most 30 % of the runtime), and the backdrop stays light; `kit-what` when it names nothing the
 kit has; `kit-editor-on-top` when editor changes sit on the film). `output kit --set PATCH` writes it (her header
 comments kept, the previous file in `work/launch.config.before-<time>.yaml`); `resume` then renders through the kit
 (its render stage watches the file). Literal edits of the file (cover, trim, export, a selected range) stay with

@@ -44,6 +44,14 @@ _DARK = r"深色|暗|黑|夜|dark|deep|night"
 _LIGHT = r"浅色|亮|白|light|bright|paper|white"
 _MUSIC = r"音乐|配乐|bgm|\bmusic\b"
 _NO_MUSIC = r"不要音乐|去掉音乐|不配乐|静音|no music|without music|remove (?:the )?music|mute"
+# the film language: every scene the same template / the titles look bad -> the rhythm and the type of the film
+_SAMENESS = (r"每一?(?:帧|个镜头|个画面|段|屏)都|都(?:是)?一样|一个样|千篇一律|单调|没(?:有)?变化|太死板|同一个?(?:模板|样式|套路)|"
+             r"模板化|呈现方式|多样|"
+             r"(?:every|each) (?:shot|scene|frame|slide)\b.{0,30}\b(?:same|identical|template)|same (?:template|layout)|"
+             r"looks? the same|monoton|repetitive|more variety|vari(?:ety|ed)|mix it up|all the same")
+_TYPE_UGLY = (r"(?:标题|字幕|文字|字体|大字|字)(?:太|好|很|有点|也)?(?:丑|难看|土|大|多|重|粗|不好看)|(?:丑|难看)的?(?:标题|字)|"
+              r"(?:titles?|headlines?|captions?|type|typography|text|fonts?)\b.{0,20}\b(?:ugly|bad|big|heavy|loud|"
+              r"too much|cheap|clunky)|(?:ugly|clunky|heavy) (?:titles?|headlines?|type|text|fonts?)|less text")
 _EMPHASIS = r"突出|强调|重点|多给|多展示|多停|emphasi[sz]e|highlight|focus on|more (?:time )?on|spend more"
 # what the editor does to the file as it is (never the kit): a cover, an export, trims / cuts by the second, a
 # selected range, captions of the speech, undo
@@ -64,10 +72,10 @@ def wants_kit(text, focus=None):
     if not t or (focus and (focus.get("range") or focus.get("effect") or focus.get("cues"))):
         return False
     kit = any(_has(rx, t) for rx in (_PREMIUM, _FEATURES, _SLOWER, _FASTER, _PACE, _CAMERA, _TRANSITION, _BACKDROP,
-                                     _MUSIC, _EMPHASIS))
+                                     _MUSIC, _EMPHASIS, _SAMENESS, _TYPE_UGLY))
     if not kit:
         return False
-    if _has(_EDITOR, t) and not any(_has(rx, t) for rx in (_PREMIUM, _FEATURES)):
+    if _has(_EDITOR, t) and not any(_has(rx, t) for rx in (_PREMIUM, _FEATURES, _SAMENESS, _TYPE_UGLY)):
         return False
     return True
 
@@ -254,6 +262,41 @@ def plan(src, text):
                                                 f"{mo.get('seconds'):g} s hand-over.",
                               f"转场：{mo.get('transition') or 'crossfade'}，{mo.get('seconds'):g} 秒过渡。",
                               transition=mo.get("transition"), seconds=mo.get("seconds")))
+    # the film language: "every shot looks the same" -> more variety (detail cuts, split screens, full-bleed UI, type
+    # beats between sequences); "the titles are ugly" -> lighter, smaller type and less of it on screen
+    same, ugly = _has(_SAMENESS, t), _has(_TYPE_UGLY, t)
+    film = dict(raw.get("film") or {})
+    typ = dict(raw.get("type") or {})
+    if same and film.get("variety", "balanced") != "lively":
+        patch.setdefault("film", {})["variety"] = "lively"
+        changes.append(_m("kit-film-variety", "Every scene gets its own shot: full-bleed UI, close-ups on the action, "
+                                              "split screens and short type beats, never the same layout twice in a "
+                                              "row.",
+                          "每个镜头换一种呈现：整屏界面、操作特写、左右分屏、段落之间一句大字，相邻镜头不重复。"))
+    if same or ugly:
+        cap = float(film.get("text", 0.4))
+        new_cap = 0.3 if ugly else min(cap, 0.35)
+        if cap > new_cap + 1e-6:
+            patch.setdefault("film", {})["text"] = new_cap
+            changes.append(_m("kit-film-text", f"Words on screen at most {new_cap:.0%} of the time: a type beat opens "
+                                               "each section, the rest are small captions or none.",
+                              f"文字最多占 {new_cap:.0%} 的时长：每段开头一句大字，其余是小字说明或不加字。",
+                              share=new_cap))
+        if film.get("captions") not in (None, "auto"):
+            patch.setdefault("film", {})["captions"] = "auto"
+    if ugly:
+        w = int(typ.get("weight") or 560)
+        sc = float(typ.get("scale") or 1.0)
+        tp = {}
+        if w > 520:
+            tp["weight"] = 520
+        if sc > 0.9:
+            tp["scale"] = 0.9
+        if tp:
+            patch["type"] = tp
+            changes.append(_m("kit-type", "Type set lighter and a little smaller (Inter / Noto Sans SC medium, tight "
+                                          "tracking), fading in out of a soft blur; no headline box over the shots.",
+                              "文字更轻、略小（Inter / 思源黑体 Medium，字距收紧），柔和淡入；画面上不再压大标题。"))
     # backdrop
     cur_bd = brand.get("backdrop") or "studio"
     dark_theme = str(brand.get("theme") or "") in ("night", "mono")
@@ -261,7 +304,7 @@ def plan(src, text):
     if _has(_BACKDROP, t):
         bd = "deep" if _has(_DARK, t) else ("paper" if _has(r"paper|纸|flat|平", t) else
                                              "studio" if _has(_LIGHT, t) else ("deep" if dark_theme else "studio"))
-    elif premium and dark_theme:
+    elif premium and dark_theme and not (same or ugly):
         bd = "deep"                                           # a night brand: the film on the dark teal-black stage
     if bd and bd != cur_bd:
         patch.setdefault("brand", {})["backdrop"] = bd

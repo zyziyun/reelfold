@@ -112,6 +112,27 @@ def test_her_words_become_kit_settings(tmp_path):
     assert K.plan(src, "突出一下")["patch"] == {}             # names nothing the kit has: no change, it asks
 
 
+SAME = "每一帧都是一个标题和一个小的视频，这样不行，标题太丑了，可以一段是标题，但是不能所有文字都是这样的呈现方式"
+
+
+def test_every_shot_the_same_and_ugly_titles_become_film_language_settings(tmp_path):
+    src = _src(tmp_path)
+    assert K.wants_kit(SAME) and K.wants_kit("the titles are ugly") and K.wants_kit("every shot looks the same")
+    p = K.plan(src, SAME)
+    patch = p["patch"]
+    assert patch["film"] == dict(variety="lively", text=0.3)          # varied layouts, words <= 30 % of the time
+    assert patch["type"] == dict(weight=520, scale=0.9)               # lighter, smaller type
+    assert "brand" not in patch                                       # a type / layout ask keeps the light look
+    codes = [c["code"] for c in p["changes"]]
+    assert {"kit-film-variety", "kit-film-text", "kit-type"} <= set(codes) and all(c["message_zh"] for c in p["changes"])
+    assert K.plan(src, "more variety please")["patch"]["film"] == dict(variety="lively", text=0.35)
+    assert K.plan(src, "titles are ugly")["patch"] == dict(film=dict(text=0.3), type=dict(weight=520, scale=0.9))
+    assert not K.wants_kit("加个封面")
+    done = K.apply(src, patch)                                         # the kit accepts it as written
+    cfg = yaml.safe_load(open(done["config"], encoding="utf-8"))
+    assert cfg["film"]["variety"] == "lively" and cfg["type"]["scale"] == 0.9
+
+
 def test_apply_keeps_her_header_and_a_backup_and_refuses_a_bad_config(tmp_path):
     src = _src(tmp_path)
     before = open(src["config"], encoding="utf-8").read()
