@@ -72,9 +72,9 @@ test(`${N} made videos: every one listed as a video, Ready to post ${N}, no proj
     const info = await window.desk.engineInfo();
     const h = (await (await fetch(info.baseUrl + '/api/history', { headers: { Authorization: `Bearer ${info.token}` } })).json()) as { items: { id: string }[] };
     const rs = await Promise.all(h.items.map((i) => fetch(info.baseUrl + `/api/outputs/${i.id}`, { headers: { Authorization: `Bearer ${info.token}` } }).then((r) => r.status)));
-    return { n: rs.length, bad: rs.filter((s) => s !== 200).length };
+    return { n: rs.length, bad: rs.filter((s) => s !== 200) };
   });
-  expect(burst).toEqual({ n: N, bad: 0 });
+  expect(burst).toEqual({ n: N, bad: [] }); // a failure lists the statuses (502: the engine refused the connect)
 });
 
 test(`⌘A then Schedule: the button says ${N} (what Ready to post says), progress, one toast with Undo, every one scheduled`, async () => {

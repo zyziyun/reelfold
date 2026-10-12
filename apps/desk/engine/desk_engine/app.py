@@ -1185,9 +1185,10 @@ if hasattr(socketserver, "UnixStreamServer"):
 
 class TcpHTTPServer(ThreadingHTTPServer):
     """127.0.0.1 (Windows). A full backlog refuses a connect on Windows TCP too (WSAECONNREFUSED, no SYN retry as on
-    macOS / Linux), and the default backlog is 5: the editor opens more requests than that at once."""
+    macOS / Linux), and the default backlog is 5: the editor opens more requests than that at once, All projects
+    200+ (main also tries a refused connect again). Windows clamps the number to what it allows."""
     daemon_threads = True
-    request_queue_size = 128
+    request_queue_size = 1024
 
 
 def serve(api, host="127.0.0.1", port=0, socket_path=None):
