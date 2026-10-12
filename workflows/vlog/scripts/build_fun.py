@@ -267,6 +267,8 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
                                            force=hdr_mode in (True, "true"))
             vf = ",".join(x for x in (vf, FR.grade_chain(grade, cfg.get("warm", True), cfg.get("sharpen", False),
                                                           float(s.get("bright", 0.0)))) if x)
+            if cfg.get("deflicker", True):        # the drone's exposure pumping, evened out inside the clip
+                vf += ",deflicker=size=5:mode=am"
             fmode = s.get("fit") or mode
             fa = dict(mode=fmode, fallback=fallback, safe=safe, cache=fit_cache)
             ff = int(n - round(s.get("freeze_s", 0.0) * fps)) if s.get("freeze") else None

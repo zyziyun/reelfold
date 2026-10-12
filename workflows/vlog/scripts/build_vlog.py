@@ -152,11 +152,16 @@ def render_seg(args):
     i, cfg, seg, segdir, dry = args
     src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
     speed = seg_speed(cfg, seg)
+    try:
+        src_fps = clip_info(src)["fps"]
+    except media.FFmpegError as e:              # an unreadable / missing clip: the same reason the encode would give
+        raise RenderError(f"segment {i:02d} ({os.path.basename(src)}): "
+                          f"{proctail.cause(str(e)) or 'ffprobe failed'}\n{e}") from None
     eb = seg.get("bright", 0.0) + seg.get("_match", 0.0)
     eff = seg["dur"] / speed
     vf = (stab_prefix(cfg, seg) + hdr_chain(cfg, src) + fit_chain(cfg) + "," + grade_chain(cfg, eb)
           + ("," + DEFLICKER if cfg.get("deflicker", True) else "")
-          + "," + FF.retime(clip_info(src)["fps"], speed, cfg.get("fps", 30)))
+          + "," + FF.retime(src_fps, speed, cfg.get("fps", 30)))
     dst = os.path.join(segdir, f"seg_{i:02d}.mp4")
     # -t BEFORE -i limits how much SOURCE is read, so the output length is dur/speed for
     # speed-ups AND slow-mo. After -i it would cap the OUTPUT and truncate slow-mo.
