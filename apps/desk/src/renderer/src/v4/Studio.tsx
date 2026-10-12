@@ -13,7 +13,9 @@ import { useInbox } from '../lib/inbox';
 import { inboxTitle } from '../lib/inboxView';
 import { keyHint } from '../lib/keys';
 import { reviewInRow } from '../lib/nav';
-import { href, routeQuery } from '../lib/router';
+import { href, routeQuery, useRouteQuery } from '../lib/router';
+import { goalActive, useGoals } from '../lib/goals';
+import { GoalGroup, GoalPage } from './GoalView';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
 import { STUDIO_FILTERS, grouped, needsYou, notMadeYet, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
 import { rowHref, useStudioData } from '../lib/studioData';
@@ -119,7 +121,12 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const dfind = useDeferredValue(find);
   const rows = useMemo(() => findRows(allRows, dfind, posts), [allRows, dfind, posts]);
   const groups = useMemo(() => grouped(rows), [rows]);
+  useRouteQuery(); // a new ?goal= / ?sel= is a new page
   const q = routeQuery();
+  // goal mode: the groups of videos one request asked for, each above the list with its videos under it; their
+  // requests / projects being made or ready sit in the group, not twice in the groups below
+  const { goals } = useGoals();
+  const goalSel = !id && q.goal ? q.goal : null;
   const [filter, setFilterS] = useState<ListFilter>(() => (LIST_FILTERS.includes(q.f as ListFilter) ? (q.f as ListFilter) : ((sessionStorage.getItem(FKEY) as ListFilter | null) ?? 'all')));
   useEffect(() => {
     const on = (e?: Event) => {
@@ -151,7 +158,15 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   }, [inArchive, wantArchived]);
   const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
   // a project with several videos is one header with its videos under it (its question as the header's badge)
-  const pieces = useMemo(() => screenPieces(rows, order), [rows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listRows = useMemo(() => {
+    const ids = new Set(goals.map((g) => g.id));
+    return rows.filter((r) => {
+      const gid = r.i?.goal ?? r.r?.goal;
+      return !(gid && ids.has(gid) && (r.group === 'run' || r.group === 'ready'));
+    });
+  }, [rows, goals]);
+  const pieces = useMemo(() => screenPieces(listRows, order), [listRows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownGoals = inArchive || finding(dfind) ? [] : goals.filter((g) => filter === 'all' || (filter === 'run' && goalActive(g) && g.state !== 'planned') || (filter === 'you' && (g.state === 'planned' || g.state === 'failed' || g.counts.you > 0)) || (filter === 'ready' && g.state === 'done'));
   const list = pieces.flatMap((x) => x.pieces.flatMap((pc) => (pc.kind === 'row' ? [pc.r] : pc.r ? [pc.r] : [])));
   // the Archived filter: archived requests and projects, each with Restore (nothing in it counts anywhere else)
   const archived = useMemo(() => archivedTargets(archDoc?.items ?? [], archivedRequests), [archDoc, archivedRequests]);
@@ -214,7 +229,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
   const [gaveUp, setGaveUp] = useState<string | null>(null);
-  const waiting = (!!q.sel && !selKey && !cur && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
+  const waiting = !!goalSel || (!!q.sel && !selKey && !cur && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
   useEffect(() => {
     if (!q.sel || selKey) return;
     const sel = q.sel;
@@ -421,7 +436,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         </div>
         {composer && (
           <div className="st-composer" data-testid="studio-composer">
-            <Composer compact autoFocus onSent={(rid) => (setComposer(false), (location.hash = `${href({ name: 'studio' })}?sel=${rid}`))} onClose={() => setComposer(false)} />
+            <Composer compact autoFocus onSent={(rid, goal) => (setComposer(false), (location.hash = goal ? `${href({ name: 'studio' })}?goal=${rid}` : `${href({ name: 'studio' })}?sel=${rid}`))} onClose={() => setComposer(false)} />
           </div>
         )}
         {!inArchive && <FindBar find={find} onChange={setFind} rows={allRows} posts={posts} />}
@@ -434,9 +449,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           ))}
         </div>
         <div className="st-rows" data-testid="studio-rows" ref={rowsEl}>
-          {!inArchive && !allRows.length && (!hist || !ready) && <ListSkeleton />}
-          {!inArchive && !allRows.length && hist && ready && <p className="st-empty muted">{t('st.emptyAll')}</p>}
-          {!inArchive && allRows.length > 0 && !list.length && (finding(dfind) ? (
+          {!inArchive && !allRows.length && !shownGoals.length && (!hist || !ready) && <ListSkeleton />}
+          {!inArchive && !allRows.length && !shownGoals.length && hist && ready && <p className="st-empty muted">{t('st.emptyAll')}</p>}
+          {!inArchive && allRows.length > 0 && !list.length && !shownGoals.length && (finding(dfind) ? (
             <div className="st-empty muted" data-testid="studio-find-none">
               <p>{t('hd.f.none')}</p>
               <button className="btn sm" onClick={() => setFind(NO_FIND)} data-testid="studio-find-clear-all">
@@ -448,6 +463,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           ))}
           {inArchive && (archDoc ? !archived.length : !nArchived) && <p className="st-empty muted">{t('ra.archivedEmpty')}</p>}
           {inArchive && archived.map((x) => <ArchivedRow key={x.key} x={x} picked={picked.has(x.key)} onPick={pick} onMenu={menuAt} ra={ra} />)}
+          {shownGoals.map((g) => (
+            <GoalGroup key={g.id} g={g} on={goalSel === g.id && !q.v} vid={goalSel === g.id ? q.v : undefined} item={id} />
+          ))}
           {pieces.map(({ g, pieces: pc }) => {
             const l = groups[g];
             const shown = pc.filter((x) => x.kind === 'row' || x.r).length;
@@ -512,6 +530,8 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
       <section className="st-page" data-testid="studio-page" tabIndex={-1}>
         {watch ? (
           <WatchAll rows={watching} lineOf={lineOf} onClose={() => setWatch(false)} />
+        ) : goalSel ? (
+          <GoalPage key={goalSel} gid={goalSel} vid={q.v} />
         ) : cur ? (
           <Page key={cur.key} r={cur} posts={posts} more={(e) => menuAt(e, targetOf(cur))} ra={ra} />
         ) : askItem && !askRow ? (

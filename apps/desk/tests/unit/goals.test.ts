@@ -1,0 +1,91 @@
+// Goal mode in the UI (lib/goals): the group's line and bar, each video's state words and dot, why one was dropped,
+// where rows open, and which platforms a made file stands for.
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { Goal, GoalVideo } from '../../src/shared/goal';
+import { setLang } from '../../src/renderer/src/i18n';
+import { dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
+import { platformsFor } from '../../src/renderer/src/v4/GoalView';
+
+const vid = (id: string, x: Partial<GoalVideo> = {}): GoalVideo => ({ id, title: `Video ${id}`, kind: 'film', length_s: 45, clips: 3, stories: ['s1'], platforms: ['youtube', 'xiaohongshu', 'bilibili'], request: 'Make it', state: 'waiting', ...x });
+const goal = (videos: GoalVideo[], x: Partial<Goal> = {}): Goal => {
+  const vs = videos.filter((v) => v.state !== 'skipped');
+  return {
+    id: 'aaaaaaaaaaaa',
+    prompt: 'make several videos from my card',
+    inputs: ['/Volumes/dji/DCIM'],
+    mode: 'autopilot',
+    state: 'running',
+    goal: 'As many videos as the footage supports',
+    created: 1,
+    videos,
+    counts: { total: vs.length, made: vs.filter((v) => v.state === 'made').length, dropped: vs.filter((v) => v.state === 'dropped').length, making: vs.filter((v) => v.state === 'planning' || v.state === 'making').length, you: vs.filter((v) => v.state === 'you').length, waiting: vs.filter((v) => v.state === 'waiting').length },
+    ...x,
+  };
+};
+
+beforeAll(() => setLang('en'));
+
+describe('the group', () => {
+  it('says how far it is and fills its bar with made, dropped and the share of the ones being made', () => {
+    const g = goal([vid('v1', { state: 'made' }), vid('v2', { state: 'making', progress: 0.5 }), vid('v3', { state: 'dropped', reason_code: 'by-you' }), vid('v4', { state: 'waiting' }), vid('v5', { state: 'skipped' })]);
+    expect(groupVideos(g).map((v) => v.id)).toEqual(['v1', 'v2', 'v3', 'v4']);
+    expect(goalLine(g)).toBe('1 of 4 made · 1 making · 1 dropped');
+    expect(goalPct(g)).toBeCloseTo(2.5 / 4);
+    expect(goalTone(g)).toBe('run');
+    expect(goalActive(g)).toBe(true);
+    expect(goalTitle(g)).toBe('As many videos as the footage supports');
+    expect(goalTitle({ goal: null, prompt: 'x'.repeat(100) })).toHaveLength(80);
+  });
+
+  it('before the videos exist: what the survey reads, then the plan waiting for her', () => {
+    expect(goalLine(goal([], { state: 'surveying', progress: { stage: 'probe', i: 3, n: 79, kind: 'video' } }))).toBe('Reading clip 3 of 79…');
+    expect(surveyLine({ progress: { stage: 'model' } })).toBe('Asking the AI for video ideas…');
+    const planned = goal([vid('v1', { state: 'planned' }), vid('v2', { state: 'planned', planned_out: true })], { state: 'planned' });
+    expect(groupVideos(planned)).toHaveLength(1);
+    expect(goalLine(planned)).toBe('1 video planned — check it, then make it');
+    expect(goalTone(planned)).toBe('you');
+    expect(goalTone(goal([vid('v1', { state: 'made' })], { state: 'done' }))).toBe('done');
+    expect(goalTone(goal([], { state: 'failed' }))).toBe('error');
+    expect(goalActive(goal([], { state: 'done' }))).toBe(false);
+  });
+});
+
+describe('a video', () => {
+  it('says where it is in plain words with its dot', () => {
+    expect(videoLine(vid('v1', { state: 'making', progress: 0.42 }))).toBe('Making · 42%');
+    expect(videoLine(vid('v1', { state: 'making', queued: true }))).toBe('Waiting for a free slot');
+    expect(videoTone(vid('v1', { state: 'making', queued: true }))).toBe('off');
+    expect(videoLine(vid('v1', { state: 'planning', retried: 'ai-timeout' }))).toBe('Planning the edit · trying again');
+    expect(videoLine(vid('v1', { state: 'made' }))).toBe('Made');
+    expect(videoTone(vid('v1', { state: 'made' }))).toBe('done');
+    expect(videoTone(vid('v1', { state: 'you' }))).toBe('you');
+    expect(videoTone(vid('v1', { state: 'dropped' }))).toBe('error');
+  });
+
+  it('says why it was dropped: its own words, or the engine failure in hers', () => {
+    expect(videoLine(vid('v1', { state: 'dropped', reason_code: 'stalled' }))).toBe('Dropped — it stopped making progress, twice');
+    expect(dropReason({ reason_code: 'by-you' })).toBe('you dropped it');
+    expect(dropReason({ reason_code: 'plan-empty' })).toBe('its edit couldn’t be planned, twice');
+    expect(dropReason({ reason_code: 'ai-timeout' })).not.toMatch(/⟦|ai-timeout/);
+  });
+
+  it('opens its project once it has one, else the goal page with it picked', () => {
+    expect(videoHref('aaaaaaaaaaaa', vid('v2'))).toBe('#/studio?goal=aaaaaaaaaaaa&v=v2');
+    expect(videoHref('aaaaaaaaaaaa', vid('v2', { projects: [{ dir: '/p', item: 'bbbbbbbbbbbb' }] }))).toBe('#/studio/bbbbbbbbbbbb');
+    expect(goalHref('aaaaaaaaaaaa')).toBe('#/studio?goal=aaaaaaaaaaaa');
+  });
+
+  it('takes its Chinese title in a Chinese UI', () => {
+    expect(videoTitle({ title: 'Golden hour', title_zh: '黄金时刻' }, 'zh-CN')).toBe('黄金时刻');
+    expect(videoTitle({ title: 'Golden hour', title_zh: '黄金时刻' }, 'en')).toBe('Golden hour');
+    expect(videoTitle({ title: 'Golden hour', title_zh: null }, 'zh-CN')).toBe('Golden hour');
+  });
+});
+
+describe('a made file', () => {
+  it('stands for every platform of the video on its canvas', () => {
+    expect(platformsFor({ platform: 'youtube', w: 1920, h: 1080, aspect: '16:9' }, ['youtube', 'xiaohongshu:full', 'bilibili'])).toEqual(['youtube', 'bilibili']);
+    expect(platformsFor({ platform: 'xiaohongshu', w: 1080, h: 1920, aspect: '9:16' }, ['youtube', 'xiaohongshu:full', 'bilibili'])).toEqual(['xiaohongshu']);
+    expect(platformsFor({ w: 1080, h: 1920, aspect: '9:16' }, ['youtube-shorts', 'bilibili'])).toEqual(['youtube-shorts']);
+  });
+});

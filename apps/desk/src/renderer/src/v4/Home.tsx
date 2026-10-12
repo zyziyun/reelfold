@@ -45,6 +45,8 @@ import { LiveCardLine } from './LiveLine';
 import { liveStep, liveText } from '../lib/liveStatus';
 import { itemPipeline } from '../lib/pipeline';
 import { keyHint } from '../lib/keys';
+import { goalHref, useGoals } from '../lib/goals';
+import { ManyToggle } from './ManyToggle';
 
 /** Starting points whose request is a fixed intent (sent as written: the talking-head recipe, planned by the rules). */
 const FIXED_STARTS: MessageKey[] = ['home.idea2Prompt', 'sample.prompt'];
@@ -118,6 +120,7 @@ export function Home() {
   const [over, setOver] = useState(false);
   const [platforms, setPlatforms] = useState<string[] | null>(null);
   const [auto, setAuto] = useState(true); // Settings › New projects: autopilot (default) or ask me first
+  const [many, setMany] = useState(false); // 「Several videos」: a goal (survey + a group of videos)
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const { data: recent } = useLoad((c) => c.recentPrompts(), [sent]);
   const firstRun = !!hist && hist.items.length === 0;
@@ -179,6 +182,7 @@ export function Home() {
             sampleName: p.sample ? t('sample.projectName') : undefined,
             // a fixed intent (the sample, the talking-head start as written): no ~2 min planning call
             recipe: p.sample || FIXED_STARTS.some((k) => t(k) === p.prompt.trim()) ? 'talkinghead' : undefined,
+            ...(many && !p.sample ? { goal: true } : {}),
           });
           // the request is a project now (All projects lists it): Home is free for the next one
           const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');
@@ -186,8 +190,10 @@ export function Home() {
           setPrompt('');
           setFiles([]);
           setSent((n) => n + 1);
+          setMany(false);
           reloadHist();
-          ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }), { action: { label: t('home.sentOpen'), href: selHref(r.id) }, ms: 8000 });
+          if (r.goal) ui.toast(t('goal.sent'), { action: { label: t('home.sentOpen'), href: goalHref(r.id) }, ms: 8000 });
+          else ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }), { action: { label: t('home.sentOpen'), href: selHref(r.id) }, ms: 8000 });
           return;
         } catch (e) {
           if (i + 1 >= tries) throw e;
@@ -333,6 +339,7 @@ export function Home() {
                 <Paperclip className="ico" />
               </button>
               <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
+              <ManyToggle on={many} onChange={setMany} />
               <span className="sp" />
               <span className="ux-kbdhint" aria-hidden>{keyHint('⌘↵')}</span>
               <button className={`btn lg ux-make ${ready ? 'primary' : ''}`} disabled={busy || !ready || !!waitDl} onClick={() => void submit()} data-testid="make-plan">
@@ -475,6 +482,9 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
   const inbox = useInbox();
   const studio = useStudioEnabled();
   const st = useStudioData();
+  // goal mode: a group of videos being read / made is one card in Running (its own jobs are not repeated)
+  const { goals } = useGoals();
+  const runGoals = useMemo(() => goals.filter((g) => g.state === 'surveying' || g.state === 'running'), [goals]);
   const { subscribe } = useEngine();
   const { data: calNow, error: calErr, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
   const { data: sugNow, error: sugErr } = useLoad((c) => c.homeSuggestions(), [data?.items.length]);
@@ -490,7 +500,11 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
   const now = Date.now();
   const todays = (cal?.posts ?? []).filter((p) => p.at.slice(0, 10) === today());
   const next = (cal?.posts ?? []).find((p) => p.state !== 'posted' && new Date(p.at).getTime() > now);
-  const cards = useMemo(() => runCards(studio ? st.rows : null, live, requests), [studio, st.rows, live, requests]);
+  const cards = useMemo(() => {
+    const ids = new Set(goals.map((g) => g.id));
+    const mine = (x: { goal?: string | null } | undefined) => !!x?.goal && ids.has(x.goal);
+    return runCards(studio ? st.rows.filter((r) => !mine(r.i) && !mine(r.r)) : null, live.filter((i) => !mine(i)), requests.filter((r) => !mine(r)));
+  }, [studio, st.rows, live, requests, goals]);
   const waiting = items.filter((i) => i.queued).length;
   const signals = useMemo(() => homeSignals(sug ?? null, items, cal?.posts ?? [], mine), [sug, items, cal, mine]);
   const waits = [!data && 'history', !requestsLoaded && 'requests', !inbox.loaded && 'inbox', cal === null && calErr === null && 'calendar', sug === null && sugErr === null && 'suggestions', studio && !st.ready && 'videos'].filter(Boolean) as string[];
@@ -506,13 +520,13 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
     return () => window.clearTimeout(tm);
   }, [settled, !!data]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!settled) return <HomeSkeleton waits={waits} />;
-  const quiet = !inbox.items.length && !cards.length;
+  const quiet = !inbox.items.length && !cards.length && !runGoals.length;
   return (
     <>
       <HomeChips signals={signals} onPick={pick} />
       <DueBanner />
       <HomeInbox items={inbox.items} />
-      <HomeRunning cards={cards} waiting={waiting} />
+      <HomeRunning cards={cards} waiting={waiting} goals={runGoals} />
       {quiet && <AllClear next={next ?? null} />}
       <HomeGoingOut posts={todays} />
       {!studio && items.length > 0 && (

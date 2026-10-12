@@ -1,0 +1,102 @@
+/* Goal mode's page (GoalView) and its group in the Studio list: the run page's calm hero, then hairline rows. */
+.goalv { flex: 1; min-height: 0; min-width: 0; height: 100%; overflow: auto; padding: 40px clamp(24px, 4.5vw, 64px) 48px; }
+.goalv > * { max-width: 1080px; }
+.goalv-hero .runv-eyebrow .ico { width: 13px; height: 13px; }
+.goalv-hero .runv-now { display: flex; align-items: center; gap: 10px; }
+.goalv-sec { margin-top: 8px; }
+.goalv-err { margin: 20px 0; padding: 10px 14px; border-left: 2px solid var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border-radius: 0 6px 6px 0; }
+.goalv-note { margin: 10px 0; padding: 6px 10px; border-left: 2px solid var(--you); background: color-mix(in srgb, var(--you) 8%, transparent); border-radius: 0 6px 6px 0; }
+
+.goalv-steps { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 10px; }
+.goalv-steps li { display: flex; align-items: center; gap: 10px; color: var(--text-faint); font-size: 14px; }
+.goalv-steps li .mk { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--surface-3); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.goalv-steps li .mk .ico { width: 11px; height: 11px; }
+.goalv-steps li.done { color: var(--text-muted); }
+.goalv-steps li.done .mk { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+.goalv-steps li.now { color: var(--text); font-weight: 500; }
+.goalv-steps li.now .mk { border-color: var(--run); box-shadow: 0 0 0 4px color-mix(in srgb, var(--run) 20%, transparent); }
+
+.goalv-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.goalv-card { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.goalv-card.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.goalv-card.out { opacity: 0.55; }
+.goalv-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--surface-2); }
+.goalv-thumbs .goalv-th:first-child:last-child { grid-column: span 3; }
+.goalv-th { border-radius: 0; }
+.goalv-th.empty { aspect-ratio: 16 / 9; grid-column: span 3; background: var(--surface-2); }
+.goalv-cardbody { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.goalv-cardbody p { margin: 0; }
+.goalv-titlein { font: inherit; font-weight: 600; font-size: 15px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; margin: 0 -6px; }
+.goalv-titlein:hover:not(:disabled), .goalv-titlein:focus { border-color: var(--border); background: var(--surface-2); outline: none; }
+.goalv-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 6px; }
+.goalv-fields label { display: flex; flex-direction: column; gap: 2px; }
+.goalv-fields select, .goalv-fields input { font: inherit; font-size: 13px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+.goalv-fields input[type='number'] { width: 76px; }
+.goalv-plats { display: inline-flex; gap: 6px; align-items: center; padding-bottom: 6px; margin-left: auto; color: var(--text-muted); }
+.goalv-cardacts { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.goalv-cardacts .sp { flex: 1; }
+.goalv-pick { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); cursor: pointer; }
+.goalv-foot { position: sticky; bottom: -48px; display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 14px 0; background: linear-gradient(transparent, var(--bg) 30%); }
+.goalv-foot .sp { flex: 1; }
+
+.goalv-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.goalv-row.on { background: var(--accent-soft); margin: 0 -10px; padding: 10px; border-radius: 8px; }
+.goalv-row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.goalv-row .tx b { font-weight: 500; }
+.goalv-row .bar { margin-top: 3px; max-width: 280px; }
+
+.goalv-summary { margin-top: 28px; }
+.goalv-made { border-top: 1px solid var(--border); padding: 12px 0; }
+.goalv-made header { display: flex; align-items: center; gap: 6px; }
+.goalv-made header .sp { flex: 1; }
+.goalv-clip { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+.goalv-clipbody { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.goalv-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.goalv-file { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.goalv-file:hover { border-color: var(--accent); }
+.goalv-file .ico { width: 13px; height: 13px; }
+.goalv-post { border-left: 2px solid var(--border); padding-left: 10px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.goalv-post p { margin: 0; }
+.goalv-dropped { margin-top: 14px; }
+.goalv-dropped h3 { margin: 0 0 6px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.goalv-dropped ul { margin: 0; padding-left: 18px; }
+
+.goalv-stories summary { cursor: pointer; list-style: none; }
+.goalv-stories summary::-webkit-details-marker { display: none; }
+.goalv-storygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
+.goalv-story { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.goalv-story .goalv-th { border-radius: 6px; }
+
+/* the group in the Studio list */
+.st-goal { margin-bottom: 6px; }
+.st-goal .st-goalhead { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 8px; color: var(--text); text-decoration: none; }
+.st-goal .st-goalhead:hover { background: var(--surface-2); }
+.st-goal .st-goalhead.on { background: var(--accent-soft); }
+.st-goal .st-goalhead .ico { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.st-goal .st-goalhead .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st-goal .st-goalhead .tx b { font-weight: 600; font-size: 13px; }
+.st-goal .st-goalhead .tx .s { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.st-goal .st-goalhead .bar { margin-top: 2px; }
+.st-goal .st-goalfold { flex: none; }
+.st-goalrow { display: flex; align-items: center; gap: 10px; margin-left: 18px; padding: 6px 10px; border-radius: 8px; color: var(--text); text-decoration: none; min-width: 0; }
+.st-goalrow:hover { background: var(--surface-2); }
+.st-goalrow.on { background: var(--accent-soft); }
+.st-goalrow .st-th { width: 56px; flex: none; }
+.st-goalrow .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st-goalrow .tx b { font-weight: 500; font-size: 13px; }
+.st-goalrow .tx .s { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+/* Home: the group among what runs */
+.ux-goalcard { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-decoration: none; }
+.ux-goalcard:hover { border-color: var(--accent); }
+.ux-goalcard .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ux-goalcard .top .ico { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.ux-goalcard .top b { flex: 1; min-width: 0; }
+.ux-goalcard ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 3px; }
+.ux-goalcard li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; min-width: 0; }
+.ux-goalcard li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ux-goalcard li .st { color: var(--text-muted); white-space: nowrap; }
+
+/* the composer's 「Several videos」 */
+.btn.ux-many { color: var(--text-muted); }
+.btn.ux-many.on { color: var(--accent); background: var(--accent-soft); }

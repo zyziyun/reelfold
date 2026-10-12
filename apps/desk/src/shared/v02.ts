@@ -421,6 +421,9 @@ export interface ProgressFeed {
 export const WORK_TYPES = ['talkinghead', 'slices', 'explainer', 'photo-story', 'vlog', 'podcast', 'aigc', 'script', 'batch', 'promo', 'slides', 'other'] as const;
 export interface HistoryItem {
   kind: 'batch' | 'project' | 'work';
+  /** a project made for a goal (goal mode): the goal's id and its video's (the lists show it under its group) */
+  goal?: string | null;
+  goal_video?: string | null;
   type?: string;
   live?: LiveStatus | null;
   adopted?: boolean;

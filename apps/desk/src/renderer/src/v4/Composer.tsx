@@ -16,6 +16,7 @@ import { href } from '../lib/router';
 import { useCreateEnabled } from '../create/flag';
 import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { PlatformChip } from './Home';
+import { ManyToggle } from './ManyToggle';
 import { errText } from './msg';
 import { useUi } from './ui';
 import { useComposerSlash } from './ComposerSlash';
@@ -36,7 +37,7 @@ function kindIcon(p: string) {
 
 const DRAFT = 'v4.composer';
 
-export function Composer({ compact = false, autoFocus = false, onSent, onClose }: { compact?: boolean; autoFocus?: boolean; onSent?: (id: string) => void; onClose?: () => void }) {
+export function Composer({ compact = false, autoFocus = false, onSent, onClose }: { compact?: boolean; autoFocus?: boolean; onSent?: (id: string, goal?: boolean) => void; onClose?: () => void }) {
   const { client } = useEngine();
   const ui = useUi();
   const { reload: reloadHist } = useHistory();
@@ -55,6 +56,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const [savedPf, setSavedPf] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
+  const [many, setMany] = useState(false);
   const ta = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files })), [prompt, files]);
   useEffect(() => {
@@ -96,14 +98,16 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         sampleName: p.sample ? t('sample.projectName') : undefined,
         // a fixed intent (the sample): no planning call
         recipe: p.sample ? 'talkinghead' : undefined,
+        ...(many && !p.sample ? { goal: true } : {}),
       });
       sessionStorage.removeItem(DRAFT);
       setPrompt('');
       setFiles([]);
+      setMany(false);
       reloadHist();
       const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');
-      ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }));
-      onSent?.(r.id);
+      ui.toast(r.goal ? t('goal.sent') : t(auto ? 'home.sent' : 'home.sentAsk', { name }));
+      onSent?.(r.id, !!r.goal);
     } catch (e) {
       ui.toast(errText(e), { error: true });
     } finally {
@@ -206,6 +210,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
           </a>
         )}
         <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
+        <ManyToggle on={many} onChange={setMany} compact={compact} />
         <button className="btn ghost icon sm" onClick={more} aria-label={t('st.more')} data-tip={t('st.more')} data-testid="composer-more">
           <MoreHorizontal className="ico" />
         </button>

@@ -9,7 +9,10 @@
 // The page is held on a skeleton until every source has answered (no section popping in, no count changing under
 // her), and an answer takes the row away at once (Undo brings it back).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronRight, FolderOpen, LayoutGrid, MoreHorizontal, Play, Repeat, Send, Video } from 'lucide-react';
+import { ArrowRight, ChevronRight, FolderOpen, Layers, LayoutGrid, MoreHorizontal, Play, Repeat, Send, Video } from 'lucide-react';
+import type { Goal } from '../../../shared/goal';
+import { goalHref, goalLine, goalPct, goalTitle, groupVideos, videoLine, videoTitle, videoTone } from '../lib/goals';
+import './goal.css';
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
 import { fmtMinutes, fmtTime, getLang, t, type MessageKey } from '../i18n';
@@ -367,8 +370,8 @@ export function runCards(rows: StudioRow[] | null, live: HistoryItem[], requests
   ];
 }
 
-export function HomeRunning({ cards, waiting }: { cards: RunCardModel[]; waiting: number }) {
-  if (!cards.length && !waiting) return null;
+export function HomeRunning({ cards, waiting, goals = [] }: { cards: RunCardModel[]; waiting: number; goals?: Goal[] }) {
+  if (!cards.length && !waiting && !goals.length) return null;
   // the Studio opens on the first running job with every running job tiled over its page
   const watch = () => {
     sessionStorage.setItem('studio.watch', '1');
@@ -379,10 +382,10 @@ export function HomeRunning({ cards, waiting }: { cards: RunCardModel[]; waiting
       <div className="ux-sech">
         <h2>{t('home.running')}</h2>
         <span className="muted" data-testid="home-running-count">
-          {[cards.length ? t('home.jobs', { n: cards.length }) : null, waiting ? t('hd.waiting', { n: waiting }) : null].filter(Boolean).join(' · ')}
+          {[cards.length + goals.length ? t('home.jobs', { n: cards.length + goals.length }) : null, waiting ? t('hd.waiting', { n: waiting }) : null].filter(Boolean).join(' · ')}
         </span>
         <span className="sp" />
-        {studioEnabled() && cards.length > 1 && (
+        {studioEnabled() && cards.length > 1 && !goals.length && (
           <button className="ux-link" onClick={watch} data-testid="home-watch-all">
             <LayoutGrid className="ico" /> {t('hd.watchAll')}
           </button>
@@ -391,6 +394,9 @@ export function HomeRunning({ cards, waiting }: { cards: RunCardModel[]; waiting
           {t('home.allProjects')} <ArrowRight className="ico" />
         </a>
       </div>
+      {goals.map((g) => (
+        <HomeGoal key={g.id} g={g} />
+      ))}
       {cards.length > 0 && (
         <div className="ux-runs">
           {cards.slice(0, 3).map((c) => (
@@ -424,6 +430,38 @@ export function HomeRunning({ cards, waiting }: { cards: RunCardModel[]; waiting
         </a>
       )}
     </section>
+  );
+}
+
+/** A group of videos (goal mode) among what runs: the goal, how far ("2 of 5 made"), each video's state. */
+function HomeGoal({ g }: { g: Goal }) {
+  const vs = groupVideos(g);
+  const pct = Math.round(goalPct(g) * 100);
+  return (
+    <a className="ux-goalcard" href={goalHref(g.id)} data-testid="home-goal" data-goal={g.id} data-state={g.state}>
+      <div className="top">
+        <Layers className="ico" />
+        <b className="clamp1">{goalTitle(g)}</b>
+        <span className="muted small" data-testid="home-goal-line">
+          {goalLine(g)}
+        </span>
+      </div>
+      <div className={`bar ${g.state === 'surveying' ? 'indet' : ''}`}>
+        <i style={{ width: `${Math.max(4, g.state === 'surveying' ? 30 : pct)}%` }} />
+      </div>
+      {vs.length > 0 && (
+        <ul>
+          {vs.slice(0, 6).map((v) => (
+            <li key={v.id} data-testid="home-goal-video" data-state={v.state}>
+              <i className={`dot ${videoTone(v)}`} />
+              <span className="nm">{videoTitle(v)}</span>
+              <span className="st">{videoLine(v)}</span>
+            </li>
+          ))}
+          {vs.length > 6 && <li className="muted">{t('home.nMoreRunning', { n: vs.length - 6 })}</li>}
+        </ul>
+      )}
+    </a>
   );
 }
 

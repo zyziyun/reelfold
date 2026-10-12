@@ -528,6 +528,9 @@ export interface OpenRequest {
   /** only in GET /api/intake/open?archived=1 (the Studio's Archived filter) */
   archived?: boolean;
   archived_at?: number | null;
+  /** a video of a goal (goal mode): the goal's id and the video's (the lists show it under its group) */
+  goal?: string | null;
+  goal_video?: string | null;
 }
 
 /** POST /api/history/trash-plan: what Delete would move to the Trash, per project folder (her footage stays). */

@@ -43,6 +43,7 @@ import type {
 import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
+import type { Goal, GoalEditOp } from './goal';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
 import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
@@ -518,8 +519,11 @@ export class EngineClient {
    * plan card's questions and risks are written in */
   /** opts.recipe: the request's intent is fixed (the recorder's take, Home's talking-head start, the sample): planned by
    * the rules for that recipe, without the ~2 min model call */
-  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string } = {}) {
-    return this.req<{ id: string }>('POST', '/api/intake', {
+  /** ``goal``: true = 「Make several videos」 (a survey + a group of videos); false = always one request; absent = the
+   * engine decides (a goal-style request: several videos from a folder). The answer says ``goal: true`` when the
+   * request became a goal (its id is the goal's). */
+  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string; goal?: boolean } = {}) {
+    return this.req<{ id: string; goal?: boolean }>('POST', '/api/intake', {
       prompt: prompt.slice(0, 2000),
       inputs,
       ...(platforms?.length ? { platforms } : {}),
@@ -527,7 +531,24 @@ export class EngineClient {
       ...(opts.mode ? { mode: opts.mode } : {}),
       ...(opts.sampleName ? { sample_name: opts.sampleName.slice(0, 80) } : {}),
       ...(opts.recipe ? { recipe: opts.recipe } : {}),
+      ...(opts.goal !== undefined ? { goal: opts.goal } : {}),
     });
+  }
+  /** goal mode: the groups of videos (not dismissed; finished ones for two weeks), newest first */
+  goals() {
+    return this.req<{ goals: Goal[] }>('GET', '/api/goals');
+  }
+  goal(id: string) {
+    return this.req<Goal>('GET', `/api/goals/${pid(id)}`);
+  }
+  editGoal(id: string, ops: GoalEditOp[]) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/edit`, { ops });
+  }
+  goalAct(id: string, verb: 'approve' | 'stop' | 'retry' | 'clear' | 'dismiss') {
+    return this.req<Goal & { cleared?: { requests: number; projects: number } }>('POST', `/api/goals/${pid(id)}/${verb}`, {});
+  }
+  goalVideo(id: string, video: string, action: 'drop' | 'retry') {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/video`, { video, action });
   }
   /** requests from Home that are not projects yet (All projects lists them first); ``archived``: the archived ones */
   openRequests(archived = false) {
