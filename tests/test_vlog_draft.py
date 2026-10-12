@@ -115,6 +115,13 @@ def test_ai_draft_fun_gets_title_and_a_beat_track(tmp_path, clips):
     assert rec["by"] == "ai" and rec["music_mood"] == "bright" and cfg["title"]["text"] == "Lake Days"
     assert cfg["shots"][0]["place"] == "Kirkland" and os.path.isfile(os.path.join(os.path.dirname(path),
                                                                                   cfg["music"]))
+    assert cfg["shots"][0] == dict(clip=ids[0], start=1.0, beats=2, place="Kirkland")     # beats, not seconds
+
+
+def test_fun_shots_fit_the_beat_budget():
+    assert V.fun_body_beats(35) == 33 and V.fun_body_beats(5) == 12
+    shots = [dict(clip="a", beats=4)] * 20
+    assert len(V.fit_beats(shots, 33)) == 8
 
 
 def test_no_model_spreads_the_length_over_the_clips(tmp_path, clips):
@@ -193,3 +200,16 @@ def test_each_version_narrates_in_its_own_language():
     assert zh(ask, "History", "西雅图简史", item="zh-version") and not zh(ask, "History", "In 2 Minutes",
                                                                         item="en-version")
     assert zh("a calm voice-over in Chinese about seasons", "Autumn essay") and not zh("Narrate it.", "Trip")
+
+
+def test_standing_tags_and_chapter_line_fit_the_post(monkeypatch):
+    """Her career tags (#AIEngineer, #AI面试) matched "ai" inside "Fair"; her 中文 chapter line led an English post."""
+    from vstudio import publish as P
+    assert P.relevant_tags(["#AIEngineer", "#AI面试", "#SDE"], "Seattle World's Fair 1962") == []
+    assert P.relevant_tags(["#AIEngineer", "#SDE"], "my AI interview prep as an SDE") == ["#AIEngineer", "#SDE"]
+    monkeypatch.setattr(P, "_p", lambda k, d=None: "时间线在下面，按需跳👇" if k == "publish.chapter_line" else d)
+    en = P.post_body(None, "A night flight.", chapters=[(0, "Intro"), (20, "The Needle")], platform="youtube",
+                     title="Seattle 1962", use_persona_tags=False)
+    zh = P.post_body(None, "夜航西雅图。", chapters=[(0, "开场"), (20, "太空针塔")], platform="xiaohongshu",
+                     title="西雅图 1962", use_persona_tags=False)
+    assert "时间线" not in en and "Chapters" in en and "时间线在下面" in zh
