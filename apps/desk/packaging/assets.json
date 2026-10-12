@@ -228,18 +228,19 @@
    "targets": [
     "darwin-arm64"
    ],
-   "root": "chromium/1712143",
+   "root": "chrome-headless-shell/152.0.7977.30",
    "extract": true,
    "env": {
-    "CHROME": "chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+    "CHROME": "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    "HYPERFRAMES_BROWSER_PATH": "chrome-headless-shell-mac-arm64/chrome-headless-shell"
    },
-   "licence": "Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames.",
+   "licence": "chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames.",
    "files": [
     {
-     "url": "https://storage.googleapis.com/chromium-browser-snapshots/Mac_Arm/1712143/chrome-mac.zip",
-     "dest": "chrome-mac.zip",
-     "sha256": "d32712fc2738cb23cf721b8898e417e5eb07936f6c431c929596272a7a148ce8",
-     "size": 176091194
+     "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.30/mac-arm64/chrome-headless-shell-mac-arm64.zip",
+     "dest": "chrome-headless-shell-mac-arm64.zip",
+     "sha256": "1db16c16e72bedfa747ed01c207a3fe8ee7370c35f2094279eb8878c996e8c79",
+     "size": 97532843
     }
    ]
   },
@@ -249,18 +250,19 @@
    "targets": [
     "darwin-x64"
    ],
-   "root": "chromium/1712146",
+   "root": "chrome-headless-shell/152.0.7977.30",
    "extract": true,
    "env": {
-    "CHROME": "chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+    "CHROME": "chrome-headless-shell-mac-x64/chrome-headless-shell",
+    "HYPERFRAMES_BROWSER_PATH": "chrome-headless-shell-mac-x64/chrome-headless-shell"
    },
-   "licence": "Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames.",
+   "licence": "chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames.",
    "files": [
     {
-     "url": "https://storage.googleapis.com/chromium-browser-snapshots/Mac/1712146/chrome-mac.zip",
-     "dest": "chrome-mac.zip",
-     "sha256": "3e954294c52f5dbf2db418524a0aa806cac6da0e839e11bd526cfec9dbd1aeb9",
-     "size": 197606951
+     "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.30/mac-x64/chrome-headless-shell-mac-x64.zip",
+     "dest": "chrome-headless-shell-mac-x64.zip",
+     "sha256": "48bf06f34412f9df5c7d3f3306d61a54a050789f395dd0129bae2234adb0033a",
+     "size": 102653759
     }
    ]
   },
@@ -270,18 +272,19 @@
    "targets": [
     "win32-x64"
    ],
-   "root": "chromium/1712024",
+   "root": "chrome-headless-shell/152.0.7977.30",
    "extract": true,
    "env": {
-    "CHROME": "chrome-win/chrome.exe"
+    "CHROME": "chrome-headless-shell-win64/chrome-headless-shell.exe",
+    "HYPERFRAMES_BROWSER_PATH": "chrome-headless-shell-win64/chrome-headless-shell.exe"
    },
-   "licence": "Chromium, BSD-3-Clause and third-party licences (chrome://credits). Used for HTML covers/slides and HyperFrames.",
+   "licence": "chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames.",
    "files": [
     {
-     "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1712024/chrome-win.zip",
-     "dest": "chrome-win.zip",
-     "sha256": "9484fe7389145a009f7dba47842b46c01decac6b0b2796d3f95987ca9b374710",
-     "size": 361056188
+     "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.30/win64/chrome-headless-shell-win64.zip",
+     "dest": "chrome-headless-shell-win64.zip",
+     "sha256": "5d7df999a6e4a65a1b16b25b61064f7337b8aa8ee2ed1b4e07bfdd24f6e4275e",
+     "size": 119527247
     }
    ]
   }

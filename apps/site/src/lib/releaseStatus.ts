@@ -17,6 +17,8 @@ export type ReleaseStatus = {
   ready: boolean;
   /** direct download URL of the Windows installer on that release, or null when it has none */
   windowsUrl: string | null;
+  /** that release's version ("0.2.7" from tag v0.2.7), or null when unknown (JSON-LD softwareVersion) */
+  version: string | null;
 };
 
 type Asset = { name: string; browser_download_url?: string };
@@ -26,8 +28,8 @@ const WIN_EXE = /-win-x64(-setup)?\.exe$/;
 
 async function check(repo: string, fallback: boolean): Promise<ReleaseStatus> {
   const forced = (process.env.SITE_DOWNLOAD_READY ?? '').trim().toLowerCase();
-  if (['1', 'true', 'yes'].includes(forced)) return log(true, null, 'SITE_DOWNLOAD_READY');
-  if (['0', 'false', 'no'].includes(forced)) return log(false, null, 'SITE_DOWNLOAD_READY');
+  if (['1', 'true', 'yes'].includes(forced)) return log(true, null, 'SITE_DOWNLOAD_READY', null);
+  if (['0', 'false', 'no'].includes(forced)) return log(false, null, 'SITE_DOWNLOAD_READY', null);
 
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   const url = `https://api.github.com/repos/${repo}/releases/latest`;
@@ -40,21 +42,22 @@ async function check(repo: string, fallback: boolean): Promise<ReleaseStatus> {
       },
       signal: AbortSignal.timeout(8000),
     });
-    if (res.status === 404) return log(false, null, `no published release on ${repo}`);
+    if (res.status === 404) return log(false, null, `no published release on ${repo}`, null);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rel = (await res.json()) as { tag_name?: string; assets?: Asset[] };
     const assets = rel.assets ?? [];
     const dmg = assets.some((a) => a.name.endsWith('.dmg'));
     const win = dmg ? assets.find((a) => WIN_EXE.test(a.name))?.browser_download_url ?? null : null;
-    return log(dmg, win, dmg ? `release ${rel.tag_name} has a DMG` : `release ${rel.tag_name} has no DMG yet`);
+    const version = rel.tag_name?.replace(/^v/, '') || null;
+    return log(dmg, win, dmg ? `release ${rel.tag_name} has a DMG` : `release ${rel.tag_name} has no DMG yet`, version);
   } catch (e) {
-    return log(fallback, null, `GitHub API unreachable (${(e as Error).message}); config fallback`);
+    return log(fallback, null, `GitHub API unreachable (${(e as Error).message}); config fallback`, null);
   }
 }
 
-function log(ready: boolean, windowsUrl: string | null, why: string): ReleaseStatus {
-  console.log(`[site] downloadReady=${ready} windows=${windowsUrl ? 'yes' : 'no'} (${why})`);
-  return { ready, windowsUrl };
+function log(ready: boolean, windowsUrl: string | null, why: string, version: string | null): ReleaseStatus {
+  console.log(`[site] downloadReady=${ready} windows=${windowsUrl ? 'yes' : 'no'} version=${version ?? '-'} (${why})`);
+  return { ready, windowsUrl, version };
 }
 
 /** Memoized per process: astro.config.mjs and the page build both import config.ts. */

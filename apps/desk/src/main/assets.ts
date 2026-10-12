@@ -14,6 +14,8 @@ import { groupsFor, safeRel, type AssetGroup, type AssetManifest, type AssetsSta
 
 const MARKER = '.installed.json';
 const RECORD = 'installed.json';
+/** folders of replaced versions, removed by prune() once no engine runs */
+const STALE = 'stale.json';
 
 interface InstallRecord {
   root: string;
@@ -203,6 +205,20 @@ export class AssetManager {
     };
   }
 
+  /**
+   * Groups installed in an older version: a record whose files the manifest no longer pins (e.g. the Chromium.app
+   * snapshot replaced by chrome-headless-shell). Not a group whose files merely went missing - that one is just not
+   * installed. The desk queues these at start; installing one removes the old private folder.
+   */
+  upgrades(): string[] {
+    return this.groups
+      .filter((g) => {
+        const r = this.record[g.id];
+        return r && !this.installed(g) && !g.files.every((f) => r.sha256.includes(f.sha256));
+      })
+      .map((g) => g.id);
+  }
+
   missingRequired(): string[] {
     return this.groups.filter((g) => g.required && !this.installed(g)).map((g) => g.id);
   }
@@ -312,6 +328,7 @@ export class AssetManager {
     }
     // only now touch the real folder: a failed or cancelled download never leaves a half-installed group. A private
     // extract root is replaced as a whole; a shared root (the engine cache) only gets the verified files.
+    const prev = this.record[g.id];
     if (g.extract && !this.shared(g)) fs.rmSync(root, { recursive: true, force: true });
     fs.mkdirSync(root, { recursive: true });
     for (const v of verified) {
@@ -326,6 +343,69 @@ export class AssetManager {
     }
     this.saveRecord(g, root);
     fs.rmSync(staging, { recursive: true, force: true });
+    // the previous version's folder goes once no engine can be using it (prune, at the next engine start)
+    if (prev && !prev.reused && path.resolve(prev.root) !== path.resolve(root)) this.markStale(g, prev.root);
+  }
+
+  /**
+   * Remove the folders of previous versions (queued by installGroup in <dir>/stale.json). Call it only while no engine
+   * runs - the old engine may still be rendering with the old browser - i.e. between stopping one engine and starting
+   * the next. Only private folders inside the asset dir that no installed group uses are removed, then their parents
+   * left empty; what cannot be removed now (a file in use on Windows) is kept for the next call. Never throws.
+   */
+  prune() {
+    const dir = path.resolve(this.o.dir);
+    const file = path.join(dir, STALE);
+    let stale: string[];
+    try {
+      stale = JSON.parse(fs.readFileSync(file, 'utf8')) as string[];
+    } catch {
+      return;
+    }
+    const keep: string[] = [];
+    for (const old of stale) {
+      const abs = path.resolve(old);
+      if (!abs.startsWith(dir + path.sep) || this.inUse(abs)) continue;
+      try {
+        fs.rmSync(abs, { recursive: true, force: true });
+        this.o.log?.(`[assets] removed the previous version ${abs}`);
+        for (let d = path.dirname(abs); d.startsWith(dir + path.sep); d = path.dirname(d)) {
+          if (fs.readdirSync(d).length) break;
+          fs.rmdirSync(d);
+        }
+      } catch (e) {
+        keep.push(old);
+        this.o.log?.(`[assets] could not remove ${abs} (next start): ${(e as Error)?.message ?? e}`);
+      }
+    }
+    try {
+      if (keep.length) fs.writeFileSync(file, JSON.stringify(keep));
+      else fs.rmSync(file, { force: true });
+    } catch {
+      /* next time */
+    }
+  }
+
+  /** Some installed group (or download target) lives in or under `abs`. */
+  private inUse(abs: string) {
+    const roots = [...Object.values(this.record).map((r) => r.root), ...this.groups.map((g) => this.target(g))];
+    return roots.some((r) => {
+      const x = path.resolve(r);
+      return x === abs || x.startsWith(abs + path.sep);
+    });
+  }
+
+  private markStale(g: AssetGroup, old: string) {
+    if (this.shared(g)) return;
+    const file = path.join(this.o.dir, STALE);
+    let stale: string[] = [];
+    try {
+      stale = JSON.parse(fs.readFileSync(file, 'utf8')) as string[];
+    } catch {
+      /* first one */
+    }
+    if (!stale.includes(old)) stale.push(old);
+    fs.writeFileSync(file, JSON.stringify(stale));
   }
 
   private async fetchTo(url: string, file: string, size: number, signal: AbortSignal, onBytes: (n: number) => void) {

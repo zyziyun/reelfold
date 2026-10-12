@@ -31,9 +31,11 @@ references/PROJECTS.md.
   touch DIR [--status running|waiting|done|failed] [--stage S] [--progress 0..1] [--message M] [--eta S]
       [--needs-you] [--recipe R] [--title T] [--outputs a,b]   register a job folder + its live status (heartbeat);
                                                       a recipe project folder gets only its status (row untouched)
-  output list | show | edit | preview-edl | render | undo | redo | revert | ai | chat | effects  --project P --output O   2nd-pass edit of
+  output list | show | edit | preview-edl | render | undo | redo | revert | ai | chat | effects | kit  --project P --output O   2nd-pass edit of
       one finished output (references/OUTPUT_EDIT.md): edit --ops JSON | --op NAME --param k=v | --op ai
       --instruction T [--apply]; render [--quality preview|final] [--targets primary,douyin:vertical|all] [--watermark on|off]
+      a launch-kit film: ai answers look / pacing / feature requests with kit.patch (no ops); kit --set PATCH writes it
+      into launch.config.yaml (then resume re-renders through the kit)
   ai --project P --instruction T [--outputs all|a,b] [--context JSON] [--timeout 120] [--json | --json-events]
                                                       project-level AI edit: one model call for every output ->
                                                       grouped changes per output, or needs_rerender (burned-in text
@@ -431,6 +433,9 @@ def cmd_output(a):
             _out(a, r, "\n".join(f"{t['target']}: {t['file']}{' (cached)' if t['cached'] else ''}"
                                   for t in r["targets"]))
         return 0
+    if act == "kit":                       # a launch-kit film: write ai's kit.patch into launch.config.yaml
+        _out(a, O.kit_apply(proj, a.output, json.loads(a.set or "{}")))
+        return 0
     if act == "ai" or (act == "edit" and a.op == "ai"):
         if not a.instruction:
             raise O.OutputError("bad-param", "--instruction is required", "需要 --instruction", name="instruction")
@@ -707,14 +712,15 @@ def build_parser():
     p.add_argument("--outputs", help="comma list (default: videos in final/ exports/ out/)")
     p = add("output", cmd_output, "second-pass edit of a finished output (references/OUTPUT_EDIT.md)")
     p.add_argument("action", choices=["list", "show", "edit", "render", "undo", "redo", "revert", "ai", "chat",
-                                      "effects", "preview-edl", "pickup"])
+                                      "effects", "preview-edl", "pickup", "kit"])
     p.add_argument("--project", help="project folder or adopted work folder (default --dir / cwd)")
     p.add_argument("--output", help="output id (output list), or its file path")
     p.add_argument("--ops", help="JSON op or list of ops")
     p.add_argument("--ops-file")
     p.add_argument("--op", help="one op name (with --param k=v / --set JSON); ai = natural language")
     p.add_argument("--param", action="append")
-    p.add_argument("--set")
+    p.add_argument("--set", help="chat: the turn's patch (JSON); kit: the launch.config.yaml keys to change "
+                   "(JSON, ai's kit.patch)")
     p.add_argument("--note")
     p.add_argument("--instruction", help="ai: what to change, in plain language")
     p.add_argument("--apply", action="store_true", help="ai: apply the proposed ops (default: propose only)")

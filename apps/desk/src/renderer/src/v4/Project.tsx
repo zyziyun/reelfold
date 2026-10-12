@@ -414,6 +414,8 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
           title={playing.clip.title}
           initialAspect={playing.aspect}
           onClose={() => setPlaying(null)}
+          startFull
+          onFullExit={() => setPlaying(null)}
           onEdit={() => go({ name: 'clip', id, clip: playing.clip.id })}
         />
       )}

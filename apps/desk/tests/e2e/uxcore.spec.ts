@@ -301,6 +301,20 @@ test('Inbox: list + preview, plain choices, confirm -> next one + Undo, ↑ ↓'
   await page.mouse.click(bb.x + bb.width * 0.9, bb.y + bb.height / 2);
   const max = Number(await bar.getAttribute('aria-valuemax'));
   await expect.poll(async () => Number(await bar.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(Math.floor(max * 0.8));
+  // ⤢: the preview takes the whole screen (system full screen); keys are its own (↓ is volume, not the next item);
+  // Esc is back on the same item
+  const onRow = await page.locator('.ux-irow.on').getAttribute('data-key');
+  await pv.getByTestId('cut-preview-fullscreen').click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.getAttribute('data-testid') ?? null)).toBe('cut-preview-stage');
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.volume)).toBeCloseTo(0.9, 2);
+  await page.keyboard.press('Space');
+  await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
+  await expect(page.locator('.ux-irow.on')).toHaveAttribute('data-key', onRow ?? '');
+  await expect(pv).toBeVisible();
   await noMissingKeys();
   await shot('I1-inbox');
   const total = await page.getByTestId('inbox-item').count();

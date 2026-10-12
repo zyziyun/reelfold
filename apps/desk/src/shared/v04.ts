@@ -8,6 +8,9 @@ export interface ClipFile {
   aspect: Aspect;
   /** shown on the size chip instead of the aspect (e.g. "Edited" / "Original") */
   label?: string;
+  /** the content's version (an edit's render key): a render replaces its file in place, so the player's URL carries
+   * this to load the new bytes instead of the ones Chromium cached for the same URL */
+  v?: string | number | null;
   w?: number | null;
   h?: number | null;
   fps?: number | null;
@@ -235,7 +238,7 @@ export interface OutputDoc {
   steps: Step[];
   undo: number;
   redo: number;
-  renders: { target: string; quality?: string; file: string; fresh?: boolean; simulated?: boolean }[];
+  renders: { target: string; quality?: string; file: string; fresh?: boolean; simulated?: boolean; key?: string | number | null; at?: string | null }[];
   warnings: EngineMsg[];
   safe_box?: number[] | null;
   caption_box?: number[] | null;

@@ -63,6 +63,14 @@ export function allowMedia(o: { flag: boolean; fromMainWindow: boolean; isAppUrl
   return (o.mediaTypes ?? []).every((t) => t === 'video' || t === 'audio');
 }
 
+/** The default session's whole permission policy: recorder media (allowMedia) plus HTML full screen for the app's own
+ * players (the ⤢ button / F / double-click). Denying 'fullscreen' made requestFullscreen() reject, so the player only
+ * ever grew inside the window (0.2.7) instead of taking the screen. */
+export function allowAppPermission(o: { flag: boolean; fromMainWindow: boolean; isAppUrl: boolean; permission: string; mediaTypes?: string[] }): boolean {
+  if (o.permission === 'fullscreen') return o.fromMainWindow && o.isAppUrl;
+  return allowMedia(o);
+}
+
 export interface TakeInfo {
   id: string;
   dir: string;

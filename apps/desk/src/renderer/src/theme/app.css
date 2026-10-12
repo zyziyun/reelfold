@@ -292,12 +292,24 @@ textarea.inp { height: auto; padding: 8px 12px; resize: vertical; line-height: 1
 .pl-overlay { position: fixed; inset: 0; z-index: 80; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: var(--s4); animation: fadein 160ms var(--ease); }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 .pl { display: flex; flex-direction: column; gap: 12px; max-height: 100%; width: min(100%, 1100px); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: var(--s2); box-shadow: var(--shadow); outline: none; }
-.pl:fullscreen, .pl.full { width: 100vw; height: 100vh; max-height: none; border-radius: 0; border: 0; padding: var(--s2) var(--s3); background: #0b0a09; color: #EDE9E4; }
 .pl .stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: var(--radius-lg); overflow: hidden; }
 .pl .stage video { max-width: 100%; max-height: 100%; display: block; }
 .pl .frame { position: relative; display: inline-block; max-height: 100%; line-height: 0; }
 .pl .frame video { max-height: min(72vh, 900px); }
-.pl:fullscreen .frame video, .pl.full .frame video { max-height: calc(100vh - 140px); }
+/* system full screen (and the in-window fallback): the video letterboxed / pillarboxed on black, light controls.
+ * :root .pl.pl outranks every page's own player layout (the editor column, the Studio's 380 px player, the chat). */
+:root .pl.pl:fullscreen, :root .pl.pl.full { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; border-radius: 0; border: 0; padding: var(--s1) var(--s3) var(--s2); background: #000; color: #EDE9E4; box-shadow: none; gap: 8px; display: flex; flex-direction: column;
+  --text: #EDE9E4; --text-muted: rgba(237, 233, 228, 0.72); --text-faint: rgba(237, 233, 228, 0.45); --border: rgba(255, 255, 255, 0.14); --border-strong: rgba(255, 255, 255, 0.22); --surface: #000; --surface-2: rgba(255, 255, 255, 0.1); }
+:root .pl.pl.full { position: fixed; inset: 0; z-index: 200; }
+:root .pl.pl:fullscreen .stage, :root .pl.pl.full .stage { flex: 1; min-height: 0; border-radius: 0; background: #000; }
+:root .pl.pl:fullscreen .help, :root .pl.pl.full .help { display: none; }
+:root .pl.pl:fullscreen .ctl, :root .pl.pl.full .ctl { width: 100%; }
+:root .pl.pl:fullscreen .ctl select option { background: #1C1B19; color: #EDE9E4; }
+/* the frame stays the video's own box (captions / safe areas sit on it); the video takes all the room the controls
+ * leave, at its own shape (--ar from the player) */
+:root .pl.pl:fullscreen .stage .frame video, :root .pl.pl.full .stage .frame video { width: min(calc(100vw - 2 * var(--s3)), calc((100vh - 128px) * var(--ar, 1.7778))); height: auto; min-height: 0; max-width: none; max-height: calc(100vh - 128px); border-radius: 0; object-fit: contain; }
+.pl .vol { display: inline-flex; align-items: center; gap: 4px; }
+.pl .vol input[type='range'] { width: 72px; accent-color: var(--accent); }
 .pl .safe { position: absolute; border: 1px dashed rgba(255, 214, 10, 0.75); pointer-events: none; }
 .pl .safe.cap { border-color: rgba(120, 190, 255, 0.8); }
 .pl .safe span { position: absolute; left: 4px; top: 2px; font-size: 11px; line-height: 16px; color: rgba(255, 214, 10, 0.95); background: rgba(0, 0, 0, 0.5); padding: 0 4px; border-radius: 3px; }

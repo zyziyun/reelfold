@@ -1,7 +1,7 @@
 // Runs the app with the Studio off (DESK_STUDIO=0): the pages before the Studio (2026-10 review step 7) stay
 // supported behind its flag, and this spec covers them.
 // v0.4 (window hidden, mock engine, isolated profile): composer -> AI plan card -> revise -> start (pilot) ->
-// project; a fuye-like work folder -> the clip in the large player -> full screen (F / Esc) -> second-pass edit
+// project; a fuye-like work folder -> the clip in system full screen (▶; F / Esc back) -> second-pass edit
 // (trim + pop word + 让 AI 改) -> render -> undo; and every main screen in English and 简体中文 with no missing
 // message keys and no clipped labels.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
@@ -97,38 +97,42 @@ test('the inbox lists the folder’s edits to confirm; confirm with undo', async
   expect(fs.existsSync(path.join(fuye, '.vstudio'))).toBe(false); // answers live in the desk, not in her folder
 });
 
-test('a fuye-like folder: large player, full screen with F / Esc, frame stepping, sizes, captions + safe area', async () => {
+test('a fuye-like folder: ▶ plays it in system full screen, frame stepping, sizes, captions + safe area, Esc / F / double-click back', async () => {
   await page.getByTestId('nav-projects').click();
   await page.getByTestId('project-card').filter({ hasText: 'fuye' }).click();
   const card = page.getByTestId('clip-card');
   await expect(card).toHaveCount(1);
   await expect(page.getByTestId('post-copy')).toContainText('思路越窄');
-  await card.getByTestId('clip-play').click(); // ▶ plays it big; a click on the card opens it in the editor
+  await card.getByTestId('clip-play').click(); // ▶ plays it full screen (system level); a click on the card opens it in the editor
   const player = page.getByTestId('player');
   await expect(page.getByTestId('player-overlay')).toBeVisible();
+  await expect(player).toHaveAttribute('data-native-full', '1');
   await page.waitForFunction(() => ((document.querySelector('[data-testid=player-video]') as HTMLVideoElement | null)?.readyState ?? 0) >= 1);
-  // the overlay autoplays: K pauses wherever playback got to (0.02-0.12 s on a busy machine), so go to the first
-  // frame before stepping - the timecodes below are absolute
+  // it autoplays: K pauses wherever playback got to (0.02-0.12 s on a busy machine), so go to the first frame before
+  // stepping - the timecodes below are absolute. Full screen: Shift+←/→ one frame, ←/→ 5 s
   await page.keyboard.press('k');
   await expect.poll(() => page.evaluate(() => (document.querySelector('[data-testid=player-video]') as HTMLVideoElement).paused)).toBe(true);
   await page.keyboard.press('Home');
   await expect(page.getByTestId('timecode')).toContainText('00:00:00:00');
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByTestId('timecode')).toContainText('00:00:00:02');
   await page.keyboard.press('Shift+ArrowRight');
-  await expect(page.getByTestId('timecode')).toContainText('00:00:01:02');
-  await page.keyboard.press('f');
-  await expect(player).toHaveAttribute('data-full', '1');
-  await page.keyboard.press('Escape');
-  await expect(player).toHaveAttribute('data-full', '0');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(page.getByTestId('timecode')).toContainText('00:00:00:02');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('timecode')).toContainText('00:00:05:02');
   await page.getByTestId('size-9:16').click();
   await page.getByTestId('toggle-safe').click();
-  await page.getByTestId('player-video').dblclick(); // double-click = full screen too
-  await expect(player).toHaveAttribute('data-full', '1');
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
+  await expect(player).toHaveAttribute('data-native-full', '1');
+  await page.keyboard.press('f'); // F: back where she was (the project page)
   await expect(page.getByTestId('player-overlay')).toHaveCount(0);
+  await card.getByTestId('clip-play').click();
+  await expect(player).toHaveAttribute('data-native-full', '1');
+  await page.getByTestId('player-video').dblclick(); // double-click: the same
+  await expect(page.getByTestId('player-overlay')).toHaveCount(0);
+  await card.getByTestId('clip-play').click();
+  await expect(player).toHaveAttribute('data-native-full', '1');
+  await page.keyboard.press('Escape'); // Esc: the same, and only once (the page underneath does not also act on it)
+  await expect(page.getByTestId('player-overlay')).toHaveCount(0);
+  await expect(card).toBeVisible();
 });
 
 test('second-pass edit: trim, pop word (精确编辑 drawer), 让 AI 改 (chat), render, undo; 转成项目 happens on the first edit', async () => {

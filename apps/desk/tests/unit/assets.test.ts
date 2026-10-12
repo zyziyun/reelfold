@@ -177,6 +177,51 @@ describe('AssetManager', () => {
     expect(urls.length).toBe(1);
   });
 
+  it('an older installed version is an upgrade: the new one installs, the old folder goes only on prune()', async () => {
+    const dir = tmp();
+    const old = path.join(dir, 'tool', 'v1');
+    fs.mkdirSync(path.join(old, 'Chromium.app'), { recursive: true });
+    fs.writeFileSync(path.join(old, 'Chromium.app', 'bin'), 'x');
+    const at = new Date().toISOString();
+    fs.writeFileSync(path.join(dir, 'installed.json'), JSON.stringify({
+      tool: { root: old, sha256: ['0'.repeat(64)], at },
+      // same pins, files gone: not installed, but not an upgrade either
+      gone: { root: path.join(dir, 'gone'), sha256: [sha], at },
+    }));
+    const file = { url: `${base}/f`, dest: 'tool.bin', sha256: sha, size: body.length };
+    const m = new AssetManager({
+      manifest: { groups: [
+        { id: 'tool', required: false, root: 'tool/v2', licence: 't', env: { TOOL: 'tool.bin' }, files: [file] },
+        { id: 'gone', required: false, root: 'gone', licence: 't', files: [file] },
+      ] },
+      dir,
+      target: 'x',
+    });
+    expect(m.env()).toEqual({}); // the old version is not used any more
+    expect(m.upgrades()).toEqual(['tool']);
+    await m.install(m.upgrades());
+    expect(m.env()).toEqual({ TOOL: path.join(dir, 'tool', 'v2', 'tool.bin') });
+    expect(m.upgrades()).toEqual([]);
+    expect(fs.existsSync(old)).toBe(true); // an engine may still be rendering with it
+    m.prune();
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'tool', 'v2', 'tool.bin'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'stale.json'))).toBe(false);
+    m.prune(); // nothing left to do
+  });
+
+  it('prune never leaves the asset dir and keeps folders an installed group uses', () => {
+    const dir = tmp();
+    const outside = tmp();
+    fs.mkdirSync(path.join(dir, 'keep'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'installed.json'), JSON.stringify({ k: { root: path.join(dir, 'keep'), sha256: [], at: '' } }));
+    fs.writeFileSync(path.join(dir, 'stale.json'), JSON.stringify([outside, path.join(dir, 'keep'), dir]));
+    new AssetManager({ manifest: { groups: [] }, dir, target: 'x' }).prune();
+    expect(fs.existsSync(outside)).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'keep'))).toBe(true);
+    expect(fs.existsSync(dir)).toBe(true);
+  });
+
   it('refuses paths that escape the root', () => {
     expect(() => safeRel('../x')).toThrow();
     expect(() => safeRel('a/../../x')).toThrow();

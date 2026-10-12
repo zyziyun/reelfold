@@ -52,6 +52,15 @@ for (const [url, { f, html }] of pages) {
   if (!title) err(f, 'missing <title>');
   else if (!noindex && [...title].length > 110) err(f, `title too long (${[...title].length})`);
   if (!/<meta name="description" content="[^"]{20,}"/.test(html)) err(f, 'missing description');
+  // search snippets: titles and descriptions short enough not to be cut (中文 counts characters, which are wider)
+  if (!noindex && title) {
+    const unesc = (s) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    const desc = unesc((html.match(/<meta name="description" content="([^"]*)"/) || [])[1] ?? '');
+    const zhPage = url.startsWith('/zh/');
+    const [tMax, dMax] = zhPage ? [40, 100] : [70, 160];
+    if ([...unesc(title)].length > tMax) err(f, `title longer than ${tMax} characters (${[...unesc(title)].length})`);
+    if ([...desc].length > dMax) err(f, `description longer than ${dMax} characters (${[...desc].length})`);
+  }
   const canon = (html.match(/<link rel="canonical" href="([^"]+)"/) || [])[1];
   if (!canon?.startsWith(SITE + '/')) err(f, `canonical not absolute: ${canon}`);
   else if (!noindex && !url.endsWith('404.html') && canon !== SITE + url) err(f, `canonical ${canon} != ${SITE + url}`);

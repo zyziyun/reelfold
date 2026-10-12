@@ -89,8 +89,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
     byLang: {
       en: {
         name: 'Opus Clip',
-        title: 'Reelfold vs Opus Clip: an open-source alternative for batches | Reelfold',
-        description: 'An honest comparison of Reelfold and Opus Clip: hosted clipping in the browser vs a free, open-source Mac app that renders locally, uses your own AI and covers Chinese platforms. Checked October 2026.',
+        title: 'Reelfold vs Opus Clip: an open-source alternative for batches',
+        description: 'Reelfold vs Opus Clip, compared honestly: hosted clipping in the browser vs a free, open-source Mac app that renders locally with your own AI.',
         kicker: 'Compare',
         h1: 'Reelfold and Opus Clip, side by side.',
         intro: 'Both turn a long video into short clips with AI. Opus Clip is a hosted web service with credits and a built-in scheduler. Reelfold is a free, open-source Mac app that renders on your machine with the AI you bring. Here is where each one fits.',
@@ -153,8 +153,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       fr: {
         name: 'Opus Clip',
-        title: 'Reelfold ou Opus Clip : une alternative open source pour les lots | Reelfold',
-        description: 'Comparaison honnête de Reelfold et d’Opus Clip : un service de découpe hébergé dans le navigateur, face à une app Mac gratuite et open source qui rend en local, avec votre IA et les plateformes chinoises. Vérifié en octobre 2026.',
+        title: 'Reelfold ou Opus Clip : une alternative open source pour les lots',
+        description: 'Reelfold et Opus Clip comparés honnêtement : découpe hébergée dans le navigateur, face à une app Mac gratuite et open source qui rend en local.',
         kicker: 'Comparer',
         h1: 'Reelfold et Opus Clip, côte à côte.',
         intro: 'Les deux transforment une longue vidéo en clips courts grâce à l’IA. Opus Clip est un service web hébergé, avec des crédits et une programmation intégrée. Reelfold est une app Mac gratuite et open source qui rend sur votre machine, avec l’IA de votre choix. Voici à qui chacun convient.',
@@ -185,8 +185,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       es: {
         name: 'Opus Clip',
-        title: 'Reelfold vs Opus Clip: una alternativa de código abierto para lotes | Reelfold',
-        description: 'Comparación honesta entre Reelfold y Opus Clip: un servicio alojado que corta en el navegador frente a una app gratuita y de código abierto para Mac que renderiza en local, usa tu IA y cubre plataformas chinas. Revisado en octubre de 2026.',
+        title: 'Reelfold vs Opus Clip: alternativa de código abierto para lotes',
+        description: 'Reelfold y Opus Clip, comparados con honestidad: un servicio en el navegador frente a una app gratuita y abierta para Mac que renderiza en local.',
         kicker: 'Comparar',
         h1: 'Reelfold y Opus Clip, lado a lado.',
         intro: 'Los dos convierten un video largo en clips cortos con IA. Opus Clip es un servicio web alojado, con créditos y programación integrada. Reelfold es una app gratuita y de código abierto para Mac que renderiza en tu equipo con la IA que tú elijas. Así encaja cada uno.',
@@ -227,8 +227,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
     byLang: {
       en: {
         name: 'Descript',
-        title: 'Reelfold vs Descript: a batch-first Descript alternative for Mac | Reelfold',
-        description: 'An honest comparison of Reelfold and Descript: a polished text-based editor for one video at a time vs a free, open-source Mac app that turns one recording into a week of clips. Checked October 2026.',
+        title: 'Reelfold vs Descript: a batch-first Descript alternative for Mac',
+        description: 'Reelfold vs Descript, compared honestly: a text-based editor for one video at a time vs a free Mac app that turns a recording into a week of clips.',
         kicker: 'Compare',
         h1: 'Reelfold and Descript, side by side.',
         intro: 'Descript is an editor: you shape one video by editing its transcript, with strong audio tools and collaboration. Reelfold is a batch tool: one recording becomes many clips for many platforms, rendered on your Mac. Many people could use both.',
@@ -291,8 +291,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       fr: {
         name: 'Descript',
-        title: 'Reelfold ou Descript : une alternative à Descript pensée pour les lots, sur Mac | Reelfold',
-        description: 'Comparaison honnête de Reelfold et de Descript : un éditeur abouti, piloté par la transcription, pour une vidéo à la fois, face à une app Mac gratuite et open source qui tire une semaine de clips d’un enregistrement. Vérifié en octobre 2026.',
+        title: 'Reelfold ou Descript : une alternative pensée pour les lots',
+        description: 'Reelfold et Descript comparés honnêtement : un éditeur par transcription, une vidéo à la fois, face à une app Mac gratuite qui tire une semaine de clips.',
         kicker: 'Comparer',
         h1: 'Reelfold et Descript, côte à côte.',
         intro: 'Descript est un éditeur : on façonne une vidéo en modifiant sa transcription, avec de bons outils audio et du travail à plusieurs. Reelfold est un outil de lots : un enregistrement devient de nombreux clips pour de nombreuses plateformes, rendus sur votre Mac. Beaucoup gagneraient à utiliser les deux.',
@@ -323,8 +323,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       es: {
         name: 'Descript',
-        title: 'Reelfold vs Descript: una alternativa a Descript pensada para lotes, en Mac | Reelfold',
-        description: 'Comparación honesta entre Reelfold y Descript: un editor pulido que edita desde la transcripción, un video a la vez, frente a una app gratuita y de código abierto para Mac que saca una semana de clips de una grabación. Revisado en octubre de 2026.',
+        title: 'Reelfold vs Descript: una alternativa para lotes, en Mac',
+        description: 'Reelfold y Descript, comparados con honestidad: un editor por transcripción, un video a la vez, frente a una app gratuita que saca una semana de clips.',
         kicker: 'Comparar',
         h1: 'Reelfold y Descript, lado a lado.',
         intro: 'Descript es un editor: das forma a un video editando su transcripción, con buenas herramientas de audio y trabajo en equipo. Reelfold es una herramienta de lotes: una grabación se convierte en muchos clips para muchas plataformas, renderizados en tu Mac. Mucha gente podría usar los dos.',
@@ -364,8 +364,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
     byLang: {
       en: {
         name: 'CapCut',
-        title: 'Reelfold vs CapCut: batch clips without templates or uploads | Reelfold',
-        description: 'An honest comparison of Reelfold and CapCut: a creative editor with templates on every device vs a free, open-source Mac app for turning one recording into many platform-ready clips. Checked October 2026.',
+        title: 'Reelfold vs CapCut: batch clips without templates or uploads',
+        description: 'Reelfold vs CapCut, compared honestly: a template-rich editor on every device vs a free, open-source Mac app that turns one recording into many clips.',
         kicker: 'Compare',
         h1: 'Reelfold and CapCut, side by side.',
         intro: 'CapCut (剪映 in China) is a creative editor on phones, desktops and the web, with a large library of templates and effects. Reelfold is a batch tool for Mac that turns long recordings into many clips for many platforms. They solve different problems.',
@@ -428,8 +428,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       fr: {
         name: 'CapCut',
-        title: 'Reelfold ou CapCut : des clips par lots, sans modèles ni envoi | Reelfold',
-        description: 'Comparaison honnête de Reelfold et de CapCut : un éditeur créatif riche en modèles sur tous les appareils, face à une app Mac gratuite et open source qui transforme un enregistrement en clips pour chaque plateforme. Vérifié en octobre 2026.',
+        title: 'Reelfold ou CapCut : des clips par lots, sans modèles',
+        description: 'Reelfold et CapCut comparés honnêtement : un éditeur riche en modèles sur tous les appareils, face à une app Mac gratuite qui tire des clips d’une vidéo.',
         kicker: 'Comparer',
         h1: 'Reelfold et CapCut, côte à côte.',
         intro: 'CapCut (剪映 en Chine) est un éditeur créatif sur téléphone, ordinateur et web, avec une vaste bibliothèque de modèles et d’effets. Reelfold est un outil de lots pour Mac qui transforme de longs enregistrements en nombreux clips pour de nombreuses plateformes. Ils ne répondent pas au même besoin.',
@@ -460,8 +460,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       es: {
         name: 'CapCut',
-        title: 'Reelfold vs CapCut: clips por lotes, sin plantillas ni subidas | Reelfold',
-        description: 'Comparación honesta entre Reelfold y CapCut: un editor creativo con plantillas en todos los dispositivos frente a una app gratuita y de código abierto para Mac que convierte una grabación en clips para cada plataforma. Revisado en octubre de 2026.',
+        title: 'Reelfold vs CapCut: clips por lotes, sin plantillas',
+        description: 'Reelfold y CapCut, comparados con honestidad: un editor con plantillas en todos los dispositivos frente a una app gratuita que saca clips de una grabación.',
         kicker: 'Comparar',
         h1: 'Reelfold y CapCut, lado a lado.',
         intro: 'CapCut (剪映 en China) es un editor creativo para móvil, computadora y web, con una gran biblioteca de plantillas y efectos. Reelfold es una herramienta de lotes para Mac que convierte grabaciones largas en muchos clips para muchas plataformas. Resuelven problemas distintos.',

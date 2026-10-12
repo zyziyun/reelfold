@@ -76,4 +76,9 @@ describe('media protocol allowlist', () => {
     expect(pathFromMediaUrl(mediaUrl(w))).toBe(w);
     expect(pathFromMediaUrl('https://x/y')).toBeNull();
   });
+  it('ignores the version query (a render replaced in place gets a new URL, same file)', () => {
+    const p = '/Users/me/p/state/outputs/main_demo-en-16x9.mp4-e2fecd/renders/primary.final.mp4';
+    expect(pathFromMediaUrl(`${mediaUrl(p)}?v=87998cf12657debc`)).toBe(p);
+    expect(pathFromMediaUrl(`${mediaUrl(p)}?v=87998cf12657debc~2`)).toBe(p);
+  });
 });

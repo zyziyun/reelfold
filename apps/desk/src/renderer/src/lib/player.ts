@@ -21,6 +21,18 @@ export function step(t: number, dir: 1 | -1, fps: number, duration: number, big 
   return clamp((f + 0.5) / fps, 0, Math.max(0, duration - 0.5 / fps));
 }
 
+/** ←/→ while the player has the whole screen (watching, not editing): 5 s, Shift = 1 frame. */
+export const FULL_SEEK = 5;
+export function seekKey(t: number, dir: 1 | -1, fps: number, duration: number, shift: boolean, full: boolean): number {
+  if (full) return shift ? step(t, dir, fps, duration) : clamp(t + dir * FULL_SEEK, 0, duration);
+  return step(t, dir, fps, duration, shift);
+}
+
+/** Volume 0..1 from the slider / ↑↓ keys, two decimals; 0 also reads as muted. */
+export function volumeStep(v: number, dir: 1 | -1, by = 0.1): number {
+  return Math.round(clamp(v + dir * by, 0, 1) * 100) / 100;
+}
+
 /** J/K/L shuttle: L speeds up forward (1, 2, 4), J backward (-1, -2, -4), K stops. */
 export function shuttle(rate: number, key: 'j' | 'k' | 'l'): number {
   if (key === 'k') return 0;

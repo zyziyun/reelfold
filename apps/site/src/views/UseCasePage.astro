@@ -7,7 +7,8 @@ import Faq from '../components/Faq.astro';
 import Related from '../components/Related.astro';
 import FinalCta from '../components/home/FinalCta.astro';
 import { t, type Lang } from '../i18n';
-import { useCase } from '../content/usecases';
+import { useCase, USE_CASE_DOCS, type UseCaseSlug } from '../content/usecases';
+import { DOCS_PATH } from '../config';
 import { heading } from '../lib/zhHeading';
 import { img } from '../lib/images';
 import { breadcrumbs, faqPage } from '../lib/schema';
@@ -15,6 +16,8 @@ interface Props { lang: Lang; slug: string }
 const { lang, slug } = Astro.props;
 const c = t(lang);
 const u = useCase(slug, lang);
+// the matching docs guide (fr / es docs are not translated yet: link the English guide, not a noindex fallback)
+const guide = `${lang === 'zh' ? DOCS_PATH.zh : DOCS_PATH.en}${USE_CASE_DOCS[slug as UseCaseSlug]}`;
 const trail: [string, string | null][] = [[c.page.useCases, null], [u.nav, null]];
 // "Use cases" has no index page of its own: it is plain text in the trail
 const jsonld = [breadcrumbs(lang, [[c.page.useCases, null], [u.nav, slug]]), faqPage(u.faq)];
@@ -40,6 +43,7 @@ const jsonld = [breadcrumbs(lang, [[c.page.useCases, null], [u.nav, slug]]), faq
     <ol class="steps">
       {u.steps.map((s, i) => <li class="step"><div class="n" aria-hidden="true">{['i', 'ii', 'iii', 'iv'][i]}.</div><h3>{s.t}</h3><p>{s.b}</p></li>)}
     </ol>
+    <p class="guide"><a href={guide} hreflang={lang === 'zh' ? 'zh-Hans' : 'en'}>{c.page.guide} <span aria-hidden="true">→</span></a></p>
   </section>
   <Faq {lang} kicker={c.page.faqT} title={c.faq.t} items={u.faq} id="questions" />
   <Related {lang} pages={u.related} />

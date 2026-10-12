@@ -3,9 +3,9 @@
 
 export const en = {
   meta: {
-    title: 'Reelfold: turn one recording into clips for 20 platforms (free, open source, Mac)',
+    title: 'Reelfold: free, open-source AI video editor for Mac',
     description:
-      'Free, open-source Mac app that turns long recordings, footage and course notes into finished videos and clips for YouTube Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili and more. Runs on your Mac with the AI you choose.',
+      'Auto edit videos on your Mac: repurpose a long video into shorts for 20 platforms, or make a course video from notes. Works with Claude Code. Free, MIT.',
     ogAlt: 'Reelfold. One recording. Every platform. Free and open source, for Apple Silicon Macs.',
   },
   nav: {
@@ -36,8 +36,8 @@ export const en = {
     h1a: 'One recording.',
     h1b: 'Every platform.',
     sub: 'Reelfold turns a long video, a folder of footage or your course notes into finished clips for twenty platforms. Say what you want in a sentence. It runs on its own on your Mac, shows each step as it works, and asks you only where it isn’t sure.',
-    fig: 'Making. Pieces appear as they are made; the live pane shows each step.',
-    figAlt: 'A project being made on autopilot in the Reelfold Studio: the video list, the steps with progress, six pieces (contact sheets and graded segments) as they appear, a live log pane, and the project chat beside it.',
+    fig: 'Making. Claude Code plans and cuts a talk into shorts; ask for a change while it works.',
+    figAlt: 'A recorded talk being cut into vertical shorts on autopilot: the step bar at Render, clip 6 of 6, what the AI decided with Claude Code’s reasons, five finished clip frames, and the Ask AI chat where Claude Code proposes bigger captions for five clips.',
   },
   fig: 'Fig.',
   film: { label: 'Reelfold, a short film of the app at work' },
@@ -52,10 +52,10 @@ export const en = {
       { label: 'Review', t: 'Look only at what’s flagged.', b: 'Automatic checks for length, captions, framing and loudness flag what needs a person. Click a ready clip to edit its words, cover, captions and versions.' },
       { label: 'Publish', t: 'You press publish.', b: 'Each platform gets its own title, text and hashtags. Plan the week on the calendar. Reelfold fills in each upload page and never posts on its own.' },
     ],
-    figReview: 'Edit. Each platform’s copy, the transcript and the AI’s calls on one page.',
-    figReviewAlt: 'The clip editor: a vertical preview, the transcript with a filler word marked, the title and text for YouTube, TikTok and Xiaohongshu, and the two calls the AI made, each with Undo.',
-    figPublish: 'Publish. A week, scheduled; you press publish.',
-    figPublishAlt: 'Publish screen: a week calendar with clips placed per day and per platform, each marked ready, draft or posted.',
+    figReview: 'Edit. Each clip’s words, cover, captions and the AI’s calls on one page.',
+    figReviewAlt: 'The clip editor: a vertical clip from a talk about open research, its transcript, cover frames and caption styles, the platforms YouTube Shorts, TikTok and Instagram, and the post date.',
+    figPublish: 'Publish. A week of posts across YouTube, TikTok and Instagram; you press publish.',
+    figPublishAlt: 'Publish screen: a week calendar with course episodes, beach and river-surfing clips placed per day and per platform, each marked posted with its views, and the clips still waiting to be scheduled on the left.',
   },
   who: {
     k: 'Made for',
@@ -112,11 +112,11 @@ export const en = {
     ],
   },
   next: {
-    k: 'Coming next',
-    t: 'Home.',
-    l: 'One page for the day: an inbox of what needs you, what is running now, and what goes out today.',
-    tag: 'In development',
-    alt: 'Home, in development: an inbox, the projects running now, and what goes out today.',
+    k: 'New: Home',
+    t: 'Your day on one page.',
+    l: 'An inbox of what needs you, the projects running now, and what goes out today. Approve a clip, watch a run or reschedule a post without leaving it.',
+    tag: 'New in 0.2.7',
+    alt: 'The Home page: a request box, an inbox with two clips to review and a plan to approve, two projects running with their progress, and three posts going out today on YouTube, TikTok and Instagram.',
   },
   os: {
     k: 'Open source',
@@ -135,6 +135,7 @@ export const en = {
     t: 'Questions, answered plainly.',
     items: [
       { q: 'Is it really free?', a: 'Yes. Reelfold is MIT licensed and free to use. The only cost is the AI you connect: the 124-minute class above used $0.29. With a subscription you already have, or a local model, there’s no extra bill.' },
+      { q: 'Can I edit videos with Claude Code?', a: 'Yes. Reelfold can use your Claude Code subscription as its AI: it plans the cuts and writes captions and copy, and the live pane shows each step it takes. The same engine also installs as a Claude Code skill, so you can ask Claude Code to edit a video from the terminal.' },
       { q: 'What do I need?', a: 'A Mac with Apple Silicon, and an AI for planning and writing: a Claude Code or Codex subscription, an API key, or a local model. Narration can use the free voice on your Mac. A Windows preview is available, unsigned; there, narration needs an OpenAI key.' },
       { q: 'Do I have to approve every step?', a: 'No. On autopilot it runs to finished clips and writes down each decision with its reason, so you can change any of them later. Choose Ask me first, in Settings or per project, to approve the plan before it runs.' },
       { q: 'Does my video leave my Mac?', a: 'Cutting, rendering and the free voice run on your Mac. The AI you connect sees what it needs to plan, such as the transcript, under that provider’s terms. With a local model, nothing leaves.' },
@@ -161,6 +162,7 @@ export const en = {
   },
   page: {
     home: 'Home',
+    guide: 'Step-by-step guide in the docs',
     useCases: 'Use cases',
     compare: 'Compare',
     related: 'Related',

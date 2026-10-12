@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { desktopCapturer, shell, systemPreferences, type DesktopCapturerSource, type IpcMainInvokeEvent, type Session, type WebContents } from 'electron';
 import type { IpcChannel, IpcPayload } from '../shared/ipc';
-import { allowMedia, REC_TRACKS, type RecTrack, type ScreenSource, type ScreensReply, type TakeInfo } from '../shared/recIpc';
+import { allowAppPermission, REC_TRACKS, type RecTrack, type ScreenSource, type ScreensReply, type TakeInfo } from '../shared/recIpc';
 
 type Handle = <C extends IpcChannel>(channel: C, fn: (p: IpcPayload<C>, e: IpcMainInvokeEvent) => unknown) => void;
 
@@ -313,12 +313,12 @@ export function installDisplayMedia(ses: Session, o: { flag: () => boolean; pick
   });
 }
 
-/** Replace the default session's deny-all permission handlers with deny-all-but-recorder-media. */
+/** Replace the default session's deny-all permission handlers with deny-all-but-recorder-media-and-full-screen. */
 export function installMediaPermissions(ses: Session, o: { flag: () => boolean; mainWebContents: () => WebContents | null; isApp: (url: string) => boolean }) {
   ses.setPermissionRequestHandler((wc, permission, cb, details) => {
     const d = details as { mediaTypes?: string[]; requestingUrl?: string };
     cb(
-      allowMedia({
+      allowAppPermission({
         flag: o.flag(),
         fromMainWindow: !!wc && wc === o.mainWebContents(),
         isAppUrl: o.isApp(d.requestingUrl ?? wc?.getURL() ?? ''),
@@ -329,7 +329,7 @@ export function installMediaPermissions(ses: Session, o: { flag: () => boolean; 
   });
   ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
     const d = details as { mediaType?: string };
-    return allowMedia({
+    return allowAppPermission({
       flag: o.flag(),
       fromMainWindow: !!wc && wc === o.mainWebContents(),
       isAppUrl: o.isApp(requestingOrigin),

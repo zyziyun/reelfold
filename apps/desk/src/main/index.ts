@@ -250,6 +250,8 @@ function startEngine(): Promise<EngineInfo> {
   // first engine already has them - no restart at start-up
   const p = Promise.all([old ? old.stop() : Promise.resolve(), assets.scan()]).then(() => {
     if (gen !== engineGen) throw new SupersededError();
+    // no engine runs now: the folders of replaced asset versions (the old Chromium.app) can go
+    assets.prune();
     const cfg = resolvedConfig();
     const next = new EngineProcess({
       engineDir: path.join(RES, 'engine'),
@@ -486,6 +488,9 @@ function createWindow(route?: string, show = true) {
     title: APP_NAME,
     ...(process.platform !== 'darwin' && brandIcon(ICON_256) ? { icon: ICON_256 } : {}), // macOS: the bundle icon
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // the players' full screen (HTML Fullscreen API on the player) becomes the OS's own: on macOS a native full-screen
+    // Space with the menu bar and Dock hidden (Electron's enter-html-full-screen), and back as it was on exit
+    fullscreenable: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.cjs'),
@@ -495,6 +500,9 @@ function createWindow(route?: string, show = true) {
       webviewTag: false,
       spellcheck: false,
       backgroundThrottling: !testSwitch('DESK_HIDE_WINDOW'),
+      // hidden test windows: a player's full screen stays inside the window (the OS's own would show the window and
+      // take over the screen of whoever runs the tests)
+      disableHtmlFullscreenWindowResize: testSwitch('DESK_HIDE_WINDOW'),
     },
   });
   // DESK_HIDE_WINDOW=1: automated tests drive the app without putting windows on the user's screen
@@ -509,6 +517,23 @@ function createWindow(route?: string, show = true) {
       e.preventDefault();
       if (isSafeExternal(url)) void shell.openExternal(url);
     }
+  });
+  // a player's full screen (lib/fullscreen.ts). macOS animates the Space (~0.6 s): a request that lands while the
+  // window is still leaving is undone by that leave, and the window's queued enter then leaves it full screen with no
+  // player in it. Such an enter (a player asked for it moments ago and has already let go) is put back.
+  let htmlFull = false;
+  let htmlAskedAt = 0;
+  wc.on('enter-html-full-screen', () => {
+    htmlFull = true;
+    htmlAskedAt = Date.now();
+  });
+  wc.on('leave-html-full-screen', () => {
+    htmlFull = false;
+    // back exactly where she was: the window keeps its focus (a ⌃⌘F / green-button exit also ends the player's)
+    if (win && !win.isDestroyed() && win.isVisible()) win.focus();
+  });
+  win.on('enter-full-screen', () => {
+    if (!htmlFull && Date.now() - htmlAskedAt < 3000) win?.setFullScreen(false);
   });
   browser = new PublishBrowser(win, (s) => win?.webContents.send('publish:state', s), noteLogin);
   // Load once the engine is up (or failed / is slow): the page's actions need its client, so it does not show a UI
@@ -1116,6 +1141,10 @@ if (!app.requestSingleInstanceLock()) {
       hfHub: hfHubDir(),
     });
     mainLog(`[assets] dir ${assetsDir()} · engine cache ${engineCacheDir()} · hf hub ${hfHubDir() ?? '-'}`);
+    // an older version installed (the Chromium.app snapshot before chrome-headless-shell): fetch the new one in the
+    // background (Settings > Downloads shows it); the engine switches over when idle, the old folder goes after that
+    const upgrades = assets.upgrades();
+    if (upgrades.length) void assets.install(upgrades).catch((e) => mainLog(`[assets] ${(e as Error)?.stack ?? e}`));
     // already on disk (CLI install.sh, Hugging Face cache)? startEngine() scans first, so the first engine has them
     pstore = new PublishStore(path.join(app.getPath('userData'), 'publish'));
     vault = new ApiVault(app.getPath('userData'), safeStorage);

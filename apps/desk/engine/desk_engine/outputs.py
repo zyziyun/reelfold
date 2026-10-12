@@ -27,6 +27,7 @@ import sys
 import threading
 import time
 
+from . import pilot
 from . import works as WK
 from .common import BadRequest, need, read_json, write_json
 
@@ -838,13 +839,14 @@ class Outputs:
                 continue
             files = [dict(f) for f in c["files"]]
             p = fin["primary"]
-            files[0].update(path=p["file"], duration=p.get("duration") or files[0].get("duration"))
+            # v: the render's key - the file is replaced in place by every render, the player's URL must change
+            files[0].update(path=p["file"], duration=p.get("duration") or files[0].get("duration"), v=p.get("key"))
             for tg, r in fin.items():
                 if tg == "primary":
                     continue
                 asp = WK.aspect_of(r.get("w"), r.get("h")) or tg
                 row = dict(path=r["file"], aspect=asp, w=r.get("w"), h=r.get("h"), duration=r.get("duration"),
-                           platform=tg)
+                           platform=tg, v=r.get("key"))
                 k = next((i for i, f in enumerate(files) if i and f.get("aspect") == asp), None)
                 if k is None:
                     files.append(row)
@@ -1566,6 +1568,9 @@ class Outputs:
                            context=r.get("context", context), turn=r.get("turn"))
                 if not out["turn"]:
                     out["turn"] = self._record_ask(e, clip_id, prompt, context, out, oid)
+                if r.get("route") == "launch-kit":                # a launch film: changed in the kit, not here
+                    out["route"], out["kit"] = "launch-kit", r.get("kit")
+                    self._kit_rerender(e, oid, out)
                 return out
             except EngineMessage as m:
                 if m.doc.get("code") not in ("llm-failed", "llm-bad-json"):
@@ -1583,6 +1588,41 @@ class Outputs:
         r.update(context=context, cost_usd=0.0, seconds=round(time.time() - t0, 2))
         r["turn"] = self._record_ask(e, clip_id, prompt, context, r, oid)
         return r
+
+    def _kit_rerender(self, e, oid, out):
+        """The clip chat asked a launch-kit film for a change of the film itself (vstudio.project.outkit): the engine
+        planned it as launch.config.yaml keys (``kit.patch``). Act at once like any chat change: write them into the
+        kit's config and run the project again in the background - the kit's render stage watches that file, so every
+        size and language of the film is rendered again. The reply says what changed (the turn's messages)."""
+        kit = out.get("kit") or {}
+        if not kit.get("patch"):
+            return
+        ap = getattr(self, "autopilot", None)
+        if ap is None or ap.runner is None:
+            return
+        msgs = list(out.get("warnings") or [])
+        if pilot.running(e["dir"]) or pilot.queued(e["dir"]):
+            msgs.append(_m("kit-busy", "The project is making something right now; ask again when it has finished.",
+                           "项目正在制作中，做完后再说一次。"))
+        else:
+            try:
+                done = self._cli(["kit", "--project", e["dir"], "--output", oid, "--set", json.dumps(kit["patch"])])
+                kit.update(applied=True, backup=done.get("backup"))
+                ap._resume(e["dir"])
+                if self.bus:
+                    self.bus.publish("batches")
+                msgs.append(_m("kit-rerender", "Rendering the launch films again with these settings (every size "
+                                               "and language); this clip updates when they are done.",
+                               "正在用新设置重新渲染发布成片（所有尺寸和语言），完成后这条会自动更新。"))
+            except EngineMessage as m:
+                msgs.append(m.doc)
+        out["warnings"] = msgs
+        if out.get("turn") and self._ext:
+            try:
+                self._cli(["chat", "--project", e["dir"], "--output", oid, "--turn", out["turn"], "--set",
+                           json.dumps({"warnings": msgs}, ensure_ascii=False)])
+            except Exception:  # noqa: BLE001  (the reply still says it; the transcript keeps the plan)
+                pass
 
     def _remake_asked(self, item_id, clip_id, e, prompt):
         """The clip chat asks for a standing setting of a finished project clip (its vertical framing, its post copy):

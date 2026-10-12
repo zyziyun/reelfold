@@ -33,6 +33,27 @@ export const onRequest = defineRouteMiddleware((context) => {
     const canonical = head.find((h) => h.tag === 'link' && h.attrs?.rel === 'canonical');
     if (canonical?.attrs?.href) canonical.attrs.href = String(canonical.attrs.href).replace(/\/docs\/(zh|fr|es)\//, '/docs/');
   }
+  // BreadcrumbList: Reelfold (site home) > Docs (locale home) > this page; translated pages only (fallbacks are noindex)
+  if (!route.isFallback) {
+    const loc = lang === 'zh-CN' ? 'zh' : lang === 'en' ? '' : lang;
+    const sitePath = loc ? `/${loc}/` : '/';
+    const docsPath = `/docs/${loc ? `${loc}/` : ''}`;
+    const here = `${site}${context.url.pathname.replace(/\/?$/, '/')}`;
+    const items: [string, string][] = [
+      [lang === 'zh-CN' ? '千剪' : 'Reelfold', `${site}${sitePath}`],
+      [lang === 'zh-CN' ? '文档' : lang === 'fr' ? 'Documentation' : lang === 'es' ? 'Documentación' : 'Docs', `${site}${docsPath}`],
+    ];
+    if (here !== `${site}${docsPath}`) items.push([String(route.entry.data.title), here]);
+    head.push({
+      tag: 'script',
+      attrs: { type: 'application/ld+json' },
+      content: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: items.map(([name, item], i) => ({ '@type': 'ListItem', position: i + 1, name, item })),
+      }).replace(/</g, '\\u003c'),
+    });
+  }
   head.push({
     tag: 'link',
     attrs: lang === 'zh-CN'

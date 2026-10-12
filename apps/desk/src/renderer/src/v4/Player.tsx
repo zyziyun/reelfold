@@ -1,12 +1,14 @@
-// The clip player: large in-page (overlay) and true full screen (double-click, F, Esc), frame-accurate scrubbing,
+// The clip player: large in-page (overlay) and system full screen (⤢, double-click, F; Esc / ⤡ back to where she was:
+// the OS's own full screen, lib/fullscreen.ts), frame-accurate scrubbing,
 // J/K/L shuttle, ←/→ one frame (Shift: 1 s), I/O selection + loop, speed, size versions (3:4 / 9:16) and the
 // captions / safe-area overlays. Embedded in the output editor and the focused review with the same keys.
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react';
-import { Maximize2, Minimize2, Pause, Play, Repeat, ScanLine, StepBack, StepForward, Subtitles, Wand2, X } from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Maximize2, Minimize2, Pause, Play, Repeat, ScanLine, StepBack, StepForward, Subtitles, Volume2, VolumeX, Wand2, X } from 'lucide-react';
 import type { CaptionCue, ClipFile, EffectInstance } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtLen, t } from '../i18n';
-import { clamp, frameTime, loopTime, safeAreas, shuttle, step, timecode } from '../lib/player';
+import { clamp, frameTime, loopTime, safeAreas, seekKey, shuttle, step, timecode, volumeStep } from '../lib/player';
+import { useNativeFullscreen } from '../lib/fullscreen';
 import { isTyping } from './ui';
 import { media } from './kit';
 import { Scrubber, type ScrubTick } from './Scrubber';
@@ -56,9 +58,21 @@ export interface PlayerProps {
   badge?: string | null;
   /** playing over a cut: how many seconds were skipped (the editor flashes "Skipped 1.7 s") */
   onSkip?: (secs: number) => void;
+  /** open straight in system full screen (▶ "Play full screen" on a clip card) */
+  startFull?: boolean;
+  /** system full screen ended (Esc, ⤡, ⌃⌘F): a player opened only to be watched full screen closes */
+  onFullExit?: () => void;
+}
+
+const VOL_KEY = 'player.volume';
+function savedVolume(): number {
+  const v = Number(localStorage.getItem(VOL_KEY));
+  return Number.isFinite(v) && localStorage.getItem(VOL_KEY) !== null ? clamp(v, 0, 1) : 1;
 }
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** waits before each reload of a file that failed to load (then the error shows) */
+const RETRIES = [300, 1000, 2500];
 
 export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref) {
   const box = useRef<HTMLDivElement | null>(null);
@@ -77,7 +91,13 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
   const [caps, setCaps] = useState(false);
   const [split, setSplit] = useState(50);
   const [safe, setSafe] = useState(false);
-  const [full, setFull] = useState(false);
+  const keyRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  // full screen: every key comes here (and only here) whether or not this player's keys are on in the page
+  const fs = useNativeFullscreen(box, { onExit: p.onFullExit, onKey: (e) => keyRef.current?.(e) });
+  const full = fs.on;
+  const [vol, setVol] = useState(savedVolume);
+  const [muted, setMuted] = useState(false);
+  const [ar, setAr] = useState<number | null>(null); // the video's own shape: full screen fills the screen with it
   const [err, setErr] = useState(false);
   const [buffered, setBuffered] = useState<[number, number][]>([]);
   const selRef = useRef(sel);
@@ -118,21 +138,51 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
     [seek, setSel, aspect],
   );
 
-  // keep position when switching size versions
+  // keep position (and playing) when the file under the player changes: another size version, a new render of the
+  // same version (its `v`), or a reload after a load error
   const keepAt = useRef(0);
+  const resume = useRef(false);
+  // a load error is retried with a fresh URL before it is shown: the file may have been replaced while it played (a
+  // render writes the same path again) or be missing for a moment between the two
+  const [retry, setRetry] = useState(0); // a reload's nonce in the URL
+  const fails = useRef(0); // failed loads in a row
+  const retryTm = useRef(0);
+  const ver = file?.v ?? null;
+  const src = file ? media(file.path, retry ? `${ver ?? ''}~${retry}` : ver) : '';
+  const lastFile = useRef({ path: file?.path, v: ver });
   useEffect(() => {
+    const was = lastFile.current;
+    lastFile.current = { path: file?.path, v: ver };
+    if (was.path === file?.path && was.v === ver) return;
     const el = v.current;
-    if (!el) return;
-    const at = keepAt.current;
-    const onMeta = () => {
-      setDur(el.duration || dur);
-      if (at) el.currentTime = at;
-      setErr(false);
-    };
-    el.addEventListener('loadedmetadata', onMeta);
-    return () => el.removeEventListener('loadedmetadata', onMeta);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file?.path]);
+    if (el && was.path === file?.path) {
+      keepAt.current = el.currentTime;
+      resume.current = !el.paused;
+    }
+    window.clearTimeout(retryTm.current);
+    fails.current = 0;
+    setRetry(0);
+    setErr(false);
+  }, [file?.path, ver]);
+  useEffect(() => () => window.clearTimeout(retryTm.current), []);
+  const onMeta = (el: HTMLVideoElement) => {
+    setDur(el.duration || dur);
+    if (el.videoWidth && el.videoHeight) setAr(el.videoWidth / el.videoHeight);
+    if (keepAt.current) el.currentTime = Math.min(keepAt.current, el.duration || keepAt.current);
+    keepAt.current = 0;
+    fails.current = 0;
+    setErr(false);
+    if (resume.current) void el.play().catch(() => undefined);
+    resume.current = false;
+  };
+  const onError = (el: HTMLVideoElement) => {
+    const n = fails.current++;
+    if (n >= RETRIES.length) return setErr(true);
+    keepAt.current = el.currentTime || keepAt.current;
+    resume.current = resume.current || rate > 0;
+    window.clearTimeout(retryTm.current);
+    retryTm.current = window.setTimeout(() => setRetry((x) => x + 1), RETRIES[n]);
+  };
 
   // play loop: time, selection loop, skip cuts / outside trim, reverse shuttle
   useEffect(() => {
@@ -214,38 +264,35 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
     }
   }, [rate]);
 
-  const toggleFull = useCallback(() => {
-    const el = box.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      void document.exitFullscreen().catch(() => undefined);
-      setFull(false);
-      return;
-    }
-    if (full) {
-      setFull(false);
-      return;
-    }
-    setFull(true); // maximised in-window at once; true OS full screen when the window allows it
-    void el.requestFullscreen?.().catch(() => undefined);
-  }, [full]);
-
+  const toggleFull = fs.toggle;
+  const startFull = useRef(p.startFull);
   useEffect(() => {
-    const on = () => {
-      if (!document.fullscreenElement) setFull(false);
-    };
-    document.addEventListener('fullscreenchange', on);
-    return () => document.removeEventListener('fullscreenchange', on);
+    // the click that opened the player is still the user gesture the request needs
+    if (startFull.current) void fs.enter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // volume: the element follows the slider / mute; the level is remembered across players
+  useEffect(() => {
+    const el = v.current;
+    if (!el) return;
+    el.volume = vol;
+    el.muted = muted || vol === 0;
+    localStorage.setItem(VOL_KEY, String(vol));
+  }, [vol, muted, file?.path]);
 
   // keyboard
   const keysOn = p.keys !== false;
   const onClose = p.onClose;
   useEffect(() => {
-    if (!keysOn) return;
     const on = (e: KeyboardEvent) => {
+      if (full && e.key === 'Escape') {
+        e.preventDefault();
+        void fs.exit(); // back to where she was: the page, the overlay, the same frame
+        return;
+      }
       if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (document.querySelector('.scrim, .ctx')) return;
+      if (!full && document.querySelector('.scrim, .ctx')) return;
       const el = v.current;
       if (!el) return;
       const k = e.key;
@@ -264,9 +311,21 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
         setLoop((x) => !x);
       } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
         e.preventDefault();
+        const dir = k === 'ArrowRight' ? 1 : -1;
+        if (full && !e.shiftKey) {
+          seek(seekKey(el.currentTime, dir, fps, el.duration || dur, false, true)); // watching: 5 s, playback goes on
+          return;
+        }
         setRate(0);
         el.pause();
-        seek(step(el.currentTime, k === 'ArrowRight' ? 1 : -1, fps, el.duration || dur, e.shiftKey));
+        seek(seekKey(el.currentTime, dir, fps, el.duration || dur, e.shiftKey, full));
+      } else if (full && (k === 'ArrowUp' || k === 'ArrowDown')) {
+        e.preventDefault();
+        setMuted(false);
+        setVol((x) => volumeStep(x, k === 'ArrowUp' ? 1 : -1));
+      } else if (lower === 'm') {
+        e.preventDefault();
+        setMuted((x) => !x);
       } else if (k === 'Home' || k === 'End') {
         e.preventDefault();
         setRate(0);
@@ -282,13 +341,14 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
         e.preventDefault();
         toggleFull();
       } else if (k === 'Escape') {
-        if (full && !document.fullscreenElement) setFull(false);
-        else if (!document.fullscreenElement && onClose) onClose();
+        if (!fs.escSpent() && onClose) onClose();
       }
     };
+    keyRef.current = on;
+    if (!keysOn) return;
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
-  }, [keysOn, onClose, toggle, toggleFull, seek, setSel, fps, dur, full, p.trim]);
+  }, [keysOn, onClose, toggle, toggleFull, seek, setSel, fps, dur, full, fs, p.trim]);
 
   const areas = safeAreas(file?.aspect ?? '', file?.safe_box, file?.caption_box, file?.w, file?.h);
   const cue = caps ? (p.captions ?? []).find((c) => !c.removed && cur >= c.start && cur <= c.end) : undefined;
@@ -312,7 +372,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
   );
 
   return (
-    <div ref={box} className={`pl ${full ? 'full' : ''}`} tabIndex={-1} data-testid={p.testId ?? 'player'} data-full={full ? '1' : '0'}>
+    <div ref={box} className={`pl ${full ? 'full' : ''}`} tabIndex={-1} data-testid={p.testId ?? 'player'} data-full={full ? '1' : '0'} data-native-full={fs.native ? '1' : '0'}>
       {(p.title || p.onClose) && (
         <div className="row">
           {p.title && <b className="clamp1" style={{ fontWeight: 500, fontSize: 15 }}>{p.title}</b>}
@@ -332,10 +392,10 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
       )}
       <div className="stage" onDoubleClick={toggleFull}>
         {file ? (
-          <div className="frame">
+          <div className="frame" style={ar ? ({ '--ar': ar } as CSSProperties) : undefined}>
             <video
               ref={v}
-              src={media(file.path)}
+              src={src}
               preload="auto"
               playsInline
               autoPlay={p.autoPlay}
@@ -345,8 +405,8 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
                 const b = (e.target as HTMLVideoElement).buffered;
                 setBuffered(Array.from({ length: b.length }, (_, i) => [b.start(i), b.end(i)] as [number, number]));
               }}
-              onLoadedMetadata={(e) => setDur((e.target as HTMLVideoElement).duration || dur)}
-              onError={() => setErr(true)}
+              onLoadedMetadata={(e) => onMeta(e.target as HTMLVideoElement)}
+              onError={(e) => onError(e.target as HTMLVideoElement)}
               onClick={() => toggle()}
               data-testid="player-video"
             />
@@ -394,7 +454,11 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
         ) : (
           <div className="muted" style={{ padding: 48 }}>{t('player.noVideo')}</div>
         )}
-        {err && <div className="note" style={{ position: 'absolute', bottom: 12 }}>{t('player.cantPlay')}</div>}
+        {err && (
+          <div className="note" style={{ position: 'absolute', bottom: 12 }} data-testid="player-error">
+            {t('player.cantPlay')}
+          </div>
+        )}
       </div>
       <Scrubber
         duration={dur}
@@ -459,6 +523,22 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
             <ScanLine className="ico" />
           </button>
         )}
+        <div className="vol" role="group" aria-label={t('player.volume')}>
+          <button className="btn icon sm" onClick={() => (vol === 0 ? (setVol(1), setMuted(false)) : setMuted((x) => !x))} aria-label={muted || vol === 0 ? t('player.unmute') : t('player.mute')} data-tip={`${muted || vol === 0 ? t('player.unmute') : t('player.mute')} · M`} data-testid="player-mute">
+            {muted || vol === 0 ? <VolumeX className="ico" /> : <Volume2 className="ico" />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={muted ? 0 : vol}
+            onChange={(e) => (setVol(Number(e.target.value)), setMuted(false))}
+            onPointerUp={(e) => e.currentTarget.blur()}
+            aria-label={t('player.volume')}
+            data-testid="player-volume"
+          />
+        </div>
         <button className="btn icon sm" onClick={toggleFull} aria-label={full ? t('player.exitFullscreen') : t('player.fullscreen')} data-tip={`${full ? t('player.exitFullscreen') : t('player.fullscreen')} · F`} data-testid="fullscreen">
           {full ? <Minimize2 className="ico" /> : <Maximize2 className="ico" />}
         </button>
@@ -509,7 +589,8 @@ function highlight(text: string, kws: { word: string; color: string }[], fallbac
   return parts;
 }
 
-/** The large in-page player over everything (Esc closes; F / double-click for true full screen). */
+/** The large in-page player over everything (Esc closes; ⤢ / F / double-click for system full screen). With
+ * startFull it opens straight in system full screen and closes when that ends, so she is back where she was. */
 export function PlayerOverlay(props: PlayerProps & { onClose: () => void }) {
   return (
     <div className="pl-overlay" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()} data-testid="player-overlay">
