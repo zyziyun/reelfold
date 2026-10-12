@@ -106,12 +106,13 @@ def main():
     post = dict(getattr(spec, "POST", {}) or {})
     pl = publish.platform_name(post.get("platform") or (C.prof.name if C.prof is not None else None))
     post = post_for(spec, post, pl)
+    post_en = not re.search(r"[\u4e00-\u9fff]", f"{post.get('title', '')}{post.get('intro', '')}")
     cap = publish.XHS_CHAPTER_LABEL_MAX if pl in ("xiaohongshu", "xhs") else None
     chapters = []
     if len(C.SECTIONS) > 1:
         for s, name in enumerate(C.SECTIONS):
             en = C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
-            lab = en if (C.EN_LEAD and en) else f"{name} {en}" if en and en != name else name
+            lab = en if ((C.EN_LEAD or post_en) and en) else f"{name} {en}" if en and en != name else name
             chapters.append((T.sec_bounds[s], lab if not cap or len(lab) <= cap else name))
     body = "\n\n".join(p for p in (post.get("intro"), post.get("outro")) if p)
     text = publish.post_body(None, body, chapters=chapters, tags=post.get("tags"), platform=pl,
