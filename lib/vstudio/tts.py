@@ -45,6 +45,8 @@ voice is never fetched by the engine - without VSTUDIO_KOKORO_MODEL it raises ``
 Without espeak-ng (the app's runtime: GPL, not bundled) an English word missing from misaki's dictionaries is spelled
 from its known pieces / letters (vstudio.kokoro_g2p.SpellFallback). A Mandarin voice reads the English terms of a
 中文讲解 (MCP, Tool Calling, API) with misaki's English G2P, acronyms letter by letter (vstudio.kokoro_g2p).
+``split_in_two(text)`` / ``synth_split(...)``: a line a voice fails on, said as two takes joined by a short pause (the
+explainer's voice stage retries a failed line this way once before it stops, naming the line).
 Unified from preproduction ``make_drill.tts/pick_engine/to_wav``, explainer ``tts.py`` (urllib
 OpenAI call with per-line direction), photo-story ``tts.main.synth`` (cache by text+voice+instructions).
 """
@@ -54,6 +56,7 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -478,3 +481,51 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         shutil.copyfile(cpath, out)
         return out
     return cpath
+
+
+# where a line may be cut in two: after a sentence end, else after a clause mark, else between words
+_SPLIT_AT = (re.compile(r"(?<=[。！？!?；;])\s*|(?<=[.…])\s+"), re.compile(r"(?<=[，、：,:—])\s*"), re.compile(r"\s+"))
+GAP_S = 0.18                       # the pause between the two halves of a split take (about a sentence break)
+
+
+def split_in_two(text):
+    """``text`` -> (first, second) cut at the sentence end nearest its middle, else the nearest clause mark, else the
+    nearest space, else (Chinese with no marks) the middle character; None when there is nothing to cut (a word)."""
+    t = " ".join(str(text).split())
+    for pat in _SPLIT_AT:
+        cuts = [m.start() for m in pat.finditer(t) if 0 < m.start() < len(t)]
+        cuts = [c for c in cuts if t[:c].strip(" ,，、") and t[c:].strip(" .。!?！？,，、")]
+        if cuts:
+            c = min(cuts, key=lambda c: abs(c - len(t) / 2))
+            return t[:c].strip(), t[c:].strip()
+    cjk = [i for i, ch in enumerate(t) if "\u4e00" <= ch <= "\u9fff"]
+    if len(cjk) >= 2:
+        c = cjk[len(cjk) // 2]
+        return t[:c].strip(), t[c:].strip()
+    return None
+
+
+def concat_wavs(paths, out, gap=GAP_S):
+    """Join 16-bit wavs of one format (synth's 48 kHz mono) with ``gap`` seconds of silence between them."""
+    import wave
+    frames, params = [], None
+    for p in paths:
+        with wave.open(p) as w:
+            params = params or w.getparams()
+            frames.append(w.readframes(w.getnframes()))
+    silence = b"\0" * (int(params.framerate * gap) * params.sampwidth * params.nchannels)
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    with wave.open(out, "wb") as w:
+        w.setnchannels(params.nchannels)
+        w.setsampwidth(params.sampwidth)
+        w.setframerate(params.framerate)
+        w.writeframes(silence.join(frames))
+    return out
+
+
+def synth_split(text, out, **kw):
+    """``synth`` of ``text`` as two takes (``split_in_two``) joined into ``out``; ValueError when it cannot be cut."""
+    halves = split_in_two(text)
+    if not halves:
+        raise ValueError(f"cannot split {text!r}")
+    return concat_wavs([synth(h, **kw) for h in halves], out)

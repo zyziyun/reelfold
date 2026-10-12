@@ -98,27 +98,34 @@ def voice_failure(text):
 # the explainer's voice step (workflows/explainer/scripts/tts.py): every take of a line left out a sentence ->
 # "TTS dropped sentences after retries (...):\n  line 02: ['地基先打好：Tool Calling。']" (one row per line)
 _VOICE_DROPPED = re.compile(r"TTS dropped sentences after retries")
-_DROPPED_ROW = re.compile(r"^\s*line (\d+): \[(.*)\]\s*$", re.M)
+_DROPPED_ROW = re.compile(r"""^\s*line (\d+): \[((?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[^\]'"])*)\](?: .*)?$""", re.M)
+# ... or the voice errored on a line, also when it was retried split in two:
+# "TTS failed on a line, also split in two (...):\n  line 01: ['Put on a pair ...'] RuntimeError: ..."
+_VOICE_FAILED = re.compile(r"TTS failed on a line, also split in two")
 _QUOTED = re.compile(r"'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"")
 
 
 def voice_dropped(text):
     """The voice kept leaving out a sentence -> {code: "stage-voice-dropped", params: {line (scene number), sentence
-    (the first one left out), lines (how many scenes), fix: "rephrase-line"}}; else None."""
+    (the first one left out), lines (how many scenes), fix: "rephrase-line"}}; the voice errored on a line, also split
+    in two -> the same params, code "stage-voice-failed" (sentence: the line's start); else None."""
     t = str(text or "")
     m = _VOICE_DROPPED.search(t)
+    code = "stage-voice-dropped"
+    if not m:
+        m, code = _VOICE_FAILED.search(t), "stage-voice-failed"
     if not m:
         return None
     rows = _DROPPED_ROW.findall(t[m.end():])
     if not rows:
-        return dict(code="stage-voice-dropped", params=dict(fix="rephrase-line"))
+        return dict(code=code, params=dict(fix="rephrase-line"))
     n, quoted = rows[0]
     q = _QUOTED.search(quoted)
     sentence = (q.group(1) if q and q.group(1) is not None else q.group(2) if q else quoted).strip()
     sentence = sentence.rstrip("。．.！!？?；; ")             # the words' own end mark: the message adds its own
     if len(sentence) > 80:
         sentence = sentence[:79].rstrip() + "…"
-    return dict(code="stage-voice-dropped",
+    return dict(code=code,
                 params=dict(line=str(int(n)), sentence=sentence, lines=str(len(rows)), fix="rephrase-line"))
 
 

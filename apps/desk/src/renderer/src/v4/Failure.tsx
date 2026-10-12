@@ -36,8 +36,8 @@ export function failureReason(f: PilotFailure): string {
   else if (f.code === 'media-unmounted' && !(p.file && p.volume)) reason = tk(p.file ? 'fail.reason.media-unreadable' : 'fail.reason.media', { file: String(p.file ?? '') });
   else if (f.code === 'media-unreadable' && !p.file) reason = tk('fail.reason.media');
   else if (f.code === 'ai-key-missing') reason = tk(key, { service: String(p.service ?? '') || t('fail.keyService') });
-  // the voice kept leaving out a sentence: which scene and the sentence itself (without them: the step's general words)
-  else if (f.code === 'stage-voice-dropped') reason = p.sentence ? tk(key, { line: String(p.line ?? ''), sentence: String(p.sentence) }) : tk('fail.reason.unknown');
+  // the voice kept leaving out a sentence / errored on a line: which scene and its words (without them: general words)
+  else if (f.code === 'stage-voice-dropped' || f.code === 'stage-voice-failed') reason = p.sentence ? tk(key, { line: String(p.line ?? ''), sentence: String(p.sentence) }) : tk('fail.reason.unknown');
   // a redo of the visuals that drew no scene: which scene (or how many), why in plain words - the video stands
   else if (f.code === 'stage-visuals-failed') {
     const why = has(`fail.why.${p.why}`) ? tk(`fail.why.${p.why}`) : t('fail.why.other');

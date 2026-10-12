@@ -499,6 +499,8 @@ export type FailureCode =
   | 'tool-voice'
   // the voice kept leaving out a sentence of the script (params {line, sentence, lines, fix: rephrase-line})
   | 'stage-voice-dropped'
+  // the voice errored on a line, also when retried in two halves (params {line, sentence, lines, fix: rephrase-line})
+  | 'stage-voice-failed'
   // a step that needs an AI model none answered (an explainer's visuals; params {what: visuals | script, provider})
   | 'ai-needs-model';
 export interface PilotFailure {

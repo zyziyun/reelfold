@@ -17,6 +17,9 @@ Check   every take is transcribed (vstudio.asr) and aligned to its script line s
         numbers normalised on both sides (vo_check.py): a take that dropped a sentence is re-generated
         (--retries, default 2), and the run fails loudly if it still drops one. --no-check skips this
         (also skipped with a warning when no ASR backend is installed).
+Errors  a line the voice errors on (not a missing key / download) is retried once said in two halves joined by a
+        short pause (vstudio.tts.synth_split); if that fails too the run stops naming the line(s):
+        "TTS failed on a line, also split in two (...):\n  line 03: ['<the line>'] <the engine's error>".
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
 import argparse, os, re
@@ -48,7 +51,33 @@ ap.add_argument("--no-check", dest="check", action="store_false", help="skip the
 ap.add_argument("--retries", type=int, default=2, help="new takes when the check finds a dropped sentence")
 ap.add_argument("--asr-backend", default="auto", choices=["auto", "mlx", "faster", "openai", "openai-compatible"])
 a = ap.parse_args()
-failed = []
+failed, broke = [], []
+
+
+def _why(e):
+    """The last line of an engine error (the child's exception), short."""
+    last = [ln.strip() for ln in str(e).strip().splitlines() if ln.strip()]
+    why = f"{type(e).__name__}: {last[-1] if last else ''}".strip()
+    return why if len(why) <= 200 else why[:199] + "…"
+
+
+def take(n, text, out, **kw):
+    """One take of line ``n`` -> None, or why it failed. A voice that errors on the line (Kokoro on some lengths) is
+    retried once with the line said in two halves (tts.synth_split) before the line counts as failed."""
+    try:
+        tts.synth(text, out=out, **kw)
+        return None
+    except (tts.MissingKey, tts.VoiceNotDownloaded):
+        raise
+    except Exception as e:  # noqa: BLE001  (an engine failure on this text: retried split)
+        first = _why(e)
+    print(f"line {n:02d}: the voice failed ({first}); retrying it split in two", flush=True)
+    try:
+        tts.synth_split(text, out, **kw)
+        return None
+    except Exception as e:  # noqa: BLE001
+        return f"{first}; split in two: {_why(e)}"
+
 engine = tts.available_engine(a.engine)
 free = tts.local_engine() is not None
 if tts.missing_key(engine):
@@ -77,9 +106,12 @@ for b in blocks:
     fresh = a.fresh
     for attempt in range(1 + max(0, a.retries)):
         v = voice or (tts.zh_voice(engine) if lang == "zh" else None)
-        tts.synth(text, engine=engine, voice=v, speed=a.speed,
-                  instructions=instr if engine in ("openai", "openai-compatible") else None,
-                  model=model, out=out, cache=not fresh)
+        err = take(n, text, out, engine=engine, voice=v, speed=a.speed,
+                   instructions=instr if engine in ("openai", "openai-compatible") else None,
+                   model=model, cache=not fresh)
+        if err:
+            broke.append((n, text, err))
+            break
         size = f"{len(text)} chars" if lang == "zh" else f"{len(text.split())} words"
         print(f"line {n:02d}: {media.duration(out):6.1f}s  {size}", flush=True)
         if not a.check:
@@ -96,6 +128,10 @@ for b in blocks:
         fresh = True
     else:
         failed.append((n, r["missing"]))
+if broke:
+    # one row per line: proctail.voice_failed reads "  line NN: [<the line>]" (the scene and its words for the app)
+    sys.exit("TTS failed on a line, also split in two (rephrase or split the line in SCRIPT.md):\n"
+             + "\n".join(f"  line {n:02d}: [{t!r}] {why}" for n, t, why in broke))
 if failed:
     sys.exit("TTS dropped sentences after retries (re-run with --fresh N, rephrase, or split the line):\n"
              + "\n".join(f"  line {n:02d}: {m}" for n, m in failed))

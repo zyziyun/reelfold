@@ -46,3 +46,22 @@ describe('a voice that kept leaving out a sentence', () => {
     }
   });
 });
+
+// Demo 2026-10-11: the free voice errored on a line (a Kokoro length bug, now fixed) on every take; the voice stage now
+// retries a failing line in two halves and, if that fails too, stops coded stage-voice-failed {line, sentence}.
+describe('a voice that could not read a line, even split in two', () => {
+  const failed: PilotFailure = { ...dropped, code: 'stage-voice-failed', params: { line: '3', sentence: 'The headphones use exactly that', lines: '1', fix: 'rephrase-line' } };
+  it('names the scene, its words and the fix', () => {
+    expect(failureReason(failed)).toBe(
+      'The voice could not read scene 3, even in two halves: “The headphones use exactly that”. Reword or split that sentence in the script, then press Try again.',
+    );
+    setLang('zh-CN');
+    expect(failureReason(failed)).toMatch(/^配音读不出第 3 幕，分成两半也不行：“The headphones use exactly that”。/);
+    setLang('fr');
+    expect(failureReason(failed)).toMatch(/^La voix n’a pas pu lire la scène 3, même en deux moitiés/);
+  });
+  it('the inbox card says what stopped the run', () => {
+    const x = { key: 'b'.repeat(16), kind: 'failed', group: 'failed', project: { id: 'p', name: 'Noise', kind: 'project' }, code: 'inbox.failed.stage-voice-failed', params: {}, options: [], source: 'engine' } as unknown as InboxItem;
+    expect(inboxTitle(x)).toBe('The voice could not read a scene — the run stopped');
+  });
+});

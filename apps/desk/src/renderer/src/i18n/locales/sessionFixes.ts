@@ -73,6 +73,8 @@ export const sessionFixesEn = {
   'fail.reason.stage-voice-dropped': 'The voice kept leaving out a sentence in scene {line}: “{sentence}”.',
   'fail.fix.rephrase-line': 'Reword or split that sentence in the script, then press Try again.',
   'inbox.failed.stage-voice-dropped': 'The voice left out a sentence — the run stopped',
+  'fail.reason.stage-voice-failed': 'The voice could not read scene {line}, even in two halves: “{sentence}”.',
+  'inbox.failed.stage-voice-failed': 'The voice could not read a scene — the run stopped',
   // a redo of an explainer's visuals that drew no scene (her MCP course: scene 14 kept calling fetch()): which
   // scene, why, plainly - the video she has stands; Try again draws only the scenes still missing
   'fail.reason.stage-visuals-failed': 'Scene {scene} of {total} couldn’t be redrawn: {why}. Your video is unchanged — Try again redraws only the missing scenes.',
@@ -157,6 +159,8 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
   'fail.reason.stage-voice-dropped': '配音几次都漏读了第 {line} 幕的一句：“{sentence}”。',
   'fail.fix.rephrase-line': '在脚本里把这句改个说法或拆成两句，再点「再试一次」。',
   'inbox.failed.stage-voice-dropped': '配音漏读了一句，运行停下了',
+  'fail.reason.stage-voice-failed': '配音读不出第 {line} 幕，分成两半也不行：“{sentence}”。',
+  'inbox.failed.stage-voice-failed': '配音读不出一幕，运行停下了',
   'fail.reason.stage-visuals-failed': '第 {scene} 段（共 {total} 段）没能重新画出来：{why}。你的视频没有变——点「重试」只重画没画好的那几段。',
   'fail.reason.stage-visuals-failed.many': '{total} 段里有 {n} 段没能重新画出来：{why}。你的视频没有变——点「重试」只重画没画好的那几段。',
   'fail.why.network': 'AI 一直想从网上加载数据，视频里做不到',
@@ -238,6 +242,8 @@ export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
   'fail.reason.stage-voice-dropped': 'La voix a sauté plusieurs fois une phrase de la scène {line} : « {sentence} ».',
   'fail.fix.rephrase-line': 'Reformulez ou coupez cette phrase dans le script, puis cliquez sur Réessayer.',
   'inbox.failed.stage-voice-dropped': 'La voix a sauté une phrase : l’exécution s’est arrêtée',
+  'fail.reason.stage-voice-failed': 'La voix n’a pas pu lire la scène {line}, même en deux moitiés : « {sentence} ».',
+  'inbox.failed.stage-voice-failed': 'La voix n’a pas pu lire une scène : l’exécution s’est arrêtée',
   'fail.reason.stage-visuals-failed': 'La scène {scene} sur {total} n’a pas pu être redessinée : {why}. Votre vidéo n’a pas changé — Réessayer ne redessine que les scènes manquantes.',
   'fail.reason.stage-visuals-failed.many': '{n} scènes sur {total} n’ont pas pu être redessinées : {why}. Votre vidéo n’a pas changé — Réessayer ne redessine que les scènes manquantes.',
   'fail.why.network': 'l’IA chargeait sans cesse des données depuis Internet, ce qu’une vidéo ne peut pas faire',
