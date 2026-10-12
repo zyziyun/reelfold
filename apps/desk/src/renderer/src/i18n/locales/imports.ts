@@ -53,7 +53,7 @@ export const importsEn = {
   'im.lang.pt': 'Portuguese',
   'em.op-shot-swap': 'Shot {n}: another take from {source}',
   'em.op-shot-restore': 'Shot {n}: back to its original take',
-  'em.op-export-lang': 'A {lang, select, en {English} zh {Chinese} fr {French} ja {Japanese} es {Spanish} de {German} ko {Korean} pt {Portuguese} other {{lang}}} version for {target} (new voice and captions)',
+  'em.op-export-lang': '{lang, select, en {An English} zh {A Chinese} fr {A French} ja {A Japanese} es {A Spanish} de {A German} ko {A Korean} pt {A Portuguese} other {A {lang}}} version for {target} (new voice and captions)',
   'em.no-shots': 'This clip has no matched footage. Link the footage it was made from first.',
   'em.no-alternative': 'The footage has no unused take long enough for this shot.',
   'em.unknown-source': '{source} is not footage linked to this clip.',
