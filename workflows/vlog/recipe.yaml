@@ -87,7 +87,7 @@ stages:
     deps: [probe]
     keys: [sheet_every]
     run:
-      argv: [bash, "{workflow_dir}/scripts/contact_sheets.sh", "{item_dir}/work/sheets", "{sheet_every}", "{input.footage*}"]
+      argv: ["{python}", "{workflow_dir}/scripts/contact_sheets.py", "{item_dir}/work/sheets", "{sheet_every}", "{input.footage*}"]
       files: ["{item_dir}/work/sheets"]
     produces: [work/sheets/*_sheet.jpg]
     preview: {kind: images, path: "{item_dir}/work/sheets/*.jpg", label: {zh: "联系表", en: "Contact sheet", fr: "Planche contact"}}

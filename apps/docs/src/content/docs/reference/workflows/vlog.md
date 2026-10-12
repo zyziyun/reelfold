@@ -66,7 +66,7 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
 
 2. **SEE the footage (never edit blind).**
    ```bash
-   bash $VSTUDIO/workflows/vlog/scripts/contact_sheets.sh work/sheets 4 footage/*
+   python3 $VSTUDIO/workflows/vlog/scripts/contact_sheets.py work/sheets 4 footage/*
    ```
    Read every `work/sheets/*_sheet.jpg`: one tile per 4 s, 5 across, left->right top->bottom,
    each labelled with its source time (tile n = (n-1)*4 s). Mark windows where the subject is clearly framed and the move is smooth;
@@ -160,7 +160,7 @@ Pipeline (from the project dir):
 ```bash
 python3 $VSTUDIO/workflows/vlog/scripts/probe.py footage/* --init work/edit.json --style fun \
     --music music/track.mp3 --platform xiaohongshu:full          # starter: every clip once, auto windows
-bash $VSTUDIO/workflows/vlog/scripts/contact_sheets.sh work/sheets 4 footage/*   # SEE the footage
+python3 $VSTUDIO/workflows/vlog/scripts/contact_sheets.py work/sheets 4 footage/*   # SEE the footage
 # edit work/edit.json: order shots by place/day, add place/day/date, speech, ramp, photos, title, map...
 python3 $VSTUDIO/workflows/vlog/scripts/build_fun.py work/edit.json --dry-run    # plan: read the report
 python3 $VSTUDIO/workflows/vlog/scripts/build_fun.py work/edit.json              # render
@@ -304,7 +304,7 @@ in the report. Still check A3 (first version too fast? use `pace: "relaxed"`) an
 - `scripts/build_fun.py` - fun style: beat analysis, plan, render, mix, report (`funvlog/`: `score` auto
   windows, `plan` beat-grid timeline + budgets, `frames` decode/ramps/reframe/photos/transitions, `gfx`
   title/tags/stamps/map/end card, `mix` speech/bed/ducking/SFX/loudness).
-- `scripts/contact_sheets.sh` - time-labelled thumbnail grids per clip (wraps `vstudio.media.contact_sheet`).
+- `scripts/contact_sheets.py` - time-labelled thumbnail grids per clip (wraps `vstudio.media.contact_sheet`).
 - `scripts/build_vlog.py` - config-driven HDR tone-map + fit + grade + speed + stabilize + crossfade master.
 - `scripts/make_cover.py` - torn-paper scrapbook cover, any size, optional title; Chrome/Chromium/Playwright.
 - `scripts/fetch_music.sh` - CC-BY Incompetech tracks by title + `ATTRIBUTION.txt`.

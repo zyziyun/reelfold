@@ -120,14 +120,24 @@ def backdrop(cfg):
 
 @functools.lru_cache(maxsize=32)
 def _pil_path(path):
-    """PIL cannot always read .woff2: convert once to a temp .ttf with fontTools."""
+    """PIL cannot always read .woff2: convert once to a temp .ttf with fontTools. The name follows the font's size and
+    time, and an existing one is reused: another process may hold it open (Windows refuses to overwrite it then)."""
     if not path.lower().endswith((".woff2", ".woff")):
         return path
+    st = os.stat(path)
+    out = os.path.join(tempfile.gettempdir(),
+                       f"vstudio-launch-{os.path.basename(path)}-{st.st_size}-{int(st.st_mtime)}.ttf")
+    if os.path.isfile(out) and os.path.getsize(out) > 0:
+        return out
     from fontTools.ttLib import TTFont
     ft = TTFont(path)
     ft.flavor = None
-    out = os.path.join(tempfile.gettempdir(), "vstudio-launch-" + os.path.basename(path) + ".ttf")
-    ft.save(out)
+    tmp = f"{out}.{os.getpid()}.tmp"
+    ft.save(tmp)
+    try:
+        os.replace(tmp, out)
+    except OSError:                                   # another process wrote it and has it open: use ours
+        return tmp
     return out
 
 
