@@ -457,7 +457,7 @@ def cmd_output(a):
         r = O.preview_edl(proj, a.output, ops)
         _out(a, r, "\n".join(f"keep {x:.3f}-{y:.3f}" for x, y in r["keep"]) + f"\n-> {r['duration']:.2f}s")
         return 0
-    _out(a, O.edit(proj, a.output, ops, note=a.note, turn=a.turn))
+    _out(a, O.edit(proj, a.output, ops, by=getattr(a, "by", None) or "user", note=a.note, turn=a.turn))
     return 0
 
 
@@ -722,6 +722,7 @@ def build_parser():
     p.add_argument("--set", help="chat: the turn's patch (JSON); kit: the launch.config.yaml keys to change "
                    "(JSON, ai's kit.patch)")
     p.add_argument("--note")
+    p.add_argument("--by", choices=["user", "ai"], help="edit: who made the step (ai = a chat proposal applied)")
     p.add_argument("--instruction", help="ai: what to change, in plain language")
     p.add_argument("--apply", action="store_true", help="ai: apply the proposed ops (default: propose only)")
     p.add_argument("--provider")

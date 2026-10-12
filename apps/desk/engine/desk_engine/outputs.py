@@ -772,6 +772,7 @@ class Outputs:
         self._real = None
         self._ext = False             # the engine also has revert / chat / ai --context / render --with-ops
         self._pv = False              # the engine has preview-edl (live skip preview of pending transcript cuts)
+        self._by = False              # the engine records who made a step (edit --by ai)
         self._lock = threading.Lock()
         self._lists = {}
         self._edited = {}
@@ -789,6 +790,7 @@ class Outputs:
                         "invalid choice" not in txt
                     self._ext = ok and all(_has_word(txt, v) for v in ("revert", "chat", "--context"))
                     self._pv = ok and _has_word(txt, "preview-edl")
+                    self._by = ok and _has_word(txt, "--by")
                 except Exception:  # noqa: BLE001
                     ok = False
             self._real = ok
@@ -1202,7 +1204,7 @@ class Outputs:
         oid = self._output_id(e, c)
         if oid:
             args = ["edit", "--project", e["dir"], "--output", oid] + (["--note", note] if note else [])
-            tail = ["--turn", turn] if turn and self._ext else []
+            tail = (["--turn", turn] if turn and self._ext else []) + (["--by", "ai"] if by == "ai" and self._by else [])
             try:
                 r = self._cli(args + ["--ops", json.dumps(ops, ensure_ascii=False)] + tail)
             except EngineMessage as m:                       # the engine transcribed other words: cut by time

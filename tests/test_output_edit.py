@@ -362,8 +362,10 @@ def test_cli_json_contract(tmp_path, synth):
     r = _cli("show", "--project", w, "--output", oid, "--json")
     s = json.loads(r.stdout)
     assert s["ok"] and s["output"]["mode"] == "flattened" and "caps" in s and "history" in s
-    r = _cli("edit", "--project", w, "--output", oid, "--ops", json.dumps([dict(op="speed", value=1.25)]), "--json")
+    r = _cli("edit", "--project", w, "--output", oid, "--ops", json.dumps([dict(op="speed", value=1.25)]), "--by",
+             "ai", "--json")
     assert r.returncode == 0 and json.loads(r.stdout)["state"]["speed"] == 1.25
+    assert json.loads(r.stdout)["step"]["by"] == "ai"            # a chat proposal applied: the AI's step
     r = _cli("edit", "--project", w, "--output", oid, "--op", "effect_add", "--param", "effect=stamp",
              "--param", "start=1", "--set", json.dumps(dict(params=dict(text="亲测"))), "--json")
     assert r.returncode == 0, r.stdout + r.stderr
