@@ -288,6 +288,31 @@ def run_streaming(cmd, input, cwd, env, timeout, on_line):
     kw = dict(start_new_session=True) if os.name != "nt" else {}
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                          encoding="utf-8", errors="replace", cwd=cwd, env=env, bufsize=1, **kw)
+    with _CHILDREN_LOCK:
+        _CHILDREN.add(p)
+    try:
+        return _wait_streaming(p, cmd, input, timeout, on_line)
+    finally:
+        with _CHILDREN_LOCK:
+            _CHILDREN.discard(p)
+
+
+# The model CLIs running now (run_streaming). Each runs in its own session, so a Stop (SIGINT to the run's process
+# group) never reaches them: the run ends them itself (kill_children) or it would wait out the whole call.
+_CHILDREN = set()
+_CHILDREN_LOCK = threading.Lock()
+
+
+def kill_children():
+    """End every model CLI this process is waiting on (a stopped run). -> how many."""
+    with _CHILDREN_LOCK:
+        ps = [p for p in _CHILDREN if p.poll() is None]
+    for p in ps:
+        _kill(p)
+    return len(ps)
+
+
+def _wait_streaming(p, cmd, input, timeout, on_line):
     out, err = [], []
 
     def feed():

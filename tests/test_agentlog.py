@@ -194,3 +194,19 @@ def test_stream_parsers_ignore_junk():
     agentlog.claude_event("not a dict")
     agentlog.claude_event({"type": "assistant", "message": {"content": ["x", {"type": "text", "text": " "}]}})
     agentlog.codex_event({"type": "item.completed", "item": "x"})
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX sessions")
+def test_kill_children_ends_a_streaming_cli(tmp_path):
+    """A stopped run ends the model CLI it waits on (it runs in its own session, the Stop's SIGINT misses it)."""
+    import sys
+    res = {}
+    t = threading.Thread(target=lambda: res.update(r=agentlog.run_streaming(
+        [sys.executable, "-c", "import time; time.sleep(60)"], "", str(tmp_path), None, 120, lambda ln: None)))
+    t0 = time.time()
+    t.start()
+    while not agentlog._CHILDREN and time.time() - t0 < 10:
+        time.sleep(0.05)
+    assert agentlog.kill_children() == 1
+    t.join(10)
+    assert not t.is_alive() and res["r"].returncode != 0 and time.time() - t0 < 15 and not agentlog._CHILDREN

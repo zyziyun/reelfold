@@ -264,7 +264,14 @@ class Runner:
         self._pulse = pulse
         try:
             with activate(self.dir), pulse:       # the client's persona overlay; live status heartbeat (desk app)
-                res = self._run()
+                try:
+                    res = self._run()
+                except KeyboardInterrupt:
+                    # Stop: the model CLIs run in their own sessions (agentlog) - end them, or the process would
+                    # wait for their calls (minutes) before it exits
+                    from vstudio import agentlog
+                    agentlog.kill_children()
+                    raise
                 pulse.final = _final_status(res)
                 return res
         finally:
