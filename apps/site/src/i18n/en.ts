@@ -3,9 +3,9 @@
 
 export const en = {
   meta: {
-    title: 'Reelfold: turn one recording into clips for 20 platforms (free, open source, Mac)',
+    title: 'Reelfold: free, open-source AI video editor for Mac',
     description:
-      'Free, open-source Mac app that turns long recordings, footage and course notes into finished videos and clips for YouTube Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili and more. Runs on your Mac with the AI you choose.',
+      'Auto edit videos on your Mac: repurpose a long video into shorts for 20 platforms, or make a course video from notes. Works with Claude Code. Free, MIT.',
     ogAlt: 'Reelfold. One recording. Every platform. Free and open source, for Apple Silicon Macs.',
   },
   nav: {
@@ -112,11 +112,11 @@ export const en = {
     ],
   },
   next: {
-    k: 'Coming next',
-    t: 'Home.',
-    l: 'One page for the day: an inbox of what needs you, what is running now, and what goes out today.',
-    tag: 'In development',
-    alt: 'Home, in development: an inbox, the projects running now, and what goes out today.',
+    k: 'New: Home',
+    t: 'Your day on one page.',
+    l: 'An inbox of what needs you, the projects running now, and what goes out today. Approve a clip, watch a run or reschedule a post without leaving it.',
+    tag: 'New in 0.2.7',
+    alt: 'The Home page: a request box, an inbox with two clips to review and a plan to approve, two projects running with their progress, and three posts going out today on YouTube, TikTok and Instagram.',
   },
   os: {
     k: 'Open source',
@@ -135,6 +135,7 @@ export const en = {
     t: 'Questions, answered plainly.',
     items: [
       { q: 'Is it really free?', a: 'Yes. Reelfold is MIT licensed and free to use. The only cost is the AI you connect: the 124-minute class above used $0.29. With a subscription you already have, or a local model, there’s no extra bill.' },
+      { q: 'Can I edit videos with Claude Code?', a: 'Yes. Reelfold can use your Claude Code subscription as its AI: it plans the cuts and writes captions and copy, and the live pane shows each step it takes. The same engine also installs as a Claude Code skill, so you can ask Claude Code to edit a video from the terminal.' },
       { q: 'What do I need?', a: 'A Mac with Apple Silicon, and an AI for planning and writing: a Claude Code or Codex subscription, an API key, or a local model. Narration can use the free voice on your Mac. A Windows preview is available, unsigned; there, narration needs an OpenAI key.' },
       { q: 'Do I have to approve every step?', a: 'No. On autopilot it runs to finished clips and writes down each decision with its reason, so you can change any of them later. Choose Ask me first, in Settings or per project, to approve the plan before it runs.' },
       { q: 'Does my video leave my Mac?', a: 'Cutting, rendering and the free voice run on your Mac. The AI you connect sees what it needs to plan, such as the transcript, under that provider’s terms. With a local model, nothing leaves.' },
@@ -161,6 +162,7 @@ export const en = {
   },
   page: {
     home: 'Home',
+    guide: 'Step-by-step guide in the docs',
     useCases: 'Use cases',
     compare: 'Compare',
     related: 'Related',

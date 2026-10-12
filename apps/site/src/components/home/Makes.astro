@@ -1,14 +1,19 @@
 ---
-import { t, type Lang } from '../../i18n';
+import { t, pathFor, type Lang } from '../../i18n';
 import { heading } from '../../lib/zhHeading';
+import { useCase } from '../../content/usecases';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = t(lang);
+// items with a use-case page of their own (by position in c.makes.items): internal links for readers and search
+const PAGE: Record<number, string> = { 0: 'course-from-notes', 2: 'travel-vlog' };
 ---
 <section class="wrap" id="makes" aria-labelledby="mk-h">
   <div class="head2">
     <div><p class="kick">{c.makes.k}</p><h2 id="mk-h" set:html={heading(c.makes.t, lang)} /></div>
     <p class="lede">{c.makes.l}</p>
   </div>
-  <div class="three">{c.makes.items.map((x) => <div><h3>{x.t}</h3><p>{x.b}</p></div>)}</div>
+  <div class="three">{c.makes.items.map((x, i) => (
+    <div><h3>{x.t}</h3><p>{x.b}</p>{PAGE[i] && <a class="more" href={pathFor(lang, PAGE[i])}>{useCase(PAGE[i], lang).nav} <span aria-hidden="true">→</span></a>}</div>
+  ))}</div>
 </section>

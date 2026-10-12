@@ -15,8 +15,8 @@ export interface PlatformsCopy {
 
 export const PLATFORMS_COPY: Record<Lang, PlatformsCopy> = {
   en: {
-    title: 'Video sizes for 20 platforms: Xiaohongshu, Douyin, Shorts, TikTok | Reelfold',
-    description: 'Video dimensions, aspect ratios, cover sizes, length limits and caption limits for YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, WeChat Channels, Bilibili and 12 more. Checked October 2026.',
+    title: 'Video sizes for 20 platforms: Shorts, TikTok, Xiaohongshu, Douyin',
+    description: 'Video dimensions, aspect ratios, cover sizes, length and caption limits for YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili and 13 more.',
     kicker: 'Platform specs',
     h1: 'Video sizes for twenty platforms.',
     intro: 'The canvas, cover, length and text limits Reelfold uses when it exports a clip, platform by platform. Platforms change these often, so each value was checked against official help pages or several agreeing guides, with the date below.',
@@ -55,8 +55,8 @@ export const PLATFORMS_COPY: Record<Lang, PlatformsCopy> = {
     ],
   },
   fr: {
-    title: 'Formats vidéo de 20 plateformes : Shorts, TikTok, Xiaohongshu, Douyin | Reelfold',
-    description: 'Dimensions vidéo, formats d’image, tailles de couverture, durées maximales et limites de texte pour YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, WeChat Channels, Bilibili et 12 autres. Vérifié en octobre 2026.',
+    title: 'Formats vidéo de 20 plateformes : Shorts, TikTok, Douyin',
+    description: 'Dimensions, formats d’image, couvertures, durées et limites de texte pour YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili et 13 autres.',
     kicker: 'Formats des plateformes',
     h1: 'Les formats vidéo de vingt plateformes.',
     intro: 'Taille d’image, couverture, durée et limites de texte que Reelfold applique à l’export, plateforme par plateforme. Les plateformes les modifient souvent : chaque valeur a été vérifiée sur les pages d’aide officielles ou plusieurs guides concordants, à la date indiquée plus bas.',
@@ -75,8 +75,8 @@ export const PLATFORMS_COPY: Record<Lang, PlatformsCopy> = {
     ],
   },
   es: {
-    title: 'Tamaños de video para 20 plataformas: Shorts, TikTok, Xiaohongshu, Douyin | Reelfold',
-    description: 'Dimensiones de video, relaciones de aspecto, tamaños de portada, duraciones máximas y límites de texto para YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, WeChat Channels, Bilibili y 12 más. Revisado en octubre de 2026.',
+    title: 'Tamaños de video para 20 plataformas: Shorts, TikTok, Douyin',
+    description: 'Dimensiones, relaciones de aspecto, portadas, duraciones y límites de texto para YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili y 13 más.',
     kicker: 'Formatos por plataforma',
     h1: 'Tamaños de video para veinte plataformas.',
     intro: 'El lienzo, la portada, la duración y los límites de texto que usa Reelfold al exportar, plataforma por plataforma. Las plataformas los cambian a menudo, así que cada valor se comprobó en páginas de ayuda oficiales o en varias guías coincidentes, con la fecha que verás abajo.',

@@ -26,6 +26,8 @@ const SETS = {
   typing: { en: typing, zh: typing },
   longform: { en: longformEn, zh: longform },
   talkinghead: { en: talkingheadEn, zh: talkinghead },
+  course: { en: makingEn, zh: makingZh },
+  follow: { en: editorEn, zh: editorZh },
 } satisfies Record<string, { en: ImageMetadata; zh: ImageMetadata }>;
 // ┌─ HOME DASHBOARD SCREENSHOT SLOT ───────────────────────────────────────────────────────────────────────────┐
 // │ The Home dashboard (Inbox / Running / Going out today) is in development. When it ships:                     │

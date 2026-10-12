@@ -4,9 +4,9 @@ import type { Dict } from './en';
 
 export const fr: Dict = {
   meta: {
-    title: 'Reelfold : un enregistrement, des clips pour 20 plateformes (gratuit, open source, Mac)',
+    title: 'Reelfold : éditeur vidéo IA gratuit et open source pour Mac',
     description:
-      'App Mac gratuite et open source qui transforme de longs enregistrements, des rushes et des notes de cours en vidéos et clips finis pour YouTube Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili et d’autres. Tourne sur votre Mac, avec l’IA de votre choix.',
+      'Montez vos vidéos automatiquement sur Mac : une longue vidéo devient des shorts pour 20 plateformes, vos notes une vidéo de cours. Avec Claude Code. Gratuit.',
     ogAlt: 'Reelfold. Un enregistrement. Toutes les plateformes. Gratuit et open source, pour les Mac Apple Silicon.',
   },
   nav: {
@@ -113,11 +113,11 @@ export const fr: Dict = {
     ],
   },
   next: {
-    k: 'Prochainement',
-    t: 'Accueil.',
-    l: 'Une page pour la journée : ce qui vous attend, ce qui tourne en ce moment, et ce qui part aujourd’hui.',
-    tag: 'En développement',
-    alt: 'Accueil, en développement : une boîte de réception, les projets en cours et ce qui part aujourd’hui.',
+    k: 'Nouveau : Accueil',
+    t: 'Votre journée sur une page.',
+    l: 'Ce qui vous attend, les projets en cours et ce qui part aujourd’hui. Validez un clip, suivez un montage ou décalez une publication sans quitter la page.',
+    tag: 'Nouveau dans la 0.2.7',
+    alt: 'La page Accueil : une zone de demande, une boîte de réception avec deux clips à relire et un plan à valider, deux projets en cours avec leur avancement, et trois publications prévues aujourd’hui sur YouTube, TikTok et Instagram.',
   },
   os: {
     k: 'Open source',
@@ -136,6 +136,7 @@ export const fr: Dict = {
     t: 'Questions, réponses franches.',
     items: [
       { q: 'C’est vraiment gratuit ?', a: 'Oui. Reelfold est sous licence MIT et gratuit. Le seul coût, c’est l’IA que vous branchez : le cours de 124 minutes ci-dessus a coûté 0,29 $. Avec un abonnement que vous avez déjà, ou un modèle local, aucune facture en plus.' },
+      { q: 'Puis-je monter des vidéos avec Claude Code ?', a: 'Oui. Reelfold peut utiliser votre abonnement Claude Code comme IA : il prévoit les coupes, écrit les sous-titres et les textes, et le panneau en direct montre chacune de ses étapes. Le même moteur s’installe aussi comme skill Claude Code, pour demander un montage depuis le terminal.' },
       { q: 'De quoi ai-je besoin ?', a: 'D’un Mac Apple Silicon, et d’une IA pour planifier et écrire : un abonnement Claude Code ou Codex, une clé d’API, ou un modèle local. La narration peut utiliser la voix gratuite sur votre Mac. Une préversion Windows existe, non signée ; la narration y demande une clé OpenAI.' },
       { q: 'Dois-je valider chaque étape ?', a: 'Non. En pilote automatique, il va jusqu’aux clips finis et note chaque décision avec sa raison, pour que vous puissiez en changer n’importe laquelle plus tard. Choisissez « Me demander d’abord », dans les réglages ou par projet, pour valider le plan avant qu’il ne tourne.' },
       { q: 'Ma vidéo quitte-t-elle mon Mac ?', a: 'Les coupes, le rendu et la voix gratuite se font sur votre Mac. L’IA que vous branchez voit ce dont elle a besoin pour planifier, comme la transcription, selon les conditions de ce fournisseur. Avec un modèle local, rien ne sort.' },
@@ -162,6 +163,7 @@ export const fr: Dict = {
   },
   page: {
     home: 'Accueil',
+    guide: 'Le guide pas à pas (en anglais)',
     useCases: 'Usages',
     compare: 'Comparer',
     related: 'Voir aussi',
