@@ -324,6 +324,11 @@ def _chapter_cinema(C, s):
         name, name_en = name_en, name
     if getattr(C, "SUBS", "both") == "en" and re.search(r"[\u4e00-\u9fff]", name_en or ""):
         name_en = ""                                       # English only (YouTube): no Chinese chapter name
+    subs = getattr(C, "SUBS", "both")
+    if subs in ("en", "zh"):                               # one language per version, like the subtitles
+        both = [x for x in (name, name_en) if x]
+        pick = [x for x in both if bool(re.search(r"[\u4e00-\u9fff]", x)) == (subs == "zh")]
+        name, name_en = (pick or both or [""])[0], ""
     maxw = min(W * 0.8, (C.SAFE[2] - C.SAFE[0]) * 0.86)
     fz = _fit(name, "cjk-serif", C.b(84), maxw)
     fn = font("sans", C.b(28))
@@ -342,6 +347,15 @@ def make_title_card(C):
     serif, generously spaced, the other language small and letter-spaced under a short rule."""
     W, H = C.BOX_W, C.BOX_H
     main, sub = C.HEAD_MAIN, C.HEAD_SUB
+    subs = getattr(C, "SUBS", "both")
+    if subs in ("en", "zh"):                               # one language per version
+        cands = [x for x in (C.TITLE_EN, C.TITLE_ZH, main) if x]
+        main = next((x for x in cands if bool(re.search(r"[\u4e00-\u9fff]", x)) == (subs == "zh")), main)
+        sub = ""
+        for sep in (": ", "：", " — ", " - "):           # a long title: its head large, the rest as the small line
+            if main and sep in main and len(main) > 22:
+                main, sub = (x.strip() for x in main.split(sep, 1))
+                break
     if not (main or sub):
         return None
     lay = layer(W, H)

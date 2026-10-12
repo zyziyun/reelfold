@@ -209,7 +209,16 @@ class Ctx:
         self.ZH_LEAD = tts_lang == "zh" or str(g("SUB_LEAD", "") or "") == "zh"
         # which subtitle lines show: "both" (default), "en", "zh". YouTube / Shorts is English only, whatever the
         # spec says (vstudio.platform.FIXED_LANG): no Chinese subtitle, header or chapter name there
-        self.SUBS = str(g("SUBS", "both") or "both").lower()
+        # one language per platform by default (2026-10-12: no bilingual stacked captions unless asked): the
+        # platform's language (English on YouTube and the international platforms, 中文 on 小红书 / B站 ...), else the
+        # narration's; SUBS = "both" (or persona subtitles.bilingual) keeps both lines - never on YouTube
+        from vstudio.subs import bilingual_wanted
+        subs = str(g("SUBS", "") or ("both" if bilingual_wanted() else "auto")).lower()
+        if subs == "auto":
+            from vstudio import platform as vplat
+            lang = vplat.lang_for(self.prof.name) if self.prof is not None else None
+            subs = lang or ("zh" if self.ZH_LEAD else "en")
+        self.SUBS = subs
         if self.prof is not None:
             from vstudio import platform as vplat
             if vplat.lang_fixed(self.prof.name):
@@ -275,9 +284,12 @@ class Ctx:
         """A bilingual on-picture text ("Pyramid · 金字塔构图") as shown: its English parts only on an English-only
         platform (SUBS "en", YouTube), unchanged elsewhere or when no English part is left."""
         t = str(text or "")
+        import re as _re
+        if self.SUBS == "zh":                      # a Chinese version: the Chinese parts of a bilingual label
+            zh = [x for x in _re.split(r"\s*[·•/／|｜]\s*", t) if _re.search(r"[\u3400-\u9fff]", x)]
+            return " · ".join(zh) if zh else text
         if self.SUBS != "en" or not any("\u3400" <= ch <= "\u9fff" for ch in t):
             return text
-        import re as _re
         parts = [_re.sub(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+", " ", x).strip()
                  for x in _re.split(r"\s*[·•/／|｜]\s*", t)]
         en = " · ".join(_re.sub(r"\s+", " ", x) for x in parts if _re.search(r"[A-Za-z0-9]", x))

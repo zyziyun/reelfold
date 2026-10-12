@@ -448,6 +448,19 @@ def _recipe_of(rec):
         return None
 
 
+def mono_caption(text, alt, lang, both=False):
+    """One caption line set in the version's language (English on international platforms, 中文 on Chinese ones):
+    of a bilingual cue (lines of both, or text + alt) only the lines in ``lang``; bilingual when persona
+    ``subtitles.bilingual`` asks (``both``; never on YouTube). None / no line in that language: as is."""
+    from vstudio.subs import _ZH
+    text = str(text or "")
+    if not lang or both:
+        return text
+    lines = [x for x in text.split("\n") if x.strip()] + ([str(alt)] if alt else [])
+    keep = [x for x in lines if bool(_ZH.search(x)) == (lang == "zh")]
+    return "\n".join(keep) if keep else text
+
+
 def target_lang(tg):
     """The language a version shows: "en" on international platforms (YouTube, TikTok, Instagram, X ...), "zh" on
     Chinese ones (Xiaohongshu, Bilibili, Douyin ...); None for the primary file without a platform profile."""
@@ -462,6 +475,9 @@ def visual_spec(rec, st, tl, tg, band):
     """Everything the frame pass draws, in edited seconds (JSON: it is part of the final key)."""
     layers = []
     lang = target_lang(tg)
+    from vstudio import platform as _P
+    from vstudio.subs import bilingual_wanted
+    both = bilingual_wanted() and not (tg.get("profile") is not None and _P.lang_fixed(tg["profile"].key))
     for e in st["effects"]:
         if any(str(k).endswith(FX.LANG_SUFFIXES) for k in (e.get("params") or {})):
             e = dict(e, params=FX.localize(e["params"], lang))
@@ -501,11 +517,12 @@ def visual_spec(rec, st, tl, tg, band):
                 continue
             s = tl.span(cue["start"], cue["end"])
             if s:
-                caps.append([round(s[0], 3), round(s[1], 3), c["overrides"].get(k, cue["text"])])
+                caps.append([round(s[0], 3), round(s[1], 3),
+                             mono_caption(c["overrides"].get(k, cue["text"]), cue.get("alt"), lang, both)])
     for a in c["added"]:
         s = tl.span(a["start"], a["end"])
         if s:
-            caps.append([round(s[0], 3), round(s[1], 3), a["text"]])
+            caps.append([round(s[0], 3), round(s[1], 3), mono_caption(a["text"], a.get("alt"), lang, both)])
     caps.sort()
     pl = c.get("placement") or {}
     mask = None

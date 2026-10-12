@@ -60,6 +60,28 @@ _HI = re.compile(r"【([^】]*)】|\*\*(.+?)\*\*")
 
 
 CUE_FADE = 0.18      # s: burned captions fade over 2 x this, centred on each cue edge
+_ZH = re.compile(r"[\u3400-\u9fff]")
+
+
+def bilingual_wanted(request=None):
+    """Bilingual stacked captions only when asked: persona ``subtitles.bilingual: true`` or a request that says so
+    ("bilingual subtitles", "双语字幕", "中英字幕"). Default: one language per platform (2026-10-12)."""
+    if _persona_subs().get("bilingual") is True:
+        return True
+    return bool(re.search(r"bilingual|dual[- ]language|双语|中英(?:文)?字幕|中英双", str(request or ""), re.I))
+
+
+def pick_lang(text, alt, lang):
+    """One caption in ``lang`` ("en" | "zh") from a cue's ``text`` / ``alt`` (either may be the translation):
+    -> (text, alt="", found). A cue with no line in that language keeps its text (found False)."""
+    text, alt = text or "", alt or ""
+    is_zh = lambda x: bool(_ZH.search(x))
+    want_zh = lang == "zh"
+    if text and is_zh(text) == want_zh:
+        return text, "", True
+    if alt and is_zh(alt) == want_zh:
+        return alt, "", True
+    return text or alt, "", False
 
 
 def cue_opacity(a, b, t, fade=CUE_FADE):

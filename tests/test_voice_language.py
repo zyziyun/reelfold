@@ -82,7 +82,9 @@ def test_export_captions_english_only_on_youtube():
     assert [(c.text, c.alt) for c in out] == [("Gold settles on the water.", ""), ("Let the light take its time.", ""),
                                               ("只有中文", "")]
     assert warn and "1 cue" in warn[0]
-    same, none = EX.cues_for_platform(xhs, cues)
+    zh, none = EX.cues_for_platform(xhs, cues, bilingual=False)    # one language per platform: 中文 on 小红书
+    assert [(c.text, c.alt) for c in zh] == [("金色落在水面", ""), ("让光慢慢走", ""), ("只有中文", "")] and not none
+    same, none = EX.cues_for_platform(xhs, cues, bilingual=True)
     assert [(c.text, c.alt) for c in same] == [(c.text, c.alt) for c in cues] and not none
 
 
@@ -180,8 +182,8 @@ def test_photo_story_youtube_render_is_english_only(tmp_path):
     spec.write_text(spec.read_text().replace('"youtube"', '"xiaohongshu"').replace(
         'TTS = dict(language="zh")', 'TTS = dict(language="en")\nSUB_LEAD = "zh"'))
     C = Ctx(load_spec(str(spec)))
-    assert C.SUBS == "both" and C.ZH_LEAD and not C.EN_LEAD and C.HEAD_MAIN == "西雅图 1962"
-    assert C.shown("Pyramid · 金字塔构图") == "Pyramid · 金字塔构图"
+    assert C.SUBS == "zh" and C.ZH_LEAD and not C.EN_LEAD and C.HEAD_MAIN == "西雅图 1962"   # 中文 only on 小红书
+    assert C.shown("Pyramid · 金字塔构图") == "金字塔构图"
 
 
 def test_photo_story_youtube_cover_and_post_are_english():

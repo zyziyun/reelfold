@@ -39,6 +39,9 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   ALWAYS English (title, subtitles, cover, post); Chinese goes to Xiaohongshu / Bilibili / Douyin. Also write POST_EN
   (an English POST) when POST is Chinese, or POST_ZH when POST is English - same facts, its own hashtags - and
   COVER_EN (the COVER's texts in English) when the COVER is Chinese.
+- Subtitles are ONE language per platform (English on YouTube and the international platforms, 中文 on 小红书 / B站):
+  still write every cue as (English, 中文) - each version shows its own line; never set SUBS unless the request asks
+  for bilingual subtitles (then SUBS = "both"). Picture labels as "English · 中文" (e.g. "Space Needle · 太空针塔").
 - Premium look (references/AESTHETICS.md P1-P9): LOOK = "cinema" (full-bleed picture, no header; leave LOOK out to
   get it). Transitions: only "fade" (a slow dissolve; the default, so you may omit tr) or "cut" - never flash, whip,
   leak, zoom, iris, ink, blinds, tear or slideup. Hold the beautiful shots: one shot per unit when the clip has a

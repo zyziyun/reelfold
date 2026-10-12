@@ -117,3 +117,42 @@ def test_planner_never_keeps_a_paid_voice_without_its_key(monkeypatch):
     params = dict(tts_engine="kokoro")
     PL._apply_ctx_defaults(m, params, {}, dict(language="en", source="request"), {}, dict(files=[]))
     assert params["tts_engine"] == "kokoro"
+
+
+def test_captions_are_one_language_per_platform(monkeypatch):
+    """2026-10-12: no bilingual stacked captions by default - English on YouTube / TikTok, Chinese on 小红书 / B站."""
+    from vstudio import export as X
+    from vstudio import platform as P
+    from vstudio import subs as S
+    from vstudio.project import outrender as OR
+    monkeypatch.setattr(S, "_persona_subs", lambda: {})
+    cues = [S.Cue(0, 2, "塔高 605 英尺", "It rises 605 feet"), S.Cue(2, 4, "Built in a year", "约一年建成"),
+            S.Cue(4, 6, "只有中文", "")]
+    zh, w = X.cues_for_platform(P.profile("xiaohongshu:full"), cues)
+    assert [c.text for c in zh] == ["塔高 605 英尺", "约一年建成", "只有中文"] and all(not c.alt for c in zh) and not w
+    en, w = X.cues_for_platform(P.profile("tiktok"), cues)
+    assert [c.text for c in en][:2] == ["It rises 605 feet", "Built in a year"] and w and "1 cue" in w[0]
+    keep, _ = X.cues_for_platform(P.profile("bilibili"), cues, bilingual=True)
+    assert keep[0].alt == "It rises 605 feet"
+    yt, _ = X.cues_for_platform(P.profile("youtube"), cues, bilingual=True)
+    assert yt[0].text == "It rises 605 feet" and not yt[0].alt                 # YouTube: English, always
+    assert S.bilingual_wanted("Add bilingual subtitles") and S.bilingual_wanted("加中英字幕")
+    assert not S.bilingual_wanted("Narrate in English for YouTube")
+    assert OR.mono_caption("夜幕下的西雅图\nSeattle at night", None, "en") == "Seattle at night"
+    assert OR.mono_caption("Seattle at night", "夜幕下的西雅图", "zh") == "夜幕下的西雅图"
+    assert OR.mono_caption("Seattle at night", "夜幕下的西雅图", "zh", both=True) == "Seattle at night"
+
+
+def test_photostory_subtitles_follow_the_platform(tmp_path):
+    from photostory.ctx import Ctx, load_spec
+    spec = tmp_path / "spec.py"
+    spec.write_text('TITLE_ZH = "为1962而建"\nTITLE_EN = "Built for 1962"\nSECTIONS = ["序"]\nSCRIPT = []\n'
+                    'TTS = dict(language="en")\nSUB_LEAD = "zh"\n')
+    for plat, want in (("youtube", "en"), ("xiaohongshu:vertical", "zh"), ("bilibili", "zh"), ("tiktok", "en")):
+        sp = load_spec(str(spec))
+        sp.PLATFORM = plat
+        C = Ctx(sp)
+        assert C.SUBS == want, plat
+        en, zh = C.sub_pair("It rises 605 feet", "塔高 605 英尺")
+        assert (en, zh) == (("It rises 605 feet", "") if want == "en" else ("", "塔高 605 英尺"))
+        assert C.shown("Space Needle · 太空针塔") == ("Space Needle" if want == "en" else "太空针塔")
