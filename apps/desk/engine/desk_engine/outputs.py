@@ -33,7 +33,7 @@ from .common import BadRequest, need, read_json, write_json
 
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add", "theme",
        "caption_remove", "caption_placement", "title", "effect_add", "effect_update", "effect_remove", "cover",
-       "export_add", "export_remove", "reset")
+       "export_add", "export_remove", "reset", "shot_swap")
 TARGET_RE = re.compile(r"^([a-z][a-z-]{0,30}(:[a-z]{3,12})?|\d{1,2}:\d{1,2})$")
 
 
@@ -368,7 +368,9 @@ def list_clips(entry):
     """A history entry (kind batch | project | work, dir) -> clips."""
     kind, d = entry["kind"], entry["dir"]
     if kind == "work":
-        return _ready(d, WK.clips(d, probe=probe))
+        from .imports import import_clips
+        imp = import_clips(d, probe=probe)               # finished videos imported: one clip per imported clip
+        return _ready(d, imp if imp is not None else WK.clips(d, probe=probe))
     if kind == "project":
         return _batch_clips(os.path.join(d, "state"), project_dir=d)
     return _batch_clips(d)
@@ -413,6 +415,15 @@ def validate_ops(ops):
             need(isinstance(o.get("target"), str) and TARGET_RE.match(o["target"]), "target: 3:4 | 9:16 | 16:9 | platform")
         if o["op"] == "effect_add":
             need(isinstance(o.get("effect"), str) and 0 < len(o["effect"]) <= 40, "effect: id")
+        if o.get("lang") is not None:
+            need(o["op"] == "export_add" and isinstance(o["lang"], str) and re.match(r"^[a-z]{2}(-[a-z]{2})?$", o["lang"]),
+                 "lang: a language code (en, zh, fr ...)")
+        if o["op"] == "shot_swap":
+            need(isinstance(o.get("shot"), int) and not isinstance(o.get("shot"), bool) and 0 <= o["shot"] < 10000,
+                 "shot: a shot number")
+            need(o.get("source") is None or (isinstance(o["source"], str) and 0 < len(o["source"]) < 4096),
+                 "source: a footage file")
+            need(o.get("restore") in (None, True, False), "restore: true / false")
         if o.get("words") is not None:
             w = o["words"]
             need(isinstance(w, list) and len(w) == 2 and all(isinstance(x, int) and not isinstance(x, bool) and
@@ -1115,7 +1126,7 @@ class Outputs:
             if not self._ext:                                  # older engine: the desk keeps the transcript
                 eng["chat"] = self._desk(e, clip_id).get("chat") or []
             doc = self._normalise(base, eng, item_id, words or None)
-            doc.update(engine="real", output_id=oid, pickups=eng.get("pickups") or [])
+            doc.update(engine="real", output_id=oid, pickups=eng.get("pickups") or [], imported=eng.get("imported"))
         else:
             st = self._desk(e, clip_id)
             caps, notes = self._caps(base["mode"], bool(base["file"]), bool(base["words"]))

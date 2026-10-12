@@ -109,6 +109,10 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
        POST .../change {checkpoint, item, answer}; POST .../remake {item, do {checkpoint: choice | null}}
        (a finished clip's vertical framing / post copy made again, older projects too)   (autopilot.py)
+  POST /api/import/check {inputs[]}        finished videos vs footage in what was dropped (imports.py); POST
+       /api/import {inputs[], sources?[], title?} -> {job} + ``import`` events; GET /api/import/job/<job>;
+       GET /api/import/<item>; POST .../match {clip?} (``import-match``); POST .../copy {clip} (``import-copy``);
+       GET .../takes?clip=&shot= (other takes of a shot, with stills)
   GET  /api/home/suggestions               Home's chips from her own signals (homesuggest.py): requests sent more
                                            than once, fresh recordings in a watched folder no project uses yet
   GET  /api/sample                         the built-in sample recording (copied out of the app) -> {available, path, ...};
@@ -506,6 +510,8 @@ class Api:
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
         self.project_ask.autopilot = self.autopilot
         self.outputs.autopilot = self.autopilot        # the clip chat's "follow the subject" / "rewrite the copy"
+        from .imports import Imports                # finished videos made elsewhere -> second-pass editing
+        self.imports = Imports(engine.data_dir, self.history, self.outputs, self.strips, bus, runner if real else None)
         if real and runner is not None:            # runs that waited in line when the app quit go back in line
             import threading
 
@@ -551,12 +557,48 @@ class Api:
         out += self.create.roots()
         return sorted(set(out))
 
+    def _route_import(self, method, parts, query, b):
+        def paths(v, name, n=200):
+            need(isinstance(v, list) and len(v) <= n, f"{name}: up to {n} files / folders")
+            return [_abs_path(p, f"{name}[]") for p in v]
+        if parts == ["import", "check"] and method == "POST":
+            ins = paths(b.get("inputs") or [], "inputs")
+            need(ins, "inputs: the files / folders to look at")
+            return self.imports.check(ins)
+        if parts == ["import"] and method == "POST":
+            ins = paths(b.get("inputs") or [], "inputs")
+            need(ins, "inputs: the finished videos (files / folders)")
+            src = paths(b.get("sources") or [], "sources")
+            t = b.get("title")
+            need(t is None or (isinstance(t, str) and len(t) <= 200), "title: up to 200 chars")
+            return self.imports.start(ins, src, t.strip() if t else None)
+        if len(parts) == 3 and parts[1] == "job" and method == "GET":
+            return self.imports.get(parts[2])
+        need(len(parts) >= 2 and ID_RE.match(parts[1]), "bad item id")
+        if len(parts) == 2 and method == "GET":
+            return self.imports.info(parts[1])
+        if parts[2:] == ["match"] and method == "POST":
+            c = b.get("clip")
+            need(c is None or (isinstance(c, str) and len(c) <= 200), "clip: a clip id")
+            return self.imports.match(parts[1], c)
+        if parts[2:] == ["copy"] and method == "POST":
+            need(isinstance(b.get("clip"), str) and 0 < len(b["clip"]) <= 200, "clip: a clip id")
+            return self.imports.copy(parts[1], b["clip"])
+        if parts[2:] == ["takes"] and method == "GET":
+            clip = (query.get("clip") or [""])[0]
+            shot = (query.get("shot") or [""])[0]
+            need(clip and shot.isdigit(), "clip and shot")
+            return self.imports.takes(parts[1], clip, int(shot))
+        raise KeyError("no such import route")
+
     def route_v04(self, method, parts, query, body):
         """v0.4: outputs (player + second-pass editor), intake (composer -> plan card), inbox. None = not mine."""
         from urllib.parse import unquote
         b = body if isinstance(body, dict) else {}
         if parts[:1] == ["effects"] and method == "GET":
             return self.outputs.effects()
+        if parts[:1] == ["import"]:
+            return self._route_import(method, parts, query, b)
         if parts[:1] == ["project-ask"] and len(parts) >= 2:
             if len(parts) == 2 and method == "GET":
                 return self.project_ask.get(parts[1])

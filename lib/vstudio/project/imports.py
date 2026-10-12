@@ -85,8 +85,7 @@ EDITOR_TAGS = re.compile(r"Lavf|CapCut|Jianying|剪映|Premiere|Final Cut|com\.a
 class ImportError_(ValueError):
     def __init__(self, code, message, message_zh=None, **params):
         super().__init__(message)
-        self.info = dict(ok=False, error=message, code=code, params=params, message=message,
-                         message_zh=message_zh or message)
+        self.info = dict(code=code, params=params, message=message, message_zh=message_zh or message)
 
 
 # --------------------------------------------------------------------------- reading what was dropped
