@@ -176,7 +176,7 @@ checkpoints:
       required: [approve]
     auto: default
 outputs:
-  platforms: ["xiaohongshu:vertical", "xiaohongshu:full", douyin, youtube, youtube-shorts]
+  platforms: ["xiaohongshu:vertical", "xiaohongshu:full", douyin, youtube, youtube-shorts, bilibili, "bilibili:vertical"]
   collect: vstudio.project.adapters.common:collect_files
   files: ["{item_dir}/out/story.mp4", "{item_dir}/out/cover.png", "{item_dir}/out/subtitles.srt", "{item_dir}/out/post.md",
           "{item_dir}/out/voice.mp3"]
