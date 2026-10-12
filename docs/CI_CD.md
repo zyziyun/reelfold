@@ -199,3 +199,4 @@ release, creating the draft if it is somehow missing. If the Windows build fails
 "Windows installer NOT attached"; the macOS draft is complete, and *Re-run failed jobs* attaches the installer later.
 A dry run with *windows* ticked does the same checks and prints the upload it would do. Signing it later:
 `apps/desk/docs/RELEASING.md` §3.
+
