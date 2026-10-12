@@ -13,7 +13,10 @@ Environment
   ANTHROPIC_API_KEY / OPENAI_API_KEY   segment-planning providers (from the OS keychain via the desk)
 Prints one line ``{"ready": true, "socket": "<path>" | "port": N, "mode": "real"|"mock"}`` on stdout, then serves until
 stdin closes (the parent died) or SIGTERM / SIGINT. SIGUSR1 prints every thread's stack to stderr and SIGUSR2 is
-noted there; neither stops the engine (keep_running_on_stray_signals).
+noted there; neither stops the engine (keep_running_on_stray_signals). Its children never get its stdin
+(children_never_inherit_stdin).
+  DESK_ENGINE_STACKS    tests only: a file every thread's stack is written to every 20 s (a hang on a CI runner
+                        without SIGUSR1, i.e. Windows, says where it is)
 """
 import importlib
 import json
@@ -113,8 +116,42 @@ def keep_running_on_stray_signals():
     signal.signal(signal.SIGUSR2, _noted)
 
 
+def children_never_inherit_stdin():
+    """The engine's stdin is its lifeline to the desk (a pipe that is never written and closes when the desk goes):
+    no child may inherit it. Windows: while watch_stdin's read is pending on that pipe, a child that touches the
+    inherited handle - every Python / C runtime does at start-up (GetFileType) - blocks until the read returns, i.e.
+    forever (the explainer's "Try again" stayed "Drafting..." for good: the scenes were drawn, then the in-engine
+    ``make_captions.py`` never started). Elsewhere a child that reads stdin waits for the desk to quit. So every
+    ``subprocess`` call in this process gets an empty stdin unless it passes its own (``input=`` / ``stdin=``)."""
+    import subprocess
+    init = subprocess.Popen.__init__
+    if getattr(init, "_desk_no_stdin", False):
+        return
+
+    def __init__(self, args, *a, **k):
+        if len(a) < 3 and k.get("stdin") is None:     # (bufsize, executable, stdin) positional: kept as passed
+            k["stdin"] = subprocess.DEVNULL
+        init(self, args, *a, **k)
+    __init__._desk_no_stdin = True
+    subprocess.Popen.__init__ = __init__
+
+
+def dump_stacks_for_tests():
+    path = os.environ.get("DESK_ENGINE_STACKS")
+    if not path:
+        return
+    import faulthandler
+    try:
+        f = open(path, "w", encoding="utf-8")       # kept open for the process's life (faulthandler writes to it)
+        faulthandler.dump_traceback_later(20, repeat=True, file=f)
+    except (OSError, RuntimeError, ValueError):
+        pass
+
+
 def main():
     keep_running_on_stray_signals()         # first: a stray signal during start-up must not end it either
+    children_never_inherit_stdin()
+    dump_stacks_for_tests()
     token = os.environ.get("DESK_TOKEN")
     if not token or len(token) < 32:
         print(json.dumps(dict(ready=False, error="DESK_TOKEN missing / too short")), flush=True)

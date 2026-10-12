@@ -71,6 +71,7 @@ test.beforeAll(async () => {
       DESK_USER_DATA: path.join(tmp, 'profile'),
       DESK_HISTORY_WATCH: '',
       DESK_HIDE_WINDOW: '1',
+      DESK_ENGINE_STACKS: path.join(tmp, 'engine-stacks.txt'), // every thread's stack every 20 s (see the diagnostics below)
       DESK_SHARED_CACHE: path.join(tmp, 'cache'),
       DESK_HF_HUB: '',
       DESK_SKIP_FIRST_RUN: '1',
@@ -91,6 +92,39 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await closeApp(app);
+});
+
+// a failure (a Windows-only hang cannot be reproduced locally) attaches what the next run needs: the Claude Code
+// stand-in's calls, each project's logs and files, and the engine's latest stack dump
+const tail = (f: string, n = 4000) => {
+  try {
+    const t = fs.readFileSync(f, 'utf8');
+    return t.length > n ? '…' + t.slice(-n) : t;
+  } catch {
+    return '(none)';
+  }
+};
+const walk = (d: string, out: string[] = []): string[] => {
+  for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+};
+test.afterEach(async ({}, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus || !fx) return;
+  const parts = [`--- claude.log\n${tail(path.join(tmp, 'claude.log'))}`, `--- renders.log\n${tail(path.join(tmp, 'renders.log'))}`];
+  for (const dir of [fx.needs, fx.plain]) {
+    const files = walk(dir);
+    parts.push(`--- files of ${dir}\n${files.map((f) => path.relative(dir, f)).join('\n')}`);
+    for (const f of files.filter((x) => /\.(log|jsonl)$/.test(x))) parts.push(`--- ${path.relative(dir, f)}\n${tail(f, 2500)}`);
+  }
+  const stacks = tail(path.join(tmp, 'engine-stacks.txt'), 400000);
+  const last = stacks.slice(Math.max(0, stacks.lastIndexOf('Timeout ('))); // faulthandler starts each dump with "Timeout (0:00:20)!"
+  parts.push(`--- engine stacks (latest)\n${last.slice(-30000)}`);
+  await testInfo.attach('engine-diagnostics', { body: parts.join('\n\n'), contentType: 'text/plain' });
+  console.log(`[explainerVisuals diagnostics: ${testInfo.title}]\n${parts.join('\n\n').slice(0, 60000)}`);
 });
 
 const hash = (h: string) => page.evaluate((x) => (location.hash = x), h);

@@ -478,8 +478,9 @@ def scene_support(item, path, log=None):
             not os.path.exists(os.path.join(path, "captions.html")):
         from .. import manifests as M
         scripts = os.path.join(M.WORKFLOWS, "explainer", "scripts")
+        # an empty stdin and a time limit: run inside the desk's engine, an inherited stdin hung it on Windows
         subprocess.run([sys.executable, os.path.join(scripts, "make_captions.py"), "-C", item],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
 
 
 def _scenes_review(item, written, total):
