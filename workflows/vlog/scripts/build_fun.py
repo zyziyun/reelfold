@@ -34,6 +34,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from funvlog import frames as FR  # noqa: E402
 from funvlog import gfx as G  # noqa: E402
 from funvlog import mix as MX  # noqa: E402
+from funvlog import plan as PL  # noqa: E402
 from funvlog.plan import Planner, music_origin  # noqa: E402
 
 
@@ -236,7 +237,8 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
     fit_cache = {}
     safe = P.safe_box(prof)
     mode = cfg.get("reframe", "face")
-    fallback = cfg.get("reframe_fallback", "pad-blur")
+    # no blurred bands by default: a centre crop of the scenery reads cleaner than the picture on a blurred pad
+    fallback = cfg.get("reframe_fallback", "center")
     photo_k = 0
     report["shots"] = []
     t_start = time.time()
@@ -263,13 +265,13 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
             if hdr_mode not in (False, "false"):
                 vf = media.hdr_to_sdr_args(s["src"], transfer=media.probe(s["src"])["transfer"],
                                            force=hdr_mode in (True, "true"))
-            vf = ",".join(x for x in (vf, FR.grade_chain(grade, cfg.get("warm", True), cfg.get("sharpen", True),
+            vf = ",".join(x for x in (vf, FR.grade_chain(grade, cfg.get("warm", True), cfg.get("sharpen", False),
                                                           float(s.get("bright", 0.0)))) if x)
             fmode = s.get("fit") or mode
             fa = dict(mode=fmode, fallback=fallback, safe=safe, cache=fit_cache)
             ff = int(n - round(s.get("freeze_s", 0.0) * fps)) if s.get("freeze") else None
             gen = FR.video_shot_frames(s["src"], times, W, H, fa, vf=vf, blend=cfg.get("blend_slowmo", True),
-                                       freeze_from=ff, card=FR.card_renderer(W, H, g_unit) if ff else None,
+                                       freeze_from=ff, card=FR.card_renderer(W, H, g_unit, flash=PL.transition_style(cfg) != "clean") if ff else None,
                                        report=rinfo)
         k = -1
         for k, img in enumerate(gen):
@@ -357,7 +359,7 @@ def main(argv=None):
     ap.add_argument("--no-asr", action="store_true", help="never run whisper (transcript files / loudness only)")
     ap.add_argument("--reframe-fallback", choices=["subject", "pad-blur", "center"],
                     help="a shot without a face on another-shaped canvas: follow the subject (saliency) / the whole "
-                         "frame on a blurred fill / centre crop (default: edit.json reframe_fallback, else pad-blur)")
+                         "frame on a blurred fill / centre crop (default: edit.json reframe_fallback, else center)")
     a = ap.parse_args(argv)
 
     base = os.path.dirname(os.path.abspath(a.config))
@@ -461,7 +463,13 @@ def main(argv=None):
     report["mix"] = dict(premix_lufs=mixd["premix_lufs"], gain_db=mixd["gain_db"],
                          duck_measured_db=mixd.get("duck_measured_db"), duck_db=float(cfg.get("duck_db", -12)))
     report["frames_written"] = nfr
+    from vstudio import flicker
+    fq = flicker.check(out, "energetic", flicker.mode_for(cfg) if flicker.mode_for(cfg) != "fail" else "warn")
+    if fq is not None:
+        report["flicker"] = {k: fq[k] for k in ("ok", "max_jump", "flash", "flash_region", "blink", "events")}
     _dump(rp, report)
+    if fq is not None and not fq["ok"] and flicker.mode_for(cfg) == "fail":
+        sys.exit(f"!! render failed - {flicker.describe(fq)}")
     for w in warnings:
         print("WARN", w)
     print(f"DONE -> {out}  ({T:.2f}s, {report['loudness']['i']} LUFS)\nreport -> {rp}")

@@ -36,6 +36,20 @@ from .frames import ramp_keys, src_span_of, trans_frames
 
 HIT_KINDS = ("flash", "zoom")
 TRANSITIONS = ("cut", "whip", "zoom", "flash", "leak", "glitch")
+# transition style "clean" (default): what each automatic transition becomes; "expressive" keeps them all
+CLEAN_SWAP = {"flash": "cut", "glitch": "cut", "leak": "cut", "whip": "cut"}
+
+
+def transition_style(cfg):
+    """edit.json ``transitions`` ("clean" | "expressive"), else persona ``vlog.fun_transitions``, else "clean"."""
+    v = (cfg or {}).get("transitions")
+    if not v:
+        try:
+            from vstudio.config import persona
+            v = ((persona() or {}).get("vlog") or {}).get("fun_transitions")
+        except Exception:  # noqa: BLE001
+            v = None
+    return "expressive" if str(v or "").lower() in ("expressive", "fun", "flashy", "all") else "clean"
 
 
 def music_origin(b, music_start="auto"):
@@ -650,6 +664,7 @@ class Planner:
     # ---- transitions + budgets
     def _transitions(self, tl, meta):
         cuts = []
+        clean = transition_style(self.cfg) == "clean"
         whip_dir = 1
         changes = 0
         glitch_used = False
@@ -686,6 +701,10 @@ class Planner:
                         kind, reason = "cut", "photo"
                 elif b.get("speech"):
                     kind, reason = "cut", "speech"
+            if clean and kind in CLEAN_SWAP:
+                # premium default: hard cuts on the beat (the music carries them); no white flash, glitch, light
+                # leak or whip - those read as strobing and cheap (2026-10-12 review). Zoom punches stay.
+                kind = CLEAN_SWAP[kind]
             if b.get("transition"):
                 kind, reason = b["transition"], "requested"
                 if kind not in TRANSITIONS:

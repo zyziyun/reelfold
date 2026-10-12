@@ -193,7 +193,11 @@ def describe(rep, n=6):
 
 
 def mode_for(cfg=None):
-    """``qc.flicker`` of the recipe config, else the persona's, else "fail"."""
+    """$VSTUDIO_FLICKER_QC, else ``qc.flicker`` of the recipe config, else the persona's, else "fail"."""
+    import os
+    env = os.environ.get("VSTUDIO_FLICKER_QC")
+    if env:
+        return env.lower()
     for src in (cfg or {}, _persona()):
         q = src.get("qc") if isinstance(src, dict) else None
         v = q.get("flicker") if isinstance(q, dict) else None

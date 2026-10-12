@@ -37,7 +37,9 @@ FPS = 30
 
 
 def run(*cmd):
-    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
+    # synthetic test patterns cut every beat between flat colours: the flicker QC reports, it does not stop them
+    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True,
+                       env=dict(os.environ, VSTUDIO_FLICKER_QC="warn"))
     assert r.returncode == 0, r.stderr[-3000:] + r.stdout[-2000:]
     return r.stdout
 
@@ -55,7 +57,7 @@ def synth(tmp_path_factory):
 
 
 FUN_XHS = {
-    "style": "fun", "platform": "xiaohongshu:full", "src_dir": "../footage", "photo_dir": "../photos",
+    "style": "fun", "transitions": "expressive", "platform": "xiaohongshu:full", "src_dir": "../footage", "photo_dir": "../photos",
     "music": "../music/song.wav", "drops": [16.5], "preset": "ultrafast",
     "title": {"text": "Harbour Weekend", "sub": "3 days by the sea"},
     "map": {"places": [{"name": "Old Town", "lat": 38.71, "lon": -9.14},
@@ -75,7 +77,7 @@ FUN_XHS = {
 }
 
 FUN_YT = {
-    "style": "fun", "platform": "youtube", "src_dir": "../footage", "photo_dir": "../photos",
+    "style": "fun", "transitions": "expressive", "platform": "youtube", "src_dir": "../footage", "photo_dir": "../photos",
     "music": "../music/song.wav", "preset": "ultrafast", "tighten": True,
     "title": "Coast Trip", "end_card": "Thanks for watching",
     "shots": [

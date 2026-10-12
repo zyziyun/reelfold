@@ -96,7 +96,7 @@ def piece_times(pieces, n, fps):
 
 
 # ----------------------------------------------------------------------------- grade
-DEFAULT_FUN_GRADE = {"brightness": 0.02, "contrast": 1.08, "saturation": 1.2, "gamma": 1.0}
+DEFAULT_FUN_GRADE = {"brightness": 0.0, "contrast": 1.05, "saturation": 1.08, "gamma": 1.0}
 COLORBALANCE = "colorbalance=rs=0.02:rm=0.02:bm=-0.02:bs=-0.03:rh=0.01:bh=-0.02"
 
 
@@ -215,8 +215,10 @@ def video_shot_frames(src, src_times, W, H, fitter_args, vf="", blend=True, free
             else:
                 f0 = buf.get(i0, buf[max(buf)] if i0 > max(buf) else buf[min(buf)])
                 f1 = buf.get(i0 + 1, f0)
-                if blend and fps_src < 50 and 0.2 < w < 0.8 and f1 is not f0:
-                    fr = ((f0.astype(np.uint16) + f1.astype(np.uint16)) // 2).astype(np.uint8)
+                if blend and 0.2 < w < 0.8 and f1 is not f0:
+                    # between two source frames (a speed that is not a whole step, 60p too): a weighted blend
+                    # keeps the cadence even - nearest-frame picks step 2, 3, 2, 2, 3 frames and judder
+                    fr = (f0.astype(np.float32) * (1 - w) + f1.astype(np.float32) * w + 0.5).astype(np.uint8)
                     idx = i0
                 elif w >= 0.5:
                     fr, idx = f1, i0 + 1

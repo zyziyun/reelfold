@@ -80,3 +80,15 @@ def test_check_raises_on_a_rendered_flash(tmp_path):
     assert "flash" in str(e.value)
     assert (tmp_path / "flash.flicker.json").exists()
     assert FL.check(str(out), mode="warn", log=None)["ok"] is False
+
+
+def test_retime_keeps_an_even_cadence():
+    """59.94p at 1x / 0.5x and 29.97p at 1x decimate cleanly; 1.2x / 1.3x (the old calm defaults) blend instead of
+    dropping every 4th-6th frame (the judder of the DJI films)."""
+    from vstudio import ffmpeg_filters as F
+    assert F.retime(59.94, 1.0, 30) == "fps=30"
+    assert F.retime(59.94, 0.5, 30) == "setpts=PTS/0.5,fps=30"
+    assert F.retime(29.97, 1.0, 30) == "fps=30"
+    assert F.retime(119.88, 1.0, 30) == "fps=30"
+    for src, sp in ((59.94, 1.2), (29.97, 1.3), (29.97, 0.5)):
+        assert "framerate=fps=30" in F.retime(src, sp, 30)

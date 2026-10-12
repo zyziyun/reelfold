@@ -190,6 +190,23 @@ def dim(brightness):
     return grade(brightness=brightness)
 
 
+def retime(src_fps, speed, fps, tol=0.02):
+    """``setpts`` (speed) + a frame-rate change to ``fps`` with an even cadence.
+
+    ``fps=`` alone keeps the nearest source frame: when (source fps x speed) / fps is not a whole number (a 59.94p
+    drone clip at 1.2x -> 72 fps -> 30 keeps 2, 3, 2, 2, 3 ... frames apart; 29.97p at 1.3x drops every 4th) the
+    motion stutters - an aerial pan visibly judders. A whole ratio (60p at 1x / 0.5x, 30p at 1x) decimates cleanly
+    with ``fps``; anything else is resampled by ``framerate`` (each output frame blends the two source frames
+    around its time), which keeps the motion even."""
+    speed = float(speed or 1.0)
+    src = float(src_fps or 0) or float(fps)
+    head = "" if abs(speed - 1.0) < 1e-6 else f"setpts=PTS/{speed:g},"
+    r = src * speed / float(fps)
+    if r >= 1 - tol and abs(r - round(r)) <= tol * round(r):
+        return f"{head}fps={fps:g}"
+    return f"{head}framerate=fps={fps:g}:interp_start=0:interp_end=255:scene=100"
+
+
 # ------------------------------------------------------------------ translation
 def translate(name, args):
     """One GPL filter (name, raw option string) -> an LGPL graph piece, or None (no look-alike / options that

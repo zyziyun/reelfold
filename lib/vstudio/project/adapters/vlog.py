@@ -621,10 +621,14 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         xf = float(cfg.get("xfade") or 0.8)
         sp = calm_speed(cfg)
         n_est = max(1, round(target / 8))
-        rules = (f"Calm crossfade film: source windows of 6-16 s each; every window plays at {sp:g}x speed and "
-                 f"{xf} s crossfades eat into each join, so the windows' durations (in source seconds) must sum to "
-                 f"about {(target + xf * (n_est - 1)) * sp:.0f} s for a video of about {target:.0f} s; unhurried, "
-                 "let the light change from shot to shot.")
+        rules = (f"Calm, cinematic crossfade film (premium travel / documentary, not a slideshow): source windows "
+                 f"of 7-14 s each - hold longest (10-14 s) on the most beautiful, steady aerials; skip take-offs, "
+                 "jerky yaws, exposure changes and the first / last seconds of a clip. Every window plays at "
+                 f"{sp:g}x speed and {xf} s crossfades eat into each join, so the windows' durations (in source "
+                 f"seconds) must sum to about {(target + xf * (n_est - 1)) * sp:.0f} s for a video of about "
+                 f"{target:.0f} s. Order the windows so the light and the motion flow (wide -> closer, golden -> "
+                 "blue hour; a move continues the direction of the one before); neighbouring windows should be "
+                 "similar in brightness so no cut jumps in exposure.")
     cur = ""
     if instruction and DR.state(path, None, cp, ctx.recipe) in ("drafted", "hers"):
         cur = json.dumps({k: cfg.get(k) for k in ("segments", "shots", "title", "end_card") if k in cfg},
@@ -728,13 +732,13 @@ def fit_beats(shots, budget):
 
 
 def calm_speed(cfg):
-    """The speed build_vlog plays a calm segment at (edit default_speed, else persona vlog.speed_subject, 1.2)."""
+    """The speed build_vlog plays a calm segment at (edit default_speed, else persona vlog.speed_subject, 1.0)."""
     try:
         from vstudio.config import persona
         vp = (persona() or {}).get("vlog") or {}
     except Exception:  # noqa: BLE001
         vp = {}
-    return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.2))))
+    return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.0))))
 
 
 def rules_windows(by_id, order, target, fun):

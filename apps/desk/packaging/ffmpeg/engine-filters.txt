@@ -24,12 +24,14 @@ colorspace
 concat
 crop
 deesser
+deflicker
 deshake
 drawbox
 equalizer
 fade
 format
 fps
+framerate
 freezedetect
 gblur
 highpass

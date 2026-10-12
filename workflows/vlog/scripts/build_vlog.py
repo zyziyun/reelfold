@@ -21,8 +21,11 @@ folder. Full schema + worked example: ../references/recipes.md. Quick schema:
   "fit": "crop",             # crop | pad | blur | stretch  (how off-aspect clips fill the frame)
   "hdr": "auto",             # auto | true | false   (tone-map HLG/PQ phone/drone clips to BT.709)
   "ambient_audio": false,    # true = keep each clip's own sound (tempo-matched, crossfaded)
-  "grade": {"brightness":0.05,"contrast":1.12,"saturation":1.18,"gamma":1.04},
-  "warm": true, "sharpen": true, "stabilize": false,
+  "grade": {"brightness":0.0,"contrast":1.04,"saturation":1.04,"gamma":1.0},   # restrained (references/AESTHETICS.md)
+  "warm": true, "sharpen": false, "stabilize": false,
+  "match_exposure": 0.6,     # pull each segment's brightness toward the film's median (0 = off); no exposure jumps at cuts
+  "deflicker": true,         # even out frame-to-frame exposure pumping inside a clip (drone auto-exposure)
+  "qc": {"flicker": "fail"}, # vstudio.flicker on the master: fail | warn | off
   "seg_crf": 12, "final_crf": 18, "workers": 3,
   "out": "vlog_master.mp4",
   "segments": [
@@ -30,7 +33,8 @@ folder. Full schema + worked example: ../references/recipes.md. Quick schema:
     {"clip":"walk1","start":6,"dur":20,"speed":1.15}
   ]
 }
-Per segment: clip, start, dur (SOURCE seconds), optional speed, kind
+Per segment: clip, start, dur (SOURCE seconds), optional speed (default 1.0: aerials play in real time; any speed
+gets an even frame cadence via ffmpeg_filters.retime), kind
 ("subject" | "empty"), bright (added to grade.brightness), stabilize, cleanup (a segment where someone
 talks: true | "gentle" | "standard" | "tight" | "pauses" | {profile, approve, keep, reply} -> the shared
 vstudio.cleanup 气口/filler/repeat pass before assembly; needs "ambient_audio": true; see clean_speech).
@@ -50,7 +54,12 @@ from vstudio.config import persona
 
 COLORBALANCE = "colorbalance=rs=0.02:rm=0.02:bm=-0.02:bs=-0.03:rh=0.01:bh=-0.02"
 UNSHARP = "unsharp=5:5:0.5:5:5:0.0"
-DEFAULT_GRADE = {"brightness": 0.05, "contrast": 1.12, "saturation": 1.18, "gamma": 1.04}
+# restrained by default: DJI / phone footage is already contrasty and saturated; a heavy lift + 1.18x saturation and a
+# sharpen on a 4K -> 1080 downscale looked cheap (俗气) and made fine detail (city lights, water) shimmer
+DEFAULT_GRADE = {"brightness": 0.0, "contrast": 1.04, "saturation": 1.04, "gamma": 1.0}
+DEFLICKER = "deflicker=size=5:mode=am"
+# xfade transitions that pass through black / white (a flash between two shots): not by default
+DIP_TRANSITIONS = ("fadeblack", "fadewhite", "fadefast", "fadeslow")
 
 
 class RenderError(RuntimeError):
@@ -111,7 +120,7 @@ def grade_chain(cfg, extra_bright):
                       saturation=g['saturation'], gamma=g['gamma'])]
     if cfg.get("warm", True):
         parts.append(COLORBALANCE)
-    if cfg.get("sharpen", True):
+    if cfg.get("sharpen", False):
         parts.append(UNSHARP)
     return ",".join(parts)
 
@@ -134,19 +143,20 @@ def seg_speed(cfg, seg):
         return float(seg["speed"])
     vp = vlog_persona()
     if seg.get("kind") == "empty":
-        return float(cfg.get("empty_speed", vp.get("speed_empty", 1.3)))
+        return float(cfg.get("empty_speed", vp.get("speed_empty", 1.0)))
     # "deer_speed" accepted for configs written with the original drone skill
-    return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.2))))
+    return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.0))))
 
 
 def render_seg(args):
     i, cfg, seg, segdir, dry = args
     src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
     speed = seg_speed(cfg, seg)
-    eb = seg.get("bright", 0.0)
+    eb = seg.get("bright", 0.0) + seg.get("_match", 0.0)
     eff = seg["dur"] / speed
     vf = (stab_prefix(cfg, seg) + hdr_chain(cfg, src) + fit_chain(cfg) + "," + grade_chain(cfg, eb)
-          + f",setpts=PTS/{speed},fps={cfg.get('fps', 30)}")
+          + ("," + DEFLICKER if cfg.get("deflicker", True) else "")
+          + "," + FF.retime(clip_info(src)["fps"], speed, cfg.get("fps", 30)))
     dst = os.path.join(segdir, f"seg_{i:02d}.mp4")
     # -t BEFORE -i limits how much SOURCE is read, so the output length is dur/speed for
     # speed-ups AND slow-mo. After -i it would cap the OUTPUT and truncate slow-mo.
@@ -176,6 +186,42 @@ def render_seg(args):
     else:
         run_ffmpeg(cmd, f"segment {i:02d} ({os.path.basename(src)})")
     return dst, eff
+
+
+def seg_luma(src, start, dur, n=5):
+    """Mean luma (0-1) of a segment from ``n`` frames across it (the exposure-match input)."""
+    import subprocess
+    vals = []
+    for k in range(n):
+        t = start + dur * (k + 0.5) / n
+        r = subprocess.run([media.ffmpeg_bin(), "-v", "error", "-ss", f"{t:.3f}", "-i", src, "-frames:v", "1",
+                            "-vf", "scale=64:36,format=gray", "-f", "rawvideo", "-"], capture_output=True)
+        if r.stdout:
+            vals.append(sum(r.stdout) / len(r.stdout) / 255.0)
+    return sum(vals) / len(vals) if vals else None
+
+
+def match_exposure(cfg, strength=None, cap=0.06):
+    """Even out exposure jumps at the cuts: each segment's brightness moves ``strength`` of the way toward the
+    median segment's mean luma, at most +-``cap`` (a night shot next to a day shot stays a night shot, only the
+    step between them gets smaller). Sets seg["_match"]; returns [(clip, luma, offset)]."""
+    k = float(cfg.get("match_exposure", 0.6) if strength is None else strength)
+    if k <= 0 or len(cfg["segments"]) < 2:
+        return []
+    lum = []
+    for seg in cfg["segments"]:
+        src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
+        lum.append(seg_luma(src, float(seg["start"]), float(seg["dur"])))
+    known = sorted(v for v in lum if v is not None)
+    if not known:
+        return []
+    med = known[len(known) // 2]
+    out = []
+    for seg, v in zip(cfg["segments"], lum):
+        off = 0.0 if v is None else max(-cap, min(cap, (med - v) * k))
+        seg["_match"] = round(off, 3)
+        out.append((seg["clip"], v, seg["_match"]))
+    return out
 
 
 def clean_speech(cfg, segdir, dry=False):
@@ -254,6 +300,10 @@ def main():
 
 def render(cfg, out, segdir, prof, a):
     clean_speech(cfg, segdir, a.dry_run)
+    if not a.dry_run:
+        for clip, v, off in match_exposure(cfg):
+            if off:
+                print(f"[exposure] {clip}: luma {v:.2f} -> brightness {off:+.3f}", flush=True)
     tasks = [(i, cfg, s, segdir, a.dry_run) for i, s in enumerate(cfg["segments"])]
     with ThreadPoolExecutor(max_workers=a.workers or cfg.get("workers", 3)) as ex:
         results = list(ex.map(render_seg, tasks))
@@ -272,9 +322,14 @@ def render(cfg, out, segdir, prof, a):
     # streams; xfade_assemble has one global vf, fixed "fade" and always maps [i:a]. See PORT_NOTES.
     fc, prev, aprev, L = [], "0:v", "0:a", durs[0]
     joins = []
+    tr = cfg.get("transition", "fade")
+    if tr in DIP_TRANSITIONS and not cfg.get("allow_dips"):
+        print(f"[note] transition {tr!r} flashes through black / white between shots: using a plain crossfade "
+              "(set \"allow_dips\": true to keep it)", flush=True)
+        tr = "fade"
     for k in range(1, len(segs)):
         joins.append([round(L - D, 3), round(L, 3)])
-        fc.append(f"[{prev}][{k}:v]xfade=transition={cfg.get('transition', 'fade')}"
+        fc.append(f"[{prev}][{k}:v]xfade=transition={tr}"
                   f":duration={D}:offset={L - D:.3f}[x{k}]")
         prev = f"x{k}"
         if audio:
@@ -302,6 +357,11 @@ def render(cfg, out, segdir, prof, a):
     # the shot changes are crossfades a frame difference cannot see: the export's subject reframe reads them here
     with open(os.path.splitext(out)[0] + ".shots.json", "w") as f:
         json.dump(dict(transitions=joins, duration=round(L, 3), segments=len(segs)), f)
+    from vstudio import flicker
+    try:
+        flicker.check(out, "calm", flicker.mode_for(cfg))
+    except flicker.FlickerError as e:
+        raise RenderError(f"flicker QC: {e}") from None
     print(f"DONE -> {out}", flush=True)
     if prof is not None:
         from vstudio import platform as P
