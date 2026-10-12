@@ -7,8 +7,9 @@ import { availableProviders, effective, pill, PROVIDERS, providerName, type Auth
 import { LiteAiNote } from '../components/Lite';
 import type { AiTestMsg, SecretsStatusMsg } from '../../../shared/deskApi';
 import { AI_TASK_IDS } from '../../../shared/aiRoutes';
-import { fmtAgo, has, t, tk } from '../i18n';
-import { refreshStatus, rowOf, saveRoutes, switchProvider, useAi } from '../lib/ai';
+import { fmtAgo, getLang, has, t, tk } from '../i18n';
+import { catalogOf, loadModels, pickModel, refreshStatus, rowOf, saveRoutes, setProviderModel, switchProvider, useAi } from '../lib/ai';
+import { modelItems } from '../v4/AiChip';
 import { missingRow, RouteRow, RoutesEditor } from '../v4/AIAccounts';
 import { LoginTerminal, type LoginReq } from '../v4/LoginTerminal';
 import { useUi, type MenuItem } from '../v4/ui';
@@ -47,7 +48,7 @@ function StatePill({ row, working }: { row: AuthRow | undefined; working?: boole
 
 export function AiSection({ sub }: SettingsCtx) {
   const ui = useUi();
-  const { status, checking, routes } = useAi();
+  const { status, checking, routes, models } = useAi();
   const [login, setLogin] = useState<LoginReq | null>(null);
   const [keys, setKeys] = useState<SecretsStatusMsg | null>(null);
   const [sheet, setSheet] = useState<'order' | 'keys' | 'local' | null>(null);
@@ -56,6 +57,7 @@ export function AiSection({ sub }: SettingsCtx) {
   const focus = sub && sub !== 'jobs' ? sub : undefined;
   useEffect(() => {
     void refreshStatus({ refresh: true });
+    void loadModels({ refresh: true });
     void window.desk.secrets.status().then(setKeys);
     const p = takePendingSignIn();
     if (p) setLogin({ provider: p, action: 'login' });
@@ -93,6 +95,57 @@ export function AiSection({ sub }: SettingsCtx) {
     if (cli && r?.can_logout && (r.state === 'logged-in' || r.state === 'expired'))
       items.push({ label: '', sep: true, run: () => undefined }, { label: t('s2.ai.signOut'), run: () => window.confirm(t('aiacc.logoutConfirm', { name: providerName(p) })) && setLogin({ provider: cp, action: 'logout' }), testId: `logout-${p}` });
     return items;
+  };
+  /** A provider's model (every job that uses it); `primary`: the AI in use (picking also makes it the default). */
+  const ModelSelect = ({ p, primary }: { p: ProviderId; primary?: boolean }) => {
+    if (!routes) return null;
+    const cur = routes.routes.models?.[p] ?? (primary ? routes.routes.default.model : null) ?? null;
+    const items = modelItems(p, cur);
+    const mrow = models?.providers.find((x) => x.provider === p);
+    if (items.length <= 1 && !catalogOf(p).length) return null;
+    return (
+      <label className="s2-model row" style={{ gap: 8 }} title={mrow?.source === 'cli' ? t('mdl.fromCli', { provider: providerName(p) }) : undefined}>
+        <span className="s2-rhint">{t('mdl.label')}</span>
+        <select
+          className="input"
+          style={{ width: 'auto', minWidth: 170 }}
+          value={cur ?? ''}
+          onChange={(e) => {
+            const v = e.target.value || null;
+            void (primary ? pickModel('default', p, v) : setProviderModel(p, v))
+              .then(() => ui.toast(t('mdl.picked', { name: `${providerName(p)} · ${items.find((m) => m.id === v)?.label.replace(/^✓ /, '') ?? v}` })))
+              .catch((err) => ui.toast(clean(err), { error: true }));
+          }}
+          aria-label={`${providerName(p)} · ${t('mdl.label')}`}
+          data-testid={`model-select-${p}`}
+        >
+          {cur && !items.some((m) => m.id === cur) && <option value={cur}>{cur}</option>}
+          {items.map((m) => (
+            <option key={m.id ?? ''} value={m.id ?? ''}>
+              {m.id === null && mrow?.cli_default ? t('mdl.cliDefaultIs', { model: mrow.cli_default }) : m.label.replace(/^✓ /, '')}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  };
+  /** Codex's own config picks a model her login cannot use (gpt-6-astra on a ChatGPT login): say so, with the fix. Only
+   * while no Codex model is picked here (a picked one is passed as --model and wins). */
+  const ModelProblem = ({ p }: { p: ProviderId }) => {
+    const mrow = models?.providers.find((x) => x.provider === p);
+    if (!mrow?.problem || routes?.routes.models?.[p]) return null;
+    const pr = mrow.problem;
+    const suggest = typeof pr.params?.suggest === 'string' ? pr.params.suggest : null;
+    return (
+      <div className="s2-note warn row" style={{ gap: 10, flexWrap: 'wrap' }} data-testid={`model-problem-${p}`} data-code={pr.code}>
+        <span style={{ flex: 1 }}>{getLang() === 'zh-CN' ? (pr.message_zh ?? pr.message) : pr.message}</span>
+        {suggest && (
+          <button className="btn" onClick={() => void setProviderModel(p, suggest).catch((err) => ui.toast(clean(err), { error: true }))} data-testid={`model-fix-${p}`}>
+            {t('mdl.useSuggested', { model: catalogOf(p).find((m) => m.id === suggest)?.label ?? suggest })}
+          </button>
+        )}
+      </div>
+    );
   };
   const More = ({ p }: { p: ProviderId }) => (
     <button className="btn ghost icon" aria-label={t('s2.ai.more')} data-tip={t('s2.ai.more')} onClick={(e) => (e.stopPropagation(), ui.menu(e, menuFor(p)))} data-testid={`more-${p}`}>
@@ -172,6 +225,13 @@ export function AiSection({ sub }: SettingsCtx) {
           </button>
           {cur && <More p={cur} />}
         </div>
+        {cur && (
+          <div className="s2-curmodel" data-testid="ai-current-model">
+            <ModelSelect p={cur} primary />
+            <span className="s2-rhint">{t('mdl.hint', { provider: providerName(cur) })}</span>
+          </div>
+        )}
+        {cur && <ModelProblem p={cur} />}
         <div className="s2-curfoot">
           <span data-testid="ai-fallback-sentence">
             {fb.length ? (
@@ -220,10 +280,12 @@ export function AiSection({ sub }: SettingsCtx) {
                 <div className="s2-rhint">{tk(`aiacc.desc.${p}`)}</div>
               </div>
               <div className="s2-rctl">
+                <ModelSelect p={p} />
                 <StatePill row={r} />
                 <SignIn p={p} />
                 <More p={p} />
               </div>
+              <ModelProblem p={p} />
             </div>
           );
         })}
@@ -268,6 +330,7 @@ export function AiSection({ sub }: SettingsCtx) {
             label={(p) => (p === 'none' ? t('aiacc.none') : `${providerName(p)}${rowOf(status, p) && !rowOf(status, p)!.ready ? ` (${t('aiacc.notReady')})` : ''}`)}
             onChange={(c) => c && void saveRoutes({ ...routes.routes, default: c }).catch((e) => ui.toast(clean(e), { error: true }))}
             testId="route-default"
+            providerModels={routes.routes.models}
           />
         </Sheet>
       )}

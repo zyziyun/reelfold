@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { BrowserWindow } from 'electron';
+import type { ModelsMsg } from '../shared/aiModels';
 import { normalizeRoutes, routesFile, routesFromEngine, stripEnv, type AiRoutes, type AuthStatusMsg } from '../shared/aiRoutes';
 import type { IpcChannel, IpcPayload } from '../shared/ipc';
 import { extraBinDirs } from './engine';
@@ -103,6 +104,7 @@ export function statusErrorCode(msg: string): 'engine' | 'timeout' | 'failed' {
 
 let term: TermSession | null = null;
 let lastStatus: AuthStatusMsg | null = null;
+let lastModels: ModelsMsg | null = null;
 
 export function registerAiIpc(handle: Handle, d: AiDeps) {
   const send = (ch: string, data: unknown) => {
@@ -146,6 +148,27 @@ export function registerAiIpc(handle: Handle, d: AiDeps) {
     return lastStatus;
   });
 
+  // the models each provider can use (vstudio.llm_models): Codex's catalog comes from its CLI (`codex debug models`,
+  // under a second), API lists from the provider when a key is set; kept until refresh (a sign-in / key change)
+  handle('ai:models', async (p) => {
+    if (lastModels && !p?.refresh && !lastModels.error) {
+      const want = p?.providers ?? [];
+      if (!want.length || want.every((x) => lastModels!.providers.some((r) => r.provider === x))) return lastModels;
+    }
+    const mock = readMock<{ providers: ModelsMsg['providers'] }>('models.json');
+    try {
+      const r = mock ?? ((await runLlm(d.python(), ['models', '--json', ...(p?.providers ?? []).flatMap((x) => ['--provider', x])], 45000)) as { providers: ModelsMsg['providers'] });
+      const rows = r.providers ?? [];
+      const merged = lastModels && p?.providers?.length ? [...lastModels.providers.filter((x) => !rows.some((y) => y.provider === x.provider)), ...rows] : rows;
+      lastModels = { providers: merged, at: Date.now() };
+    } catch (e) {
+      const code = statusErrorCode((e as Error).message);
+      d.log(`[ai] models: ${code}`);
+      lastModels = { providers: lastModels?.providers ?? [], at: Date.now(), error: code };
+    }
+    return lastModels;
+  });
+
   handle('ai:test', async (p) => {
     const mock = readMock<Record<string, unknown>>('test.json');
     if (mock) return mock[p.provider] ?? { ok: true, provider: p.provider, model: 'mock' };
@@ -182,6 +205,7 @@ export function registerAiIpc(handle: Handle, d: AiDeps) {
       onExit: (code) => {
         if (term?.id === session.id) term = null;
         lastStatus = null; // the next status call re-checks
+        lastModels = null; // another login can use other models
         send('term:exit', { id: session.id, code, provider: p.provider, action: p.action });
       },
     }, os.homedir(), d.python().python);

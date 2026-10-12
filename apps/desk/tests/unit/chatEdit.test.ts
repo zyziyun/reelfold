@@ -21,6 +21,7 @@ import {
   primaryAction,
   slashCommand,
   slashMatches,
+  isCardSlash,
   suggestions,
   undoPlan,
   undoToCount,
@@ -121,13 +122,25 @@ describe('the empty state is about THIS clip', () => {
 
 describe('slash menu and context', () => {
   it('matches either language; exact commands open a card without the model', () => {
-    expect(slashMatches('/')).toEqual(['captions', 'effect', 'trim', 'cover', 'export']);
+    expect(slashMatches('/')).toEqual(['model', 'trim', 'captions', 'effect', 'cover', 'export', 'help']);
     expect(slashMatches('/c')).toEqual(['captions', 'cover']);
+    expect(slashMatches('/m')).toEqual(['model']);
     expect(slashMatches('/字')).toEqual(['captions']);
+    expect(slashMatches('/模')).toEqual(['model']);
+    expect(slashMatches('/model 5.5')).toEqual([]);
     expect(slashMatches('紧凑一点')).toEqual([]);
-    expect(slashCommand('/trim')).toBe('trim');
-    expect(slashCommand(' /导出 ')).toBe('export');
-    expect(slashCommand('/trim the start')).toBeNull();
+    expect(slashCommand('/trim')).toEqual({ id: 'trim', arg: '' });
+    expect(slashCommand(' /导出 ')).toEqual({ id: 'export', arg: '' });
+    expect(slashCommand('/trim the start')).toEqual({ id: 'trim', arg: 'the start' });
+    // never sent to the model: /model with or without words, /help, and any other /word
+    expect(slashCommand('/model')).toEqual({ id: 'model', arg: '' });
+    expect(slashCommand('/model 5.5')).toEqual({ id: 'model', arg: '5.5' });
+    expect(slashCommand('/模型 sonnet')).toEqual({ id: 'model', arg: 'sonnet' });
+    expect(slashCommand('/help')).toEqual({ id: 'help', arg: '' });
+    expect(slashCommand('/foo bar')).toEqual({ id: 'unknown', name: 'foo' });
+    expect(slashCommand('make it tighter')).toBeNull();
+    expect(isCardSlash('trim')).toBe(true);
+    expect(isCardSlash('model')).toBe(false);
     expect(cardFor({ op: 'cut', start: 1, end: 2 })).toBe('trim');
     expect(cardFor({ op: 'effect_update', id: 'fx1' })).toBe('effect');
     expect(cardFor({ op: 'caption_text', cue: 'c1', text: 'x' })).toBe('captions');

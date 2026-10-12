@@ -70,6 +70,16 @@ export function plain(raw: string): string {
 // ---------------------------------------------------------------- tags, copy, search
 const PROVIDER_TAG: Record<string, string> = { 'claude-code': 'claude', codex: 'codex', anthropic: 'claude api', openai: 'openai', gemini: 'gemini', ollama: 'ollama' };
 
+/** The model the newest AI call ran on (its result, the CLI's session line, else what the call asked for), with its
+ * provider - the pane's header says it, so a fallback or the CLI's own default is visible. null: no AI call yet. */
+export function lastModel(lines: LiveLine[]): { provider: string; model: string } | null {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i];
+    if (l.src === 'agent' && l.model && (l.kind === 'result' || l.kind === 'info' || l.kind === 'turn')) return { provider: l.provider ?? '', model: l.model };
+  }
+  return null;
+}
+
 /** The gutter word of a line: the CLI for an agent line's turn / reply, the kind for the rest, `engine` for the
  * engine's own. Untranslated on purpose: the pane is a log. */
 export function lineTag(l: LiveLine): string {

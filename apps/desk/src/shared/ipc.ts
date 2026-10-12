@@ -39,6 +39,7 @@ const routeChoice = z.strictObject({
 const aiRoutes = z.strictObject({
   default: routeChoice,
   tasks: z.strictObject(Object.fromEntries(AI_TASK_IDS.map((k) => [k, routeChoice.optional()])) as Record<(typeof AI_TASK_IDS)[number], z.ZodOptional<typeof routeChoice>>),
+  models: z.partialRecord(provider, z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/)).optional(),
 });
 const usageInt = z.number().int().min(0).max(100_000);
 const termId = z.string().regex(/^[0-9a-f]{12}$/);
@@ -183,6 +184,8 @@ export const ipcSchemas = {
   'term:kill': z.strictObject({ id: termId }),
   'ai:routes': z.undefined(),
   'ai:setRoutes': z.strictObject({ routes: aiRoutes.nullable() }),
+  /** the models each provider can use (python -m vstudio.llm models --json; cached unless refresh) */
+  'ai:models': z.strictObject({ refresh: z.boolean().optional(), providers: z.array(provider).max(12).optional() }),
   // v0.4: a system notification when a run finishes or needs the creator (shown only while the window is not focused)
   // route: an app hash, with its query (the Studio's #/studio/<project>/<clip>?item=<question>)
   'notify:show': z.strictObject({ title: z.string().min(1).max(120), body: z.string().max(300), route: z.string().regex(/^#\/[A-Za-z0-9/_.%?=&-]{0,300}$/).optional() }),

@@ -90,6 +90,10 @@
 .s2-curtop { display: flex; align-items: center; gap: 18px; padding: 22px 24px; }
 .s2-curtop .s2-pill.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); padding: 4px 12px; border-radius: 14px; }
 .s2-curname { font-size: 19px; font-weight: 600; }
+.s2-curmodel { display: flex; align-items: center; gap: 16px; padding: 0 24px 18px; flex-wrap: wrap; }
+.s2-current > .s2-note { margin: 0 24px 18px; }
+.s2-row:has(> .s2-note) { flex-wrap: wrap; }
+.s2-row > .s2-note { flex-basis: 100%; margin-top: 8px; }
 .s2-curfoot { display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 15px; }
 .s2-curfoot > span { flex: 1; }
 .s2-curfoot b { color: var(--text); font-weight: 600; }

@@ -1042,8 +1042,10 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     const say = (text: string) => {
       const x = text.trim();
       if (!x) return;
-      setAi({ open: true, all: ai.all, text: '' });
-      if (!ai.all) window.setTimeout(() => chat.current?.send(x), 30);
+      // a slash command (/model, /help ...) is this clip chat's, never a request for the project's AI
+      const slash = x.startsWith('/');
+      setAi({ open: true, all: slash ? false : ai.all, text: '' });
+      if (!ai.all || slash) window.setTimeout(() => chat.current?.send(x), 30);
     };
     const projClips = (hist.data?.items.find((x) => x.id === id) ? place?.pos?.[1] : null) ?? null;
     return (

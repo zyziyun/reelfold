@@ -229,3 +229,9 @@
 .ux-ith.ph-thumb { display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
 .ux-needs-drop { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; margin: 10px 0; border: 1.5px dashed var(--border-strong); border-radius: 12px; }
 .ux-needs-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Home composer: the slash commands (/model, /help ...) while she types "/" */
+.ux-slash { display: flex; flex-direction: column; gap: 2px; padding: 4px; margin: 0 10px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.ux-slash button { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.ux-slash button:hover { background: var(--surface-2, var(--accent-soft)); }
+.ux-slash small { color: var(--text-muted); }

@@ -3,14 +3,17 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { effective, type AiRoutes, type AiTask, type AuthRow, type AuthStatusMsg, type ProviderId, type RouteChoice } from '../../../shared/aiRoutes';
 import type { AiRoutesMsg } from '../../../shared/deskApi';
+import { modelsOf, withModel, withProviderModel, type ModelInfo, type ModelsMsg } from '../../../shared/aiModels';
 
 interface State {
   routes: AiRoutesMsg | null;
   status: AuthStatusMsg | null;
   checking: boolean;
+  /** the models each provider can use (vstudio.llm models) */
+  models: ModelsMsg | null;
 }
 
-let state: State = { routes: null, status: null, checking: false };
+let state: State = { routes: null, status: null, checking: false, models: null };
 const subs = new Set<() => void>();
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
@@ -57,7 +60,7 @@ export async function saveRoutes(r: AiRoutes | null) {
 export async function switchProvider(task: AiTask | 'default', provider: ProviderId | 'none' | null) {
   const cur = state.routes?.routes;
   if (!cur) return;
-  const next: AiRoutes = { default: { ...cur.default }, tasks: { ...cur.tasks } };
+  const next: AiRoutes = { default: { ...cur.default }, tasks: { ...cur.tasks }, ...(cur.models ? { models: cur.models } : {}) };
   if (task === 'default') {
     if (!provider) return;
     next.default = { ...next.default, provider, model: provider === cur.default.provider ? cur.default.model : null, fallback: cur.default.fallback.filter((x) => x !== provider) };
@@ -68,6 +71,42 @@ export async function switchProvider(task: AiTask | 'default', provider: Provide
     next.tasks[task] = { provider, model: provider === base.provider ? base.model : null, fallback: base.fallback.filter((x) => x !== provider) };
   }
   await saveRoutes(next);
+}
+
+let modelsLoading: Promise<ModelsMsg | null> | null = null;
+/** The models each provider can use (main caches them; refresh after a sign-in). */
+export function loadModels(opts: { refresh?: boolean } = {}): Promise<ModelsMsg | null> {
+  if (!window.desk?.ai?.models) return Promise.resolve(null);
+  if (state.models && !opts.refresh) return Promise.resolve(state.models);
+  modelsLoading ??= window.desk.ai
+    .models(opts)
+    .then((m) => (set({ models: m }), m))
+    .catch(() => null)
+    .finally(() => {
+      modelsLoading = null;
+    });
+  return modelsLoading;
+}
+
+/** The models a provider offers (the Claude list until the engine has answered). */
+export function catalogOf(p: string): ModelInfo[] {
+  return modelsOf(state.models, p);
+}
+
+/** She picked a model (the chip, /model, Settings' current AI): that provider's model for every job, and the job
+ * (or the default) runs on that provider. null = the CLI's / provider's own default. Saved; the engine reads it on
+ * its next call. */
+export async function pickModel(task: AiTask | 'default', provider: ProviderId, model: string | null) {
+  const cur = state.routes?.routes;
+  if (!cur) return;
+  await saveRoutes(withModel(cur, task, provider, model));
+}
+
+/** A provider's model for every job that uses it (Settings › AI rows: Codex as the fallback). */
+export async function setProviderModel(provider: ProviderId, model: string | null) {
+  const cur = state.routes?.routes;
+  if (!cur) return;
+  await saveRoutes(withProviderModel(cur, provider, model));
 }
 
 export function useAi() {
@@ -82,7 +121,20 @@ export function rowOf(status: AuthStatusMsg | null, p: string | null | undefined
   return status?.providers.find((r) => r.provider === p);
 }
 
+/** The store as it is now (outside React: the /model command). */
+export function aiState(): Readonly<State> {
+  return state;
+}
+
+/** The routes, loaded if nobody has asked yet. */
+export async function routesNow(): Promise<AiRoutesMsg | null> {
+  if (state.routes) return state.routes;
+  ensureRoutes();
+  await routesLoading;
+  return state.routes;
+}
+
 /** test hook */
 export function _resetAiStore() {
-  state = { routes: null, status: null, checking: false };
+  state = { routes: null, status: null, checking: false, models: null };
 }

@@ -124,6 +124,7 @@ const api: DeskApi = {
     kill: (id) => call('term:kill', { id }),
     routes: () => call('ai:routes'),
     setRoutes: (routes) => call('ai:setRoutes', { routes }),
+    models: (opts) => call('ai:models', opts ?? {}),
   },
   confirmCleanup: (batchId) => call('cleanup:confirm', { batchId }),
   trashProjects: (dirs) => call('history:trash', { dirs }),

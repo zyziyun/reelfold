@@ -20,6 +20,9 @@ import {
 const PROVIDER_IDS = availableProviders();
 import { t, tk } from '../i18n';
 import { rowOf, saveRoutes, useAi } from '../lib/ai';
+import { modelLabel } from '../../../shared/aiModels';
+import { catalogOf } from '../lib/ai';
+import { defaultWord, modelItems } from './AiChip';
 import { useUi } from './ui';
 
 const clean = (e: unknown) => (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -85,6 +88,7 @@ export function RoutesEditor({ routes, own }: { routes: AiRoutes; own: boolean }
         label={label}
         onChange={(c) => c && setDefault(c)}
         testId="route-default"
+        providerModels={routes.models}
       />
       {AI_TASK_IDS.map((k) => (
         <RouteRow
@@ -95,6 +99,7 @@ export function RoutesEditor({ routes, own }: { routes: AiRoutes; own: boolean }
           label={label}
           onChange={(c) => setTask(k, c)}
           testId={`route-${k}`}
+          providerModels={routes.models}
         />
       ))}
     </div>
@@ -108,6 +113,7 @@ export function RouteRow({
   label,
   onChange,
   testId,
+  providerModels,
 }: {
   title: string;
   choice: RouteChoice | null;
@@ -115,6 +121,8 @@ export function RouteRow({
   label: (p: string) => string;
   onChange: (c: RouteChoice | null) => void;
   testId: string;
+  /** each provider's model (AiRoutes.models): what "Same as <provider>" means */
+  providerModels?: AiRoutes['models'];
 }) {
   const isTask = inherited !== undefined;
   const cur = choice ?? inherited!;
@@ -149,6 +157,30 @@ export function RouteRow({
           </option>
         ))}
       </select>
+      {(!isTask || choice) && cur.provider !== 'none' && (() => {
+        // the job's own model; '' = the provider's model (Settings › AI), else its default
+        const pm = providerModels?.[cur.provider as ProviderId] ?? null;
+        const same = pm ? modelLabel(pm, catalogOf(cur.provider)) : defaultWord(cur.provider);
+        const items = modelItems(cur.provider, cur.model ?? null).filter((m) => m.id);
+        return (
+          <select
+            className="input"
+            style={{ width: 'auto', minWidth: 170, maxWidth: 260 }}
+            value={cur.model ?? ''}
+            onChange={(e) => onChange({ ...cur, model: e.target.value || null })}
+            aria-label={`${title} · ${t('mdl.label')}`}
+            data-testid={`${testId}-model`}
+          >
+            <option value="">{t('mdl.sameAs', { provider: providerName(cur.provider), model: same ?? '' })}</option>
+            {cur.model && !items.some((m) => m.id === cur.model) && <option value={cur.model}>{cur.model}</option>}
+            {items.map((m) => (
+              <option key={m.id!} value={m.id!}>
+                {m.label.replace(/^✓ /, '')}
+              </option>
+            ))}
+          </select>
+        );
+      })()}
       <div className="col" style={{ gap: 6, flex: 1, minWidth: 260 }}>
         {(!isTask || choice) && (
           <div className="row" style={{ flexWrap: 'wrap', gap: 6 }} data-testid={`${testId}-fallbacks`}>

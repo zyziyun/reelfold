@@ -153,28 +153,40 @@ export function keyWords(doc: Pick<OutputDoc, 'words' | 'effects' | 'title' | 'p
     .map(({ w, t }) => ({ w, t }));
 }
 
-export const SLASH: { kind: CardKind; en: string; zh: string }[] = [
-  { kind: 'captions', en: 'captions', zh: '字幕' },
-  { kind: 'effect', en: 'effect', zh: '效果' },
-  { kind: 'trim', en: 'trim', zh: '裁剪' },
-  { kind: 'cover', en: 'cover', zh: '封面' },
-  { kind: 'export', en: 'export', zh: '导出' },
+/** What `/` offers: the AI model, the tool cards (no model), help. */
+export type SlashId = CardKind | 'model' | 'help';
+export const SLASH: { id: SlashId; en: string; zh: string; fr?: string }[] = [
+  { id: 'model', en: 'model', zh: '模型', fr: 'modele' },
+  { id: 'trim', en: 'trim', zh: '裁剪' },
+  { id: 'captions', en: 'captions', zh: '字幕' },
+  { id: 'effect', en: 'effect', zh: '效果' },
+  { id: 'cover', en: 'cover', zh: '封面' },
+  { id: 'export', en: 'export', zh: '导出' },
+  { id: 'help', en: 'help', zh: '帮助', fr: 'aide' },
 ];
+const CARDS: SlashId[] = ['trim', 'captions', 'effect', 'cover', 'export'];
+export const isCardSlash = (id: SlashId): id is CardKind => CARDS.includes(id);
 
-/** `/xx` typed in the composer -> the tools it matches (either language). */
-export function slashMatches(text: string): CardKind[] {
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** `/xx` typed in the composer (no space yet) -> the commands it matches (any language). */
+export function slashMatches(text: string): SlashId[] {
   const m = /^\/(\S*)$/.exec(text.trim());
   if (!m) return [];
-  const q = m[1].toLowerCase();
-  return SLASH.filter((s) => !q || s.en.startsWith(q) || s.zh.startsWith(q)).map((s) => s.kind);
+  const q = fold(m[1]);
+  return SLASH.filter((s) => !q || [s.en, s.zh, s.fr].some((w) => w && fold(w).startsWith(q))).map((s) => s.id);
 }
 
-/** Exact slash command (`/trim`, `/裁剪`) -> its card; anything else goes to the model. */
-export function slashCommand(text: string): CardKind | null {
-  const m = /^\/(\S+)\s*$/.exec(text.trim());
+export type Slash = { id: SlashId; arg: string } | { id: 'unknown'; name: string };
+
+/** Anything that starts with `/` is a command, never a request for the model: `/model 5.5` -> {model, "5.5"},
+ * `/trim` -> {trim, ""}, `/foo` -> unknown. null: not a command. */
+export function slashCommand(text: string): Slash | null {
+  const m = /^\/(\S*)\s*([\s\S]*)$/.exec(text.trim());
   if (!m) return null;
-  const q = m[1].toLowerCase();
-  return SLASH.find((s) => s.en === q || s.zh === q)?.kind ?? null;
+  const q = fold(m[1]);
+  const hit = SLASH.find((s) => [s.en, s.zh, s.fr].some((w) => w && fold(w) === q));
+  return hit ? { id: hit.id, arg: m[2].trim() } : { id: 'unknown', name: m[1] };
 }
 
 /** Which adjust card an op opens. */
@@ -232,7 +244,7 @@ export function offlineFrom(r: { provider?: string | null; warnings?: { code: st
 
 /** Why the routed model did not answer (the ``llm-failed`` warning's first attempt) -> {provider, code, seconds} for
  * an actionable line ("Claude Code did not answer within 60 s"), or null. */
-export function failureOf(warnings: { code: string; params?: Record<string, unknown> | null }[] | null | undefined): { provider: string; code: string; seconds: number | null } | null {
+export function failureOf(warnings: { code: string; params?: Record<string, unknown> | null }[] | null | undefined): { provider: string; code: string; seconds: number | null; model?: string | null } | null {
   const w = (warnings ?? []).find((x) => x.code === 'llm-failed');
   const p = (w?.params ?? {}) as { provider?: unknown; attempts?: { provider?: unknown; code?: unknown; error?: unknown }[]; code_hint?: unknown };
   const a = (Array.isArray(p.attempts) ? p.attempts : [])[0];
@@ -240,7 +252,8 @@ export function failureOf(warnings: { code: string; params?: Record<string, unkn
   const code = String(a?.code ?? p.code_hint ?? '');
   if (!w || !provider || !code) return null;
   const m = /timed out after\s*([0-9.]+)\s*s/.exec(String(a?.error ?? ''));
-  return { provider, code, seconds: m ? Math.round(Number(m[1])) : null };
+  const mdl = /model '([^']+)'/.exec(String(a?.error ?? ''));
+  return { provider, code, seconds: m ? Math.round(Number(m[1])) : null, ...(mdl ? { model: mdl[1] } : {}) };
 }
 
 export type AskReason = 'reset' | 'export-remove' | 'most-of-clip';

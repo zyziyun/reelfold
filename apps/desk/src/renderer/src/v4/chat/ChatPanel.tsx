@@ -4,18 +4,19 @@
 // edits" makes every change wait. Older cards collapse to one line and undo ON THEIR OWN (an older card is reverted
 // alone, the later ones stay). Slash commands open the tool cards without the model.
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Check, Crop, Image as ImageIcon, MessageSquare, PanelRightClose, PanelRightOpen, Scissors, Sparkles, Square, Undo2, Upload, Wand2, X } from 'lucide-react';
+import { ArrowUp, Check, Cpu, Crop, HelpCircle, Image as ImageIcon, MessageSquare, PanelRightClose, PanelRightOpen, Scissors, Sparkles, Square, Undo2, Upload, Wand2, X } from 'lucide-react';
 import type { AskContext, CardKind, ChatDoc, ChatTurn } from '../../../../shared/chatEdit';
 import { providerName } from '../../../../shared/aiRoutes';
 import { EngineError } from '../../../../shared/engineClient';
 import type { EditOp, EffectDef } from '../../../../shared/v04';
 import { fmtClock, getLang, intlLocale, t, type MessageKey } from '../../i18n';
-import { askFirstReason, needsRenderedCompare, cardFor, cardState, contextOf, costLine, failureOf, lengthChange, offlineFrom, slashCommand, slashMatches, suggestions, undoPlan, undoToCount, SLASH, type Primary, type Suggestion } from '../../lib/chatEdit';
+import { askFirstReason, needsRenderedCompare, cardFor, cardState, contextOf, costLine, failureOf, isCardSlash, lengthChange, offlineFrom, slashCommand, slashMatches, suggestions, undoPlan, undoToCount, SLASH, type Primary, type Slash, type SlashId, type Suggestion } from '../../lib/chatEdit';
+import { currentLine, switchByWords } from '../../lib/modelCmd';
 import { useAskAiEdits } from '../../lib/prefs';
 import { useEngine } from '../../lib/engine';
 import { go } from '../../lib/router';
 import { textLang } from '../../lib/transcript';
-import { ProviderChip } from '../AiChip';
+import { ModelPicker, ProviderChip } from '../AiChip';
 import { Sk } from '../kit';
 import { effectLabel, emsg, errText } from '../msg';
 import { useUi } from '../ui';
@@ -78,6 +79,8 @@ const r1 = (x: number) => fmtClock(x, true);
 /** how long the panel waits for an answered /ask turn to appear in the conversation before showing an error */
 const LOST_TURN_MS = 12_000;
 const SUG_ICON = { pauses: Scissors, pop: Sparkles, platform: Upload, cover: ImageIcon };
+/** turns of the slash commands that never reach the model (/model, /help): a line in the thread, not a tool card */
+const isSlashNote = (c: ChatTurn['card']) => c === 'model' || c === 'help';
 
 export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   const { client, subscribe } = useEngine();
@@ -152,7 +155,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   useEffect(() => {
     if (cmp?.before && states[cmp.turn] !== 'applied') setCmp(null);
   }, [cmp, states]);
-  const isOpenCard = (x: ChatTurn) => !!x.card && x.card !== 'transcript' && states[x.id] === 'note' && !runs[x.id];
+  const isOpenCard = (x: ChatTurn) => !!x.card && x.card !== 'transcript' && !isSlashNote(x.card) && states[x.id] === 'note' && !runs[x.id];
   const lastAi = [...turns].reverse().find((x) => x.role === 'ai');
   const offline = lastAi ? offlineFrom({ warnings: lastAi.warnings ?? [] }) : null;
   const primaryTurn = useMemo(() => {
@@ -205,8 +208,8 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   const send = async (prompt: string) => {
     const q = prompt.trim();
     if (!q || !client) return;
-    const kind = slashCommand(q);
-    if (kind) return openCard(kind);
+    const sc = slashCommand(q);
+    if (sc) return runSlash(sc, q); // a command is never sent to the model
     const ctx = contextOf(p.sel, p.fxSel, doc);
     const token = ++tok.current;
     setLost(null);
@@ -238,6 +241,29 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   const stop = () => {
     tok.current++;
     setPending(null);
+  };
+  /** /model, /help, an unknown /word: a turn in the thread (her command + the answer), no model involved */
+  const runSlash = async (sc: Slash, raw: string) => {
+    if (sc.id !== 'unknown' && isCardSlash(sc.id)) return openCard(sc.id);
+    if (!client) return;
+    setText('');
+    try {
+      if (sc.id === 'model') {
+        const r = sc.arg ? await switchByWords(sc.arg, 'edit') : null;
+        // `/model` alone keeps what ran at that moment (summary): a later switch does not rewrite the old line
+        const now = r ? null : currentLine('edit');
+        await client.addChatTurn(item, clip, { role: 'user', text: raw.trim(), card: 'model', status: 'note', reply: r ? r.text : null, ...(now ? { summary: t('mdl.cur', { name: now.name }) } : {}), ...(r?.ok ? { provider: r.provider, model: r.model ?? null } : {}) });
+      } else await client.addChatTurn(item, clip, { role: 'user', text: raw.trim(), card: 'help', status: 'note', reply: sc.id === 'unknown' ? t('mdl.unknownCmd', { cmd: sc.name }) : null });
+      p.reload();
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    }
+  };
+  /** a pick in the slash menu: a tool card opens; /model and /help answer in the thread */
+  const runPick = (k: SlashId) => {
+    if (isCardSlash(k)) {
+      if (capOk(k)) void openCard(k);
+    } else void send(`/${SLASH.find((s) => s.id === k)!.en}`);
   };
   const openCard = async (kind: CardKind) => {
     if (!client) return;
@@ -642,6 +668,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     const provider = providerName(f.provider);
     if (f.code === 'timeout') return t('ce.off.why.timeout', { provider, s: f.seconds ?? 60 });
     if (f.code === 'auth-expired' || f.code === 'not-logged-in') return t('ce.off.why.expired', { provider });
+    if (f.code === 'model-unsupported') return t('ce.off.why.model', { provider, model: f.model ?? '' });
     return t('ce.off.why.failed', { provider });
   };
 
@@ -655,7 +682,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     if (adj) say = t('ce.reply.adjust', { i: adj.i + 1, n: l.ops.length });
     else if (x.proposals.length) say = x.summary || (st === 'draft' ? t('ce.reply.draft') : '');
     else if (off) say = '';
-    else say = notes.join('\n') || t('ce.reply.nothing');
+    else say = notes.join('\n') || x.summary || t('ce.reply.nothing'); // no change: the model's own words when it gave some
     const cost = costLine(x, (pv) => (pv === 'rules' || pv === 'none' ? t('aiacc.name.rules') : providerName(pv)));
     let body: React.ReactNode = null;
     if (adj) {
@@ -686,7 +713,48 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     );
   };
 
+  const lastModelTurn = [...turns].reverse().find((x) => x.card === 'model')?.id ?? null;
+  const slashTurn = (x: ChatTurn) => {
+    const now = currentLine('edit');
+    let body: React.ReactNode;
+    if (x.card === 'model') {
+      // `/model 5.5`: what it switched to (or why not); `/model`: what runs now + the picker (on the newest one)
+      body = x.reply ? (
+        <div className="say" data-testid="model-reply">{x.reply}</div>
+      ) : (
+        <>
+          <div className="say" data-testid="model-current">{x.summary ?? (now ? t('mdl.cur', { name: now.name }) : t('mdl.noRoutes'))}</div>
+          {now && now.provider !== 'none' && x.id === lastModelTurn && (
+            <>
+              <ModelPicker provider={now.provider} current={now.model} onPick={(id) => void send(`/model ${id ?? 'default'}`)} />
+              <span className="faint small">{t('mdl.pickHint')}</span>
+            </>
+          )}
+        </>
+      );
+    } else
+      body = (
+        <>
+          <div className="say">{x.reply ? `${x.reply} ${t('mdl.helpTitle')}` : t('mdl.helpTitle')}</div>
+          <div className="col" style={{ gap: 4 }} data-testid="slash-help">
+            {SLASH.map((c) => (
+              <span key={c.id} className="small">
+                <span className="mono">/{getLang() === 'zh-CN' ? c.zh : c.en}</span> <span className="muted">{t(`ce.slash.${c.id}` as MessageKey)}</span>
+              </span>
+            ))}
+          </div>
+        </>
+      );
+    return (
+      <div className={`cc-ai ${hot === x.id ? 'hot' : ''}`} data-turn={x.id} data-testid={x.card === 'model' ? 'chat-model-turn' : 'chat-help-turn'}>
+        <span className="av">{x.card === 'model' ? <Cpu className="ico" /> : <HelpCircle className="ico" />}</span>
+        <div className="body">{body}</div>
+      </div>
+    );
+  };
+
   const cardTurn = (x: ChatTurn) => {
+    if (isSlashNote(x.card)) return slashTurn(x);
     if (x.card === 'transcript')
       return (
         <div className={`cc-ai ${hot === x.id ? 'hot' : ''}`} data-turn={x.id} data-testid="chat-cut-turn">
@@ -867,12 +935,12 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
           <div className="slash" role="listbox" data-testid="slash-menu">
             <div className="t">{p.sel ? t('ce.slash.titleSel') : t('ce.slash.title')}</div>
             {matches.map((k, i) => {
-              const Icon = CARD_ICON[k];
-              const ok = capOk(k);
+              const Icon = k === 'model' ? Cpu : k === 'help' ? HelpCircle : CARD_ICON[k];
+              const ok = !isCardSlash(k) || capOk(k);
               return (
-                <button key={k} className={i === Math.min(mi, matches.length - 1) ? 'on' : ''} disabled={!ok} title={ok ? undefined : t('ce.slash.off')} onMouseEnter={() => setMi(i)} onClick={() => void openCard(k)} role="option" aria-selected={i === mi} data-testid={`slash-${k}`}>
+                <button key={k} className={i === Math.min(mi, matches.length - 1) ? 'on' : ''} disabled={!ok} title={ok ? undefined : t('ce.slash.off')} onMouseEnter={() => setMi(i)} onClick={() => runPick(k)} role="option" aria-selected={i === mi} data-testid={`slash-${k}`}>
                   <Icon className="ico" />
-                  <span className="mono">/{getLang() === 'zh-CN' ? SLASH.find((s) => s.kind === k)!.zh : SLASH.find((s) => s.kind === k)!.en}</span>
+                  <span className="mono">/{getLang() === 'zh-CN' ? SLASH.find((s) => s.id === k)!.zh : SLASH.find((s) => s.id === k)!.en}</span>
                   <small>{t(`ce.slash.${k}` as MessageKey)}</small>
                 </button>
               );
@@ -922,10 +990,9 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
               }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !e.metaKey && !e.ctrlKey) {
                 e.preventDefault();
-                if (slashOpen && !slashCommand(text)) {
-                  const k = matches[Math.min(mi, matches.length - 1)];
-                  if (capOk(k)) void openCard(k);
-                } else void send(text);
+                const exact = slashCommand(text);
+                if (slashOpen && (!exact || exact.id === 'unknown')) runPick(matches[Math.min(mi, matches.length - 1)]);
+                else void send(text);
               }
               if (e.key === 'Escape') {
                 e.preventDefault();

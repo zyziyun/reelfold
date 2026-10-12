@@ -44,6 +44,16 @@ test.beforeAll(async () => {
   fs.mkdirSync(mock, { recursive: true });
   fs.writeFileSync(path.join(mock, 'status.json'), JSON.stringify(status('expired')));
   fs.writeFileSync(path.join(mock, 'status-ok.json'), JSON.stringify(status('logged-in')));
+  // the models each provider can use (python -m vstudio.llm models --json): Codex's catalog of a ChatGPT login
+  fs.writeFileSync(
+    path.join(mock, 'models.json'),
+    JSON.stringify({
+      providers: [
+        { provider: 'claude-code', source: 'list', models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5', family: 'opus', version: '5.5', aliases: ['opus'] }, { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', family: 'sonnet', version: '5.5', aliases: ['sonnet'] }] },
+        { provider: 'codex', source: 'cli', cli_default: 'gpt-6-astra', models: [{ id: 'gpt-6-luna', label: 'GPT-6-Luna' }], problem: { code: 'codex-model-unsupported', params: { model: 'gpt-6-astra', suggest: 'gpt-6-luna' }, message: 'Codex is set to use “gpt-6-astra”, which your Codex login can’t use.', message_zh: 'Codex 设置的模型是「gpt-6-astra」，你现在的 Codex 登录用不了。' } },
+      ],
+    }),
+  );
   const persona = { provider: 'claude-code', model: null, fallback: ['codex'] };
   fs.writeFileSync(
     path.join(mock, 'routes.json'),
@@ -171,6 +181,25 @@ test('switching the default provider is explicit and shows up where AI runs', as
   await page.getByTestId('ai-input').fill('再紧凑一点');
   await page.getByTestId('ai-input').press('Enter');
   await expect(page.getByTestId('ai-answered-by').first()).toBeVisible({ timeout: 15000 });
+});
+
+test('the model: the per-job page, and /model in Home’s composer (every job; never sent as a request)', async () => {
+  await hash('#/settings/ai/jobs');
+  await expect(page.getByTestId('ai-routes')).toBeVisible();
+  // the edit job has its own choice (Claude Code, from the chip): its own model
+  await page.getByTestId('route-edit-model').selectOption('claude-sonnet-5-5');
+  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(tmp, 'profile', 'llm-routes.json'), 'utf8')).tasks.output_edit.model).toBe('claude-sonnet-5-5');
+  await page.getByTestId('route-edit-model').selectOption('');
+  await hash('#/');
+  await expect(page.getByTestId('composer')).toBeVisible();
+  await page.getByTestId('composer-input').fill('/mo');
+  await expect(page.getByTestId('composer-slash-model')).toBeVisible();
+  await page.getByTestId('composer-input').fill('/model opus');
+  await page.getByTestId('composer-input').press('Enter');
+  // Codex has no "opus": Claude Code does, so every job switches to Claude Code · Opus 5.5
+  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(tmp, 'profile', 'llm-routes.json'), 'utf8')).default).toMatchObject({ provider: 'claude-code', model: 'claude-opus-5-5' });
+  await expect(page.getByTestId('composer-input')).toHaveValue('');
+  await expect(page.getByText('Switched to Claude Code · Opus 5.5')).toBeVisible();
 });
 
 for (const lang of ['zh-CN', 'en'] as const) {

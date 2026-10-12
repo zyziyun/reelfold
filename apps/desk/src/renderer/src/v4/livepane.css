@@ -53,3 +53,6 @@
 .lv .a-k { color: #7d766f; } .lv .a-r { color: #e07a72; } .lv .a-g { color: #78be92; } .lv .a-y { color: #d8a951; }
 .lv .a-bl { color: #7aa7d6; } .lv .a-m { color: #c592d6; } .lv .a-c { color: #4fbfae; } .lv .a-w { color: #ede9e4; }
 .lv .a-bold { font-weight: 700; } .lv .a-dim { opacity: 0.7; }
+
+/* the model the newest AI call ran on */
+.lv-model { flex: none; max-width: 260px; font-size: 11.5px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-muted); font-family: var(--font-mono, ui-monospace, monospace); }

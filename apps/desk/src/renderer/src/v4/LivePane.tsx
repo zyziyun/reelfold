@@ -6,7 +6,9 @@ import { ChevronDown, ChevronUp, Copy, Minus, PanelBottom, PanelRight, Search, X
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LiveLine } from '../../../shared/v04';
 import { t } from '../i18n';
-import { ansiSpans, clockOf, filterLines, lineTag, searchHits, transcriptText, type LiveFilter, type LiveState } from '../lib/live';
+import { ansiSpans, clockOf, filterLines, lastModel, lineTag, searchHits, transcriptText, type LiveFilter, type LiveState } from '../lib/live';
+import { providerName } from '../../../shared/aiRoutes';
+import { modelLabel } from '../../../shared/aiModels';
 import { useUi } from './ui';
 import './livepane.css';
 
@@ -103,6 +105,7 @@ export function LivePane({
     }
   };
   const running = live.running;
+  const lm = useMemo(() => lastModel(live.lines), [live.lines]);
   return (
     <section className={`lv ${compact ? 'lv-compact' : ''}`} data-testid={testId} aria-label={title ?? t('lp.title')} data-running={running ? '1' : '0'}>
       <header className="lv-hd">
@@ -115,6 +118,12 @@ export function LivePane({
           <b className="lv-title clamp1">{title ?? t('lp.title')}</b>
         )}
         {sub ? <span className="lv-sub clamp1">{sub}</span> : null}
+        {lm ? (
+          <span className="lv-model clamp1" title={t('lp.model', { model: lm.model })} data-testid="live-model" data-model={lm.model}>
+            {lm.provider ? `${providerName(lm.provider)} · ` : ''}
+            {modelLabel(lm.model)}
+          </span>
+        ) : null}
         <span className="sp" />
         {!compact && (
           <div className="lv-seg" role="radiogroup" aria-label={t('lp.filter')}>

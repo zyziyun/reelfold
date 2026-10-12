@@ -10,6 +10,7 @@
     python -m vstudio.llm test --provider ollama      # one tiny round-trip (prints no secrets)
     python -m vstudio.llm auth status --json          # login state of each provider (claude-code: real probe)
     python -m vstudio.llm auth login --provider codex --json   # the command to run interactively (nothing runs)
+    python -m vstudio.llm models --json               # the models each provider can use (vstudio.llm_models)
 
 Providers (``provider=``; aliases: claude -> anthropic, chatgpt -> openai, gpt -> openai)
   anthropic          anthropic SDK (lazy import), ANTHROPIC_API_KEY; default claude-opus-5-5 (adaptive thinking is
@@ -678,8 +679,19 @@ def _claude_code(system, prompt, model, schema, max_tokens, timeout, opts):
                  int(u.get("cache_creation_input_tokens", 0) or 0), output=int(u.get("output_tokens", 0) or 0))
     if d.get("total_cost_usd") is not None:
         usage["notional_cost_usd"] = d["total_cost_usd"]
-    mu = list((d.get("modelUsage") or {}).keys())
-    return text, usage, model or (mu[0] if mu else "claude-code-default")
+    return text, usage, _claude_model_used(model, d.get("modelUsage"))
+
+
+def _claude_model_used(model, model_usage):
+    """The model that answered: the ``modelUsage`` entry of the asked model (an alias like "opus" -> its full id),
+    else the one that wrote the most (the CLI's own default; small helper models write little), else what was asked."""
+    mu = model_usage if isinstance(model_usage, dict) else {}
+    if model:
+        hit = next((k for k in mu if k == model or k.startswith(model) or model in k), None)
+        return hit or model
+    if not mu:
+        return "claude-code-default"
+    return max(mu, key=lambda k: (int((mu[k] or {}).get("outputTokens", 0) or 0) if isinstance(mu[k], dict) else 0))
 
 
 def _claude_result(stdout, stream):
@@ -764,6 +776,27 @@ SCHEMA_REJECTED = re.compile(r"invalid_json_schema|invalid schema|output.?schema
                              r"response_format", re.I)
 
 
+# a model the login / account cannot use: Codex on a ChatGPT login ("The 'gpt-6-astra' model is not supported when
+# using Codex with a ChatGPT account"), an unknown id (API "model_not_found"), Claude Code's "issue with the selected
+# model"
+MODEL_REJECTED = re.compile(r"model is not supported|model_not_found|unknown model|invalid model|unsupported model|"
+                            r"model .{0,60} does not exist|issue with the selected model|"
+                            r"may not exist or you may not have access", re.I)
+
+
+def codex_model_message(model, why=""):
+    """Plain words + the fix for a Codex model the login rejects (failure_code -> model-unsupported)."""
+    m = model or (re.search(r"'([^']+)' model", why or "") or [None, None])[1] or ""
+    if not model:
+        from .llm_models import codex_config_model
+        m = m or codex_config_model() or "its default model"
+    chatgpt = "chatgpt account" in (why or "").lower()
+    who = "your ChatGPT login" if chatgpt else "this Codex login"
+    return (f"codex: the model '{m}' is not available for {who}. Fix: pick a Codex model in Settings > AI "
+            f"(python -m vstudio.llm models --provider codex lists them), or change `model` in "
+            f"~/.codex/config.toml. ({(why or '').strip()[:160]})")
+
+
 def _codex(system, prompt, model, schema, max_tokens, timeout, opts):
     """``codex exec``; a dict schema goes in as ``--output-schema`` only in its strict form (``strict_schema``):
     otherwise (and once more when Codex rejects the schema) the schema is in the prompt instruction only."""
@@ -823,7 +856,10 @@ def _codex_run(exe, system, prompt, model, schema, timeout, opts):
         elif typ == "item.completed" and (ev.get("item") or {}).get("type") == "agent_message":
             agent = (ev["item"].get("text") or agent)
     if r.returncode or (err and not text):
-        raise LLMError(f"codex CLI failed (exit {r.returncode}): {(err or r.stderr or '').strip()[:300]}")
+        why = (err or r.stderr or "").strip()
+        if MODEL_REJECTED.search(why):
+            raise LLMError(codex_model_message(model, why))
+        raise LLMError(f"codex CLI failed (exit {r.returncode}): {why[:300]}")
     return text or agent, usage, model or "codex-default"
 
 
@@ -860,10 +896,12 @@ def _classify(e):
 # ------------------------------------------------------------------ public
 def failure_code(err):
     """Why a provider failed, from its error text: auth-expired | not-logged-in | not-installed | key-missing |
-    rate-limited | timeout | unavailable | failed (the desk turns this into "Claude 登录已过期，这次用了 Codex")."""
+    rate-limited | timeout | unavailable | model-unsupported (the login cannot use that model) | failed (the desk turns this into "Claude 登录已过期，这次用了 Codex")."""
     m = str(err or "")
     if re.search(r"not available in this app build", m):
         return "unavailable"
+    if re.search(r"is not available for (your ChatGPT login|this Codex login)", m) or MODEL_REJECTED.search(m):
+        return "model-unsupported"
     if re.search(r"not logged in|not authenticated|login required|no credentials|please (log ?in|sign in)", m, re.I):
         return "not-logged-in"
     if re.search(r"\b401\b|token (has )?expired|expired token|oauth.*expired|invalid_grant|refresh token|"
@@ -1303,6 +1341,9 @@ def main(argv=None):
     if argv[:1] == ["auth"]:                               # login status / login commands: vstudio.llm_auth
         from . import llm_auth
         return llm_auth.main(argv[1:])
+    if argv[:1] == ["models"]:                             # the models each provider can use: vstudio.llm_models
+        from . import llm_models
+        return llm_models.main(argv[1:])
     ap = argparse.ArgumentParser(prog="python -m vstudio.llm", description="LLM / ASR / TTS providers on this machine")
     sub = ap.add_subparsers(dest="cmd", required=True)
     pp = sub.add_parser("providers", help="list LLM, ASR and TTS providers and whether they work here")
@@ -1312,6 +1353,7 @@ def main(argv=None):
     pr.add_argument("--task", action="append")
     pr.add_argument("--json", action="store_true", help="one JSON object {task: route} (fallback chains included)")
     sub.add_parser("auth", help="auth status | login | logout (see vstudio.llm_auth)")
+    sub.add_parser("models", help="the models each provider can use here (see vstudio.llm_models)")
     pt = sub.add_parser("test", help="one tiny JSON round-trip")
     pt.add_argument("--provider", required=True)
     pt.add_argument("--model")

@@ -38,6 +38,7 @@ import '../theme/uxcore.css';
 import './homeDash.css';
 import { homePlatforms, orderPlatforms } from '../../../shared/platforms';
 import { errText } from './msg';
+import { useComposerSlash } from './ComposerSlash';
 import { IS_LITE } from '../../../shared/edition';
 import { LiveCardLine } from './LiveLine';
 import { liveStep, liveText } from '../lib/liveStatus';
@@ -153,7 +154,9 @@ export function Home() {
       setFiles([]);
     }
   };
+  const slash = useComposerSlash(prompt, setPrompt, ta, files.length > 0);
   const submit = async (req?: { prompt: string; files: string[]; sample: boolean }) => {
+    if (!req && slash.submit()) return; // a /command, never a request
     const p = req ?? { prompt: prompt.trim(), files, sample: false };
     if (!client || busy || !(p.prompt || p.files.length)) return;
     if (!req && files.length && WEEK_WORDS.test(prompt)) return void startWeek();
@@ -276,12 +279,13 @@ export function Home() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
-                void submit();
-              }
+                if (!slash.submit()) void submit();
+              } else slash.onKey(e);
             }}
             rows={2}
             data-testid="composer-input"
           />
+          {slash.menu}
           {files.length > 0 && (
             <div className="files" data-testid="composer-files">
               {files.map((f) => (

@@ -93,6 +93,16 @@ export interface RouteChoice {
 export interface AiRoutes {
   default: RouteChoice;
   tasks: Partial<Record<AiTask, RouteChoice>>;
+  /** the model each provider runs on for every job (a job's own `model` wins); absent = the CLI's / provider's default */
+  models?: Partial<Record<ProviderId, string>>;
+}
+
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/;
+function cleanModels(m: unknown): Partial<Record<ProviderId, string>> {
+  const out: Partial<Record<ProviderId, string>> = {};
+  if (!m || typeof m !== 'object') return out;
+  for (const [k, v] of Object.entries(m as Record<string, unknown>)) if (isProvider(k) && typeof v === 'string' && MODEL_ID.test(v)) out[k] = v;
+  return out;
 }
 
 export function isProvider(x: unknown): x is ProviderId {
@@ -102,7 +112,7 @@ export function isProvider(x: unknown): x is ProviderId {
 function cleanChoice(c: Partial<RouteChoice> | undefined | null, caps: EditionCaps = CAPS): RouteChoice | null {
   if (!c || !(isProvider(c.provider) || c.provider === 'none') || !providerAllowed(c.provider, caps)) return null;
   const fb = (c.fallback ?? []).filter((x, i, a) => isProvider(x) && providerAllowed(x, caps) && x !== c.provider && a.indexOf(x) === i).slice(0, 4);
-  return { provider: c.provider, model: c.model ? String(c.model).slice(0, 120) : null, fallback: fb };
+  return { provider: c.provider, model: c.model && MODEL_ID.test(String(c.model)) ? String(c.model) : null, fallback: fb };
 }
 
 /** The engine's `python -m vstudio.llm route --json` (persona / client values) -> the initial desk choices. */
@@ -129,6 +139,12 @@ export function routesFromEngine(
       : null;
   // nothing configured (no persona / client route: the engine reports "none") -> the subscription CLIs, which the
   // routes file then hands to the engine, so what the page shows is what runs (P1-6)
+  // a fallback the persona gives its own model ({provider: codex, model: ...}): that provider's model
+  const models: Partial<Record<ProviderId, string>> = {};
+  for (const r of Object.values(engine ?? {}))
+    for (const f of Array.isArray(r?.fallback) ? r.fallback : [])
+      if (f && typeof f === 'object' && isProvider((f as { provider?: string }).provider) && typeof (f as { model?: unknown }).model === 'string')
+        models[(f as { provider: ProviderId }).provider] ??= (f as { model: string }).model;
   const engineDef = pick(engine?.default);
   const def = engineDef && engineDef.provider !== 'none' ? engineDef : defaultChoice(caps);
   const tasks: AiRoutes['tasks'] = {};
@@ -140,7 +156,10 @@ export function routesFromEngine(
     const c = pick(raw);
     if (c && !sameChoice(c, def)) tasks[k] = c;
   }
-  return { default: def, tasks };
+  const out: AiRoutes = { default: def, tasks };
+  const clean = cleanModels(models);
+  if (Object.keys(clean).length) out.models = clean;
+  return out;
 }
 
 export function sameChoice(a: RouteChoice, b: RouteChoice): boolean {
@@ -162,14 +181,22 @@ export function normalizeRoutes(r: unknown): AiRoutes {
     const c = cleanChoice(o.tasks?.[k]);
     if (c) tasks[k] = c;
   }
-  return { default: def, tasks };
+  const models = cleanModels(o.models);
+  return Object.keys(models).length ? { default: def, tasks, models } : { default: def, tasks };
 }
 
-type EngineEntry = { provider: string; model?: string; fallback?: string[] };
+type EngineEntry = { provider: string; model?: string; fallback?: (string | { provider: string; model: string })[] };
 /** The engine's routes file. Every task gets an explicit entry - "follow the default" is written out - because the
- * engine ranks the persona's llm.tasks above any default: an omitted task would silently use the persona's route. */
+ * engine ranks the persona's llm.tasks above any default: an omitted task would silently use the persona's route.
+ * Each entry carries its model (the job's own, else the provider's) and each fallback its provider's model, so a
+ * fallback Codex runs on the model picked for Codex (never on whatever its config.toml says). */
 export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<string, EngineEntry> } {
-  const entry = (c: RouteChoice): EngineEntry => ({ provider: c.provider, ...(c.model ? { model: c.model } : {}), ...(c.fallback.length ? { fallback: c.fallback } : {}) });
+  const pm = r.models ?? {};
+  const entry = (c: RouteChoice): EngineEntry => {
+    const model = c.model || (c.provider !== 'none' ? pm[c.provider] : undefined);
+    const fb = c.fallback.map((p) => (pm[p] ? { provider: p, model: pm[p]! } : p));
+    return { provider: c.provider, ...(model ? { model } : {}), ...(fb.length ? { fallback: fb } : {}) };
+  };
   const tasks: Record<string, EngineEntry> = {};
   for (const k of AI_TASK_IDS) tasks[AI_TASKS[k]] = entry(effective(r, k));
   // tasks the desk has no control for (scripts, the batch planner) follow the default too
@@ -190,7 +217,7 @@ export interface FallbackInfo {
   seconds?: number | null;
 }
 
-export type FallbackKey = 'aiacc.fb.expired' | 'aiacc.fb.notLoggedIn' | 'aiacc.fb.notInstalled' | 'aiacc.fb.failed' | 'aiacc.fb.timeout' | 'aiacc.fb.skipped' | 'aiacc.fb.limited';
+export type FallbackKey = 'aiacc.fb.expired' | 'aiacc.fb.notLoggedIn' | 'aiacc.fb.notInstalled' | 'aiacc.fb.failed' | 'aiacc.fb.timeout' | 'aiacc.fb.skipped' | 'aiacc.fb.limited' | 'aiacc.fb.model';
 
 /** The notice for a run that did not use the chosen provider, or null. key + vars for t(). */
 export function fallbackNotice(fb: FallbackInfo | null | undefined): { key: FallbackKey; from: string; to: string; provider: string; login: boolean; seconds?: number } | null {
@@ -206,6 +233,8 @@ export function fallbackNotice(fb: FallbackInfo | null | undefined): { key: Fall
           ? 'aiacc.fb.notInstalled'
           : fb.code === 'rate-limited'
             ? 'aiacc.fb.limited'
+            : fb.code === 'model-unsupported'
+              ? 'aiacc.fb.model'
             : fb.code === 'timeout' && fb.cached
               ? 'aiacc.fb.skipped'
               : fb.code === 'timeout' && limit

@@ -18,6 +18,7 @@ import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { PlatformChip } from './Home';
 import { errText } from './msg';
 import { useUi } from './ui';
+import { useComposerSlash } from './ComposerSlash';
 
 const base = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? p;
 const isImage = (p: string) => /\.(jpe?g|png|webp)$/i.test(p);
@@ -102,7 +103,11 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
       setBusy(false);
     }
   };
-  const submit = () => void send({ prompt: prompt.trim(), files });
+  const slash = useComposerSlash(prompt, setPrompt, ta, files.length > 0);
+  const submit = () => {
+    if (slash.submit()) return;
+    void send({ prompt: prompt.trim(), files });
+  };
   const sample = async () => {
     if (!client) return;
     try {
@@ -162,7 +167,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             submit();
-          }
+          } else slash.onKey(e);
           if (e.key === 'Escape' && onClose) {
             e.stopPropagation();
             onClose();
@@ -171,6 +176,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         rows={2}
         data-testid="composer-input"
       />
+      {slash.menu}
       {files.length > 0 && <AttachedFiles files={files} onChange={setFiles} />}
       <div className="foot">
         <button className="btn icon ux-attach" onClick={() => void addFiles('files')} aria-label={t('home.attach')} data-tip={t('home.attachTip')} data-testid="composer-attach">

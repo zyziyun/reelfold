@@ -8,6 +8,16 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+### Added
+
+- **Choose the AI model**: Settings › AI picks the model of each provider (Claude Code: Opus 5.5, Sonnet 5.5,
+  Haiku 5.5, Fable 5.1 or the CLI default; Codex: the models your login can use; API keys: the provider's list), a
+  job can still have its own, and the AI chip shows and switches it. In the clip chat, `/model` shows what runs with
+  a picker and `/model 5.5` / `/model sonnet` switch (said in the thread); `/` lists /model, /trim, /captions,
+  /effect, /cover, /export, /help, and no slash command is ever sent to the model. The live pane names the model.
+- **Codex model your login cannot use**: a `model` in `~/.codex/config.toml` that a ChatGPT login rejects is
+  flagged in Settings › AI with a one-click fix, and a call that hits it says so plainly instead of a raw 400.
+
 ### Fixed
 
 - **No more "Chromium" notifications prompt on macOS**: the optional browser for HTML covers, slides and HyperFrames

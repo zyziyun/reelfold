@@ -196,9 +196,14 @@ for (const [lang, clip] of [['en', 'A_换圈子'], ['zh-CN', 'B_底气']] as con
     await page.getByTestId('editor-title').click();
     await page.keyboard.press('/'); // / talks to the chat: the tools
     await expect(page.getByTestId('chat-input')).toBeFocused();
-    await expect(page.getByTestId('slash-menu').locator('button')).toHaveCount(5);
+    await expect(page.getByTestId('slash-menu').locator('button')).toHaveCount(7); // /model, the 5 tools, /help
+    await expect(page.getByTestId('slash-menu').locator('button').first()).toHaveAttribute('data-testid', 'slash-model');
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('slash-menu')).toHaveCount(0);
+    // /model 5.5: switched in the thread, never sent to the model
+    await say('/model 5.5');
+    await expect(page.getByTestId('chat-model-turn').last().getByTestId('model-reply')).toContainText('Opus 5.5');
+    await expect(page.getByTestId('chat-thinking')).toHaveCount(0);
 
     const before = (await api(clip)).steps.length;
     await say(s.trim);

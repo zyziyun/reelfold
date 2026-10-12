@@ -5,6 +5,9 @@
 // panel shows the stages (读取 N 条片子 → 询问 Claude Code → 生成修改) with elapsed time, a fallback notice when
 // the routed AI times out, and Cancel (the engine process is killed).
 import { useEffect, useRef, useState } from 'react';
+import { slashCommand, SLASH } from '../lib/chatEdit';
+import { currentLine, switchByWords } from '../lib/modelCmd';
+import { loadModels } from '../lib/ai';
 import { ArrowUp, Check, Clipboard, FileText, FolderOpen, PanelRightClose, RefreshCw, Undo2, X } from 'lucide-react';
 import type { EngineMsg, ProjectAction, ProjectAskJob, ProjectAskResult, ProjectGroup, RerenderAction } from '../../../shared/v04';
 import { providerName } from '../../../shared/aiRoutes';
@@ -180,6 +183,23 @@ export function ProjectAIPanel({
 
   const send = async (prompt: string) => {
     if (!client || !prompt.trim() || busy) return;
+    const sc = slashCommand(prompt);
+    if (sc) {
+      // a command, never a request for the model: /model shows / switches the AI model, /help lists the commands
+      setMsgs((m) => [...m, { id: ++seq, me: true, text: prompt.trim() }]);
+      setText('');
+      let reply: string;
+      if (sc.id === 'model' && sc.arg) reply = (await switchByWords(sc.arg, 'edit')).text;
+      else if (sc.id === 'model') {
+        await loadModels();
+        const now = currentLine('edit');
+        reply = now ? `${t('mdl.cur', { name: now.name })} ${t('mdl.pickHint')}` : t('mdl.noRoutes');
+      } else if (sc.id === 'help' || sc.id === 'unknown')
+        reply = [sc.id === 'unknown' ? t('mdl.unknownCmd', { cmd: sc.name }) : '', t('mdl.helpTitle'), ...SLASH.map((c) => `/${c.en} · ${t(`ce.slash.${c.id}` as never)}`)].filter(Boolean).join('\n');
+      else reply = t('mdl.clipOnly', { cmd: sc.id });
+      setMsgs((m) => [...m, { id: ++seq, text: reply }]);
+      return;
+    }
     const target = scope === 'one' && selected ? [selected.id] : clips.map((c) => c.id);
     // nothing finished yet (it is still being made): the engine still answers what the project can do now (pause,
     // pick the music or the cover again, cut it again)

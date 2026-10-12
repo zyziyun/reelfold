@@ -1,4 +1,5 @@
 // The API the preload exposes as window.desk.
+import type { ModelsMsg } from './aiModels';
 import type { AiRoutes, AuthStatusMsg, KeyName } from './aiRoutes';
 import type { AssetsStatusMsg } from './assets';
 import type { ChannelMsg, ChannelPrefs } from './channels';
@@ -248,6 +249,8 @@ export interface DeskApi {
     kill(id: string): Promise<void>;
     routes(): Promise<AiRoutesMsg>;
     setRoutes(routes: AiRoutes | null): Promise<AiRoutesMsg>;
+    /** the models each provider can use here (cached in main unless refresh) */
+    models(opts?: { refresh?: boolean; providers?: string[] }): Promise<ModelsMsg>;
   };
   /** Create recorder (main refuses while the Create flag is off) */
   rec: {

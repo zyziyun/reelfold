@@ -125,9 +125,36 @@ Notes per backend:
 A route entry may name `fallback: [codex, ollama]`: when the routed provider fails (login expired, CLI missing,
 outage), the next one runs. The result records it - `fallback_from` (the error texts) and
 `fallback: {from, to, code, error, tried}` with `code` one of `auth-expired | not-logged-in | not-installed |
-key-missing | rate-limited | timeout | failed` - and `output ai` / the intake planner pass it on (`routed`,
+key-missing | rate-limited | timeout | model-unsupported | failed` - and `output ai` / the intake planner pass it on (`routed`,
 `fallback`, `provider_fallback`), so an app can say "Claude's login expired, Codex answered this time". An explicit
 provider (`--provider`) never falls back.
+
+A fallback entry may carry its own model: `fallback: [{provider: codex, model: gpt-6-luna}]`.
+
+### Choosing the model
+
+Every route entry takes `model:` (passed as `claude --model <id>` / `codex exec --model <id>` / the API's model).
+Without one, the CLIs use their own default (Claude Code's, or `model` in `~/.codex/config.toml`).
+
+```bash
+python3 -m vstudio.llm models --json                           # the models each provider can use here
+python3 -m vstudio.llm models --provider claude-code --resolve 5.5   # her words -> claude-opus-5-5
+```
+
+- **claude-code / anthropic**: the CLI has no "list models" command, so this is a maintained list of the current
+  Claude models (`vstudio.llm_models.CLAUDE_MODELS`: Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1, plus older ones);
+  with an Anthropic key the API's own list is added.
+- **codex**: `codex debug models`, the catalog of the models *your login* can use. A ChatGPT login cannot use every
+  API model: when `~/.codex/config.toml` names one it cannot use, `models` reports `problem.code =
+  codex-model-unsupported` with the fix, and a call that hits it fails with code `model-unsupported` and says so
+  plainly ("the model 'gpt-6-astra' is not available for your ChatGPT login. Fix: pick a Codex model in Settings > AI,
+  or change `model` in ~/.codex/config.toml").
+- **API providers**: the provider's `/models` when its key is set, else a short maintained list.
+- `--resolve` matches like the app's `/model`: "5.5" -> Opus 5.5 (opus before sonnet, haiku, fable), "sonnet" -> the
+  newest Sonnet, "default" -> no model (the CLI's own).
+
+The desk app writes the choice into its routes file: the model picked for a provider applies to every job using
+that provider (and to that provider as a fallback); a job may still have its own.
 
 ### Login status and login commands
 

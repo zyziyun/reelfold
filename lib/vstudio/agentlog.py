@@ -168,7 +168,8 @@ def begin(task, provider, model, system, prompt):
     if not active():
         return None
     turn = new_turn()
-    emit("turn", f"{task} · {provider}" + (f" ({model})" if model else ""), task=task, provider=provider,
+    shown = model or ("CLI default model" if provider in ("claude-code", "codex") else None)
+    emit("turn", f"{task} · {provider}" + (f" ({shown})" if shown else ""), task=task, provider=provider,
          model=model, turn=turn)
     p = str(prompt or "")
     head = p[:PROMPT_HEAD] + (f" … (+{len(p) - PROMPT_HEAD} chars)" if len(p) > PROMPT_HEAD else "")
@@ -181,7 +182,8 @@ def finish(turn, out, seconds):
     if turn is None:
         return
     u = out.get("usage") or {}
-    bits = [f"{int(u.get('input', 0) or 0):,} in", f"{int(u.get('output', 0) or 0):,} out", f"{seconds:.1f} s"]
+    bits = ([str(out["model"])] if out.get("model") else []) + \
+        [f"{int(u.get('input', 0) or 0):,} in", f"{int(u.get('output', 0) or 0):,} out", f"{seconds:.1f} s"]
     if out.get("cost_usd"):
         bits.append(f"${out['cost_usd']:.3f}")
     elif u.get("notional_cost_usd") is not None:
@@ -220,7 +222,8 @@ def claude_event(ev, turn=None, provider="claude-code", path=None):
         return
     typ = ev.get("type")
     if typ == "system" and ev.get("subtype") == "init":
-        emit("info", f"session · {ev.get('model') or 'default model'}", turn=turn, provider=provider, path=path)
+        emit("info", f"session · {ev.get('model') or 'default model'}", turn=turn, provider=provider, path=path,
+             model=ev.get("model") or None)
     elif typ == "assistant":
         for b in ((ev.get("message") or {}).get("content") or []):
             if not isinstance(b, dict):

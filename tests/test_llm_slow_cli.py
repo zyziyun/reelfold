@@ -62,7 +62,7 @@ def test_a_slow_cli_answer_is_used_and_a_skipped_one_is_asked_again(clis, monkey
     assert r["provider"] == "claude-code" and r["json"]["summary"] == "ok" and not r.get("fallback")
     with pytest.raises(llm.LLMError) as e:                            # past the limit: it times out, Codex fails
         ask(0.5)
-    assert [a["code"] for a in llm.attempts_of(e.value)] == ["timeout", "failed"]
+    assert [a["code"] for a in llm.attempts_of(e.value)] == ["timeout", "model-unsupported"]  # Codex: a model its login cannot use
     assert A.known_unresponsive("claude-code")
     # the next ask: skipped as unresponsive, Codex fails again -> Claude Code is asked after all and answers
     monkeypatch.setenv("FAKE_SLEEP", "0")
