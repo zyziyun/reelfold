@@ -1047,6 +1047,9 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     };
     const projClips = (hist.data?.items.find((x) => x.id === id) ? place?.pos?.[1] : null) ?? null;
     return (
+      <>
+      {/* Review in a row: where she is in the walk ("3 of 12"), Skip / Next - above the page */}
+      {triage && q.triage === '1' && <TriageBar item={triageItem} items={inbox.items} />}
       <div className={`cs ${ai.open ? 'ai-open' : ''} ${notice ? 'has-notice' : ''}`} data-testid="editor" data-layout="studio">
         <header className="cs-top" data-testid="studio-header">
           <div className="cs-title">
@@ -1207,6 +1210,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         </footer>
         {drawerEl}
       </div>
+      </>
     );
   }
   return (

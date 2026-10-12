@@ -96,12 +96,20 @@ export function startTriage(items: InboxItem[], from = 0) {
   location.hash = itemTarget(items[Math.min(from, items.length - 1)], true);
 }
 
-/** 「连着看」 Review in a row: clips waiting for her review play one after another (space approves, X sends back -
- * Focus); other questions come one after another where they are answered. */
+/** The reviews waiting for her (a clip's review, its publish check), every project's, in the Inbox's order. */
+export function reviewQueue(items: InboxItem[]): InboxItem[] {
+  return items.filter((x) => x.kind === 'review' || x.kind === 'publish');
+}
+
+/** 「连着看」 Review in a row: every review waiting for her, across all her projects in the Inbox's order, one after
+ * another where each is answered (the clip's page with its question pinned, "3 of 12" on top); with no review
+ * waiting, the other questions the same way. */
 export function reviewInRow(items: InboxItem[]) {
-  const review = items.find((x) => (x.kind === 'review' || x.kind === 'publish') && x.project.id);
-  if (review?.project.id) location.hash = href({ name: 'focus', id: review.project.id });
-  else startTriage(items);
+  const reviews = reviewQueue(items);
+  // one project's reviews only: its full-screen review (Space approves, X sends back)
+  const pids = new Set(reviews.map((x) => x.project.id));
+  if (reviews.length && pids.size === 1 && reviews[0].project.id) location.hash = href({ name: 'focus', id: reviews[0].project.id });
+  else startTriage(reviews.length ? reviews : items);
 }
 
 export function endTriage(toInbox = true) {
