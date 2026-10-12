@@ -103,3 +103,17 @@ def test_effect_texts_per_version_language():
     assert OR.target_lang(dict(profile=P.profile("bilibili"))) == "zh"
     assert OR.target_lang(dict(profile=P.profile("xiaohongshu:full"))) == "zh"
     assert OR.target_lang(dict(profile=None)) is None
+
+
+def test_planner_never_keeps_a_paid_voice_without_its_key(monkeypatch):
+    """No paid generation by surprise: a planned tts_engine "openai" with no OPENAI_API_KEY is dropped (the voice
+    rules then pick the free voice / English narration with Chinese subtitles)."""
+    from vstudio.intake import plan as PL
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    m = dict(id="photo-story", params=dict(properties=dict(tts_engine=dict(type="string"))))
+    params, sources = dict(tts_engine="openai"), dict(tts_engine="planner")
+    PL._apply_ctx_defaults(m, params, sources, dict(language="en", source="request"), {}, dict(files=[]))
+    assert "tts_engine" not in params and "tts_engine" not in sources
+    params = dict(tts_engine="kokoro")
+    PL._apply_ctx_defaults(m, params, {}, dict(language="en", source="request"), {}, dict(files=[]))
+    assert params["tts_engine"] == "kokoro"

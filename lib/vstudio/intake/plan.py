@@ -701,6 +701,11 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
             params["language"], sources["language"] = lang, "material" if (src or {}).get("language") else ctx["source"]
     if "tts_engine" in props and "tts_engine" not in params and ctx.get("tts_engine") not in (None, "", "auto"):
         params["tts_engine"], sources["tts_engine"] = ctx["tts_engine"], ctx["source"]   # her voice (persona tts.engine)
+    if params.get("tts_engine") not in (None, "", "auto"):
+        from vstudio import tts
+        if tts.missing_key(params["tts_engine"]):      # a paid voice without its key here: never planned (no charge,
+            params.pop("tts_engine")                   # no failed voice step) - the free voice decides by the rules
+            sources.pop("tts_engine", None)
     if m["id"] == "longform-to-short" and "layout_mode" not in params and src:
         params["layout_mode"], sources["layout_mode"] = ("split" if src.get("screen_share") else "reframe"), "material"
 
