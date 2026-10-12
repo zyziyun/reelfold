@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, FileText, Film, Inbox as InboxIcon, Maximize2, Minimize2, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import type { InboxItem, InboxOption } from '../../../shared/v04';
 import { fmtClock, has, intlLocale, t } from '../i18n';
-import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, secsLabel } from '../lib/inboxView';
+import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueDo, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, reviewReasons, secsLabel } from '../lib/inboxView';
 import { DraftPane, useDraftIt, type KeepEdits } from './DraftReview';
 import { useEngine } from '../lib/engine';
 import { useInbox } from '../lib/inbox';
@@ -25,7 +25,7 @@ import { useNativeFullscreen } from '../lib/fullscreen';
 import { FULL_SEEK, volumeStep } from '../lib/player';
 import '../theme/uxcore.css';
 
-export { answerOf, clipName, inboxClip, inboxSub, inboxTitle, issueText, money, optionLabel, secsLabel };
+export { answerOf, clipName, inboxClip, inboxSub, inboxTitle, issueDo, issueText, money, optionLabel, secsLabel };
 
 /** Resolve an item: answer, move on, Undo in the toast. Shared by the Inbox, Home rows and the editor triage card. */
 export function useResolve() {
@@ -362,10 +362,11 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
             <DraftPane itemKey={x.key} a={author} edits={edits} onEdits={setEdits} />
           ) : x.kind === 'review' ? (
             <div className="col" style={{ gap: 10 }}>
-              {(x.reasons ?? []).map((r) => (
-                <div key={r.code} className="ux-opt" data-testid="inbox-reason">
-                  <div className="ux-optt">{issueText(r.code)}</div>
+              {reviewReasons(x.reasons ?? []).map((r) => (
+                <div key={r.code} className="ux-opt" data-testid="inbox-reason" data-code={r.code}>
+                  <div className="ux-optt">{r.text}</div>
                   <div className="muted">{t('inbox.inNClips', { n: r.n })}</div>
+                  <div className="small" data-testid="inbox-reason-do">{r.todo}</div>
                 </div>
               ))}
             </div>

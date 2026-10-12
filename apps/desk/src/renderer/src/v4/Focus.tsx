@@ -11,7 +11,7 @@ import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { go, href } from '../lib/router';
 import { platformName } from './Home';
-import { issueText } from './Inbox';
+import { issueDo, issueText } from './Inbox';
 import { Empty, Thumb } from './kit';
 import { PendingList } from './Project';
 import { pendingFor } from '../lib/liveStatus';
@@ -207,6 +207,9 @@ export function Focus({ id }: { id: string }) {
                           「{x.quote}」
                         </span>
                       )}
+                      <span className="muted small" style={{ display: 'block' }} data-testid="focus-issue-do">
+                        {issueDo(x.code)}
+                      </span>
                     </span>
                   </button>
                 ))}

@@ -75,9 +75,30 @@ export function draftSummary(m: DraftMsg | null | undefined): string {
   return typeof vars.text === 'string' ? vars.text : '';
 }
 
+/** A failed automatic check by name ("Captions sit under the platform’s buttons"); one the app has no words for yet
+ * still says which check it was, never only "An auto check failed". */
 export function issueText(code: string, vars: Record<string, string | number> = {}): string {
   const k = `issue.${code}`;
-  return has(k) ? tk(k, vars) : has('issue.qc') ? t('issue.qc') : code;
+  if (code && has(k)) return tk(k, vars);
+  return code && code !== 'qc' ? t('issue.qcNamed', { name: code.replace(/[-_]+/g, ' ') }) : t('issue.qc');
+}
+
+/** What to do about a failed check, in one plain sentence. */
+export function issueDo(code: string): string {
+  const k = `issue.do.${code}`;
+  return has(k) ? tk(k) : t('issue.do.qc');
+}
+
+/** The failed checks of a review, each once (two codes the app words the same are one line), with their counts. */
+export function reviewReasons(rs: { code: string; n: number }[]): { code: string; text: string; todo: string; n: number }[] {
+  const out = new Map<string, { code: string; text: string; todo: string; n: number }>();
+  for (const r of rs) {
+    const text = issueText(r.code);
+    const had = out.get(text);
+    if (had) had.n += r.n;
+    else out.set(text, { code: r.code, text, todo: issueDo(r.code), n: r.n });
+  }
+  return [...out.values()];
 }
 
 export function money(amount: number, currency: string): string {
