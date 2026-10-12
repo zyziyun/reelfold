@@ -612,9 +612,12 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         shape = ('{"segments": [{"clip": "<id>", "start": <s>, "dur": <s>, "why": "<few words>"}], '
                  '"summary": "<one sentence>"}')
         xf = float(cfg.get("xfade") or 0.8)
-        rules = (f"Calm crossfade film: segments of 5-14 s ({xf} s crossfades eat into each join), their durations "
-                 f"summing to about {target + xf * max(0, round(target / 9) - 1):.0f} s so the video lasts about "
-                 f"{target:.0f} s; unhurried, let the light change from shot to shot.")
+        sp = calm_speed(cfg)
+        n_est = max(1, round(target / 8))
+        rules = (f"Calm crossfade film: source windows of 6-16 s each; every window plays at {sp:g}x speed and "
+                 f"{xf} s crossfades eat into each join, so the windows' durations (in source seconds) must sum to "
+                 f"about {(target + xf * (n_est - 1)) * sp:.0f} s for a video of about {target:.0f} s; unhurried, "
+                 "let the light change from shot to shot.")
     cur = ""
     if instruction and DR.state(path, None, cp, ctx.recipe) in ("drafted", "hers"):
         cur = json.dumps({k: cfg.get(k) for k in ("segments", "shots", "title", "end_card") if k in cfg},
@@ -662,7 +665,7 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         picks.append(one)
     rules = not picks
     if rules:                                   # no model (or nothing usable): spread the length over the clips
-        picks = rules_windows(by_id, list(clips), target, fun)
+        picks = rules_windows(by_id, list(clips), target * (1 if fun else calm_speed(cfg)), fun)
         js = dict(title=dict(text=str(ctx.params.get("title") or ctx.data.get("name") or "").strip()[:40], sub=""))
     out = {k: v for k, v in cfg.items() if k != "starter"}
     mood = None
@@ -687,6 +690,16 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
                     note=err or "no AI model answered: windows spread evenly over the clips")
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(images), music_mood=mood)
+
+
+def calm_speed(cfg):
+    """The speed build_vlog plays a calm segment at (edit default_speed, else persona vlog.speed_subject, 1.2)."""
+    try:
+        from vstudio.config import persona
+        vp = (persona() or {}).get("vlog") or {}
+    except Exception:  # noqa: BLE001
+        vp = {}
+    return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.2))))
 
 
 def rules_windows(by_id, order, target, fun):
