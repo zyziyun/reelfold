@@ -87,6 +87,8 @@ export const goalEn = {
   'goal.why.intake': 'the planning engine didn’t answer',
   'goal.why.items-failed': 'its video failed to render, twice',
   'goal.why.missing': 'its project folder is gone',
+  'goal.why.needs-input': 'the AI couldn’t write its edit, twice',
+  'goal.why.needs-model': 'a step needs an AI model that didn’t answer',
   'goal.inbox': '{n, plural, one {# video planned from your footage — make it?} other {# videos planned from your footage — make them?}}',
 };
 
@@ -177,6 +179,8 @@ export const goalZh: Record<keyof typeof goalEn, string> = {
   'goal.why.intake': '规划引擎没响应',
   'goal.why.items-failed': '两次都没渲染出来',
   'goal.why.missing': '项目文件夹不见了',
+  'goal.why.needs-input': 'AI 两次都没写出剪辑方案',
+  'goal.why.needs-model': '有一步需要 AI 模型，但它没响应',
   'goal.inbox': '用你的素材规划了 {n} 个视频——开始做吗？',
 };
 
@@ -267,5 +271,7 @@ export const goalFr: Record<keyof typeof goalEn, string> = {
   'goal.why.intake': 'le moteur de planification n’a pas répondu',
   'goal.why.items-failed': 'son rendu a échoué, deux fois',
   'goal.why.missing': 'le dossier du projet a disparu',
+  'goal.why.needs-input': 'l’IA n’a pas pu écrire son montage, deux fois',
+  'goal.why.needs-model': 'une étape demande un modèle d’IA qui n’a pas répondu',
   'goal.inbox': '{n, plural, one {# vidéo prévue avec vos images — la faire ?} other {# vidéos prévues avec vos images — les faire ?}}',
 };

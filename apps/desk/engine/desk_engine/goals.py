@@ -40,6 +40,9 @@ MAX_TRIES = 2                # the first try + one retry
 RECENT_S = 14 * 86400        # a finished goal stays in the lists this long (unless she dismissed it)
 ACTIVE = ("planning", "making")
 SETTLED = ("made", "dropped")
+# autopilot stopped because nothing could be drafted / no model drew a step: a failure of the run, tried once more
+# (then dropped); every other blocker (consent, a budget, a question she took back, a red QC, a key) is hers
+RETRY_BLOCKERS = ("needs-input", "needs-model")
 
 
 def _parallel():
@@ -74,6 +77,16 @@ def _sig(progress):
     return repr((progress.get("stage"), progress.get("i"), progress.get("done_s")))
 
 
+def _blocker(d):
+    """Why autopilot left the project's last run to her (its ``autopilot-blocked`` event), or None."""
+    from . import pilot
+    rec = read_json(os.path.join(d, pilot.REC), None)
+    rec = rec if isinstance(rec, dict) else {}
+    lines = pilot._tail(os.path.join(d, pilot.LOG), int(rec.get("offset") or 0))
+    ev = next((e for e in reversed(pilot._events(lines)) if e.get("event") == "autopilot-blocked"), None)
+    return ev.get("blocker") if ev else None
+
+
 def project_state(d):
     """A project folder -> (made | running | you | failed | stopped, detail). Read-only, cheap (no history scan)."""
     from . import pilot
@@ -98,10 +111,11 @@ def project_state(d):
     if st in ("done", "delivered", "packaged"):
         return "made", dict(counts=s.get("counts"))
     if live and live.get("state") == "waiting":
-        return "you", dict(live=live)
+        return "you", dict(live=live, blocker=_blocker(d))
     if st == "in-progress":
         c = s.get("counts") or {}
-        return ("failed", dict(code="items-failed")) if c.get("failed") and not c.get("done") else ("you", {})
+        return ("failed", dict(code="items-failed")) if c.get("failed") and not c.get("done") else \
+            ("you", dict(blocker=_blocker(d)))
     return "running", dict(live=live)             # planned, its first run not started yet
 
 
@@ -491,6 +505,9 @@ class Goals:
         bad = next(((p, d) for p, s, d in states if s == "failed"), None)
         if bad:
             return self._failed(g, v, bad[1].get("code") or "unknown", now, project=bad[0])
+        stuck = next(((p, d) for p, s, d in states if s == "you" and d.get("blocker") in RETRY_BLOCKERS), None)
+        if stuck:                                     # autopilot could not draft a step: a failure, not a question
+            return self._failed(g, v, stuck[1]["blocker"], now, project=stuck[0])
         if all(s == "made" for _p, s, _d in states):
             v.update(state="made", finished=now, progress=1.0, live=None)
             return None

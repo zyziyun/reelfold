@@ -242,6 +242,24 @@ class FailureAndCompletion(Base):
         self.assertEqual((v["videos"][0]["state"], v["state"], v["counts"]["making"]), ("you", "running", 0))
 
 
+    def test_a_step_autopilot_could_not_draft_is_retried_then_dropped_but_her_questions_wait(self):
+        G, gid = self._running(2)
+        a, b = (x["intake"] for x in G.view(gid)["videos"])
+        da, db = self.proj("na"), self.proj("nb")
+        self.intake.applied(a, da)
+        self.intake.applied(b, db)
+        G.tick(gid)
+        self.states[da] = ("you", dict(blocker="needs-input"))
+        self.states[db] = ("you", dict(blocker="consent"))
+        G.tick(gid)
+        self.assertIn(("retry_pilot", da), self.intake.calls)
+        self.assertNotIn(("retry_pilot", db), self.intake.calls)
+        G.tick(gid)
+        v = G.view(gid)["videos"]
+        self.assertEqual((v[0]["state"], v[0]["reason_code"]), ("dropped", "needs-input"))
+        self.assertEqual(v[1]["state"], "you")
+
+
 class Survey(Base):
     def test_a_failed_survey_can_be_tried_again(self):
         calls = []

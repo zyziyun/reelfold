@@ -64,7 +64,7 @@ export function goalTone(g: Pick<Goal, 'state' | 'videos' | 'counts'>): 'run' | 
   return g.counts.made ? 'done' : 'error';
 }
 
-const GOAL_CODES = new Set(['by-you', 'stopped', 'stalled', 'lost', 'plan', 'apply', 'intake', 'items-failed', 'missing']);
+const GOAL_CODES = new Set(['by-you', 'stopped', 'stalled', 'lost', 'plan', 'apply', 'intake', 'items-failed', 'missing', 'needs-input', 'needs-model']);
 
 /** Why a video was dropped, in her words (the engine's failure code; goal codes have their own words). */
 export function dropReason(v: Pick<GoalVideo, 'reason_code'>): string {
