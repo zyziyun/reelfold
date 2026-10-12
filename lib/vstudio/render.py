@@ -32,15 +32,42 @@ CHROME_PATHS = {
               "/usr/bin/chromium-browser", "/snap/bin/chromium", "/opt/google/chrome/chrome"],
     "Windows": [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                 r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe",           # a per-user install
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
                 r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"],
 }
 CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome", "msedge"]
 _OK = {}
 
 
+def _win_file_version(path):
+    """The version stamped in a Windows executable ("154.0.8037.58"), or None (no version resource / not Windows)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        ver = ctypes.WinDLL("version")
+        n = ver.GetFileVersionInfoSizeW(path, None)
+        if not n:
+            return None
+        buf = ctypes.create_string_buffer(n)
+        if not ver.GetFileVersionInfoW(path, 0, n, buf):
+            return None
+        info, size = ctypes.c_void_p(), wintypes.UINT()
+        if not ver.VerQueryValueW(buf, "\\", ctypes.byref(info), ctypes.byref(size)) or size.value < 52:
+            return None
+        ms, ls = ctypes.cast(info, ctypes.POINTER(wintypes.DWORD))[2:4]      # VS_FIXEDFILEINFO dwFileVersionMS/LS
+        return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
 def _works(path, timeout=15):
-    """A binary counts only if `--version` exits 0 (a broken/quarantined chromium returned 126 here)."""
+    """A binary counts only if `--version` exits 0 (a broken/quarantined chromium returned 126 here). On Windows
+    Chrome / Edge do not answer --version (they start the browser and never exit): the exe's version resource."""
     if path not in _OK:
+        if platform.system() == "Windows":
+            _OK[path] = os.path.isfile(path) and _win_file_version(path) is not None
+            return _OK[path]
         try:
             r = subprocess.run([path, "--version"], capture_output=True, timeout=timeout)
             _OK[path] = r.returncode == 0
@@ -60,7 +87,7 @@ def chrome_candidates():
     if env and os.path.exists(env):
         out.append(env)
     out += [p for p in (shutil.which(n) for n in CHROME_NAMES) if p]
-    out += [p for p in CHROME_PATHS.get(platform.system(), []) if os.path.exists(p)]
+    out += [p for p in map(os.path.expandvars, CHROME_PATHS.get(platform.system(), [])) if os.path.exists(p)]
     return list(dict.fromkeys(out))
 
 

@@ -175,6 +175,29 @@ def test_find_chrome_never_raises():
     assert p is None or os.path.exists(p)
 
 
+def test_windows_chrome_is_checked_by_its_version_resource_not_by_running_it(tmp_path, monkeypatch):
+    # Chrome / Edge on Windows never answer --version (they start the browser): every one was rejected after 15 s
+    exe = tmp_path / "chrome.exe"
+    exe.write_bytes(b"MZ")
+    monkeypatch.setattr(render.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(render, "_OK", {})
+    monkeypatch.setattr(render.subprocess, "run", lambda *a, **k: pytest.fail("ran the browser to check it"))
+    monkeypatch.setattr(render, "_win_file_version", lambda p: "154.0.8037.58" if p == str(exe) else None)
+    assert render._works(str(exe))
+    assert not render._works(str(tmp_path / "broken.exe"))
+    monkeypatch.setattr(render, "CHROME_PATHS", {"Windows": [os.path.join("%VS_TEST_CHROME%" if os.name == "nt" else "$VS_TEST_CHROME", "chrome.exe")]})
+    monkeypatch.setenv("VS_TEST_CHROME", str(tmp_path))
+    monkeypatch.delenv("CHROME", raising=False)
+    monkeypatch.setattr(render, "CHROME_NAMES", [])
+    assert render.find_chromes() == [str(exe)]                  # %LOCALAPPDATA%-style paths are expanded
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the Windows version resource")
+def test_win_file_version_reads_an_exe():
+    assert render._win_file_version(sys.executable).count(".") == 3
+    assert render._win_file_version(__file__) is None
+
+
 def test_persona_css_and_fonts(tmp_path):
     css = render.persona_css()
     assert css.startswith(":root{") and "--accent:" in css
