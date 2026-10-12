@@ -256,3 +256,16 @@ def test_photo_story_renders_another_canvas_for_each_other_platform(tmp_path):
     assert [p["platform"] for p in r["platforms"]] == ["bilibili", "douyin"]
     assert r["platforms"][1]["file"].endswith(os.path.join("out", "story.mp4"))
     assert all(os.path.exists(p["post"]) for p in r["platforms"])
+
+
+def test_clip_page_export_keeps_the_projects_framing(tmp_path):
+    """A vlog re-exported to a vertical platform from the clip page follows the subject like the project's own
+    export; her blurred-fill choice and other recipes keep the blurred fill."""
+    from vstudio.project import outrender as OR
+    (tmp_path / "project.yaml").write_text("recipe: vlog\nparams: {}\nitems: [{id: a, params: {}}]\noverrides: {}\n")
+    rec = dict(kind="project", owner=str(tmp_path))
+    assert OR.framing_fallback(rec) == "subject"
+    (tmp_path / "project.yaml").write_text("recipe: vlog\nparams: {}\nitems: []\noverrides: {a: {reframe: blur}}\n")
+    assert OR.framing_fallback(rec) == "pad-blur"
+    (tmp_path / "project.yaml").write_text("recipe: talkinghead\nparams: {}\nitems: []\n")
+    assert OR.framing_fallback(rec) == "pad-blur" and OR.framing_fallback(dict(kind="work")) == "pad-blur"

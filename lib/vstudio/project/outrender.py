@@ -104,6 +104,27 @@ def watermark_spec(rec, tg, quality, override=None):
     return WM.spec(cfg, tg["w"], tg["h"], prof)
 
 
+def framing_fallback(rec):
+    """How a shot without a face fills another canvas when a chat edit exports a new platform: the project's own
+    framing choice - a vlog follows the subject unless she picked the blurred fill - else the blurred fill. (A vlog
+    re-exported from the clip page used to put its drone shots on a blurred band, unlike the project's own
+    follow-the-subject vertical.)"""
+    if rec.get("kind") != "project":
+        return "pad-blur"
+    try:
+        import yaml
+        with open(os.path.join(rec["owner"], "project.yaml"), encoding="utf-8") as f:
+            d = yaml.safe_load(f) or {}
+    except (OSError, ValueError, ImportError):
+        return "pad-blur"
+    if d.get("recipe") != "vlog":
+        return "pad-blur"
+    picks = [str((it.get("params") or {}).get("reframe") or "") for it in d.get("items") or []]
+    picks.append(str((d.get("params") or {}).get("reframe") or ""))
+    picks += [str((o or {}).get("reframe") or "") for o in (d.get("overrides") or {}).values() if isinstance(o, dict)]
+    return "pad-blur" if "blur" in picks else "subject"
+
+
 def plan(rec, doc, st, tg, quality, watermark=None):
     """-> dict of stage specs {canvas, timeline, audio, final, cover} with their keys (pure; used by render and by
     ``show`` to say whether a render is fresh). ``watermark``: True / False / None (the creator's default)."""
@@ -119,6 +140,8 @@ def plan(rec, doc, st, tg, quality, watermark=None):
                   op="none" if (same or band) else ("scale" if abs(info["w"] / info["h"] - tg["w"] / tg["h"]) < 0.01
                                                     else "reframe"),
                   safe=[round(x, 2) for x in _safe(tg)])
+    if canvas["op"] == "reframe":
+        canvas["fallback"] = framing_fallback(rec)
     # no canvas work: the key is the source alone, so targets sharing it share the timeline / audio stages
     canvas["key"] = sha1_json(["canvas", src, sig] if canvas["op"] == "none" else ["canvas", canvas, quality], 16)
     effs = st["effects"]
@@ -305,7 +328,8 @@ def run_canvas(spec, out, quality, safe):
                f"scale={spec['w']}:{spec['h']}:flags=lanczos,setsar=1", *_enc("inter", quality), out])
         return out
     from vstudio import reframe as R
-    pl = R.plan(spec["src"], spec["w"], spec["h"], mode="face", safe=tuple(safe), fallback="pad-blur")
+    pl = R.plan(spec["src"], spec["w"], spec["h"], mode="face", safe=tuple(safe),
+                fallback=spec.get("fallback") or "pad-blur")
     R.render(spec["src"], out, pl, encode_args=_enc("inter", quality))
     return out
 
