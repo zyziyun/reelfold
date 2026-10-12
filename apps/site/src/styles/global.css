@@ -346,7 +346,7 @@ footer { border-top: 1px solid var(--rule); padding: 56px 0 48px; font-size: 14p
 }
 
 /* ---------- motion (subtle, 200-400 ms) ---------- */
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { transform: translateY(10px); } to { transform: none; } }  /* no opacity: keeps the hero text and figure paintable at once (LCP) */
 .hero > * { animation: rise .4s var(--ease) both; }
 .hero > :nth-child(2) { animation-delay: .06s; }
 .hero > :nth-child(3) { animation-delay: .12s; }

@@ -14,7 +14,7 @@ no third-party requests: fonts are self-hosted (SIL OFL, licences in `public/fon
 | Page | en | 中文 | Français | Español |
 |---|---|---|---|---|
 | Home | `/` | `/zh/` | `/fr/` | `/es/` |
-| Use cases | `/podcast-clips/`, `/interview-clips/`, `/course-slicing/`, `/talking-head/`, `/studios/` | `/zh/…` | `/fr/…` | `/es/…` |
+| Use cases | `/podcast-clips/`, `/interview-clips/`, `/course-slicing/`, `/course-from-notes/`, `/travel-vlog/`, `/talking-head/`, `/studios/` | `/zh/…` | `/fr/…` | `/es/…` |
 | Platform specs | `/platforms/` (anchor per platform, e.g. `/platforms/#xiaohongshu`) | `/zh/platforms/` | … | … |
 | Comparisons | `/compare/opus-clip/`, `/compare/descript/`, `/compare/capcut/` | `/zh/compare/…` | … | … |
 | Legal drafts (noindex) | `/privacy/`, `/terms/` | 中文 | English text + note | English text + note |
@@ -73,11 +73,29 @@ docs/SEO_SUBMIT.md          Google Search Console, Bing Webmaster, 百度站长 
 - **Promo film**: put the film at `public/media/reelfold-promo.mp4` (H.264, 16:9) and a poster frame at
   `public/media/reelfold-promo.jpg`, then rebuild. `src/components/home/PromoVideo.astro` shows it under the hero on
   every language; with no mp4 there, nothing renders. To swap the film, replace the file (same name) and rebuild.
-- **Home dashboard screenshot**: `HOME_DASH` in `src/lib/images.ts` (boxed comment there). While it is `null`, the
-  "Coming next: Home" section is text only.
-- **App screenshots** (`src/assets/app/making-*.png`, `editor-*.png`): 1440×900, light theme, taken from a built desk
-  app with an isolated temp profile and the e2e real-engine fixtures (`apps/desk/tests/e2e/fixture/`), never a real
-  profile or real footage.
+- **App screenshots** (`src/assets/app/*-{en,zh}.webp`, `src/lib/images.ts`): 2880×1800 (1440×900 at 2x), light
+  theme, from a desk build of `main` on an isolated temp profile (own userData / VSTUDIO_HOME / cache), with real engine
+  runs and Claude Code as the AI. Footage is CC0 / public domain only (see "Image credits"); never a creator's own
+  footage, names or paths. `HOME_DASH` is the Home dashboard shot. Output sheets (`src/assets/demos/`) are frames of
+  the clips those runs exported.
+
+## Image credits
+
+All footage in the screenshots and sheets is from Wikimedia Commons under CC0 (public domain dedication); no credit is
+required, it is listed here as a courtesy:
+
+- Talk: "The Research Stadium" (Daniel Mietchen) · classroom talk: "Interview with a Teacher - Glen Caruso"
+  (Chase Bohannon, Glen Caruso)
+- Australian coast: "Aerial view of sea and boats" (Wayne McKelvie), "Forster breakwater and beach", "Panoramic view of
+  Stockton Beach", "Black Head Beach, New South Wales", "Southern Wallabi Beach surf conditions…", "Surf Life Saving NSW
+  drone operation at a beach" (JaredMcKenzie), "Sunrise Glow Over Surf Beach…", "Federation Hut near Mt Feathertop"
+  (Bracteantha)
+- River surfing: "Die Ewige Welle und Surfers in Augsburg" (Sillerkiil)
+- Okanagan: "After Sunset on the Sandbar at the Mouth of Mission Creek", "Autumn Cattails at Sunset in East Kelowna",
+  "Aerial View of Crags of Kelowna Mountain in Early Winter", "Dying Light on Okanagan Mountain", "Glimpses of Lake
+  Okanagan from the Fairlane trail…", "Forward View of CCGS McIntyre Bay" (Extemporalist)
+
+Course episodes are rendered by the engine from lesson notes written for the demo (diagrams + offline Kokoro voice).
 
 ## The "coming soon" switch
 
@@ -94,9 +112,11 @@ forces it; `DOWNLOAD_READY_FALLBACK` in `config.ts` is used only when the API ca
 
 - Per page and language: `<title>`, description, self canonical, hreflang `en` / `zh-Hans` / `fr` / `es` / `x-default`,
   `og:*` (locale + alternates, 1200×630 image per language), Twitter card.
-- JSON-LD: home = SoftwareApplication (price 0, MIT, macOS) + Organization + FAQPage; use-case, compare and platform
+- Titles ≤ 70 characters (中文 ≤ 40), descriptions ≤ 160 (中文 ≤ 100), checked by `npm run check`.
+- JSON-LD: home = SoftwareApplication (price 0, MIT, operating systems, version, download URL once released, screenshot,
+  features) + Organization + FAQPage; use-case, compare and platform
   pages = BreadcrumbList + FAQPage. FAQ JSON-LD is built from the same arrays as the visible `<details>`.
-- `sitemap-index.xml` (`@astrojs/sitemap`, all 40 indexable URLs with `xhtml:link` alternates); `robots.txt` points to it.
+- `sitemap-index.xml` (`@astrojs/sitemap`, every indexable URL with `xhtml:link` alternates); `robots.txt` points to it.
   Legal drafts are `noindex` and not in the sitemap.
 - `npm run check` (scripts/check-site.mjs) fails on: not exactly one h1, skipped heading levels, missing
   title/description, non-absolute or wrong canonical, incomplete or non-reciprocal hreflang, JSON-LD that does not
@@ -109,12 +129,16 @@ Enforced by `npm run check:copy` on the built HTML: no em-dashes; no hype words 
 颠覆, 爆款, 保证; best, ultimate, guaranteed, 10x, seamless …). Honest claims only: the numbers are one real batch
 (72-minute lecture → 24 clips × 4 formats = 96 files, $0.73 AI cost, 21/24 passed the automatic checks); the
 comparison tables say "Not verified" where a primary source did not confirm a fact, and show the date they were checked.
-Only the creator's own face appears in images.
+People in the images come only from CC0 footage (see "Image credits").
 
-## Lighthouse (2026-10-07, local build)
+## Lighthouse (local builds)
 
 Mobile and desktop for `/`, `/zh/`, `/fr/`, `/es/`: Performance 98–100, Accessibility 100, Best Practices 100, SEO 100
 (mobile LCP 2.2–2.3 s, CLS 0, TBT 0). `/podcast-clips/`, `/compare/descript/`, `/zh/platforms/` mobile: 99–100 / 100 / 100 / 100.
+
+2026-10-12, local build served without compression (`python3 -m http.server`), Lighthouse 12, simulated throttling:
+mobile `/` 89 → 90, `/zh/` 82 → 87, `/podcast-clips/` 93 → 97, `/zh/course-slicing/` 83 → 93, `/fr/` 89 → 90;
+desktop 99–100 → 100 everywhere; Accessibility, Best Practices and SEO 100 before and after.
 
 ## Before publishing
 

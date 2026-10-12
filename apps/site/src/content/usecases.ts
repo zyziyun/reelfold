@@ -41,7 +41,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Podcasts',
       h1: 'Podcast clips, cut from the whole episode.',
       intro: 'Drop in a video podcast and say how many clips you want and where they go. Reelfold reads the transcript, picks the answers that stand on their own, and renders each one for every platform you named, with captions, a cover and post copy.',
-      img: 'talkinghead', figCaption: 'Vertical clips with captions and a notes panel, rendered on a Mac.', figAlt: 'A contact sheet of vertical clips of the creator speaking, each with burned-in captions and a short notes panel.',
+      img: 'talkinghead', figCaption: 'Four vertical clips cut from one recorded talk, each with captions placed for the phone screen.', figAlt: 'Four vertical clips from one recorded talk about open research: the speaker in a classroom, framed for 9:16, with burned-in captions.',
       pointsT: 'What you get from one episode',
       points: [
         { t: 'Moments that stand alone', b: 'The plan lists each clip with its start and end, a title and why it was picked. Change a line before anything renders.' },
@@ -71,7 +71,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 播客',
       h1: '一整期播客，一次切成多条。',
       intro: '拖进一期视频播客，说清要几条、发哪些平台。千剪读文字稿，挑出能单独成立的回答，按你点名的每个平台各渲染一版，字幕、封面和文案都配好。',
-      img: 'talkinghead', figCaption: '带字幕和笔记面板的竖屏片段，在 Mac 上渲染。', figAlt: '一组竖屏片段的缩略图：创作者本人出镜，每条都有烧录字幕和简短的笔记面板。',
+      img: 'talkinghead', figCaption: '一场讲座剪出的四条竖屏片段，字幕都放在手机屏幕的安全区里。', figAlt: '同一场开放科研讲座剪出的四条竖屏片段：教室里的讲者，9:16 构图，烧录字幕。',
       pointsT: '一期节目能拿到什么',
       points: [
         { t: '能单独成立的片段', b: '计划里列出每条的起止时间、标题和选它的理由。渲染之前，改哪一行都行。' },
@@ -101,7 +101,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Podcasts',
       h1: 'Des clips de podcast, tirés de tout l’épisode.',
       intro: 'Déposez un podcast vidéo, dites combien de clips vous voulez et pour quelles plateformes. Reelfold lit la transcription, choisit les réponses qui tiennent seules et rend chacune dans tous les formats demandés, avec sous-titres, couverture et texte de publication.',
-      img: 'talkinghead', figCaption: 'Clips verticaux avec sous-titres et panneau de notes, rendus sur un Mac.', figAlt: 'Une planche de clips verticaux où la créatrice parle face caméra, chacun avec des sous-titres incrustés et un court panneau de notes.',
+      img: 'talkinghead', figCaption: 'Quatre clips verticaux tirés d’une conférence enregistrée, sous-titres placés pour l’écran du téléphone.', figAlt: 'Quatre clips verticaux d’une conférence sur la recherche ouverte : l’orateur dans une salle de cours, cadré en 9:16, sous-titres incrustés.',
       pointsT: 'Ce qu’un épisode vous donne',
       points: [
         { t: 'Des moments qui tiennent seuls', b: 'Le plan indique chaque clip avec son début, sa fin, un titre et la raison du choix. Modifiez une ligne avant tout rendu.' },
@@ -131,7 +131,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Podcasts',
       h1: 'Clips de podcast, sacados de todo el episodio.',
       intro: 'Arrastra un videopodcast y di cuántos clips quieres y dónde van. Reelfold lee la transcripción, elige las respuestas que se sostienen solas y renderiza cada una para todas las plataformas que nombraste, con subtítulos, portada y texto.',
-      img: 'talkinghead', figCaption: 'Clips verticales con subtítulos y panel de notas, renderizados en un Mac.', figAlt: 'Una hoja de contactos de clips verticales en los que habla la creadora, cada uno con subtítulos incrustados y un breve panel de notas.',
+      img: 'talkinghead', figCaption: 'Cuatro clips verticales de una charla grabada, con subtítulos colocados para la pantalla del móvil.', figAlt: 'Cuatro clips verticales de una charla sobre investigación abierta: el ponente en un aula, encuadrado en 9:16, con subtítulos incrustados.',
       pointsT: 'Lo que sale de un episodio',
       points: [
         { t: 'Momentos que se sostienen solos', b: 'El plan muestra cada clip con su inicio, su final, un título y por qué se eligió. Cambia una línea antes de renderizar.' },
@@ -165,7 +165,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Interviews and calls',
       h1: 'Interview clips, with the guest’s privacy handled.',
       intro: 'Recorded a Zoom, Meet or Teams call? Reelfold finds the answers worth sharing and lays them out for each platform. If a guest would rather not appear, their face can be covered and their name label blurred, and the whole job runs on your Mac.',
-      img: 'review', figCaption: 'Review: suggested cuts, each with a before and after preview.', figAlt: 'Review screen: four suggested cuts in one clip, each with a before and after preview and a checkbox.',
+      img: 'review', figCaption: 'The AI’s call on a clip: one filler word cut, with a preview and Keep it.', figAlt: 'The clip editor: a vertical clip from a classroom talk, its transcript, and the one call the AI made (cut the filler word “really”), with a preview and Keep it.',
       pointsT: 'Made for recorded conversations',
       points: [
         { t: 'Layouts for calls', b: 'Vertical with the speaker in focus, a trio of tiles, or landscape. The same clip can go out in several layouts.' },
@@ -196,7 +196,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 访谈与通话',
       h1: '访谈切片，嘉宾隐私也处理好。',
       intro: '录了一场 Zoom、Meet 或 Teams 通话？千剪找出值得分享的回答，按每个平台排好版。嘉宾不想露脸，可以遮住人脸、模糊姓名条，整个过程都在你的 Mac 上完成。',
-      img: 'review', figCaption: '审核：每处建议剪掉的地方，都有前后对比预览。', figAlt: '审核界面：一条片段里四处建议剪掉的地方，每处都有前后对比预览和勾选框。',
+      img: 'review', figCaption: 'AI 在一条片段上拿的主意：剪掉一个口头禅，可以预览，也可以保留。', figAlt: '片段编辑器：教室讲话的一条竖屏片段、文字稿，以及 AI 拿的一个主意（剪掉口头禅 really），可以预览，也可以选择保留。',
       pointsT: '为录下来的对话而做',
       points: [
         { t: '适合通话的版式', b: '竖屏突出说话的人、三人宫格，或者横屏。同一条片段可以同时出几种版式。' },
@@ -227,7 +227,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Interviews et appels',
       h1: 'Des clips d’interview, sans exposer vos invités.',
       intro: 'Vous avez enregistré un appel Zoom, Meet ou Teams ? Reelfold repère les réponses à partager et les met en page pour chaque plateforme. Si un invité préfère ne pas apparaître, son visage peut être couvert et son nom flouté, le tout sur votre Mac.',
-      img: 'review', figCaption: 'Relecture : chaque coupe proposée, avec un aperçu avant et après.', figAlt: 'Écran de relecture : quatre coupes proposées dans un clip, chacune avec un aperçu avant et après et une case à cocher.',
+      img: 'review', figCaption: 'Le choix de l’IA sur un clip : une hésitation coupée, avec aperçu et Garder.', figAlt: 'L’éditeur de clip : un clip vertical d’une intervention en classe, sa transcription et le seul choix de l’IA (couper le mot « really »), avec aperçu et Garder.',
       pointsT: 'Pensé pour les conversations enregistrées',
       points: [
         { t: 'Des mises en page d’appel', b: 'Vertical centré sur la personne qui parle, trois vignettes, ou paysage. Un même clip peut sortir dans plusieurs mises en page.' },
@@ -258,7 +258,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Entrevistas y llamadas',
       h1: 'Clips de entrevistas, cuidando a tus invitados.',
       intro: '¿Grabaste una llamada de Zoom, Meet o Teams? Reelfold encuentra las respuestas que vale la pena compartir y las adapta a cada plataforma. Si un invitado prefiere no salir, se puede tapar su cara y difuminar su nombre, todo en tu Mac.',
-      img: 'review', figCaption: 'Revisión: cada corte sugerido, con vista previa de antes y después.', figAlt: 'Pantalla de revisión: cuatro cortes sugeridos en un clip, cada uno con vista previa de antes y después y una casilla.',
+      img: 'review', figCaption: 'La decisión de la IA en un clip: una muletilla cortada, con vista previa y Conservar.', figAlt: 'El editor de clips: un clip vertical de una charla en un aula, su transcripción y la única decisión de la IA (cortar la muletilla “really”), con vista previa y Conservar.',
       pointsT: 'Pensado para conversaciones grabadas',
       points: [
         { t: 'Diseños para llamadas', b: 'Vertical con quien habla en primer plano, tres recuadros o formato horizontal. El mismo clip puede salir en varios diseños.' },
@@ -293,7 +293,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Courses and lectures',
       h1: 'One recorded class, a series of short lessons.',
       intro: 'Lectures, webinars and livestream replays hold dozens of ideas that work on their own. Reelfold finds them, keeps the code and slides readable in a vertical frame, and numbers the clips as a series.',
-      img: 'longform', figCaption: 'Vertical slices from a recorded lecture: a title band over a readable crop of the code.', figAlt: 'Frames from vertical lecture slices: a series title band at the top and a zoomed crop of code or slides below.',
+      img: 'longform', figCaption: 'Four short lessons cut from a recorded classroom talk, vertical, with captions.', figAlt: 'Four vertical lessons cut from a recorded classroom talk, the teacher framed in 9:16 with large captions.',
       pointsT: 'Built for screens full of text',
       points: [
         { t: 'Readable code and slides', b: 'Vertical slices crop and zoom the part of the screen that matters, so a line of code survives a phone screen.' },
@@ -323,7 +323,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 课程与讲座',
       h1: '一节录播课，切成一组短课。',
       intro: '讲座、直播回放和录播课里，藏着几十个能单独讲清楚的点。千剪把它们找出来，在竖屏里也让代码和幻灯片看得清，再给片段编号，排成一个系列。',
-      img: 'longform', figCaption: '录播课的竖屏切片：上方标题条，下方是放大后看得清的代码。', figAlt: '竖屏课程切片的几帧：顶部是系列标题条，下面是放大裁切后的代码或幻灯片。',
+      img: 'longform', figCaption: '一段教室讲话剪成的四节竖屏短课，带字幕。', figAlt: '一段教室讲话剪成的四节竖屏短课：老师在 9:16 画面里，配大字幕。',
       pointsT: '为满屏文字的画面而做',
       points: [
         { t: '代码、幻灯片看得清', b: '竖屏切片会裁切并放大画面里真正要看的部分，一行代码在手机上也读得出来。' },
@@ -353,7 +353,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Cours et conférences',
       h1: 'Un cours enregistré, une série de leçons courtes.',
       intro: 'Cours, webinaires et rediffusions de live contiennent des dizaines d’idées qui tiennent seules. Reelfold les repère, garde le code et les slides lisibles en vertical, et numérote les clips comme une série.',
-      img: 'longform', figCaption: 'Extraits verticaux d’un cours : un bandeau titre au-dessus d’un code lisible.', figAlt: 'Images d’extraits verticaux d’un cours : un bandeau avec le nom de la série en haut et un recadrage zoomé du code ou des slides en dessous.',
+      img: 'longform', figCaption: 'Quatre courtes leçons tirées d’une intervention en classe, en vertical, sous-titrées.', figAlt: 'Quatre leçons verticales tirées d’une intervention en classe, l’enseignant cadré en 9:16 avec de grands sous-titres.',
       pointsT: 'Pensé pour les écrans pleins de texte',
       points: [
         { t: 'Code et slides lisibles', b: 'Les extraits verticaux recadrent et agrandissent la partie utile de l’écran, pour qu’une ligne de code reste lisible sur un téléphone.' },
@@ -383,7 +383,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Cursos y clases',
       h1: 'Una clase grabada, una serie de lecciones cortas.',
       intro: 'Clases, webinars y directos grabados esconden decenas de ideas que se sostienen solas. Reelfold las encuentra, mantiene legibles el código y las diapositivas en vertical y numera los clips como una serie.',
-      img: 'longform', figCaption: 'Cortes verticales de una clase: una franja con el título sobre un recorte legible del código.', figAlt: 'Fotogramas de cortes verticales de una clase: arriba una franja con el nombre de la serie y debajo un recorte ampliado del código o las diapositivas.',
+      img: 'longform', figCaption: 'Cuatro lecciones cortas de una charla grabada en un aula, en vertical, con subtítulos.', figAlt: 'Cuatro lecciones verticales de una charla grabada en un aula, el profesor encuadrado en 9:16 con subtítulos grandes.',
       pointsT: 'Pensado para pantallas llenas de texto',
       points: [
         { t: 'Código y diapositivas legibles', b: 'Los cortes verticales recortan y amplían la parte de la pantalla que importa, para que una línea de código se lea en un móvil.' },
@@ -417,7 +417,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Talking head',
       h1: 'Talking-head videos, without the ums.',
       intro: 'Reelfold finds the pauses, filler words, repeats and restarts in a talking-head recording. Clear ones are cut on word boundaries; the AI decides the ones it isn’t sure about and lists them, so you can undo any. Then come captions, punch-ins, a cover and one export per platform.',
-      img: 'textedit', figCaption: 'Edit with AI: filler words, long pauses and likely caption typos, listed before anything is cut.', figAlt: 'The clip editor: a vertical preview, the transcript with fillers and pauses marked, and a side panel suggesting to remove 12 filler words and tighten 7 long pauses.',
+      img: 'textedit', figCaption: 'The AI’s calls on a clip: two cuts of a false start, each with a preview and Keep it.', figAlt: 'The clip editor: a vertical clip from a talk, the review before publishing for YouTube Shorts and TikTok, and the two cuts the AI made (a repeated false start), each with Keep it.',
       pointsT: 'Cleanup you can trust',
       points: [
         { t: 'Cuts on word boundaries', b: 'Every cut lands between words and on an exact frame, so no syllable is clipped.' },
@@ -447,7 +447,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 口播',
       h1: '口播视频，去掉气口和口头禅。',
       intro: '千剪会找出口播录像里的停顿、口头禅、重复和说错重来。把握大的按词边界直接剪掉；拿不准的由 AI 判断，并逐条列出来，哪一刀都能撤销。之后再加字幕、放大镜头、封面，每个平台各导一版。',
-      img: 'textedit', figCaption: '用 AI 编辑：口头禅、长停顿、可能的字幕错字，剪之前先列出来。', figAlt: '片段编辑器：左边是竖屏预览，下方是标出口头禅和停顿的文字稿，右侧建议删掉 12 个口头禅、收紧 7 处长停顿。',
+      img: 'textedit', figCaption: 'AI 在一条片段上拿的主意，每一处都能预览、撤销；发布前再看一眼。', figAlt: '片段编辑器：一条中英双语字幕的竖屏片段、发布前看一眼（YouTube Shorts、小红书、抖音），下方是文字稿和发布时间。',
       pointsT: '放心交给它的去气口',
       points: [
         { t: '按词边界剪', b: '每一刀都落在两个词之间、精确到帧，不会剪掉半个字。' },
@@ -477,7 +477,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Face caméra',
       h1: 'Des vidéos face caméra, sans les « euh ».',
       intro: 'Reelfold repère les silences, hésitations, répétitions et faux départs d’un enregistrement face caméra. Les cas évidents sont coupés entre deux mots ; l’IA tranche les cas douteux et les liste, pour que vous puissiez annuler n’importe quelle coupe. Viennent ensuite sous-titres, zooms, couverture et un export par plateforme.',
-      img: 'textedit', figCaption: 'Modifier avec l’IA : hésitations, longs silences et coquilles probables, listés avant toute coupe.', figAlt: 'L’éditeur de clip : un aperçu vertical, la transcription avec hésitations et silences marqués, et un panneau qui propose de retirer 12 hésitations et de raccourcir 7 longs silences.',
+      img: 'textedit', figCaption: 'Les choix de l’IA sur un clip : deux coupes d’un faux départ, chacune avec aperçu et Garder.', figAlt: 'L’éditeur de clip : un clip vertical d’une conférence, la relecture avant publication pour YouTube Shorts et TikTok, et les deux coupes faites par l’IA (un faux départ répété), chacune avec Garder.',
       pointsT: 'Un nettoyage digne de confiance',
       points: [
         { t: 'Des coupes entre les mots', b: 'Chaque coupe tombe entre deux mots, à l’image près : aucune syllabe n’est rognée.' },
@@ -507,7 +507,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Videos a cámara',
       h1: 'Videos a cámara, sin los “eh”.',
       intro: 'Reelfold encuentra las pausas, muletillas, repeticiones y frases empezadas de nuevo de una grabación a cámara. Las claras se cortan entre palabras; las dudosas las decide la IA y te las muestra, para que puedas deshacer cualquiera. Después vienen los subtítulos, los zooms, la portada y una exportación por plataforma.',
-      img: 'textedit', figCaption: 'Editar con IA: muletillas, pausas largas y posibles erratas, listadas antes de cortar nada.', figAlt: 'El editor de clips: una vista previa vertical, la transcripción con muletillas y pausas marcadas y un panel que sugiere quitar 12 muletillas y acortar 7 pausas largas.',
+      img: 'textedit', figCaption: 'Las decisiones de la IA en un clip: dos cortes de un falso comienzo, cada uno con Conservar.', figAlt: 'El editor de clips: un clip vertical de una charla, la revisión antes de publicar para YouTube Shorts y TikTok, y los dos cortes de la IA (un falso comienzo repetido), cada uno con Conservar.',
       pointsT: 'Una limpieza de confianza',
       points: [
         { t: 'Cortes entre palabras', b: 'Cada corte cae entre dos palabras y en el fotograma exacto, sin comerse ninguna sílaba.' },
@@ -541,7 +541,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Studios',
       h1: 'Client batches, run like a production line.',
       intro: 'When a client sends twenty recordings a week, the work is the same treatment applied many times, plus a few exceptions. Reelfold runs a small pilot first, then the whole batch in parallel, and sends you only what its checks flag.',
-      img: 'typing', figCaption: 'One request for three livestreams: nine clips, about a minute each, one a day from Thursday.', figAlt: 'The Reelfold home screen with a request typed in: cut this week’s three livestreams into Xiaohongshu and Douyin clips, with the plan summary below.',
+      img: 'projects', figCaption: 'All projects: 29 clips ready to post, selected at once to schedule.', figAlt: 'All projects: the Ready to post list with 29 clips selected for one Schedule action, and a travel vlog open on the right with its timeline and versions.',
       pointsT: 'What a studio needs',
       points: [
         { t: 'A workspace per client', b: 'Style, platforms, glossary, filler rules and brand colours apply only to that client’s batches.' },
@@ -571,7 +571,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 工作室',
       h1: '客户的批量单，像流水线一样跑。',
       intro: '客户每周发来二十条录像，活儿其实是同一套处理重复很多遍，再加几个例外。千剪先跑一个小试点，再并行跑完整批，只把没通过检查的交给你。',
-      img: 'typing', figCaption: '一句话交代三场直播：九条片段，每条约一分钟，从周四起每天一条。', figAlt: '千剪首页，输入框里写着：把这周三场直播剪成小红书和抖音片段，下方是计划摘要。',
+      img: 'projects', figCaption: '全部项目：24 条可以发的片段，一次选中一起排期。', figAlt: '全部项目：「可以发」列表里一次选中 24 条，一键排期；右侧是一集课程视频和它的时间线。',
       pointsT: '工作室需要的',
       points: [
         { t: '每个客户一个空间', b: '风格、平台、术语表、口头禅规则和品牌色，只作用于这个客户的批次。' },
@@ -601,7 +601,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Studios',
       h1: 'Les lots clients, menés comme une chaîne.',
       intro: 'Quand un client envoie vingt enregistrements par semaine, le travail consiste à appliquer le même traitement encore et encore, plus quelques exceptions. Reelfold lance d’abord un petit pilote, puis tout le lot en parallèle, et ne vous montre que ce que ses contrôles signalent.',
-      img: 'typing', figCaption: 'Une demande pour trois lives : neuf clips d’environ une minute, un par jour à partir de jeudi.', figAlt: 'L’accueil de Reelfold avec une demande saisie : découper les trois lives de la semaine en clips Xiaohongshu et Douyin, avec le résumé du plan en dessous.',
+      img: 'projects', figCaption: 'Tous les projets : 29 clips prêts, sélectionnés d’un coup pour être planifiés.', figAlt: 'Tous les projets : la liste Prêt à publier avec 29 clips sélectionnés pour une seule planification, et un vlog de voyage ouvert à droite avec sa timeline.',
       pointsT: 'Ce dont un studio a besoin',
       points: [
         { t: 'Un espace par client', b: 'Style, plateformes, glossaire, règles d’hésitations et couleurs de marque ne s’appliquent qu’aux lots de ce client.' },
@@ -631,7 +631,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Estudios',
       h1: 'Lotes de clientes, como una línea de producción.',
       intro: 'Cuando un cliente manda veinte grabaciones por semana, el trabajo es el mismo tratamiento repetido muchas veces, más unas pocas excepciones. Reelfold hace primero un pequeño piloto, luego procesa todo el lote en paralelo y solo te muestra lo que marcan sus controles.',
-      img: 'typing', figCaption: 'Una petición para tres directos: nueve clips de un minuto, uno al día a partir del jueves.', figAlt: 'La pantalla de inicio de Reelfold con una petición escrita: cortar los tres directos de la semana en clips para Xiaohongshu y Douyin, con el resumen del plan debajo.',
+      img: 'projects', figCaption: 'Todos los proyectos: 29 clips listos, seleccionados a la vez para programarlos.', figAlt: 'Todos los proyectos: la lista Listo para publicar con 29 clips seleccionados para programar de una vez, y un vlog de viaje abierto a la derecha con su línea de tiempo.',
       pointsT: 'Lo que necesita un estudio',
       points: [
         { t: 'Un espacio por cliente', b: 'Estilo, plataformas, glosario, reglas de muletillas y colores de marca se aplican solo a los lotes de ese cliente.' },
@@ -664,7 +664,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Use case · Courses',
       h1: 'Lesson notes in. A course video out.',
       intro: 'Drop in your notes for one lesson and say how long the episode should be. Reelfold writes the script from your points, draws a diagram for each idea, narrates it with a free voice on your Mac and renders the episode with captions and a cover.',
-      img: 'course', figCaption: 'A course episode made from a page of notes: script, diagrams and narration, then the finished video.', figAlt: 'The Reelfold Studio with a finished course episode “How noise-cancelling works”: the rendered video shows a diagram of a sound wave and its opposite wave cancelling out, with the steps and the project chat beside it.',
+      img: 'course', figCaption: 'A course episode made from a page of notes: script, diagrams and narration, then the finished video.', figAlt: 'The clip editor with a finished course episode, “How noise-cancelling headphones work”: an animated wave diagram with captions, the timeline and the versions for YouTube and Shorts.',
       pointsT: 'What one page of notes becomes',
       points: [
         { t: 'A script in your words', b: 'Each section of your notes becomes a scene. The script keeps your terms and your order; change any line before it renders.' },
@@ -694,7 +694,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: '场景 · 课程',
       h1: '讲义进去，课程视频出来。',
       intro: '拖进一节课的讲义，说好这一集要多长。千剪按你的要点写稿，每个知识点画一张图解，用 Mac 上的免费配音念出来，再渲染成带字幕和封面的一集。',
-      img: 'course', figCaption: '一页讲义做成的一集课程：稿子、图解、配音，然后是成片。', figAlt: '千剪工作室里一集做好的课程《降噪耳机是怎么工作的》：成片画面是一段声波和它的反相波互相抵消的图解，旁边是步骤和项目对话。',
+      img: 'course', figCaption: '一页讲义做成的一集课程：稿子、图解、配音，然后是成片。', figAlt: '片段编辑器里一集做好的课程《降噪耳机是怎么工作的》：带字幕的声波动画图解、时间线，以及 YouTube 和 Shorts 等版本。',
       pointsT: '一页讲义能变成什么',
       points: [
         { t: '用你的话写的稿子', b: '讲义的每一节变成一场。稿子保留你的术语和顺序，渲染前哪一句都能改。' },
@@ -724,7 +724,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Usage · Cours',
       h1: 'Des notes de cours, une vidéo de cours.',
       intro: 'Déposez vos notes d’une leçon et indiquez la durée voulue. Reelfold écrit le script à partir de vos points, dessine un schéma pour chaque idée, le narre avec une voix gratuite sur votre Mac et rend l’épisode avec sous-titres et couverture.',
-      img: 'course', figCaption: 'Un épisode de cours fait à partir d’une page de notes : script, schémas et narration, puis la vidéo finie.', figAlt: 'Le Studio de Reelfold avec un épisode terminé, « Comment marchent les casques à réduction de bruit » : la vidéo montre une onde sonore et son onde inverse qui s’annulent, avec les étapes et la discussion du projet à côté.',
+      img: 'course', figCaption: 'Un épisode de cours fait à partir d’une page de notes : script, schémas et narration, puis la vidéo finie.', figAlt: 'L’éditeur avec un épisode de cours terminé, « Comment marchent les casques à réduction de bruit » : un schéma d’onde animé sous-titré, la timeline et les versions YouTube et Shorts.',
       pointsT: 'Ce que devient une page de notes',
       points: [
         { t: 'Un script avec vos mots', b: 'Chaque partie de vos notes devient une scène. Le script garde vos termes et votre ordre ; modifiez une ligne avant le rendu.' },
@@ -754,7 +754,7 @@ const DATA: Record<UseCaseSlug, Record<Lang, UseCase>> = {
       kicker: 'Uso · Cursos',
       h1: 'Entran apuntes, sale un video de curso.',
       intro: 'Arrastra los apuntes de una lección y di cuánto debe durar el episodio. Reelfold escribe el guion con tus puntos, dibuja un diagrama para cada idea, lo narra con una voz gratuita en tu Mac y renderiza el episodio con subtítulos y portada.',
-      img: 'course', figCaption: 'Un episodio de curso hecho a partir de una página de apuntes: guion, diagramas y narración, y luego el video terminado.', figAlt: 'El Studio de Reelfold con un episodio terminado, “Cómo funcionan los auriculares con cancelación de ruido”: el video muestra una onda de sonido y su onda opuesta anulándose, con los pasos y el chat del proyecto al lado.',
+      img: 'course', figCaption: 'Un episodio de curso hecho a partir de una página de apuntes: guion, diagramas y narración, y luego el video terminado.', figAlt: 'El editor con un episodio de curso terminado, “Cómo funcionan los auriculares con cancelación de ruido”: un diagrama de onda animado con subtítulos, la línea de tiempo y las versiones para YouTube y Shorts.',
       pointsT: 'Lo que sale de una página de apuntes',
       points: [
         { t: 'Un guion con tus palabras', b: 'Cada sección de tus apuntes se vuelve una escena. El guion mantiene tus términos y tu orden; cambia cualquier línea antes del render.' },
