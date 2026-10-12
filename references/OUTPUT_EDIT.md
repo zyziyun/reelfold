@@ -200,9 +200,25 @@ punch-in, overlays, cards, title band, captions, progress bar; encode) -> `cover
 key + only the ops it uses, so a caption / overlay change re-runs `final` only, an SFX change `audio` + `final`, a
 cut everything from `timeline`; an unchanged render (or one undone back to) is all cache hits. `preview` = same
 resolution, low bitrate (ultrafast, CRF 30, 2 Mb/s); `final` = the platform delivery encode. `show.renders` says
-which renders are `fresh` for the current state. Every render writes `.vstudio/status.json` heartbeats
+which renders are `fresh` for the current state, each with its `key`: a render replaces
+`renders/<target>.<quality>.mp4` in place, so a player keys its media URL on `key` (Chromium keeps a URL's media
+bytes for minutes and mixes the old file into the new one: a stale picture or a decode error). Every render writes `.vstudio/status.json` heartbeats
 (`output-edit:<stage>`, progress during the frame pass) into the edit folder and the owning project / work
 folder; the owner's previous record is restored afterwards.
+
+### 5a. A launch-kit film (`items/<item>/kit/{demo,clips,readme}/*.mp4` of a `launch-kit` project)
+
+A finished motion-design promo with no speech (vstudio.project.outkit). `output ai` answers a request about the
+film itself - its look ("more premium"), pacing, camera, transitions, backdrop, music, how the features show
+("show the features clearly", "focus on the calendar") - without the model and without ops: `route: launch-kit`,
+`kit {item, config, cut, patch, applied}` (`patch` = launch.config.yaml keys: `pace`, `motion`, `brand.backdrop`,
+`music`, `features [{id, seconds}]`) and one message per change (`kit-feature-time`, `kit-transition`,
+`kit-backdrop`, `kit-pace`, `kit-camera-*`, `kit-music*`, `kit-feature-focus`; `kit-what` when it names nothing the
+kit has; `kit-editor-on-top` when editor changes sit on the film). `output kit --set PATCH` writes it (her header
+comments kept, the previous file in `work/launch.config.before-<time>.yaml`); `resume` then renders through the kit
+(its render stage watches the file). Literal edits of the file (cover, trim, export, a selected range) stay with
+the editor; there the model gets `source {kind: launch-kit film, speech, kit}` and `studio-sound` / a second
+`music-bed` are dropped (`kit-no-voice`, `kit-has-music`).
 
 ## 6. JSON contract (desk app)
 
@@ -213,7 +229,7 @@ descriptions) is `{code, params, message (English), message_zh}`: the desk local
 | command | stdout |
 |---|---|
 | `output list --project P` | `{ok, dir, kind project|work, outputs [{id, file, title, item, platform, orientation, edited, steps, mode, edit_dir}]}` |
-| `output show --project P --output O` | `{ok, output {id, file, mode, canvas, fps, duration, platform, master}, caps, caps_notes, state, captions [{id, start, end, text, original, edited, removed, added}], effects [{id, effect, start, end, params, label, edited [a, b]}], timeline {segments, joins, speed, duration}, history {steps [{id, at, by, note, describe, retimed}], undo, redo}, renders [{target, quality, file, fresh}], warnings, paths {doc, dir, renders, transcript}, words_sig, marks}` |
+| `output show --project P --output O` | `{ok, output {id, file, mode, canvas, fps, duration, platform, master}, caps, caps_notes, state, captions [{id, start, end, text, original, edited, removed, added}], effects [{id, effect, start, end, params, label, edited [a, b]}], timeline {segments, joins, speed, duration}, history {steps [{id, at, by, note, describe, retimed}], undo, redo}, renders [{target, quality, file, fresh, at, key}], warnings, paths {doc, dir, renders, transcript}, words_sig, marks}` |
 | `output edit ... --ops JSON` | the `show` document + `{step {id, ops, describe, retimed?}, values [per op], warnings}` |
 | `output preview-edl ... --ops JSON` | `{ok, output, keep, cuts, duration, source_duration, ops, dropped, warnings}` (nothing written) |
 | `output ai ... --instruction T [--context JSON] [--apply]` | `{ok, context, proposed [{op, normalized, describe, why, warnings}], ops, dropped [{op, error}], summary, provider, model, cost_usd, seconds, warnings, turn, applied, step?}` |
@@ -222,6 +238,7 @@ descriptions) is `{code, params, message (English), message_zh}`: the desk local
 | `output chat ...` [`--add JSON` / `--turn ID --set JSON`] | `{ok, turns}` / `{ok, turn}` |
 | `output undo|redo ...` | the `show` document + `undone` / `redone` step |
 | `output effects` | `{ok, effects [...], n}` |
+| `output kit ... --set PATCH` | `{ok, item, config, backup}` (a launch-kit film, section 5a) |
 | `ai --project P --instruction T [--outputs]` | `{ok, scope project, answer changes|needs_rerender|mixed|nothing, outputs [{id, title, mode}], groups [{output, title, mode, proposed, dropped, ops, summary, source model|rules}], needs_rerender, apply_all {outputs, ops}, classified, model_called, provider, model, fallback, cost_usd, seconds, warnings}` |
 
 Errors: exit 5 + `{ok: false, error, code, params, message, message_zh}`. Codes: `unknown-owner`,
@@ -229,7 +246,8 @@ Errors: exit 5 + `{ok: false, error, code, params, message, message_zh}`. Codes:
 `duplicate-effect`, `bad-param`, `bad-time`, `too-short`, `cut-no-word`, `unknown-cut`, `no-audio`, `no-words`,
 `transcribe-failed`, `captions-not-ours`, `unknown-cue`, `empty-text`, `not-faithful`, `placement-pipeline`,
 `unknown-target`, `nothing-to-undo`, `nothing-to-redo`, `unknown-step`, `already-reverted`, `revert-conflict`,
-`bad-context`, `unknown-turn`, `llm-failed`, `llm-bad-json`, `render-failed`, `stale-words {expected, got}`.
+`bad-context`, `unknown-turn`, `llm-failed`, `llm-bad-json`, `render-failed`, `stale-words {expected, got}`,
+`not-a-kit-film`, `kit-config-invalid`.
 Warnings / notes: `flattened`, `captions-add-only`, `relayout-crops-burned`, `no-master`, `master-mismatch`,
 `source-changed`, `placement-auto`, `style-added-only`, `band-pipeline`, `effect-cut-away`, `param-adjusted`,
 `unknown-param`, `no-model`, `length`, `cut-splits-burned-caption {at}`. Op descriptions: `op-<op>` (e.g. `op-effect-add {effect, start, end}`,

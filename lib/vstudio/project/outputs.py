@@ -2324,16 +2324,81 @@ def _rule_ops(text, dur, ctx=None):
     return out
 
 
+def _kit_answer(d, output, doc, st, src, instruction, focus, apply, record):
+    """``ai`` on a launch-kit film asked for a change of the film itself (outkit): no editor ops - the kit change
+    (launch.config.yaml keys) and what it does, applied to the config with ``apply`` (the caller then re-runs the
+    project: the kit's render stage watches the file). The turn is recorded like any reply (status note)."""
+    from . import outkit as KIT
+    t0 = time.time()
+    pl = KIT.plan(src, instruction)
+    warns = list(pl["changes"])
+    if not pl["patch"]:
+        warns.append(msg("kit-what", "This clip is the launch kit's film" + ("" if src["speech"] else " (no speech)") +
+                         ": its pace, camera, transitions, backdrop, music and each feature's time on screen are set "
+                         "in the kit. Say which to change - e.g. \"slower\", \"a darker backdrop\", \"more time on the "
+                         "calendar\".",
+                         "这条是发布套件做出来的成片" + ("" if src["speech"] else "（没有人声）") + "：节奏、运镜、转场、背景、"
+                         "音乐和每个功能的停留时间都在套件里设置。说说想改哪一项，比如「慢一点」「背景深一点」「日历多停一会」。"))
+    done = None
+    if apply and pl["patch"]:
+        try:
+            done = KIT.apply(src, pl["patch"])
+        except ValueError as e:
+            raise _err("kit-config-invalid", str(e)[:300], "发布套件的设置有问题", error=str(e)[:300]) from e
+    n_fx = len(st["effects"]) + (1 if st.get("theme") else 0) + (1 if st.get("title") else 0)
+    if pl["patch"] and n_fx:
+        warns.append(msg("kit-editor-on-top", f"This clip also has {n_fx} editor change(s) on top of the film (looks, "
+                         "sound, overlays): undo them here to see the kit's film as it is.",
+                         f"这条成片上还叠着 {n_fx} 个剪辑器改动（风格、声音、叠加元素）：在这里撤销，就能看到套件原本的成片。",
+                         n=n_fx))
+    out = dict(ok=True, instruction=instruction, context=focus, proposed=[], ops=[], dropped=[], summary=pl["summary"],
+               warnings=warns, cost_usd=0.0, seconds=round(time.time() - t0, 2), provider="rules", model=None,
+               summary_info=None if not pl["summary"] else dict(code="ai-summary", params=dict(text=pl["summary"]),
+                                                                message=pl["summary"], message_zh=pl["summary"]),
+               route="launch-kit", applied=False,
+               kit=dict(item=src["item"], config=src["config"], cut=src["cut"], patch=pl["patch"],
+                        applied=bool(done), backup=(done or {}).get("backup")))
+    if record:
+        turn = chat_add(d, output, dict(role="ai", text=instruction, context=focus, summary=pl["summary"], proposed=[],
+                                        dropped=[], warnings=warns, provider="rules", model=None, cost_usd=0.0,
+                                        seconds=out["seconds"], status="note"), _doc=doc)["turn"]
+        out["turn"] = turn["id"]
+    return out
+
+
+def kit_apply(d, output, patch):
+    """Write a kit change (``ai`` -> ``kit.patch``) into the output's launch.config.yaml -> {ok, config, backup,
+    item}. The caller re-runs the project (``resume``): the kit's stages that watch the file render again."""
+    from . import outkit as KIT
+    rec, _doc = _load(d, output)
+    src = KIT.source(rec)
+    if not src:
+        raise _err("not-a-kit-film", "this output is not a launch-kit film", "这条成片不是发布套件做的")
+    if not isinstance(patch, dict) or not patch:
+        raise _err("bad-param", "patch: launch.config.yaml keys to change", "需要要修改的设置", name="patch")
+    try:
+        done = KIT.apply(src, patch)
+    except ValueError as e:
+        raise _err("kit-config-invalid", str(e)[:300], "发布套件的设置有问题", error=str(e)[:300]) from e
+    return dict(ok=True, item=src["item"], **done)
+
+
 def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=True, context=None, record=True,
        timeout=None):
     """Natural language -> validated ops (task ``output_edit`` of vstudio.llm). Every proposed op is checked by the
     same validator as ``edit``; unknown ops / effects / params are dropped with a reason, never invented.
     -> {ok, proposed [{op, describe}], dropped [{op, error}], summary, provider, model, cost_usd, applied?}."""
     from vstudio import llm
+    from . import outkit as KIT
     rec, doc = _load(d, output)
     st = doc.state()
     focus = check_context(context, rec, st)
-    ctx = _ai_context(rec, doc, st, use_asr=use_asr)
+    kit = KIT.source(rec)
+    if kit and KIT.wants_kit(instruction, focus):        # the film's look / motion / features: the launch kit's job
+        return _kit_answer(d, output, doc, st, kit, instruction, focus, apply, record)
+    ctx = _ai_context(rec, doc, st, use_asr=use_asr and not kit)
+    if kit:
+        ctx["source"] = KIT.context(kit)
     if focus:
         ctx["focus"] = _focus(rec, st, focus)
     route = llm.route("output_edit", provider, model)
@@ -2383,6 +2448,10 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
             n, v_, w = normalize(doc, cur, clean)
         except OutputError as e:
             dropped.append(dict(op=op, error=e.info))
+            continue
+        why_not = KIT.refuse(kit, n) if kit else None
+        if why_not:                                       # a voice treatment on a film with no voice, a 2nd music bed
+            dropped.append(dict(op=op, error=why_not))
             continue
         cur = fold(cur, n)
         proposed.append(dict(op=clean, normalized=n, describe=describe(n, v_), why=op.get("why") or op.get("reason"),
