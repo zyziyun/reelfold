@@ -492,9 +492,41 @@ def cover_apply(a):
     out = a.answer_path(f"cover_{int(t * 1000)}_{sha1_json([text, retouched])[:8]}.jpg")
     _text_cover(frame, text, out)
     cv = dict(file=out, t=t, text=text)
+    # a landscape frame on a portrait cover: its own crop around the subject, with the same text (the export used
+    # to fit the landscape cover on a blurred pad - a small picture in a grey band on 小红书 / Shorts)
+    for key, (aw, ah) in (("v916", (9, 16)), ("v34", (3, 4))):
+        try:
+            crop = subject_crop(frame, aw / ah, a.answer_path(f"cover_frame_{int(t * 1000)}_{key}.jpg"))
+        except Exception:  # noqa: BLE001  (no crop: the export pads the landscape cover as before)
+            crop = None
+        if crop:
+            cv[key] = _text_cover(crop, text, a.answer_path(f"cover_{int(t * 1000)}_{key}_"
+                                                            f"{sha1_json([text, retouched])[:8]}.jpg"))
     if retouched is not None:
         cv["retouched"] = retouched
     return dict(params=dict(cover=cv))
+
+
+def subject_crop(frame, aspect, out):
+    """A crop of ``frame`` at ``aspect`` (w/h) centred on its most salient column band -> out, or None when the frame
+    is already that narrow."""
+    import numpy as np
+    from PIL import Image
+    im = Image.open(frame).convert("RGB")
+    W, H = im.size
+    cw = int(round(H * aspect))
+    if cw >= W * 0.98:
+        return None
+    from vstudio import saliency
+    small = im.resize((480, int(480 * H / W)))
+    col = saliency.Analyzer(person=False)(np.asarray(small)[..., ::-1].copy())["map"].sum(0)
+    G = len(col)
+    k = max(1, int(round(G * cw / W)))
+    sums = np.convolve(col, np.ones(k), "valid")
+    x = int(np.argmax(sums)) / G * W
+    x = int(min(max(0, x), W - cw))
+    im.crop((x, 0, x + cw, H)).save(out, quality=92)
+    return out
 
 
 def retouch_cover_frame(frame, out):

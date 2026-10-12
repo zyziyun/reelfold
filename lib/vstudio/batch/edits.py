@@ -386,6 +386,21 @@ def _rewrite_posts(rows, recipe_name, old_p, new_p):
     return done
 
 
+def _wrap_cover(text, f, maxw, d):
+    """Words (latin) / characters (CJK) into lines no wider than ``maxw``."""
+    toks = re.findall(r"[\u4e00-\u9fff]|[^\s\u4e00-\u9fff]+\s*|\s+", text)
+    lines, cur = [], ""
+    for t in toks:
+        if cur and d.textlength((cur + t).strip(), font=f) > maxw:
+            lines.append(cur.strip())
+            cur = t.lstrip()
+        else:
+            cur += t
+    if cur.strip():
+        lines.append(cur.strip())
+    return lines
+
+
 def _text_cover(frame_path, text, out_path):
     """A frame + the cover text (bottom gradient, bold CJK) -> out_path. Falls back to the bare frame."""
     from PIL import Image, ImageDraw
@@ -404,6 +419,16 @@ def _text_cover(frame_path, text, out_path):
             d = ImageDraw.Draw(im)
             lines = [x for x in re.split(r"[|｜\n]", text) if x.strip()][:3]
             size = max(28, int(W / max(6, max(len(x) for x in lines) + 1)))
+            if size < H * 0.06:          # a long title read as small print on a phone: wrap it, larger
+                size = int(H * 0.07)
+                whole = " ".join(lines)
+                while True:
+                    f = ImageFont.truetype(font("cjk-bold"), size)
+                    lines = _wrap_cover(whole, f, W * 0.88, d)
+                    if len(lines) <= 3 or size <= max(28, H * 0.035):
+                        break
+                    size = int(size * 0.9)
+                lines = lines[:3]
             f = ImageFont.truetype(font("cjk-bold"), size)
             y = H - int(size * 1.25) * len(lines) - int(H * 0.08)
             for ln in lines:

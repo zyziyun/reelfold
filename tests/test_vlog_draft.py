@@ -275,3 +275,19 @@ def test_cover_candidates_skip_crossfades():
     from vstudio.project.adapters import common as CM
     tr = [[5.8, 6.6], [12.4, 13.2]]
     assert CM.clear_of_transitions([6.0, 9.0, 12.9], tr, 20) == [9.5, 16.6]
+
+
+def test_portrait_cover_is_its_own_subject_crop_with_readable_text(tmp_path):
+    from PIL import Image, ImageDraw
+    from vstudio.batch.edits import _text_cover
+    from vstudio.project.adapters import common as CM
+    im = Image.new("RGB", (1920, 1080), (30, 60, 90))
+    ImageDraw.Draw(im).ellipse((1500, 400, 1700, 600), fill=(250, 250, 250))       # the subject, right of centre
+    src = str(tmp_path / "f.jpg")
+    im.save(src)
+    out = CM.subject_crop(src, 9 / 16, str(tmp_path / "v.jpg"))
+    w, h = Image.open(out).size
+    assert abs(w / h - 9 / 16) < 0.01 and CM.subject_crop(out, 9 / 16, str(tmp_path / "x.jpg")) is None
+    assert Image.open(out).getpixel((w // 2, 500))[0] > 200 or Image.open(out).getpixel((w - 20, 500))[0] > 200
+    _text_cover(out, "Eastern Washington Road Trip — Columbia River, Dusk Deer, Lake & Creek", str(tmp_path / "c.jpg"))
+    assert Image.open(tmp_path / "c.jpg").size == (w, h)
