@@ -125,7 +125,7 @@ def main():
     if local:
         cfg["tries"] = 1                      # a local voice says a line the same way every time: one take
     print(f"voice: {engine} {voice} ({cfg['language']})", flush=True)
-    say = getattr(spec, "SAY", {}) or {}
+    say = dict(getattr(spec, "SAY", {}) or {}, **(getattr(spec, "SAY_TTS", {}) or {}))   # SAY_TTS: the drafter's respellings
     out = tts_dir(C)
     os.makedirs(os.path.join(out, "cache"), exist_ok=True)
     tmp = os.path.join(out, "cache", "_take.wav")
@@ -168,7 +168,8 @@ def main():
         if want is not None and i not in want:
             continue
         texts, disp = narration_texts(chunks, say, cfg["language"])
-        say_text = ("" if cfg["language"] == "zh" else " ").join(texts if cfg["use_say"] else disp)
+        # a local voice has no pronunciation for an unknown name (it would spell it): it always reads the spoken forms
+        say_text = ("" if cfg["language"] == "zh" else " ").join(texts if (cfg["use_say"] or local) else disp)
         exps = [norm(" ".join(texts)), norm(" ".join(disp))]
         if clone:
             key = hashlib.md5(f"clone|{cc['ref_hash']}|{cc['model']}|{cc['language']}|{say_text}".encode()).hexdigest()[:16]

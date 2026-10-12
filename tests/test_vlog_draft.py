@@ -291,3 +291,19 @@ def test_portrait_cover_is_its_own_subject_crop_with_readable_text(tmp_path):
     assert Image.open(out).getpixel((w // 2, 500))[0] > 200 or Image.open(out).getpixel((w - 20, 500))[0] > 200
     _text_cover(out, "Eastern Washington Road Trip — Columbia River, Dusk Deer, Lake & Creek", str(tmp_path / "c.jpg"))
     assert Image.open(tmp_path / "c.jpg").size == (w, h)
+
+
+def test_english_narration_gets_respellings_for_names_the_local_voice_lacks():
+    pytest.importorskip("misaki")
+    from vstudio.project.adapters import photostory as PS
+    spec = 'SCRIPT = [(0, [("Elliott Bay meets Puget Sound in Seattle.", "甲")], [])]\n'
+    asks = []
+
+    def complete(task, system, body, **kw):
+        asks.append(body)
+        if len(asks) == 1:
+            return dict(json={"Puget": "pew jet", "Elliott": "ell ee it"}, provider="claude-code")
+        return dict(json={"Elliott": "ell yacht"}, provider="claude-code")
+    out = PS.add_respellings(spec, complete)
+    assert "SAY_TTS = {'Puget': 'pew jet', 'Elliott': 'ell yacht'}" in out and "ell ee it" in asks[1]
+    assert PS.add_respellings('SCRIPT = [(0, [("Seattle at night.", "甲")], [])]\n', complete).count("SAY_TTS") == 0

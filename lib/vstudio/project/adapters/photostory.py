@@ -156,6 +156,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
             return None
         for n in missing:
             text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
+    if not lang_zh:
+        text = add_respellings(text, complete)
     os.makedirs(work, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text if text.endswith("\n") else text + "\n")
@@ -254,6 +256,65 @@ def image_refs(text, video_ids):
             for pz in val.get("polaroids") or []:
                 src((pz or {}).get("src"))
     return list(dict.fromkeys(names))
+
+
+def _english_cues(text):
+    import ast
+    try:
+        for st in ast.parse(text).body:
+            if isinstance(st, ast.Assign) and isinstance(st.targets[0], ast.Name) and st.targets[0].id == "SCRIPT":
+                v = eval(compile(ast.Expression(st.value), "<spec>", "eval"), {"__builtins__": {}}, {"dict": dict})
+                return " ".join(e for unit in v for e, _z in unit[1]).replace("**", "")
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _all_known(phrase, lex):
+    """Every word of a respelling is an everyday word of the voice's dictionary (no acronym, no made-up syllable)."""
+    toks = re.findall(r"[A-Za-z']+", phrase)
+    return bool(toks) and all(t == t.lower() and (t in lex.golds or t in lex.silvers) for t in toks)
+
+
+def add_respellings(text, complete):
+    """An English narration on the local voice: the names it cannot say (not in its dictionary - Puget, Elliott,
+    Dreyfus were spelled out letter by letter) get respellings made of words it knows, from one short model call,
+    kept only when every word of the respelling is known; written as ``SAY_TTS`` (tts.py reads it with SAY)."""
+    try:
+        from vstudio import kokoro_g2p as K
+        from misaki import en
+        lex = en.G2P(trf=False, british=False, fallback=None, unk="").lexicon
+    except Exception:  # noqa: BLE001  (no local English voice here: nothing to respell)
+        return text
+    words = K.unknown_words(_english_cues(text), lex)[:40]
+    keep, tried = {}, {}
+    for _round in range(2):                      # once more for the ones whose respelling used unknown syllables
+        todo = [w for w in words if w not in keep]
+        if not todo:
+            break
+        note = ("\nThese were rejected (a part is not an everyday word): " +
+                "; ".join(f"{w} -> {tried[w]}" for w in todo if w in tried)) if tried else ""
+        try:
+            r = complete("planner", "You write pronunciation respellings for a text-to-speech voice that only knows "
+                         "common English words.", "For each word, give how it is said as 1-4 everyday lowercase "
+                         "English words whose sounds add up to it (Puget -> \"pew jet\", Dreyfus -> \"dray fuss\", "
+                         "Elliott -> \"ell ee it\" is wrong because ee is not a word: \"ell yacht\" is right); no "
+                         "capitals, no made-up syllables. Reply with JSON only: {\"<word>\": \"<respelling>\"}."
+                         "\nWords: " + ", ".join(todo) + note,
+                         schema=True, max_tokens=1500, timeout=180, cli_timeout=180, retries=1, effort="low")
+        except Exception:  # noqa: BLE001
+            break
+        js = r.get("json") if isinstance(r, dict) and isinstance(r.get("json"), dict) else {}
+        for w, rs in js.items():
+            if w in todo and isinstance(rs, str) and rs.strip():
+                if _all_known(rs, lex):
+                    keep[w] = rs.strip()
+                else:
+                    tried[w] = rs.strip()
+    if not keep:
+        return text
+    return text.rstrip("\n") + "\n\n# how the local voice says the names it does not know (spoken forms, never shown)\n" \
+        f"SAY_TTS = {keep!r}\n"
 
 
 def spec_language(path):

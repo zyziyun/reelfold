@@ -115,6 +115,25 @@ class SpellFallback:
         return (ps or None), 1
 
 
+def unknown_words(text, lexicon=None):
+    """The words of ``text`` the local English voice has no pronunciation for (neither misaki dictionary; acronyms
+    and numbers are fine - they are spelled / read): names like Puget, Elliott, Dreyfus come out letter by letter."""
+    if lexicon is None:
+        from misaki import en
+        lexicon = en.G2P(trf=False, british=False, fallback=None, unk="").lexicon
+    out = []
+    for w in re.findall(r"[A-Za-z][A-Za-z']+", text or ""):
+        w = w.strip("'")
+        if len(w) < 3 or w.isupper():
+            continue
+        if any(k in lexicon.golds or k in lexicon.silvers for k in (w, w.lower(), w.capitalize())):
+            continue
+        if w.endswith("'s") and (w[:-2] in lexicon.golds or w[:-2].lower() in lexicon.golds):
+            continue
+        out.append(w)
+    return list(dict.fromkeys(out))
+
+
 def english_g2p():
     """misaki's American English G2P without espeak-ng: unknown words through ``SpellFallback``."""
     from misaki import en
