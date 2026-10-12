@@ -102,6 +102,11 @@ CLAUDE = r'''#!{python}
 """Claude Code, for the test: plans a storyboard, draws a scene; "times out" while ROOT/claude-down exists."""
 import json, os, re, sys
 argv = sys.argv[1:]
+if "-p" not in argv:
+    # `auth status --json` / `--version` (the login check before and after a call): answered without reading stdin,
+    # which a real one never does either - here it would be the engine's own (the app's pipe, never closed)
+    print(json.dumps(dict(loggedIn=True, authMethod="claude.ai")) if argv[:2] == ["auth", "status"] else "2.0.0 (test)")
+    sys.exit(0)
 system = argv[argv.index("--system-prompt") + 1] if "--system-prompt" in argv else ""
 prompt = sys.stdin.read()
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
