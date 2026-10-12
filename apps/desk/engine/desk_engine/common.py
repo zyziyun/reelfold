@@ -52,10 +52,22 @@ def write_json(path, obj):
 
 
 # ------------------------------------------------------------------ temp / junk (registry hygiene)
+_TEMP_ROOTS = {}
+
+
 def _temp_roots():
-    roots = {tempfile.gettempdir(), "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"}
-    # normcase: Windows compares case-insensitively (and gettempdir may be the 8.3 short form, realpath the long one)
-    return {os.path.normcase(os.path.realpath(r)) for r in roots} | {os.path.normcase(os.path.abspath(r)) for r in roots}
+    """The system temp dirs, resolved once per temp dir: is_temp_path runs for every registry entry and every row of
+    the project list (900 calls for 220 projects), and five realpath() calls each was 75% of a listing's time - on
+    Windows, where every realpath opens the file (and walks up a missing /tmp, /private/tmp ...), the list and a bulk
+    Archive of 220 projects took over a minute on the CI runner."""
+    t = tempfile.gettempdir()
+    got = _TEMP_ROOTS.get(t)
+    if got is None:
+        roots = {t, "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"}
+        # normcase: Windows compares case-insensitively (and gettempdir may be the 8.3 short form, realpath the long one)
+        got = _TEMP_ROOTS[t] = tuple({os.path.normcase(os.path.realpath(r)) for r in roots} |
+                                     {os.path.normcase(os.path.abspath(r)) for r in roots})
+    return got
 
 
 _VARF = re.compile(r"^(/private)?/var/folders/[^/]+/[^/]+/T(/|$)")

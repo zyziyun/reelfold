@@ -40,11 +40,24 @@ const takes = (): Take[] =>
         .filter(Boolean)
         .map((l) => JSON.parse(l) as Take)
     : [];
+/** one spelling of a path for comparing ours with the engine's: the real path of its deepest existing folder (a take
+ *  is never made, so its file is not there). `.native`: on Windows the engine (Python realpath) expands the temp
+ *  folder's 8.3 short name (RUNNER~1 -> runneradmin) and fs.realpathSync does not; case-insensitive there too. */
+const canon = (p: string): string => {
+  let head = path.resolve(p);
+  const rest: string[] = [];
+  while (!fs.existsSync(head) && path.dirname(head) !== head) {
+    rest.unshift(path.basename(head));
+    head = path.dirname(head);
+  }
+  const out = path.join(fs.existsSync(head) ? fs.realpathSync.native(head) : head, ...rest);
+  return process.platform === 'win32' ? out.toLowerCase() : out;
+};
 /** the first take recorded for a project (its folder, as given or as the real path: /var -> /private/var) */
 const firstTake = (dir: string) => {
-  const roots = [dir, fs.realpathSync(dir)];
+  const root = canon(dir) + path.sep;
   // a line retried in two halves (synth_split) records takes with no out of their own: skip those
-  const x = takes().find((t) => t.out != null && roots.some((r) => t.out!.startsWith(r + path.sep)));
+  const x = takes().find((t) => t.out != null && canon(t.out).startsWith(root));
   return x ? `${x.engine}:${x.voice}` : undefined;
 };
 /** project.yaml as text: one item, one voice answer */

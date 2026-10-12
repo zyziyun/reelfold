@@ -124,9 +124,17 @@ test("Try again on a failed autopilot project re-runs the failed stage on autopi
   test.setTimeout(300000);
   await page.evaluate(() => (location.hash = "#/studio"));
   await expect(page.getByTestId("studio")).toBeVisible({ timeout: 30000 });
-  const row = page.locator("[data-testid=studio-row][data-kind=project]", {
+  // every source of the list in first: until the project's clips are read it is one provisional project row, which
+  // then becomes its video's row (a slow runner hovered the first and lost it) - wait for the settled list
+  await expect(page.getByRole("tablist", { name: "Show" })).toHaveAttribute(
+    "aria-busy",
+    "false",
+    { timeout: 60000 },
+  );
+  const row = page.locator("[data-testid=studio-row]", {
     hasText: "Failed script",
   });
+  await expect(row).toHaveCount(1);
   await expect(row).toHaveAttribute("data-tone", "error", { timeout: 60000 });
   const before = rec();
   const offset = fs.statSync(path.join(fx.dir, "desk-pilot.log")).size;

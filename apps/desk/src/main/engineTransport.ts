@@ -31,23 +31,27 @@ export function engineSocketPath(name = 'rf-engine', dir = os.tmpdir(), platform
 
 type RequestInit2 = { method?: string; headers?: Record<string, string>; body?: Buffer | string | null; signal?: AbortSignal | null };
 
-/** A connect the engine's socket turned away with its backlog full (nothing was sent: safe to send again). */
+/** A connect the engine turned away with its listen backlog full (nothing was sent: safe to send again). */
 const BACKLOG_FULL = new Set(['ECONNREFUSED', 'EAGAIN']);
 /** how long a refused connect is tried again (the engine answering a burst of requests frees its backlog in ms) */
 export const BACKLOG_RETRY_MS = 3000;
+/** the same over 127.0.0.1 (Windows): each refused connect there already takes Windows ~1 s (it retries the SYN
+ * itself), and the engine on a Windows machine answers a burst several times slower */
+export const BACKLOG_RETRY_TCP_MS = 10000;
 
 /** The engine's own HTTP request for `pathAndQuery` (/api/...). Resolves with a web Response whose body streams.
- * A Unix socket refuses a connect at once when its listen backlog is full (macOS caps it at 128, TCP would retry):
- * All projects asking for 200+ projects' clips at once had a third of them refused - those projects showed as one
- * row with no videos, and the counts did not add up. A refused connect is tried again for a few seconds. */
+ * A full listen backlog refuses a connect: at once on a Unix socket (macOS caps it at 128), and on Windows TCP too
+ * (WSAECONNREFUSED - no SYN retry as on macOS / Linux TCP). All projects asking for 200+ projects' clips at once had
+ * a third of them refused (on the Mac first, then on the Windows runner: 63 of 210) - those projects
+ * showed as one row with no videos, and the counts did not add up. A refused connect is tried again for a while. */
 export async function engineRequest(target: EngineTarget, pathAndQuery: string, init: RequestInit2 = {}): Promise<Response> {
-  const until = Date.now() + BACKLOG_RETRY_MS;
+  const until = Date.now() + ('socketPath' in target ? BACKLOG_RETRY_MS : BACKLOG_RETRY_TCP_MS);
   for (let wait = 10; ; wait = Math.min(wait * 2, 200)) {
     try {
       return await engineRequestOnce(target, pathAndQuery, init);
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code ?? '';
-      if (!('socketPath' in target) || !BACKLOG_FULL.has(code) || init.signal?.aborted || Date.now() + wait > until) throw e;
+      if (!BACKLOG_FULL.has(code) || init.signal?.aborted || Date.now() + wait > until) throw e;
       await new Promise((r) => setTimeout(r, wait));
     }
   }

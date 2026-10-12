@@ -4,6 +4,8 @@ heartbeats like a real run, so Home's Running lane and the Inbox behave the same
 
   DESK_MOCK_STEP         seconds per simulated stage (default 0.25)
   DESK_MOCK_PLAN_DELAY   extra seconds before a plan is ready (a slow model)
+  DESK_MOCK_PLAN_HOLD    a file: plans are not ready while it exists (at most 5 min; then the delay above) - a test
+                         that needs a plan still running for as long as it takes, on a slow runner too
   DESK_MOCK_PILOT_FAIL   auth: the pilot fails at 选段 like an expired Claude Code login, unless retried with another
                          provider
   DESK_MOCK_INTAKE_DOWN  n: the first n probes of the planning engine fail (a hiccup: the card's Try again works)
@@ -310,6 +312,9 @@ class MockIntake(Intake):
             plan.pop("needs", None)
             write_json(self._path(pid), plan)
             return plan
+        hold, until = os.environ.get("DESK_MOCK_PLAN_HOLD"), time.time() + 300
+        while hold and os.path.exists(hold) and time.time() < until:
+            time.sleep(0.1)
         time.sleep(float(os.environ.get("DESK_MOCK_PLAN_DELAY", "0")))
         plats = (self.jobs.get(pid) or {}).get("platforms")
         plan = rule_plan(prompt, inputs, self.probe, pid, dict(self.defaults(), **({"platforms": plats} if plats else {})),

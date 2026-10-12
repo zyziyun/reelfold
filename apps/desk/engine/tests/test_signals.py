@@ -68,5 +68,29 @@ class StraySignalTest(unittest.TestCase):
         self.assertEqual(self.p.wait(timeout=15), 0)
 
 
+class ChildStdinTest(unittest.TestCase):
+    """The engine's children never get its stdin (the desk's never-closing pipe): on Windows a child touching it
+    blocked while the engine's own read was pending - the explainer's "Try again" stayed "Drafting..." for good."""
+
+    def test_a_child_gets_an_empty_stdin(self):
+        code = ("import os, subprocess, sys; sys.path.insert(0, os.path.dirname(sys.argv[1])); import server; "
+                "server.children_never_inherit_stdin(); "
+                "r = subprocess.run([sys.executable, '-c', 'import sys; print(repr(sys.stdin.read()))'], "
+                "capture_output=True, text=True, timeout=20); "
+                "w = subprocess.run([sys.executable, '-c', 'import sys; print(sys.stdin.read())'], input='given', "
+                "capture_output=True, text=True, timeout=20); print(r.stdout.strip(), w.stdout.strip())")
+        p = subprocess.Popen([sys.executable, "-c", code, SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, env=dict(os.environ, DESK_ENGINE_MOCK="1"))
+        try:
+            p.wait(timeout=60)                     # its stdin stays open the whole time, like the desk's pipe
+            out, err = p.stdout.read(), p.stderr.read()
+        finally:
+            if p.poll() is None:
+                p.kill()
+            for f in (p.stdin, p.stdout, p.stderr):
+                f.close()
+        self.assertEqual(out.split(), ["''", "given"], err)
+
+
 if __name__ == "__main__":
     unittest.main()

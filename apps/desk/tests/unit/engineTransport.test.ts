@@ -132,4 +132,18 @@ describe('a burst of requests (All projects with 200+ projects)', () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(300);
     late.close();
   });
+
+  it('tries a refused connect again over 127.0.0.1 too (Windows: a full backlog refuses there as well)', async () => {
+    // a free port with nothing listening refuses every connect (ECONNREFUSED); the engine starts listening a beat later
+    const probe = http.createServer();
+    await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
+    const port = (probe.address() as { port: number }).port;
+    await new Promise<void>((r) => probe.close(() => r()));
+    const late = http.createServer((_q, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}'));
+    setTimeout(() => late.listen(port, '127.0.0.1'), 400);
+    const r = await forwardToEngine({ port }, new Request(`${ENGINE_BASE}/api/health`));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    late.close();
+  });
 });

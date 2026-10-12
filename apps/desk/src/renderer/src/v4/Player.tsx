@@ -8,7 +8,7 @@ import type { CaptionCue, ClipFile, EffectInstance } from '../../../shared/v04';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtLen, t } from '../i18n';
 import { clamp, frameTime, loopTime, safeAreas, seekKey, shuttle, step, timecode, volumeStep } from '../lib/player';
-import { useNativeFullscreen } from '../lib/fullscreen';
+import { screenOwner, useNativeFullscreen } from '../lib/fullscreen';
 import { isTyping } from './ui';
 import { media } from './kit';
 import { Scrubber, type ScrubTick } from './Scrubber';
@@ -95,6 +95,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
   // full screen: every key comes here (and only here) whether or not this player's keys are on in the page
   const fs = useNativeFullscreen(box, { onExit: p.onFullExit, onKey: (e) => keyRef.current?.(e) });
   const full = fs.on;
+  const fullNow = useCallback(() => full || (!!box.current && screenOwner() === box.current), [full]);
   const [vol, setVol] = useState(savedVolume);
   const [muted, setMuted] = useState(false);
   const [ar, setAr] = useState<number | null>(null); // the video's own shape: full screen fills the screen with it
@@ -286,6 +287,9 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
   const onClose = p.onClose;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
+      // the screen as it is now, not as last rendered: the fullscreenchange that updates `full` is dispatched with the
+      // next frame (a hidden window on Windows paints late), and a key routed here before it must still act full screen
+      const full = fullNow();
       if (full && e.key === 'Escape') {
         e.preventDefault();
         void fs.exit(); // back to where she was: the page, the overlay, the same frame
@@ -348,7 +352,7 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
     if (!keysOn) return;
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
-  }, [keysOn, onClose, toggle, toggleFull, seek, setSel, fps, dur, full, fs, p.trim]);
+  }, [keysOn, onClose, toggle, toggleFull, seek, setSel, fps, dur, fullNow, fs, p.trim]);
 
   const areas = safeAreas(file?.aspect ?? '', file?.safe_box, file?.caption_box, file?.w, file?.h);
   const cue = caps ? (p.captions ?? []).find((c) => !c.removed && cur >= c.start && cur <= c.end) : undefined;

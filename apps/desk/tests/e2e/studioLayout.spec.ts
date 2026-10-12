@@ -254,6 +254,9 @@ test('the smallest window: nothing spills sideways; a wide list stacks the clip 
   await listSplit().focus();
   await page.keyboard.press('End');
   await expect.poll(() => width(list())).toBe(480);
+  // End lands on the room the page last measured (ResizeObserver, run with a frame): wait until it has seen the wider
+  // window, or End caps to the old one for good (a hidden Windows window draws its frames late)
+  await expect(page.getByTestId('studio-player-split')).toHaveAttribute('aria-valuemax', '720');
   await page.getByTestId('studio-player-split').focus();
   await page.keyboard.press('End');
   await expect.poll(() => width(page.locator('.cs-left'))).toBe(720);

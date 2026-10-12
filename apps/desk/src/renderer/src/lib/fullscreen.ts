@@ -127,6 +127,7 @@ export function useNativeFullscreen(ref: RefObject<HTMLElement | null>, o: { onE
     if (document.fullscreenElement === el) return true;
     try {
       await el.requestFullscreen({ navigationUI: 'hide' });
+      was.current = true; // it has the screen now, whether or not its fullscreenchange has been dispatched yet
       setFallback(false);
       el.focus({ preventScroll: true }); // Space must play / pause, not press the ⤢ button again
       return true;
@@ -143,15 +144,20 @@ export function useNativeFullscreen(ref: RefObject<HTMLElement | null>, o: { onE
       lastExitAt = performance.now();
     }
     setFallback(false);
+    // leaving a full screen this box has right now ends it, even if the fullscreenchange into it has not come yet (it
+    // comes with a frame, and a hidden window on Windows paints late): the exit's own change must still call onExit
+    if (!!ref.current && document.fullscreenElement === ref.current) was.current = true;
     if (!document.fullscreenElement) return;
     await settle();
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
   }, [ref]);
 
   const toggle = useCallback(() => {
-    if (native || fallback) void exit();
+    // the live state too: the fullscreenchange that sets `native` can still be on its way (it comes with a frame)
+    const el = ref.current;
+    if (native || fallback || (!!el && screenOwner() === el)) void exit();
     else void enter();
-  }, [native, fallback, enter, exit]);
+  }, [native, fallback, enter, exit, ref]);
 
   return useMemo(
     () => ({ native, fallback, on: native || fallback, enter, exit, toggle, escSpent: () => escSpent(lastExitAt, performance.now()) }),

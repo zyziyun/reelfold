@@ -438,10 +438,9 @@ class History:
             at = c.get("archived_at") if isinstance(c.get("archived_at"), dict) else {}
             regs = c.get("archived_reg") if isinstance(c.get("archived_reg"), dict) else {}
             reg_rows = self.reg.all()
-            for p in paths:
-                rp = os.path.realpath(p)
+            for rp in rps:                          # batch_id(p) == batch_id(rp): one realpath per id, not four
                 at[rp] = now
-                ids = {batch_id(p), batch_id(os.path.join(p, "state")), batch_id(rp), batch_id(os.path.join(rp, "state"))}
+                ids = {batch_id(rp), batch_id(os.path.join(rp, "state"))}
                 mine = [dict(dir=b["dir"], name=b.get("name")) for b in reg_rows if b["id"] in ids]
                 if mine:                            # the desk list row comes back on restore (the board opens again)
                     regs[rp] = mine
@@ -684,6 +683,7 @@ class History:
         cands, series = self._candidates()
         seen, rows = set(), []
         reg_ids = {b["id"] for b in self.reg.all()}
+        mine_temp = is_temp_path(self.path)         # a test / scratch desk lists its temp projects too
         for kind_, d, src, extra in cands:
             d = os.path.abspath(os.path.expanduser(d))
             rp = os.path.realpath(d)
@@ -693,7 +693,7 @@ class History:
                         r["sources"].append(src)
                 continue
             seen.add(rp)
-            if is_temp_path(d) and not is_temp_path(self.path):
+            if not mine_temp and is_temp_path(d):
                 continue
             if (rp in hidden) != archived:
                 n_archived += rp in hidden

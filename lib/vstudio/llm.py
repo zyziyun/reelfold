@@ -1208,8 +1208,8 @@ def _probe_url(url, timeout=0.6, strict=True):
 
 def _cli_version(exe, timeout=10):
     try:
-        r = subprocess.run([*cli_argv(exe), "--version"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout)
+        r = subprocess.run([*cli_argv(exe), "--version"], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout)   # never the engine's stdin (llm_auth._run)
         return (r.stdout or r.stderr).strip().splitlines()[0] if r.returncode == 0 else None
     except Exception:  # noqa: BLE001
         return None

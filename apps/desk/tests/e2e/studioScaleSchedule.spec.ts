@@ -72,9 +72,9 @@ test(`${N} made videos: every one listed as a video, Ready to post ${N}, no proj
     const info = await window.desk.engineInfo();
     const h = (await (await fetch(info.baseUrl + '/api/history', { headers: { Authorization: `Bearer ${info.token}` } })).json()) as { items: { id: string }[] };
     const rs = await Promise.all(h.items.map((i) => fetch(info.baseUrl + `/api/outputs/${i.id}`, { headers: { Authorization: `Bearer ${info.token}` } }).then((r) => r.status)));
-    return { n: rs.length, bad: rs.filter((s) => s !== 200).length };
+    return { n: rs.length, bad: rs.filter((s) => s !== 200) };
   });
-  expect(burst).toEqual({ n: N, bad: 0 });
+  expect(burst).toEqual({ n: N, bad: [] }); // a failure lists the statuses (502: the engine refused the connect)
 });
 
 test(`⌘A then Schedule: the button says ${N} (what Ready to post says), progress, one toast with Undo, every one scheduled`, async () => {
@@ -100,7 +100,10 @@ test(`⌘A then Schedule: the button says ${N} (what Ready to post says), progre
   perf.bulkSchedule = Math.round(ms.ms);
   expect(ms.seen[0]).toMatch(new RegExp(`Scheduling \\d+ of ${N}`));
   expect(ms.ms).toBeLessThan(20000); // ~1 s on a quiet Mac (never finished before)
+  // she points at the toast while she checks the list: it stays until she leaves it (on the Windows runner the checks
+  // below - a screenshot, the calendar, the counts - took longer than the toast's own 8 s)
   const toast = page.getByTestId('toast').filter({ hasText: `Scheduled ${N} videos` });
+  await toast.hover({ force: true });
   await expect(toast).toBeVisible();
   await expect(toast.getByTestId('toast-undo')).toBeVisible();
   await page.screenshot({ path: path.join(SHOTS, 'bulk-schedule-scale.png') });

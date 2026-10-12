@@ -54,69 +54,77 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   if (!data) return null;
   if (!pieces.length && !running) return null;
   const newest = pieces.reduce<Piece | null>((a, p) => (p.state === 'running' && (!a || p.mtime > a.mtime) ? p : a), null);
+  // the open piece as the run has it now (a contact sheet written again shows its new version), in the same viewer
+  const shown = big ? (pieces.find((p) => p.path === big.path) ?? big) : null;
   return (
-    <details className="wp" open={open} data-testid="work-pieces" data-n={pieces.length} data-live={live ? '1' : '0'}>
-      <summary className="wp-hd">
-        <ChevronRight className="ico wp-chev" />
-        <b>{live ? t('wp.title') : t('wp.titleDone')}</b>
-        <span className="muted">· {t('wp.count', { n: pieces.length })}</span>
-        <span className="sp" />
-        {running && (
-          <button
-            className="btn sm"
-            onClick={(e) => {
-              e.preventDefault();
-              void pause();
-            }}
-            disabled={pausing}
-            data-testid="wp-pause"
-          >
-            <Pause className="ico" />
-            {t('wp.pause')}
-          </button>
-        )}
-      </summary>
-      {!pieces.length && <p className="muted small" data-testid="wp-empty">{t('wp.empty')}</p>}
-      {jobs.map((j) => {
-        const mine = pieces.filter((p) => p.job === j);
-        return (
-          <section key={j} className="wp-job" data-job={j}>
-            {jobs.length > 1 && <h4 className="clamp1">{mine[0]?.title}</h4>}
-            <div className="wp-grid">
-              {mine.map((p) => {
-                const label = pieceLabel(p);
-                return (
-                  <button key={p.path} className={`wp-tile ${p.state}`} onClick={() => setBig(p)} title={label} data-testid="work-piece" data-stage={p.stage} data-kind={p.kind} data-state={p.state}>
-                    <Thumb src={isVideo(p) ? null : p.path} video={isVideo(p) ? p.path : null} v={p.mtime} ratio="16/9" />
-                    <span className="wp-l clamp1" data-testid="work-piece-label">
-                      {p === newest && <i className="dot run" aria-label={t('wp.making')} />}
-                      {p.state === 'waiting' && <i className="dot you" aria-label={t('wp.waiting')} />}
-                      {label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-      {big && (
+    <>
+      <details className="wp" open={open} data-testid="work-pieces" data-n={pieces.length} data-live={live ? '1' : '0'}>
+        <summary className="wp-hd">
+          <ChevronRight className="ico wp-chev" />
+          <b>{live ? t('wp.title') : t('wp.titleDone')}</b>
+          <span className="muted">· {t('wp.count', { n: pieces.length })}</span>
+          <span className="sp" />
+          {running && (
+            <button
+              className="btn sm"
+              onClick={(e) => {
+                e.preventDefault();
+                void pause();
+              }}
+              disabled={pausing}
+              data-testid="wp-pause"
+            >
+              <Pause className="ico" />
+              {t('wp.pause')}
+            </button>
+          )}
+        </summary>
+        {!pieces.length && <p className="muted small" data-testid="wp-empty">{t('wp.empty')}</p>}
+        {jobs.map((j) => {
+          const mine = pieces.filter((p) => p.job === j);
+          return (
+            <section key={j} className="wp-job" data-job={j}>
+              {jobs.length > 1 && <h4 className="clamp1">{mine[0]?.title}</h4>}
+              <div className="wp-grid">
+                {mine.map((p) => {
+                  const label = pieceLabel(p);
+                  return (
+                    <button key={p.path} className={`wp-tile ${p.state}`} onClick={() => setBig(p)} title={label} data-testid="work-piece" data-stage={p.stage} data-kind={p.kind} data-state={p.state}>
+                      <Thumb src={isVideo(p) ? null : p.path} video={isVideo(p) ? p.path : null} v={p.mtime} ratio="16/9" />
+                      <span className="wp-l clamp1" data-testid="work-piece-label">
+                        {p === newest && <i className="dot run" aria-label={t('wp.making')} />}
+                        {p.state === 'waiting' && <i className="dot you" aria-label={t('wp.waiting')} />}
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </details>
+      {/* outside the fold: an open piece stays open when the section folds itself (the run is done) */}
+      {shown && (
         <PieceView
-          p={big}
+          p={shown}
           onClose={() => setBig(null)}
           onAsk={() => {
-            askProjectChat(item, t('wp.askPrompt', { label: pieceLabel(big) }));
+            askProjectChat(item, t('wp.askPrompt', { label: pieceLabel(shown) }));
             setBig(null);
           }}
         />
       )}
-    </details>
+    </>
   );
 }
 
 function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk: () => void }) {
   const label = pieceLabel(p);
   const image = !isVideo(p);
+  // shown once its image is in (or failed): the box sizes to the image, so laid out before it its actions sit at the
+  // top and jump down under her pointer when it loads
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!image) return; // the player's overlay owns its keys (Esc closes)
     const on = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -146,8 +154,8 @@ function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk
     );
   return (
     <div className="pl-overlay wp-imgview" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-label={label} data-testid="piece-view">
-      <div className="wp-imgbox">
-        <img src={media(p.path)} alt={label} />
+      <div className="wp-imgbox" data-ready={ready ? '1' : '0'}>
+        <img src={media(p.path, p.mtime)} alt={label} onLoad={() => setReady(true)} onError={() => setReady(true)} />
         {bar}
         <button className="btn ghost icon wp-x" onClick={onClose} aria-label={t('wp.close')} data-testid="piece-close">
           <X className="ico" />

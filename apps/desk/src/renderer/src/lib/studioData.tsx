@@ -2,6 +2,7 @@
 // exact video and ⌘K all read the same rows. Loaded only with the Studio on.
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CalendarPost, Clip } from '../../../shared/v04';
+import { ClipsRounds, type ClipsAsk } from './clipsRounds';
 import { useEngine, useLoad } from './engine';
 import { useHistory } from './history';
 import { useInbox } from './inbox';
@@ -27,19 +28,25 @@ export const SETTLE_GIVE_UP_MS = 15_000;
 export const CLIPS_AT_ONCE = 6;
 
 /** Every recent project's clips, loaded once per project version (a run's new clip shows as soon as it exists), a
- * few projects at a time. A clip edit reloads that project only; a calendar change reloads none (a clip's posts are
- * not in its clips). A project whose clips could not be read is asked again on its next change or a minute later -
- * never shown as "no videos" for good. */
-function useClipsOf(ids: { id: string; v: string }[], on: boolean) {
+ * few projects at a time (``ClipsRounds``: a refresh of the list never throws away an answer still coming). A clip
+ * edit reloads that project only; a calendar change reloads none (a clip's posts are not in its clips). A project
+ * whose clips could not be read is asked again on its next change or a minute later - never shown as "no videos" for
+ * good. */
+function useClipsOf(ids: ClipsAsk[], on: boolean) {
   const { client, subscribe } = useEngine();
   const [clips, setClips] = useState<Record<string, Clip[] | undefined>>({});
-  const seen = useRef<Record<string, string>>({});
+  const rounds = useRef(new ClipsRounds<Clip[]>(CLIPS_AT_ONCE));
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => void (mounted.current = false);
+  }, []);
   const [n, setN] = useState(0);
   useEffect(
     () =>
       subscribe((e) => {
         if (e.type !== 'output-edit') return;
-        delete seen.current[e.item];
+        rounds.current.forget(e.item);
         setN((x) => x + 1);
       }),
     [subscribe],
@@ -47,11 +54,6 @@ function useClipsOf(ids: { id: string; v: string }[], on: boolean) {
   const key = ids.map((x) => `${x.id}:${x.v}`).join('|');
   useEffect(() => {
     if (!client || !on) return;
-    let alive = true;
-    const marks = seen.current;
-    const todo = ids.filter(({ id, v }) => marks[id] !== v);
-    for (const { id, v } of todo) marks[id] = v;
-    let failed = false;
     // the answers are put in together a few times a second, not one re-render of the whole list per project
     let pending: Record<string, Clip[]> = {};
     let flushT = 0;
@@ -59,41 +61,24 @@ function useClipsOf(ids: { id: string; v: string }[], on: boolean) {
       flushT = 0;
       const p = pending;
       pending = {};
-      if (alive && Object.keys(p).length) setClips((c) => ({ ...c, ...p }));
+      if (mounted.current && Object.keys(p).length) setClips((c) => ({ ...c, ...p }));
     };
-    const put = (id: string, cl: Clip[]) => {
-      pending[id] = cl;
-      if (!flushT) flushT = window.setTimeout(flush, 150);
-    };
-    const going = new Set<{ id: string; v: string }>();
-    const next = async (): Promise<void> => {
-      const x = todo.shift();
-      if (!x || !alive) return;
-      going.add(x);
-      try {
-        const d = await client.clips(x.id);
-        put(x.id, d.clips);
-      } catch {
-        // not read this time (the engine busy, a project being moved): no videos for now, asked again later
-        if (marks[x.id] === x.v) delete marks[x.id];
-        failed = true;
-        if (alive) setClips((c) => (c[x.id] ? c : { ...c, [x.id]: [] }));
-      }
-      going.delete(x);
-      return next();
-    };
-    void Promise.all(Array.from({ length: Math.min(CLIPS_AT_ONCE, todo.length) }, next)).then(() => {
+    const r = rounds.current.round(
+      ids,
+      async (id) => (await client.clips(id)).clips,
+      (id, cl) => {
+        pending[id] = cl;
+        if (!flushT) flushT = window.setTimeout(flush, 150);
+      },
+      // not read this time (the engine busy, a project being moved): no videos for now, asked again later
+      (id) => mounted.current && setClips((c) => (c[id] ? c : { ...c, [id]: [] })),
+    );
+    void r.done.then(({ failed }) => {
       window.clearTimeout(flushT);
       flush();
-      if (alive && failed) window.setTimeout(() => alive && setN((k) => k + 1), 60_000);
+      if (failed) window.setTimeout(() => mounted.current && setN((k) => k + 1), 60_000);
     });
-    return () => {
-      window.clearTimeout(flushT);
-      flush();
-      alive = false;
-      // what this round did not get to (or got after it was over) is the next round's
-      for (const x of [...todo, ...going]) if (marks[x.id] === x.v) delete marks[x.id];
-    };
+    return r.cancel;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, key, n, on]);
   return clips;

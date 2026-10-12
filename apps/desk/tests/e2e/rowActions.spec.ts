@@ -209,7 +209,7 @@ test('Delete a project: the confirm names its folder and that her recording stay
   const asked = await app.evaluate(() => (globalThis as unknown as { __asked: { message: string; detail: string }[] }).__asked);
   expect(asked).toHaveLength(1);
   expect(asked[0].message).toBe('Move “talkinghead-1” to the Trash?');
-  expect(asked[0].detail).toContain(path.join(fs.realpathSync(tmp), 'vhome', 'projects', '512d9d387962'));
+  expect(asked[0].detail).toContain(path.join(fs.realpathSync.native(tmp), 'vhome', 'projects', '512d9d387962'));
   expect(asked[0].detail).toContain('Your recordings stay where they are:');
   expect(asked[0].detail).toContain(rec);
   expect(fs.existsSync(projParent)).toBe(false); // projects/<id> as a whole (only its intake note was beside it)

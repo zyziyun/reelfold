@@ -93,12 +93,16 @@ def msg(code, _fmt=None, **params):
 
 
 def _run(cmd, env, timeout, input=None):
-    """(returncode, stdout, stderr) of a CLI in an empty temp dir; (-1, "", why) when it cannot run."""
+    """(returncode, stdout, stderr) of a CLI in an empty temp dir; (-1, "", why) when it cannot run. No ``input``:
+    its stdin is empty, never this process's own (the desk engine's stdin is the app's pipe, watched for the app
+    quitting: a CLI that reads it waits out the whole timeout, and on Windows its read queues behind the engine's
+    and the killed CLI never ends - a status check before an AI call held the call forever)."""
     cmd = [*L.cli_argv(cmd[0]), *cmd[1:]]                  # Windows: npm .cmd shims run through node directly
+    stdin = {} if input is not None else dict(stdin=subprocess.DEVNULL)
     with tempfile.TemporaryDirectory(prefix="vstudio-auth-") as tmp:
         try:
             r = subprocess.run(cmd, input=input, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               cwd=tmp, timeout=timeout, env=env)
+                               cwd=tmp, timeout=timeout, env=env, **stdin)
         except subprocess.TimeoutExpired:
             return -1, "", f"timed out after {timeout} s"
         except OSError as e:

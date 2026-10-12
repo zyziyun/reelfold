@@ -51,10 +51,17 @@ test.afterAll(async () => {
 type Act = { key: string; meta?: boolean } | { type: string } | { click: string };
 type Done = { rows: number } | { rowsBelow: number } | { notCurrent: string } | { bulk: string };
 
-/** Do ``act`` in the page and time it to the frame after ``done`` holds (checked every frame). */
+/** Do ``act`` in the page and time it to the frame after ``done`` holds (checked every frame). A frame here is the
+ * next animation frame or 20 ms, whichever comes first: the hidden window on the Windows runner gets about one
+ * animation frame a second (searchType / searchClear read 3026 / 2948 ms there - three frames - against 37 / 47 on a
+ * Mac), which timed the frame clock instead of the list. */
 async function timed(name: string, act: Act, done: Done): Promise<number> {
   const ms = await page.evaluate(
     async ([a, d]) => {
+      const frame = () => new Promise<void>((r) => {
+        const t = setTimeout(r, 20);
+        requestAnimationFrame(() => (clearTimeout(t), r()));
+      });
       const n = () => document.querySelectorAll('[data-testid=studio-row]').length;
       const ok = () =>
         'rows' in d ? n() === d.rows : 'rowsBelow' in d ? n() > 0 && n() < d.rowsBelow : 'notCurrent' in d ? document.querySelector('[data-testid=studio-row][aria-current=true]')?.getAttribute('data-row') !== d.notCurrent : !!document.querySelector('[data-testid=studio-bulk]')?.textContent?.includes(d.bulk);
@@ -65,8 +72,9 @@ async function timed(name: string, act: Act, done: Done): Promise<number> {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, a.type);
         el.dispatchEvent(new Event('input', { bubbles: true }));
       } else document.querySelector<HTMLElement>(`[data-testid=${a.click}]`)!.click();
-      while (!ok() && performance.now() - t0 < 60000) await new Promise((r) => requestAnimationFrame(r));
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      while (!ok() && performance.now() - t0 < 60000) await frame();
+      await frame();
+      await frame();
       return ok() ? performance.now() - t0 : -1;
     },
     [act, done] as const,
@@ -110,7 +118,11 @@ test('J moves, ⌘A picks every row, the bulk bar follows at once', async () => 
 
 test(`a bulk Archive of ${N} projects empties the list, Undo brings every one back`, async () => {
   test.setTimeout(120000);
+  // she points at the Archived toast as it comes, so its Undo waits for her while the list empties (the toast shows
+  // when the engine has archived them; a slow machine can take longer than the toast's own 8 s to list again)
+  const keep = page.getByTestId('toast').filter({ has: page.getByTestId('toast-undo') }).hover({ force: true });
   const arch = await timed('bulkArchive', { click: 'studio-bulk-archive' }, { rows: 0 });
+  await keep;
   expect(arch).toBeGreaterThan(0);
   expect(arch).toBeLessThan(15000); // one engine call + one listing: under 1 s on a quiet Mac (21 s while every lookup listed again)
   const undo = await timed('undoArchive', { click: 'toast-undo' }, { rows: N });

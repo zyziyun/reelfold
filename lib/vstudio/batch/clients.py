@@ -375,11 +375,21 @@ def _reg_path(cdir=None):
     return os.path.join(cdir, "batches.json") if cdir else os.path.join(home(), "batches.json")
 
 
+_TEMP_ROOTS = {}
+
+
 def _temp_roots():
+    """The system temp dirs, resolved once per temp dir (is_temp_path runs for every registry entry on each prune: five
+    realpath() calls each was most of a listing's time, worst on Windows where realpath opens the file)."""
     import tempfile
-    roots = {tempfile.gettempdir(), "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"}
-    # normcase: Windows compares case-insensitively (gettempdir may be the 8.3 short form, realpath the long one)
-    return {os.path.normcase(os.path.realpath(r)) for r in roots} | {os.path.normcase(os.path.abspath(r)) for r in roots}
+    t = tempfile.gettempdir()
+    got = _TEMP_ROOTS.get(t)
+    if got is None:
+        roots = {t, "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"}
+        # normcase: Windows compares case-insensitively (gettempdir may be the 8.3 short form, realpath the long one)
+        got = _TEMP_ROOTS[t] = tuple({os.path.normcase(os.path.realpath(r)) for r in roots} |
+                                     {os.path.normcase(os.path.abspath(r)) for r in roots})
+    return got
 
 
 def is_temp_path(path):

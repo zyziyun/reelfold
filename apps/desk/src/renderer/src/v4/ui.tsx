@@ -76,11 +76,26 @@ export function UiProvider({
   const [over, setOver] = useState(false);
   const droppedRef = useRef<string[]>([]);
 
+  // a toast goes by itself after its time, counted again from when the pointer leaves it: while she points at it
+  // (reaching for Undo) it stays (WCAG 2.2.1: a time limit she can hold)
+  const toastTimers = useRef(new Map<number, { ms: number; tm?: number }>());
+  const dropToast = useCallback((id: number) => {
+    window.clearTimeout(toastTimers.current.get(id)?.tm);
+    toastTimers.current.delete(id);
+    setToasts((x) => x.filter((y) => y.id !== id));
+  }, []);
+  const holdToast = useCallback((id: number, hold: boolean) => {
+    const it = toastTimers.current.get(id);
+    if (!it) return;
+    window.clearTimeout(it.tm);
+    it.tm = hold ? undefined : window.setTimeout(() => dropToast(id), it.ms);
+  }, [dropToast]);
   const toast = useCallback<Ui['toast']>((text, opts = {}) => {
     const id = ++toastSeq;
     setToasts((x) => [...x.slice(-2), { id, text, undo: opts.undo, error: opts.error, action: opts.action }]);
-    setTimeout(() => setToasts((x) => x.filter((y) => y.id !== id)), opts.ms ?? (opts.undo ? 8000 : 4000));
-  }, []);
+    toastTimers.current.set(id, { ms: opts.ms ?? (opts.undo ? 8000 : 4000) });
+    holdToast(id, false);
+  }, [holdToast]);
   const openMenu = useCallback<Ui['menu']>((e, items) => {
     e.preventDefault?.();
     setMenu({ x: Math.min(e.clientX, window.innerWidth - 240), y: Math.min(e.clientY, window.innerHeight - items.length * 34 - 16), items });
@@ -269,10 +284,10 @@ export function UiProvider({
       )}
       <div className="toasts" aria-live="polite">
         {toasts.map((x) => (
-          <div key={x.id} className={`toast ${x.error ? 'err' : ''}`} data-testid="toast">
+          <div key={x.id} className={`toast ${x.error ? 'err' : ''}`} data-testid="toast" onMouseEnter={() => holdToast(x.id, true)} onMouseLeave={() => holdToast(x.id, false)}>
             <span>{x.text}</span>
             {x.action && (
-              <a className="btn sm" href={x.action.href} data-testid="toast-action" onClick={() => setToasts((y) => y.filter((z) => z.id !== x.id))}>
+              <a className="btn sm" href={x.action.href} data-testid="toast-action" onClick={() => dropToast(x.id)}>
                 {x.action.label}
               </a>
             )}
@@ -281,7 +296,7 @@ export function UiProvider({
                 className="btn sm"
                 data-testid="toast-undo"
                 onClick={() => {
-                  setToasts((y) => y.filter((z) => z.id !== x.id));
+                  dropToast(x.id);
                   void x.undo?.();
                 }}
               >
