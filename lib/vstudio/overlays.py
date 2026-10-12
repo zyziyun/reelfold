@@ -864,6 +864,8 @@ def quote_block(lines, width, theme=None, card=False, speaker=None, scale=1.0, s
         lines = [lines]
     rows = [(x, "main") if isinstance(x, str) else (x[0], x[1]) for x in lines]
     u = scale
+    if card and T.get("bare"):
+        return _bare_quote(rows, width, T, speaker, u, sweep, size)
     pad = _s(44, u) if card else 0
     hang = _s(size * 0.55, u)
     col_w = int(width - 2 * pad - hang)
@@ -921,6 +923,36 @@ def quote_block(lines, width, theme=None, card=False, speaker=None, scale=1.0, s
     if speaker:
         y += _s(22, u)
         d.text((x, y), "— " + str(speaker), font=fsub, fill=TH.rgba(T, "ink2"))
+    return im
+
+
+def _bare_quote(rows, width, T, speaker, u, sweep, size):
+    """A line of text on the picture (cinema): centred, the quote face in the over-video ink, a short accent
+    hairline above, the sub line smaller and quieter - no card, no quote marks."""
+    fm = load_font(T["font_quote"], _s(size, u))
+    fsub = load_font(T["font_body"], _s(size * 0.5, u))
+    W = int(width)
+    blocks = []
+    for txt, role in rows:
+        txt = str(txt).strip().strip("“”\"「」")
+        if not txt:
+            continue
+        f, fill = (fsub, TH.rgba(T, "over_ink2")) if role == "sub" else (fm, TH.rgba(T, "over_ink"))
+        blocks.append(emph_layer(txt, f, T, surface="paper", fill=fill, max_w=W, line_gap=1.3, pad=0, sweep=sweep,
+                                 align="center"))
+    if speaker:
+        blocks.append(emph_layer("— " + str(speaker), fsub, T, surface="paper", fill=TH.rgba(T, "over_ink2"), max_w=W,
+                                 pad=0, align="center"))
+    rule_h, gap = max(1, _s(2, u)), _s(18, u)
+    H = rule_h + gap + sum(b.height for b in blocks) + _s(12, u) * max(0, len(blocks) - 1)
+    im = Image.new("RGBA", (W, max(1, H)), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    rw = _s(48, u)
+    d.rectangle([(W - rw) // 2, 0, (W + rw) // 2, rule_h - 1], fill=TH.rgba(T, "accent"))
+    y = rule_h + gap
+    for b in blocks:
+        im.alpha_composite(b, ((W - b.width) // 2, y))
+        y += b.height + _s(12, u)
     return im
 
 
