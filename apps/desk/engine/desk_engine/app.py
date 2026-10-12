@@ -537,7 +537,8 @@ class Api:
         self.create = K["CreateApi"](engine.data_dir, bus, runner if real else None, engine.mode,
                                      history=self.history, calendar=self.calendar, outputs=self.outputs)
         self.inbox.extra.append(self.create.inbox_items)
-        self.inbox.extra.append(self.intake.inbox_items)
+        # a goal's own requests are its business (it retries or drops them): not Inbox items of their own
+        self.inbox.extra.append(lambda: self.goals.without_owned(self.intake.inbox_items()))
         self.inbox.extra.append(self.goals.inbox_items)
         from .share import Share                   # share for review: static page + feedback -> Inbox
         self.share = Share(engine.data_dir, self.history, self.outputs, self.inbox, bus)

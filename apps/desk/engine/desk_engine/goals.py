@@ -632,6 +632,15 @@ class Goals:
                             href=f"#/studio?goal={g['id']}", at=g.get("updated") or time.time()))
         return out
 
+    def without_owned(self, items):
+        """The intake's Inbox items minus the ones about a goal's requests (key ``plan-<id>-<state>``)."""
+        reqs, _dirs = self.owned()
+
+        def rid(x):
+            parts = str(x.get("key") or "").split("-")
+            return parts[1] if len(parts) > 2 and parts[0] == "plan" else None
+        return [x for x in items or [] if rid(x) not in reqs]
+
     def detect(self, prompt, inputs=()):
         return detect(prompt, inputs)
 

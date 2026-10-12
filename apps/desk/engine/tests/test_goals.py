@@ -283,6 +283,8 @@ class Survey(Base):
         self.assertEqual((rows[0]["goal"], rows[0]["goal_video"]), (gid, "v1"))
         self.assertNotIn("goal", rows[1])
         self.assertEqual(G.mark([dict(dir=d)], "dir")[0]["goal"], gid)
+        items = [dict(key=f"plan-{rid}-error"), dict(key="plan-ffffffffffff-error")]
+        self.assertEqual([x["key"] for x in G.without_owned(items)], ["plan-ffffffffffff-error"])
         self.assertEqual(len(G.list()["goals"]), 1)
         G.stop(gid)
         G.dismiss(gid)
