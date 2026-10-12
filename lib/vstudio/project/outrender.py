@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 
 import numpy as np
@@ -826,9 +827,15 @@ def _stage(doc, stages, stage, key, ext, fn, st_obj):
         return path
     st_obj.beat(stage)
     t0 = time.time()
-    tmp = path + ".part" + ext
-    fn(tmp)
-    os.replace(tmp, path)
+    # a part file of its own: two renders of the same stage (two windows, a CLI next to the app) wrote one shared
+    # ".part" - the loser's faststart failed and the winner's rename cached a file without its index (N/A length)
+    tmp = f"{path}.{os.getpid()}-{threading.get_ident()}.part{ext}"
+    try:
+        fn(tmp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
     stages.append(dict(stage=stage, key=key, cached=False, seconds=round(time.time() - t0, 2), file=path))
     _gc(doc, stage, path)
     return path
