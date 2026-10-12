@@ -94,7 +94,7 @@ def test_place_from_dji_logs_offline(tmp_path):
 
 def test_language_per_platform(monkeypatch):
     assert PC.copy_lang("xiaohongshu", ASK) == "zh"
-    assert PC.copy_lang("douyin", "make a Seattle fall video") == "en"   # her request's language on 抖音 too
+    assert PC.copy_lang("douyin", "make a Seattle fall video") == "zh"   # 抖音's audience reads Chinese
     assert PC.copy_lang("youtube", ASK) == "en" and PC.copy_lang("tiktok", ASK) == "en"
     p = os_persona(monkeypatch, "publish:\n  copy_lang: {intl: zh, youtube: en}\n")
     assert p and PC.copy_lang("tiktok", ASK) == "zh" and PC.copy_lang("youtube", ASK) == "en"

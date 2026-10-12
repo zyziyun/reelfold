@@ -9,9 +9,9 @@ the DJI flight logs), the music credit when the track asks for one - per platfor
     d["per_platform"]["xiaohongshu"]   # {"title", "body", "tags", "lang"}
     PC.post_json(d)                    # -> the post.json vstudio.export reads (``per_platform`` blocks)
 
-Language per platform (``copy_lang``): persona ``publish.copy_lang.<platform>`` > the Chinese platforms take the
-language of her request (a Chinese request -> 小红书 / 抖音 / B站 copy in Chinese) > the international ones take
-persona ``publish.copy_lang.intl`` (default English). Her own title is kept on the platforms in its language.
+Language per platform (``copy_lang``): persona ``publish.copy_lang.<platform>`` > the Chinese platforms take
+persona ``publish.copy_lang.cn`` (default Chinese) > the international ones take persona ``publish.copy_lang.intl``
+(default English). Her own title is kept on the platforms in its language.
 
 ``draft``: the routed ``copy`` model (vstudio.llm; Claude Code / any API / a local model) writes each language once
 from the facts (place, month, aerial or not, her words, her title, the music); every answer is checked (non-empty,
@@ -69,9 +69,10 @@ def detect_request_lang(text):
 
 
 def copy_lang(platform, request=None):
-    """The language of one platform's copy: persona ``publish.copy_lang.<platform>``; a Chinese platform -> her
-    request's language (else the persona creator.language, else zh); an international one ->
-    ``publish.copy_lang.intl`` (default en)."""
+    """The language of one platform's copy: persona ``publish.copy_lang.<platform>``; a Chinese platform ->
+    ``publish.copy_lang.cn`` (default zh: its audience reads Chinese, whatever language she typed the request in -
+    an English request used to get English copy on 小红书 / B站); an international one -> ``publish.copy_lang.intl``
+    (default en). ``request`` is kept for callers; it no longer decides."""
     pl = platform_key(platform)
     cfg = _persona("publish.copy_lang", {}) or {}
     if isinstance(cfg, str):
@@ -79,8 +80,7 @@ def copy_lang(platform, request=None):
     if cfg.get(pl) in ("en", "zh"):
         return cfg[pl]
     if pl in CN_PLATFORMS:
-        return cfg.get("cn") if cfg.get("cn") in ("en", "zh") else (
-            detect_request_lang(request) or _persona("creator.language", "zh") or "zh")
+        return cfg.get("cn") if cfg.get("cn") in ("en", "zh") else "zh"
     return cfg.get("intl") if cfg.get("intl") in ("en", "zh") else "en"
 
 
