@@ -28,6 +28,12 @@ references/PROJECTS.md.
                                                       folders (kind work) + series
   adopt DIR [--recipe guess|NAME] [--title T] [--client C]   a plain folder made with the skill (final/, REPORT.md,
                                                       post.md, ...) -> DIR/.vstudio/work.json + registry (works.py)
+  import PATH... [--sources DIR]... [--title T] [--dest D] [--check] [--match] [--json | --json-events]
+                                                      finished videos made anywhere (+ their footage) -> a work
+                                                      folder for second-pass editing (imports.py); --check: only
+                                                      say what is finished / footage; --match: shot-match the
+                                                      footage right away; import-copy --dir D --clip C rewrites a
+                                                      clip's post copy; import-match --dir D [--clip C] [--all]
   touch DIR [--status running|waiting|done|failed] [--stage S] [--progress 0..1] [--message M] [--eta S]
       [--needs-you] [--recipe R] [--title T] [--outputs a,b]   register a job folder + its live status (heartbeat);
                                                       a recipe project folder gets only its status (row untouched)
@@ -356,6 +362,49 @@ def cmd_adopt(a):
     r = W.adopt(a.path, recipe=a.recipe or "guess", title=a.title, client=a.client)
     _out(a, r, f"adopted {r['dir']} as {r['type']} ({r['recipe'] or 'no recipe'}), {len(r['outputs'])} output(s)")
     return 0
+
+
+def cmd_import(a):
+    from . import imports as IM
+    ev = (lambda e: print(json.dumps(e, ensure_ascii=False, default=str), flush=True)) if a.json_events else None
+    if a.check:
+        r = IM.classify(list(a.paths) + list(a.sources or []))
+        if a.json_events:
+            print(json.dumps(dict(event="done", result=r), ensure_ascii=False, default=str))
+        else:
+            _out(a, r, f"{r['verdict']}: {r['counts']['finished']} finished video(s) in {r['counts']['clips']} "
+                       f"clip(s), {r['counts']['raw']} footage file(s)")
+        return 0
+    r = IM.import_(a.paths, sources=a.sources, title=a.title, dest=a.dest, on_event=ev)
+    if a.match:
+        r["shots"] = IM.match_shots(r["dir"], on_event=ev)["matched"]
+    if a.json_events:
+        print(json.dumps(dict(event="done", result=r), ensure_ascii=False, default=str))
+    else:
+        _out(a, r, f"imported {len(r['clips'])} clip(s) into {r['dir']}")
+    return 0
+
+
+def cmd_import_copy(a):
+    from . import imports as IM
+    r = IM.rewrite_copy(_dir_plain(a), a.clip, platforms=_csv(a.platforms))
+    _out(a, r, "\n".join(f"{k}: {v.get('title')}" for k, v in r["posts"].items()))
+    return 0
+
+
+def cmd_import_match(a):
+    from . import imports as IM
+    ev = (lambda e: print(json.dumps(e, ensure_ascii=False, default=str), flush=True)) if a.json_events else None
+    r = IM.match_shots(_dir_plain(a), clip=a.clip, versions="all" if a.all else "primary", on_event=ev)
+    if a.json_events:
+        print(json.dumps(dict(event="done", result=r), ensure_ascii=False, default=str))
+    else:
+        _out(a, r, "\n".join(f"{m['clip']} {m['file']}: {m['matched']}/{m['shots']} shots" for m in r["matched"]))
+    return 0
+
+
+def _dir_plain(a):
+    return os.path.abspath(a.dir or os.getcwd())
 
 
 def cmd_touch(a):
@@ -693,6 +742,21 @@ def build_parser():
     p.add_argument("--all", action="store_true", help="also unapproved / unfinished items")
     p.add_argument("--items")
     add("list", cmd_list, "registered projects (+ adopted work folders, series)", d=False)
+    p = add("import", cmd_import, "finished videos (+ footage) -> a work folder for second-pass editing", d=False)
+    p.add_argument("paths", nargs="+")
+    p.add_argument("--sources", action="append", help="a footage folder / file (repeat)")
+    p.add_argument("--title")
+    p.add_argument("--dest")
+    p.add_argument("--check", action="store_true", help="only classify (finished vs footage); nothing written")
+    p.add_argument("--match", action="store_true", help="shot-match the footage after importing")
+    p.add_argument("--json-events", action="store_true")
+    p = add("import-copy", cmd_import_copy, "an imported clip's post copy written again for every platform")
+    p.add_argument("--clip", required=True)
+    p.add_argument("--platforms")
+    p = add("import-match", cmd_import_match, "match an imported clip's shots to its footage")
+    p.add_argument("--clip")
+    p.add_argument("--all", action="store_true", help="every version, not only the first")
+    p.add_argument("--json-events", action="store_true")
     p = add("adopt", cmd_adopt, "an existing folder made with the skill -> work record + registry", d=False)
     p.add_argument("path")
     p.add_argument("--recipe", help="guess (default) or a recipe / type name")

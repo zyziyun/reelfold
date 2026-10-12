@@ -63,6 +63,8 @@ timeline); positions are fractions of the canvas (x, y = centre).
 | `effect_remove` | `id` | |
 | `cover` | `t, text, style card|plain|band` or `clear` | frame of the edited timeline |
 | `export_add` / `export_remove` | `target` (`platform[:orientation]`, `3:4`, `9:16`, `16:9`), `layout auto|band` | re-layout, never a plain letterbox (band is a designed layout for flattened files) |
+| `export_add` + `lang` | `target, lang en\|zh\|fr\|ja\|es\|de\|ko\|pt, voice?` | a version in another language: the transcript's sentences translated (`vstudio.bilingual`, task `translate`; refused with `needs-model` when nothing is routed), stored in the op (`lines [[start, end, said, translated]]`); the render voices them (`vstudio.tts`, said up to 1.35x faster to fit a line's slot) over a music bed (the clip's own `music-bed`, else the built-in calm mood) instead of the old mix, and captions them (over a blur mask of burned captions; an imported clip with matched footage is rebuilt from the footage, so no burned text comes along) |
+| `shot_swap` | `shot, source?, t?, restore?` | imported clips with matched footage (section 7): the picture of one shot from another take (the sound stays); no `source` = the next unused take (same clip after, then before, then other clips); the finished video's title bar stays over the new take; burned captions do not (warning `swap-hides-burned`) |
 | `reset` | | everything back to the original (undoable) |
 
 ### 3a. Transcript cuts (Descript-style editing)
@@ -255,3 +257,23 @@ Warnings / notes: `flattened`, `captions-add-only`, `relayout-crops-burned`, `no
 `source-changed`, `placement-auto`, `style-added-only`, `band-pipeline`, `effect-cut-away`, `param-adjusted`,
 `unknown-param`, `no-model`, `length`, `cut-splits-burned-caption {at}`. Op descriptions: `op-<op>` (e.g. `op-effect-add {effect, start, end}`,
 `op-revert {step, what}`).
+
+
+## 7. Imported finished videos (`python -m vstudio.project import`, `imports.py`, `vstudio/shotmatch.py`)
+
+A finished video made anywhere (another run, CapCut / 剪映, Final Cut, Premiere, a phone app) is imported as a work
+folder of its own under `$VSTUDIO_HOME/projects/import-<stamp>-<slug>/`: `final/<clip>/<platform>.mp4` (an APFS clone /
+copy - never a link to, never a write of, the original), its cover and post copy per platform, `.vstudio/import.json`
+(clips, versions with their original path + post copy, the linked footage). Footage is linked by absolute path and
+only read. `import --check` classifies what was dropped (finished vs footage, per clip, every verdict with its
+reasons: platform / export names, output folders, a cover or post beside it, editor vs camera tags, camera file names,
+platform canvases); `import-match` / `--match` matches the shots of a clip's versions to its footage
+(`.vstudio/shots/<version>.json`: per shot the source, in point, speed, crop box, the grade that maps the footage onto
+the finished colours); `import-copy` writes the post copy again (`vstudio.postcopy`, each platform in its language;
+the copy it came with stays as `post_original`).
+
+On such an output `show` adds `imported {clip, original, platform, sources, shots [{i, start, end, source, t, score,
+swap}], coverage}` and caps `imported, sources, shots, shot_swap, languages`; the AI gets the shots with their
+alternatives. Framing of another aspect follows the subject; a version WIDER than the file (a 16:9 YouTube cut of a
+vertical 小红书 video) or in another language is rebuilt shot by shot from the full source frame when at least 60 %
+of it is matched (stage `canvas` op `sources`); swapped shots go through a `splice` stage before the canvas.

@@ -33,6 +33,9 @@ from . import outfx as FX
 from . import outputs as OUT
 
 QUALITIES = ("preview", "final")
+VOICE = None                 # tests / embedders: fn(text, lang, out_wav) -> out_wav (else vstudio.tts)
+SOURCES_COVERAGE = 0.6       # matched share of an imported clip needed to rebuild a version from its footage
+WIDER = 1.08                 # a target this much wider than the file takes its pixels from the footage
 INTER = dict(preview=dict(crf=24, preset="ultrafast"), final=dict(crf=14, preset="veryfast"))
 KEEP_PER_STAGE = 4
 
@@ -50,7 +53,8 @@ def targets_of(rec, st, wanted=None):
     for x in st["exports"]:
         name, ori = x["target"].split(":")
         p = P.profile(name, ori)
-        out.append(dict(target=x["target"], w=p.w, h=p.h, profile=p, layout=x.get("layout") or "auto"))
+        out.append(dict(target=x["target"], w=p.w, h=p.h, profile=p, layout=x.get("layout") or "auto",
+                        lang=x.get("lang"), lines=x.get("lines") or [], voice=x.get("voice")))
     if wanted and wanted not in ("all", ["all"]):
         want = [wanted] if isinstance(wanted, str) else list(wanted)
         want = ["primary" if w == "primary" else OUT.target_key(w) for w in want]
@@ -110,6 +114,8 @@ def framing_fallback(rec):
     framing choice - a vlog follows the subject unless she picked the blurred fill - else the blurred fill. (A vlog
     re-exported from the clip page used to put its drone shots on a blurred band, unlike the project's own
     follow-the-subject vertical.)"""
+    if rec.get("imported"):                  # a finished video imported: footage-led (drone, travel) - follow it
+        return "subject"
     if rec.get("kind") != "project":
         return "pad-blur"
     try:
@@ -137,14 +143,24 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     band = rec["mode"] == "flattened" and (tg["layout"] == "band" or
                                            (st["captions"].get("placement") or {}).get("mode") == "band")
     same = (info["w"], info["h"]) == (tg["w"], tg["h"])
+    pieces = shot_pieces(rec, st, tg)
+    splice = None
+    if pieces and pieces["op"] == "splice":
+        splice = dict(pieces, src=src, sig=sig, keep="title-bar:2")
+        splice["key"] = sha1_json(["splice", splice, quality], 16)
     canvas = dict(src=src, sig=sig, w=tg["w"], h=tg["h"], src_wh=[info["w"], info["h"]],
                   op="none" if (same or band) else ("scale" if abs(info["w"] / info["h"] - tg["w"] / tg["h"]) < 0.01
                                                     else "reframe"),
                   safe=[round(x, 2) for x in _safe(tg)])
     if canvas["op"] == "reframe":
         canvas["fallback"] = framing_fallback(rec)
+    if pieces and pieces["op"] == "sources":
+        canvas.update(op="sources", pieces=pieces["pieces"], fps=pieces["fps"])
+    if splice:
+        canvas["splice"] = splice["key"]
     # no canvas work: the key is the source alone, so targets sharing it share the timeline / audio stages
-    canvas["key"] = sha1_json(["canvas", src, sig] if canvas["op"] == "none" else ["canvas", canvas, quality], 16)
+    canvas["key"] = sha1_json((["canvas", src, sig, splice["key"]] if splice else ["canvas", src, sig])
+                              if canvas["op"] == "none" else ["canvas", canvas, quality], 16)
     effs = st["effects"]
     grade = next((e["params"] for e in effs if e["effect"] == "vlog-grade"), None)
     endf = next((e["params"] for e in effs if e["effect"] == "end-fade"), None)
@@ -170,9 +186,24 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     audio = dict(sfx=sfx, music=music, lufs=lufs, tp=tp, has_audio=info["has_audio"])
     if studio:
         audio["studio"] = studio
+    if tg.get("lang") and tg.get("lines"):        # a language version: a new voice over a music bed
+        vl = []
+        for a_, b_, _said, text in tg["lines"]:
+            sp = tl.span(a_, b_)
+            if sp:
+                vl.append([round(sp[0], 3), round(sp[1], 3), text])
+        audio["voice"] = dict(lang=tg["lang"], lines=vl, voice=tg.get("voice") or "auto")
+        if not audio["music"]:
+            audio["music"] = dict(mood="calm", sig=["mood", "calm"], duck_db=-8, music_lufs=-26)
     audio["op"] = "none" if not (info["has_audio"] or sfx or music) else "mix"
     audio["key"] = sha1_json(["audio", timeline["key"], audio], 16)
     vis = visual_spec(rec, st, tl, tg, band)
+    if audio.get("voice"):                         # its captions: the translated lines (over the burned ones)
+        vis["captions"] = sorted(vis["captions"] + [[a_, b_, t_] for a_, b_, t_ in audio["voice"]["lines"]])
+        if rec["mode"] == "flattened" and canvas["op"] != "sources" and not vis.get("mask"):
+            bt = (doc.d.get("burned") or {})
+            if bt.get("captions") and bt.get("box"):
+                vis["mask"] = dict(box=bt["box"], style="blur", always=True)
     wm = watermark_spec(rec, tg, quality, watermark)
     if wm:                                             # only when drawn: keys of unmarked renders stay as they were
         vis["watermark"] = wm
@@ -191,7 +222,166 @@ def plan(rec, doc, st, tg, quality, watermark=None):
         cover = dict(cv, edit_t=tl.to_edit(cv["t"], "start"), size=_cover_size(tg))
         cover["key"] = sha1_json(["cover", timeline["key"], cover, rec["mode"]], 16)
     return dict(target=tg["target"], quality=quality, canvas=canvas, timeline=timeline, audio=audio, final=final,
-                cover=cover, tl=tl, band=band)
+                cover=cover, tl=tl, band=band, splice=splice)
+
+
+def shot_pieces(rec, st, tg):
+    """How an imported clip's picture is put together from its matched footage, or None (the file as it is):
+    ``splice`` - the output's own canvas with swapped shots replaced by their new take (same framing, the finished
+    grade); ``sources`` - a version whose canvas is wider than the file (or a language version, so no burned text
+    comes along) rebuilt shot by shot from the full source frame (unmatched shots: the file, fitted)."""
+    from vstudio import shotmatch as SM
+    if rec["mode"] != "flattened":
+        return None
+    m = OUT.shot_map(rec)
+    if not m:
+        return None
+    swaps = st.get("shots") or {}
+    fw, fh = rec["info"]["w"], rec["info"]["h"]
+    fps = round(float(rec["info"]["fps"] or 30.0), 3)
+    srcs = {x["path"]: x for x in m.get("sources") or []}
+    W, H = tg["w"], tg["h"]
+    same = abs(W / H - fw / fh) < 0.01
+    wider = (W / H) > (fw / fh) * WIDER
+    rebuild = (wider or (tg.get("lang") and tg.get("lines"))) and (m.get("coverage") or 0) >= SOURCES_COVERAGE
+    if not rebuild and not swaps:
+        return None
+    if not rebuild and tg["target"] != "primary" and not same:
+        rebuild = False                   # another aspect: the canvas stage reframes the spliced file
+    grades = {}
+    for x in m["shots"]:
+        if x.get("match") and x["match"].get("grade") and x["match"]["source"] not in grades:
+            grades[x["match"]["source"]] = x["match"]["grade"]
+    pieces = []
+    for x in m["shots"]:
+        mt, sw = x.get("match"), swaps.get(str(x["i"]))
+        a, b = x["start"], x["end"]
+        if sw and sw["source"] in srcs:
+            s_ = srcs[sw["source"]]
+            own = mt and mt["source"] == sw["source"]
+            base = mt["box"] if own else [0.0, 0.0, 1.0, 1.0]
+            if rebuild:
+                box = SM.fit_box(base, (s_["w"], s_["h"]), W / H, widest=True)
+                fbox = None
+            else:
+                fbox = mt["fbox"] if mt else None
+                part = (fbox[2] * fw) / max(1e-6, fbox[3] * fh) if fbox else fw / fh
+                box = SM.fit_box(base, (s_["w"], s_["h"]), part, widest=not own)
+            pieces.append(dict(a=a, b=b, kind="source", src=sw["source"], t=sw["t"],
+                               speed=(mt["speed"] if own else 1.0), box=box, fbox=fbox,
+                               grade=(mt.get("grade") if own else grades.get(sw["source"]))))
+        elif rebuild and mt and mt["source"] in srcs:
+            s_ = srcs[mt["source"]]
+            pieces.append(dict(a=a, b=b, kind="source", src=mt["source"], t=mt["t"], speed=mt["speed"],
+                               box=SM.fit_box(mt["box"], (s_["w"], s_["h"]), W / H, widest=wider),
+                               fbox=None, grade=mt.get("grade")))
+        else:
+            pieces.append(dict(a=a, b=b, kind="file"))
+    if not any(pc["kind"] == "source" for pc in pieces):
+        return None
+    if rebuild:
+        return dict(op="sources", pieces=pieces, fps=fps, w=W, h=H)
+    return dict(op="splice", pieces=pieces, fps=fps, w=fw, h=fh)
+
+
+def designed_bands(file, t, w, h):
+    """Rows at the top / bottom of a finished frame that are a designed band (a title bar, a caption box: mostly one
+    colour, its text on it) rather than video -> [(y0, y1)] in pixels. A new take keeps them over it."""
+    from vstudio import shotmatch as SM
+    sw = 320
+    sh = max(2, int(round(sw * h / max(1, w))))
+    try:
+        _t, fr = SM._decode(file, sw, sh, start=t, frames=1, color=True)
+    except Exception:  # noqa: BLE001
+        return []
+    if not len(fr):
+        return []
+    img = fr[0].astype(np.int16)
+
+    def run(rows):
+        ref = np.median(img[rows[0]].reshape(-1, 3), axis=0)
+        k, miss = 0, 0
+        for i, r in enumerate(rows):         # one colour, small text and thin rules on it
+            close = (np.abs(img[r] - ref).max(axis=1) <= 6).mean()
+            if close >= 0.6:
+                k, miss = i + 1, 0
+            else:
+                miss += 1
+                if miss > 3:
+                    break
+        return k
+    top = run(list(range(sh)))
+    if 0.04 * sh <= top <= 0.3 * sh:
+        return [(0, int(round(top * h / sh)))]
+    return []
+
+
+def title_bar(file, duration, w, h):
+    """A designed bar across the top of the whole video (the same height at 20 %, 50 % and 80 %) -> [(0, y1)] or []
+    (a dark sky at the top of one shot is not a bar)."""
+    got = [designed_bands(file, duration * f, w, h) for f in (0.2, 0.5, 0.8)]
+    if all(got) and max(g[0][1] for g in got) - min(g[0][1] for g in got) <= max(4, h * 0.01):
+        return [(0, min(g[0][1] for g in got))]
+    return []
+
+
+def run_pieces(spec, file, out, quality, workdir):
+    """Pieces (``shot_pieces``) -> one video on spec's canvas: each piece encoded on its own (an exact frame
+    count, so the joins never drift), joined, with the file's own sound."""
+    from vstudio import shotmatch as SM
+    m = _media()
+    W, H, fps = spec["w"], spec["h"], spec["fps"]
+    finfo = m.probe(file)
+    fw, fh = finfo["w"], finfo["h"]
+    parts = []
+    bands = None
+    enc = _enc("inter", quality, audio=False)
+    for j, pc in enumerate(spec["pieces"]):
+        n = int(round(pc["b"] * fps)) - int(round(pc["a"] * fps))
+        if n <= 0:
+            continue
+        dst = os.path.join(workdir, f"piece{j:03d}.mp4")
+        if pc["kind"] == "file":
+            if (fw, fh) == (W, H):
+                vf = f"fps={fps:g},format=yuv420p,setsar=1"
+            else:                                      # the file fitted on a blurred fill of itself
+                if W / H > fw / fh:
+                    bw = (H * fw / fh) / W
+                    fbox = [(1 - bw) / 2, 0.0, bw, 1.0]
+                else:
+                    bh = (W * fh / fw) / H
+                    fbox = [0.0, (1 - bh) / 2, 1.0, bh]
+                vf = SM.piece_filter([0.0, 0.0, 1.0, 1.0], W, H, fps, fbox=fbox)
+            cmd = ["ffmpeg", "-y", "-ss", f"{pc['a']:.4f}", "-i", file]
+        else:
+            vf = SM.piece_filter(pc["box"], W, H, fps, speed=pc.get("speed") or 1.0, grade=pc.get("grade"),
+                                 fbox=pc.get("fbox"))
+            cmd = ["ffmpeg", "-y", "-ss", f"{max(0.0, pc['t']):.4f}", "-i", pc["src"]]
+            if spec.get("op") == "splice" and bands is None:
+                bands = title_bar(file, finfo["duration"], fw, fh)
+            if bands and spec.get("op") == "splice":   # the finished video's title bar stays over the new take
+                g = f"[0:v]{vf},tpad=stop_mode=clone:stop_duration=30[p0]"
+                for k, (y0, y1) in enumerate(bands):
+                    g += (f";[1:v]crop={fw}:{y1 - y0}:0:{y0},fps={fps:g},format=yuv420p,setsar=1[b{k}]"
+                          f";[p{k}][b{k}]overlay=0:{y0}[p{k + 1}]")
+                m.run(cmd + ["-ss", f"{pc['a']:.4f}", "-i", file, "-an", "-filter_complex", g, "-map",
+                             f"[p{len(bands)}]", "-frames:v", str(n), *enc, dst])
+                parts.append(dst)
+                continue
+        vf += ",tpad=stop_mode=clone:stop_duration=30"     # a source that ends early holds its last frame
+        m.run(cmd + ["-an", "-vf", vf, "-frames:v", str(n), *enc, dst])
+        parts.append(dst)
+    lst = os.path.join(workdir, "pieces.txt")
+    with open(lst, "w", encoding="utf-8") as f:
+        f.write("".join(f"file '{x}'\n" for x in parts))
+    joined = os.path.join(workdir, "pieces.mp4")
+    m.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", joined])
+    if finfo["has_audio"]:
+        m.run(["ffmpeg", "-y", "-i", joined, "-i", file, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a",
+               "aac", "-b:a", "256k", "-shortest", out])
+    else:
+        shutil.copy2(joined, out)
+    return out
 
 
 def picture_untouched(rec, st, tg, full):
@@ -200,7 +390,7 @@ def picture_untouched(rec, st, tg, full):
     video is exactly the answer and only the audio is new."""
     if tg["target"] != "primary" or not full or float(st.get("speed") or 1.0) != 1.0:
         return False
-    if st.get("title") or st.get("theme"):
+    if st.get("title") or st.get("theme") or st.get("shots"):
         return False
     for e in st["effects"]:
         if FX.SPECS[e["effect"]]["stage"] != "audio":
@@ -432,8 +622,10 @@ def run_audio(spec, src, out, duration, workdir):
     from vstudio import audio as A
     m = _media()
     mix = os.path.join(workdir, "mix.wav")
-    has_a = m.probe(src)["has_audio"]
-    if has_a:
+    has_a = m.probe(src)["has_audio"] and not spec.get("voice")
+    if spec.get("voice"):                            # a language version: the new voice replaces the old mix
+        x = voice_track(spec["voice"], duration, workdir)
+    elif has_a:
         x = A.decode_audio(src, sr=A.SR, channels=2)
         if spec.get("studio"):
             from vstudio import studiosound
@@ -456,6 +648,55 @@ def run_audio(spec, src, out, duration, workdir):
         mix = bed
     A.loudnorm_2pass(mix, out, lufs=float(spec["lufs"]), tp=float(spec["tp"]))
     return out
+
+
+def _voice_for(lang, choice="auto"):
+    from vstudio import tts
+    eng = tts.available_engine()
+    if choice and choice != "auto":
+        return eng, choice
+    if lang == "zh":
+        return eng, tts.zh_voice(eng)
+    if lang == "fr" and eng == "kokoro":
+        return eng, "ff_siwis"
+    return eng, tts.default_voice(eng)
+
+
+def voice_track(v, duration, workdir):
+    """The lines of a language version voiced (vstudio.tts, or the VOICE hook) and laid at their times -> float32
+    (n, 2). A line longer than its slot is said up to 1.35x faster; past that it runs into the pause after it."""
+    from vstudio import audio as A
+    m = _media()
+    n = int(round(max(duration, 0.5) * A.SR))
+    x = np.zeros((n, 2), np.float32)
+    eng = voice = None
+    lines = v.get("lines") or []
+    for k, (a, b, text) in enumerate(lines):
+        wav = os.path.join(workdir, f"line{k:03d}.wav")
+        if VOICE is not None:
+            VOICE(text, v["lang"], wav)
+        else:
+            from vstudio import tts
+            if eng is None:
+                eng, voice = _voice_for(v["lang"], v.get("voice"))
+            got = tts.synth(text, engine=eng, voice=voice, out=wav)
+            if got and got != wav:
+                shutil.copy2(got, wav)
+        y = A.decode_audio(wav, sr=A.SR, channels=2)
+        nxt = lines[k + 1][0] if k + 1 < len(lines) else duration
+        slot = max(0.3, nxt - a - 0.08)
+        have = len(y) / A.SR
+        if have > slot:
+            rate = min(1.35, have / slot)
+            fast = os.path.join(workdir, f"line{k:03d}.fast.wav")
+            m.run(["ffmpeg", "-y", "-i", wav, "-af", m.atempo_chain(rate), "-ar", str(A.SR), fast])
+            y = A.decode_audio(fast, sr=A.SR, channels=2)
+        i0 = int(round(a * A.SR))
+        if i0 >= n:
+            continue
+        seg = y[: n - i0]
+        x[i0: i0 + len(seg)] += seg
+    return x
 
 
 def run_cover(spec, src, out, mode):
@@ -954,9 +1195,21 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
             work = tempfile.mkdtemp(prefix="voutedit-")
             try:
                 src = p["canvas"]["src"]
-                if p["canvas"]["op"] != "none":
+                if p.get("splice"):                    # swapped shots: the file with their new takes, first
+                    src = _stage(doc, stages, "splice", p["splice"]["key"], ".mp4",
+                                 lambda o: run_pieces(p["splice"], p["splice"]["src"], o, quality, work), status)
+                    emit(dict(event="stage-done", target=tg["target"], **{k: v for k, v in stages[-1].items()
+                                                                          if k != "file"}))
+                if p["canvas"]["op"] == "sources":
                     src = _stage(doc, stages, "canvas", p["canvas"]["key"], ".mp4",
-                                 lambda o: run_canvas(p["canvas"], o, quality, p["canvas"]["safe"]), status)
+                                 lambda o: run_pieces(dict(p["canvas"], w=tg["w"], h=tg["h"]), p["canvas"]["src"], o,
+                                                      quality, work), status)
+                    emit(dict(event="stage-done", target=tg["target"], **{k: v for k, v in stages[-1].items()
+                                                                          if k != "file"}))
+                elif p["canvas"]["op"] != "none":
+                    src = _stage(doc, stages, "canvas", p["canvas"]["key"], ".mp4",
+                                 lambda o, s0=src: run_canvas(dict(p["canvas"], src=s0), o, quality,
+                                                              p["canvas"]["safe"]), status)
                     emit(dict(event="stage-done", target=tg["target"], **{k: v for k, v in stages[-1].items()
                                                                           if k != "file"}))
                 if p["timeline"]["op"] != "none":

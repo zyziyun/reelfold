@@ -42,7 +42,7 @@ DOC_VERSION = 1
 MIN_KEEP_S = 1.0
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add",
        "caption_remove", "caption_placement", "title", "theme", "effect_add", "effect_remove", "effect_update", "cover",
-       "export_add", "export_remove", "reset", "pickup")
+       "export_add", "export_remove", "reset", "pickup", "shot_swap")
 # what a `theme` op hands back to the theme (restyle=true): explicit look keys of captions / title / effects
 THEME_LOOK = dict(caption=("color", "highlight", "stroke", "stroke_color", "font", "box", "box_color"),
                   title=("color", "band_color"), effect=("color", "anim", "angle", "theme"))
@@ -50,6 +50,9 @@ TARGET_ALIASES = {"3:4": "xiaohongshu:vertical", "9:16": "douyin:vertical", "16:
                   "小红书": "xiaohongshu", "抖音": "douyin", "b站": "bilibili", "B站": "bilibili", "视频号": "douyin",
                   "shorts": "youtube-shorts", "youtube shorts": "youtube-shorts"}
 TRANSCRIBE = None            # tests / embedders: fn(path, language) -> transcript dict or [{"w","t","te"}]
+TRANSLATE = None             # tests / embedders: fn(system, prompt) -> (json, info) for vstudio.bilingual
+LANGS = {"en": ("English", "英语"), "zh": ("Chinese", "中文"), "fr": ("French", "法语"), "ja": ("Japanese", "日语"),
+         "es": ("Spanish", "西班牙语"), "de": ("German", "德语"), "ko": ("Korean", "韩语"), "pt": ("Portuguese", "葡萄牙语")}
 
 
 # --------------------------------------------------------------------------- messages
@@ -357,6 +360,20 @@ def resolve(d, output):
                                 "the finished file", "这个成片没有保留干净母版：在成片上叠加编辑")
     else:
         rel = _relpath(o["file"], d)
+        from . import imports as IM
+        imp = IM.version_of(d, rel)
+        if imp:                                  # a finished video imported for second-pass editing
+            rec["imported"] = dict(clip=imp["clip"], title=imp["title"], sources=imp["sources"],
+                                   shots_path=imp["shots_path"], platform=imp["version"].get("platform"),
+                                   original=imp["version"].get("original"))
+            v = imp["version"]
+            post = v.get("post") or {}
+            said = " ".join(x for x in (post.get("title"), post.get("body")) if x)
+            if said.strip():                     # its post copy says the language: whisper's guess over a music
+                from vstudio import bilingual as BL   # intro is not trusted
+                rec["lang_hint"] = BL.detect_lang([said])
+            if v.get("platform"):
+                rec["platform"] = f"{v['platform']}:{v.get('orientation') or 'vertical'}"
         master, cpath = _work_master(d, rel)
         if master:
             cues = _cues_file(cpath)
@@ -403,14 +420,41 @@ def capabilities(rec, doc=None):
     if not rec["info"]["has_audio"]:
         caps["loudness"] = False
         notes.append(msg("no-audio", "the output has no audio track", "成片没有音轨"))
+    imp = rec.get("imported")
+    caps["imported"] = bool(imp)
+    caps["sources"] = len((imp or {}).get("sources") or [])
+    sm = shot_map(rec)
+    caps["shots"] = sum(1 for x in (sm or {}).get("shots") or [] if x.get("match")) if sm else 0
+    caps["shot_swap"] = bool(caps["shots"])
+    caps["languages"] = sorted(LANGS)          # export_add {lang}: a version re-voiced + re-captioned in it
+    if imp and not caps["sources"]:
+        notes.append(msg("no-footage", "no footage is linked: re-cuts and new aspects use the finished video only",
+                         "没有关联素材：重剪和换比例只能用成片本身"))
+    elif imp and not sm:
+        notes.append(msg("shots-not-matched", "the footage is linked but its shots are not matched yet",
+                         "已关联素材，镜头还没对齐"))
     return caps, notes
+
+
+def shot_map(rec):
+    """The shot match of an imported output (vstudio.shotmatch via imports.match_shots) or None - also None while a
+    pickup's spliced file is what the edits apply to (its shots are not the matched ones)."""
+    imp = rec.get("imported")
+    if not imp or not imp.get("shots_path") or rec.get("file") != (rec.get("orig") or {}).get("file", rec.get("file")):
+        return None
+    m = read_json(imp["shots_path"], None)
+    if not isinstance(m, dict) or not m.get("shots"):
+        return None
+    if abs(float(m.get("duration") or 0) - float(rec["info"]["duration"] or 0)) > 0.5:
+        return None
+    return m
 
 
 # --------------------------------------------------------------------------- the document
 def empty_state():
     return dict(trim=[None, None], cuts=[], speed=1.0, loudness=dict(lufs=None, tp=None),
                 captions=dict(enabled=None, style={}, overrides={}, removed=[], added=[], placement=None),
-                title=None, theme=None, effects=[], cover=None, exports=[], seq=0, base=None, pickups=[])
+                title=None, theme=None, effects=[], cover=None, exports=[], seq=0, base=None, pickups=[], shots={})
 
 
 class Doc:
@@ -534,8 +578,11 @@ def fold(st, op):
     elif k == "cover":
         st["cover"] = op.get("cover")
     elif k == "export_add":
-        st["exports"] = [x for x in st["exports"] if x["target"] != op["target"]] + [
-            dict(target=op["target"], layout=op.get("layout") or "auto")]
+        x = dict(target=op["target"], layout=op.get("layout") or "auto")
+        if op.get("lang"):
+            x.update(lang=op["lang"], src_lang=op.get("src_lang"), lines=op.get("lines") or [],
+                     voice=op.get("voice") or "auto")
+        st["exports"] = [e for e in st["exports"] if e["target"] != op["target"]] + [x]
     elif k == "export_remove":
         st["exports"] = [x for x in st["exports"] if x["target"] != op["target"]]
     elif k == "pickup":
@@ -543,6 +590,13 @@ def fold(st, op):
         st["base"] = op["file"]
         st["pickups"] = (st.get("pickups") or []) + [dict(id=op["id"], start=op["at"], end=round(op["at"] + op["dur"], 5),
                                                           text=op.get("text") or "", replaced=op.get("replaced") or "")]
+    elif k == "shot_swap":
+        sh = dict(st.get("shots") or {})
+        if op.get("swap"):
+            sh[str(op["shot"])] = dict(op["swap"])
+        else:
+            sh.pop(str(op["shot"]), None)
+        st["shots"] = sh
     elif k == "revert":
         pass                                     # a marker: Doc.state() skips the step it cancels
     elif k == "reset":
@@ -779,7 +833,7 @@ def words(doc, required=True):
     try:
         from vstudio.batch.livestatus import write as lw
         lw(doc.dir, "running", stage="transcribe", message=os.path.basename(doc.rec["file"]), by="output-edit")
-        raw = _transcriber()(doc.rec["file"], language=None)
+        raw = _transcriber()(doc.rec["file"], language=doc.rec.get("lang_hint"))
     except Exception as e:  # noqa: BLE001
         if required:
             raise _err("transcribe-failed", f"could not transcribe the output: {str(e)[:200]}",
@@ -1484,15 +1538,132 @@ def normalize(doc, st, op):
                                  "母版成片直接重新构图，不需要 band"))
                 lay = "auto"
             n["layout"] = lay
-            if not pipe and lay == "auto" and (burned_text(doc).get("captions")):
+            if not pipe and lay == "auto" and not op.get("lang") and (burned_text(doc).get("captions")):
                 warns.append(msg("relayout-crops-burned", "burned captions may be cropped by the re-layout; "
                                  "layout band keeps the whole frame", "换比例可能裁掉烧录字幕，band 布局可保留整幅画面",
                                  target=tk))
+            if op.get("lang"):
+                n.update(_language_version(doc, op, warns))
+                value["lines"] = len(n["lines"])
         elif not any(x["target"] == tk for x in st["exports"]):
             raise _err("unknown-target", f"{tk} is not in this output's exports", f"导出里没有 {tk}", target=tk)
+    elif k == "shot_swap":
+        n.update(_shot_swap(rec, st, op, value))
+        if n.get("swap") and (burned_text(doc).get("captions")):
+            warns.append(msg("swap-hides-burned", "the new take has no burned captions over it (a title bar or "
+                             "caption box of the video stays); add captions for that stretch if it needs them",
+                             "新镜头上没有原来烧录的字幕（标题条、字幕底框会保留）；需要的话为这段加字幕", shot=n["shot"]))
     elif k == "reset":
         pass
     return n, value, warns
+
+
+def _shot_swap(rec, st, op, value):
+    """{shot, source?, t?, restore?} -> {shot, swap {source, t} | None}: another take of one shot from the linked
+    footage (the picture only; the sound stays). No source: the next unused stretch of the shot's own footage (then
+    the other clips), skipping the take it has now."""
+    from vstudio import shotmatch as SM
+    m = shot_map(rec)
+    if not m:
+        raise _err("no-shots", "this clip has no matched footage: link the footage it was made from first",
+                   "这个片段没有对齐的素材：请先关联原始素材")
+    shots = m["shots"]
+    try:
+        i = int(op.get("shot"))
+    except (TypeError, ValueError):
+        raise _err("bad-param", "shot: the shot number (0-based)", "shot 需要镜头编号", name="shot") from None
+    if not (0 <= i < len(shots)):
+        raise _err("bad-param", f"shot {i}: this clip has shots 0-{len(shots) - 1}", f"没有镜头 {i}", name="shot",
+                   n=len(shots))
+    if op.get("restore") or op.get("swap") is None and op.get("original"):
+        value.update(shot=i, restored=True)
+        return dict(shot=i, swap=None)
+    cur = (st.get("shots") or {}).get(str(i))
+    need = shots[i]["end"] - shots[i]["start"]
+    srcs = {x["path"]: x for x in m.get("sources") or []}
+    src = op.get("source")
+    if src:
+        hit = [p for p in srcs if p == src or os.path.basename(p) == os.path.basename(str(src))]
+        if not hit:
+            raise _err("unknown-source", f"{src} is not footage linked to this clip", f"{src} 不是这个片段关联的素材",
+                       source=src, known=[os.path.basename(p) for p in srcs][:30])
+        src = hit[0]
+        t = op.get("t")
+        if t is None:
+            alt = next((a for a in SM.alternatives(m, i, n=12) if a["source"] == src), None)
+            t = alt["t"] if alt else 0.0
+        t = _num(t, "t")
+        dur = srcs[src].get("duration") or 0
+        if dur and t + need > dur + 0.05:
+            raise _err("bad-time", f"{os.path.basename(src)} has {dur:.1f}s: a {need:.1f}s take cannot start at "
+                       f"{t:g}s", "素材不够长", source=os.path.basename(src), t=t, need=round(need, 2))
+        why = "picked"
+    else:
+        alts = [a for a in SM.alternatives(m, i, n=12)
+                if not (cur and a["source"] == cur["source"] and abs(a["t"] - cur["t"]) < 0.05)]
+        if not alts:
+            raise _err("no-alternative", "the linked footage has no unused take long enough for this shot",
+                       "关联素材里没有够长的其他镜头", shot=i)
+        src, t, why = alts[0]["source"], alts[0]["t"], alts[0]["why"]
+    value.update(shot=i, source=os.path.basename(src), t=round(float(t), 3), why=why)
+    return dict(shot=i, swap=dict(source=src, t=round(float(t), 3)))
+
+
+def _sentences(W, max_s=9.0):
+    """Words -> spoken lines [(start, end, text)]: a new line at a sentence end, a pause over 0.6 s or ``max_s``."""
+    from vstudio import subs
+    out, cur = [], []
+    for w in W:
+        if cur and (w["t"] - cur[-1]["te"] > 0.6 or w["te"] - cur[0]["t"] > max_s):
+            out.append(cur)
+            cur = []
+        cur.append(w)
+        if re.search(r"[.!?。！？…]$", w["w"].strip()):
+            out.append(cur)
+            cur = []
+    if cur:
+        out.append(cur)
+    rows = []
+    for g in out:
+        txt = subs.cues_from_words(g, max_chars=10000)
+        text = " ".join(c.text for c in txt).strip()
+        if text:
+            rows.append((round(g[0]["t"], 3), round(g[-1]["te"], 3), text))
+    return rows
+
+
+def _language_version(doc, op, warns):
+    """export_add {lang}: what is said, line by line, translated (vstudio.bilingual, the routed ``translate``
+    model) -> {lang, src_lang, lines [[start, end, said, translated]], voice}. The render re-voices it (vstudio.tts)
+    over a music bed and captions it in that language."""
+    from vstudio import bilingual as BL
+    lang = str(op.get("lang") or "").strip().lower()[:5]
+    lang = {"cn": "zh", "zh-cn": "zh", "chinese": "zh", "english": "en", "french": "fr"}.get(lang, lang)
+    if lang not in LANGS:
+        raise _err("bad-param", f"lang: one of {', '.join(sorted(LANGS))}", "不支持这种语言", name="lang", value=lang)
+    if not doc.rec["info"]["has_audio"]:
+        raise _err("no-audio", "the output has no audio: nothing to re-voice", "成片没有音轨，无法重新配音")
+    W = words(doc, required=True)
+    rows = _sentences(W)
+    if not rows:
+        raise _err("no-words", "nobody speaks in this clip: a language version needs speech (add captions instead)",
+                   "片子里没有人声：换语言版本需要有说话（可以改为加字幕）")
+    src_lang = BL.detect_lang([r[2] for r in rows])
+    if src_lang == lang:
+        warns.append(msg("same-language", "the clip is already in this language: the lines are voiced again as "
+                         "they are", "片子本来就是这种语言：按原文重新配音", lang=lang))
+        tr = [r[2] for r in rows]
+    else:
+        tr, info = BL.translate_texts([r[2] for r in rows], src_lang, lang, call=TRANSLATE)
+        if info.get("missing") or info.get("error"):
+            if not any(tr):
+                raise _err("needs-model", "translating needs an AI model (Settings › AI); nothing was translated",
+                           "翻译需要 AI 模型（设置 › AI）；没有翻译任何内容", error=info.get("error"))
+            warns.append(msg("lines-untranslated", f"{info.get('missing')} line(s) could not be translated and are "
+                             "left out", f"{info.get('missing')} 句没能翻译，已略过", n=info.get("missing")))
+    lines = [[a, b, said, t] for (a, b, said), t in zip(rows, tr) if (t or "").strip()]
+    voice = op.get("voice") or "auto"
+    return dict(lang=lang, src_lang=src_lang, lines=lines, voice=str(voice)[:80])
 
 
 def describe(op, value=None):
@@ -1523,7 +1694,20 @@ def describe(op, value=None):
         return msg("op-effect-add", f"add {s['en']} at {op['start']:g}s", f"在 {op['start']:g} 秒加{s['zh']}",
                    effect=op["effect"], start=op["start"], end=op["end"])
     if k == "export_add":
+        if op.get("lang"):
+            en, zh = LANGS.get(op["lang"], (op["lang"], op["lang"]))
+            return msg("op-export-lang", f"a {en} version for {op['target']} (voice + captions)",
+                       f"{op['target']} 的{zh}版本（配音 + 字幕）", target=op["target"], lang=op["lang"],
+                       lines=len(op.get("lines") or []))
         return msg("op-export-add", f"export {op['target']}", f"导出 {op['target']}", target=op["target"])
+    if k == "shot_swap":
+        sw = op.get("swap")
+        if not sw:
+            return msg("op-shot-restore", f"shot {op['shot'] + 1} back to the original take",
+                       f"第 {op['shot'] + 1} 个镜头换回原来的", shot=op["shot"])
+        return msg("op-shot-swap", f"shot {op['shot'] + 1}: another take from {os.path.basename(sw['source'])} at "
+                   f"{sw['t']:g}s", f"第 {op['shot'] + 1} 个镜头换成 {os.path.basename(sw['source'])} 的 {sw['t']:g} 秒",
+                   shot=op["shot"], source=os.path.basename(sw["source"]), t=sw["t"])
     if k == "caption_add":
         return msg("op-caption-add", f"add {len(op['cues'])} caption(s)", f"新增 {len(op['cues'])} 条字幕",
                    n=len(op["cues"]))
@@ -2070,6 +2254,7 @@ def show_doc(rec, doc):
                paths=dict(doc=doc.path, dir=doc.dir, renders=os.path.join(doc.dir, "renders"),
                           transcript=transcript_path(doc)))
     out["pickups"] = list(st.get("pickups") or [])
+    out["imported"] = _imported_doc(rec, st)
     W = cached_words(doc)
     out["words_sig"] = words_sig(W) if W is not None else None
     try:
@@ -2077,6 +2262,24 @@ def show_doc(rec, doc):
     except Exception:  # noqa: BLE001  (marks are a hint: show never fails because of them)
         out["marks"] = []
     return out
+
+
+def _imported_doc(rec, st):
+    """An imported output: its clip, the footage linked, its shots (with their current take) - None otherwise."""
+    imp = rec.get("imported")
+    if not imp:
+        return None
+    m = shot_map(rec)
+    cur = st.get("shots") or {}
+    shots = None
+    if m:
+        shots = [dict(i=x["i"], start=x["start"], end=x["end"],
+                      source=x["match"]["source"] if x.get("match") else None,
+                      t=x["match"]["t"] if x.get("match") else None,
+                      score=x["match"]["score"] if x.get("match") else None,
+                      swap=cur.get(str(x["i"]))) for x in m["shots"]]
+    return dict(clip=imp["clip"], original=imp.get("original"), platform=imp.get("platform"),
+                sources=imp.get("sources") or [], shots=shots, coverage=(m or {}).get("coverage"))
 
 
 # --------------------------------------------------------------------------- transcript marks
@@ -2191,7 +2394,12 @@ OP_DOC = {
     "effect_remove": "{op, id}",
     "effect_update": "{op, id, start?, end?, shift?, params?}",
     "cover": "{op, t, text, style card|plain|band}",
-    "export_add": "{op, target: platform[:orientation] | 3:4 | 9:16 | 16:9, layout?: auto|band}",
+    "export_add": "{op, target: platform[:orientation] | 3:4 | 9:16 | 16:9, layout?: auto|band, lang?: en|zh|fr|..} "
+                  "lang = a version in another language: the speech translated, voiced again and captioned "
+                  "(e.g. an English YouTube version of a Chinese clip)",
+    "shot_swap": "{op, shot, source?, t?, restore?} imported clips with matched footage only (`shots` in the context): "
+                 "replace the picture of one shot with another take from the linked footage (the sound stays); "
+                 "no source = the next unused take; restore: true = back to the original",
 }
 
 
@@ -2223,7 +2431,28 @@ def _ai_context(rec, doc, st, use_asr=True):
                                       effects=[dict(id=e["id"], effect=e["effect"], start=e["start"], end=e["end"])
                                                for e in st["effects"]], exports=st["exports"],
                                       caption_style=st["captions"]["style"]),
-                ops=OP_DOC, effects=fx, transcript=lines)
+                ops={k: v for k, v in OP_DOC.items() if k != "shot_swap" or caps.get("shot_swap")}, effects=fx,
+                transcript=lines, **_shots_context(rec, st))
+
+
+def _shots_context(rec, st):
+    """For the model: the shots of an imported clip, where each came from and the other takes it could use."""
+    from vstudio import shotmatch as SM
+    m = shot_map(rec)
+    if not m:
+        return {}
+    cur = st.get("shots") or {}
+    rows = []
+    for x in m["shots"][:80]:
+        mt = x.get("match")
+        sw = cur.get(str(x["i"]))
+        rows.append(dict(shot=x["i"], start=x["start"], end=x["end"],
+                         source=os.path.basename(mt["source"]) if mt else None, at=mt["t"] if mt else None,
+                         swapped=dict(source=os.path.basename(sw["source"]), t=sw["t"]) if sw else None,
+                         alternatives=[dict(source=os.path.basename(a["source"]), t=a["t"], why=a["why"])
+                                       for a in SM.alternatives(m, x["i"], n=3)]))
+    return dict(shots=rows, footage=[dict(file=os.path.basename(s["path"]), duration=s["duration"])
+                                     for s in m.get("sources") or []][:60])
 
 
 def check_context(ctx, rec, st):
