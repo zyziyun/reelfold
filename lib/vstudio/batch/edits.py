@@ -421,14 +421,14 @@ def _text_cover(frame_path, text, out_path):
             size = max(28, int(W / max(6, max(len(x) for x in lines) + 1)))
             if size < H * 0.06:          # a long title read as small print on a phone: wrap it, larger
                 size = int(H * 0.07)
-                whole = " ".join(lines)
+                given = list(lines)                      # her line breaks ("|") stay; each wraps on its own
                 while True:
                     f = ImageFont.truetype(font("cjk-bold"), size)
-                    lines = _wrap_cover(whole, f, W * 0.88, d)
-                    if len(lines) <= 3 or size <= max(28, H * 0.035):
+                    lines = [x for g in given for x in _wrap_cover(g, f, W * 0.88, d)]
+                    if len(lines) <= 4 or size <= max(28, H * 0.035):
                         break
-                    size = int(size * 0.9)
-                lines = lines[:3]
+                    size = int(size * 0.92)
+                lines = lines[:4]
             f = ImageFont.truetype(font("cjk-bold"), size)
             y = H - int(size * 1.25) * len(lines) - int(H * 0.08)
             for ln in lines:
