@@ -42,6 +42,9 @@ export const SITE = {
    * that release has none (or downloadReady is off). Shown as a small secondary link under the macOS button only.
    */
   windowsDownloadUrl: RELEASE.windowsUrl,
+
+  /** Version of the latest published release (JSON-LD softwareVersion), or null when the build could not tell. */
+  version: RELEASE.version,
 } as const;
 
 export const site = SITE.url.replace(/\/$/, '');
@@ -55,9 +58,9 @@ export const platformsDocUrl = `${SITE.githubUrl}/blob/main/references/PLATFORMS
 /**
  * Docs: a separate Starlight site (apps/docs), copied into dist/docs at deploy time and served by this site's
  * Worker. This site never builds anything under /docs and has no redirect for it.
- * Locale paths: /docs/ (en), /docs/zh-cn/, /docs/fr/, /docs/es/.
+ * Locale paths: /docs/ (en), /docs/zh/, /docs/fr/, /docs/es/.
  */
-export const DOCS_PATH = { en: '/docs/', zh: '/docs/zh-cn/', fr: '/docs/fr/', es: '/docs/es/' } as const;
+export const DOCS_PATH = { en: '/docs/', zh: '/docs/zh/', fr: '/docs/fr/', es: '/docs/es/' } as const;
 
 /** Claude Code skill install (same text as the repo README). */
 export const SKILL_CMD = [
