@@ -219,6 +219,18 @@ def _cover_size(tg):
     return [tg["w"], tg["h"]]
 
 
+def _recipe_of(rec):
+    """The recipe id of the project an output belongs to (project.yaml ``recipe``), else None."""
+    if rec.get("kind") != "project" or not rec.get("owner"):
+        return None
+    try:
+        import yaml
+        with open(os.path.join(rec["owner"], "project.yaml"), encoding="utf-8") as f:
+            return (yaml.safe_load(f) or {}).get("recipe")
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def visual_spec(rec, st, tl, tg, band):
     """Everything the frame pass draws, in edited seconds (JSON: it is part of the final key)."""
     layers = []
@@ -273,10 +285,12 @@ def visual_spec(rec, st, tl, tg, band):
     if band:
         bandspec = dict(band=float(pl.get("band") or 0.2), title=bool(st.get("title")))
     from vstudio import theme as TH
-    look = TH.resolve(st.get("theme"))                 # the resolved look is part of the final key: a persona /
+    fallback = TH.default_for(_recipe_of(rec))         # vlog / photo-story: cinema unless a theme is named
+    with TH.fallback(fallback):
+        look = TH.resolve(st.get("theme"))             # the resolved look is part of the final key: a persona /
     look = sha1_json({k: v for k, v in look.items() if k != "source"}, 12)   # client theme change re-renders
     return dict(layers=layers, captions=caps, style=c["style"], title=st.get("title"), theme=st.get("theme"),
-                look=look, mask=mask, band=bandspec,
+                look=look, fallback_theme=fallback, mask=mask, band=bandspec,
                 dips=dips, safe=[round(x, 2) for x in _safe(tg)], caption_box=[round(x, 2) for x in _caption_box(tg)],
                 mode=rec["mode"])
 
@@ -615,7 +629,7 @@ def _band_layout(W, H, sw, sh, band_frac, title):
 def frame_pass(src, out, audio_wav, vis, tg, fps, quality, final_encode, beat):
     """The per-frame pass, drawn inside the output's theme (``theme`` op; None = the creator's default)."""
     from vstudio import theme as TH
-    with TH.use(vis.get("theme")):
+    with TH.fallback(vis.get("fallback_theme")), TH.use(vis.get("theme")):
         return _frame_pass(src, out, audio_wav, vis, tg, fps, quality, final_encode, beat)
 
 

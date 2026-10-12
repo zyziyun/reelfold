@@ -59,6 +59,8 @@ _BASE = dict(
     title_align="center",
     # motion
     motion=dict(in_s=0.28, out_s=0.2, rise=0.012, ease="cubic-out", overshoot=False),
+    # bare=True: furniture over video has no card at all - text in the over-video ink on a soft shadow
+    bare=False,
 )
 
 
@@ -105,6 +107,18 @@ PRESETS = {
         over_emph="#FFD3D9", font_title="cjk-bold", font_quote="cjk-bold", radius=16,
         stamp=dict(style="outline", color="accent", angle=-3.0, anim="pop", border=3), pop=dict(anim="pop"),
         motion=dict(overshoot=True)),
+    # premium documentary / travel film: no cards over the picture, one serif + one sans, champagne accent, slow eases
+    "cinema": _p(
+        label="Cinema", label_zh="电影感",
+        desc_zh="不加卡片：画面上只有细字（思源宋体 + 思源黑体常规）、柔和投影、一点香槟色；缓慢淡入淡出，适合风景 / 航拍 / 纪录片",
+        paper="#111213", ink="#F2EFE9", ink2="#BDB7AC", rule="#3A3B3E", accent="#C9B48A", accent_ink="#111213",
+        marker="#C9B48A", marker_alpha=0.28, emphasis="color", emph_per_line=1, card="#111213", card_alpha=0.0,
+        card_ink="#F4F1EA", over_ink="#F6F3EC", over_emph="#E6D3AC", over_stroke_w=0.0, over_shadow=150,
+        over_ink2="#DCD5C8", font_title="cjk-serif", font_strong="cjk", font_body="cjk", font_quote="cjk-serif",
+        font_caption="cjk", font_label="cjk", label_track=0.22, radius=0, shadow=(22, 2, 150),
+        stamp=dict(style="label", color="accent", anim="rise"), pop=dict(style="underline", anim="rise"),
+        progress=dict(style="line", height=2, fill="accent", track="rule", label=False),
+        motion=dict(in_s=0.6, out_s=0.5, rise=0.006, ease="cubic-out", overshoot=False), bare=True),
     # the pre-theme look (red header notes, red glyph quote, slamming stamps): kept for existing setups
     "classic": _p(
         label="Classic", label_zh="旧版（红色）", desc_zh="改版前的样子：红色标题 / 黑底红头笔记卡 / 砸入印章",
@@ -116,8 +130,9 @@ PRESETS = {
         pop=dict(style="stroke", anim="pop", angle=-4.0), progress=dict(style="refined", height=7),
         band="blur", motion=dict(in_s=0.22, out_s=0.18, rise=0.0, overshoot=True)),
 }
-CHOICES = ("editorial", "mono", "soft", "night", "xhs-pop")       # what the creator is offered
-ALIASES = {"default": "editorial", "高级": "editorial", "编辑": "editorial", "编辑感": "editorial", "杂志": "editorial",
+CHOICES = ("cinema", "editorial", "mono", "soft", "night", "xhs-pop")   # what the creator is offered
+ALIASES = {"default": "editorial", "电影": "cinema", "电影感": "cinema", "film": "cinema", "cinematic": "cinema",
+           "documentary": "cinema", "纪录片": "cinema", "高端": "cinema", "premium": "cinema", "高级": "editorial", "编辑": "editorial", "编辑感": "editorial", "杂志": "editorial",
            "黑白": "mono", "黑白灰": "mono", "极简": "mono", "柔和": "soft", "低饱和": "soft", "温柔": "soft",
            "夜间": "night", "深色": "night", "暗色": "night", "小红书": "xhs-pop", "小红书红": "xhs-pop",
            "xhs": "xhs-pop", "旧版": "classic", "legacy": "classic"}
@@ -125,6 +140,31 @@ COLOR_TOKENS = ("paper", "ink", "ink2", "rule", "accent", "accent_ink", "marker"
                 "over_emph", "over_stroke")
 
 _EXPLICIT = contextvars.ContextVar("vstudio_theme", default=None)
+_FALLBACK = contextvars.ContextVar("vstudio_theme_fallback", default=None)
+# recipes made of beautiful footage (drone / travel films) use the persona's ``style.footage_theme`` (default
+# cinema: no cards over the picture, references/AESTHETICS.md) ABOVE her general ``style.theme`` - the talking-head
+# look she picked does not leak onto her aerial films. An explicit / project / client theme still wins.
+FOOTAGE_RECIPES = ("vlog", "photo-story")
+FOOTAGE_DEFAULT = "cinema"
+
+
+def default_for(recipe):
+    """``FOOTAGE_DEFAULT`` for a footage recipe id (vlog / photo-story), else None."""
+    return FOOTAGE_DEFAULT if str(recipe or "") in FOOTAGE_RECIPES else None
+
+
+@contextlib.contextmanager
+def fallback(name):
+    """Within the block the footage layer is on: persona ``style.footage_theme``, else ``name`` (cinema), sits above
+    the persona's ``style.theme``. None = no change."""
+    if not name:
+        yield
+        return
+    tok = _FALLBACK.set(name)
+    try:
+        yield
+    finally:
+        _FALLBACK.reset(tok)
 
 
 def names(all_=False):
@@ -193,6 +233,13 @@ def _recipe_layer(recipe):
         return None
 
 
+def _footage_layer(recipe, style):
+    fb = _FALLBACK.get() or (default_for(recipe) if isinstance(recipe, str) else None)
+    if not fb:
+        return None
+    return _layer(style.get("footage_theme") or fb)
+
+
 def layers(explicit=None, recipe=None, persona=None):
     """[(source, layer)] in priority order (only the set ones)."""
     p = _persona() if persona is None else persona
@@ -202,6 +249,7 @@ def layers(explicit=None, recipe=None, persona=None):
                    ("env", _layer(os.environ.get("VSTUDIO_THEME"))),
                    ("recipe", _recipe_layer(recipe)),
                    ("client", _layer((p.get("client") or {}).get("theme") if isinstance(p.get("client"), dict) else None)),
+                   ("footage", _footage_layer(recipe, style)),
                    ("persona", _layer(dict(style, theme=style.get("theme")) if style else None))):
         if v:
             out.append((src, v))

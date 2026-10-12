@@ -61,9 +61,9 @@ params:
       title: Retouch the face on the cover (slim + light makeup)
       x-zh: 封面修图（瘦脸 + 淡妆）
     theme:
-      enum: [editorial, mono, soft, night, xhs-pop, classic]
+      enum: [cinema, editorial, mono, soft, night, xhs-pop, classic]
       title: Look (design theme; empty = the persona's style.theme)
-      x-zh: 配色主题（空 = 人设里的 style.theme；editorial 编辑感 / mono 黑白灰 / soft 柔和 / night 夜间 / xhs-pop 小红书红）
+      x-zh: 配色主题（空 = 人设里的 style.theme；cinema 电影感 / editorial 编辑感 / mono 黑白灰 / soft 柔和 / night 夜间 / xhs-pop 小红书红）
     platforms:
       type: array
       items: {type: string}

@@ -887,7 +887,9 @@ def quote_block(lines, width, theme=None, card=False, speaker=None, scale=1.0, s
     sp_h = (sum(fsub.getmetrics()) + _s(22, u)) if speaker else 0
     H = pad * 2 + top + sum(b.height for _, b in blocks) + sum(gaps) + sp_h
     W = int(width)
-    if card:
+    if card and T.get("bare"):                         # cinema: no card - the text sits on the picture
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    elif card:
         im = rounded_rect((W, H), _s(T["radius"], u), TH.rgb(T, "card") + (int(255 * T["card_alpha"]),))
     else:
         im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -1047,9 +1049,28 @@ def counter(value, t=99.0, label=None, theme=None, size=120, dur=0.9, prefix="",
 
 
 def lower_third(name, role=None, theme=None, scale=1.0, width=None):
-    """Name super: theme card, name in strong ink, role in ink2, a short accent rule at the left."""
+    """Name super: theme card, name in strong ink, role in ink2, a short accent rule at the left. A ``bare`` theme
+    (cinema): no card - a short accent hairline, the name letter-spaced in the over-video ink, the role smaller and
+    quieter under it (a documentary place / name caption); the caller adds the soft shadow."""
     T = _T(theme)
     u = scale
+    if T.get("bare"):
+        latin = not any("\u3000" <= ch <= "\u9fff" for ch in name)
+        fn = load_font(T["font_strong"], _s(30, u))
+        fr = load_font(T["font_body"], _s(22, u))
+        tr = T["label_track"] if latin else 0.08
+        label = name.upper() if latin else name
+        nw = text_width(label, fn) + fn.size * tr * max(0, len(label) - 1)
+        w = int(width or (max(nw, text_width(role or "", fr)) + _s(12, u)))
+        rule = _s(18, u)
+        h = rule + sum(fn.getmetrics()) + (sum(fr.getmetrics()) + _s(10, u) if role else 0) + _s(6, u)
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        d.rectangle([0, 0, _s(44, u), max(1, _s(2, u)) - 1], fill=TH.rgba(T, "accent"))
+        draw_tracked(d, (0, rule), label, fn, TH.rgba(T, "over_ink"), tr)
+        if role:
+            d.text((0, rule + sum(fn.getmetrics()) + _s(10, u)), role, font=fr, fill=TH.rgba(T, "over_ink2"))
+        return im
     fn = load_font(T["font_strong"], _s(38, u))
     fr = load_font(T["font_body"], _s(26, u))
     PX, PY = _s(30, u), _s(20, u)

@@ -121,7 +121,7 @@ def test_no_saturated_red_by_default(name):
         h, l, s = colorsys.rgb_to_hls(r, g, b)
         red = (h < 0.03 or h > 0.95) and s > 0.75 and 0.3 < l < 0.7
         assert not red, f"{name}.{k} is a saturated red"
-    assert T["motion"]["in_s"] <= 0.35 and not T["motion"]["overshoot"]
+    assert T["motion"]["in_s"] <= (0.7 if name == "cinema" else 0.35) and not T["motion"]["overshoot"]   # S7 / S7c
     assert T["stamp"]["angle"] == 0 and T["stamp"]["anim"] != "slam"
     assert T["notes"] == "paper" and T["quote"] == "type"
 
@@ -291,3 +291,27 @@ def test_paper_caption_shrinks_before_it_wraps():
     c.box = (540 - w * 0.53, 1000, 540 + w * 0.53, 1300)                       # ~6 % too narrow for one line
     one = c.layer(0, text, "paper")
     assert one.shape[0] < size * 2.5                                               # one line, a little smaller
+
+
+def test_footage_recipes_default_to_cinema_above_the_persona_theme():
+    """2026-10-12: her talking-head theme (editorial: white cards) made the drone films' quote cards look plain;
+    vlog / photo-story outputs use style.footage_theme (default cinema: no cards) unless a theme is named."""
+    P = {"style": {"theme": "editorial"}}
+    assert TH.resolve(persona=P)["name"] == "editorial"
+    assert TH.resolve(recipe="vlog", persona=P)["name"] == "cinema"
+    with TH.fallback("cinema"):
+        assert TH.resolve(persona=P)["name"] == "cinema"
+        assert TH.resolve("mono", persona=P)["name"] == "mono"           # an explicit / output theme still wins
+        assert TH.resolve(persona={"style": {"theme": "editorial", "footage_theme": "soft"}})["name"] == "soft"
+    assert TH.resolve(recipe="talkinghead", persona=P)["name"] == "editorial"
+
+
+def test_cinema_furniture_has_no_card():
+    from vstudio import overlays as O
+    T = TH.resolve("cinema")
+    assert T["bare"] and T["card_alpha"] == 0
+    im = O.lower_third("Columbia River", "Vantage, WA", theme="cinema")
+    a = np.asarray(im)[..., 3]
+    assert (a > 0).mean() < 0.35                    # text and a hairline, not a filled card
+    q = np.asarray(O.quote_block("Let the light take its time.", 900, theme="cinema", card=True))[..., 3]
+    assert (q > 0).mean() < 0.35
