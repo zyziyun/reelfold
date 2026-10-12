@@ -15,7 +15,7 @@ import { useUi } from '../v4/ui';
 import { MonthGrid, SlotPicker, WeekGrid, type DragData, type Proposed } from './Board';
 import { DataView } from './DataView';
 import { PostDrawer } from './Drawer';
-import { addDays, base, groupPosts, iso, sortIds, weekStart, type PostGroup } from './model';
+import { addDays, base, groupPosts, iso, postCount, sortIds, weekStart, type PostGroup } from './model';
 import { DueBanner } from './DueBanner';
 import { NlBar } from './NlBar';
 import { PublishOnboarding } from './Onboarding';
@@ -88,6 +88,7 @@ export function PublishBoard() {
   const inRange = allGroups.filter((g) => g.day >= range[0] && g.day <= range[1]);
   const groups = activeFilter === 'all' ? inRange : inRange.filter((g) => g.platforms.includes(activeFilter) || g.posts.some((p) => base(p.platform) === activeFilter));
   const open = openKey ? allGroups.find((g) => g.key === openKey) ?? null : null;
+  const nPosts = postCount(inRange);
   const look = inRange.filter((g) => g.warnings.length).length;
   const toConfirm = inRange.filter((g) => g.on.some((p) => p.state === 'planned')).length;
   const freeTime = targets.length ? accounts.timeOf(targets[0]) : null;
@@ -168,16 +169,16 @@ export function PublishBoard() {
 
   const subtitle = () => {
     if (view === 'data') return <span>{t('pb.sub.data')}</span>;
-    if (shown?.ok) return <span>{t('pb.sub.range', { n: inRange.length, range: `${fmtDate(days[0])} – ${fmtDate(days[6])}` })} · {t('pb.sub.waiting', { n: queue.length })}</span>;
+    if (shown?.ok) return <span>{t('pb.sub.range', { n: nPosts, range: `${fmtDate(days[0])} – ${fmtDate(days[6])}` })} · {t('pb.sub.waiting', { n: queue.length })}</span>;
     if (!posts.length) return <span>{t('pb.sub.nothing', { n: queue.length })}</span>;
     const main =
       view === 'month'
-        ? t('pb.sub.month', { n: inRange.length, month: fmtDate(month, { month: 'long' }) })
+        ? t('pb.sub.month', { n: nPosts, month: fmtDate(month, { month: 'long' }) })
         : off === 0
-          ? t('pb.sub.this', { n: inRange.length })
+          ? t('pb.sub.this', { n: nPosts })
           : off === 1
-            ? t('pb.sub.next', { n: inRange.length })
-            : t('pb.sub.range', { n: inRange.length, range: `${fmtDate(days[0])} – ${fmtDate(days[6])}` });
+            ? t('pb.sub.next', { n: nPosts })
+            : t('pb.sub.range', { n: nPosts, range: `${fmtDate(days[0])} – ${fmtDate(days[6])}` });
     return (
       <span>
         {main}

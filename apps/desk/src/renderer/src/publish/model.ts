@@ -120,6 +120,12 @@ export function groupPosts(posts: CalendarPost[], platformOrder: string[] = []):
   return out.sort((a, b) => a.at.localeCompare(b.at) || a.title.localeCompare(b.title));
 }
 
+/** How many posts the groups go out as: one per platform she posts to (a card is one clip on one day, on several
+ * platforms) - the number the header says ("13 posts next week"), the same the Studio counts as scheduled. */
+export function postCount(groups: Pick<PostGroup, 'on'>[]): number {
+  return groups.reduce((n, g) => n + g.on.length, 0);
+}
+
 export interface QueueGroup {
   item: string;
   project: string;

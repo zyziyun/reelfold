@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CalendarPost, SchedulePlan } from '../../src/shared/v04';
 import { setLang } from '../../src/renderer/src/i18n';
-import { groupPosts, groupStatus, overflowAt, parseWhen, queueByProject, weekStart } from '../../src/renderer/src/publish/model';
+import { groupPosts, groupStatus, overflowAt, postCount, parseWhen, queueByProject, weekStart } from '../../src/renderer/src/publish/model';
 import { daysText, planSummary } from '../../src/renderer/src/publish/NlBar';
 import { registerSettingsSection, settingsSections } from '../../src/renderer/src/settings/registry';
 import { engineWords, pythonWords } from '../../src/renderer/src/settings/words';
@@ -33,6 +33,8 @@ describe('publish board model', () => {
     expect(g[0].warnings.map((w) => w.kind)).toEqual(['slot_clash']);
     expect(g[1].views).toBe(15);
     expect(g[2].views).toBeNull();
+    // the header counts posts (one per switched-on platform), not cards: 3 cards, 5 posts (x is off)
+    expect(postCount(g)).toBe(5);
   });
 
   it('calm status: all posted, one filled form waiting, all ready, else draft', () => {

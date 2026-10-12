@@ -148,3 +148,24 @@ test('a request on autopilot stays on its run page and moves on into its project
   expect(after).not.toContain('skeleton');
   expect(after.filter((h) => h !== 'skeleton' && !h.includes(rid) && !h.includes(pid))).toEqual([]);
 });
+
+test('the Publish header counts posts, the same number that is scheduled ("3 posts next week", not 2 cards)', async () => {
+  test.setTimeout(120000);
+  const d = new Date();
+  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7) + 1); // next week's Tuesday
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const made = await api<{ ok: boolean; posts: unknown[] }>('/api/calendar/many', {
+    posts: [
+      { item: ids.a, clip: 'talk', platform: 'tiktok', at: `${day}T18:00` },
+      { item: ids.a, clip: 'talk', platform: 'youtube-shorts', at: `${day}T18:00` },
+      { item: ids.b, clip: 'talk', platform: 'tiktok', at: `${day}T20:00` },
+    ],
+  });
+  expect(made.ok).toBe(true);
+  expect(made.posts).toHaveLength(3);
+  await hash('#/publish');
+  await expect(page.getByTestId('calendar')).toBeVisible({ timeout: 30000 });
+  await page.getByTestId('pb-next').click();
+  await expect(page.getByTestId('pb-sub')).toContainText('3 posts next week', { timeout: 30000 });
+  await shot('F4-publish-count');
+});
