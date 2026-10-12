@@ -59,6 +59,21 @@ def _persona_subs():
 _HI = re.compile(r"【([^】]*)】|\*\*(.+?)\*\*")
 
 
+CUE_FADE = 0.18      # s: burned captions fade over 2 x this, centred on each cue edge
+
+
+def cue_opacity(a, b, t, fade=CUE_FADE):
+    """Opacity (0-1) of a burned caption cue [a, b) at ``t``: eased in and out over 2 x ``fade`` centred on its
+    edges, so a cue ending where the next one starts crossfades into it - captions never cut out for a frame
+    (the subtitle 'blink' vstudio.flicker measures). Visible on [a - fade, b + fade)."""
+    if fade <= 0:
+        return 1.0 if a <= t < b else 0.0
+    u = min(1.0, (t - (a - fade)) / (2 * fade), ((b + fade) - t) / (2 * fade))
+    if u <= 0:
+        return 0.0
+    return 0.5 - 0.5 * math.cos(math.pi * u)
+
+
 def parse_highlight(text):
     """Split ``text`` into [(segment, highlighted)] for 【x】 and **x** markup."""
     out, i = [], 0

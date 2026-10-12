@@ -557,8 +557,9 @@ class Captions:
     paper_rgb = None
 
     def draw(self, img, t):
-        for k, (a, b, text) in enumerate(self.cues):
-            if a <= t < b:
+        from vstudio.subs import CUE_FADE, cue_opacity
+        for k, (a, b, text) in enumerate(self.cues):    # eased, crossfading cues (no caption blink)
+            if a - CUE_FADE <= t < b + CUE_FADE and cue_opacity(a, b, t) > 0:
                 if self.band_rect:
                     x0, y0, x1, y1 = self.band_rect
                     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -581,8 +582,7 @@ class Captions:
                 h, w = L.shape[:2]
                 if not self.band_rect and not self.mask_rect and (self.st.get("position") or "bottom") == "bottom":
                     cy = min(cy, self.box[3] - h / 2)
-                self.Dr.alpha_paste(img, L, (cx, cy), center=True, bgr=True)
-                break
+                self.Dr.alpha_paste(img, L, (cx, cy), opacity=cue_opacity(a, b, t), center=True, bgr=True)
         return img
 
 
@@ -976,6 +976,8 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
                 warns.append(OUT.msg("relayout-crops-burned", "re-layout of a flattened file: check that no burned "
                                      "text is cropped (layout band keeps the whole frame)",
                                      "成片重新构图：检查烧录文字是否被裁掉", target=tg["target"]))
+            if quality == "final" and not compare:
+                warns.extend(flicker_notes(dst, tg["target"]))
             if tg.get("profile") is not None:
                 from vstudio import platform as P
                 for w in P.check_length(tg["profile"], info["duration"]):
@@ -1007,6 +1009,22 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
         status.end(ok)
     return dict(ok=True, output=rec["id"], mode=rec["mode"], quality=quality, targets=results,
                 seconds=round(time.time() - t_all, 2), edit_dir=doc.dir, compare=compare)
+
+
+def flicker_notes(path, target):
+    """vstudio.flicker on a final render -> [warning]. An output edit is her own choice of transitions / effects, so a
+    flicker is reported (code ``flicker``, with the times), never a failed render; ``qc.flicker: off`` skips it."""
+    from vstudio import flicker
+    if flicker.mode_for() == "off":
+        return []
+    try:
+        rep = flicker.analyze(path)
+    except Exception:  # noqa: BLE001 - QC never breaks a render
+        return []
+    if rep["ok"]:
+        return []
+    at = ", ".join(f"{e['t']:.1f}s" for e in rep["events"][:6])
+    return [OUT.msg("flicker", flicker.describe(rep), "成片有闪烁（" + at + "）", target=target, what=at)]
 
 
 def _link(src, dst):

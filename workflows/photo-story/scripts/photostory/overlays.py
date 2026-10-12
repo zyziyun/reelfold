@@ -50,10 +50,13 @@ def _timeline_base(C, a, b):
     y0, x0, x1 = _tl_geom(C)
     lay = layer(C.BOX_W, C.b(230))
     d = ImageDraw.Draw(lay)
-    d.rounded_rectangle((C.b(60), y0, C.BOX_W - C.b(60), y0 + C.b(180)), C.b(22), fill=(14, 11, 8, 190))
+    cine = getattr(C, "cinema", False)
+    if not cine:                                  # cinema look: a hairline on a soft shadow, no dark box
+        d.rounded_rectangle((C.b(60), y0, C.BOX_W - C.b(60), y0 + C.b(180)), C.b(22), fill=(14, 11, 8, 190))
     y = y0 + C.b(120)
-    d.line((x0, y, x1, y), fill=(200, 186, 160, 255), width=C.b(4))
-    fs = font("sans", C.b(30))
+    d.line((x0, y, x1, y), fill=(200, 186, 160, 255) if not cine else (236, 230, 218, 200),
+           width=C.b(4) if not cine else max(1, C.b(2)))
+    fs = font("sans", C.b(30) if not cine else C.b(24))
     ticks = C.TIMELINE.get("ticks", [a, b])
     labels = C.TIMELINE.get("labels", [a, b])
     for yr in ticks:
@@ -62,6 +65,9 @@ def _timeline_base(C, a, b):
         d.ellipse((x - r, y - r, x + r, y + r), fill=(200, 186, 160, 255))
         if yr in labels:
             d.text((x, y + C.b(14)), str(yr), font=fs, fill=(200, 186, 160, 255), anchor="ma")
+    if cine:
+        from .util import soft_shadow
+        lay = soft_shadow(lay, radius=max(2, C.b(8)), alpha=0.7)
     cache[key] = to_arr(lay)
     return cache[key]
 
@@ -185,8 +191,12 @@ def overlays(C, sh, f, lt):
     if "tl" in sh:
         tl = sh["tl"]
         A, B = _tl_range(C, tl)
-        a_yr, b_yr = (A, tl) if not isinstance(tl, (tuple, list)) else tl
-        q = ease((lt - 0.25) / 1.1)
+        if isinstance(tl, (tuple, list)):
+            a_yr, b_yr = tl
+        else:
+            prev = sh.get("_tl_from")
+            a_yr, b_yr = (A if prev is None else prev), tl
+        q = ease((lt - 0.25) / 1.1) if a_yr != b_yr else 1.0
         yr = a_yr + (b_yr - a_yr) * q
         alpha = min(1, lt / 0.3, (dur - lt) / 0.3)
         if alpha > 0:
@@ -194,8 +204,9 @@ def overlays(C, sh, f, lt):
             y0, x0, x1 = _tl_geom(C)
             x = x0 + (yr - A) / max(1e-6, B - A) * (x1 - x0)
             y = y0 + C.b(120)
-            cv2.line(f, (x0, y), (int(x), y), C.GOLD, C.b(6), cv2.LINE_AA)
-            cv2.circle(f, (int(x), y), C.b(16), C.GOLD, -1, cv2.LINE_AA)
+            cine = getattr(C, "cinema", False)
+            cv2.line(f, (x0, y), (int(x), y), C.GOLD, C.b(6) if not cine else max(1, C.b(3)), cv2.LINE_AA)
+            cv2.circle(f, (int(x), y), C.b(16) if not cine else C.b(9), C.GOLD, -1, cv2.LINE_AA)
             fmt = C.TIMELINE.get("format", "{:d}")
             paste_rgba(f, _year_label(C, fmt.format(int(round(yr)))), int(x) - C.b(130), y - C.b(100), alpha)
     if "count" in sh:

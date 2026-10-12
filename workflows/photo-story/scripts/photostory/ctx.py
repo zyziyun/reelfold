@@ -52,6 +52,10 @@ DEFAULT_PALETTE = dict(
 )
 
 
+# cinema look: near-white type, one quiet champagne accent (no gold bars, no saturated highlight)
+CINEMA_PALETTE = dict(accent=(224, 206, 172), sub_en=(246, 244, 240), sub_zh=(246, 242, 234), ink=(248, 245, 238))
+
+
 def platform_profile(name):
     """vstudio.platform Profile for a spec PLATFORM value ("xiaohongshu:vertical", "douyin", ...), or None."""
     if not name:
@@ -141,7 +145,16 @@ class Ctx:
         else:
             self.W, self.H = parse_canvas(g("CANVAS"))
         self.FPS = int(g("FPS", (P.get("export") or {}).get("fps", 30)))
+        # LOOK "cinema" (default): full-bleed picture, no running header, refined type (one serif + one sans), soft
+        # shadows instead of boxes, dissolves only. "classic": the header / chapter band / boxed labels design.
+        # Spec LOOK, else persona style.look (references/AESTHETICS.md "Premium by default").
+        self.LOOK = str(g("LOOK", None) or ((P.get("style") or {}) if isinstance(P.get("style"), dict) else {}).get(
+            "look") or "cinema").lower()
+        self.cinema = self.LOOK == "cinema"
         lay = dict(g("LAYOUT", {}) or {})
+        if self.cinema:
+            lay.setdefault("header", 0)
+            lay.setdefault("overlay_subs", True)
         portrait = self.H >= self.W
         self.portrait = portrait
         px = lambda v: int(round(v * self.H)) if isinstance(v, float) and v <= 1 else int(v)
@@ -165,8 +178,8 @@ class Ctx:
             self.SAFE = vplat.safe_box(self.prof)
             self.CAP = vplat.caption_box(self.prof)
             hc = px(lay.get("header", 300 / 2160 if portrait else 0.15))
-            self.HS = hc / 300
-            self.HDR_Y0 = max(0, self.SAFE[1] - int(40 * self.HS))
+            self.HS = max(hc, 1) / 300
+            self.HDR_Y0 = max(0, self.SAFE[1] - int(40 * self.HS)) if hc else 0
             self.HDR = self.HDR_Y0 + hc
             self.SUB_Y0, self.SUB_H = self.CAP[1], self.CAP[3] - self.CAP[1]
             if "sub" in lay:                                             # taller band, bottom-anchored
@@ -195,6 +208,8 @@ class Ctx:
         # an English narration (TTS language "en") leads its header with the English title / chapter names
 
         pal = dict(DEFAULT_PALETTE)
+        if self.cinema:
+            pal.update(CINEMA_PALETTE)
         pal.update({k: hex_rgb(v) for k, v in (g("PALETTE", {}) or {}).items()})
         self.pal = pal
         self.GOLD = pal["accent"]

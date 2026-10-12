@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from vstudio.subs import balanced_wrap, parse_highlight, strip_markup
 
 from .ctx import font, font_for
-from .util import has_cjk as has_cjk_text, layer, to_arr
+from .util import has_cjk as has_cjk_text, layer, soft_shadow, spaced, to_arr
 
 _D = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
 
@@ -21,8 +21,11 @@ def bwrap(d, text, f, maxw):
 
 def draw_runs(C, d, x, y, line, f, base, stroke):
     for p, hi in parse_highlight(line):
-        d.text((x, y), p, font=f, fill=(C.GOLD if hi else base) + (255,), stroke_width=stroke,
-               stroke_fill=(0, 0, 0, 210))
+        if stroke:
+            d.text((x, y), p, font=f, fill=(C.GOLD if hi else base) + (255,), stroke_width=stroke,
+                   stroke_fill=(0, 0, 0, 210))
+        else:
+            d.text((x, y), p, font=f, fill=(C.GOLD if hi else base) + (255,))
         x += d.textlength(p, font=f)
 
 
@@ -31,7 +34,9 @@ def make_sub(C, en, zh):
     Either may be empty."""
     zh = (zh or "").rstrip("，。、：；")
     en = en or ""
-    if C.prof is not None:
+    if C.prof is not None or getattr(C, "cinema", False):
+        if C.prof is None:          # legacy canvas: the caption box is the subtitle band
+            C.CAP = getattr(C, "CAP", (C.t(70), C.SUB_Y0, C.W - C.t(70), C.H))
         return _make_sub_fit(C, en, zh)
     fe = font_for(en, C.t(56), "sans-bold", "cjk-bold")
     fz = font("cjk-bold", C.t(66))
@@ -62,6 +67,10 @@ def _sub_lines(C, d, en, zh, k, maxw, title=False):
         zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * 0.62
         fz = font_for(zh, zs, "cjk-serif", "cjk-serif")
         fe = font_for(en, es, "serif-italic", "cjk")
+    elif getattr(C, "cinema", False):     # refined: regular weight, a little smaller, no stroke (soft shadow)
+        zs, es = C.ZH_SIZE * k * 0.86, C.ZH_SIZE * k * 0.86 * 52 / 66
+        fz = font("cjk", zs)
+        fe = font_for(en, es, "sans", "cjk")
     else:
         zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * 56 / 66
         fz = font("cjk-bold", zs)
@@ -86,7 +95,8 @@ def _make_sub_fit(C, en, zh, title=False):
         if (tot <= C.SUB_H * 0.94 and len(le) <= 2 and len(lz) <= 2) or k < 0.55:
             break
         k -= 0.05
-    stroke = 0 if title else max(1, round(2 * C.S + 0.3))
+    cine = getattr(C, "cinema", False)
+    stroke = 0 if title or cine else max(1, round(2 * C.S + 0.3))
     y = (lay.height - tot) // 2
     # 中文 first in a title, and when the narrator speaks Chinese (the English is then the translation under it)
     order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, (214, 198, 168) if title else C.pal["sub_en"], LE)] \
@@ -97,6 +107,8 @@ def _make_sub_fit(C, en, zh, title=False):
         for ln in lines:
             draw_runs(C, d, (x0 + x1 - d.textlength(strip_markup(ln), font=f)) / 2, y, ln, f, col, stroke)
             y += lh
+    if cine or title:
+        lay = soft_shadow(lay, radius=max(3, C.t(10)), alpha=0.7 if cine else 0.5)
     return to_arr(lay)
 
 
@@ -109,14 +121,28 @@ def make_title_text(C, en, zh):
 def sub_backdrop(C):
     """Soft dark gradient behind subtitles when they are overlaid on the picture (landscape)."""
     h = C.SUB_H if C.prof is None else C.H - C.SUB_Y0 + int(0.35 * C.SUB_H)   # platform: band to the bottom edge
-    a = (np.linspace(0, 1, h) ** 1.4 * 200).astype(np.float32)
+    peak = 120 if getattr(C, "cinema", False) else 200     # cinema: a breath of shade, the type has its own shadow
+    a = (np.linspace(0, 1, h) ** 1.6 * peak).astype(np.float32)
     arr = np.zeros((h, C.W, 4), np.float32)
     arr[..., 3] = a[:, None]
     return arr
 
 
 def make_label(C, text):
-    """Rounded dark tag with an accent tick, bottom-left of the picture."""
+    """Rounded dark tag with an accent tick, bottom-left of the picture. Cinema look: no box - small letter-spaced
+    type over a thin accent rule, on a soft shadow (a documentary place caption)."""
+    if getattr(C, "cinema", False):
+        size = max(12, C.b(34))
+        f = font_for(text, size, "sans", "cjk")
+        tr = 0.14 if not has_cjk_text(text) else 0.08
+        txt = text.upper() if not has_cjk_text(text) else text
+        w = int(sum(_D.textlength(ch, font=f) for ch in txt) + size * tr * len(txt)) + C.b(8)
+        pad = C.b(14)
+        lay = layer(w + 2 * pad, size * 2 + 2 * pad)
+        d = ImageDraw.Draw(lay)
+        d.line((pad, pad, pad + C.b(56), pad), fill=C.GOLD + (235,), width=max(1, C.b(2)))
+        spaced(d, (pad, pad + C.b(16)), txt, f, (246, 242, 234, 255), tr)
+        return to_arr(soft_shadow(lay, radius=max(2, C.b(8)), alpha=0.75))
     f = font_for(text, C.b(38), "sans", "cjk")
     tw = int(_D.textlength(text, font=f))
     h, pad = C.b(74), C.b(30)
@@ -242,8 +268,11 @@ class Header:
 
 
 def make_chapter(C, s):
-    """Full-box chapter card: number, accent rule, 中文 + English section names over a dark band."""
+    """Full-box chapter card: number, accent rule, 中文 + English section names over a dark band. Cinema look: no
+    band - a small spaced number, a short rule and the name in the serif, centred, on a soft shadow."""
     W, H = C.BOX_W, C.BOX_H
+    if getattr(C, "cinema", False):
+        return _chapter_cinema(C, s)
     lay = layer(W, H)
     d = ImageDraw.Draw(lay)
     d.rectangle((0, 0, W, H), fill=(8, 6, 4, 120))
@@ -268,3 +297,76 @@ def make_chapter(C, s):
     if name_en:
         d.text(((W - d.textlength(name_en, font=fe)) / 2, cy + C.b(60)), name_en, font=fe, fill=(214, 198, 168, 255))
     return to_arr(lay)
+
+
+def _chapter_cinema(C, s):
+    W, H = C.BOX_W, C.BOX_H
+    lay = layer(W, H)
+    d = ImageDraw.Draw(lay)
+    name, name_en = C.SECTIONS[s], C.SECTIONS_EN[s] if s < len(C.SECTIONS_EN) else ""
+    if getattr(C, "EN_LEAD", False) and name_en:
+        name, name_en = name_en, name
+    maxw = min(W * 0.8, (C.SAFE[2] - C.SAFE[0]) * 0.86)
+    fz = _fit(name, "cjk-serif", C.b(84), maxw)
+    fn = font("sans", C.b(28))
+    fe = font_for(name_en, C.b(36), "serif-italic", "cjk")
+    cy = H // 2
+    spaced(d, (W / 2, cy - C.b(130)), f"{s:02d}", fn, C.GOLD + (255,), 0.4, anchor="ma")
+    d.line((W / 2 - C.b(40), cy - C.b(78), W / 2 + C.b(40), cy - C.b(78)), fill=C.GOLD + (220,), width=max(1, C.b(2)))
+    d.text((W / 2, cy - C.b(50)), name, font=fz, fill=C.pal["ink"] + (255,), anchor="ma")
+    if name_en:
+        d.text((W / 2, cy + C.b(70)), name_en, font=fe, fill=(222, 214, 198, 255), anchor="ma")
+    return to_arr(soft_shadow(lay, radius=max(4, C.b(14)), alpha=0.8))
+
+
+def make_title_card(C):
+    """Cinema look: the film's title over the opening shot (the header no longer carries it) - the lead title in the
+    serif, generously spaced, the other language small and letter-spaced under a short rule."""
+    W, H = C.BOX_W, C.BOX_H
+    main, sub = C.HEAD_MAIN, C.HEAD_SUB
+    if not (main or sub):
+        return None
+    lay = layer(W, H)
+    maxw = min(W * 0.84, (C.SAFE[2] - C.SAFE[0]) * 0.9)
+    cy = int(H * 0.46)
+    from PIL import ImageFilter               # a breath of shade behind the title (busy skylines stay readable)
+    shade = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(shade).ellipse((W * 0.12, cy - H * 0.2, W * 0.88, cy + H * 0.16), fill=70)
+    lay.putalpha(shade.filter(ImageFilter.GaussianBlur(max(8, H // 10))))
+    d = ImageDraw.Draw(lay)
+    if sub and getattr(C, "EN_LEAD", False) and has_cjk_text(sub) and not has_cjk_text(main or ""):
+        sub = ""                  # an English film (YouTube) opens on English only
+    if main:
+        cj = has_cjk_text(main)
+        size = C.b(92 if cj else 80)
+        fm = font_for(main, size, "cjk-serif", "cjk-serif")
+        lines = [main]
+        if _D.textlength(main, font=fm) > W * 0.62:          # a long title breaks after its colon / dash
+            for sep in (": ", "：", " — ", " - ", "｜", " | "):
+                if sep in main:
+                    a, b = main.split(sep, 1)
+                    lines = [a.strip() + (sep.strip() if sep.strip() in (":", "：") else ""), b.strip()]
+                    break
+        fm = font_for(main, size, "cjk-serif", "cjk-serif")
+        while size > 20 and max(_D.textlength(ln, font=fm) for ln in lines) > maxw:
+            size -= 2
+            fm = font_for(main, size, "cjk-serif", "cjk-serif")
+        lh = int(fm.size * 1.28)
+        y = cy - lh * len(lines)
+        for ln in lines:
+            if cj:
+                spaced(d, (W / 2, y), ln, fm, C.pal["ink"] + (255,), 0.12, anchor="ma")
+            else:
+                d.text((W / 2, y), ln, font=fm, fill=C.pal["ink"] + (255,), anchor="ma")
+            y += lh
+    if sub:
+        d.line((W / 2 - C.b(36), cy + C.b(34), W / 2 + C.b(36), cy + C.b(34)), fill=C.GOLD + (220,), width=max(1, C.b(2)))
+        fs = font_for(sub, C.b(30), "sans", "cjk")
+        txt = sub if has_cjk_text(sub) else sub.upper()
+        size = C.b(30)
+        while size > 12 and _D.textlength(txt, font=fs) * 1.25 > maxw:
+            size -= 1
+            fs = font_for(sub, size, "sans", "cjk")
+        spaced(d, (W / 2, cy + C.b(58)), txt, fs, (232, 226, 214, 255), 0.18 if not has_cjk_text(sub) else 0.1,
+               anchor="ma")
+    return to_arr(soft_shadow(lay, radius=max(4, C.b(16)), alpha=0.85))

@@ -242,17 +242,21 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
         rep_["moved"] += 1
         return min(cands, key=lambda c: abs(c - y))
 
+    from .subs import CUE_FADE, cue_opacity
+
     def overlay(i, t, img):
-        for a, b, k, c in spans:
-            if a <= t < b:
+        for a, b, k, c in spans:                       # eased, crossfading cues (no caption blink)
+            if a - CUE_FADE <= t < b + CUE_FADE:
+                op = cue_opacity(a, b, t)
+                if op <= 0:
+                    continue
                 L = layer(k, c)
                 h, w = L.shape[:2]
                 cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
                 y = min(cy - h / 2, y1 - h) if h <= y1 - y0 else cy - h / 2   # over-tall: centred on the band
                 if kos:
                     y = _place(i, t, w, h, cx, y)
-                draw.alpha_paste(img, L, (cx - w / 2, y), bgr=True)
-                break
+                draw.alpha_paste(img, L, (cx - w / 2, y), opacity=op, bgr=True)
         return img
     return overlay
 

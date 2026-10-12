@@ -169,7 +169,7 @@ def _bare_planner(cfg=None):
 
 
 def test_photos_do_not_get_a_leak_each():
-    pl = _bare_planner()
+    pl = _bare_planner(dict(transitions="expressive"))
     tl, n, f = [], 0, 0
     kinds = ["video"] + ["photo"] * 12 + ["video", "photo", "video", "photo", "video", "photo"] * 3
     for k, kind in enumerate(kinds):
@@ -185,6 +185,21 @@ def test_photos_do_not_get_a_leak_each():
     assert all(b - a >= 16 for a, b in zip(auto, auto[1:]))
     assert not any(a == b == "leak" for a, b in zip(kinds_out, kinds_out[1:]))
     assert sum(k == "cut" for k in kinds_out) > len(kinds_out) / 2       # hard cut by default (A5)
+
+
+def test_clean_transitions_by_default():
+    """2026-10-12 review: white flashes, glitches, leaks and whips read as strobing and cheap - the default reel
+    cuts on the beat (zoom punches stay); "expressive" brings them back."""
+    pl = _bare_planner()
+    tl = [dict(role="hook", kind="video", n0=0, nb=8, t0=0, f0=0, f1=120),
+          dict(role="body", kind="video", n0=8, nb=4, t0=4, f0=120, f1=240),
+          dict(role="body", kind="photo", n0=12, nb=4, t0=6, f0=240, f1=360),
+          dict(role="body", kind="video", n0=16, nb=4, t0=8, f0=360, f1=480, change="place"),
+          dict(role="outro", kind="video", n0=20, nb=8, t0=10, f0=480, f1=720)]
+    kinds = [c["kind"] for c in pl._transitions(tl, dict(drops_used=[]))]
+    assert not set(kinds) & {"flash", "leak", "glitch", "whip"}
+    kinds = [c["kind"] for c in _bare_planner(dict(transitions="expressive"))._transitions(tl, dict(drops_used=[]))]
+    assert "leak" in kinds and "whip" in kinds
 
 
 @need_ff

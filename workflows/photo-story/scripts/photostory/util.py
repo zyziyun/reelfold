@@ -21,6 +21,34 @@ def layer(w, h):
     return Image.new("RGBA", (int(w), int(h)), (0, 0, 0, 0))
 
 
+def soft_shadow(im, radius=6, alpha=0.55, offset=(0, 2)):
+    """RGBA PIL layer -> the same layer over a soft dark shadow of its own alpha (refined type on video: no stroke,
+    no box)."""
+    from PIL import ImageFilter
+    a = im.getchannel("A")
+    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    blur = a.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: int(v * alpha))
+    sh.putalpha(blur)
+    out = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    out.alpha_composite(sh, (int(offset[0]), int(offset[1])))
+    out.alpha_composite(im)
+    return out
+
+
+def spaced(d, xy, text, font, fill, tracking=0.0, anchor="la"):
+    """Draw ``text`` with letter spacing (``tracking`` x font size between characters); returns its width.
+    anchor "la" (left) or "ma" (centred on x)."""
+    gap = font.size * tracking
+    w = sum(d.textlength(ch, font=font) for ch in text) + gap * max(0, len(text) - 1)
+    x, y = xy
+    if anchor == "ma":
+        x -= w / 2
+    for ch in text:
+        d.text((x, y), ch, font=font, fill=fill)
+        x += d.textlength(ch, font=font) + gap
+    return w
+
+
 def to_arr(im):
     return np.asarray(im).astype(np.float32)
 

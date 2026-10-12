@@ -14,6 +14,8 @@ from vstudio import audio, media
 from .transitions import TRD
 
 PACING = dict(gap=0.32, sec_gap=0.75, tail=2.8, lead=0.3, end_fade=1.8)
+CINEMA_TRANSITIONS = ("fade", "cut")
+CINEMA_FADE = 0.8          # cinema look: slow dissolves between aerials
 
 
 def tts_dir(C):
@@ -88,9 +90,24 @@ class Timeline:
         b[0] = 0.0
         b.append(self.total)
         self.sec_bounds = b
+        cine = getattr(C, "cinema", False)
+        last_year = None
         for k, sh in enumerate(self.shots):
             sh["tr"] = sh.get("tr", "fade") if k else None
-            sh["trd"] = sh.get("trd", TRD.get(sh["tr"], 0.4)) if k else 0
+            if cine and sh["tr"] and sh["tr"] not in CINEMA_TRANSITIONS:
+                # flashes, whips, light leaks, blinds ... read as cheap and flicker (2026-10-12): a dissolve
+                sh["_tr_asked"], sh["tr"] = sh["tr"], "fade"
+            dflt = CINEMA_FADE if cine and sh["tr"] == "fade" else TRD.get(sh["tr"], 0.4)
+            sh["trd"] = sh.get("trd", dflt) if k else 0
+            if k:                                  # a dissolve never longer than a third of either shot
+                lim = min(sh["end"] - sh["start"], self.shots[k - 1]["end"] - self.shots[k - 1]["start"]) / 3
+                sh["trd"] = max(0.0, min(sh["trd"], lim)) if sh["tr"] != "cut" else 0.0
+            tl = sh.get("tl")
+            if tl is not None and not isinstance(tl, (tuple, list)):
+                # the year marker moves on from where the last one stopped (it used to sweep up from the start year
+                # on every shot, so mid-sweep frames showed years in between)
+                sh["_tl_from"] = last_year
+                last_year = tl
         for k, sh in enumerate(self.shots):    # each shot keeps rendering until the next transition ends
             sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else 99
 

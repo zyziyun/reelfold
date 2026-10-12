@@ -32,10 +32,11 @@ from photostory import audiomix
 from photostory.ctx import Ctx, check_profile, load_spec
 from photostory.looks import film_look
 from photostory.shots import build, parse_src
-from photostory.subtitles import Header, make_chapter, make_label, make_sub, make_title_text, sub_backdrop
+from photostory.subtitles import (Header, make_chapter, make_label, make_sub, make_title_card, make_title_text,
+                                  sub_backdrop)
 from photostory.timeline import Timeline, load_timing, place_voice
 from photostory.transitions import transition
-from photostory.util import paste_rgba
+from photostory.util import ease, paste_rgba
 
 
 def prepare(spec_path, platform=None, mode=None):
@@ -83,7 +84,8 @@ def main():
     t_from = a.t_from
     end_t = min(total, t_from + a.preview) if a.preview else total
 
-    header = Header(C)
+    header = Header(C) if C.HDR > 0 else None
+    title_card = make_title_card(C) if header is None else None
     chapters = {s: make_chapter(C, s) for s in range(1, len(C.SECTIONS))}
     for s in T.subs:
         s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(C, s["en"], s["zh"])
@@ -136,24 +138,31 @@ def main():
         sec = T.section_at(gt)
         box = film_look(C, box, gt, sec in C.FILM_SECTIONS or sh["src"].startswith("film:"))
         if "_lab" in sh:                               # picture label, bottom-left
-            la = min(1, (gt - sh["start"] - 0.45) / 0.3, (sh["end"] - gt) / 0.3)
+            fl = 0.6 if C.cinema else 0.3
+            la = ease(min(1, (gt - sh["start"] - 0.45) / fl, (sh["end"] - gt) / fl))
             if la > 0:
                 m = C.b(44)
                 lab_y = C.LAB_BOT - m - sh["_lab"].shape[0]
                 paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y, la)
         if chap_len and sec >= 1 and gt - T.sec_bounds[sec] < chap_len:     # chapter card
             lt = gt - T.sec_bounds[sec]
-            paste_rgba(box, chapters[sec], 0, 0, min(1, lt / 0.3, (chap_len - lt) / 0.45))
+            fi, fo = (0.6, 0.7) if C.cinema else (0.3, 0.45)
+            paste_rgba(box, chapters[sec], 0, 0, ease(min(1, lt / fi, (chap_len - lt) / fo)))
+        if title_card is not None and gt < TITLE_HOLD[1]:                    # cinema: the film's title, once
+            ta = ease(min((gt - TITLE_HOLD[0]) / 0.9, (TITLE_HOLD[1] - gt) / 0.9))
+            if ta > 0:
+                paste_rgba(box, title_card, 0, 0, ta)
         frame = C.BG.copy()
         frame[C.HDR:C.HDR + C.BOX_H] = box
-        header.draw(frame, sec, gt, T.sec_bounds)
-        cue = [] if a.clean_master else [s for s in T.subs if s["start"] <= gt < s["end"]]
-        if cue and backdrop is not None:
-            paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0])
+        if header is not None:
+            header.draw(frame, sec, gt, T.sec_bounds)
+        cue = [] if a.clean_master else [s for s in T.subs if s["start"] - SUB_FADE <= gt < s["end"] + SUB_FADE]
+        if backdrop is not None and not a.clean_master:
+            ba = backdrop_alpha(T.subs, gt)
+            if ba > 0:
+                paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0], ba)
         for s in cue:
-            fa = min(1, (gt - s["start"]) / 0.1) if s.get("style") != "title" else \
-                min(1, (gt - s["start"]) / 0.6, (s["end"] - gt) / 0.6)
-            paste_rgba(frame, s["_lay"], 0, C.SUB_Y0, fa)
+            paste_rgba(frame, s["_lay"], 0, C.SUB_Y0, cue_alpha(s, gt))
         if gt > total - end_fade:
             frame *= max(0, (total - gt) / end_fade)
         img = np.clip(frame, 0, 255).astype(np.uint8)
@@ -175,6 +184,13 @@ def main():
     out = a.out or (os.path.join(C.cache_dir, "preview.mp4") if a.preview else C.path(getattr(C.spec, "OUT", "out/story.mp4")))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     mix_audio(C, T, t_from, end_t, vid_tmp, out)
+    if not a.preview:
+        from vstudio import flicker
+        try:
+            flicker.check(out, "energetic" if C.MODE == "music" else "calm",
+                          flicker.mode_for({"qc": getattr(C.spec, "QC", None) or {}}))
+        except flicker.FlickerError as e:
+            sys.exit(f"!! render failed - {e}")
     if a.clean_master:
         from vstudio.subs import Cue
         cues = [Cue(s["start"] - t_from, s["end"] - t_from, strip_markup(s["zh"] or ""), strip_markup(s["en"] or "")).to_dict()
@@ -182,6 +198,36 @@ def main():
         cp_ = os.path.splitext(out)[0] + ".cues.json"
         json.dump(cues, open(cp_, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("cues:", cp_, f"({len(cues)})  ->  python3 -m vstudio.export {out} --platforms ... --cues {cp_}")
+
+
+SUB_FADE = 0.18            # a cue fades in / out over 2 x this, centred on its edges: the next cue crossfades in
+TITLE_HOLD = (0.6, 5.2)    # cinema title card: on screen between these times (eased in and out)
+
+
+def cue_alpha(s, gt):
+    """Opacity of a subtitle cue at ``gt``: eased in and out over 2 x SUB_FADE centred on its start / end, so a cue
+    that ends where the next begins crossfades into it (the band never drops dark for a frame - the 'blink' of the
+    2026-10-12 review). Music-mode titles keep their slower 0.6 s fades."""
+    if s.get("style") == "title":
+        return min(1.0, max(0.0, (gt - s["start"]) / 0.6), max(0.0, (s["end"] - gt) / 0.6))
+    a = (gt - (s["start"] - SUB_FADE)) / (2 * SUB_FADE)
+    b = ((s["end"] + SUB_FADE) - gt) / (2 * SUB_FADE)
+    return ease(min(1.0, a, b))
+
+
+def backdrop_alpha(subs, gt, lead=0.5, hold=0.9):
+    """The shade behind overlaid subtitles: eased in ``lead`` s before a cue, kept through gaps shorter than
+    ``hold`` s, eased out after - it never pops on and off with every cue."""
+    best = 0.0
+    for s in subs:
+        if s.get("style") == "title":
+            continue
+        a = (gt - (s["start"] - lead)) / lead
+        b = ((s["end"] + hold) - gt) / lead
+        best = max(best, min(1.0, a, b))
+        if best >= 1.0:
+            break
+    return ease(best)
 
 
 def mix_audio(C, T, t0, t1, vid, out):

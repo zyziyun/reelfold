@@ -1245,6 +1245,7 @@ const v04Fr: Record<keyof typeof v04En, string> = {
   'em.flattened': 'Les modifications s’appliquent par-dessus la vidéo finie (il n’y a pas de master propre).',
   'em.captions-add-only': 'Les sous-titres sont incrustés dans cette vidéo. Vous pouvez en ajouter de nouveaux (dans un bandeau ou sur un masque), mais pas changer le style des anciens.',
   'em.relayout-crops-burned': 'Un nouveau format recadre la vidéo : le texte incrusté près des bords risque d’être coupé. La mise en page avec bandeau garde l’image entière.',
+  'em.flicker': 'La vidéo finale scintille : {what}. Une transition par flash ou par fondu au noir, ou un titre qui apparaît et disparaît d’un coup, en est souvent la cause.',
   'em.no-master': 'Ce clip a été créé sans master propre : les modifications s’appliquent par-dessus le fichier fini.',
   'em.master-mismatch': 'Le master enregistré ne correspond pas à ce clip : les modifications s’appliquent par-dessus le fichier fini.',
   'em.source-changed': 'Le fichier vidéo a changé depuis la dernière modification.',

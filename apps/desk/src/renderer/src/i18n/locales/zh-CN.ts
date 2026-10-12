@@ -562,6 +562,7 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'em.flattened': '在成片上叠加编辑（没有干净母版）。',
   'em.captions-add-only': '这条的字幕已经烧进画面：可以新增字幕（字幕条或遮罩上），旧字幕不能改样式。',
   'em.relayout-crops-burned': '换尺寸会重新取景，边缘的烧录文字可能被裁掉；字幕条布局能保留整幅画面。',
+  'em.flicker': '成片有闪烁：{what}。通常来自闪白 / 黑场转场，或标题字幕突然出现又消失。',
   'em.no-master': '这条没有保留干净母版，编辑会叠加在成片上。',
   'em.master-mismatch': '保存的母版和这条对不上，编辑会叠加在成片上。',
   'em.source-changed': '上次编辑以后视频文件变了。',

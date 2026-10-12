@@ -112,7 +112,7 @@ def prep_video(C, sh, name):
     if csrc:
         look += "|" + os.path.basename(csrc)
     lk = "" if look == repr((None, None, None, False, None, None)) else "_" + hashlib.sha1(look.encode()).hexdigest()[:8]
-    out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr.mp4")
+    out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
     if not os.path.exists(out):
         src = csrc or C.find_video(name)
         if not src:
@@ -136,7 +136,9 @@ def prep_video(C, sh, name):
         ch = cw * C.BOX_H / C.BOX_W
         x = int(min(max(cx * w - cw / 2, 0), w - cw))
         y = int(min(max(cy * h - ch / 2, 0), h - ch))
-        vf = hdr + f"setpts=PTS/{speed},crop={int(cw)}:{int(ch)}:{x}:{y},scale={C.BOX_W}:{C.BOX_H}:flags=lanczos,fps={C.FPS}"
+        # even cadence at any speed (ffmpeg_filters.retime) + exposure pumping evened out inside the clip
+        vf = (hdr + f"crop={int(cw)}:{int(ch)}:{x}:{y},scale={C.BOX_W}:{C.BOX_H}:flags=lanczos,"
+              f"deflicker=size=5:mode=am," + FF.retime(info["fps"], speed, C.FPS))
         if name in C.VEQ or sh.get("grade"):
             vf += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(off), "-t", f"{need:.2f}", "-i", src,

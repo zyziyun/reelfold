@@ -561,6 +561,7 @@ export const v04En = {
   'em.flattened': 'Edits go on top of the finished video (there’s no clean master).',
   'em.captions-add-only': 'Captions are burned into this video. You can add new ones (in a band or over a mask), but not restyle the old ones.',
   'em.relayout-crops-burned': 'A new size reframes the video, so burned-in text near the edges may be cut off. The band layout keeps the whole frame.',
+  'em.flicker': 'The finished video flickers: {what}. A flash or dip transition, or a title popping in and out, usually causes it.',
   'em.no-master': 'This clip was made without a clean master, so edits sit on top of the finished file.',
   'em.master-mismatch': 'The saved master doesn’t match this clip, so edits sit on top of the finished file.',
   'em.source-changed': 'The video file changed since the last edit.',

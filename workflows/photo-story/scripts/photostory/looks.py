@@ -65,7 +65,7 @@ def film_look(C, box, gt, strong):
     """Always: light grain. strong=True (FILM_SECTIONS or film-strip shots): memory film —
     desaturated warm grade, flicker, vignette, random scratches and dust."""
     fi = int(gt * C.FPS)
-    amt = 9.0 if strong else 3.2
+    amt = 9.0 if strong else (1.2 if getattr(C, "cinema", False) else 3.2)   # cinema: barely-there grain
     box += C.GRAIN[fi % len(C.GRAIN)] * amt
     if strong:
         r = random.Random(fi)
