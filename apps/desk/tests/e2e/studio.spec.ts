@@ -228,7 +228,14 @@ test('zh-CN + fr: the Studio and a clip page read in her language', async () => 
     await hash(`#/studio/${fuyeId}/${encodeURIComponent('A_换圈子')}`);
     await page.reload();
     await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
-    await expect(page.getByTestId('editor')).toHaveAttribute('data-layout', 'studio', { timeout: 30000 });
+    await expect(page.getByTestId('editor'))
+      .toHaveAttribute('data-layout', 'studio', { timeout: 30000 })
+      .catch(async (e: Error) => {
+        // seen only on the Windows runner: say what the page showed instead of the clip
+        await shot(`S4-${lang}-missing-editor`);
+        const seen = await page.evaluate(() => ({ hash: location.hash, text: document.querySelector('[data-testid=studio]')?.textContent?.slice(0, 1500) }));
+        throw new Error(`${e.message}\n--- the page instead: ${JSON.stringify(seen)}`);
+      });
     await noMissingKeys();
     await shot(`S4-${lang}`);
   }
