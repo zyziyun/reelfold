@@ -143,11 +143,13 @@ def main():
             if la > 0:
                 m = C.b(44)
                 lab_y = C.LAB_BOT - m - sh["_lab"].shape[0]
-                paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y, la)
+                rise = int((1 - la) * C.b(12)) if C.cinema else 0     # cinema: a quiet 12 px settle as it fades in
+                paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y + rise, la)
         if chap_len and sec >= 1 and gt - T.sec_bounds[sec] < chap_len:     # chapter card
             lt = gt - T.sec_bounds[sec]
             fi, fo = (0.6, 0.7) if C.cinema else (0.3, 0.45)
-            paste_rgba(box, chapters[sec], 0, 0, ease(min(1, lt / fi, (chap_len - lt) / fo)))
+            ca = ease(min(1, lt / fi, (chap_len - lt) / fo))
+            paste_rgba(box, chapters[sec], 0, int((1 - ca) * C.b(16)) if C.cinema and lt < fi else 0, ca)
         if title_card is not None and gt < TITLE_HOLD[1]:                    # cinema: the film's title, once
             ta = ease(min((gt - TITLE_HOLD[0]) / 0.9, (TITLE_HOLD[1] - gt) / 0.9))
             if ta > 0:
