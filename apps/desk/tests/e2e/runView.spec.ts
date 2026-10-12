@@ -16,6 +16,10 @@ let app: ElectronApplication;
 let page: Page;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vsdesk-run-'));
 const recording = path.join(tmp, 'live_1010.mp4');
+// the first request stays planning (its live pane on screen) until the docking test is done: on a slow runner the
+// first three tests outlast any fixed plan delay, and the pane went with the finished plan mid-click
+const hold = path.join(tmp, 'plan-hold');
+const release = () => fs.rmSync(hold, { force: true });
 const SHOTS = process.env.DESK_SHOTS_DIR ?? path.resolve(import.meta.dirname, '../../test-results/run-view');
 fs.mkdirSync(SHOTS, { recursive: true });
 const shot = (name: string) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
@@ -32,6 +36,7 @@ test.beforeAll(async () => {
       DESK_ENGINE_MOCK: '1',
       DESK_MOCK_STEP: process.platform === 'win32' ? '1.5' : '1',
       DESK_MOCK_PLAN_DELAY: '18',
+      DESK_MOCK_PLAN_HOLD: hold,
       DESK_MOCK_SECRET: '1',
       DESK_MAX_RUNS: '2',
       DESK_USER_DATA: path.join(tmp, 'profile'),
@@ -58,6 +63,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  release();
   await closeApp(app);
 });
 
@@ -80,6 +86,7 @@ const lines = () => pane().getByTestId('live-line');
 
 test('a request being planned: the hero, what happened and the live pane streaming the model turn', async () => {
   test.setTimeout(120000);
+  fs.writeFileSync(hold, '');
   await send('把这条直播剪成 2 条小红书切片');
   const run = page.locator('[data-testid=hub-request][data-run=request]');
   await expect(run).toBeVisible({ timeout: 15000 });
@@ -154,10 +161,12 @@ test('docked beside, folded, back below', async () => {
   await page.getByTestId('live-layout').click();
   await expect(page.locator('.runv.runv-below')).toBeVisible();
   await expect(page.getByTestId('live-pane')).toBeVisible();
+  release();
 });
 
 test('Stop ends a plan: nothing is made and her words are back in New video', async () => {
   test.setTimeout(60000);
+  release();
   const prompt = '再剪 3 条抖音切片，每条 30 秒';
   await send(prompt);
   await expect(page.locator('[data-testid=hub-request][data-run=request]')).toBeVisible({ timeout: 15000 });
@@ -171,6 +180,7 @@ test('Stop ends a plan: nothing is made and her words are back in New video', as
 
 test('two projects running: their live panes tiled in Watch all; a tile opens its run page', async () => {
   test.setTimeout(240000);
+  release();
   // a longer one (6 clips) and a shorter one (3): both still being made while she watches, and the long one still
   // running when its page opens (the first request's project may still be finishing: wait for these two by name)
   await send('剪 6 条 YouTube Shorts 切片');
