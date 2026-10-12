@@ -31,7 +31,7 @@ const engineEnv = {
   ...Object.fromEntries(['SEGMENT_PLAN', 'PROOFREAD', 'GLOSSARY', 'COPY', 'SCRIPT', 'PLANNER', 'INTAKE', 'OUTPUT_EDIT'].map((t) => [`VSTUDIO_LLM_${t}_PROVIDER`, 'none'])),
 };
 
-type Take = { engine: string; voice: string | null; out: string };
+type Take = { engine: string; voice: string | null; out: string | null };
 const takes = (): Take[] =>
   fs.existsSync(fx.log)
     ? fs
@@ -43,7 +43,8 @@ const takes = (): Take[] =>
 /** the first take recorded for a project (its folder, as given or as the real path: /var -> /private/var) */
 const firstTake = (dir: string) => {
   const roots = [dir, fs.realpathSync(dir)];
-  const x = takes().find((t) => roots.some((r) => t.out.startsWith(r + path.sep)));
+  // a line retried in two halves (synth_split) records takes with no out of their own: skip those
+  const x = takes().find((t) => t.out != null && roots.some((r) => t.out!.startsWith(r + path.sep)));
   return x ? `${x.engine}:${x.voice}` : undefined;
 };
 /** project.yaml as text: one item, one voice answer */
