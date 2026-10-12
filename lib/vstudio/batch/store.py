@@ -51,6 +51,25 @@ CREATE TABLE IF NOT EXISTS deliveries (
   jobs INTEGER, duration REAL, cleanup_due REAL, cleaned REAL, sources TEXT);
 """
 
+# One sqlite3 open / close of a run store at a time in this process. With some sqlite builds (conda's 3.51, and
+# python-build-standalone's: THREADSAFE=1 + pthread mutexes) a connect on one thread racing a close of another
+# connection to the same WAL file on another thread hangs both for ever, and with them every request of the desk
+# engine (All projects stuck loading, thumbnails black). Queries run in parallel; only the open and close wait.
+OPEN_LOCK = threading.RLock()
+
+
+def open_db(path, **kw):
+    """sqlite3.connect under OPEN_LOCK (see there)."""
+    with OPEN_LOCK:
+        return sqlite3.connect(path, **kw)
+
+
+def close_db(con):
+    """con.close() under OPEN_LOCK (see there); a closed connection is fine."""
+    with OPEN_LOCK:
+        con.close()
+
+
 JSON_COLS = {"params", "qc_reasons", "out", "args", "before", "result", "rerun", "sources"}
 
 
@@ -72,7 +91,7 @@ class Store:
         if not create and not os.path.exists(self.path):
             raise FileNotFoundError(f"no batch at {self.dir} ({DB_NAME} missing) - run `plan` first")
         os.makedirs(self.dir, exist_ok=True)
-        self.conn = sqlite3.connect(self.path, timeout=30, isolation_level=None, check_same_thread=False)
+        self.conn = open_db(self.path, timeout=30, isolation_level=None, check_same_thread=False)
         self.conn.row_factory = _row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
@@ -81,7 +100,15 @@ class Store:
         self._lock = threading.RLock()
 
     def close(self):
-        self.conn.close()
+        close_db(self.conn)
+
+    def __del__(self):          # a store nobody closed: closed here under the lock, not by sqlite's own dealloc
+        con = getattr(self, "conn", None)
+        if con is not None:
+            try:
+                close_db(con)
+            except Exception:  # noqa: BLE001  (interpreter shutdown)
+                pass
 
     def journal_mode(self):
         return self.conn.execute("PRAGMA journal_mode").fetchone()["journal_mode"]
