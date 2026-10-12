@@ -205,6 +205,11 @@ function GoalPlan({ g, busy, onOps, onApprove }: { g: Goal; busy: boolean; onOps
           {tot.panoramas ? ` · ${t('goal.panos', { n: tot.panoramas })}` : ''} · {t('goal.stories', { n: g.survey?.stories.length ?? 0 })}
         </p>
       )}
+      {(g.survey?.unused?.photos ?? 0) + (g.survey?.unused?.panoramas ?? 0) > 0 && (
+        <p className="muted small" data-testid="goal-unused">
+          {t('goal.unusedNote', { photos: g.survey?.unused?.photos ?? 0, panos: g.survey?.unused?.panoramas ?? 0 })}
+        </p>
+      )}
       {g.planner?.fallback && (
         <p className="goalv-note small" data-testid="goal-rules-note">
           {t('goal.rulesNote')}
@@ -276,7 +281,7 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
         />
         <p className="muted small clamp2">{[v.theme, v.why].filter(Boolean).join(' — ')}</p>
         <p className="faint small clamp1" data-testid="goal-plan-where">
-          {[storyWhere(g, v), t('goal.clips', { n: v.clips })].filter(Boolean).join(' · ')}
+          {[storyWhere(g, v), v.clips || !v.stills ? t('goal.clips', { n: v.clips }) : t('goal.photosN', { n: v.stills })].filter(Boolean).join(' · ')}
         </p>
         {out ? (
           <p className="small muted" data-testid="goal-plan-out">
@@ -287,7 +292,7 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
             <label>
               <span className="faint small">{t('goal.kind')}</span>
               <select value={v.kind} disabled={busy} onChange={(e) => onOps([{ op: 'kind', video: v.id, kind: e.target.value as GoalKind }])} data-testid="goal-plan-kind">
-                {GOAL_KINDS.map((k) => (
+                {GOAL_KINDS.filter((k) => k !== 'photos' || v.kind === 'photos').map((k) => (
                   <option key={k} value={k}>
                     {t(`goal.kind.${k}`)}
                   </option>
@@ -395,7 +400,7 @@ function GoalSummary({ g }: { g: Goal }) {
   );
 }
 
-const WIDE = new Set(['youtube', 'bilibili', 'x', 'facebook', 'linkedin', 'dailymotion', 'reddit', 'weibo', 'zhihu']);
+const WIDE = new Set(['youtube', 'x', 'facebook', 'linkedin', 'reddit', 'bilibili', 'weibo', 'zhihu', 'dailymotion']);
 
 /** The platforms one file is for: the made file of a canvas stands for every platform of the video on that canvas
  * (YouTube and Bilibili share the 16:9 file's folder, its exports sit side by side). */

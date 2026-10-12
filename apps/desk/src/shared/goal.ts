@@ -41,6 +41,8 @@ export interface GoalVideo {
   why?: string | null;
   length_s: number;
   clips: number;
+  /** photos in its stories */
+  stills?: number | null;
   stories: string[];
   platforms: string[];
   /** the sentence its own request starts from */
@@ -97,7 +99,13 @@ export interface Goal {
   step?: string | null;
   /** the goal in one line (the AI's words, in the UI language) */
   goal?: string | null;
-  survey?: { totals?: { videos: number; photos: number; panoramas: number; seconds: number; days: string[] } | null; notes?: string[] | null; stories: GoalStory[] } | null;
+  survey?: {
+    totals?: { videos: number; photos: number; panoramas: number; seconds: number; days: string[] } | null;
+    /** what no video uses: stories left out, and the photos / panoramas (videos are cut from clips) */
+    unused?: { stories: string[]; photos: number; panoramas: number } | null;
+    notes?: string[] | null;
+    stories: GoalStory[];
+  } | null;
   planner?: { provider?: string | null; model?: string | null; fallback?: boolean | null; reason?: string | null } | null;
   error?: string | null;
   error_code?: string | null;

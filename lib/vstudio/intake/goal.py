@@ -17,7 +17,9 @@ Survey (offline, read-only: nothing is written next to the footage - an SD card 
 Plan: the routed model (task ``intake``) proposes the videos from the stories it sees: title, kind (``history`` - the
 place has a story worth telling, facts must be well known and verifiable; ``film`` - it is just beautiful: music and a
 few short reflective lines; ``reel`` - action, cut on the beat; ``vlog`` - a trip across stories; ``essay`` - a calm
-reflective voice-over; ``photos`` - stills and panoramas), which stories, length, platforms. YouTube is always English;
+reflective voice-over), which stories, length, platforms. Videos are cut from clips: photos and panoramas are counted
+(``survey.unused``) but a story of photos alone is not a video yet (the photo story cannot draft from stills alone on
+autopilot); ``photos`` stays a kind for a request that names it. YouTube is always English;
 Xiaohongshu / Bilibili / Douyin are Chinese. Without a model (or when it fails) a rule planner proposes one music film
 per story with enough footage (``planner.fallback``). Every video carries ``request``: the sentence its own intake
 plan starts from (``vstudio.intake plan --prompt <request> --inputs <clips>``), rebuilt by ``edit_goal`` whenever its
@@ -66,7 +68,8 @@ _MANY = re.compile(r"多个视频|几个视频|多条视频|多支|尽量多|尽
                    r"\b(videos?|films?)\b.{0,30}\b(each|different) (theme|topic|story|mood)s?\b|"
                    r"\bmake\s+(\d|two|three|four|five|six|seven|eight)\s+(videos?|films?|edits?)\b|"
                    r"plusieurs vidéos|autant de vidéos", re.I)
-_PATH = re.compile(r"(?<![A-Za-z0-9_./~-])(/(?:Volumes|Users|home|mnt|media|tmp|private|var)/[^\s，。,;；:：、()（）\"'“”]+)")
+_PATH = re.compile(r"(?<![A-Za-z0-9_./~-])((?:/(?:Volumes|Users|home|mnt|media|tmp|private|var|run)/|[A-Za-z]:[\\/])"
+                   r"[^\s，。,;；:：、()（）\"'“”]+)")
 _NUM_WORD = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
              "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
@@ -571,6 +574,7 @@ def _finish_video(v, by_id, platforms):
     v["length_s"] = max(15, min(180, L or min(90, cap), cap if secs or stills else 180))
     v["inputs"] = _inputs_of(v, by_id)
     v["clips"] = sum((by_id.get(s) or {}).get("videos") or 0 for s in v.get("stories") or [])
+    v["stills"] = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
     v["request"] = request_text(v, by_id)
     return v
 
@@ -593,7 +597,8 @@ Propose videos (at most {max_videos}{exact}). Rules:
   reel - action or energy (a boat, a jet ski, traffic, a festival): fast cuts on the beat, vertical first, 25-40 s.
   vlog - a trip across several stories/days: warm music, place and time captions.
   essay - a mood (autumn, solitude, a city at night): a calm reflective voice-over.
-  photos - mostly photos / panoramas.
+- Every video is cut from video clips: a story with 0 clips (only photos / panoramas) cannot be a video of its own
+  yet - leave it out.
 - Vary the kinds when the footage allows; do not make two videos of the same story with the same kind.
 - length_s: what the footage can carry (about half the story's seconds for a film, never more than 0.8 of it), 20-120.
 - title: short, specific, in English; title_zh: the same in Chinese.
@@ -603,9 +608,9 @@ Propose videos (at most {max_videos}{exact}). Rules:
 - theme and why: one short line each, in {ui_lang}, for her plan card.
 - platforms: the ids she asked for ({platforms}); YouTube is always English, Xiaohongshu / Bilibili Chinese (the
   editor handles the languages - just list the platforms).
-- goal: one short line in {ui_lang} restating her goal.
+- goal: one short line in {ui_lang} restating her goal (at most 60 characters).
 
-Return ONE JSON object: {{"goal": "...", "videos": [{{"title": "...", "title_zh": "...", "kind": "history|film|reel|vlog|essay|photos",
+Return ONE JSON object: {{"goal": "...", "videos": [{{"title": "...", "title_zh": "...", "kind": "history|film|reel|vlog|essay",
 "stories": ["s1"], "length_s": 60, "brief": "...", "theme": "...", "why": "...", "platforms": ["youtube", ...]}}]}}"""
 
 UI_LANG_NAME = {"en": "English", "zh": "Simplified Chinese", "fr": "French"}
@@ -630,16 +635,14 @@ def rule_videos(story_list, platforms, ui_lang="en", want=None):
     """No model: one video per story with enough footage, biggest first; a trip vlog over the small leftovers."""
     lang = _ui(ui_lang)
     by_story = {s["id"]: s for s in story_list}
-    big = sorted([s for s in story_list if s["seconds"] >= MIN_STORY_S or s["photos"] >= 6],
-                 key=lambda s: -(s["seconds"] + 3 * s["photos"]))
+    big = sorted([s for s in story_list if s["videos"] and s["seconds"] >= MIN_STORY_S], key=lambda s: -s["seconds"])
     cap = want or MAX_VIDEOS
     out = []
     for s in big[:cap]:
         place = (s.get("place") or {})
         tod = s.get("time_of_day") or ""
         en_place, zh_place = place.get("en") or (s.get("date") or "Footage"), place.get("zh") or (s.get("date") or "素材")
-        photos_only = not s["videos"]
-        kind = "photos" if photos_only else ("reel" if s["short_clips"] >= 8 and s["seconds"] < 150 else "film")
+        kind = "reel" if s["short_clips"] >= 8 and s["seconds"] < 150 else "film"
         title = f"{en_place} · {tod}" if tod else en_place
         out.append(dict(title=title, title_zh=f"{zh_place} · {_TOD_ZH.get(tod, '')}".rstrip(" ·"), kind=kind,
                         stories=[s["id"]], brief=f"{s['videos']} clips{' at ' + tod if tod else ''}"
@@ -654,7 +657,7 @@ def rule_videos(story_list, platforms, ui_lang="en", want=None):
             dates = {by_story[x["stories"][0]].get("date") for x in twins}
             tag = s["start"][5:10] if len(dates) == len(twins) else s["start"][11:16]
             v["title"], v["title_zh"] = f"{v['title']} · {tag}", f"{v['title_zh']} · {tag}"
-    left = [s for s in story_list if s not in big[:cap]]
+    left = [s for s in story_list if s not in big[:cap] and s["videos"]]
     days = {s.get("date") for s in left if s.get("date")}
     if len(out) < cap and len(left) >= 3 and len(days) >= 2 and sum(s["seconds"] for s in left) >= 30:
         out.append(dict(title="On the road", title_zh="路上", kind="vlog", stories=[s["id"] for s in left],
@@ -708,9 +711,9 @@ def _clean(raw, by_id, platforms, lang):
         if not isinstance(v, dict):
             continue
         st = [s for s in (v.get("stories") or []) if isinstance(s, str) and s in by_id]
-        if not st:
-            continue
-        kind = v.get("kind") if v.get("kind") in KINDS else "film"
+        if not st or not any(by_id[s].get("videos") for s in st):
+            continue                          # photos alone are not a video yet (the photo story needs a clip)
+        kind = v.get("kind") if v.get("kind") in KINDS and v.get("kind") != "photos" else "film"
         sig = (tuple(sorted(st)), kind)
         if sig in used:
             continue
@@ -759,10 +762,15 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
     totals = dict(videos=sum(s["videos"] for s in st), photos=sum(s["photos"] for s in st),
                   panoramas=sum(s["panoramas"] for s in st), seconds=round(sum(s["seconds"] for s in st), 1),
                   days=sorted({s["date"] for s in st if s.get("date")}))
+    used = {sid for v in vids for sid in v.get("stories") or []}
+    # what no video uses: photos and panoramas (videos are cut from clips), stories too thin or left out
+    unused = dict(stories=[s["id"] for s in st if s["id"] not in used], photos=totals["photos"],
+                  panoramas=totals["panoramas"])
     info["seconds"] = round(time.time() - t0, 1)
     return dict(kind=KIND, version=VERSION, id=gid, created=time.time(), prompt=prompt, inputs=inputs,
                 goal=(goal_line or GOAL_LINE[lang])[:200], platforms=plats, ui_lang=lang, want=want,
-                survey=dict(stories=st, totals=totals, notes=sc["notes"][:20]), videos=vids, planner=info)
+                survey=dict(stories=st, totals=totals, unused=unused, notes=sc["notes"][:20]), videos=vids,
+                planner=info)
 
 
 # --------------------------------------------------------------------------- edits on the plan card

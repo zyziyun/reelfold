@@ -29,6 +29,14 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   rebuilt from the full source frame with the finished grade.
 - **A version in another language**: what is said is translated, voiced again and captioned (an English YouTube
   version of a Chinese clip); with footage linked the picture comes without the old burned text.
+- **Several videos from one folder (goal mode)**: say "make several videos from my DJI card, each with its own theme"
+  (or turn on 「Several videos」 in the composer) and Reelfold reads the folder or SD card (DJI flight logs for time
+  and place, photos, panoramas; nothing is written to the card), groups the footage into stories, and the AI proposes
+  a plan of videos - a history explainer where the place has a story, a music film where it is simply beautiful, a
+  beat short for action. Rename, drop or merge them on the plan card, then they are made a few at a time as one group
+  in the Studio list, on Home and on its own page ("4 of 6 made"). A video that fails or stalls is tried once more,
+  then dropped with the reason; the summary lists each video's files per platform and its post, and "Remove
+  unfinished" clears the rest (`python -m vstudio.intake goal`).
 
 ### Fixed
 

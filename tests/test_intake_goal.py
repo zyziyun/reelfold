@@ -120,6 +120,7 @@ def test_model_plan_is_validated(card):
             dict(title="Kirkland noon", kind="reel", stories=["s2", "s99"], length_s=30, brief="bright water",
                  platforms=["youtube"]),
             dict(title="Ghost", kind="film", stories=["s42"]),                       # no such story: left out
+            dict(title="Pano", kind="photos", stories=["s4"]),                       # a panorama alone: not a video
             dict(title="dup", kind="history", stories=["s1"])]))                     # same story + kind: left out
     doc = G.make_goal("make several videos from my card", [card], call=call, ui_lang="en")
     assert not doc["planner"]["fallback"] and doc["goal"] == "Six DJI shorts"
@@ -130,6 +131,7 @@ def test_model_plan_is_validated(card):
     assert h["length_s"] == 20                                 # never longer than the footage carries (16 s; floor 20)
     assert r["platforms"] == ["youtube-shorts"] and "Vertical first" in r["request"]
     assert r["stories"] == ["s2"]
+    assert doc["survey"]["unused"] == dict(stories=["s3", "s4"], photos=0, panoramas=1)
 
 
 def test_plan_card_edits_rebuild_the_requests(card):

@@ -254,14 +254,14 @@ class Goals:
         g["goal"] = doc.get("goal")
         g["planner"] = {k: (doc.get("planner") or {}).get(k) for k in ("provider", "model", "fallback", "reason")}
         sv = doc.get("survey") or {}
-        g["survey"] = dict(totals=sv.get("totals"), notes=sv.get("notes"),
+        g["survey"] = dict(totals=sv.get("totals"), notes=sv.get("notes"), unused=sv.get("unused"),
                            stories=[{k: s.get(k) for k in ("id", "place", "date", "start", "end", "time_of_day", "videos",
                                                           "photos", "panoramas", "seconds", "aerial", "thumbs", "sheet", "folder")}
                                     for s in sv.get("stories") or []])
         old = {v["id"]: v for v in g.get("videos") or []}
         g["videos"] = [dict(old.get(v["id"]) or {}, **{k: v.get(k) for k in (
-            "id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stories", "platforms", "request",
-            "inputs", "merged_into")}, planned_out=bool(v.get("dropped")), state="planned")
+            "id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills", "stories", "platforms",
+            "request", "inputs", "merged_into")}, planned_out=bool(v.get("dropped")), state="planned")
             for v in doc.get("videos") or []]
         if self.history is not None:                # the story thumbnails / sheets are shown on the plan card
             pics = [p for s in g["survey"]["stories"] for p in [*(s.get("thumbs") or []), s.get("sheet")] if p]
@@ -570,7 +570,7 @@ class Goals:
         out = {k: g.get(k) for k in ("id", "prompt", "inputs", "platforms", "lang", "mode", "state", "step", "goal",
                                      "survey", "planner", "error", "error_code", "progress", "created", "updated",
                                      "approved", "finished", "dismissed_at")}
-        out["videos"] = [{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips",
+        out["videos"] = [{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills",
                                                 "stories", "platforms", "request", "state", "intake", "projects",
                                                 "attempts", "retried", "reason_code", "progress", "live", "queued", "started",
                                                 "finished", "planned_out", "merged_into", "cleared")}
