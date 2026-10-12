@@ -2166,6 +2166,8 @@ Rules:
 - Positions are fractions of the canvas (x, y = centre, 0..1). Keep text short and in the content's language.
 - Respect the capability flags (e.g. a flattened output cannot restyle or edit burned-in captions).
 - Prefer few, purposeful ops; do not repeat existing effects.
+- `output.speech` says whether anyone speaks in the clip. With speech false there is no voice: never say music is
+  ducked / lowered under a voice or that captions follow the speech; describe only what the ops really do.
 Return {"ops": [{"op": ..., ...}], "summary": "<one sentence, English>"}."""
 
 OP_DOC = {
@@ -2199,7 +2201,7 @@ def _ai_context(rec, doc, st, use_asr=True):
         W = words(doc, required=False) if use_asr else []
         if not W:
             tr = read_json(os.path.join(doc.dir, "transcript.json"), None)
-            W = (tr or {}).get("words") or []
+            W = _heard(doc, (tr or {}).get("words") or [])
         if W:
             from vstudio import subs
             lines = [f"{c.start:.2f}-{c.end:.2f} {c.text}" for c in subs.cues_from_words(W, max_chars=24)][:400]
@@ -2209,8 +2211,9 @@ def _ai_context(rec, doc, st, use_asr=True):
                                                                                      "required")}
                                          for p, d in r["params"].items()})
           for r in FX.catalogue()]
+    # does anyone speak in it (a music-only vlog: no): the model must not describe a voice that is not there
     return dict(output=dict(duration=round(rec["info"]["duration"], 2), canvas=[rec["info"]["w"], rec["info"]["h"]],
-                            mode=rec["mode"], platform=rec.get("platform")),
+                            mode=rec["mode"], platform=rec.get("platform"), speech=bool(lines)),
                 caps=caps, state=dict(trim=st["trim"], cuts=st["cuts"], speed=st["speed"], title=st["title"],
                                       theme=st.get("theme"),
                                       effects=[dict(id=e["id"], effect=e["effect"], start=e["start"], end=e["end"])

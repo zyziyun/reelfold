@@ -477,6 +477,22 @@ def test_ai_context_and_chat_transcript(tmp_path, synth, monkeypatch):
 
 
 @media
+def test_ai_context_says_whether_anyone_speaks(tmp_path, synth, monkeypatch):
+    """A music-only clip (a drone vlog) tells the model there is no voice, so it never says the music was "ducked
+    under the voice" (2026-10-12 promo); a talk says it has speech."""
+    w, oid = _work(tmp_path, synth)
+    rec, doc = O._load(w, oid)
+    ctx = O._ai_context(rec, doc, doc.state())
+    assert ctx["output"]["speech"] is (len(ctx["transcript"]) > 0)
+    monkeypatch.setattr(O, "words", lambda *a, **k: [])
+    monkeypatch.setattr(O, "_cue_rows", lambda *a, **k: [])
+    monkeypatch.setattr(O, "_heard", lambda doc, W: [])   # whisper's "Thank you." over music: no words
+    ctx = O._ai_context(rec, doc, doc.state())
+    assert ctx["output"]["speech"] is False and ctx["transcript"] == []
+    assert "speech" in O.AI_SYSTEM and "ducked" in O.AI_SYSTEM
+
+
+@media
 def test_compare_render_does_not_apply(tmp_path, synth):
     w, oid = _work(tmp_path, synth)
     r = R.render(w, oid, with_ops=[dict(op="speed", value=1.5)])
