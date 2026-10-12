@@ -265,6 +265,27 @@ def test_golden_mocked_model(tmp_path, case, prompt, exp):
         assert any("made-up-recipe" in w for w in plan["warnings"])
 
 
+def test_model_platform_split_between_projects_is_kept(tmp_path):
+    """Chinese lines for Xiaohongshu + Bilibili, English for YouTube: the model's split of the requested platforms
+    stays; a project that would drop a requested platform with no other project covering it gets them all."""
+    a = build("vlog", tmp_path)
+    vids = [f["id"] for f in a["files"] if f["kind"] == "video"]
+    prompt = "Make a 60-second golden-hour film. Export for YouTube, Xiaohongshu and Bilibili."
+
+    def reply(split):
+        return lambda s, b: dict(json=dict(projects=[
+            dict(recipe="vlog", name="zh", inputs={"footage": vids}, items=dict(method="single"),
+                 params={"platforms": split[0]}),
+            dict(recipe="vlog", name="en", inputs={"footage": vids}, items=dict(method="single"),
+                 params={"platforms": split[1]})]), model="mock")
+    plan = PL.make_plan(prompt, analysis=a, asr="off", call=reply((["xiaohongshu:full", "bilibili"], ["youtube"])))
+    chans = [[x.split(":")[0] for x in p["params"]["platforms"]] for p in plan["projects"]]
+    assert chans == [["xiaohongshu", "bilibili"], ["youtube"]]
+    plan = PL.make_plan(prompt, analysis=a, asr="off", call=reply((["xiaohongshu:full"], ["youtube"])))
+    chans = [sorted(x.split(":")[0] for x in p["params"]["platforms"]) for p in plan["projects"]]
+    assert chans == [["bilibili", "xiaohongshu", "youtube"]] * 2      # Bilibili named by none: the request wins
+
+
 def test_model_garbage_falls_back(tmp_path):
     a = build("talk", tmp_path)
     plan = PL.make_plan("这段口播剪干净发小红书", analysis=a, asr="off",
@@ -492,6 +513,25 @@ def test_inventory_synthetic(tmp_path, monkeypatch):
     c = I.compact(a)
     assert all("path" not in f for f in c["files"])
     assert not any(n.endswith(".asr.json") for n in os.listdir(d))       # inputs stay untouched
+
+
+def test_walk_follows_symlinked_files_once(tmp_path):
+    """A folder of links into a card (staged material) is scanned; a file linked twice counts once; linked folders
+    and dangling links are skipped."""
+    src = tmp_path / "card"
+    src.mkdir()
+    (src / "a.mp4").write_bytes(b"x")
+    (src / "b.mp4").write_bytes(b"y")
+    d = tmp_path / "staged"
+    d.mkdir()
+    os.symlink(src / "a.mp4", d / "a.mp4")
+    os.symlink(src / "a.mp4", d / "a-again.mp4")
+    os.symlink(src / "b.mp4", d / "b.mp4")
+    os.symlink(tmp_path / "gone.mp4", d / "gone.mp4")
+    os.symlink(src, d / "linked-dir")
+    files, _notes = I.walk([str(d)])
+    names = sorted(os.path.basename(f) for f, _root in files)
+    assert names == ["a-again.mp4", "b.mp4"] or names == ["a.mp4", "b.mp4"]
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")

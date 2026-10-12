@@ -696,10 +696,29 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
         params["layout_mode"], sources["layout_mode"] = ("split" if src.get("screen_share") else "reframe"), "material"
 
 
+def platform_split(raw_projects, intent):
+    """The model split the request's platforms between its projects (Chinese lines for Xiaohongshu + Bilibili, English
+    for YouTube): every project names some of them and together they name all. Then each keeps its own platforms;
+    otherwise the request's platforms go to every project (what she said wins)."""
+    want = {str(x).split(":")[0] for x in intent.get("platforms") or []}
+    rps = [rp for rp in raw_projects or [] if isinstance(rp, dict)]
+    if len(want) < 2 or len(rps) < 2:
+        return False
+    seen = set()
+    for rp in rps:
+        ps = (rp.get("params") or {}).get("platforms")
+        chans = {str(x).split(":")[0] for x in ps} if isinstance(ps, list) else set()
+        if not chans or not chans <= want:
+            return False
+        seen |= chans
+    return seen == want
+
+
 def _apply_intent(m, params, sources, intent, items):
     """What the creator literally said wins over everything else."""
     props = m["params"]["properties"]
-    if intent.get("platforms") and "platforms" in props:
+    if intent.get("platforms") and "platforms" in props and not (intent.get("platform_split") and
+                                                                 sources.get("platforms") == "planner"):
         params["platforms"], sources["platforms"] = list(intent["platforms"]), "prompt"
     if intent.get("speed") and "speed" in props:
         params["speed"], sources["speed"] = intent["speed"], "prompt"
@@ -960,6 +979,7 @@ def summary_zh(plan):
 # measurement: CLI_TIMEOUT_FLOOR s up to CLI_TIMEOUT_BASE_CHARS, +CLI_TIMEOUT_PER_1K s per 1,000 chars past it, at
 # most MAX_CLI_TIMEOUT (35.6k -> 181 s, 60k -> 230 s, 95k -> 300 s).
 CLI_TIMEOUT_FLOOR = 150
+PLAN_EFFORT = os.environ.get("VSTUDIO_INTAKE_EFFORT") or "medium"   # claude-code --effort / anthropic effort
 DEFAULT_CLI_TIMEOUT = CLI_TIMEOUT_FLOOR          # back-compat name
 CLI_TIMEOUT_BASE_CHARS = 20000
 CLI_TIMEOUT_PER_1K = 2.0
@@ -990,8 +1010,12 @@ def _call_model(prompt, analysis, ctx, transcripts, provider=None, model=None, c
             ct = timeout if timeout is not None else (None if os.environ.get("VSTUDIO_LLM_CLI_TIMEOUT")
                                                       else cli_timeout_for(len(system) + len(body)))
             info["cli_timeout"] = ct
+            # medium unless the route sets one: at the CLI's default effort a thinking model (Opus 4.7 on Claude
+            # Code) thought for 3+ minutes on a 16-clip drone folder and hit the attempt limit -> rule planner
+            eff = None if (getattr(route, "opts", None) or {}).get("effort") else PLAN_EFFORT
             res = LLM.complete(TASK, system, body, schema=True, provider=provider, model=model,
-                               config=ctx.get("llm_config"), max_tokens=12000, timeout=600, cli_timeout=ct)
+                               config=ctx.get("llm_config"), max_tokens=12000, timeout=600, cli_timeout=ct,
+                               effort=eff)
     except Exception as e:  # noqa: BLE001 - auth / network / CLI errors: fall back, say why
         info.update(fallback=True, reason=f"{type(e).__name__}: {str(e)[:240]}", seconds=round(time.time() - t0, 1),
                     failure=LLM.failure_code(e))
@@ -1165,9 +1189,10 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
         summary = js.get("summary_zh") if isinstance(js.get("summary_zh"), str) else None
     projects = []
     if raw_projects:
+        pin = dict(intent, platform_split=True) if platform_split(raw_projects, intent) else intent
         for k, rp in enumerate(raw_projects):
             if isinstance(rp, dict):
-                p = normalize_project(rp, len(projects), analysis, intent, ctx, warn)
+                p = normalize_project(rp, len(projects), analysis, pin, ctx, warn)
                 if p:
                     projects.append(p)
         if not projects:
