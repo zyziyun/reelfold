@@ -37,8 +37,11 @@ const renders = (dir: string) =>
     ? fs
         .readFileSync(path.join(tmp, 'renders.log'), 'utf8')
         .split('\n')
-        .filter((l) => l && l.includes(fs.realpathSync(dir))).length
+        .filter((l) => l && spellings(dir).some((d) => l.includes(d))).length
     : 0;
+// the engine may log a folder as given or as resolved: on Windows Python's realpath expands 8.3 short names
+// (C:\Users\RUNNER~1 -> C:\Users\runneradmin), which only fs.realpathSync.native does on the Node side
+const spellings = (dir: string) => [...new Set([dir, fs.realpathSync(dir), fs.realpathSync.native(dir)])];
 const aiScenes = (dir: string) => {
   const c = path.join(item(dir), 'compositions');
   const fs_ = fs.readdirSync(c).filter((f) => f.endsWith('.html') && f !== 'captions.html');
@@ -112,6 +115,7 @@ const walk = (d: string, out: string[] = []): string[] => {
   }
   return out;
 };
+// eslint-disable-next-line no-empty-pattern -- Playwright reads the fixtures from a destructured first argument
 test.afterEach(async ({}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus || !fx) return;
   const parts = [`--- claude.log\n${tail(path.join(tmp, 'claude.log'))}`, `--- renders.log\n${tail(path.join(tmp, 'renders.log'))}`];

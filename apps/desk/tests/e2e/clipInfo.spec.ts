@@ -185,7 +185,7 @@ test('after an AI edit re-renders the clip, the edited version plays (no stale m
   // project's clip tile loads it under that key (never the cover Chromium cached for the same path)
   type Clips = { clips: { id: string; cover: string | null; cover_v?: string | null }[] };
   const c = (await api<Clips>(`/api/outputs/${id}`)).clips.find((x) => x.id === 'talk')!;
-  expect(c.cover).toMatch(/renders\/.*cover\.jpg$/);
+  expect(c.cover).toMatch(/renders[\\/].*cover\.jpg$/);
   expect(c.cover_v).toBeTruthy();
   await hash(`#/p/${id}`);
   await expect(page.locator(`img[src*="v=${encodeURIComponent(c.cover_v!)}"]`).first()).toBeAttached({ timeout: 30000 });
