@@ -170,7 +170,7 @@ class NothingMadeYetTest(unittest.TestCase):
             f.write("name: p\nrecipe: vlog\n")
 
         class H:
-            def find(self, item):
+            def find(self, item, **_kw):
                 return dict(kind="project", dir=d, live=dict(state="running"))
 
             def allow_media(self, paths):

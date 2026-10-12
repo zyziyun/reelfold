@@ -2,8 +2,8 @@
 // read as one entry per clip in plain words, the list's search / filters, and what the bulk bar can do with a pick.
 import { describe, expect, it } from 'vitest';
 import { setLang } from '../../src/renderer/src/i18n';
-import { approveAnswer, bulkWork, canApprove, count } from '../../src/renderer/src/lib/bulk';
-import { homeSignals, shareSignals } from '../../src/renderer/src/lib/homeSignals';
+import { approveAnswer, bulkWork, canApprove, chunks, count, schedulePlan } from '../../src/renderer/src/lib/bulk';
+import { homeSignals, seriesTitle, shareSignals, workSignals } from '../../src/renderer/src/lib/homeSignals';
 import { selHref } from '../../src/renderer/src/lib/nav';
 import type { StudioRow } from '../../src/renderer/src/lib/studio';
 import { setStudioPrefs } from '../../src/renderer/src/lib/studioFlag';
@@ -11,7 +11,7 @@ import { findOptions, findRows, NO_FIND } from '../../src/renderer/src/lib/studi
 import type { ActionTarget } from '../../src/renderer/src/lib/rowActions';
 import { outGroups, outState } from '../../src/renderer/src/v4/HomeTriage';
 import type { HistoryItem } from '../../src/shared/v02';
-import type { CalendarPost, InboxItem } from '../../src/shared/v04';
+import type { CalendarPost, Clip, InboxItem } from '../../src/shared/v04';
 
 const NOW = new Date('2026-10-11T12:00:00').getTime();
 const post = (o: Partial<CalendarPost>): CalendarPost => ({ id: o.id ?? 'p', item: 'a', clip: 'c1', title: 'Tips', cover: null, platform: 'tiktok', at: '2026-10-11T09:00', state: 'planned', ...o });
@@ -45,6 +45,24 @@ describe('Home chips: her own signals only', () => {
   });
 });
 
+describe('Home chips: in her words, and they do the thing', () => {
+  it("a series chip says the series' own name or the project's title, never a folder id", () => {
+    expect(seriesTitle({ name: 'Workshop talk → 4 clips', series: 'intake-Cut-this-week-s-reco-10111539', series_name: "Cut this week's recordings int" })).toBe('Workshop talk → 4 clips');
+    expect(seriesTitle({ name: 'Ep 3', series: 'tips-2026', series_name: 'Weekly tips' })).toBe('Weekly tips');
+    expect(seriesTitle({ name: 'Ep 3', series: 'Weekly tips' })).toBe('Weekly tips');
+    const s = workSignals([item('a', { series: 'intake-Cut-this-week-s-reco-10111539', name: 'Workshop talk → 4 clips' })]);
+    expect(s[0]).toMatchObject({ kind: 'series', text: 'Workshop talk → 4 clips' });
+  });
+  it('a project with clips left points at that project (the chip runs it on, never an empty request)', () => {
+    const s = workSignals([item('s', { series: 'Tips' }), item('u', { name: 'Office hours', counts: { total: 5, green: 0, red: 0, approved: 0, done: 2, failed: 0 } })]);
+    expect(s.find((x) => x.kind === 'finish')).toMatchObject({ item: 'u', text: 'Office hours', n: 3 });
+  });
+  it("a post out on YouTube via her 'youtube-studio' account counts as YouTube (no raw ids in the chip)", () => {
+    const s = shareSignals([post({ state: 'posted', platform: 'tiktok' })], ['tiktok', 'youtube-studio'], NOW);
+    expect(s[0].missing).toEqual(['youtube']);
+  });
+});
+
 describe("Home: today's posts", () => {
   it('one entry per clip and time, its platforms side by side, where it is in words', () => {
     setLang('en');
@@ -74,6 +92,30 @@ describe('All projects: search and filters', () => {
     expect(findRows(rows, { ...NO_FIND, project: 'b' }, posts, NOW).map((r) => r.key)).toEqual(['b/c1']);
     expect(findRows(rows, { ...NO_FIND, date: 'week' }, posts, NOW).map((r) => r.key)).toEqual(['a/c1', 'r:x']);
     expect(findOptions(rows, posts)).toEqual({ platforms: ['youtube-shorts'], projects: [['b', 'Covers'], ['a', 'Weekly tips']] });
+  });
+});
+
+describe('All projects: bulk Schedule at scale', () => {
+  const clip = (id: string, platforms: string[]): Clip => ({ id, title: id, files: platforms.map((p) => ({ platform: p, path: `/v/${id}-${p}.mp4` })) }) as unknown as Clip;
+  it('plans from the clips the list has (no request per project), leaves scheduled ones and says what has no platform', () => {
+    const by = new Map([
+      ['a', ['c1', 'c2']],
+      ['b', ['c1']],
+      ['c', ['c9']],
+    ]);
+    const clips = { a: [clip('c1', ['tiktok']), clip('c2', ['youtube', 'tiktok'])], b: [clip('c1', [])], c: undefined };
+    const plan = schedulePlan(by, clips, [post({ item: 'a', clip: 'c1' })], (c) => c.files.map((f) => f.platform!).filter(Boolean));
+    expect(plan.todo).toEqual([{ item: 'a', clip: 'c2', platforms: ['youtube', 'tiktok'] }]);
+    expect(plan.noPlatform).toBe(1);
+  });
+  it('hundreds of videos go in a few requests', () => {
+    const xs = Array.from({ length: 230 }, (_, i) => i);
+    expect(chunks(xs).map((c) => c.length)).toEqual([100, 100, 30]);
+    expect(chunks([])).toEqual([]);
+  });
+  it('the button counts the made videos picked, the same ones Ready to post lists', () => {
+    const rows = Array.from({ length: 216 }, (_, k) => row({ key: `p${k}/c1`, item: `p${k}` }));
+    expect(count(bulkWork(rows, []).schedule)).toBe(216);
   });
 });
 

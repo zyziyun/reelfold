@@ -35,6 +35,9 @@ MAX_CAPTION = 40000
 MAX_TITLE = 300
 URL_RE = re.compile(r"^https://[^\s]{4,2040}$")
 MAX_MANY = 200
+MAX_CLIPS = 100          # schedule_clips: clips per request (All projects sends hundreds in a few of these: progress)
+MAX_IDS = 5000           # unschedule / restore: a bulk Schedule of hundreds of videos is one undo
+SLOT_DAYS = 3650         # schedule_clips looks this far ahead for free days
 
 # post-text limits when the engine's platform table (vstudio.platform) is not importable: chars, X weighted
 FALLBACK_LIMITS = {"xiaohongshu": 1000, "douyin": 1000, "tiktok": 4000, "youtube": 5000, "youtube-shorts": 5000,
@@ -173,7 +176,7 @@ class Calendar:
         everything = rows if everything is None else everything
         names = {}
         try:
-            for e in self.history.list()["items"]:
+            for e in (self.history.recent() if hasattr(self.history, "recent") else self.history.list()["items"]):
                 names[e["id"]] = e.get("name")
         except Exception:  # noqa: BLE001
             pass
@@ -285,11 +288,58 @@ class Calendar:
         self._pub()
         return dict(ok=True, posts=new, ids=[r["id"] for r in new])
 
+    def schedule_clips(self, b):
+        """All projects' bulk Schedule: each clip on the next free day (one a day, from the day after ``today``, a day
+        that already has a post is skipped) at ``hour``, on its ``platforms``; a clip that already has a post is left
+        as it is. Every row of the request or none, one write, one ``calendar`` event (``quiet``: none - the desk
+        sends hundreds of clips in a few requests and announces the last one) -> {ids, clips, skipped, first, last}."""
+        need(isinstance(b, dict), "body must be an object")
+        clips = b.get("clips")
+        need(isinstance(clips, list) and 0 < len(clips) <= MAX_CLIPS, f"clips: 1-{MAX_CLIPS}")
+        need(isinstance(b.get("today"), str) and DAY_RE.match(b["today"]), "today: YYYY-MM-DD")
+        hour = b.get("hour") or "19:00"
+        need(isinstance(hour, str) and HM_RE.match(hour), "hour: HH:MM")
+        for c in clips:
+            need(isinstance(c, dict) and isinstance(c.get("platforms"), list) and 0 < len(c["platforms"]) <= 12,
+                 "clips[]: {item, clip, platforms}")
+        cache = {}
+        for item in dict.fromkeys(c.get("item") for c in clips):     # read the projects before taking the lock
+            need(isinstance(item, str) and ITEM_RE.match(item), "item: project id")
+            cache[item] = {x["id"]: x for x in self.outputs.clips(item)["clips"]}
+        with self._lock:
+            rows = self._rows()
+            have = {(r["item"], r["clip"]) for r in rows}
+            used = {r["at"][:10] for r in rows}
+            day = _day(b["today"])
+            new, done, skipped = [], [], 0
+            for c in clips:
+                if (c.get("item"), c.get("clip")) in have:
+                    skipped += 1
+                    continue
+                have.add((c.get("item"), c.get("clip")))
+                for _ in range(SLOT_DAYS):
+                    day += dt.timedelta(days=1)
+                    if _iso(day) not in used:
+                        break
+                need(_iso(day) not in used, "no free day in the next ten years")
+                used.add(_iso(day))
+                at = f"{_iso(day)}T{hour}"
+                new += [self._row(dict(item=c.get("item"), clip=c.get("clip"), platform=pf, at=at), cache)
+                        for pf in dict.fromkeys(c["platforms"])]
+                done.append(at)
+            if new:
+                write_json(self.path, rows + new)
+        if new and not b.get("quiet"):
+            self._pub()
+        return dict(ok=True, ids=[r["id"] for r in new], clips=len(done), skipped=skipped,
+                    first=done[0] if done else None, last=done[-1] if done else None)
+
     def remove_many(self, ids):
         """Unschedule (back to the queue). Only calendar rows go; the clips' files are never touched. Returns the
         removed rows so the desk's undo can put them back as they were (``restore``)."""
-        need(isinstance(ids, list) and 0 < len(ids) <= MAX_MANY and all(isinstance(i, str) and ITEM_RE.match(i) for i in ids),
+        need(isinstance(ids, list) and 0 < len(ids) <= MAX_IDS and all(isinstance(i, str) and ITEM_RE.match(i) for i in ids),
              "ids: post ids")
+        ids = set(ids)
         with self._lock:
             rows = self._rows()
             gone = [r for r in rows if r["id"] in ids]
@@ -299,7 +349,7 @@ class Calendar:
 
     def restore(self, posts):
         """Undo of remove_many: the same rows back (same ids, captions, states)."""
-        need(isinstance(posts, list) and 0 < len(posts) <= MAX_MANY, f"posts: 1-{MAX_MANY} rows")
+        need(isinstance(posts, list) and 0 < len(posts) <= MAX_IDS, f"posts: 1-{MAX_IDS} rows")
         keep = ("id", "item", "clip", "title", "cover", "platform", "at", "state", "caption", "enabled", "stats",
                 "platform_title", "url", "posted_at", "via")
         clean = []

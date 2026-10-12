@@ -45,11 +45,9 @@ def recurring(jobs):
 
 def _yaml_paths(path):
     """Every absolute path a project.yaml names as an input (items[].inputs, inputs)."""
-    try:
-        import yaml
-        with open(path, encoding="utf-8") as f:
-            d = yaml.safe_load(f) or {}
-    except Exception:  # noqa: BLE001  (a broken / unreadable project file names nothing)
+    from .history import _project_yaml        # parsed once per change of the file (200+ projects on each Home look)
+    d = _project_yaml(os.path.dirname(path))
+    if not isinstance(d, dict):
         return []
     out = []
 

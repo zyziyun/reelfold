@@ -64,6 +64,7 @@ History (history.py; read-only discovery of past work: desk + engine registries,
                                            target, files, bytes, keep[] (her footage: stays), inside[]}]}
   POST /api/history/forget {dirs[]}        Delete, step 2: folders now in the Trash leave the desk's notes
   POST /api/history/item/<id>/stop|resume  stop a project's run (pilot.stop: resumable) / run it on (Try again)
+  POST /api/history/item/<id>/finish       its clips not made yet made (a pilot goes on to the rest) -> {started}
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
   POST /api/history/item/<id>/adopt        {recipe?: guess|name, title?} plain work folder -> .vstudio/work.json
   GET  /api/history/item/<id>/progress?n=  the run's last events as codes (「看过程」 in the control room)
@@ -687,6 +688,8 @@ class Api:
                 return self.calendar.confirm_week(b.get("start"))
             if parts == ["calendar", "many"] and method == "POST":
                 return self.calendar.add_many(b.get("posts"))
+            if parts == ["calendar", "schedule-clips"] and method == "POST":
+                return self.calendar.schedule_clips(b)
             if parts == ["calendar", "remove"] and method == "POST":
                 return self.calendar.remove_many(b.get("ids"))
             if parts == ["calendar", "restore"] and method == "POST":
@@ -801,6 +804,17 @@ class Api:
                     return progress_feed(h.find(parts[2])["dir"], int(n))
                 if parts[3:] == ["pieces"] and method == "GET":
                     return self.outputs.pieces(parts[2])
+                if parts[3:] == ["finish"] and method == "POST":
+                    # Home's "Finish <project> · N clips left": the project run on to its clips not made yet (a pilot
+                    # that stopped after its first clip goes on to the rest); nothing to run while a question of the
+                    # project waits for her (started: false - the desk opens the project, the question is there)
+                    e = h.find(parts[2])
+                    need(e["kind"] == "project", "only a project can be finished")
+                    from . import pilot
+                    rec = pilot.resume_after_answer(self.inbox.runner, e["dir"], bus=self.bus)
+                    if rec and self.bus:
+                        self.bus.publish("batches")
+                    return dict(ok=True, started=bool(rec))
                 if parts[3:] in (["stop"], ["resume"]) and method == "POST":
                     e = h.find(parts[2])
                     need(e["kind"] in ("project", "work"), "only a project's run can be stopped / tried again")

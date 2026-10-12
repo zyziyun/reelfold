@@ -14,34 +14,85 @@ interface Ctx {
   posts: CalendarPost[];
   /** every source of the rows loaded (``studioSettled``): the counts are final, an empty list means no videos */
   ready: boolean;
+  /** every recent project's clips as loaded so far (the bulk Schedule reads them instead of asking per project) */
+  clips: Record<string, Clip[] | undefined>;
 }
 
-const StudioCtx = createContext<Ctx>({ rows: [], posts: [], ready: false });
+const StudioCtx = createContext<Ctx>({ rows: [], posts: [], ready: false, clips: {} });
 
 /** A source that never answers (a stuck clips call) does not hide the counts for ever. */
 export const SETTLE_GIVE_UP_MS = 15_000;
 
-/** Every recent project's clips, loaded once per project version (a run's new clip shows as soon as it exists). */
+/** How many projects' clips are asked for at once (200+ projects at start-up: a few at a time, newest first). */
+export const CLIPS_AT_ONCE = 6;
+
+/** Every recent project's clips, loaded once per project version (a run's new clip shows as soon as it exists), a
+ * few projects at a time. A clip edit reloads that project only; a calendar change reloads none (a clip's posts are
+ * not in its clips). A project whose clips could not be read is asked again on its next change or a minute later -
+ * never shown as "no videos" for good. */
 function useClipsOf(ids: { id: string; v: string }[], on: boolean) {
   const { client, subscribe } = useEngine();
   const [clips, setClips] = useState<Record<string, Clip[] | undefined>>({});
   const seen = useRef<Record<string, string>>({});
   const [n, setN] = useState(0);
-  useEffect(() => subscribe((e) => (e.type === 'output-edit' || e.type === 'calendar' ? ((seen.current = {}), setN((x) => x + 1)) : undefined)), [subscribe]);
+  useEffect(
+    () =>
+      subscribe((e) => {
+        if (e.type !== 'output-edit') return;
+        delete seen.current[e.item];
+        setN((x) => x + 1);
+      }),
+    [subscribe],
+  );
   const key = ids.map((x) => `${x.id}:${x.v}`).join('|');
   useEffect(() => {
     if (!client || !on) return;
     let alive = true;
-    for (const { id, v } of ids) {
-      if (seen.current[id] === v) continue;
-      seen.current[id] = v;
-      client
-        .clips(id)
-        .then((d) => alive && setClips((c) => ({ ...c, [id]: d.clips })))
-        .catch(() => alive && setClips((c) => ({ ...c, [id]: [] })));
-    }
+    const marks = seen.current;
+    const todo = ids.filter(({ id, v }) => marks[id] !== v);
+    for (const { id, v } of todo) marks[id] = v;
+    let failed = false;
+    // the answers are put in together a few times a second, not one re-render of the whole list per project
+    let pending: Record<string, Clip[]> = {};
+    let flushT = 0;
+    const flush = () => {
+      flushT = 0;
+      const p = pending;
+      pending = {};
+      if (alive && Object.keys(p).length) setClips((c) => ({ ...c, ...p }));
+    };
+    const put = (id: string, cl: Clip[]) => {
+      pending[id] = cl;
+      if (!flushT) flushT = window.setTimeout(flush, 150);
+    };
+    const going = new Set<{ id: string; v: string }>();
+    const next = async (): Promise<void> => {
+      const x = todo.shift();
+      if (!x || !alive) return;
+      going.add(x);
+      try {
+        const d = await client.clips(x.id);
+        put(x.id, d.clips);
+      } catch {
+        // not read this time (the engine busy, a project being moved): no videos for now, asked again later
+        if (marks[x.id] === x.v) delete marks[x.id];
+        failed = true;
+        if (alive) setClips((c) => (c[x.id] ? c : { ...c, [x.id]: [] }));
+      }
+      going.delete(x);
+      return next();
+    };
+    void Promise.all(Array.from({ length: Math.min(CLIPS_AT_ONCE, todo.length) }, next)).then(() => {
+      window.clearTimeout(flushT);
+      flush();
+      if (alive && failed) window.setTimeout(() => alive && setN((k) => k + 1), 60_000);
+    });
     return () => {
+      window.clearTimeout(flushT);
+      flush();
       alive = false;
+      // what this round did not get to (or got after it was over) is the next round's
+      for (const x of [...todo, ...going]) if (marks[x.id] === x.v) delete marks[x.id];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, key, n, on]);
@@ -90,7 +141,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     if (now && !latched) setLatched(true);
   }, [now, latched]);
   const ready = now || latched;
-  const value = useMemo(() => ({ rows, posts, ready }), [rows, posts, ready]);
+  const value = useMemo(() => ({ rows, posts, ready, clips }), [rows, posts, ready, clips]);
   return <StudioCtx.Provider value={value}>{children}</StudioCtx.Provider>;
 }
 

@@ -93,13 +93,27 @@ function chipIcon(s: HomeSignal) {
 }
 
 /** What a chip does: a recording goes into the composer, a request fills it again, a post opens on its clip's page
- * (publishing is there), the next episode / the rest of a project become a request. */
+ * (publishing is there), the next episode becomes a request. The rest of a project is that project run on (its
+ * recordings are already in it; the run skips what is made) and its run page opens - never a new request with no
+ * files, which only stopped at "Add the recordings you want cut". */
 export function useChipAction(fill: (prompt: string) => void, addFile: (path: string) => void) {
+  const { client } = useEngine();
+  const ui = useUi();
   return (s: HomeSignal) => {
     if (s.kind === 'recording' && s.path) return addFile(s.path);
     if (s.kind === 'again') return fill(s.text);
     if (s.kind === 'share' && s.item && s.clip) return void (location.hash = clipHref(s.item, s.clip));
     if (s.kind === 'series') return fill(t('home.sug.nextPrompt', { name: s.text, n: s.n ?? 1 }));
+    if (s.kind === 'finish' && s.item && client) {
+      const item = s.item;
+      return void client
+        .finishHistory(item)
+        .then((r) => {
+          ui.toast(t(r.started ? 'hd.sig.finishing' : 'hd.sig.finishAsk', { name: s.text }));
+          location.hash = studioEnabled() ? href({ name: 'studio', id: item }) : projectHref(item);
+        })
+        .catch((e) => ui.toast(errText(e), { error: true }));
+    }
     return fill(t('home.sug.finishPrompt', { name: s.text }));
   };
 }

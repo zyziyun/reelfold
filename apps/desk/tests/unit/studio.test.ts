@@ -1,7 +1,7 @@
 // The Studio list model (lib/studio): one row per video across projects, grouped needs you / in progress / ready /
 // scheduled; a question about a clip lands on that clip, one about the project on the project's own row.
 import { describe, expect, it } from 'vitest';
-import { grouped, listPieces, needsYou, screenPieces, screenRows, studioRows, studioSettled, visible } from '../../src/renderer/src/lib/studio';
+import { grouped, listPieces, needsYou, notMadeYet, screenPieces, screenRows, studioRows, studioSettled, visible } from '../../src/renderer/src/lib/studio';
 import type { HistoryItem } from '../../src/shared/v02';
 import type { CalendarPost, Clip, InboxItem, OpenRequest } from '../../src/shared/v04';
 
@@ -134,5 +134,14 @@ describe('studio counts settle before they show', () => {
     // a project whose clips failed to load reads [] (one project row): that is an answer, not "loading"
     expect(studioSettled({ ...src, clips: { ...full, dddddddddddd: [] } })).toBe(true);
     expect(studioSettled({ ...src, projects: [], clips: {} })).toBe(true);
+  });
+});
+
+describe('a video with no file', () => {
+  it('is "not made yet" while its run has not made it (waiting, queued, planned, running), "empty" only once made', () => {
+    for (const s of ['waiting', 'queued', 'planned', 'running', 'needs-replan']) expect(notMadeYet({ kind: 'clip', video: null, clipState: s })).toBe(true);
+    for (const s of ['done', 'approved', 'packaged', 'failed']) expect(notMadeYet({ kind: 'clip', video: null, clipState: s })).toBe(false);
+    expect(notMadeYet({ kind: 'clip', video: '/v.mp4', clipState: 'waiting' })).toBe(false);
+    expect(notMadeYet({ kind: 'project', video: null, clipState: 'planned' })).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 // take - Approve (their questions, answered the recommended way), Schedule (made and not scheduled yet), Try again
 // (failed / stopped runs), Change with AI (made videos, one request per project) - so a button shows only when it
 // does something and says how many it takes.
-import type { InboxItem } from '../../../shared/v04';
+import type { CalendarPost, Clip, InboxItem } from '../../../shared/v04';
 import { answerOf } from './inboxView';
 import { rowActions, type ActionTarget } from './rowActions';
 import type { StudioRow } from './studio';
@@ -57,3 +57,43 @@ export function bulkWork(rows: StudioRow[], targets: ActionTarget[]): BulkWork {
 }
 
 export const count = (m: Map<string, string[]>) => [...m.values()].reduce((s, v) => s + v.length, 0);
+
+/** Clips per schedule request: hundreds of videos go in a few requests, so the bar can say how far it is. */
+export const SCHEDULE_CHUNK = 100;
+
+export interface SchedulePlan {
+  /** what to schedule, in list order: each clip with the platforms it goes to */
+  todo: { item: string; clip: string; platforms: string[] }[];
+  /** made, not scheduled yet, but no platform to post to (no platform in its files, none in Settings) */
+  noPlatform: number;
+}
+
+/** The bulk Schedule from what the list already has (each project's clips, the posts): no request per project.
+ * A clip that already has a post is left out; ``platformsOf`` says where a clip goes (Project.postPlatforms). */
+export function schedulePlan(by: Map<string, string[]>, clips: Record<string, Clip[] | undefined>, posts: CalendarPost[], platformsOf: (c: Clip) => string[]): SchedulePlan {
+  const taken = new Set(posts.map((p) => `${p.item}/${p.clip}`));
+  const todo: SchedulePlan['todo'] = [];
+  let noPlatform = 0;
+  for (const [item, ids] of by) {
+    const own = new Map((clips[item] ?? []).map((c) => [c.id, c]));
+    for (const id of ids) {
+      const c = own.get(id);
+      if (!c || taken.has(`${item}/${id}`)) continue;
+      const platforms = platformsOf(c);
+      if (!platforms.length) noPlatform++;
+      else todo.push({ item, clip: id, platforms });
+    }
+  }
+  return { todo, noPlatform };
+}
+
+export function chunks<T>(xs: T[], n = SCHEDULE_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+}
+
+/** Today on this Mac, YYYY-MM-DD (the first free day is the day after). */
+export function localDay(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

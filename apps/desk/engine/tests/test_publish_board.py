@@ -164,6 +164,48 @@ class Board(unittest.TestCase):
         self.assertEqual(nxt["drafts"][0]["at"], "2026-10-12T12:00")
 
 
+class ScheduleClipsTest(Board):
+    """All projects' bulk Schedule of hundreds of videos: a few batched requests (not one per project), the next free
+    days one a day, a clip already scheduled left alone, all or none, one undo however many."""
+
+    def test_next_free_days_one_a_day_skipping_taken_ones(self):
+        self.cal.add_many([dict(item=self.item, clip=B, platform="x", at="2026-10-07T12:00")])     # the 7th is taken
+        r = self.cal.schedule_clips(dict(today="2026-10-05", hour="19:00", clips=[
+            dict(item=self.item, clip=A, platforms=["tiktok", "youtube", "tiktok"]),
+            dict(item=self.item, clip=B, platforms=["x"])]))                                       # B: has a post
+        self.assertEqual((r["clips"], r["skipped"], r["first"], r["last"]), (1, 1, "2026-10-06T19:00", "2026-10-06T19:00"))
+        self.assertEqual(len(r["ids"]), 2)                          # one row per platform, a repeated one once
+        mine = sorted((p["platform"], p["at"]) for p in self.posts() if p["clip"] == A)
+        self.assertEqual(mine, [("tiktok", "2026-10-06T19:00"), ("youtube", "2026-10-06T19:00")])
+        self.cal.remove_many(r["ids"])
+        r = self.cal.schedule_clips(dict(today="2026-10-06", clips=[dict(item=self.item, clip=A, platforms=["x"])]))
+        self.assertEqual(r["first"], "2026-10-08T19:00")             # the 7th has a post: the next free day
+
+    def test_all_or_none_and_bounds(self):
+        with self.assertRaises(BadRequest):                          # an unknown clip: nothing written
+            self.cal.schedule_clips(dict(today="2026-10-05", clips=[dict(item=self.item, clip=A, platforms=["x"]),
+                                                                    dict(item=self.item, clip="nope", platforms=["x"])]))
+        self.assertEqual(self.posts(), [])
+        for bad in (dict(today="2026-10-05", clips=[]), dict(today="soon", clips=[dict(item=self.item, clip=A, platforms=["x"])]),
+                    dict(today="2026-10-05", clips=[dict(item=self.item, clip=A, platforms=[])]),
+                    dict(today="2026-10-05", hour="7pm", clips=[dict(item=self.item, clip=A, platforms=["x"])])):
+            with self.assertRaises(BadRequest):
+                self.cal.schedule_clips(bad)
+
+    def test_quiet_until_the_last_request_and_one_undo_for_hundreds(self):
+        events = []
+        self.cal.bus = mock.Mock(publish=lambda *a, **k: events.append(a[0]))
+        self.cal.schedule_clips(dict(today="2026-10-05", quiet=True, clips=[dict(item=self.item, clip=A, platforms=["x"])]))
+        self.assertEqual(events, [])
+        r = self.cal.schedule_clips(dict(today="2026-10-05", clips=[dict(item=self.item, clip=B, platforms=["x"])]))
+        self.assertEqual(events, ["calendar"])
+        self.assertEqual(r["first"], "2026-10-07T19:00")
+        # an undo of a bulk Schedule of hundreds of videos x platforms is one request (was capped at 200 rows)
+        rows = [dict(id=f"{i:012x}", item=self.item, clip=A, platform="x", at="2026-11-01T19:00", state="planned") for i in range(900)]
+        self.cal.restore(rows)
+        self.assertEqual(len(self.cal.remove_many([x["id"] for x in rows])["removed"]), 900)
+
+
 class TitleAndPostedTest(Board):
     def test_title_edit_per_row_limit_and_reset(self):
         r = self.cal.add_many([dict(item=self.item, clip=A, platform=p, at="2026-10-07T20:00") for p in ("xiaohongshu", "youtube")])

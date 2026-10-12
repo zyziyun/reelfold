@@ -108,22 +108,45 @@ def summarize_batch(bdir):
     return out
 
 
-def summarize_project(pdir):
-    out = dict(name=os.path.basename(pdir.rstrip(os.sep)), recipe=None, client=None, series=None)
+_YAML = {}
+_YAML_LOCK = threading.Lock()
+
+
+def _project_yaml(pdir):
+    """A project's project.yaml as a dict, parsed again only when the file changed (path, mtime, size): All projects
+    lists every project on each look-up, and 200+ pure-Python YAML parses were most of a 2-6 s listing."""
+    path = os.path.join(pdir, "project.yaml")
+    try:
+        st = os.stat(path)
+        sig = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return {}
+    hit = _YAML.get(path)
+    if hit and hit[0] == sig:
+        return hit[1]
     try:
         import yaml  # the bundled runtime and the engine have PyYAML; plain-text fallback otherwise
-        with open(os.path.join(pdir, "project.yaml"), encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        loader = getattr(yaml, "CSafeLoader", None) or yaml.SafeLoader
+        with open(path, encoding="utf-8") as f:
+            data = yaml.load(f, Loader=loader) or {}  # noqa: S506  (a safe loader)
     except Exception:  # noqa: BLE001
         data = {}
         try:
-            with open(os.path.join(pdir, "project.yaml"), encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 for ln in f:
                     m = re.match(r"^(name|recipe|client|series):\s*(.+?)\s*$", ln)
                     if m:
                         data[m.group(1)] = m.group(2).strip("'\"")
         except OSError:
             pass
+    with _YAML_LOCK:
+        _YAML[path] = (sig, data)
+    return data
+
+
+def summarize_project(pdir):
+    out = dict(name=os.path.basename(pdir.rstrip(os.sep)), recipe=None, client=None, series=None)
+    data = _project_yaml(pdir)
     if isinstance(data, dict):
         for k in ("name", "recipe", "client", "series"):
             if isinstance(data.get(k), str) and data[k]:
@@ -155,26 +178,34 @@ def summarize_project(pdir):
 _COVERS = {}
 
 
-def _made_cover(pdir):
-    """A finished project's picture when its run store has no contact sheet: the first made clip's cover (the
-    engine's collect - the same files the clip list shows), re-read only when the run store changed."""
-    db = os.path.join(pdir, "state", "batch.db")
+def _store_sig(db):
     sig = []
     for f in (db, db + "-wal"):
         try:
-            sig.append(os.stat(f).st_mtime_ns)
+            st = os.stat(f)
+            sig.append((st.st_mtime_ns, st.st_size))
         except OSError:
             sig.append(0)
+    return sig
+
+
+def _made_cover(pdir):
+    """A finished project's picture when its run store has no contact sheet: the first made clip's cover (the
+    engine's collect - the same files the clip list shows), re-read only when the run store changed. The store's
+    stamp is taken after the read too: opening it (WAL) touches its files, and a stamp from before the read never
+    matched again (every listing re-read every finished project: most of a 0.7 s listing at 200+ projects)."""
+    db = os.path.join(pdir, "state", "batch.db")
     hit = _COVERS.get(pdir)
-    if hit and hit[0] == sig:
+    if hit and _store_sig(db) in hit[0]:
         return hit[1]
+    before = _store_sig(db)
     from .outputs import _engine_item_files
     cover = None
     for it in _engine_item_files(pdir).values():
         cover = next((f["cover"] for f in it.get("files") or [] if f.get("cover") and os.path.isfile(f["cover"])), None)
         if cover:
             break
-    _COVERS[pdir] = (sig, cover)
+    _COVERS[pdir] = ([before, _store_sig(db)], cover)
     return cover
 
 
@@ -737,7 +768,8 @@ class History:
             row = dict(info, kind=kind_, dir=d, real=rp, sources=[src], id=bid, live=live,
                        opened=bid in reg_ids,
                        openable=kind_ != "work" and os.path.exists(os.path.join(store_dir, "batch.db")),
-                       series=info.get("series") or series.get(rp))
+                       series=info.get("series") or series.get(rp),
+                       series_name=series.get(rp) if series.get(rp) != (info.get("series") or series.get(rp)) else None)
             rows.append(row)
         for r in self._more_rows({r["id"] for r in rows}):
             rr = os.path.realpath(r.get("real") or r.get("dir") or "")
@@ -789,6 +821,14 @@ class History:
         name = (summarize_project(d) if store_dir != d else summarize_batch(d)).get("name")
         ent = self.reg.add(store_dir, name)
         return dict(id=ent["id"], dir=store_dir, name=name)
+
+    def recent(self, max_age=3.0):
+        """The listing's rows, reused for a few seconds like ``find`` (names for the calendar's posts): a listing reads
+        every project, and the calendar was listing them again on each reload of the Studio's posts."""
+        cached = getattr(self, "_last", None)
+        if cached and time.time() - cached[0] < max_age:
+            return [dict(r) for r in cached[1]]
+        return self.list()["items"]
 
     def find(self, item_id, max_age=3.0):
         """One entry; the listing is reused for a few seconds (the output editor looks entries up per request).

@@ -32,6 +32,8 @@
 .st-rows .st-rowwrap { content-visibility: auto; contain-intrinsic-size: auto 64px; }
 .st-rows .st-rowwrap.focus > .st-row { box-shadow: inset 2px 0 0 var(--accent); }
 .st-bulk { flex-wrap: wrap; row-gap: 6px; }
+/* bulk Schedule of hundreds of videos: the button fills as the requests come back */
+.st-bulk .btn.busy { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent) var(--p, 0%), transparent var(--p, 0%)); opacity: 1; cursor: progress; }
 
 /* a link-looking button (Review in a row, Watch all) */
 button.ux-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 500; font-size: 14px; color: var(--accent); cursor: pointer; }

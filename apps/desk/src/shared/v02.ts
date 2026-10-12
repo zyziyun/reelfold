@@ -429,7 +429,10 @@ export interface HistoryItem {
   name: string;
   recipe: string | null;
   client: string | null;
+  /** the series' id (``intake-…`` for one request's projects) */
   series?: string | null;
+  /** the series' own name (series.yaml), when it has one */
+  series_name?: string | null;
   created: number | null;
   updated: number | null;
   counts: { total: number; green: number; red: number; approved: number; done: number; failed: number };

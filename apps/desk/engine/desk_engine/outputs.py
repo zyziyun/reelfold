@@ -856,8 +856,8 @@ class Outputs:
         return cl
 
     # ---------------------------------------------------------- lookup
-    def _entry(self, item_id):
-        return self.history.find(item_id)
+    def _entry(self, item_id, max_age=3.0):
+        return self.history.find(item_id, max_age=max_age)
 
     # ---------------------------------------------------------- her title for a clip (one title per clip)
     def _titles_path(self):
@@ -899,7 +899,9 @@ class Outputs:
         return dict(ok=True, title=c["title"], title_custom=c["title_custom"])
 
     def clips(self, item_id):
-        e = self._entry(item_id)
+        # only the entry's kind and folder are read here (they never change for an id): a listing up to 30 s old will
+        # do. All projects asks for 200+ projects' clips at start-up; a fresh listing every 3 s made that 12 s.
+        e = self._entry(item_id, max_age=30.0)
         cl = self._titled(e, self._as_published(e, list_clips(e)))
         self.history.allow_media([f["path"] for c in cl for f in c["files"]] + [c["cover"] for c in cl if c.get("cover")])
         return dict(item=item_id, kind=e["kind"], clips=[_public_clip(c) for c in cl],

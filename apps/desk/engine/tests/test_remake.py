@@ -28,7 +28,7 @@ class FakeHistory:
     def __init__(self, d):
         self.d = d
 
-    def find(self, item):
+    def find(self, item, **_kw):
         return dict(id=item, dir=self.d, kind="project")
 
 

@@ -7,7 +7,7 @@
 // No signal, no chip: Home hides the row.
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost, HomeSuggestions } from '../../../shared/v04';
-import { orderPlatforms } from '../../../shared/platforms';
+import { basePlatform, orderPlatforms } from '../../../shared/platforms';
 
 export type SignalKind = 'recording' | 'again' | 'share' | 'series' | 'finish';
 
@@ -26,12 +26,13 @@ export interface HomeSignal {
   thumb?: string | null;
   /** recording: its path (goes into the composer) */
   path?: string;
-  /** share: the clip to open (its page publishes) */
+  /** share: the clip to open (its page publishes); finish: the project to run on (a project's; a batch's chip asks) */
   item?: string;
   clip?: string;
 }
 
-const base = (p: string) => p.split(':')[0];
+/** a platform's registry id: her accounts are kept under the publish adapter's id ('youtube-studio' is YouTube) */
+const base = (p: string) => basePlatform(p);
 const SHARE_DAYS = 14;
 
 /** Posts that went out on some of her platforms: one per clip, the ones still missing (international first). */
@@ -61,15 +62,22 @@ export function shareSignals(posts: CalendarPost[], mine: string[], now = Date.n
   return out.sort((a, b) => (when.get(b.id) ?? 0) - (when.get(a.id) ?? 0));
 }
 
+/** A series' name as she knows it: the name its series has (series.yaml), else the project's own title - never the
+ * series' id (``intake-Cut-this-week-s-reco-10111539``: one request's projects, named after the request's words). */
+export function seriesTitle(i: Pick<HistoryItem, 'name' | 'series' | 'series_name'>): string {
+  const intake = !!i.series && /^intake-/.test(i.series);
+  return (!intake && (i.series_name?.trim() || i.series)) || i.name;
+}
+
 /** The next episode of a series she makes; a project with clips still to make (finished, not running). */
 export function workSignals(items: HistoryItem[]): HomeSignal[] {
   const out: HomeSignal[] = [];
   const done = items.filter((i) => i.live?.state !== 'running' && !i.archived);
   const series = done.find((i) => i.series || i.type === 'aigc');
-  if (series) out.push({ id: `series-${series.id}`, kind: 'series', text: series.series ?? series.name, n: (series.counts?.total ?? 0) + 1, thumb: series.thumb });
+  if (series) out.push({ id: `series-${series.id}`, kind: 'series', text: seriesTitle(series), n: (series.counts?.total ?? 0) + 1, thumb: series.thumb });
   const left = (i: HistoryItem) => (i.counts ? i.counts.total - Math.max(i.counts.done, i.counts.approved) : 0);
   const unfinished = done.find((i) => i !== series && i.counts?.total > 0 && left(i) > 0 && left(i) < i.counts.total && !i.failure && !i.stopped);
-  if (unfinished) out.push({ id: `finish-${unfinished.id}`, kind: 'finish', text: unfinished.name, n: left(unfinished), thumb: unfinished.thumb });
+  if (unfinished) out.push({ id: `finish-${unfinished.id}`, kind: 'finish', text: unfinished.name, n: left(unfinished), thumb: unfinished.thumb, item: unfinished.kind === 'project' ? unfinished.id : undefined });
   return out;
 }
 

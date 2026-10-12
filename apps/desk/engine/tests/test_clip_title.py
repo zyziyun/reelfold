@@ -58,7 +58,7 @@ class HerTitle(unittest.TestCase):
         entry = dict(id="b1", kind="batch", dir=self.bdir)
 
         class H:
-            def find(self, _id):
+            def find(self, _id, **_kw):
                 return entry
 
             def allow_media(self, _paths):

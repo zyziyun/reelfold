@@ -28,6 +28,8 @@ export interface StudioRow {
   thumb: string | null;
   video: string | null;
   duration: number | null;
+  /** a clip row: its state in the run (a clip with no file that is not made yet is not an empty video) */
+  clipState?: Clip['state'];
   group: StudioGroup;
   /** the dot: run (making), you (waits for her), error, done, off (queued) */
   tone: 'run' | 'you' | 'error' | 'done' | 'off';
@@ -72,6 +74,14 @@ function clipGroup(c: Clip, mine: CalendarPost[], ask: boolean, projectRunning: 
   if (next) return { group: 'scheduled', tone: 'done', post: next, posted: false };
   if (last) return { group: 'scheduled', tone: 'done', post: last, posted: true };
   return { group: 'ready', tone: 'done', post: null, posted: false };
+}
+
+const MADE: Clip['state'][] = ['done', 'approved', 'packaged', 'failed'];
+
+/** A video with no file because it is not made yet (waiting its turn, parked at a question, being made) - not an
+ * empty recording: its page says where it is instead of "nothing was made". */
+export function notMadeYet(r: Pick<StudioRow, 'kind' | 'video' | 'clipState'>): boolean {
+  return r.kind === 'clip' && !r.video && !!r.clipState && !MADE.includes(r.clipState);
 }
 
 /** What the Studio's rows are made from, each loaded or not yet. */
@@ -188,6 +198,7 @@ export function studioRows(
         thumb: c.cover,
         video: c.files[0]?.path ?? null,
         duration: c.duration,
+        clipState: c.state,
         group: g.group,
         tone: g.tone,
         p: g.group === 'run' ? p : { ...p, state: g.group === 'scheduled' ? (g.posted ? 'out' : 'scheduled') : g.group === 'ready' ? 'ready' : p.state },

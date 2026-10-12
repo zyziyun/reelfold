@@ -7,17 +7,18 @@ import { CalendarPlus, Check, RotateCcw, SlidersHorizontal, Wand2, X } from 'luc
 import type { CalendarPost } from '../../../shared/v04';
 import { Modal } from '../components/ui';
 import { fmtDate, t, tk } from '../i18n';
-import { approveAnswer, bulkWork, count } from '../lib/bulk';
+import { approveAnswer, bulkWork, chunks, count, localDay, schedulePlan } from '../lib/bulk';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
+import { useStudioData } from '../lib/studioData';
 import { go } from '../lib/router';
 import type { StudioRow } from '../lib/studio';
 import { findOptions, finding, NO_FIND, type Find, type FindDate } from '../lib/studioFind';
 import type { ActionTarget } from '../lib/rowActions';
 import { keyHint } from '../lib/keys';
 import { errText } from './msg';
-import { nextSlots, postPlatforms } from './Project';
+import { postPlatforms } from './Project';
 import { askProjectInBackground } from './ProjectAIPanel';
 import type { RowActionsApi } from './RowActions';
 import { useUi } from './ui';
@@ -128,13 +129,15 @@ function Chip({ label, onClear }: { label: string; onClear: () => void }) {
 // ---------------------------------------------------------------- bulk work
 export interface BulkApi {
   approve(rows: StudioRow[]): Promise<void>;
-  schedule(rows: StudioRow[]): Promise<void>;
+  /** ``onProgress(done, n)`` as the requests come back, ``(null, n)`` when it is over */
+  schedule(rows: StudioRow[], onProgress?: (done: number | null, n: number) => void): Promise<void>;
   change(rows: StudioRow[], prompt: string): Promise<void>;
 }
 
 export function useBulk(): BulkApi {
   const { client } = useEngine();
   const inbox = useInbox();
+  const studio = useStudioData();
   const ui = useUi();
   const fail = (e: unknown) => ui.toast(errText(e), { error: true });
   return {
@@ -160,28 +163,50 @@ export function useBulk(): BulkApi {
           },
         });
     },
-    async schedule(rows) {
+    async schedule(rows, onProgress) {
       if (!client) return;
       const by = bulkWork(rows, []).schedule;
-      if (!count(by)) return void ui.toast(t('hd.bulk.nothing'));
+      const n = count(by);
+      if (!n) return void ui.toast(t('hd.bulk.nothing'));
+      const made: string[] = [];
       try {
-        const cal = await client.calendar();
+        // the list has every project's clips and the posts already: one request per 100 videos, not one per project
         const defaults = (await window.desk.getSettings()).defaultPlatforms ?? [];
-        const taken = new Set(cal.posts.map((p) => `${p.item}/${p.clip}`));
-        const todo: { item: string; clip: import('../../../shared/v04').Clip }[] = [];
-        for (const [item, ids] of by) {
-          const d = await client.clips(item);
-          for (const c of d.clips) if (ids.includes(c.id) && !taken.has(`${item}/${c.id}`)) todo.push({ item, clip: c });
+        const have = { ...studio.clips };
+        const missing = [...by.keys()].filter((id) => !have[id]);
+        for (const id of missing) have[id] = (await client.clips(id)).clips;
+        const plan = schedulePlan(by, have, studio.posts, (c) => postPlatforms(c, defaults));
+        if (!plan.todo.length) return void ui.toast(plan.noPlatform ? t('project.noPlatforms') : t('hd.bulk.nothing'), { error: plan.noPlatform > 0 });
+        const parts = chunks(plan.todo);
+        const today = localDay();
+        let done = 0;
+        let skipped = 0;
+        let first: string | null = null;
+        let last: string | null = null;
+        onProgress?.(0, plan.todo.length);
+        for (const [k, part] of parts.entries()) {
+          // quiet until the last one: the list and the calendar reload once, not once per request
+          const r = await client.scheduleClips({ clips: part, today, quiet: k < parts.length - 1 });
+          made.push(...r.ids);
+          done += part.length;
+          skipped += r.skipped;
+          first = first ?? r.first;
+          last = r.last ?? last;
+          onProgress?.(done, plan.todo.length);
         }
-        const slots = nextSlots(todo.length, cal.posts.map((p) => p.at));
-        const posts = todo.flatMap((x, k) => postPlatforms(x.clip, defaults).map((platform) => ({ item: x.item, clip: x.clip.id, at: slots[k], platform })));
-        if (!posts.length) return void ui.toast(t('project.noPlatforms'), { error: true });
-        const made = (await client.scheduleMany(posts)).ids;
-        ui.toast(`${t('hd.bulk.scheduled', { n: todo.length })} · ${fmtDate(posts[0].at)}`, {
+        const nMade = plan.todo.length - skipped;
+        const when = first ? (first.slice(0, 10) === last?.slice(0, 10) ? fmtDate(first) : `${fmtDate(first)} – ${fmtDate(last!)}`) : '';
+        const extra = [skipped ? t('hd.bulk.skipped', { n: skipped }) : '', plan.noPlatform ? t('project.noPlatforms') : ''].filter(Boolean);
+        ui.toast([`${t('hd.bulk.scheduled', { n: nMade })}${when ? ` · ${when}` : ''}`, ...extra].join(' · '), {
           undo: made.length ? () => client.unscheduleMany(made).then(() => undefined) : undefined,
+          ms: 10000,
         });
       } catch (e) {
-        fail(e);
+        // all or none: what the earlier requests put on the calendar comes off again
+        if (made.length) await client.unscheduleMany(made).catch(() => undefined);
+        ui.toast(t('hd.bulk.scheduleFailed', { why: errText(e) }), { error: true, ms: 10000 });
+      } finally {
+        onProgress?.(null, n);
       }
     },
     async change(rows, prompt) {
@@ -210,6 +235,7 @@ export function BulkMore({ rows, xs, ra }: { rows: StudioRow[]; xs: ActionTarget
   const { reload } = useHistory();
   const [asking, setAsking] = useState(false);
   const [text, setText] = useState('');
+  const [sched, setSched] = useState<{ done: number; n: number } | null>(null);
   const w = bulkWork(rows, xs);
   const nSched = count(w.schedule);
   const nChange = count(w.change);
@@ -221,10 +247,18 @@ export function BulkMore({ rows, xs, ra }: { rows: StudioRow[]; xs: ActionTarget
           {t('hd.bulk.approve')} · {w.approve.length}
         </button>
       )}
-      {nSched > 0 && (
-        <button className="btn sm" onClick={() => void bulk.schedule(rows)} data-testid="studio-bulk-schedule" data-tip={keyHint('S')}>
+      {(nSched > 0 || sched) && (
+        <button
+          className={`btn sm ${sched ? 'busy' : ''}`}
+          disabled={!!sched}
+          aria-busy={!!sched}
+          onClick={() => void bulk.schedule(rows, (done, n) => setSched(done == null ? null : { done, n }))}
+          data-testid="studio-bulk-schedule"
+          data-tip={keyHint('S')}
+          style={sched ? { ['--p' as string]: `${Math.round((100 * sched.done) / Math.max(1, sched.n))}%` } : undefined}
+        >
           <CalendarPlus className="ico" />
-          {t('hd.bulk.schedule')} · {nSched}
+          {sched ? <span data-testid="studio-bulk-scheduling">{t('hd.bulk.scheduling', { done: sched.done, n: sched.n })}</span> : `${t('hd.bulk.schedule')} · ${nSched}`}
         </button>
       )}
       {w.retry.length > 0 && (

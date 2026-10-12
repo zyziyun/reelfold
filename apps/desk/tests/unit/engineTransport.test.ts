@@ -112,3 +112,24 @@ describe('app://desk/api from the UI', () => {
     expect((await r.json()).error).toMatch(/engine unreachable/);
   });
 });
+
+describe('a burst of requests (All projects with 200+ projects)', () => {
+  it.skipIf(!posix)('tries a connect the socket refused (backlog full) again instead of failing it', async () => {
+    const { spawn } = await import('node:child_process');
+    const sock = engineSocketPath('b', dir)!;
+    // a socket that is bound but not listening refuses every connect at once (ECONNREFUSED), like a full backlog
+    const py = spawn('python3', ['-c', `import socket,sys,time\ns=socket.socket(socket.AF_UNIX)\ns.bind(sys.argv[1])\nprint('bound',flush=True)\ntime.sleep(0.4)`, sock]);
+    await new Promise<void>((r) => py.stdout.once('data', () => r()));
+    const late = http.createServer((_q, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}'));
+    py.once('exit', () => {
+      fs.rmSync(sock, { force: true });
+      late.listen(sock);
+    });
+    const t0 = Date.now();
+    const r = await engineFetch(() => ({ socketPath: sock }))(`${ENGINE_BASE}/api/health`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(300);
+    late.close();
+  });
+});

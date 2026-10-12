@@ -339,6 +339,11 @@ export class EngineClient {
   stopHistory(id: string) {
     return this.req<{ ok: boolean; stopped: 'queued' | 'running' | null }>('POST', `/api/history/item/${bid(id)}/stop`, {});
   }
+  /** Home's "Finish <project>": its clips not made yet made (a stopped pilot goes on); started false = a question of
+   * the project waits for her first */
+  finishHistory(id: string) {
+    return this.req<{ ok: boolean; started: boolean }>('POST', `/api/history/item/${bid(id)}/finish`, {});
+  }
   resumeHistory(id: string) {
     return this.req<{ ok: boolean }>('POST', `/api/history/item/${bid(id)}/resume`, {});
   }
@@ -631,6 +636,15 @@ export class EngineClient {
   /** several rows at once (all or none): one undo step */
   scheduleMany(posts: NewPost[]) {
     return this.req<{ ok: boolean; posts: CalendarPost[]; ids: string[] }>('POST', '/api/calendar/many', { posts: posts.map((p) => ({ ...p, item: bid(p.item) })) });
+  }
+  /** All projects' bulk Schedule: each clip on the next free day after ``today`` (one a day) at ``hour``, on its
+   * platforms; a clip already scheduled is left as it is. Up to 100 clips per call, all or none; ``quiet``: no calendar
+   * event (the desk announces the last call of a run of them). */
+  scheduleClips(body: { clips: { item: string; clip: string; platforms: string[] }[]; today: string; hour?: string; quiet?: boolean }) {
+    return this.req<{ ok: boolean; ids: string[]; clips: number; skipped: number; first: string | null; last: string | null }>('POST', '/api/calendar/schedule-clips', {
+      ...body,
+      clips: body.clips.map((c) => ({ ...c, item: bid(c.item) })),
+    });
   }
   /** back to the queue (calendar rows only, never files) -> the removed rows, for restorePosts (undo) */
   unscheduleMany(ids: string[]) {

@@ -6,7 +6,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, ChevronDown, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
-import type { CalendarPost, OpenRequest } from '../../../shared/v04';
+import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
 import { fmtDate, fmtLen, fmtMinutes, t } from '../i18n';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
@@ -15,12 +15,12 @@ import { keyHint } from '../lib/keys';
 import { reviewInRow } from '../lib/nav';
 import { href, routeQuery } from '../lib/router';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
-import { STUDIO_FILTERS, grouped, needsYou, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
+import { STUDIO_FILTERS, grouped, needsYou, notMadeYet, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
 import { rowHref, useStudioData } from '../lib/studioData';
 import { setStudioView } from '../lib/studioView';
 import { platformName } from './Home';
 import { ItemPane, useResolve } from './Inbox';
-import { Empty, Thumb } from './kit';
+import { Empty, Sk, Thumb } from './kit';
 import { OutputEditor } from './OutputEditor';
 import { ProjectDetail, stateLine } from './Hub';
 import { itemPipeline } from '../lib/pipeline';
@@ -153,14 +153,19 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     const many = picked.has(x.key) && picked.size > 1;
     ui.menu(e, ra.items(x, many ? pickedT : []));
   };
-  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : q.sel ? (allRows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : allRows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
+  // a question opened from the Inbox / Home / a notification (?item=<key>): the row it is pinned on (a video's, else
+  // its project's header / row); a question with no row of its own (a request's, an old project's) is shown by itself
+  const askKey = !id && q.item ? q.item : null;
+  const askItem = askKey ? (inbox.items.find((x) => x.key === askKey) ?? null) : null;
+  const askRow = askKey ? (allRows.find((r) => r.ask?.key === askKey) ?? (askItem?.project.id ? allRows.find((r) => r.item === askItem.project.id && (r.header || r.kind === 'project')) : undefined)) : undefined;
+  const selKey = clip && id ? `${id}/${clip}` : id ? `p:${id}` : askRow ? askRow.key : q.sel ? (allRows.some((r) => r.key === `r:${q.sel}`) ? `r:${q.sel}` : allRows.some((r) => r.item === q.sel) ? `p:${q.sel}` : null) : null;
   // a project's own link (a notification, ⌘K) with one video: that video's page, its question pinned on it
   const cur = (selKey ? (allRows.find((r) => r.key === selKey) ?? (id && !clip ? allRows.find((r) => r.item === id && r.kind === 'clip') : undefined)) : null) ?? null;
   // nothing chosen: the first video of the list (what needs her first). A request she just sent (?sel=<id>) is not
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
   const [gaveUp, setGaveUp] = useState<string | null>(null);
-  const waiting = !!q.sel && !selKey && !id && gaveUp !== q.sel;
+  const waiting = (!!q.sel && !selKey && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
   useEffect(() => {
     if (!q.sel || selKey) return;
     const sel = q.sel;
@@ -380,7 +385,8 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           ))}
         </div>
         <div className="st-rows" data-testid="studio-rows" ref={rowsEl}>
-          {!inArchive && !allRows.length && hist && <p className="st-empty muted">{t('st.emptyAll')}</p>}
+          {!inArchive && !allRows.length && (!hist || !ready) && <ListSkeleton />}
+          {!inArchive && !allRows.length && hist && ready && <p className="st-empty muted">{t('st.emptyAll')}</p>}
           {!inArchive && allRows.length > 0 && !list.length && (finding(dfind) ? (
             <div className="st-empty muted" data-testid="studio-find-none">
               <p>{t('hd.f.none')}</p>
@@ -459,6 +465,10 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           <WatchAll rows={watching} lineOf={lineOf} onClose={() => setWatch(false)} />
         ) : cur ? (
           <Page key={cur.key} r={cur} posts={posts} more={(e) => menuAt(e, targetOf(cur))} ra={ra} />
+        ) : askItem && !askRow ? (
+          <AskPage key={askItem.key} x={askItem} where={t('st.projectAsk')} title={askItem.project.name ?? inboxTitle(askItem)} />
+        ) : !ready || waiting ? (
+          <PageSkeleton />
         ) : (
           <Empty title={allRows.length ? t('st.pick') : t('st.emptyAll')} />
         )}
@@ -664,9 +674,8 @@ function EmptyClip({ r, ra, kind }: { r: StudioRow; ra: RowActionsApi; kind: 'no
 
 /** The right side: the video's page, or what a request / a project without clips / a project's question needs. */
 function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; more: (e: { clientX: number; clientY: number }) => void; ra: RowActionsApi }) {
-  const resolve = useResolve();
   const head = <MoreButton onMenu={more} testId="studio-page-more" className="st-pagemore" />;
-  const empty = r.kind === 'clip' && r.group !== 'run' ? emptyClip(r.video, r.duration) : null;
+  const empty = r.kind === 'clip' && r.group !== 'run' && !notMadeYet(r) ? emptyClip(r.video, r.duration) : null;
   // a made clip: its page; one still being made: what it waits for (its question), else where its project is
   if (r.kind === 'clip' && r.video)
     return <OutputEditor id={r.item!} clip={r.clip!} layout="studio" ask={r.ask} place={{ project: r.project, pos: r.pos }} more={<MoreButton onMenu={more} testId="studio-page-more" />} notice={empty ? <EmptyClip r={r} ra={ra} kind={empty} /> : null} />;
@@ -695,32 +704,85 @@ function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; mor
     );
   if (r.ask)
     return (
-      // laid out like a video's page: the header (where it is, its name, ⋯) across the top, the question below
-      <div className="st-askpage" data-testid="studio-project-ask" data-kind={r.kind}>
-        <header className="cs-top">
-          <div className="cs-title">
-            <span className="cs-where muted clamp1" data-testid="studio-where">
-              {r.kind === 'clip' ? [r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ') : t('st.projectAsk')}
-            </span>
-            <span className="cs-name">
-              <h2 className="clamp1">{r.title}</h2>
-            </span>
-          </div>
-          <div className="cs-actions">
-            <MoreButton onMenu={more} testId="studio-page-more" />
-          </div>
-        </header>
-        <div className="st-askbody">
-          <ItemPane key={r.ask.key} x={r.ask} onDone={(a) => void resolve(r.ask!, a)} onSkip={() => undefined} />
-        </div>
-      </div>
+      <AskPage
+        x={r.ask}
+        kind={r.kind}
+        where={r.kind === 'clip' ? [r.project, r.pos ? `${r.pos[0]}/${r.pos[1]}` : null].filter(Boolean).join(' · ') : t('st.projectAsk')}
+        title={r.title}
+        more={<MoreButton onMenu={more} testId="studio-page-more" />}
+      />
     );
-  return <ProjectPage r={r} posts={posts} head={head} />;
+  // a video not made yet (waiting its turn, its project paused or not started): where it is, never "empty" - above
+  // its project's page and chat
+  return <ProjectPage r={r} posts={posts} head={head} notice={notMadeYet(r) ? <NotMade r={r} /> : null} />;
+}
+
+/** A question on its own page, laid out like a video's page: the header (where it is, its name, ⋯) across the top,
+ * the question below. */
+function AskPage({ x, kind = 'project', where, title, more }: { x: InboxItem; kind?: StudioRow['kind']; where: string; title: string; more?: React.ReactNode }) {
+  const resolve = useResolve();
+  return (
+    <div className="st-askpage" data-testid="studio-project-ask" data-kind={kind}>
+      <header className="cs-top">
+        <div className="cs-title">
+          <span className="cs-where muted clamp1" data-testid="studio-where">
+            {where}
+          </span>
+          <span className="cs-name">
+            <h2 className="clamp1">{title}</h2>
+          </span>
+        </div>
+        <div className="cs-actions">{more}</div>
+      </header>
+      <div className="st-askbody">
+        <ItemPane key={x.key} x={x} onDone={(a) => void resolve(x, a)} onSkip={() => undefined} />
+      </div>
+    </div>
+  );
+}
+
+/** "Not made yet - it's step 2 of 3": a video of a project that makes its videos one after another. */
+function NotMade({ r }: { r: StudioRow }) {
+  return (
+    <div className="st-notmade" role="status" data-testid="studio-not-made">
+      <b>{t('st.notMade')}</b>
+      <span className="muted">{r.pos ? t('st.notMadeStep', { n: r.pos[0], m: r.pos[1] }) : t('st.notMadeOne')}</span>
+    </div>
+  );
+}
+
+/** The list's shape while its sources answer (never "No videos yet" before they have). */
+function ListSkeleton() {
+  return (
+    <div className="st-sk" aria-busy="true" aria-label={t('c.loading')} data-testid="studio-list-skeleton">
+      {Array.from({ length: 6 }, (_, k) => (
+        <div key={k} className="st-skrow">
+          <Sk w={64} h={40} r={6} />
+          <span>
+            <Sk w="70%" h={12} />
+            <Sk w="45%" h={10} />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="st-detail" aria-busy="true" aria-label={t('c.loading')} data-testid="studio-page-skeleton">
+      <Sk w="40%" h={14} />
+      <div style={{ height: 10 }} />
+      <Sk w="60%" h={22} />
+      <div style={{ height: 18 }} />
+      <Sk h={280} r={10} />
+    </div>
+  );
 }
 
 /** A project's own page in the Studio (ready with several videos, or not made yet): its details with the project chat
  * beside it (every finished clip at once, or the project itself: pick the music again, cut it again). */
-function ProjectPage({ r, posts, head }: { r: StudioRow; posts: CalendarPost[]; head: React.ReactNode }) {
+function ProjectPage({ r, posts, head, notice = null }: { r: StudioRow; posts: CalendarPost[]; head: React.ReactNode; notice?: React.ReactNode }) {
   const i = r.i!;
   const { data, reload } = useLoad((c) => c.clips(i.id), [i.id, i.updated]);
   const made = (data?.clips ?? []).filter((c) => !c.extra && c.files.length && !['queued', 'planned', 'running', 'failed', 'waiting'].includes(c.state));
@@ -728,6 +790,7 @@ function ProjectPage({ r, posts, head }: { r: StudioRow; posts: CalendarPost[]; 
     <WithProjectChat item={i.id} clips={made} running={r.p.state === 'run'} onApplied={reload}>
       <div className="st-detail st-withmore">
         {head}
+        {notice}
         <ProjectDetail i={i} p={itemPipeline(i, posts)} posts={posts} />
       </div>
     </WithProjectChat>
