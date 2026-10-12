@@ -713,7 +713,7 @@ export function ExportCard({ env, run, onStart, onStop, onCancel }: { env: CardE
           const r = run.rows[tg];
           return (
             <div key={tg} className="erow" data-testid="export-row" data-done={r?.done ? '1' : '0'}>
-              <span className="th">{doc.cover && <img src={media(doc.cover)} alt="" />}</span>
+              <span className="th">{doc.cover && <img src={media(doc.cover, doc.cover_v)} alt="" />}</span>
               <div style={{ minWidth: 0 }}>
                 <b className="clamp1" style={{ fontWeight: 500, display: 'block' }}>{name(tg)}</b>
                 {r?.done && <span className="s" style={{ color: 'var(--accent)' }}>{t('ce.exp.done')}</span>}

@@ -37,6 +37,8 @@ export interface Clip {
   review?: string | null;
   files: ClipFile[];
   cover: string | null;
+  /** the cover's version (its render's key): a render writes renders/<target>.cover.jpg again in place */
+  cover_v?: string | number | null;
   post: PostCopy | null;
   duration: number | null;
   extra?: boolean;
@@ -208,6 +210,7 @@ export interface OutputDoc {
   file: string | null;
   files: ClipFile[];
   cover: string | null;
+  cover_v?: string | number | null;
   post: PostCopy | null;
   duration: number;
   fps: number;

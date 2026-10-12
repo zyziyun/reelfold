@@ -63,7 +63,7 @@ export function ClipCovers({ doc, strip, time, edit }: { doc: OutputDoc; strip: 
     <div className="ci-covers" data-testid="ci-covers">
       {doc.cover && (
         <span className={`ci-cover on`} title={t('ci.coverNow')}>
-          <img src={media(doc.cover)} alt="" />
+          <img src={media(doc.cover, doc.cover_v)} alt="" />
         </span>
       )}
       {strip?.sprite

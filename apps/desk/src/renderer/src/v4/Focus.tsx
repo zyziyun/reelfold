@@ -146,7 +146,7 @@ export function Focus({ id }: { id: string }) {
         <div className="strip">
           {(items ?? []).map((x, k) => (
             <button key={x.id} className={`${k === i ? 'cur' : ''} ${dec[x.id] ? 'done' : ''}`} onClick={() => setI(k)} aria-label={x.title}>
-              <Thumb src={clips.find((c) => c.id === x.id)?.cover ?? x.sheet} />
+              <Thumb src={clips.find((c) => c.id === x.id)?.cover ?? x.sheet} v={clips.find((c) => c.id === x.id)?.cover_v} />
             </button>
           ))}
         </div>

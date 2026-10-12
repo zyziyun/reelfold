@@ -442,7 +442,7 @@ function ClipCard({ c, on, aspect, onAspect, onPick, onPlay, onEdit, onContext, 
       data-state={c.state}
     >
       {ready ? (
-        <Thumb src={c.cover} video={file?.path} dur={c.duration} play />
+        <Thumb src={c.cover} v={c.cover_v} video={file?.path} dur={c.duration} play />
       ) : (
         <div className="th ph-thumb">{c.state === 'running' ? t('clip.rendering') : t('clip.queued')}</div>
       )}
@@ -668,7 +668,7 @@ function FilesTab({ id, extras }: { id: string; extras: Clip[] }) {
           <div className="clips">
             {extras.map((c) => (
               <div key={c.id} className="clip">
-                <Thumb src={c.cover} video={c.files[0]?.path} dur={c.duration} />
+                <Thumb src={c.cover} v={c.cover_v} video={c.files[0]?.path} dur={c.duration} />
                 <span className="clamp1">{c.files[0]?.path.split('/').pop()}</span>
               </div>
             ))}

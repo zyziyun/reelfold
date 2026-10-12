@@ -853,7 +853,10 @@ class Outputs:
                 else:
                     files[k] = dict(files[k], **row)
             c["files"] = files
-            c["cover"] = p.get("cover") or next((r["cover"] for r in fin.values() if r.get("cover")), None) or c.get("cover")
+            cov = (p if p.get("cover") else next((r for r in fin.values() if r.get("cover")), None)) or {}
+            c["cover"] = cov.get("cover") or c.get("cover")
+            if cov.get("cover"):                    # replaced in place by every render too: its URL keys on the render
+                c["cover_v"] = cov.get("key")
             c["edited"] = True
         return cl
 
@@ -989,7 +992,7 @@ class Outputs:
         if not words and file:
             words = _mapped_words(file, dur)
         return dict(id=c["id"], title=c["title"], title_custom=bool(c.get("title_custom")), state=c["state"], file=file,
-                    files=c["files"], cover=c.get("cover"),
+                    files=c["files"], cover=c.get("cover"), cover_v=c.get("cover_v"),
                     post=c.get("post"), duration=dur, fps=(main or {}).get("fps") or info.get("fps") or 30,
                     w=(main or {}).get("w") or info.get("w"), h=(main or {}).get("h") or info.get("h"),
                     words=words, captions=captions, mode=mode,

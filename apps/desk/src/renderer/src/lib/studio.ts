@@ -26,6 +26,8 @@ export interface StudioRow {
   /** n of N clips in its project */
   pos: [number, number] | null;
   thumb: string | null;
+  /** the thumb's version (a render's cover replaced in place) */
+  thumbV?: string | number | null;
   video: string | null;
   duration: number | null;
   /** a clip row: its state in the run (a clip with no file that is not made yet is not an empty video) */
@@ -196,6 +198,7 @@ export function studioRows(
         project: i.name,
         pos: cl.length > 1 ? [k + 1, cl.length] : null,
         thumb: c.cover,
+        thumbV: c.cover_v ?? null,
         video: c.files[0]?.path ?? null,
         duration: c.duration,
         clipState: c.state,

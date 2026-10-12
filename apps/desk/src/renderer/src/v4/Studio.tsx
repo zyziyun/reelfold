@@ -564,7 +564,7 @@ function StudioListRow({ r, on, n, picked, onPick, onMenu, nested = false }: { r
   return (
     <div className={`st-rowwrap ${picked ? 'picked' : ''} ${nested ? 'nested' : ''}`} onContextMenu={(e) => onMenu(e, x)} data-picked={picked ? 'true' : undefined}>
     <a className={`st-row ${on ? 'on' : ''} ${picked ? 'picked' : ''}`} href={rowHref(r)} onClick={(e) => onPick(e, r.key)} aria-current={on ? 'true' : undefined} aria-selected={picked || undefined} data-testid="studio-row" data-row={r.key} data-group={r.group} data-kind={r.kind} data-tone={r.tone} title={n > 0 && n < 10 ? `${r.title} · ${keyHint(`⌘${n}`)}` : r.title}>
-      <Thumb src={r.thumb} className="st-th" />
+      <Thumb src={r.thumb} v={r.thumbV} className="st-th" />
       <span className="tx">
         <b className="clamp1" lang="zh-CN">
           {r.title || t('home.planningRow')}

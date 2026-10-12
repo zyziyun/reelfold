@@ -1227,7 +1227,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             </a>
             <ChevronRight className="ico sep" />
             <span className="crumb here">
-              {doc.cover && <img src={media(doc.cover)} alt="" />}
+              {doc.cover && <img src={media(doc.cover, doc.cover_v)} alt="" />}
               <ClipTitle item={id} clip={clip} title={doc.title} custom={doc.title_custom} />
             </span>
           </nav>

@@ -435,7 +435,7 @@ function ClipTile({ item, c, post }: { item: string; c: Clip; post: CalendarPost
                   : t('hub.clipReady');
   const body = (
     <>
-      <Thumb src={c.cover} video={c.cover ? null : c.files[0]?.path ?? null} dur={c.duration} />
+      <Thumb src={c.cover} v={c.cover ? c.cover_v : c.files[0]?.v} video={c.cover ? null : c.files[0]?.path ?? null} dur={c.duration} />
       <span className="t clamp1">{c.title}</span>
       <span className={`q ${c.state === 'failed' ? 'bad' : 'muted'}`} data-testid="hub-clip-state" data-state={c.state}>
         {st}
