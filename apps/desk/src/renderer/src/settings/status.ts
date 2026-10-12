@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { pill, providerName } from '../../../shared/aiRoutes';
 import { useAssets } from '../components/assets';
 import { t, tk } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { refreshStatus, rowOf, useAi } from '../lib/ai';
 import { useEngine } from '../lib/engine';
 import { go } from '../lib/router';
@@ -87,7 +88,7 @@ export function useStatus(): Status {
 
 /** "Douyin" rather than "Douyin creator center" */
 export function adapterShort(a: Parameters<typeof adapterName>[0]): string {
-  return tk(`pf.${a.packagePlatforms[0]}`) || adapterName(a);
+  return platformName(a.packagePlatforms[0]) || adapterName(a);
 }
 
 /** Sign in happens in the built-in browser on 发布 → 账号 (the page needs room for it): ask it to open there. */

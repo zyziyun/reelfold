@@ -13,6 +13,7 @@ import { ArrowRight, CalendarDays, Check, ChevronDown, File as FileIcon, FileTex
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtTime, getLang, t, tk, type MessageKey } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { useEngine, useLoad } from '../lib/engine';
 import { DueBanner } from '../publish/DueBanner';
 import { useHistory } from '../lib/history';
@@ -57,9 +58,7 @@ const STARTS: { icon: typeof Film; title: MessageKey; sub: MessageKey; prompt: M
   { icon: Folder, title: 'home.start.folder', sub: 'home.start.folderSub', prompt: 'home.start.folderPrompt' },
 ];
 
-export function platformName(id: string): string {
-  return tk(`pf.${id.split(':')[0]}`);
-}
+export { platformName };
 
 function kindIcon(p: string) {
   const e = p.toLowerCase().split('.').pop() ?? '';

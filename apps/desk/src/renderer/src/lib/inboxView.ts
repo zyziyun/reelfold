@@ -2,6 +2,7 @@
 // labels, "−6 s", money, and the answer an item sends from her ticks and choices.
 import type { DraftMsg, DraftSegment, InboxItem, InboxOption } from '../../../shared/v04';
 import { fmtList, getLang, has, intlLocale, t, tk } from '../i18n';
+import { platformName } from './platformName';
 import { failureReason } from '../v4/Failure';
 import { emsg } from '../v4/msg';
 
@@ -119,7 +120,7 @@ export function clipName(o: InboxOption | undefined | null): string {
 
 export function optionLabel(o: InboxOption): string {
   // a publish option: the platform's name in the UI language and the frame shape (「小红书 · 3:4」)
-  if (o.platform) return [tk(`pf.${o.platform}`), o.aspect].filter(Boolean).join(' · ');
+  if (o.platform) return [platformName(o.platform), o.aspect].filter(Boolean).join(' · ');
   return o.label ? emsg(o.label) : o.text;
 }
 

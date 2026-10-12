@@ -4,6 +4,7 @@
 export const publishPlatformsEn = {
   'pf.x': 'X',
   'pf.instagram': 'Instagram',
+  'pf.instagram-reels': 'Instagram Reels',
   'pf.wechat-channels': 'Channels',
   'pf.facebook': 'Facebook',
   'pf.linkedin': 'LinkedIn',
@@ -50,6 +51,7 @@ export const publishPlatformsEn = {
 export const publishPlatformsZh: Record<keyof typeof publishPlatformsEn, string> = {
   'pf.x': 'X',
   'pf.instagram': 'Instagram',
+  'pf.instagram-reels': 'Instagram Reels',
   'pf.wechat-channels': '视频号',
   'pf.facebook': 'Facebook',
   'pf.linkedin': '领英 LinkedIn',

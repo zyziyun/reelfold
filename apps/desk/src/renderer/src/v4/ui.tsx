@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, Bot, Calendar, CalendarClock, FolderOpen, Home, Inbox, Keyboard, Languages, LayoutGrid, Moon, Pause, Search, Send, Settings, Sparkles, Sun, Undo2, Video } from 'lucide-react';
 import { LANGS, LOCALES, fmtTime as fmtTimeOf, getLang, t, type MessageKey } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { postHref, useBackForwardKeys } from '../lib/nav';
@@ -368,7 +369,7 @@ function Palette({ onClose, openSheet, theme, onTheme, onLang }: { onClose: () =
       { id: 'set-accounts', group: 'settings', label: t('palette.set.accounts'), icon: <Send className="ico" />, run: () => go({ name: 'channels' }) },
     ];
     for (const p of posts)
-      list.push({ id: `post-${p.id}`, group: 'posts', label: p.title, hint: `${fmtTimeOf(p.at)} · ${t(`pf.${p.platform.split(':')[0]}` as MessageKey)}`, icon: <CalendarClock className="ico" />, run: () => (location.hash = postHref(p.id)) });
+      list.push({ id: `post-${p.id}`, group: 'posts', label: p.title, hint: `${fmtTimeOf(p.at)} · ${platformName(p.platform)}`, icon: <CalendarClock className="ico" />, run: () => (location.hash = postHref(p.id)) });
     for (const it of data?.items ?? []) {
       if (it.live?.state === 'running' && it.openable && client)
         list.push({ id: `pause-${it.id}`, group: 'actions', label: t('palette.pause', { name: it.name }), icon: <Pause className="ico" />, run: () => client.cancel(it.id).catch(() => undefined) });

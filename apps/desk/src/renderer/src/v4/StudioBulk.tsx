@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarPlus, Check, RotateCcw, SlidersHorizontal, Wand2, X } from 'lucide-react';
 import type { CalendarPost } from '../../../shared/v04';
 import { Modal } from '../components/ui';
-import { fmtDate, t, tk } from '../i18n';
+import { fmtDate, t } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { approveAnswer, bulkWork, chunks, count, localDay, schedulePlan } from '../lib/bulk';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
@@ -34,7 +35,7 @@ export function loadFind(): Find {
   }
 }
 
-const pf = (id: string) => tk(`pf.${id}`);
+const pf = platformName;
 
 // ---------------------------------------------------------------- search + filters
 export function FindBar({ find, onChange, rows, posts }: { find: Find; onChange: (f: Find) => void; rows: StudioRow[]; posts: CalendarPost[] }) {

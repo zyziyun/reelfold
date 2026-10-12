@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Check, Lock, XCircle } from 'lucide-react';
 import { LANGS, LOCALES, fmtList, t, tk } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { href } from '../lib/router';
@@ -51,7 +52,7 @@ export function GeneralSection({ settings: s, save, onChange }: SettingsCtx) {
   const tidyValue = custom || !TIDY.includes(days) ? 'custom' : String(days);
   const watch = hist?.watch ?? [];
   const folderName = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p;
-  const pfNames = orderPlatforms(s.defaultPlatforms ?? []).map((id) => tk(PLATFORM_CHOICES.find((p) => p.id === id)?.label ?? `pf.${id.split(':')[0]}`));
+  const pfNames = orderPlatforms(s.defaultPlatforms ?? []).map((id) => (() => { const l = PLATFORM_CHOICES.find((p) => p.id === id)?.label; return l ? tk(l) : platformName(id); })());
   return (
     <Page title={t('s2.nav.general')} lead={t('s2.general.lead')} testId="settings-general">
       <Summary />

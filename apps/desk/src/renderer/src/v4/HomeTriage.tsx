@@ -12,7 +12,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, ChevronRight, FolderOpen, LayoutGrid, MoreHorizontal, Play, Repeat, Send, Video } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
-import { fmtMinutes, fmtTime, getLang, t, tk, type MessageKey } from '../i18n';
+import { fmtMinutes, fmtTime, getLang, t, type MessageKey } from '../i18n';
+import { platformName } from '../lib/platformName';
 import { useEngine } from '../lib/engine';
 import { homeSignals, type HomeSignal } from '../lib/homeSignals';
 import { inboxSub, inboxTitle } from '../lib/inboxView';
@@ -32,7 +33,6 @@ import { errText } from './msg';
 import { PlatformIcon } from './PlatformIcon';
 import { useUi } from './ui';
 
-const platformName = (id: string) => tk(`pf.${id.split(':')[0]}`);
 const list = (xs: string[]) => xs.join(getLang() === 'zh-CN' ? '、' : ', ');
 /** "TikTok, Shorts +2" */
 function platformsLabel(ids: string[]): string {

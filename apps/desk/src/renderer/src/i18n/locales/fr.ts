@@ -1400,6 +1400,7 @@ const aiaccFr: Record<keyof typeof aiaccEn, string> = {
 const publishPlatformsFr: Record<keyof typeof publishPlatformsEn, string> = {
   'pf.x': 'X',
   'pf.instagram': 'Instagram',
+  'pf.instagram-reels': 'Reels Instagram',
   'pf.wechat-channels': 'Channels',
   'pf.facebook': 'Facebook',
   'pf.linkedin': 'LinkedIn',
