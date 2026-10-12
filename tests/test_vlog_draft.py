@@ -269,3 +269,9 @@ def test_clip_page_export_keeps_the_projects_framing(tmp_path):
     assert OR.framing_fallback(rec) == "pad-blur"
     (tmp_path / "project.yaml").write_text("recipe: talkinghead\nparams: {}\nitems: []\n")
     assert OR.framing_fallback(rec) == "pad-blur" and OR.framing_fallback(dict(kind="work")) == "pad-blur"
+
+
+def test_cover_candidates_skip_crossfades():
+    from vstudio.project.adapters import common as CM
+    tr = [[5.8, 6.6], [12.4, 13.2]]
+    assert CM.clear_of_transitions([6.0, 9.0, 12.9], tr, 20) == [9.5, 16.6]

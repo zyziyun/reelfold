@@ -423,6 +423,7 @@ def cover_frames(env):
             env.log(f"face ranking skipped: {str(e)[:120]}")
     if not ts:
         ts = [dur * (k + 0.5) / n for k in range(n)]
+    ts = clear_of_transitions(ts, _transitions_of(env), dur)
     cands = []
     for k, t in enumerate(ts):
         f = grab_frame(video, t, env.path(f"cand_{k}.jpg"))
@@ -434,6 +435,32 @@ def cover_frames(env):
         sheet = None
     path = write_json(env.path("cover_candidates.json"), dict(video=video, candidates=cands))
     return dict(candidates=path, video=video, sheet=sheet, files=[path] + [c["image"] for c in cands])
+
+
+def _transitions_of(env):
+    """[[t0, t1], ...] crossfades of the master (a vlog render's ``shots`` file), else []."""
+    for o in env.inputs.values():
+        sp = (o or {}).get("shots") if isinstance(o, dict) else None
+        if sp and os.path.exists(sp):
+            return [list(x) for x in (read_json(sp, {}) or {}).get("transitions") or [] if len(x) == 2]
+    return []
+
+
+def clear_of_transitions(ts, transitions, dur, pad=0.35):
+    """Cover candidates never sit in a crossfade (two shots on top of each other made a ghosted cover): a time
+    inside one moves to the middle of the shot after it."""
+    if not transitions:
+        return ts
+    tr = sorted(transitions)
+    out = []
+    for t in ts:
+        hit = next((x for x in tr if x[0] - pad <= t <= x[1] + pad), None)
+        if hit:
+            nxt = next((x[0] for x in tr if x[0] > hit[1]), dur)
+            t = min(dur - 0.1, (hit[1] + nxt) / 2)
+        if all(abs(t - u) > 0.5 for u in out):
+            out.append(round(t, 3))
+    return out
 
 
 def cover_payload(env, cp):
