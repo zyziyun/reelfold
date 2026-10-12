@@ -455,8 +455,12 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         voice = _voice(engine, voice)
         model = kokoro_model(model) if engine == "kokoro" else \
             model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
-    key = cache_key(text, engine, voice, speed, instructions,
-                    f"{server_config()['base_url']}#{model}" if engine == "openai-compatible" else model)
+    mkey = f"{server_config()['base_url']}#{model}" if engine == "openai-compatible" else model
+    if engine == "kokoro":
+        from . import kokoro_lexicon
+        if kokoro_lexicon.mentions(text):     # a line naming a curated name: its take follows the lexicon's version
+            mkey = f"{mkey}#names{kokoro_lexicon.VERSION}"
+    key = cache_key(text, engine, voice, speed, instructions, mkey)
     cpath = os.path.join(_cache_dir(), f"{key}.wav")
     if not (cache and os.path.exists(cpath)):
         with tempfile.TemporaryDirectory() as tmp:

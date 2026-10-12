@@ -286,9 +286,11 @@ def _all_known(phrase, lex):
 
 
 def add_respellings(text, complete):
-    """An English narration on the local voice: the names it cannot say (not in its dictionary - Puget, Elliott,
-    Dreyfus were spelled out letter by letter) get respellings made of words it knows, from one short model call,
-    kept only when every word of the respelling is known; written as ``SAY_TTS`` (tts.py reads it with SAY)."""
+    """An English narration on the local voice: the names it cannot say (in neither its dictionary nor the curated
+    name lexicon, vstudio.kokoro_lexicon - Puget, Elliott, Dreyfus were spelled out letter by letter) get respellings
+    made of words it knows, from one short model call, kept only when every word of the respelling is known; written
+    as ``SAY_TTS`` (tts.py reads it with SAY). A curated name is never respelled ("Elliott" -> "ell yacht" was heard
+    as "El Yacht")."""
     try:
         from vstudio import kokoro_g2p as K
         from misaki import en
@@ -307,9 +309,10 @@ def add_respellings(text, complete):
         try:
             r = complete("planner", "You write pronunciation respellings for a text-to-speech voice that only knows "
                          "common English words.", "For each word, give how it is said as 1-4 everyday lowercase "
-                         "English words whose sounds add up to it (Puget -> \"pew jet\", Dreyfus -> \"dray fuss\", "
-                         "Elliott -> \"ell ee it\" is wrong because ee is not a word: \"ell yacht\" is right); no "
-                         "capitals, no made-up syllables. Reply with JSON only: {\"<word>\": \"<respelling>\"}."
+                         "English words whose sounds add up to it (Dreyfus -> \"dray fuss\", Tacoma -> \"tack oh "
+                         "ma\"), keeping the name's own vowels and stress (\"ell yacht\" for Elliott is wrong: it is "
+                         "heard as a yacht); no capitals, no made-up syllables; leave out a word you cannot respell "
+                         "faithfully. Reply with JSON only: {\"<word>\": \"<respelling>\"}."
                          "\nWords: " + ", ".join(todo) + note,
                          schema=True, max_tokens=1500, timeout=180, cli_timeout=180, retries=1, effort="low")
         except Exception:  # noqa: BLE001

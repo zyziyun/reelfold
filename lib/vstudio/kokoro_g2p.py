@@ -122,6 +122,9 @@ def unknown_words(text, g2p=None):
     if g2p is None:
         from misaki import en
         g2p = en.G2P(trf=False, british=False, fallback=None, unk="")
+    from . import kokoro_lexicon
+    if hasattr(g2p, "lexicon"):
+        kokoro_lexicon.install(g2p.lexicon)          # a curated name (Elliott, Puget ...) is known: never respelled
     out = []
     try:
         _ps, toks = g2p(text or "")
@@ -135,9 +138,12 @@ def unknown_words(text, g2p=None):
 
 
 def english_g2p():
-    """misaki's American English G2P without espeak-ng: unknown words through ``SpellFallback``."""
+    """misaki's American English G2P without espeak-ng: curated names first (``vstudio.kokoro_lexicon``), unknown
+    words through ``SpellFallback``."""
     from misaki import en
+    from . import kokoro_lexicon
     g = en.G2P(trf=False, british=False, fallback=None, unk="")
+    kokoro_lexicon.install(g.lexicon)                # curated names (vstudio.kokoro_lexicon) are the first lookup
     g.fallback = SpellFallback(g.lexicon)
     return g
 

@@ -294,18 +294,22 @@ def test_portrait_cover_is_its_own_subject_crop_with_readable_text(tmp_path):
 
 
 def test_english_narration_gets_respellings_for_names_the_local_voice_lacks():
+    """Names the curated lexicon has (Elliott, Puget: phonemes) are never respelled - "ell yacht" was heard as
+    "El Yacht"; a name it lacks still gets a respelling made of words the voice knows."""
     pytest.importorskip("misaki")
     from vstudio.project.adapters import photostory as PS
-    spec = 'SCRIPT = [(0, [("Elliott Bay meets Puget Sound in Seattle.", "甲")], [])]\n'
+    spec = 'SCRIPT = [(0, [("Elliott Bay meets Puget Sound near Hoquiam and Quilcene.", "甲")], [])]\n'
     asks = []
 
     def complete(task, system, body, **kw):
         asks.append(body)
         if len(asks) == 1:
-            return dict(json={"Puget": "pew jet", "Elliott": "ell ee it"}, provider="claude-code")
-        return dict(json={"Elliott": "ell yacht"}, provider="claude-code")
+            return dict(json={"Hoquiam": "hoe quee um", "Quilcene": "quill seen"}, provider="claude-code")
+        return dict(json={"Hoquiam": "hoe quick am"}, provider="claude-code")
     out = PS.add_respellings(spec, complete)
-    assert "SAY_TTS = {'Puget': 'pew jet', 'Elliott': 'ell yacht'}" in out and "ell ee it" in asks[1]
+    words = asks[0].split("Words:")[1]
+    assert "Elliott" not in words and "Puget" not in words and "ell yacht" in asks[0]   # named as a bad example
+    assert "SAY_TTS = {'Quilcene': 'quill seen', 'Hoquiam': 'hoe quick am'}" in out and "hoe quee um" in asks[1]
     assert PS.add_respellings('SCRIPT = [(0, [("Seattle at night.", "甲")], [])]\n', complete).count("SAY_TTS") == 0
 
 

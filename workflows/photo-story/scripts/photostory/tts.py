@@ -125,7 +125,11 @@ def main():
     if local:
         cfg["tries"] = 1                      # a local voice says a line the same way every time: one take
     print(f"voice: {engine} {voice} ({cfg['language']})", flush=True)
-    say = dict(getattr(spec, "SAY", {}) or {}, **(getattr(spec, "SAY_TTS", {}) or {}))   # SAY_TTS: the drafter's respellings
+    say_tts = dict(getattr(spec, "SAY_TTS", {}) or {})          # SAY_TTS: the drafter's respellings
+    if local:   # a curated name (vstudio.kokoro_lexicon) is said from its phonemes, never from an older respelling
+        from vstudio import kokoro_lexicon
+        say_tts = {k: v for k, v in say_tts.items() if not kokoro_lexicon.known(k)}
+    say = dict(getattr(spec, "SAY", {}) or {}, **say_tts)
     out = tts_dir(C)
     os.makedirs(os.path.join(out, "cache"), exist_ok=True)
     tmp = os.path.join(out, "cache", "_take.wav")

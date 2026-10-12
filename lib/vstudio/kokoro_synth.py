@@ -85,10 +85,14 @@ def mandarin(m, text):
 
 
 def english(m, lang):
-    """English voices: a word in no dictionary is spelled (kokoro_g2p.SpellFallback) instead of skipped - the app's
-    runtime has no espeak-ng fallback (GPL)."""
+    """English voices: the curated names first (vstudio.kokoro_lexicon: Elliott, Elvis, Puget ... as phonemes), and a
+    word in no dictionary is spelled (kokoro_g2p.SpellFallback) instead of skipped - the app's runtime has no
+    espeak-ng fallback (GPL)."""
+    from vstudio import kokoro_lexicon
     from vstudio.kokoro_g2p import SpellFallback
     g2p = m._get_pipeline(lang).g2p
+    if hasattr(g2p, "lexicon"):
+        kokoro_lexicon.install(g2p.lexicon)
     if getattr(g2p, "fallback", None) is None and hasattr(g2p, "lexicon"):
         g2p.fallback = SpellFallback(g2p.lexicon)
 
