@@ -824,6 +824,7 @@ def edit_goal(doc, ops):
                 other = get(vid)
                 first["stories"] = list(dict.fromkeys([*first["stories"], *other["stories"]]))
                 first["length_s"] = min(180, int(first.get("length_s") or 60) + int(other.get("length_s") or 0) // 2)
+                first["why"] = ""                 # its footage facts no longer hold (the card counts its clips)
                 other["dropped"] = True
                 other["merged_into"] = first["id"]
         elif kind == "platforms":

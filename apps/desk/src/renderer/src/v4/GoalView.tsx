@@ -207,7 +207,9 @@ function GoalPlan({ g, busy, onOps, onApprove }: { g: Goal; busy: boolean; onOps
       )}
       {(g.survey?.unused?.photos ?? 0) + (g.survey?.unused?.panoramas ?? 0) > 0 && (
         <p className="muted small" data-testid="goal-unused">
-          {t('goal.unusedNote', { photos: g.survey?.unused?.photos ?? 0, panos: g.survey?.unused?.panoramas ?? 0 })}
+          {t('goal.unusedNote', {
+            what: [g.survey?.unused?.photos ? t('goal.photosN', { n: g.survey.unused.photos }) : null, g.survey?.unused?.panoramas ? t('goal.panos', { n: g.survey.unused.panoramas }) : null].filter(Boolean).join(getLang() === 'zh-CN' ? '、' : ', '),
+          })}
         </p>
       )}
       {g.planner?.fallback && (
