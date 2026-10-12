@@ -1,5 +1,5 @@
 // Engine connection for the renderer: EngineClient (token from the preload bridge) + the SSE stream.
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { EngineClient } from '../../../shared/engineClient';
 import type { EngineInfo, StreamEvent } from '../../../shared/types';
 import { t } from '../i18n';
@@ -89,25 +89,68 @@ export function useEngine(): Ctx {
   return c;
 }
 
-/** Load data with the engine client; reload() re-fetches. */
+/** Load data with the engine client; reload() re-fetches.
+ *
+ * One request in flight at a time: a reload() asked while one runs is folded into one more request after it, and the
+ * answer in flight is still shown (unless setData changed the data after it was asked). Before, every reload dropped
+ * the answer in flight and sent another at once: an Archive / Undo of 220 projects reloads the list several times
+ * within a second (her click, the engine's event, the registry stamp), so the engine listed every project three to
+ * seven times over, concurrently, and only the last answer counted - on a slow Windows machine the list stayed as it
+ * was for over a minute. A change of `deps` (or the client) is a new question: answers to the old one are dropped. */
 export function useLoad<T>(fn: (c: EngineClient) => Promise<T>, deps: unknown[]) {
   const { client } = useEngine();
-  const [data, setData] = useState<T | null>(null);
+  const [data, setDataRaw] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [n, setN] = useState(0);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  // gen: which question (deps) is current; tick orders requests asked and local edits (setData)
+  const q = useRef({ gen: 0, go: null as (() => void) | null, busy: false, again: false, tick: 0, edited: 0 });
   useEffect(() => {
     if (!client) return;
-    let alive = true;
-    setLoading(true);
-    fn(client)
-      .then((d) => alive && (setData(d), setError(null)))
-      .catch((e: Error) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
+    const s = q.current;
+    const gen = ++s.gen;
+    const go = () => {
+      s.busy = true;
+      s.again = false;
+      const asked = ++s.tick;
+      setLoading(true);
+      fnRef
+        .current(client)
+        .then(
+          (d) => {
+            if (s.gen !== gen || asked <= s.edited) return;
+            setDataRaw(d);
+            setError(null);
+          },
+          (e: Error) => {
+            if (s.gen === gen) setError(e.message);
+          },
+        )
+        .finally(() => {
+          if (s.gen !== gen) return;
+          s.busy = false;
+          if (s.again) go();
+          else setLoading(false);
+        });
+    };
+    s.go = go;
+    go();
     return () => {
-      alive = false;
+      s.gen++;
+      s.go = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, n, ...deps]);
-  return { data, setData, error, loading, reload: () => setN((x) => x + 1) };
+  }, [client, ...deps]);
+  const setData = useCallback<Dispatch<SetStateAction<T | null>>>((v) => {
+    q.current.edited = ++q.current.tick;
+    setDataRaw(v);
+  }, []);
+  const reload = useCallback(() => {
+    const s = q.current;
+    if (!s.go) return;
+    if (s.busy) s.again = true;
+    else s.go();
+  }, []);
+  return { data, setData, error, loading, reload };
 }

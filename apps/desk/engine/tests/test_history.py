@@ -280,6 +280,16 @@ class HygieneTest(unittest.TestCase):
             self.assertTrue(C.is_temp_path("/tmp/x/batch"))
         self.assertFalse(C.is_temp_path(os.path.join(os.path.expanduser("~"), "Desktop", "video-studio-demos", "batch-rag")))
 
+    def test_is_temp_path_resolves_the_temp_roots_once(self):
+        # every registry entry and project row asks: five realpath() calls per ask made a 220-project list (and a
+        # bulk Archive) take over a minute on Windows, where each realpath opens the file
+        C.is_temp_path("/warm/up")
+        real = os.path.realpath
+        with mock.patch.object(C.os.path, "realpath", side_effect=real) as rp:
+            for k in range(100):
+                C.is_temp_path(os.path.join(os.path.expanduser("~"), f"p{k}"))
+        self.assertEqual(rp.call_count, 100)        # the path's own, nothing more
+
     def test_prune_real_registry(self):
         root = tempfile.mkdtemp(prefix="hyg-")
         real = make_batch(os.path.join(root, "real", "batch-a"))

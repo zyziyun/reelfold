@@ -118,7 +118,11 @@ test('J moves, ⌘A picks every row, the bulk bar follows at once', async () => 
 
 test(`a bulk Archive of ${N} projects empties the list, Undo brings every one back`, async () => {
   test.setTimeout(120000);
+  // she points at the Archived toast as it comes, so its Undo waits for her while the list empties (the toast shows
+  // when the engine has archived them; a slow machine can take longer than the toast's own 8 s to list again)
+  const keep = page.getByTestId('toast').filter({ has: page.getByTestId('toast-undo') }).hover({ force: true });
   const arch = await timed('bulkArchive', { click: 'studio-bulk-archive' }, { rows: 0 });
+  await keep;
   expect(arch).toBeGreaterThan(0);
   expect(arch).toBeLessThan(15000); // one engine call + one listing: under 1 s on a quiet Mac (21 s while every lookup listed again)
   const undo = await timed('undoArchive', { click: 'toast-undo' }, { rows: N });

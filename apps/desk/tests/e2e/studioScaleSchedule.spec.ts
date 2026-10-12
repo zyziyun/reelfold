@@ -100,7 +100,10 @@ test(`⌘A then Schedule: the button says ${N} (what Ready to post says), progre
   perf.bulkSchedule = Math.round(ms.ms);
   expect(ms.seen[0]).toMatch(new RegExp(`Scheduling \\d+ of ${N}`));
   expect(ms.ms).toBeLessThan(20000); // ~1 s on a quiet Mac (never finished before)
+  // she points at the toast while she checks the list: it stays until she leaves it (on the Windows runner the checks
+  // below - a screenshot, the calendar, the counts - took longer than the toast's own 8 s)
   const toast = page.getByTestId('toast').filter({ hasText: `Scheduled ${N} videos` });
+  await toast.hover({ force: true });
   await expect(toast).toBeVisible();
   await expect(toast.getByTestId('toast-undo')).toBeVisible();
   await page.screenshot({ path: path.join(SHOTS, 'bulk-schedule-scale.png') });
