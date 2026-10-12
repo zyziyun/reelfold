@@ -508,3 +508,201 @@ def copy_remake(env, cp, choice):
     EX.rewrite_posts(os.path.join(env.item_dir, "exports"), dict(post, title=title) if title else post)
     return dict(answer=dict(pick=k), source=out.get("source"), provider=out.get("provider"), pick=kinds[k],
                 error=out.get("error"))
+
+
+# --------------------------------------------------------------------------- the edit's draft (checkpoint ``edit``)
+# probe.py --init writes a starter ("starter": true): every clip's first 8 s (calm) or every clip with a placeholder
+# title and MUSIC.mp3 (fun). An autopilot used to take it for her edit. Now the AI looks at a contact sheet of every
+# clip (vstudio.footage: whole-clip tiles + when / where it was shot) and writes the windows for her request.
+import re as _re
+
+DRAFT_SYSTEM = (
+    "You are the editor of a travel / drone vlog. You get the creator's request, every clip's facts (length, when it "
+    "was shot, where the drone flew) and one contact sheet per clip (tiles labelled with the clip time in seconds). "
+    "Look at every sheet, then choose the windows that make HER video: the subject clearly framed, the move smooth; "
+    "never take-off / landing, a camera still tilting into place, empty tails, shaky or dark-and-noisy parts unless "
+    "the request wants night. Order them so the video tells its story (the request's places and moments, the light "
+    "of the day). Hit the requested length. On-screen words are in the language the request asks for (default: the "
+    "request's language); never put GPS coordinates in any text. Reply with JSON only.")
+
+
+def edit_unfinished(path):
+    """The probe's starter is a skeleton, never her edit (vstudio.project.drafts): its ``starter`` fingerprint still
+    matches its segments / shots / title / music (probe.starter_sig); once they are edited it is hers."""
+    import hashlib
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        sig = cfg.get("starter")
+        if not isinstance(sig, str):
+            return False
+        keep = {k: cfg.get(k) for k in ("segments", "shots", "title", "music")}
+        return hashlib.sha1(json.dumps(keep, sort_keys=True).encode()).hexdigest()[:12] == sig
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def target_seconds(text, default):
+    """'a 75-second vlog' / '2-minute' / '45 秒' -> seconds, else ``default``."""
+    t = str(text or "")
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?\s*(?:seconds?\b|secs?\b|秒)", t, _re.I)
+    if m:
+        return float(m.group(1))
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*(?:-|\s)?\s*(?:minutes?|mins?|分钟)", t, _re.I)
+    if m:
+        return float(m.group(1)) * 60
+    return float(default)
+
+
+def _clip_paths(cfg, base):
+    src = os.path.join(base, cfg.get("src_dir") or ".")
+    return {k: os.path.normpath(os.path.join(src, v)) for k, v in (cfg.get("clips") or {}).items()}
+
+
+def _fun_music(cfg, base, mood, seconds, request):
+    """The fun reel's beat track: hers when the starter names a file that exists, else a built-in bed of ``mood``
+    (or the library's best fit for her words) generated a little longer than the reel."""
+    cur = cfg.get("music")
+    if cur and os.path.isfile(os.path.join(base, os.path.expanduser(cur))):
+        return cur, None
+    from vstudio import music as MU
+    if mood not in MU.moods():
+        ranked = MU.rank(request, style="fun")
+        mood = next((t["mood"] for t in ranked if t["source"] == "builtin"), "bright")
+    made = MU.make(mood, round(seconds + 12, 1))
+    import shutil
+    dst = os.path.join(base, f"music_{mood}{os.path.splitext(made)[1]}")
+    shutil.copyfile(made, dst)
+    return os.path.basename(dst), mood
+
+
+def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
+    """Checkpoint ``edit``: the AI writes the windows (calm ``segments`` / fun ``shots`` + title, end card, music)
+    from contact sheets of every clip. -> the draft record, or None (no starter to start from / no model answered:
+    the checkpoint waits for her)."""
+    from vstudio import footage
+    from .. import drafts as DR
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return None
+    base = os.path.dirname(os.path.abspath(path))
+    clips = _clip_paths(cfg, base)
+    if not clips:
+        return None
+    fun = cfg.get("style") == "fun"
+    request = ctx.request()
+    target = target_seconds(request, 30 if fun else 60)
+    text, images, facts = footage.context(list(clips.values()), os.path.join(base, "draft_sheets"),
+                                          ids=list(clips), echo=None)
+    by_id = {f["id"]: f for f in facts}
+    if not by_id:
+        return None
+    plat = (ctx.params.get("platforms") or [cfg.get("platform") or ""])[0]
+    if fun:
+        shape = ('{"title": {"text": "<2-4 words>", "sub": "<short line or empty>"}, "end_card": {"text": "...", '
+                 '"sub": ""}, "music_mood": "bright|warm|tech|calm|story", "shots": [{"clip": "<id>", "start": <s>, '
+                 '"dur": <s>, "place": "<short place name or omit>"}], "summary": "<one sentence>"}')
+        rules = (f"Fun beat-cut reel: about {target:.0f} s in total including a short title and end card; "
+                 f"{max(8, int(target / 1.6))}-{max(10, int(target / 1.1))} shots of 1-3 s each (the cuts land on the "
+                 "beat, so give each shot the 1-3 s where its action peaks); reuse a strong clip at different "
+                 "moments rather than a weak one; title and end card 1-4 words each.")
+    else:
+        shape = ('{"segments": [{"clip": "<id>", "start": <s>, "dur": <s>, "why": "<few words>"}], '
+                 '"summary": "<one sentence>"}')
+        xf = float(cfg.get("xfade") or 0.8)
+        rules = (f"Calm crossfade film: segments of 5-14 s ({xf} s crossfades eat into each join), their durations "
+                 f"summing to about {target + xf * max(0, round(target / 9) - 1):.0f} s so the video lasts about "
+                 f"{target:.0f} s; unhurried, let the light change from shot to shot.")
+    cur = ""
+    if instruction and DR.state(path, None, cp, ctx.recipe) in ("drafted", "hers"):
+        cur = json.dumps({k: cfg.get(k) for k in ("segments", "shots", "title", "end_card") if k in cfg},
+                         ensure_ascii=False)[:6000]
+    body = "\n\n".join(x for x in [
+        f"Request: {request or '(none)'}",
+        f"Platform canvas: {plat or 'unknown'}",
+        rules,
+        "Clips (id: facts; the contact sheet of each clip is attached, tiles labelled with clip seconds):\n" + text,
+        f"Current edit (change only what the instruction asks):\n{cur}" if cur else "",
+        f"Instruction from the creator: {instruction}" if instruction else "",
+        f"Reply as: {shape}",
+        f"Write the summary in {DR.LANGS.get(ctx.lang(), 'English')}."] if x)
+    if complete is None:
+        from vstudio import llm
+        complete = llm.complete
+    limit = min(900.0, 240.0 + 20.0 * len(images))
+    err = None
+    try:
+        r = complete("planner", DRAFT_SYSTEM, body, schema=True, max_tokens=8000, timeout=limit, cli_timeout=limit,
+                     retries=1, effort="medium", images=images)
+    except Exception as e:  # noqa: BLE001  (no model answered: the rules draft below, said so)
+        r, err = None, f"{type(e).__name__}: {str(e)[:200]}"
+    if not isinstance(r, dict) or r.get("provider") == "none":
+        r = None
+    js = (r.get("json") if r and isinstance(r.get("json"), dict) else None) or {}
+    picks = []
+    for s in (js.get("shots") if fun else js.get("segments")) or []:
+        if not isinstance(s, dict) or s.get("clip") not in by_id:
+            continue
+        dur_clip = float(by_id[s["clip"]]["dur"])
+        try:
+            st = max(0.0, float(s.get("start") or 0))
+            du = float(s.get("dur") or (2.0 if fun else 8.0))
+        except (TypeError, ValueError):
+            continue
+        lo = min(0.8 if fun else 3.0, dur_clip - 0.2)
+        if lo <= 0:
+            continue
+        st = min(st, dur_clip - lo - 0.1)          # a window that runs past the clip's end moves back
+        du = max(lo, min(du, dur_clip - st - 0.1))
+        one = dict(clip=s["clip"], start=round(st, 2), dur=round(du, 2))
+        if fun and isinstance(s.get("place"), str) and s["place"].strip():
+            one["place"] = s["place"].strip()[:40]
+        picks.append(one)
+    rules = not picks
+    if rules:                                   # no model (or nothing usable): spread the length over the clips
+        picks = rules_windows(by_id, list(clips), target, fun)
+        js = dict(title=dict(text=str(ctx.params.get("title") or ctx.data.get("name") or "").strip()[:40], sub=""))
+    out = {k: v for k, v in cfg.items() if k != "starter"}
+    mood = None
+    if fun:
+        out["shots"] = picks
+        for k in ("title", "end_card"):
+            v = js.get(k)
+            if isinstance(v, dict) and str(v.get("text") or "").strip():
+                out[k] = dict(text=str(v["text"]).strip()[:40], sub=str(v.get("sub") or "").strip()[:60])
+        out["music"], mood = _fun_music(cfg, base, str(js.get("music_mood") or ""), target, request)
+    else:
+        out["segments"] = picks
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    summ = str(js.get("summary") or "").strip()[:300]
+    rv = DR.outline_review(path, None)
+    if summ:
+        rv["summary"] = dict(code="draft.generic", params=dict(text=summ))
+    if rules:
+        return dict(by="rules", instruction=instruction, review=rv, music_mood=mood,
+                    note=err or "no AI model answered: windows spread evenly over the clips")
+    return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
+                sheets=len(images), music_mood=mood)
+
+
+def rules_windows(by_id, order, target, fun):
+    """Without a model: windows from the middle of each clip (past the take-off, before the tail), the length spread
+    over the clips in shooting order. Fun: one shot per clip, its window left to build_fun's own pick."""
+    ids = [k for k in order if k in by_id]
+    if fun:
+        return [dict(clip=k) for k in ids]
+    n = max(1, min(len(ids) * 2, round(target / 8)))
+    per = target / n + 0.8
+    out = []
+    for j in range(n):
+        k = ids[j % len(ids)]
+        d = float(by_id[k]["dur"])
+        lap = j // len(ids)                     # a second pass over a clip takes a later window
+        du = max(1.0, min(per, d * 0.6))
+        st = min(max(0.0, d * (0.2 + 0.35 * lap)), max(0.0, d - du - 0.1))
+        out.append(dict(clip=k, start=round(st, 2), dur=round(min(du, d - st - 0.1), 2)))
+    return out

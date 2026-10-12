@@ -32,6 +32,14 @@ def probe(path):
             "audio": i["has_audio"], "hdr": HDR_NAMES.get(i["transfer"], "")}
 
 
+def starter_sig(cfg):
+    """The placeholder's fingerprint: while segments / shots / title / music are untouched the file is still the
+    starter (the desk's drafter replaces it); any edit of them makes it yours."""
+    import hashlib
+    keep = {k: cfg.get(k) for k in ("segments", "shots", "title", "music")}
+    return hashlib.sha1(json.dumps(keep, sort_keys=True).encode()).hexdigest()[:12]
+
+
 def short_id(name, used):
     stem = os.path.splitext(os.path.basename(name))[0]
     m = re.findall(r"\d+", stem)
@@ -86,6 +94,7 @@ def main():
             # no start/dur: windows are auto-picked; add "place", "day", "speech": "auto", "ramp", ...
             "shots": [dict({"clip": k}, **({"speech": "auto"} if i["audio"] else {})) for k, i in zip(clips, infos)],
         }
+        cfg["starter"] = starter_sig(cfg)     # a skeleton: the desk drafts over it until you edit it
         os.makedirs(base, exist_ok=True)
         with open(a.init, "w") as f:
             json.dump(cfg, f, indent=2)
@@ -105,6 +114,7 @@ def main():
         "segments": [{"clip": k, "start": 0, "dur": min(8, round(i["dur"], 1))}
                      for k, i in zip(clips, infos)],
     }
+    cfg["starter"] = starter_sig(cfg)
     os.makedirs(base, exist_ok=True)
     with open(a.init, "w") as f:
         json.dump(cfg, f, indent=2)
