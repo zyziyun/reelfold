@@ -155,7 +155,7 @@ test('after an AI edit re-renders the clip, the edited version plays (no stale m
   type Doc = { renders: { target: string; quality?: string; fresh?: boolean; at?: string; duration?: number }[] };
   const final = (d: Doc) => d.renders.find((r) => r.target === 'primary' && r.quality === 'final' && r.fresh);
   const playsEdited = async () => {
-    await expect(video).toHaveAttribute('src', /%2Frenders%2Fprimary\.final\.mp4/, { timeout: 30000 });
+    await expect(video).toHaveAttribute('src', /(%2F|%5C)renders(%2F|%5C)primary\.final\.mp4/, { timeout: 30000 });
     // the file on disk, not what the player cached of the one it replaced
     const want = final(await api<Doc>(`/api/outputs/${id}/talk`))!.duration!;
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.duration), { timeout: 20000 }).toBeCloseTo(want, 1);
