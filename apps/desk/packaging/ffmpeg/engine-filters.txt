@@ -12,7 +12,6 @@ apad
 aresample
 asetpts
 asetrate
-ass
 atempo
 atrim
 bandreject
@@ -35,7 +34,6 @@ freezedetect
 gblur
 highpass
 highshelf
-libplacebo
 loudnorm
 lutyuv
 noise

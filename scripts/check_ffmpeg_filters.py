@@ -8,9 +8,11 @@ The bundled build (conda-forge ffmpeg ``lgpl`` variant, apps/desk/packaging/ffmp
      filtergraph tokens (``name=``, ``name,``, ``name[``, ``name;`` after a graph separator) and runs the graph
      builders (vstudio.ffmpeg_filters, the vlog / cut grade and fit chains, the translation of legacy ``eq=`` strings);
   2. fails on a filter that is not in the bundled build's list (apps/desk/packaging/ffmpeg/filters.txt, a snapshot of
-     ``ffmpeg -filters`` of the darwin-arm64 build) unless it is gated on ``media.has_filter`` (GATED);
-  3. keeps apps/desk/packaging/ffmpeg/engine-filters.txt = the filters the engine emits (``--write`` regenerates it);
-     the runtime bundler (apps/desk/scripts/runtime/bundle.mjs verify) checks each built binary has all of them.
+     ``ffmpeg -filters`` of the darwin-arm64 build) unless every use is gated on the binary having it (GATED:
+     ``media.has_filter`` / ``media.ffmpeg_bin(need=[...])``);
+  3. keeps apps/desk/packaging/ffmpeg/engine-filters.txt = the filters the engine emits unconditionally (``--write``
+     regenerates it); the runtime bundler (apps/desk/scripts/runtime/bundle.mjs verify) checks each built binary has
+     all of them. A gated filter is not required: the win32 LGPL build has no libass / libplacebo.
 
     python3 scripts/check_ffmpeg_filters.py                  # check (exit 1 on a missing filter / stale list)
     python3 scripts/check_ffmpeg_filters.py --write          # regenerate engine-filters.txt
@@ -30,8 +32,16 @@ BUNDLED = PKG / "filters.txt"
 ENGINE = PKG / "engine-filters.txt"
 SCAN = ["lib/vstudio", "workflows/*/scripts", "apps/desk/engine/desk_engine"]
 SKIP = {"lib/vstudio/ffmpeg_filters.py"}     # the translator names GPL filters on purpose; its output is exercised
-# a GPL filter used only behind media.has_filter(): file -> {filter: why}
-GATED = {"lib/vstudio/media.py": {"zscale": "hdr_to_sdr_args: only when has_filter('zscale'), else libplacebo"}}
+# a filter used only when the binary has it (media.has_filter / media.ffmpeg_bin(need=...)): file -> {filter: why}
+GATED = {
+    "lib/vstudio/media.py": {
+        "zscale": "hdr_to_sdr_args: only when has_filter('zscale'), else libplacebo",
+        "libplacebo": "hdr_to_sdr_args: only when has_filter('libplacebo'), else the approximate colorspace chain",
+    },
+    "workflows/longform-to-short/scripts/burn_final.py": {
+        "ass": "ffmpeg_bin(need=['ass']) picks an ffmpeg with libass (--no-subs needs none)",
+    },
+}
 # a graph token: after the start / a graph separator, followed by options, a pad label or the next filter
 TOKEN = re.compile(r"(?:^|(?<=[,;\]\"'|]))([a-z][a-z0-9_]{1,30})(?:@[a-z0-9_]+)?(?==|,|\[|;|$)")
 # literals that only look like a graph (an ffmpeg CLI option / codec list), never a filter
@@ -149,16 +159,14 @@ def check(write=False):
     for n, where in built_uses().items():
         uses.setdefault(n, []).extend(where)
     errors = []
+    gated = {n for n, where in uses.items() if all(n in GATED.get(w[0], {}) for w in where)}
     for n, where in sorted(uses.items()):
-        if n in bundled:
-            continue
-        files = {w[0] for w in where}
-        if all(n in GATED.get(f, {}) for f in files):
+        if n in bundled or n in gated:
             continue
         errors.append(f"{n}: not in the bundled LGPL ffmpeg - used at " +
                       ", ".join(f"{f}:{ln}" for f, ln in where[:6]) +
                       " (use vstudio.ffmpeg_filters, or gate it on media.has_filter and list it in GATED)")
-    emitted = sorted(n for n in uses if n in bundled)
+    emitted = sorted(n for n in uses if n in bundled and n not in gated)
     body = ("# ffmpeg filters the engine can emit (scripts/check_ffmpeg_filters.py --write); every bundled ffmpeg\n"
             "# must have them (apps/desk/scripts/runtime/bundle.mjs verify)\n" + "\n".join(emitted) + "\n")
     if write:

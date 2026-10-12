@@ -157,6 +157,36 @@ def test_guard_checks_a_binary(tmp_path):
     assert GUARD.check_binary(ff) == (0 if GUARD.read_list(GUARD.ENGINE) <= have else 1)
 
 
+def test_guard_gated_filters_are_not_required():
+    """0.2.7: the win32 LGPL ffmpeg (conda-forge) has no libass / libplacebo; the engine only uses them when the binary
+    has them, so the bundler's --binary check must not require them (it stopped the Windows release)."""
+    used = GUARD.read_list(GUARD.ENGINE)
+    assert not used & {"ass", "libplacebo", "zscale"}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a shebang script stands in for ffmpeg")
+def test_guard_passes_a_build_without_the_gated_filters(tmp_path):
+    lines = "".join(f" ... {n}  V->V  x\n" for n in sorted(BUNDLED - {"ass", "libplacebo"}))
+    ff = tmp_path / "ffmpeg"
+    ff.write_text(f"#!{sys.executable}\nimport sys\nsys.stdout.write({lines!r})\n")
+    ff.chmod(0o755)
+    assert GUARD.check_binary(str(ff)) == 0
+    missing = lines.replace(" ... xfade ", " ... nope ")
+    ff.write_text(f"#!{sys.executable}\nimport sys\nsys.stdout.write({missing!r})\n")
+    assert GUARD.check_binary(str(ff)) == 1
+
+
+def test_guard_requires_a_gated_filter_used_ungated(tmp_path, monkeypatch):
+    lib = tmp_path / "lib" / "vstudio"
+    lib.mkdir(parents=True)
+    (lib / "media.py").write_text('T = "libplacebo=tonemapping=bt.2390"\n')
+    (lib / "other.py").write_text('V = "[v]libplacebo=tonemapping=auto[o]"\n')
+    monkeypatch.setattr(GUARD, "ROOT", tmp_path)
+    uses = GUARD.static_uses(GUARD.known())
+    gated = all("libplacebo" in GUARD.GATED.get(f, {}) for f, _ in uses["libplacebo"])
+    assert {f for f, _ in uses["libplacebo"]} == {"lib/vstudio/media.py", "lib/vstudio/other.py"} and not gated
+
+
 def test_polish_grade_returns_a_single_frame():
     """The talking-head cover grades ONE raw frame through stdin: a temporal denoise (atadenoise) never returns it on
     ffmpeg 6.1 (Ubuntu 24.04, CI) and the cover hung until the stall watchdog."""
