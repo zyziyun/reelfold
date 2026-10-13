@@ -56,7 +56,18 @@ export interface GoalVideo {
   kind: GoalKind;
   theme?: string | null;
   why?: string | null;
+  /** the longest of its per-platform lengths */
   length_s: number;
+  /** seconds per platform (each platform's habit for this kind, capped by the footage; her own numbers win) */
+  lengths?: Record<string, number> | null;
+  /** the lengths she set herself on the plan card */
+  lengths_own?: Record<string, number> | null;
+  /** one render per length: a long cut (YouTube / B站, chapters) and a short one (Shorts / 小红书 / TikTok) */
+  cuts?: import('./platformLengths').GoalCut[] | null;
+  /** the longest sensible video its usable footage carries (s) */
+  possible_s?: number | null;
+  /** a length she set is longer than the footage carries */
+  over_footage?: boolean | null;
   clips: number;
   /** photos in its stories */
   stills?: number | null;
@@ -164,6 +175,6 @@ export type GoalEditOp =
   | { op: 'drop' | 'restore'; video: string }
   | { op: 'rename'; video: string; title: string }
   | { op: 'kind'; video: string; kind: GoalKind }
-  | { op: 'length'; video: string; length_s: number }
+  | { op: 'length'; video: string; length_s: number; platform?: string; cut?: string }
   | { op: 'merge'; videos: string[] }
   | { op: 'platforms'; video?: string; platforms: string[] };

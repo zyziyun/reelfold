@@ -4,6 +4,7 @@
 // page could reach.
 import type { WatermarkDoc, WatermarkSettings } from './watermark';
 import type { MusicDoc } from './music';
+import type { PlatformLengthsDoc } from './platformLengths';
 import type {
   ApplyResult,
   BatchStatus,
@@ -522,6 +523,14 @@ export class EngineClient {
   /** favourite / ban one track (absent = leave as is) */
   setMusicPref(id: string, pref: { favourite?: boolean; banned?: boolean }) {
     return this.req<MusicDoc>('POST', '/api/music/prefs', { id, ...pref });
+  }
+  /** Settings › Publishing › Video length: every platform's length bands per kind and her own range */
+  platformLengths() {
+    return this.req<PlatformLengthsDoc>('GET', '/api/platform-lengths');
+  }
+  /** her own shortest / longest for one platform (reset: back to the platform's habits) */
+  setPlatformLength(platform: string, v: { min_s?: number; max_s?: number; reset?: boolean }) {
+    return this.req<PlatformLengthsDoc>('POST', '/api/platform-lengths', { platform, ...v });
   }
   /** Settings › Watermark: the engine's watermark settings + previews over sample 9:16 / 16:9 frames */
   watermark(previews = true) {

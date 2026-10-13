@@ -14,6 +14,7 @@ import { Check, ChevronDown, ChevronRight, Copy, FolderOpen, GitMerge, Layers, P
 import { useEffect, useMemo, useState } from 'react';
 import { GOAL_KINDS, type Goal, type GoalEditOp, type GoalKind, type GoalStory, type GoalVideo } from '../../../shared/goal';
 import type { Clip } from '../../../shared/v04';
+import { fmtDuration, parseSecs } from '../../../shared/platformLengths';
 import { fmtLen, getLang, t } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone, GOAL_POLL_MS } from '../lib/goals';
@@ -331,17 +332,22 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
                 ))}
               </select>
             </label>
-            <label>
-              <span className="faint small">{t('goal.length')}</span>
-              <input type="number" min={10} max={600} step={5} value={len} disabled={busy} onChange={(e) => setLen(e.target.value)} onBlur={setLength} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()} data-testid="goal-plan-length" />
-            </label>
-            <span className="goalv-plats" aria-label={v.platforms.map(platformName).join(', ')}>
-              {v.platforms.map((p) => (
-                <PlatformIcon key={p} id={p} size={14} title={platformName(p)} />
-              ))}
-            </span>
+            {v.lengths ? null : (
+              <label>
+                <span className="faint small">{t('goal.length')}</span>
+                <input type="number" min={10} max={600} step={5} value={len} disabled={busy} onChange={(e) => setLen(e.target.value)} onBlur={setLength} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()} data-testid="goal-plan-length" />
+              </label>
+            )}
+            {v.lengths ? null : (
+              <span className="goalv-plats" aria-label={v.platforms.map(platformName).join(', ')}>
+                {v.platforms.map((p) => (
+                  <PlatformIcon key={p} id={p} size={14} title={platformName(p)} />
+                ))}
+              </span>
+            )}
           </div>
         )}
+        {!out && v.lengths && <PlatformLengths v={v} busy={busy} onOps={onOps} />}
         <div className="goalv-cardacts">
           {!out && (
             <label className="goalv-pick small">
@@ -363,6 +369,52 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
         </div>
       </div>
     </article>
+  );
+}
+
+/** The plan card's lengths: one box per platform (each platform's habit for this kind, capped by the footage; hers
+ * win), the cuts they make (a long cut with chapters, a short one) and how much the footage can carry. */
+function PlatformLengths({ v, busy, onOps }: { v: GoalVideo; busy: boolean; onOps: (ops: GoalEditOp[]) => void }) {
+  const lang = getLang();
+  const lens = v.lengths ?? {};
+  return (
+    <div className="goalv-lens" data-testid="goal-plan-lengths">
+      <span className="faint small">{t('goal.lengths')}</span>
+      <div className="goalv-lenrow">
+        {v.platforms.map((p) => (
+          <LengthBox key={p} p={p} value={lens[p] ?? v.length_s} own={v.lengths_own?.[p] != null} busy={busy} onSet={(n) => onOps([{ op: 'length', video: v.id, platform: p, length_s: n }])} />
+        ))}
+      </div>
+      {(v.cuts?.length ?? 0) > 1 && (
+        <span className="faint small" data-testid="goal-plan-cuts">
+          {v.cuts!.map((c) => t(c.form === 'long' ? 'goal.cutLong' : 'goal.cutShort', { len: fmtDuration(c.length_s, lang) })).join(' · ')}
+        </span>
+      )}
+      {v.possible_s ? (
+        <span className={`small ${v.over_footage ? 'goalv-warn' : 'faint'}`} data-testid="goal-plan-possible">
+          {t('goal.possible', { len: fmtDuration(v.possible_s, lang) })}
+          {v.over_footage ? ` · ${t('goal.overFootage')}` : ''}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function LengthBox({ p, value, own, busy, onSet }: { p: string; value: number; own: boolean; busy: boolean; onSet: (n: number) => void }) {
+  const [txt, setTxt] = useState(String(value));
+  useEffect(() => setTxt(String(value)), [value]);
+  const commit = () => {
+    const n = parseSecs(txt, 10, 3600);
+    if (n != null && n !== value) onSet(n);
+    else setTxt(String(value));
+  };
+  const name = platformName(p);
+  return (
+    <label className={`goalv-len ${own ? 'own' : ''}`} title={own ? `${name} · ${t('goal.ownLength')}` : name} data-testid="goal-plan-platform-length" data-platform={p}>
+      <PlatformIcon id={p} size={14} />
+      <input type="number" min={10} max={3600} step={5} value={txt} disabled={busy} aria-label={t('goal.lengthFor', { name })} onChange={(e) => setTxt(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()} />
+      <span className="faint small">{t('pls.secs')}</span>
+    </label>
   );
 }
 

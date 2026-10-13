@@ -155,6 +155,8 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   GET  /api/music                          Settings › Music (music.py): the CC0 library (installed?, licence, BPM,
                                            energy), built-in beds, favourites / bans; POST /api/music/prefs
                                            {id, favourite?, banned?}
+  GET  /api/platform-lengths               Settings › Publishing › Video length (platform_lengths.py): every platform's
+                                           length bands per kind; POST {platform, min_s?, max_s?, reset?}
   GET  /api/watermark                      Settings › Watermark (watermark.py): settings + previews over sample
                                            9:16 / 16:9 frames; POST {patch}; POST /api/watermark/logo {path}
   GET  /api/inbox                          every decision waiting for the creator; POST /api/inbox/answer {keys,
@@ -575,6 +577,8 @@ class Api:
         self.watermark = Watermark()
         from .music import Music                   # Settings › Music (vstudio.music library, favourites / bans)
         self.music = Music()
+        from .platform_lengths import PlatformLengths   # Settings › Publishing › Video length (platform habits)
+        self.platform_lengths = PlatformLengths()
         from .live import LiveHub                  # the live pane: a job's transcript + a nudge when it grows
         self.live = LiveHub(bus)
         self.port = None
@@ -1167,6 +1171,10 @@ class Api:
             return self.create.route(method, parts[1:], query, body)
         if parts[:1] == ["music"]:
             r = self.music.route(method, parts, body, query)
+            if r is not None:
+                return r
+        if parts[:1] == ["platform-lengths"]:
+            r = self.platform_lengths.route(method, parts, body, query)
             if r is not None:
                 return r
         if parts[:1] == ["watermark"]:

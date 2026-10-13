@@ -2,7 +2,8 @@
 // session, so a page she is signed in to counts); the signed-out one gets the page's single primary "Sign in".
 // Accounts on platforms she does not post to are listed apart and never nag. Below: how scheduled posts reach her
 // (Open at login + menu bar) and the official posting APIs: YouTube signs in with Google in her own browser (official
-// Data API, never the built-in browser); the others are documented until they are wired.
+// Data API, never the built-in browser); the others are documented until they are wired. Video length: her own
+// shortest / longest per platform (PlatformLengths.tsx).
 import { useEffect, useState } from 'react';
 import { ChevronRight, MoreHorizontal, Plus, Send } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
@@ -14,6 +15,7 @@ import { errText } from '../v4/msg';
 import { PlatformIcon } from '../v4/PlatformIcon';
 import { useUi } from '../v4/ui';
 import { Dot, Group, Page, Row, Toggle } from './kit';
+import { VideoLengthGroup } from './PlatformLengths';
 import type { SettingsCtx } from './registry';
 import { adapterShort, signInChannel } from './status';
 import { YT_ADAPTER, YtClientChoice, YtConnectSheet } from '../publish/YouTube';
@@ -82,6 +84,7 @@ export function PublishingSection(ctx: Partial<SettingsCtx>) {
           </a>
         </div>
       </Group>
+      <VideoLengthGroup chosen={chosen} />
       <Group title={t('pl.set.scheduled')} testId="settings-scheduled">
         <Row label={t('pl.set.atLogin')} hint={t('pl.set.atLoginHint')}>
           <Toggle checked={!!ctx.settings?.openAtLogin} onChange={(v) => void ctx.save?.({ openAtLogin: v })} label={t('pl.set.atLogin')} testId="open-at-login" />

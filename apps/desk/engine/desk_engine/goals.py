@@ -336,7 +336,8 @@ class Goals:
         old = {v["id"]: v for v in g.get("videos") or []}
         g["videos"] = [dict(old.get(v["id"]) or {}, **{k: v.get(k) for k in (
             "id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills", "stories", "platforms",
-            "request", "inputs", "merged_into", "recipe")}, planned_out=bool(v.get("dropped")), state="planned")
+            "request", "inputs", "merged_into", "recipe", "lengths", "lengths_own", "cuts", "possible_s",
+            "over_footage")}, planned_out=bool(v.get("dropped")), state="planned")
             for v in doc.get("videos") or []]
         if self.history is not None:                # the story thumbnails / sheets are shown on the plan card
             pics = [p for s in g["survey"]["stories"] for p in [*(s.get("thumbs") or []), s.get("sheet")] if p]
@@ -728,6 +729,7 @@ class Goals:
                                      "survey", "planner", "error", "error_code", "progress", "created", "updated",
                                      "approved", "finished", "dismissed_at", "count", "ai")}
         out["videos"] = [{**{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills",
+                                                "lengths", "lengths_own", "cuts", "possible_s", "over_footage",
                                                 "stories", "platforms", "request", "state", "intake", "projects",
                                                 "attempts", "retried", "reason_code", "progress", "live", "queued", "started",
                                                 "finished", "planned_out", "merged_into", "cleared", "versions", "last_error")},

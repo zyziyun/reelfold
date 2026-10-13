@@ -33,6 +33,12 @@
 .goalv-fields select, .goalv-fields input { font: inherit; font-size: 13px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .goalv-fields input[type='number'] { width: 76px; }
 .goalv-plats { display: inline-flex; gap: 6px; align-items: center; padding-bottom: 6px; margin-left: auto; color: var(--text-muted); }
+.goalv-lens { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.goalv-lenrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.goalv-len { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px 2px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+.goalv-len.own { border-color: var(--accent); }
+.goalv-len input { width: 56px; font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 0; padding: 2px 0; text-align: right; }
+.goalv-warn { color: var(--warn, #b7791f); }
 .goalv-cardacts { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .goalv-cardacts .sp { flex: 1; }
 .goalv-pick { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); cursor: pointer; }
