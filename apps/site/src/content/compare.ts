@@ -55,13 +55,13 @@ const WIN = Boolean(SITE.windowsDownloadUrl);
 /** Reelfold's own column (same for every page). Notes per language where a bare yes/no would mislead. */
 export const REELFOLD: Record<Row, V> = {
   free: 'yes', oss: 'yes', local: 'yes', mac: SITE.downloadReady ? 'yes' : 'partial', win: WIN ? 'partial' : 'no', web: 'no', mobile: 'no', batch: 'yes',
-  byoai: 'yes', post: 'no', cn: 'yes', text: 'yes', filler: 'yes', pick: 'yes', team: 'no',
+  byoai: 'yes', post: 'partial', cn: 'yes', text: 'yes', filler: 'yes', pick: 'yes', team: 'no',
 };
 export const REELFOLD_NOTES: Record<Lang, Partial<Record<Row, string>>> = {
-  en: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon; first release coming soon, build from source today', win: WIN ? 'Preview: unsigned installer' : 'Planned', post: 'By design: fills each upload page, you press publish', free: 'MIT; you pay only for the AI you connect' },
-  zh: { mac: SITE.downloadReady ? 'Apple 芯片' : 'Apple 芯片；正式版即将发布，现在可从源码构建', win: WIN ? '预览版：安装包未签名' : '在计划中', post: '有意为之：替你填好上传页，由你按下发布', free: 'MIT；只为你接入的 AI 付费' },
-  fr: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon ; première version bientôt, compilable dès aujourd’hui', win: WIN ? 'Aperçu : installateur non signé' : 'Prévue', post: 'Choix délibéré : il remplit chaque page, vous publiez', free: 'MIT ; seule l’IA branchée est payante' },
-  es: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon; primera versión muy pronto, ya se puede compilar', win: WIN ? 'Vista previa: instalador sin firmar' : 'Prevista', post: 'A propósito: rellena cada página de subida y tú publicas', free: 'MIT; solo pagas la IA que conectes' },
+  en: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon; first release coming soon, build from source today', win: WIN ? 'Preview: unsigned installer' : 'Planned', post: 'YouTube: uploads or schedules through its official API when you press it. Others: fills the upload page, you press publish', free: 'MIT; you pay only for the AI you connect' },
+  zh: { mac: SITE.downloadReady ? 'Apple 芯片' : 'Apple 芯片；正式版即将发布，现在可从源码构建', win: WIN ? '预览版：安装包未签名' : '在计划中', post: 'YouTube：你按下后，走官方接口上传或定时发布。其他平台：替你填好上传页，由你按下发布', free: 'MIT；只为你接入的 AI 付费' },
+  fr: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon ; première version bientôt, compilable dès aujourd’hui', win: WIN ? 'Aperçu : installateur non signé' : 'Prévue', post: 'YouTube : mise en ligne ou programmation par son API officielle quand vous cliquez. Ailleurs : il remplit la page, vous publiez', free: 'MIT ; seule l’IA branchée est payante' },
+  es: { mac: SITE.downloadReady ? 'Apple Silicon' : 'Apple Silicon; primera versión muy pronto, ya se puede compilar', win: WIN ? 'Vista previa: instalador sin firmar' : 'Prevista', post: 'YouTube: sube o programa por su API oficial cuando lo pulsas. Las demás: rellena la página de subida y tú publicas', free: 'MIT; solo pagas la IA que conectes' },
 };
 
 interface Item { t: string; b: string }
@@ -116,7 +116,7 @@ const DATA: Record<CompareSlug, CompareEntry> = {
         notes: { free: 'Free plan with limits; paid plans from $15/month', local: 'Processing runs on Opus Clip’s servers', batch: 'Parallel processing through the API on higher plans', post: 'Scheduler on paid plans', cn: 'Not among its posting targets; Chinese not in its listed video languages', team: 'Pro: up to 4 users; Business: unlimited' },
         faq: [
           { q: 'Is Reelfold a free Opus Clip alternative?', a: 'Reelfold is free and open source, and it also picks clips from long videos. It runs on your Mac instead of in the browser, so it suits people who want local processing and their own AI.' },
-          { q: 'Can Reelfold post for me like Opus Clip?', a: 'No, on purpose. Reelfold fills in each platform’s upload page with the video, cover and copy, and you press publish.' },
+          { q: 'Can Reelfold post for me like Opus Clip?', a: 'Only when you press it. YouTube uploads or schedules through its official API when you press Publish or Schedule. For the other platforms Reelfold fills in the upload page with the video, cover and copy, and you press publish.' },
         ],
       },
       zh: {
@@ -148,13 +148,13 @@ const DATA: Record<CompareSlug, CompareEntry> = {
         notes: { free: '免费版有额度限制；付费版每月 15 美元起', local: '在 Opus Clip 的服务器上处理', batch: '更高套餐可通过 API 并行处理', post: '付费版有定时发布', cn: '发布平台里没有国内平台；支持的视频语言里没有中文', team: 'Pro 至多 4 人；Business 不限人数' },
         faq: [
           { q: '千剪能当免费的 Opus Clip 替代品吗？', a: '千剪免费开源，也能从长视频里挑片段。它在你的 Mac 上运行而不是在浏览器里，适合希望本机处理、用自己 AI 的人。' },
-          { q: '千剪能像 Opus Clip 那样替我发布吗？', a: '不能，这是有意的。千剪把视频、封面和文案填进各平台的上传页，由你按下发布。' },
+          { q: '千剪能像 Opus Clip 那样替我发布吗？', a: '要你按下才发。YouTube 在你按下发布或排期时，走官方接口上传或定时发布。其他平台，千剪把视频、封面和文案填进上传页，由你按下发布。' },
         ],
       },
       fr: {
         name: 'Opus Clip',
         title: 'Reelfold ou Opus Clip : une alternative open source pour les lots',
-        description: 'Reelfold et Opus Clip comparés honnêtement : découpe hébergée dans le navigateur, face à une app Mac gratuite et open source qui rend en local.',
+        description: 'Reelfold et Opus Clip comparés honnêtement : découpe hébergée dans le navigateur, face à une app Mac gratuite et open source qui rend en local.',
         kicker: 'Comparer',
         h1: 'Reelfold et Opus Clip, côte à côte.',
         intro: 'Les deux transforment une longue vidéo en clips courts grâce à l’IA. Opus Clip est un service web hébergé, avec des crédits et une programmation intégrée. Reelfold est une app Mac gratuite et open source qui rend sur votre machine, avec l’IA de votre choix. Voici à qui chacun convient.',
@@ -180,7 +180,7 @@ const DATA: Record<CompareSlug, CompareEntry> = {
         notes: { free: 'Offre gratuite limitée ; offres payantes dès 15 $/mois', local: 'Le traitement se fait sur les serveurs d’Opus Clip', batch: 'Traitement en parallèle via l’API sur les offres supérieures', post: 'Programmation sur les offres payantes', cn: 'Absentes de ses cibles de publication ; chinois absent des langues vidéo listées', team: 'Pro : jusqu’à 4 personnes ; Business : illimité' },
         faq: [
           { q: 'Reelfold est-il une alternative gratuite à Opus Clip ?', a: 'Reelfold est gratuit et open source, et il choisit lui aussi des clips dans les longues vidéos. Il tourne sur votre Mac plutôt que dans le navigateur : il convient à qui veut un traitement local et sa propre IA.' },
-          { q: 'Reelfold peut-il publier pour moi comme Opus Clip ?', a: 'Non, et c’est voulu. Reelfold remplit la page de mise en ligne de chaque plateforme avec la vidéo, la couverture et le texte, et c’est vous qui publiez.' },
+          { q: 'Reelfold peut-il publier pour moi comme Opus Clip ?', a: 'Seulement quand vous cliquez. YouTube est mis en ligne ou programmé par son API officielle quand vous cliquez sur Publier ou Programmer. Pour les autres plateformes, Reelfold remplit la page de mise en ligne avec la vidéo, la couverture et le texte, et c’est vous qui publiez.' },
         ],
       },
       es: {
@@ -212,7 +212,7 @@ const DATA: Record<CompareSlug, CompareEntry> = {
         notes: { free: 'Plan gratuito con límites; planes de pago desde 15 US$/mes', local: 'El procesamiento ocurre en los servidores de Opus Clip', batch: 'Procesamiento en paralelo vía API en planes superiores', post: 'Programación en los planes de pago', cn: 'No están entre sus destinos de publicación; el chino no figura entre sus idiomas de video', team: 'Pro: hasta 4 personas; Business: sin límite' },
         faq: [
           { q: '¿Reelfold es una alternativa gratuita a Opus Clip?', a: 'Reelfold es gratis y de código abierto, y también elige clips de videos largos. Funciona en tu Mac en lugar del navegador, así que encaja con quien quiere procesar en local y con su propia IA.' },
-          { q: '¿Reelfold puede publicar por mí como Opus Clip?', a: 'No, a propósito. Reelfold rellena la página de subida de cada plataforma con el video, la portada y el texto, y tú pulsas publicar.' },
+          { q: '¿Reelfold puede publicar por mí como Opus Clip?', a: 'Solo cuando tú lo pulsas. YouTube sube o programa por su API oficial cuando pulsas Publicar o Programar. Para las demás plataformas, Reelfold rellena la página de subida con el video, la portada y el texto, y tú pulsas publicar.' },
         ],
       },
     },
@@ -291,8 +291,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       fr: {
         name: 'Descript',
-        title: 'Reelfold ou Descript : une alternative pensée pour les lots',
-        description: 'Reelfold et Descript comparés honnêtement : un éditeur par transcription, une vidéo à la fois, face à une app Mac gratuite qui tire une semaine de clips.',
+        title: 'Reelfold ou Descript : une alternative pensée pour les lots',
+        description: 'Reelfold et Descript comparés honnêtement : un éditeur par transcription, une vidéo à la fois, face à une app Mac gratuite qui tire une semaine de clips.',
         kicker: 'Comparer',
         h1: 'Reelfold et Descript, côte à côte.',
         intro: 'Descript est un éditeur : on façonne une vidéo en modifiant sa transcription, avec de bons outils audio et du travail à plusieurs. Reelfold est un outil de lots : un enregistrement devient de nombreux clips pour de nombreuses plateformes, rendus sur votre Mac. Beaucoup gagneraient à utiliser les deux.',
@@ -428,8 +428,8 @@ const DATA: Record<CompareSlug, CompareEntry> = {
       },
       fr: {
         name: 'CapCut',
-        title: 'Reelfold ou CapCut : des clips par lots, sans modèles',
-        description: 'Reelfold et CapCut comparés honnêtement : un éditeur riche en modèles sur tous les appareils, face à une app Mac gratuite qui tire des clips d’une vidéo.',
+        title: 'Reelfold ou CapCut : des clips par lots, sans modèles',
+        description: 'Reelfold et CapCut comparés honnêtement : un éditeur riche en modèles sur tous les appareils, face à une app Mac gratuite qui tire des clips d’une vidéo.',
         kicker: 'Comparer',
         h1: 'Reelfold et CapCut, côte à côte.',
         intro: 'CapCut (剪映 en Chine) est un éditeur créatif sur téléphone, ordinateur et web, avec une vaste bibliothèque de modèles et d’effets. Reelfold est un outil de lots pour Mac qui transforme de longs enregistrements en nombreux clips pour de nombreuses plateformes. Ils ne répondent pas au même besoin.',

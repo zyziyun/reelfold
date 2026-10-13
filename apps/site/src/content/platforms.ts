@@ -55,7 +55,7 @@ export const PLATFORMS_COPY: Record<Lang, PlatformsCopy> = {
     ],
   },
   fr: {
-    title: 'Formats vidéo de 20 plateformes : Shorts, TikTok, Douyin',
+    title: 'Formats vidéo de 20 plateformes : Shorts, TikTok, Douyin',
     description: 'Dimensions, formats d’image, couvertures, durées et limites de texte pour YouTube, Shorts, TikTok, Instagram, Xiaohongshu, Douyin, Bilibili et 13 autres.',
     kicker: 'Formats des plateformes',
     h1: 'Les formats vidéo de vingt plateformes.',
