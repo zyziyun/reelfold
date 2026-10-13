@@ -2,14 +2,14 @@
 
 score = 0.35 sharpness + 0.30 motion (moderate motion preferred, a frozen or whipping frame scores low)
       + 0.20 brightness (mid-grey best, crushed or blown frames low) + 0.15 face (a face in frame).
-Samples are grey 160-px thumbnails at 4 fps (faces: 1 fps, 480 px, vstudio.face when MediaPipe works).
+Samples are grey 160-px frames at 4 fps from vstudio.shots' single low-res decode (faces: its 320-px thumbnails, one
+a second, vstudio.face when MediaPipe works).
 Results are cached in <cache>/scores_<hash>.json keyed by path, size and mtime.
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4] / "lib"))
 import hashlib
 import json
 import os
-import subprocess
 
 import numpy as np
 
@@ -19,41 +19,27 @@ W_SHARP, W_MOTION, W_BRIGHT, W_FACE = 0.35, 0.30, 0.20, 0.15
 MOTION_BEST = 8.0          # mean abs grey diff (0-255) between samples 0.25 s apart that reads as "lively"
 
 
-def _decode_grey(src, fps=4.0, width=160):
-    info = media.probe(src)
-    w, h = info["display_w"] or 16, info["display_h"] or 9
-    tw = width
-    th = max(2, int(round(h * tw / w / 2)) * 2)
-    cmd = [media.ffmpeg_bin(), "-v", "error", "-i", os.fspath(src), "-vf", f"fps={fps},scale={tw}:{th},format=gray",
-           "-f", "rawvideo", "-pix_fmt", "gray", "-"]
-    raw = subprocess.run(cmd, capture_output=True, check=True).stdout
-    n = len(raw) // (tw * th)
-    return np.frombuffer(raw[:n * tw * th], np.uint8).reshape(n, th, tw), info
-
-
-def _faces_per_sec(src, dur):
-    """{second: 1/0} via vstudio.face (MediaPipe); {} when unavailable."""
+def _faces_per_sec(a):
+    """{second: 1/0} on the kept 320-px thumbnails (vstudio.shots, one per second) via vstudio.face; {} when
+    MediaPipe is unavailable. No second decode of the clip."""
     try:
         from vstudio import face as F
         lm = F.landmarker(num_faces=1)
     except Exception:
         return {}
+    import cv2
+    from vstudio import shots as S
     out = {}
     try:
-        info = media.probe(src)
-        w, h = info["display_w"], info["display_h"]
-        tw = 480
-        th = max(2, int(round(h * tw / w / 2)) * 2)
-        cmd = [media.ffmpeg_bin(), "-v", "error", "-i", os.fspath(src), "-vf", f"fps=1,scale={tw}:{th}",
-               "-f", "rawvideo", "-pix_fmt", "bgr24", "-"]
-        raw = subprocess.run(cmd, capture_output=True, check=True).stdout
-        n = len(raw) // (tw * th * 3)
-        for i in range(n):
-            fr = np.frombuffer(raw[i * tw * th * 3:(i + 1) * tw * th * 3], np.uint8).reshape(th, tw, 3)
+        for s in a["secs"]:
+            k = s["t"]
+            img = cv2.imread(S.thumb(a, k + 0.5))
+            if img is None:
+                continue
             try:
-                out[i] = 1.0 if F.detect(lm, np.ascontiguousarray(fr)) else 0.0
+                out[k] = 1.0 if F.detect(lm, np.ascontiguousarray(img)) else 0.0
             except Exception:
-                out[i] = 0.0
+                out[k] = 0.0
     finally:
         try:
             lm.close()
@@ -63,44 +49,38 @@ def _faces_per_sec(src, dur):
 
 
 def clip_scores(src, cache_dir=None, faces=True):
-    """Per-second scores for ``src``: dict(duration, fps, secs=[{t, score, sharp, motion, bright, face}])."""
+    """Per-second scores for ``src``: dict(duration, fps, secs=[{t, score, sharp, motion, bright, face}]).
+
+    The inputs come from ``vstudio.shots.analyze`` (cached): ONE low-res decode of the clip (VideoToolbox + scale_vt
+    on a Mac), not two full-resolution software decodes - a 4K HEVC reel on an SD card went from ~an hour to
+    minutes."""
     st = os.stat(src)
-    key = hashlib.sha1(f"{os.path.abspath(src)}|{st.st_size}|{st.st_mtime}|{faces}|v1".encode()).hexdigest()[:16]
+    key = hashlib.sha1(f"{os.path.abspath(src)}|{st.st_size}|{st.st_mtime}|{faces}|v2".encode()).hexdigest()[:16]
     cp = os.path.join(cache_dir, f"scores_{key}.json") if cache_dir else None
     if cp and os.path.exists(cp):
         with open(cp) as f:
             return json.load(f)
-    import cv2
-    fr, info = _decode_grey(src)
-    dur = info["duration"] or len(fr) / 4.0
-    n_sec = max(1, int(np.ceil(dur - 1e-6)))
-    per = [[] for _ in range(n_sec)]
-    prev = None
-    for i, g in enumerate(fr):
-        t = i / 4.0
-        sharp = float(cv2.Laplacian(g, cv2.CV_32F).var())
-        bright = float(g.mean())
-        motion = float(np.abs(g.astype(np.int16) - prev).mean()) if prev is not None else None
-        prev = g.astype(np.int16)
-        k = min(n_sec - 1, int(t))
-        per[k].append((sharp, bright, motion))
-    fc = _faces_per_sec(src, dur) if faces else {}
+    from vstudio import shots as S
+    a = S.analyze(os.fspath(src))
+    info = media.probe(src)
+    dur = info["duration"] or a["dur"]
+    fc = _faces_per_sec(a) if faces else {}
     secs = []
-    for k, rows in enumerate(per):
-        if not rows:
-            secs.append(dict(t=k, score=0.0, sharp=0.0, motion=0.0, bright=0.0, face=0.0))
-            continue
-        sharp = float(np.mean([r[0] for r in rows]))
-        bright = float(np.mean([r[1] for r in rows]))
-        ms = [r[2] for r in rows if r[2] is not None]
-        motion = float(np.mean(ms)) if ms else 0.0
+    for r in a["secs"]:
+        k = r["t"]
+        sharp, bright, motion = r["sharp"], r["bright"], r["motion"]
         s_sharp = float(np.clip(np.log10(sharp + 1.0) / 3.0, 0, 1))
         s_motion = float(np.exp(-((motion - MOTION_BEST) / MOTION_BEST) ** 2))
         s_bright = float(1 - np.clip(abs(bright - 125.0) / 125.0, 0, 1) ** 1.5)
         s_face = float(fc.get(k, 0.0))
         score = W_SHARP * s_sharp + W_MOTION * s_motion + W_BRIGHT * s_bright + W_FACE * s_face
-        secs.append(dict(t=k, score=round(score, 4), sharp=round(sharp, 1), motion=round(motion, 2),
-                         bright=round(bright, 1), face=s_face))
+        secs.append(dict(t=k, score=round(score, 4), sharp=sharp, motion=motion, bright=bright, face=s_face))
+    flash = {int(t) for t in a.get("flashes") or []}
+    for r in secs:                                   # never pick a window around a flash frame
+        if r["t"] in flash:
+            r["score"] = 0.0
+    if not secs:
+        secs = [dict(t=0, score=0.0, sharp=0.0, motion=0.0, bright=0.0, face=0.0)]
     res = dict(src=os.fspath(src), duration=dur, fps=info["fps"], secs=secs)
     if cp:
         os.makedirs(cache_dir, exist_ok=True)
