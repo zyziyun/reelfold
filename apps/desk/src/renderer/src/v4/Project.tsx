@@ -23,7 +23,8 @@ import { inboxSub, inboxTitle } from './Inbox';
 import { authorHelp } from '../lib/inboxView';
 import { LiveBanner } from './LiveLine';
 import { liveLine, liveStep, liveText, pendingFor } from '../lib/liveStatus';
-import { clipHref, inboxHref } from '../lib/nav';
+import { clipHref, inboxHref, selHref } from '../lib/nav';
+import { goalHref } from '../lib/goals';
 import { Elapsed, Empty, More, SkGrid, StatusPill, Thumb } from './kit';
 import { FailureActions, failureReason } from './Failure';
 import { PlayerOverlay } from './Player';
@@ -220,7 +221,8 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
       >
       <div className="scroll">
         <div className="pg wide">
-          <a className="back" href={href({ name: 'projects' })}>
+          {/* back to where it lives: its collection (a goal's video), else its own row - the exact id, never a name */}
+          <a className="back" href={item?.goal ? goalHref(item.goal, item.goal_video ?? undefined) : selHref(id)}>
             <ArrowLeft className="ico" />
             {t('project.back')}
           </a>

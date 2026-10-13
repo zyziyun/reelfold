@@ -19,8 +19,9 @@ import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { previewDoc } from '../lib/outputs';
 import { snapEdge } from '../lib/timeline';
-import { projectHref, triageStep, useTriageState } from '../lib/nav';
-import { href, useRouteQuery } from '../lib/router';
+import { goalHref } from '../lib/goals';
+import { projectHref, selHref, triageStep, useTriageState } from '../lib/nav';
+import { useRouteQuery } from '../lib/router';
 import { markers, type Primary } from '../lib/chatEdit';
 import { AutoCommit, COMMIT_DELAY_MS, draftKey, draftsKey, loadDrafts, storeCommitted, subtractDrafts, useTextCuts } from '../lib/textCuts';
 import { defaultTab, draftOps, draftSpans, fixInCue, hasDrafts, joinWords, keepToCuts, keptSeconds, segments, wordRuns, type Drafts } from '../lib/transcript';
@@ -1147,7 +1148,9 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         <header className="cs-top" data-testid="studio-header">
           <div className="cs-title">
             <span className="cs-where muted clamp1" data-testid="studio-where">
-              <a href={href({ name: 'project', id, tab: 'clips' })} title={t('st.details')} data-testid="studio-details">
+              {/* where the clip lives: its collection (a goal's video), else its row in the list - by the exact project
+                  id, never the old per-project page */}
+              <a href={project?.goal ? goalHref(project.goal, project.goal_video ?? undefined) : selHref(id)} title={t('st.details')} data-testid="studio-details">
                 {place?.project ?? project?.name}
               </a>
               {place?.pos ? ` · ${place.pos[0]}/${place.pos[1]}` : ''}

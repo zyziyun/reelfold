@@ -38,6 +38,14 @@ describe('a finished project', () => {
     expect(g.run).toEqual([]);
   });
 
+  it('a stopped request for a goal video the goal made after all is not a row; one still unmade is', () => {
+    const goalVlog = { ...vlog, goal: 'g1', goal_video: 'v1' };
+    const stopped = { id: 'rq1', state: 'stopped' as const, mode: 'autopilot' as const, inputs: [], name: 'Seattle Red Leaves Film', stopped_by: 'you' as const, goal: 'g1', goal_video: 'v1' };
+    const other = { ...stopped, id: 'rq2', goal_video: 'v2' };
+    const rows = studioRows([goalVlog], [stopped, other], { [vlog.id]: [made] }, [], [], NOW);
+    expect(rows.filter((r) => r.kind === 'request').map((r) => r.key)).toEqual(['r:rq2']);
+  });
+
   it('without a file (what her vlog looked like before the engine collect) is not counted as made', () => {
     const rows = studioRows([vlog], [], { [vlog.id]: [{ ...made, files: [], cover: null }] }, [], [], NOW);
     expect(rows[0].group).toBe('run');

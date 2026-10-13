@@ -170,6 +170,8 @@ test('a clip opens as one page: title, player, cover, captions, versions, transc
   await expect(ed).toHaveAttribute('data-layout', 'studio');
   await expect(page.getByTestId('editor-title')).toHaveText('同一个行业待越久，思路越窄');
   await expect(page.getByTestId('studio-where')).toContainText('fuye');
+  // where it lives: its row in the list by the exact project id, never the old per-project page
+  await expect(page.getByTestId('studio-details')).toHaveAttribute('href', `#/studio?f=all&sel=${fuyeId}`);
   await expect(page.getByTestId('ci-covers')).toBeVisible();
   await expect(page.getByTestId('ci-versions')).toBeVisible();
   await expect(page.locator('[data-testid=transcript-body] .w').first()).toHaveText('你在');

@@ -125,7 +125,10 @@ export function studioRows(
   now = Date.now() / 1000,
 ): StudioRow[] {
   const out: StudioRow[] = [];
+  // a goal's video that a project made after all: an earlier stopped / failed request for it is history, not a row
+  const madeVideos = new Set(items.filter((i) => i.goal && i.goal_video).map((i) => `${i.goal}/${i.goal_video}`));
   for (const r of requests) {
+    if ((r.state === 'stopped' || r.state === 'error') && r.goal && r.goal_video && madeVideos.has(`${r.goal}/${r.goal_video}`)) continue;
     const p = requestPipeline(r);
     const you = p.state === 'failed' || p.state === 'plan-ready' || p.state === 'you';
     out.push({
