@@ -138,6 +138,23 @@ def model(name: str) -> str:
     return p
 
 
+def optional_asset(env, *default, names=()):
+    """An optional downloaded model: ``$<env>`` (the app sets it once the asset group is installed: a file or a
+    folder), else ``MODEL_DIR/<default...>`` (CLI: ``python -m vstudio.assets fetch``). A folder resolves to the
+    first of ``names`` inside it. None when nothing is there - callers fall back, visibly."""
+    cands = [os.environ.get(env) or ""] + ([os.path.join(MODEL_DIR, *default)] if default else [])
+    for p in cands:
+        if not p or not os.path.exists(p):
+            continue
+        if os.path.isdir(p) and names:
+            hit = next((os.path.join(p, n) for n in names if os.path.exists(os.path.join(p, n))), None)
+            if hit:
+                return hit
+            continue
+        return p
+    return None
+
+
 class YAMLUnavailable(RuntimeError):
     """A YAML file must be read but PyYAML is not installed (never silently read as JSON)."""
 

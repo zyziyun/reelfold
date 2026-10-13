@@ -6,8 +6,9 @@
 
 Sessions: upgrading drafts in the web UI cost ~7x the draft price (~64 vs ~9 credits/s), so the drafts were
 upscaled locally. Pure ESRGAN gives plastic skin; the kept recipe blends 60 % ESRGAN with 40 % bicubic and adds
-light temporal grain (keeps pores/freckles). Weights: Real-ESRGAN realesr-general-x4v3 (BSD-3-Clause, download
-yourself; not shipped). Needs torch for --weights; without it the ffmpeg path runs anywhere.
+light temporal grain (keeps pores/freckles). Weights: Real-ESRGAN realesr-general-x4v3 (BSD-3-Clause; the app's asset group upscale-esrgan, or
+`python -m vstudio.assets fetch upscale-esrgan`). --weights runs on MLX (Apple silicon) or torch via vstudio.upscale;
+without it the ffmpeg path runs anywhere.
 """
 import argparse
 import os
@@ -29,35 +30,12 @@ def ffmpeg_upscale(src, dst, w=1080, h=1920, fps=30, grain=4):
 
 
 def esrgan_upscale(src, dst, weights, w=1080, h=1920, fps=30, mix=0.6, grain=4):
+    """Real-ESRGAN x4 per frame (``vstudio.upscale``: the same network as the cover upscaler; MLX on Apple silicon,
+    torch elsewhere, no torch needed to read the weights), resized to w x h and blended ``mix`` with bicubic."""
     import numpy as np
-    import torch
-    import torch.nn.functional as F
-    from torch import nn
+    from PIL import Image
 
-    class SRVGGNetCompact(nn.Module):          # Real-ESRGAN compact architecture (weights keys body.N)
-        def __init__(self, num_feat=64, num_conv=32, upscale=4):
-            super().__init__()
-            self.upscale = upscale
-            body = [nn.Conv2d(3, num_feat, 3, 1, 1), nn.PReLU(num_parameters=num_feat)]
-            for _ in range(num_conv):
-                body += [nn.Conv2d(num_feat, num_feat, 3, 1, 1), nn.PReLU(num_parameters=num_feat)]
-            body += [nn.Conv2d(num_feat, 3 * upscale * upscale, 3, 1, 1)]
-            self.body = nn.ModuleList(body)
-            self.upsampler = nn.PixelShuffle(upscale)
-
-        def forward(self, x):
-            out = x
-            for layer in self.body:
-                out = layer(out)
-            return self.upsampler(out) + F.interpolate(x, scale_factor=self.upscale, mode="nearest")
-
-    dev = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
-    half = dev != "cpu"
-    m = SRVGGNetCompact()
-    sd = torch.load(os.path.expanduser(weights), map_location="cpu")
-    m.load_state_dict(sd.get("params", sd))
-    m = m.eval().to(dev)
-    m = m.half() if half else m
+    from vstudio import upscale as U
     info = media.probe(src)
     wi, hi = info["w"], info["h"]
     tmp = dst + ".video.mp4"
@@ -68,18 +46,15 @@ def esrgan_upscale(src, dst, weights, w=1080, h=1920, fps=30, mix=0.6, grain=4):
                             "-c:v", "libx264", "-crf", "14", "-preset", "medium", "-pix_fmt", "yuv420p", tmp],
                            stdin=subprocess.PIPE)
     fb = wi * hi * 3
-    with torch.no_grad():
-        while True:
-            buf = dec.stdout.read(fb)
-            if len(buf) < fb:
-                break
-            x = torch.from_numpy(np.frombuffer(buf, np.uint8).reshape(hi, wi, 3).copy()).to(dev)
-            x = x.permute(2, 0, 1)[None].float() / 255.0
-            y = m(x.half() if half else x).float()
-            y = F.interpolate(y, size=(h, w), mode="bicubic", antialias=True)   # aspect: caller passes matching w/h
-            base = F.interpolate(x, size=(h, w), mode="bicubic")
-            y = (mix * y + (1 - mix) * base).clamp_(0, 1)
-            enc.stdin.write((y[0].permute(1, 2, 0) * 255).round().byte().cpu().numpy().tobytes())
+    path = os.path.expanduser(weights)
+    while True:
+        buf = dec.stdout.read(fb)
+        if len(buf) < fb:
+            break
+        x = np.frombuffer(buf, np.uint8).reshape(hi, wi, 3)
+        sr = Image.fromarray((U.esrgan_x4(x, path) * 255 + 0.5).astype(np.uint8)).resize((w, h), Image.BICUBIC)
+        base = Image.fromarray(x).resize((w, h), Image.BICUBIC)   # aspect: caller passes matching w/h
+        enc.stdin.write(Image.blend(base, sr, mix).tobytes())
     enc.stdin.close()
     enc.wait()
     dec.wait()
@@ -96,7 +71,7 @@ def main(argv=None):
     ap.add_argument("dst")
     ap.add_argument("--size", default="1080x1920")
     ap.add_argument("--fps", type=int, default=30)
-    ap.add_argument("--weights", help="realesr-general-x4v3.pth (optional; needs torch)")
+    ap.add_argument("--weights", help="realesr-general-x4v3.pth (optional; MLX or torch)")
     ap.add_argument("--mix", type=float, default=0.6, help="ESRGAN share (rest bicubic) - lower = less plastic")
     ap.add_argument("--grain", type=int, default=4)
     a = ap.parse_args(argv)

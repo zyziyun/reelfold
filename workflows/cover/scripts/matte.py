@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Matte a single still (speaker photo / video frame) to a transparent RGBA PNG.
 
-Engines
-  mediapipe (default)  MediaPipe selfie segmenter (Apache-2.0, vstudio.config.model("selfie_segmenter")),
-                       refined with an edge-aware guided filter so hair edges follow the photo.
+Engines (vstudio.matte)
+  auto (default)       BiRefNet when downloaded, else MediaPipe.
+  birefnet             BiRefNet-lite (MIT) on onnxruntime: any salient subject (people, a boat, a tower), clean hair.
+                       First-run download (app asset group matte-birefnet; CLI: python -m vstudio.assets fetch
+                       matte-birefnet).
+  mediapipe            MediaPipe selfie segmenter (Apache-2.0, vstudio.config.model("selfie_segmenter")),
+                       refined with an edge-aware guided filter so hair edges follow the photo. People only.
   rvm (optional)       Robust Video Matting via torch.hub. RVM is **GPL-3.0**: it is NOT vendored here;
                        torch.hub downloads it at runtime into your torch cache, on your machine, under its
                        own licence. Cleaner hair than the default; needs `pip install torch torchvision`.
 
 Usage:
-  python3 matte.py face_src.png face_alpha.png [--engine mediapipe|rvm] [--crop-bottom 0.1] [--trim]
+  python3 matte.py face_src.png face_alpha.png [--engine auto|birefnet|mediapipe|rvm] [--crop-bottom 0.1] [--trim]
 """
 import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "lib"))
 
@@ -18,43 +22,11 @@ import argparse
 import cv2
 import numpy as np
 
-
-def _box(x, r):
-    return cv2.boxFilter(x, -1, (2 * r + 1, 2 * r + 1), normalize=True, borderType=cv2.BORDER_REFLECT)
-
-
-def guided(guide_gray, src, r=8, eps=1e-3):
-    """He et al. guided filter (grey guide). Snaps a coarse mask to image edges."""
-    I, p = guide_gray.astype(np.float32), src.astype(np.float32)
-    mI, mp_ = _box(I, r), _box(p, r)
-    a = (_box(I * p, r) - mI * mp_) / (_box(I * I, r) - mI * mI + eps)
-    b = mp_ - a * mI
-    return _box(a, r) * I + _box(b, r)
+from vstudio.matte import guided, mediapipe_alpha  # noqa: F401  (guided re-exported: older callers import it here)
 
 
 def matte_mediapipe(bgr, lo=0.25, hi=0.75, radius=None):
-    import mediapipe as mp
-    from mediapipe.tasks import python as mpt
-    from mediapipe.tasks.python import vision
-    from vstudio.config import model
-
-    opts = vision.ImageSegmenterOptions(base_options=mpt.BaseOptions(model_asset_path=model("selfie_segmenter")),
-                                        output_confidence_masks=True, output_category_mask=False)
-    with vision.ImageSegmenter.create_from_options(opts) as seg:
-        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        res = seg.segment(mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb)))
-    conf = res.confidence_masks[-1].numpy_view().astype(np.float32)   # last mask = person
-    conf = cv2.resize(conf, (bgr.shape[1], bgr.shape[0]), interpolation=cv2.INTER_LINEAR)
-    a = np.clip((conf - lo) / (hi - lo), 0, 1)
-    a = a * a * (3 - 2 * a)                                            # smoothstep
-    r = radius or max(4, int(min(bgr.shape[:2]) / 120))
-    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255
-    a = np.clip(guided(gray, a, r=r, eps=2e-3), 0, 1)
-    # keep the solid interior solid, kill faint speckle far from the body
-    core = cv2.erode((conf > 0.9).astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
-    a[core] = 1.0
-    a[a < 0.04] = 0.0
-    return bgr, a
+    return bgr, mediapipe_alpha(bgr, lo, hi, radius)
 
 
 def matte_rvm(bgr, warmup=2):
@@ -79,7 +51,7 @@ def matte_rvm(bgr, warmup=2):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src"); ap.add_argument("out", help="RGBA png")
-    ap.add_argument("--engine", choices=["mediapipe", "rvm"], default="mediapipe")
+    ap.add_argument("--engine", choices=["auto", "birefnet", "mediapipe", "rvm"], default="auto")
     ap.add_argument("--lo", type=float, default=0.25, help="mediapipe: confidence mapped to alpha 0")
     ap.add_argument("--hi", type=float, default=0.75, help="mediapipe: confidence mapped to alpha 1")
     ap.add_argument("--crop-bottom", type=float, default=0.0,
@@ -91,7 +63,14 @@ def main():
     bgr = cv2.imread(a.src)
     if bgr is None:
         raise SystemExit(f"cannot read {a.src}")
-    fg, alpha = matte_rvm(bgr) if a.engine == "rvm" else matte_mediapipe(bgr, a.lo, a.hi)
+    if a.engine == "rvm":
+        fg, alpha = matte_rvm(bgr)
+    elif a.engine == "mediapipe":
+        fg, alpha = matte_mediapipe(bgr, a.lo, a.hi)
+    else:
+        from vstudio.matte import matte
+        fg, alpha, used = matte(bgr, a.engine, log=print)
+        print(f"engine: {used}")
     rgba = np.dstack([fg, (alpha * 255).astype(np.uint8)])
     if a.crop_bottom > 0:
         rgba = rgba[: int(rgba.shape[0] * (1 - a.crop_bottom))]
