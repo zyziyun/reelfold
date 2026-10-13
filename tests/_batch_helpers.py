@@ -34,6 +34,20 @@ def _maybe_crash(ctx, name):
         os._exit(9)
 
 
+def _wait_paused(batch_dir, timeout=30.0):
+    """Hold a stage until the batch has paused (a fixed sleep raced the pause on a loaded runner)."""
+    from vstudio.batch.store import Store
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        st = Store(batch_dir)
+        try:
+            if st.meta("state") == "paused":
+                return
+        finally:
+            st.close()
+        time.sleep(0.05)
+
+
 def make_stage_fn(name, res):
     def fn(ctx):
         _maybe_crash(ctx, name)
@@ -44,6 +58,8 @@ def make_stage_fn(name, res):
         try:
             time.sleep(float(ctl.get("sleep", {}).get(name, 0.0)) +
                        float(ctl.get("sleep_job", {}).get(f"{ctx.job['id']}:{name}", 0.0)))
+            if f"{ctx.job['id']}:{name}" in ctl.get("until_paused", ()):
+                _wait_paused(ctx.batch_dir)
             fail = ctl.get("fail", {}).get(f"{ctx.job['id']}:{name}")
             if fail == "always":
                 raise ValueError(f"deterministic failure in {name}")

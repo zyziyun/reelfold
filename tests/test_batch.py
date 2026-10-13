@@ -264,7 +264,7 @@ def test_pause_interrupts_half_rendered_job_then_resume(tmp_path):
     js = jobs_n(2)
     js[0]["red"] = True
     bdir, _ = plan_run(tmp_path, js, run=False, concurrency={"cpu-render": 3},
-                       test=dict(sleep_job={"j002:render": 0.6}))
+                       test=dict(until_paused=["j002:render"]))     # still rendering when the pause comes
     res = run_batch(bdir, echo=False, pilot=2)
     assert res["status"] == "paused"
     done = H.calls(bdir)
