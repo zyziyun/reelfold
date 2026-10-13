@@ -94,7 +94,6 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
   const { live } = useHistory();
   const inbox = useInbox();
   const createOn = useCreateEnabled();
-  const studioOn = useStudioEnabled();
   const view = useStudioView();
   useRunNotifications();
   useStudioAttention();
@@ -122,12 +121,12 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
         {/* Home is the landing (triage); the Inbox is the list's Needs you filter, All projects the whole list (the
             workbench) - with the Studio on both open the Studio list */}
         {nav({ name: 'home' }, 'nav.home', r.name === 'home' || r.name === 'new', <HomeIcon className="ico" />, 'nav-home')}
-        {!studioOn && createOn && nav({ name: 'create', path: [] }, 'nav.create', r.name === 'create', <CreateNavIcon className="ico" />, 'nav-create')}
+        {createOn && nav({ name: 'create', path: [] }, 'nav.create', r.name === 'create', <CreateNavIcon className="ico" />, 'nav-create')}
         {nav({ name: 'inbox' }, 'nav.inbox', r.name === 'inbox' || (r.name === 'studio' && view === 'you'), <InboxIcon className="ico" />, 'nav-inbox', nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : null)}
         {nav(
           { name: 'projects' },
           'nav.projects',
-          r.name === 'projects' || inProject || r.name === 'create' || (r.name === 'studio' && view !== 'you'),
+          r.name === 'projects' || inProject || (!createOn && r.name === 'create') || (r.name === 'studio' && view !== 'you'),
           <LayoutGrid className="ico" />,
           'nav-projects',
           running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null,

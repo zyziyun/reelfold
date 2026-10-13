@@ -9,7 +9,7 @@
 //   quiet     - "All clear" + Continue tiles; first run - six starting points
 // Every project / clip / post on the page is the same link as everywhere else (lib/nav).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, Check, ChevronDown, File as FileIcon, FileText, Film, Folder, FolderOpen, GraduationCap, Image as ImageIcon, Lightbulb, MessageSquare, MessagesSquare, Mic, Music, Paperclip, Play, Plus, Repeat, Sparkles, Video, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, ChevronDown, Circle, Clapperboard, File as FileIcon, FileText, Film, Folder, FolderOpen, GraduationCap, Image as ImageIcon, Lightbulb, MessageSquare, MessagesSquare, Mic, Music, Paperclip, Play, Plus, Repeat, Sparkles, Video, X } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtTime, getLang, t, tk, type MessageKey } from '../i18n';
@@ -49,6 +49,7 @@ import { goalHref, useGoals } from '../lib/goals';
 import { AiPickChip, AiTag } from './AiPick';
 import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
 import { ManyToggle } from './ManyToggle';
+import { useCreateEnabled } from '../create/flag';
 
 /** Starting points whose request is a fixed intent (sent as written: the talking-head recipe, planned by the rules). */
 const FIXED_STARTS: MessageKey[] = ['home.idea2Prompt', 'sample.prompt'];
@@ -100,6 +101,7 @@ export function Home() {
     latest.current = client;
   }, [client]);
   const ui = useUi();
+  const createOn = useCreateEnabled();
   const { data: hist, reload: reloadHist } = useHistory();
   const draft = useMemo(() => {
     try {
@@ -336,6 +338,8 @@ export function Home() {
                     { label: t('home.addFiles'), icon: <Plus className="ico" />, run: () => addFiles('files'), testId: 'add-files' },
                     { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
                     { label: t('im.menu'), icon: <Film className="ico" />, run: () => void pickImport(), testId: 'composer-import-menu' },
+                    // write a script / episodes (Create), the recorder opens from its lines
+                    ...(createOn ? [{ label: t('nav.create'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: [] })), testId: 'composer-create' }] : []),
                     // the built-in recording, to see the whole way once (first run has its own card)
                     ...(firstRun ? [] : [{ label: t('sample.try'), icon: <Play className="ico" />, run: () => void trySample(), testId: 'idea-sample' }]),
                   ]);
@@ -346,6 +350,13 @@ export function Home() {
               >
                 <Paperclip className="ico" />
               </button>
+              {/* record yourself: the teleprompter with her script (or speak freely) */}
+              {createOn && (
+                <a className="btn ghost sm ux-rec" href={href({ name: 'create', path: ['record'] })} data-tip={t('st.record')} data-testid="composer-record">
+                  <Circle className="ico rec" />
+                  {t('st.record')}
+                </a>
+              )}
               <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
               <AiPickChip value={ai} onChange={setAi} testId="composer-ai" title={t('tai.composerTip')} />
               <ManyToggle on={many} onChange={setMany} />

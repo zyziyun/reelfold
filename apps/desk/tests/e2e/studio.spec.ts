@@ -67,7 +67,7 @@ test.beforeAll(async () => {
   heartbeat(live, { message: 'Making shots 4 of 12' });
   app = await electron.launch({
     args: [path.resolve(import.meta.dirname, '../..')],
-    env: { ...process.env, DESK_STUDIO: '1', DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
+    env: { ...process.env, DESK_STUDIO: '1', DESK_CREATE: '1', DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
   });
   page = await app.firstWindow();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -279,4 +279,12 @@ test('Orca-style attention: the Dock badge is the Needs you count; a new questio
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('editor-title')).toHaveText('再小的博主，也是博主');
   await shot('S5-attention');
+});
+
+test('with the Studio on, Create and Record yourself (her script on the teleprompter) stay one click away', async () => {
+  await page.evaluate(() => (location.hash = '#/home'));
+  await expect(page.getByTestId('nav-create')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId('composer-record')).toBeVisible();
+  await page.getByTestId('composer-record').click();
+  await expect(page).toHaveURL(/#\/create\/record/);
 });

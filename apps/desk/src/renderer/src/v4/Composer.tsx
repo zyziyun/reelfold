@@ -212,7 +212,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         {createOn && (
           <a className="btn ghost sm ux-rec" href={href({ name: 'create', path: ['record'] })} data-tip={t('st.record')} data-testid="composer-record">
             <Circle className="ico rec" />
-            {compact ? null : t('st.record')}
+            {t('st.record')}
           </a>
         )}
         <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
