@@ -1,7 +1,7 @@
 """Beat analysis for cutting to music: beat grid, tempo check, band onsets, energy, sections, downbeats.
 
     from vstudio import beats
-    b = beats.analyze("music.mp3")                 # librosa when importable, else a numpy tracker
+    b = beats.analyze("music.mp3")                 # Beat This! when downloaded, else librosa, else numpy
     b.bpm, b.grid_ok, b.residual_ms                 # least-squares grid fit (accepted within +-15 ms)
     b.beat_t(16), b.bar_t(4)                        # beat / bar number -> seconds (fractions allowed)
     b.snap(3.1, grid="half", direction="after")     # nearest grid point
@@ -30,7 +30,11 @@ accents, verify cut frames after the fact):
    half-beat phase check (kick+snare on the beats vs between them, window by window and again on the
    final grid) moves off-beat stretches back onto the beat. The grid covers the whole file from the
    first onset, not just the stretch the tracker locked onto.
-6. Downbeats: bar = 4 beats; phase = the beat position (mod 4) with the strongest kicks.
+6. Downbeats: with Beat This! (backend 'beat_this', the default once its checkpoint is downloaded - see
+   ``vstudio.beatthis``) the network's own downbeats set the bar phase and the meter (3 or 4 beats a bar); otherwise
+   bar = 4 beats and the phase = the beat position (mod 4) with the strongest kicks. Beat This! beats skip the
+   heuristic tempo / half-beat checks below (they exist to repair a DSP tracker), only the attack refinement and the
+   grid fit run on them.
 7. RMS curve (50 ms hop), section boundaries from a checkerboard novelty over per-beat spectra,
    snapped to bars, and the top-N strongest hits (band onsets weighted by loudness).
 All times are float seconds; convert to frames only at the very end.
@@ -377,6 +381,7 @@ class Beats:
     downbeat_phase: int = 0
     duration: float = 0.0
     backend: str = "numpy"
+    meter: int = BAR                                 # beats per bar (Beat This! can find 3)
 
     # ---- grid maths (fractional beat numbers allowed; beat 0 = first tracked beat)
     def beat_t(self, n):
@@ -406,17 +411,17 @@ class Beats:
 
     def bar_t(self, n):
         """Bar number -> seconds of its downbeat (bar 0 = first downbeat in the track)."""
-        return self.beat_t(self.downbeat_phase + BAR * np.asarray(n, float))
+        return self.beat_t(self.downbeat_phase + self.meter * np.asarray(n, float))
 
     @property
     def downbeats(self):
-        n = np.arange(self.downbeat_phase, len(self.beats), BAR)
+        n = np.arange(self.downbeat_phase, len(self.beats), self.meter)
         return self.beats[n] if len(self.beats) else np.zeros(0)
 
     def snap(self, t, grid="beat", direction="nearest"):
         """Snap ``t`` to the grid: grid 'beat' | 'half' | 'quarter' | 'bar' (or a step in beats);
         direction 'nearest' | 'before' | 'after' (before/after include t itself when on-grid)."""
-        step = {"beat": 1.0, "half": 0.5, "quarter": 0.25, "bar": float(BAR)}.get(grid, grid)
+        step = {"beat": 1.0, "half": 0.5, "quarter": 0.25, "bar": float(self.meter)}.get(grid, grid)
         step = float(step)
         phase = self.downbeat_phase if grid == "bar" else 0.0
         u = (self.beat_n(t) - phase) / step
@@ -442,7 +447,7 @@ class Beats:
         if n_cuts <= 0 or end <= start:
             return []
         if pattern in ("every-beat", "every-2", "every-bar"):
-            step = {"every-beat": 1, "every-2": 2, "every-bar": BAR}[pattern]
+            step = {"every-beat": 1, "every-2": 2, "every-bar": self.meter}[pattern]
             ph = 0 if step == 1 else self.downbeat_phase
             n0 = math.ceil((self.beat_n(start) - ph) / step - 1e-6) * step + ph
             out = [self.beat_t(n0 + k * step) for k in range(n_cuts)]
@@ -468,7 +473,7 @@ class Beats:
                 hs = [h for h in self.hits if start < h["t"] <= end]
                 drop = max(hs, key=lambda h: h["s"])["t"] if hs else (start + end) / 2
             nd = self.beat_n(self.snap(drop, "bar"))
-            before = [self.beat_t(nd - BAR * k) for k in (2, 1)]
+            before = [self.beat_t(nd - self.meter * k) for k in (2, 1)]
             before = [t for t in before if t >= start - 1e-6][:max(0, n_cuts - 1)]
             before = before[-min(2, max(0, n_cuts - 1)):] if before else []
             after, k = [], 0
@@ -504,7 +509,8 @@ class Beats:
     def to_dict(self):
         d = {k: getattr(self, k) for k in ("bpm", "period", "offset", "residual_ms", "residual_p90_ms",
                                             "grid_ok", "tempo_factor", "tempo_check", "rms_hop",
-                                            "sections", "hits", "downbeat_phase", "duration", "backend")}
+                                            "sections", "hits", "downbeat_phase", "duration", "backend",
+                                            "meter")}
         d["beats"] = [round(float(t), 5) for t in self.beats]
         d["raw_beats"] = [round(float(t), 5) for t in self.raw_beats]
         d["downbeats"] = [round(float(t), 5) for t in self.downbeats]
@@ -520,6 +526,41 @@ class Beats:
 
 
 # ------------------------------------------------------------------ analyze
+def _beat_this(x, sr):
+    """(beats, downbeats, None) from Beat This!, or (None, None, why) when it cannot run here."""
+    from . import beatthis
+    if not beatthis.available():
+        return None, None, "not downloaded"
+    if len(x) < sr * 2:
+        return None, None, "too short"
+    try:
+        b, d = beatthis.track(x, sr)
+    except Exception as e:  # noqa: BLE001 - a broken / partial checkpoint must not stop a render
+        return None, None, f"failed: {type(e).__name__}: {e}"[:200]
+    if len(b) < 4:
+        return None, None, "found no steady beat"
+    return np.asarray(b, float), np.asarray(d, float), None
+
+
+def _bar_phase(grid, downs, period):
+    """Network downbeats -> (meter, phase on ``grid``, report). Meter = the median beat count between downbeats
+    (3 or 4; anything else -> 4); phase = the most common grid index of the downbeats modulo the meter."""
+    idx = np.round(np.interp(downs, grid, np.arange(len(grid)),
+                             left=np.nan, right=np.nan)).astype(float)
+    near = np.abs(np.interp(np.nan_to_num(idx), np.arange(len(grid)), grid) - downs) <= 0.35 * period
+    idx = idx[~np.isnan(idx) & near].astype(int)
+    if len(idx) < 2:
+        return BAR, None, dict(n=int(len(downs)), used=0)
+    gaps = np.diff(idx)
+    gaps = gaps[gaps > 0]
+    med = int(np.median(gaps)) if len(gaps) else BAR
+    meter = med if med in (3, 4) else BAR
+    votes = np.bincount(idx % meter, minlength=meter)
+    phase = int(np.argmax(votes))
+    return meter, phase, dict(n=int(len(downs)), used=int(len(idx)), meter=meter,
+                              agree=round(float(votes[phase] / max(1, votes.sum())), 3))
+
+
 def _librosa_beats(x, sr, hop, onset_envelope=None):
     import librosa  # noqa: WPS433 (optional)
     if onset_envelope is not None:
@@ -532,8 +573,10 @@ def _librosa_beats(x, sr, hop, onset_envelope=None):
 def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_bpm=120.0):
     """Analyse a music file (any ffmpeg-readable path) or a mono/stereo ndarray (pass ``sr``).
 
-    backend: 'auto' (librosa's beat tracker if importable, else numpy), 'numpy', 'librosa'.
-    Everything after beat tracking (refinement, grid fit, tempo check, bands, sections) is shared.
+    backend: 'auto' (Beat This! if its checkpoint is downloaded, else librosa's beat tracker if importable, else
+    numpy), 'beat_this', 'numpy', 'librosa'. A Beat This! failure (no checkpoint, too short, no beats) falls back
+    to the next one with ``tempo_check['beat_this']`` saying why. Everything after beat tracking (refinement, grid
+    fit, bands, sections) is shared; the tempo / half-beat repairs only run on the DSP trackers' beats.
     Returns a ``Beats``.
     """
     x, sr = _load(music, sr)
@@ -558,9 +601,16 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
 
     used = "numpy"
     raw = None
+    nn_downs, bt_note = None, None
+    if backend in ("auto", "beat_this"):
+        raw, nn_downs, bt_note = _beat_this(x, sr)
+        if raw is not None:
+            used = "beat_this"
+        elif backend == "beat_this":
+            raise RuntimeError(f"Beat This!: {bt_note}")
     benv = _beat_env(flux, bflux)                     # kick/snare-weighted tracking envelope
     ksenv = _norm_env(bflux["kick"]) + 0.7 * _norm_env(bflux["snare"])
-    if backend in ("auto", "librosa"):
+    if raw is None and backend in ("auto", "librosa"):
         try:
             raw = _librosa_beats(x, sr, hop, onset_envelope=benv)
             used = "librosa"
@@ -575,8 +625,17 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
     first_on = min([lst[0][0] for lst in onsets.values() if len(lst)], default=0.0)
     if len(raw) > 4 and (raw < first_on - 0.05).any():   # untrimmed tracker: no beats in a silent intro
         raw = raw[raw >= first_on - 0.05]
+    nn = used == "beat_this"
+    if nn and len(raw) > 8:
+        # a double-time stretch (an outro, a fill) would inflate the beat count of the grid fit: one tempo per track
+        ibi0 = float(np.median(np.diff(raw)))
+        keep = [raw[0]]
+        for t in raw[1:]:
+            if t - keep[-1] >= 0.7 * ibi0:
+                keep.append(t)
+        raw = np.asarray(keep)
     # half-beat phase check, window by window, on kick+snare (not hats)
-    raw, n_shift = _phase_fix(raw, ksenv, hs)
+    raw, n_shift = (raw, 0) if nn else _phase_fix(raw, ksenv, hs)
     if n_shift:
         raw = np.unique(np.round(_refine(raw, att, ahop, awin), 5))
 
@@ -588,7 +647,7 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
     kstr = _strength_at(raw, bflux["kick"], hs)
     half_phase = int(np.argmax([kstr[p::2].sum() for p in range(2)])) if len(raw) > 1 else 0
     # off-beat lock: a tracker can sit on the hats between kicks; shift half a beat if the kicks say so
-    if len(raw) > 2 and len(kt) >= 4:
+    if len(raw) > 2 and len(kt) >= 4 and not nn:
         mid = np.concatenate([[raw[0] - ibi / 2], (raw[:-1] + raw[1:]) / 2, [raw[-1] + ibi / 2]])
         mid = mid[(mid >= 0) & (mid <= dur)]
         on_a, _ = _on_grid(kt, ks, raw, tol)
@@ -616,7 +675,7 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
     factor = 1.0
     bpm1 = 60 / ibi
     in_range = lambda b: 70 <= b <= 180  # noqa: E731
-    if len(kt) >= 4:
+    if len(kt) >= 4 and not nn:
         if check["1.0"]["kick_on_grid"] < 0.6 and check["2.0"]["kick_on_grid"] >= 0.8 and in_range(2 * bpm1):
             factor = 2.0
         elif bpm1 > 160 and in_range(bpm1 / 2) and (check["0.5"]["kick_on_grid"] >= 0.9 or alt >= 3.0):
@@ -638,7 +697,7 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
         g_on = _strength_at(offset + np.arange(len(raw)) * period, ksenv, hs).sum()
         g_off = _strength_at(offset + (np.arange(len(raw)) + 0.5) * period, ksenv, hs).sum()
         check["phase"] = dict(on=round(float(g_on), 3), off=round(float(g_off), 3), shifted=bool(n_shift))
-        if g_off > 1.5 * g_on + 1e-9:
+        if g_off > 1.5 * g_on + 1e-9 and not nn:
             offset += period / 2
             check["phase"]["shifted"] = True
         # extend the grid back to the first musical onset (the tracker may start late)
@@ -650,9 +709,18 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
         grid = raw
         offset = float(raw[0]) if len(raw) else 0.0
 
-    # downbeat phase from kick strength
-    kb = _strength_at(grid, bflux["kick"], hs)
-    phase = int(np.argmax([kb[p::BAR].mean() if len(kb[p::BAR]) else 0 for p in range(BAR)])) if len(grid) >= BAR else 0
+    # downbeat phase: the network's downbeats (Beat This!), else kick strength
+    meter = BAR
+    phase = None
+    if nn_downs is not None and len(nn_downs) >= 2 and len(grid) >= BAR:
+        meter, phase, check["downbeats"] = _bar_phase(grid, nn_downs, period)
+    if phase is None:
+        kb = _strength_at(grid, bflux["kick"], hs)
+        phase = int(np.argmax([kb[p::BAR].mean() if len(kb[p::BAR]) else 0 for p in range(BAR)])) \
+            if len(grid) >= BAR else 0
+        meter = BAR
+    if bt_note:
+        check["beat_this"] = bt_note
 
     from .audio import rms_envelope
     rms, rhop = rms_envelope(x, sr, hop=0.05, win=0.1, db=True, smooth=1)
@@ -674,10 +742,10 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
             last = -10 ** 9
             chosen = []
             for i in sorted(pk, key=lambda i: -nv[i]):
-                if all(abs(i - j) >= 2 * BAR for j in chosen):
+                if all(abs(i - j) >= 2 * meter for j in chosen):
                     chosen.append(i)
             for i in sorted(chosen):
-                n = phase + round((i - phase) / BAR) * BAR
+                n = phase + round((i - phase) / meter) * meter
                 n = min(max(n, 0), len(grid) - 1)
                 t = float(grid[n])
                 if t - bounds[-1] >= 2.0 and dur - t >= 2.0 and t > last:
@@ -712,7 +780,7 @@ def analyze(music, sr=None, backend="auto", n_hits=8, tol_ms=GRID_TOL_MS, prior_
     b = Beats(beats=np.asarray(grid, float), raw_beats=np.asarray(raw, float), bpm=60.0 / period,
               period=period, offset=offset, residual_ms=rmax, residual_p90_ms=p90, grid_ok=bool(grid_ok),
               tempo_factor=factor, tempo_check=check, onsets=onsets, rms=rms, rms_hop=rhop,
-              sections=sections, hits=[], downbeat_phase=phase, duration=dur, backend=used)
+              sections=sections, hits=[], downbeat_phase=phase, duration=dur, backend=used, meter=meter)
     for h in hits:
         h["s"] = round(h["s"] / top, 3)
         h["beat"] = round(float(b.beat_n(h["t"])), 2)

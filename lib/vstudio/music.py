@@ -427,10 +427,14 @@ def make(mood="calm", duration=60.0, out=None, seed=0):
 
 
 def detect_beat(path, sr=11025, lo_bpm=70, hi_bpm=180):
-    """Beat grid of a music file -> (period s, phase s): onset strength (spectral flux) -> tempo by autocorrelation,
-    phase by the comb that collects the most onsets. Cached by path + mtime. Used to put a film's cuts on the beat."""
+    """Beat grid of a music file -> (period s, phase s): Beat This! when its checkpoint is downloaded (phase on a
+    downbeat), else onset strength (spectral flux) -> tempo by autocorrelation, phase by the comb that collects the
+    most onsets. Cached by path + mtime. Used to put a film's cuts on the beat."""
     import subprocess
-    key = hashlib.sha1(json.dumps([os.path.abspath(path), os.path.getmtime(path), 1]).encode()).hexdigest()[:12]
+    from . import beatthis
+    nn = beatthis.available()
+    key = hashlib.sha1(json.dumps([os.path.abspath(path), os.path.getmtime(path), 2 if nn else 1]).encode()
+                       ).hexdigest()[:12]
     cache = os.path.join(_cache(), f"beat-{key}.json")
     try:
         with open(cache, encoding="utf-8") as fh:
@@ -438,6 +442,18 @@ def detect_beat(path, sr=11025, lo_bpm=70, hi_bpm=180):
         return float(c["period"]), float(c["phase"])
     except (OSError, ValueError, KeyError):
         pass
+    if nn:                                          # Beat This! (vstudio.beatthis): phase on the first downbeat
+        try:
+            got = _beat_this_grid(path, lo_bpm, hi_bpm)
+        except Exception:  # noqa: BLE001 - fall back to the onset comb below
+            got = None
+        if got:
+            try:
+                with open(cache, "w", encoding="utf-8") as fh:
+                    json.dump(dict(period=got[0], phase=got[1], backend="beat_this"), fh)
+            except OSError:
+                pass
+            return got
     r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-t", "90", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
                        capture_output=True)
     if r.returncode != 0:
@@ -482,6 +498,28 @@ def detect_beat(path, sr=11025, lo_bpm=70, hi_bpm=180):
     except OSError:
         pass
     return round(period, 5), round(phase, 4)
+
+
+def _beat_this_grid(path, lo_bpm, hi_bpm):
+    """(period, phase) from Beat This! over the first 90 s: a least-squares line through the beats (one tempo; a
+    double-time stretch thinned out), phase = the first downbeat modulo the period. None if no steady beat."""
+    from . import beatthis
+    from .audio import decode_audio
+    from .beats import _fit
+    x = decode_audio(str(path), sr=beatthis.SR, channels=1)[:, 0][:beatthis.SR * 90]
+    b, d = beatthis.track(x, beatthis.SR)
+    if len(b) < 8:
+        return None
+    ibi = float(np.median(np.diff(b)))
+    keep = [b[0]]
+    for t in b[1:]:
+        if t - keep[-1] >= 0.7 * ibi:
+            keep.append(t)
+    period, offset, _res, _idx = _fit(np.asarray(keep))
+    if not lo_bpm * 0.5 <= 60.0 / period <= hi_bpm * 2:
+        return None
+    anchor = float(d[0]) if len(d) else offset
+    return round(float(period), 5), round(anchor % period, 4)
 
 
 def beat_grid(spec):

@@ -56,8 +56,10 @@ def analyze(C):
     """beats.analyze(BGM), cached in <cache>/beats_<hash>.pkl (+ a JSON audit copy)."""
     p = bgm_path(C)
     st = os.stat(p)
+    from vstudio import beatthis
+    # the Beat This! checkpoint arriving (first-run download) changes what "auto" picks: a new cache entry
     key = hashlib.sha1(f"{os.path.abspath(p)}|{st.st_size}|{st.st_mtime}|{config(C).get('backend', 'auto')}"
-                       .encode()).hexdigest()[:12]
+                       f"|bt={int(beatthis.available())}".encode()).hexdigest()[:12]
     pk = os.path.join(C.cache_dir, f"beats_{key}.pkl")
     if os.path.exists(pk):
         with open(pk, "rb") as f:
@@ -76,10 +78,10 @@ def _kick_share(b):
 
 
 def _analyze(p, backend="auto"):
-    """beats.analyze; with backend "auto", when the chosen grid catches few kicks (librosa can lock onto
-    off-beat hats in sparse tracks) the numpy tracker is tried too and the grid with more kicks wins."""
+    """beats.analyze; with backend "auto", when librosa's grid catches few kicks (it can lock onto off-beat hats in
+    sparse tracks) the numpy tracker is tried too and the grid with more kicks wins. Beat This! grids are kept."""
     b = vbeats.analyze(p, backend=backend)
-    if backend == "auto" and b.backend != "numpy" and _kick_share(b) < 0.35:
+    if backend == "auto" and b.backend == "librosa" and _kick_share(b) < 0.35:
         n = vbeats.analyze(p, backend="numpy")
         if _kick_share(n) > _kick_share(b) + 0.15:
             print(f"note: beat grid from the numpy tracker (kicks on grid {_kick_share(n):.2f} vs "
