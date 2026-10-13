@@ -6,7 +6,8 @@ import { availableProviders, offerable, providerName, type ProviderId } from '..
 import { aiFromWords, aiLabel, effectiveAi, type ProjectAi } from '../../../shared/projectAi';
 import type { EngineClient } from '../../../shared/engineClient';
 import { t } from '../i18n';
-import { aiState, catalogOf, loadModels, rowOf, routesNow } from './ai';
+import { aiState, catalogOf, rowOf, routesNow } from './ai';
+import { soonOrListed } from './modelCmd';
 
 type Listener = (item: string, ai: ProjectAi | null) => void;
 const listeners = new Set<Listener>();
@@ -64,11 +65,10 @@ export interface ChatSwitch {
 export async function switchProjectByWords(client: EngineClient, item: string, words: string, current: ProjectAi | null | undefined): Promise<ChatSwitch> {
   const routes = (await routesNow())?.routes;
   if (!routes) return { ok: false, text: t('mdl.noRoutes') };
-  await loadModels();
   const eff = effectiveAi(current ?? null, routes);
   const status = aiState().status;
   const providers = availableProviders().filter((p) => p === eff?.provider || offerable(p, rowOf(status, p)));
-  const next = aiFromWords(words, { provider: eff?.provider ?? 'none', model: eff?.model ?? null }, providers as ProviderId[], catalogOf);
+  const next = await soonOrListed(() => aiFromWords(words, { provider: eff?.provider ?? 'none', model: eff?.model ?? null }, providers as ProviderId[], catalogOf));
   if (!next) {
     const cur = eff?.provider ?? '';
     const list = catalogOf(cur)
