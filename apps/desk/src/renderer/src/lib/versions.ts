@@ -103,3 +103,23 @@ export function versionFor<F extends Pick<ClipFile, 'aspect' | 'w' | 'h'>>(platf
   const want = ratio(shapes[0])!;
   return files.reduce((a, f) => (Math.abs((fileRatio(f) ?? want) - want) < Math.abs((fileRatio(a) ?? want) - want) ? f : a), files[0]);
 }
+
+/** The platforms a file is for: the ones the engine says (``platforms``), else its own export platform. Bare names. */
+export function filePlatforms(f: Pick<ClipFile, 'platform' | 'platforms'>): string[] {
+  const xs = f.platforms?.length ? f.platforms : f.platform ? [f.platform] : [];
+  return [...new Set(xs.map((x) => x.split(':')[0]).filter((x) => x && x !== 'None'))];
+}
+
+/** The planned platforms (``targets``) a clip has no version for: none of its files is for it, and none has the
+ * platform's own default shape (a 3:4 小红书 story alone leaves B站's 16:9 not made). */
+export function missingTargets(targets: string[] | null | undefined, files: Pick<ClipFile, 'platform' | 'platforms' | 'aspect' | 'w' | 'h'>[]): string[] {
+  const have = new Set(files.flatMap(filePlatforms));
+  return [...new Set((targets ?? []).map((x) => x.split(':')[0]))].filter((pf) => {
+    if (have.has(pf)) return false;
+    const want = ratio((PF_SHAPES[pf] ?? [H])[0])!;
+    return !files.some((f) => {
+      const r = fileRatio(f);
+      return r != null && Math.abs(r - want) < 0.04;
+    });
+  });
+}

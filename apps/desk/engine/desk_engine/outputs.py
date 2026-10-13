@@ -303,10 +303,17 @@ def _ver(p):
 
 
 def _file_row(p, e):
+    """One made file -> the clip file row. ``platform``: the export's own ("youtube:horizontal"), else the first
+    planned platform the collector says it is for; ``platforms``: every one of them (a photo story's out/story.mp4
+    is for 小红书, out/bilibili/story.mp4 for B站)."""
     asp = WK.aspect_of(e.get("w"), e.get("h")) or WK.aspect_from_name(p) or "原尺寸"
-    return dict(path=p, aspect=asp, w=e.get("w"), h=e.get("h"), fps=e.get("fps"), duration=e.get("duration"),
-                platform=f"{e.get('platform')}:{e.get('orientation')}", safe_box=e.get("safe_box"),
-                caption_box=e.get("caption_box"))
+    pls = [str(x) for x in e.get("platforms") or [] if x]
+    own = ":".join(str(x) for x in (e.get("platform"), e.get("orientation")) if x) if e.get("platform") else None
+    row = dict(path=p, aspect=asp, w=e.get("w"), h=e.get("h"), fps=e.get("fps"), duration=e.get("duration"),
+               platform=own or (pls[0] if pls else None), safe_box=e.get("safe_box"), caption_box=e.get("caption_box"))
+    if pls:
+        row["platforms"] = pls
+    return row
 
 
 def _read_post(path):
@@ -360,6 +367,7 @@ def _batch_clips(bdir, project_dir=None):
                 cover = os.path.join(os.path.dirname(p), e["cover"])
             if not post and e.get("post") and os.path.exists(os.path.join(os.path.dirname(p), e["post"])):
                 post = _read_post(os.path.join(os.path.dirname(p), e["post"]))
+        posts = {}
         if not files and project_dir:
             if eng is None:
                 eng = _engine_item_files(project_dir)
@@ -368,12 +376,21 @@ def _batch_clips(bdir, project_dir=None):
                 if not p or not os.path.isfile(p):
                     continue
                 row = _file_row(p, e)
-                if not any(f["aspect"] == row["aspect"] for f in files):
+                same = next((f for f in files if f["aspect"] == row["aspect"]), None)
+                if same is None:
                     files.append(row)
+                elif row.get("platforms"):           # another file of the canvas: its platforms join the kept one's
+                    same["platforms"] = list(dict.fromkeys((same.get("platforms") or []) + row["platforms"]))
                 if not cover and e.get("cover") and os.path.isfile(e["cover"]):
                     cover = e["cover"]
                 if not post and e.get("post") and os.path.isfile(e["post"]):
                     post = _read_post(e["post"])
+                # each platform's own post copy (a photo story writes one per platform folder)
+                for pf, path in (e.get("posts") or {}).items():
+                    if pf not in posts and isinstance(path, str) and os.path.isfile(path):
+                        pp = _read_post(path)
+                        if pp and (pp.get("title") or pp.get("body")):
+                            posts[str(pf).split(":")[0]] = pp
         st = states.get(jid) or {}
         state = st.get("state") or ("done" if files else "queued")
         if not cover:
@@ -385,7 +402,7 @@ def _batch_clips(bdir, project_dir=None):
                         post=post or (dict(title=params.get("title") or "", body=params.get("body") or "",
                                            tags=params.get("tags") or []) if params.get("title") else None),
                         duration=next((f["duration"] for f in files if f.get("duration")), None), extra=False,
-                        jobdir=jdir))
+                        jobdir=jdir, **({"posts": posts} if posts else {})))
     return out
 
 
@@ -984,6 +1001,9 @@ class Outputs:
         e = self._entry(item_id, max_age=30.0)
         cl = self._titled(e, self._as_published(e, list_clips(e)))
         self.history.allow_media([f["path"] for c in cl for f in c["files"]] + [c["cover"] for c in cl if c.get("cover")])
+        if e["kind"] == "project":                   # the platforms each was made for: a missing one shows as not made
+            for c in cl:
+                c["targets"] = _targets(e["dir"], c["id"])
         return dict(item=item_id, kind=e["kind"], clips=[_public_clip(c) for c in cl],
                     confirm=WK.confirmations(e["dir"]) if e["kind"] == "work" else [])
 

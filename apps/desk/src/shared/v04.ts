@@ -18,6 +18,8 @@ export interface ClipFile {
   fps?: number | null;
   duration?: number | null;
   platform?: string;
+  /** every planned platform this file is for (a photo story's out/story.mp4: 小红书; out/bilibili/story.mp4: B站) */
+  platforms?: string[];
   safe_box?: number[] | null;
   caption_box?: number[] | null;
 }
@@ -49,8 +51,10 @@ export interface Clip {
   edited?: boolean;
   /** edited since its last render: the original still goes out until the background render is done */
   edited_stale?: boolean;
-  /** imported from elsewhere: the post copy of every version, by platform */
+  /** the post copy of every version, by platform (imported clips; a photo story's per-platform post.md) */
   posts?: Record<string, PostCopy>;
+  /** the platforms its project plans (project.yaml params.platforms): one with no file shows as not made */
+  targets?: string[];
   imported?: { sources: number } | null;
 }
 

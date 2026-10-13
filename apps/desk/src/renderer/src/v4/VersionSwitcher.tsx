@@ -10,7 +10,7 @@ import { t, type MessageKey } from '../i18n';
 import type { LangVersion } from '../lib/langVersions';
 import { langName } from '../lib/langVersions';
 import { clipHref } from '../lib/nav';
-import { versionFor } from '../lib/versions';
+import { filePlatforms, versionFor } from '../lib/versions';
 import { ASPECT_TARGET, VERSIONS, versionsFor } from './ClipInfo';
 import { platformName } from './Home';
 import { PlatformIcon } from './PlatformIcon';
@@ -63,7 +63,9 @@ export function VersionSwitcher({
   const name = (v: string) => ((VERSIONS as readonly string[]).includes(v) ? t(`ci.v.${v}` as MessageKey) : RATIO.test(v) ? v : t('c.original'));
   const cur = other ? null : (files.find((f) => f.aspect === playing) ?? null);
   // each platform posts one version (the publisher's pick); this one's platforms
-  const posts = cur ? platforms.filter((pf) => versionFor(pf, files)?.aspect === cur.aspect) : [];
+  // nothing picked to post yet: the platforms the version was made for (a photo story's 3:4 is 小红书's)
+  const picked = cur ? platforms.filter((pf) => versionFor(pf, files)?.aspect === cur.aspect) : [];
+  const posts = picked.length || !cur ? picked : filePlatforms(cur);
   const remove = (v: string) => void edit([{ op: 'export_remove', target: v } as EditOp], true);
   const grouped = others.length > 0;
   return (

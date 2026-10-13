@@ -190,7 +190,9 @@ class Calendar:
             clip = self._clips(cache, r["item"]).get(r["clip"]) or {}
             title = clip.get("title") or r.get("title") or r["clip"]      # one title per clip: the clip's own
             own = r.get("caption")
-            text = own if isinstance(own, str) else post_text(clip.get("post"), r["platform"])
+            # the platform's own post copy when the clip has one (a photo story's B站 post.md), else the clip's
+            mine = (clip.get("posts") or {}).get(r["platform"].split(":")[0]) or clip.get("post")
+            text = own if isinstance(own, str) else post_text(mine, r["platform"])
             n, lim = text_limit(r["platform"], text)
             pf = r["platform"].split(":")[0]
             warn = []

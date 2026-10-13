@@ -336,6 +336,10 @@ def parse_post_single(text):
         if s_ and re.fullmatch(r"(#\S+\s*)+", s_):
             tags += [x.lstrip("#") for x in s_.split()]
             continue
+        m = re.match(r"^(标签|tags)\s*[:：]\s*(.+)$", s_, re.I)      # B站's tag line: 标签：西雅图，航拍
+        if m:
+            tags += [x.strip().lstrip("#") for x in re.split(r"[,，、\s]+", m.group(2)) if x.strip().lstrip("#")]
+            continue
         if mode == "skip":
             continue
         if mode == "title" and s_:

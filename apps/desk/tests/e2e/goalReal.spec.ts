@@ -202,6 +202,11 @@ test('every video is made: the goal finishes with what was made per platform and
   await expect(made).toHaveCount(2);
   await expect(made.first().getByTestId('goal-made-file').first()).toBeVisible({ timeout: 30000 });
   expect(await made.first().getByTestId('goal-made-file').count()).toBeGreaterThanOrEqual(2); // one per platform
+  // every made file names its platform and its size, never "None 原尺寸" (her DJI goal's photo stories, 2026-10-13)
+  for (const f of await page.getByTestId('goal-made-file').all()) {
+    await expect(f).not.toContainText('None');
+    await expect(f).toContainText(/\d+×\d+/);
+  }
   await expect(made.first().getByTestId('goal-made-post').first()).toBeVisible(); // one per version (a language each)
   // the made projects sit in the group, not twice in Ready to post
   const items = g.videos.flatMap((v) => (v.projects ?? []).map((p) => p.item));

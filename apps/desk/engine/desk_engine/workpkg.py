@@ -345,7 +345,7 @@ class WorkPackages:
                 if c.get("cover") and os.path.exists(c["cover"]):
                     cov = _clone(c["cover"], os.path.join(folder, "cover" + (os.path.splitext(c["cover"])[1].lower() or ".jpg")))
                     files["cover"] = os.path.relpath(cov, tmp).replace(os.sep, "/")
-                title, body, tags, checks = adapt_copy(pf, prof, c.get("post"), c.get("title"))
+                title, body, tags, checks = adapt_copy(pf, prof, (c.get("posts") or {}).get(pf) or c.get("post"), c.get("title"))
                 with open(os.path.join(folder, "post.md"), "w", encoding="utf-8") as fh:
                     fh.write(post_md(pf, title, body, tags))
                 files["post"] = os.path.relpath(os.path.join(folder, "post.md"), tmp).replace(os.sep, "/")

@@ -5,6 +5,7 @@ import type { Goal, GoalVideo } from '../../src/shared/goal';
 import { setLang } from '../../src/renderer/src/i18n';
 import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, requestTitle, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
 import { platformsFor } from '../../src/renderer/src/v4/GoalView';
+import { filePlatforms, missingTargets } from '../../src/renderer/src/lib/versions';
 
 const vid = (id: string, x: Partial<GoalVideo> = {}): GoalVideo => ({ id, title: `Video ${id}`, kind: 'film', length_s: 45, clips: 3, stories: ['s1'], platforms: ['youtube', 'xiaohongshu', 'bilibili'], request: 'Make it', state: 'waiting', ...x });
 const goal = (videos: GoalVideo[], x: Partial<Goal> = {}): Goal => {
@@ -97,6 +98,22 @@ describe('a made file', () => {
     expect(platformsFor({ w: 1080, h: 1920, aspect: '9:16' }, ['youtube-shorts', 'bilibili'])).toEqual(['youtube-shorts']);
     // a version of its own (the Chinese one): its file is its own platform's only
     expect(platformsFor({ platform: 'bilibili', w: 1920, h: 1080, aspect: '16:9' }, [])).toEqual(['bilibili']);
+  });
+
+  it('a photo story names its versions by the platforms the engine says (her DJI goal: "None 原尺寸")', () => {
+    expect(platformsFor({ platform: 'xiaohongshu:vertical', platforms: ['xiaohongshu:vertical'], w: 1080, h: 1440, aspect: '3:4' }, [])).toEqual(['xiaohongshu']);
+    expect(platformsFor({ platform: 'youtube', platforms: ['youtube', 'bilibili'], w: 1920, h: 1080, aspect: '16:9' }, [])).toEqual(['youtube', 'bilibili']);
+    expect(filePlatforms({ platform: 'None:None' })).toEqual([]);
+  });
+
+  it('a planned platform with no version is not made', () => {
+    const xhs = { platform: 'xiaohongshu:vertical', platforms: ['xiaohongshu:vertical'], w: 1080, h: 1440, aspect: '3:4' as const };
+    const bili = { platform: 'bilibili', platforms: ['bilibili'], w: 1920, h: 1080, aspect: '16:9' as const };
+    expect(missingTargets(['xiaohongshu', 'bilibili'], [xhs, bili])).toEqual([]);
+    expect(missingTargets(['xiaohongshu', 'bilibili'], [xhs])).toEqual(['bilibili']);
+    // a vlog's one 16:9 export (YouTube's) also posts to B站: made
+    expect(missingTargets(['youtube', 'bilibili'], [{ platform: 'youtube:horizontal', w: 1920, h: 1080, aspect: '16:9' }])).toEqual([]);
+    expect(missingTargets(undefined, [xhs])).toEqual([]);
   });
 });
 

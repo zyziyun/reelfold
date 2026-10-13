@@ -13,7 +13,8 @@ import type { ProjectAi } from '../../../shared/projectAi';
 import { Check, ChevronDown, ChevronRight, Copy, FolderOpen, GitMerge, Layers, Play, RotateCcw, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GOAL_KINDS, type Goal, type GoalEditOp, type GoalKind, type GoalStory, type GoalVideo } from '../../../shared/goal';
-import type { Clip } from '../../../shared/v04';
+import { EXPORT_PLATFORMS } from '../../../shared/chatEdit';
+import type { Clip, EditOp } from '../../../shared/v04';
 import { fmtDuration, parseSecs } from '../../../shared/platformLengths';
 import { fmtLen, getLang, t } from '../i18n';
 import { useEngine } from '../lib/engine';
@@ -23,6 +24,7 @@ import { Thumb } from './kit';
 import { errText } from './msg';
 import { PlatformIcon } from './PlatformIcon';
 import { platformName } from '../lib/platformName';
+import { filePlatforms, missingTargets } from '../lib/versions';
 import { useUi } from './ui';
 import type { PilotFailure } from '../../../shared/v02';
 import './goal.css';
@@ -531,26 +533,58 @@ const WIDE = new Set(['youtube', 'x', 'facebook', 'linkedin', 'reddit', 'bilibil
 
 /** The platforms one file is for: the made file of a canvas stands for every platform of the video on that canvas
  * (YouTube and Bilibili share the 16:9 file's folder, its exports sit side by side). */
-export function platformsFor(f: Pick<Clip['files'][number], 'platform' | 'w' | 'h' | 'aspect'>, platforms: string[]): string[] {
+export function platformsFor(f: Pick<Clip['files'][number], 'platform' | 'platforms' | 'w' | 'h' | 'aspect'>, platforms: string[]): string[] {
   const wide = f.w && f.h ? f.w > f.h : f.aspect === '16:9';
   const mine = platforms.map((p) => p.split(':')[0]).filter((p) => WIDE.has(p) === wide);
-  const own = f.platform ? f.platform.split(':')[0] : null;
-  return [...new Set([...(own ? [own] : []), ...mine])];
+  return [...new Set([...filePlatforms(f), ...mine])];
+}
+
+/** one made clip of the video and the project item it belongs to */
+interface MadeClip {
+  item: string;
+  clip: Clip;
 }
 
 function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
   const { client } = useEngine();
   const ui = useUi();
-  const [clips, setClips] = useState<Clip[] | null>(null);
+  const [made, setMade] = useState<MadeClip[] | null>(null);
+  const [making, setMaking] = useState<Record<string, boolean>>({});
+  const [n, setN] = useState(0);
   const items = useMemo(() => (v.projects ?? []).map((p) => p.item), [v.projects]);
   useEffect(() => {
     if (!client || !items.length) return;
     let alive = true;
-    void Promise.all(items.map((id) => client.clips(id).then((d) => d.clips).catch(() => [] as Clip[]))).then((xs) => alive && setClips(xs.flat().filter((c) => !c.extra && c.files.length)));
+    void Promise.all(
+      items.map((id) =>
+        client
+          .clips(id)
+          .then((d) => d.clips.map((clip) => ({ item: id, clip })))
+          .catch(() => [] as MadeClip[]),
+      ),
+    ).then((xs) => alive && setMade(xs.flat().filter((x) => !x.clip.extra && x.clip.files.length)));
     return () => {
       alive = false;
     };
-  }, [client, items.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client, items.join(), n]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clips = made?.map((x) => x.clip) ?? null;
+  // a planned platform with no version: made from this clip in the background (an export of its own size)
+  const make = async (m: MadeClip, pf: string) => {
+    if (!client) return;
+    const key = `${m.item}/${m.clip.id}/${pf}`;
+    const target = EXPORT_PLATFORMS.find((x) => x.id === pf)?.target ?? pf;
+    setMaking((x) => ({ ...x, [key]: true }));
+    try {
+      await client.editOutput(m.item, m.clip.id, [{ op: 'export_add', target, layout: 'auto' } as EditOp]);
+      // every target: what goes out is the edit's fresh renders, the clip itself with its new version (_as_published)
+      await client.renderOutput(m.item, m.clip.id, { quality: 'final', targets: 'all' });
+      setN((x) => x + 1);
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setMaking((x) => ({ ...x, [key]: false }));
+    }
+  };
   const copy = async (c: Clip) => {
     if (!c.post) return;
     await window.desk.copyText(`${c.post.title}\n\n${c.post.body}\n\n${c.post.tags.map((x) => `#${x}`).join(' ')}`.trim());
@@ -566,8 +600,11 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
           {t('goal.open')}
         </a>
       </header>
-      {(clips ?? []).map((c) => (
-        <div key={c.id} className="goalv-clip">
+      {(made ?? []).map((m) => {
+        const c = m.clip;
+        const missing = missingTargets(c.targets, c.files);
+        return (
+        <div key={`${m.item}/${c.id}`} className="goalv-clip">
           <Thumb src={c.cover} ratio="16/9" className="goalv-th" />
           <div className="goalv-clipbody">
             <div className="goalv-files" data-testid="goal-made-files">
@@ -586,6 +623,19 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
                 </button>
                 );
               })}
+              {missing.map((pf) => {
+                const busy = making[`${m.item}/${c.id}/${pf}`];
+                return (
+                  <span key={pf} className="goalv-file goalv-missing" data-testid="goal-made-missing" data-pf={pf}>
+                    <PlatformIcon id={pf} size={14} />
+                    <span>{platformName(pf)}</span>
+                    <span className="faint">{busy ? t('goal.makingOne') : t('goal.notMade')}</span>
+                    <button className="btn sm ghost" disabled={busy || !client} onClick={() => void make(m, pf)} data-testid="goal-made-make">
+                      {t('goal.make')}
+                    </button>
+                  </span>
+                );
+              })}
             </div>
             {c.post && (
               <div className="goalv-post" data-testid="goal-made-post">
@@ -599,7 +649,8 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </article>
   );
 }

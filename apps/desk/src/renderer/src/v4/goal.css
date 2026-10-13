@@ -112,3 +112,6 @@
 .goalv-ver:hover, .goalv-ver.on { background: var(--surface-2); }
 .goalv-ver b { font-weight: 500; }
 .goalv-ver .dot { width: 6px; height: 6px; }
+.goalv-missing { cursor: default; border-style: dashed; color: var(--text-2, inherit); }
+.goalv-missing:hover { border-color: var(--border); }
+.goalv-missing .btn { padding: 0 6px; min-height: 0; }
