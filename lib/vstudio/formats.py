@@ -44,16 +44,19 @@ import sys
 #                 does not have = only the post's own tags too (see post_tags)
 #   guests        None | "ask-mask" (offer a sticker over each other participant's head only, never the frame)
 #   rules         short extra rules learned from her corrections (shown in `show`, not in the summary line)
+#   smooth_cuts   bridge jump cuts where the face barely moved with a short RIFE morph (vstudio.morphcut; a bigger
+#                 move or a shot change keeps the clean cut / punch-in); on for talking heads
 #   audio         "required" = the render must have sound (her voice); "optional" = silent is fine (a product demo
 #                 with kinetic captions and no music bed)
 _COMMON = dict(theme="editorial", series_labels=False, captions="zh", tag_set=None, guests=None, notes=False,
-               progress=None, engine=None, style=None, hook_menu=12, rules=[], audio="required")
+               progress=None, engine=None, style=None, hook_menu=12, rules=[], audio="required",
+               smooth_cuts=False)
 
 FORMATS = {
     "talking-head": dict(
         labels=dict(zh="口播", en="Talking head"), workflow="talkinghead",
         speed=dict(body=1.25, hook=1.5, inserts=1.1), hooks="menu", cleanup="tight", notes=True,
-        progress="classic", engine="vtrack", style="notes",
+        progress="classic", engine="vtrack", style="notes", smooth_cuts=True,
         cover=dict(aspect="video", style="frames-with-notes", retouch=True, min_luma=0.42, text="designed"),
         rules=["hooks 只给候选清单让她挑和排序，不自动选", "hook 不超过 1.6x（再快就假了）",
                "保留原始画幅比例，不做大头特写裁切", "标题别太鸡汤，<= 平台标题上限"]),

@@ -148,6 +148,48 @@ def seg_speed(cfg, seg):
     return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.0))))
 
 
+def _rife_slowmo(src_fps, speed, fps):
+    """RIFE for this slow-motion segment? (Apple silicon with the rife-mlx download, and the speed needs frames
+    the source does not have; otherwise ``FF.retime`` falls back to ffmpeg minterpolate.)"""
+    try:
+        from vstudio import rife
+        return rife.needs_interp(src_fps, speed, fps) and rife.available()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _render_rife(i, cfg, seg, src, base, speed, fps, dst, eff):
+    """A slow-motion segment with RIFE: pass 1 grades / fits the source span at its own rate (lossless-ish), pass 2
+    writes the in-betweens at ``fps``; ambient audio (atempo) is muxed back. Returns dst."""
+    from vstudio import rife
+    pre = os.path.join(os.path.dirname(dst), f"seg_{i:02d}.pre.mp4")
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ss", str(seg["start"]), "-t", str(seg["dur"]),
+           "-i", src]
+    cmd += (["-filter_complex", f"[0:v]{base}[v]", "-map", "[v]"] if (";" in base or "[" in base) else ["-vf", base])
+    cmd += ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "10", "-pix_fmt", "yuv420p", pre]
+    run_ffmpeg(cmd, f"segment {i:02d} ({os.path.basename(src)})")
+    vid = dst if not cfg.get("ambient_audio") else os.path.join(os.path.dirname(dst), f"seg_{i:02d}.v.mp4")
+    try:
+        rife.slowmo(pre, vid, 0.0, None, speed, fps=fps, crf=cfg.get("seg_crf", 12),
+                    frames=max(1, round(eff * fps)))
+    finally:
+        if os.path.exists(pre):
+            os.remove(pre)
+    if vid != dst:
+        if clip_info(src)["has_audio"]:
+            fc = (f"[1:a]aresample=48000,aformat=channel_layouts=stereo,{media.atempo_chain(speed)},apad,"
+                  f"atrim=0:{eff:.3f}[a]")
+            cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", vid, "-ss", str(seg["start"]),
+                   "-t", str(seg["dur"]), "-i", src, "-filter_complex", fc]
+        else:
+            cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", vid, "-f", "lavfi", "-t", f"{eff:.3f}",
+                   "-i", "anullsrc=r=48000:cl=stereo", "-filter_complex", "[1:a]anull[a]"]
+        cmd += ["-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", dst]
+        run_ffmpeg(cmd, f"segment {i:02d} audio")
+        os.remove(vid)
+    return dst
+
+
 def render_seg(args):
     i, cfg, seg, segdir, dry = args
     src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
@@ -159,10 +201,16 @@ def render_seg(args):
                           f"{proctail.cause(str(e)) or 'ffprobe failed'}\n{e}") from None
     eb = seg.get("bright", 0.0) + seg.get("_match", 0.0)
     eff = seg["dur"] / speed
-    vf = (stab_prefix(cfg, seg) + hdr_chain(cfg, src) + fit_chain(cfg) + "," + grade_chain(cfg, eb)
-          + ("," + DEFLICKER if cfg.get("deflicker", True) else "")
-          + "," + FF.retime(src_fps, speed, cfg.get("fps", 30)))
+    base = (stab_prefix(cfg, seg) + hdr_chain(cfg, src) + fit_chain(cfg) + "," + grade_chain(cfg, eb)
+            + ("," + DEFLICKER if cfg.get("deflicker", True) else ""))
+    out_fps = cfg.get("fps", 30)
     dst = os.path.join(segdir, f"seg_{i:02d}.mp4")
+    if speed < 1 and cfg.get("rife_slowmo", True) and _rife_slowmo(src_fps, speed, out_fps) and not dry:
+        # true slow motion: the span graded / fitted at its own frame rate, then RIFE in-betweens at the output size
+        print(f"[seg {i:02d}] {seg['clip']} {seg['start']}-{seg['start'] + seg['dur']}s x{speed:g} RIFE slow motion "
+              f"-> {os.path.basename(dst)} ({eff:.2f}s)", flush=True)
+        return _render_rife(i, cfg, seg, src, base, speed, out_fps, dst, eff), eff
+    vf = base + "," + FF.retime(src_fps, speed, out_fps)
     # -t BEFORE -i limits how much SOURCE is read, so the output length is dur/speed for
     # speed-ups AND slow-mo. After -i it would cap the OUTPUT and truncate slow-mo.
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",

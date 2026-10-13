@@ -192,6 +192,10 @@ SPECS = {
         zh="转场", en="Transition", kind="join", stage="timeline", default_dur=0.4,
         what_zh="剪辑点上的转场（淡化 / 推移 / 闪白 ...）；不在剪辑点时做一次闪 / 黑场过渡",
         params=dict(transition=_str("fade", "转场", enum=_transitions()), duration=_num(0.4, 0.1, 1.5, "时长"))),
+    "morph-cuts": dict(
+        zh="平滑跳剪", en="Smooth jump cuts", kind="look", stage="timeline", default_dur=None,
+        what_zh="口播跳剪处人几乎没动时，用几帧补帧（RIFE）平滑过渡；换机位 / 动作大的保持干净硬切（整条片子）",
+        params=dict(max_move=_num(0.06, 0.02, 0.15, "动作幅度上限（眼距的比例，越大平滑得越多）"))),
     "end-fade": dict(
         zh="结尾淡出", en="End fade", kind="end", stage="timeline", default_dur=None,
         what_zh="结尾画面和声音淡出（从不淡入，首帧不黑）",
@@ -230,6 +234,8 @@ ALIASES = {
     "去回声": "studio-sound", "人声优化": "studio-sound",
     "transition": "xfade-joins", "xfade": "xfade-joins", "转场": "xfade-joins", "light-leak": "xfade-joins",
     "fade-out": "end-fade", "淡出": "end-fade",
+    "morph": "morph-cuts", "morph-cut": "morph-cuts", "smooth-cuts": "morph-cuts", "smooth-jump-cuts": "morph-cuts",
+    "jump-cuts": "morph-cuts", "平滑跳剪": "morph-cuts", "跳剪": "morph-cuts", "补帧过渡": "morph-cuts",
     "grade": "vlog-grade", "look": "vlog-grade", "调色": "vlog-grade",
     "skin": "portrait-retouch", "skin-smooth": "portrait-retouch", "skin-smoothing": "portrait-retouch",
     "smooth-skin": "portrait-retouch", "beauty": "portrait-retouch", "beautify": "portrait-retouch",

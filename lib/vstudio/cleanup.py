@@ -2014,7 +2014,7 @@ def _render_audio(src, spans, xfade, path=None):
 
 
 def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=(), out=None, media_path=None,
-          fps=None, crossfade=None, crf=14, force=False):
+          fps=None, crossfade=None, crf=14, force=False, smooth=False):
     """Cut the source of ``edl`` (path or dict) with the chosen decisions -> versioned output.
 
     Decisions: every ``auto`` edit + ``approve`` ids + (all_confirm: every ``confirm``) - ``keep`` ids;
@@ -2023,6 +2023,8 @@ def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=()
     ``<edl dir>/<stem>.clean.<tag>.mp4`` (.wav for audio-only sources) where tag hashes the decisions,
     so re-applying the same decisions is a no-op and different ones never overwrite each other.
     Writes ``<out>.cleanup.json`` (decisions, keep, TimeMap, kept words for captions / verify).
+    smooth: bridge the jump cuts where the face barely moved with a short RIFE morph (``vstudio.morphcut``,
+    length-neutral; the sidecar's ``morph`` lists every joint's decision).
     Returns dict(out, sidecar, keep, timemap (TimeMap), applied, tag, duration, reused)."""
     E, edl_path = _load_edl(edl)
     src = _source_path(E, edl_path, media_path)
@@ -2065,6 +2067,8 @@ def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=()
         spans = merged
         secs = [(a / SR, b / SR) for a, b in spans]
     sig = dict(src=E["source"], spans=spans, xf=xf, crf=crf, v=VERSION)
+    if smooth and video:
+        sig["morph"] = 1
     tag = _sha(sig)[:8]
     base_dir = os.path.dirname(edl_path) if edl_path else os.getcwd()
     stem = os.path.splitext(os.path.basename(src))[0]
@@ -2085,6 +2089,7 @@ def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=()
         except (OSError, ValueError):
             pass
     tmp = tempfile.mkdtemp(prefix="vstudio_cleanup_")
+    morph = None
     try:
         wav = os.path.join(tmp, "a.wav")
         _render_audio(src, spans, xf, wav)
@@ -2092,6 +2097,9 @@ def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=()
         if video:
             vtmp = os.path.join(tmp, "v.mov")
             cut.cut_segments(src, secs, vtmp, fps=F, crf=crf, tmpdir=os.path.join(tmp, "seg"))
+            if smooth:
+                from . import morphcut
+                morph = morphcut.smooth_inplace(vtmp, morphcut.joints_of(tm), fps=F, crf=crf)["joints"]
             ac = ["-c:a", "pcm_s16le"] if out.lower().endswith((".mov", ".mkv")) else \
                 ["-c:a", "aac", "-b:a", "192k", "-ar", str(SR), "-ac", "2"]
             media.run(["ffmpeg", "-y", "-i", vtmp, "-i", wav, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", *ac,
@@ -2112,7 +2120,9 @@ def apply(edl, approve=(), keep=(), all_confirm=False, reply=None, extra_cuts=()
     removed = [dict(w=w["w"], t=w["t"]) for w in W if any(a <= _mid(w) <= b for a, b in cut_spans)]
     write_sidecar(out, src, secs, expected, E.get("language"), fps=F, tag=tag, path=side, edl=edl_path, removed=removed,
                   applied=ids, approve=sorted(approve), keep_ids=sorted(keep), all_confirm=bool(all_confirm),
-                  extra_cuts=[list(c) for c in extra_cuts or ()], crossfade=xf)
+                  extra_cuts=[list(c) for c in extra_cuts or ()], crossfade=xf,
+                  **(dict(morph=morph) if morph is not None else {}))
+    res["morph"] = morph
     print(f"cleanup: {len(ids)} edits applied, {sum(b - a for a, b in E['ranges']):.1f}s -> {tm.duration:.1f}s -> {out}")
     return res
 

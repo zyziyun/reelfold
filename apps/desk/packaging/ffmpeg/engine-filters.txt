@@ -39,6 +39,7 @@ highshelf
 loudnorm
 lutrgb
 lutyuv
+minterpolate
 noise
 null
 overlay

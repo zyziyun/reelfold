@@ -856,6 +856,7 @@ class Assembly:
     input_specs: list = None
     chains: list = field(default_factory=list)      # per piece: graph statements with "{IN}" input placeholder
     statements: list = field(default_factory=list)  # ``graph`` as its statements (rendered as independent graphs)
+    morphs: list = field(default_factory=list)      # output seconds of the joins with transition="morph"
 
 
 def _piece(p):
@@ -926,7 +927,9 @@ def xfade_assemble(pieces, xfade=0.3, speeds=1.0, mute_pad=True, fps=30, size=No
         xfade accepts it; vf is an extra chain (grade) per piece.
       fit: how off-aspect pieces fill ``size``: crop (default) | pad | blur | stretch (``fit_chain``).
       transition: any ffmpeg xfade transition name (fade, dissolve, wipeleft, smoothup, ...), or one
-        per join.
+        per join. "morph": a talking-head jump cut bridged by RIFE in-betweens (``vstudio.morphcut``) when the
+        face barely moved across it - rendered as a hard cut, then ``render_assembly`` morphs it (length-neutral;
+        a join across a shot change / with a larger move, or without RIFE, stays a clean cut).
       audio: False -> video-only graph (inputs without audio streams, e.g. drone masters); aout=None.
       seek: True (or a margin in seconds, default 1.0) -> every piece becomes its OWN ffmpeg input,
         input-seeked to just before its span (``asm.input_specs``; ``render_assembly`` builds the
@@ -951,6 +954,9 @@ def xfade_assemble(pieces, xfade=0.3, speeds=1.0, mute_pad=True, fps=30, size=No
         xf = [0.0] + [float(xfade)] * (n - 1)
     xf = [round(x * fps) / fps for x in xf]
     trans = _per_join(transition, n, str)
+    for k in range(1, n):
+        if trans[k] == "morph":
+            xf[k] = 0.0                              # a hard cut in the graph; the bridge is made after the render
     mode = "both" if mute_pad is True else (mute_pad or None)
     if mode not in (None, "both", "head", "clone"):
         raise ValueError(f"mute_pad={mute_pad!r}")
@@ -1055,7 +1061,8 @@ def xfade_assemble(pieces, xfade=0.3, speeds=1.0, mute_pad=True, fps=30, size=No
         tm.add_segment(p["s0"], p["s1"], p["speed"], source=p["input"], xfade=xf[k], tag=p["tag"], dur=p["dur"],
                        mute_head=p["head"], mute_tail=p["tail"])
     total = offs[-1] + durs[-1]
-    return Assembly(graph=";".join(graph), vout="[vout]", aout="[aout]" if audio else None, offsets=offs,
+    morphs = [round(offs[k], 4) for k in range(1, n) if trans[k] == "morph"]
+    return Assembly(morphs=morphs, graph=";".join(graph), vout="[vout]", aout="[aout]" if audio else None, offsets=offs,
                     durations=durs, xfades=xf, total=total, timemap=tm, pieces=P,
                     inputs=sorted({p["input"] for p in P}), transitions=trans, audio=bool(audio), fps=fps,
                     input_specs=specs if margin is not None else None, chains=chains, statements=graph)
@@ -1115,11 +1122,13 @@ def render_assembly(asm, inputs, out, args=None, post_audio=None, post_video=Non
     chunk: render at most this many pieces per ffmpeg graph (long timelines: 150 pieces is too many
     inputs / filters for one graph); chunks go to lossless-ish intermediates (``chunk_args``) that are
     then dissolved together with the same joins, so the timing equals the single-pass plan.
+    Joins with transition="morph" are bridged on the result (``morphcut.smooth_inplace``).
     Returns out."""
     n = len(asm.pieces)
     if chunk and n > chunk:
-        return _render_chunked(asm, inputs, out, args, post_audio, post_video, int(chunk), workdir,
-                               chunk_args or CHUNK_ARGS)
+        _render_chunked(asm, inputs, out, args, post_audio, post_video, int(chunk), workdir,
+                        chunk_args or CHUNK_ARGS)
+        return _morph(asm, out)
     graph, vout, aout = list(asm.statements or [asm.graph]), asm.vout, asm.aout
     if post_audio and aout:
         graph.append(f"{aout}{post_audio}[apost]")
@@ -1131,6 +1140,13 @@ def render_assembly(asm, inputs, out, args=None, post_audio=None, post_video=Non
     cmd += media.filter_graphs_args(graph, workdir) + ["-map", vout] + (["-map", aout] if aout else [])
     cmd += list(args) if args is not None else media.delivery_args(audio=bool(aout))
     media.run(cmd + [out])
+    return _morph(asm, out)
+
+
+def _morph(asm, out):
+    if getattr(asm, "morphs", None):
+        from . import morphcut
+        asm.morph_report = morphcut.smooth_inplace(out, asm.morphs, fps=asm.fps)
     return out
 
 

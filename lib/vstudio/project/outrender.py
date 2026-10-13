@@ -165,13 +165,17 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     effs = st["effects"]
     grade = next((e["params"] for e in effs if e["effect"] == "vlog-grade"), None)
     endf = next((e["params"] for e in effs if e["effect"] == "end-fade"), None)
+    morph = next((dict(max_move=float(e["params"].get("max_move") or 0.06)) for e in effs
+                  if e["effect"] == "morph-cuts"), None)
     full = len(tl.segs) == 1 and abs(tl.segs[0][0]) < 1e-3 and abs(tl.segs[0][1] - dur) < 0.02
     timeline = dict(segs=tl.segs, joins=tl.joins, speed=tl.speed, grade=grade, end_fade=endf,
                     duration=round(tl.duration, 3), has_audio=info["has_audio"])
+    if morph:
+        timeline["morph"] = morph
     if len(tl.segs) > 1 and info["has_audio"] and OUT.cut_strategy(rec, doc.d.get("burned")) == "hard":
         # flattened, no burned captions: a 2-frame audio fade at every plain join (a hard cut of the finished mix)
         timeline["join_fade"] = round(2.0 / float(rec["info"]["fps"] or 30.0), 4)
-    timeline["op"] = "none" if (full and tl.speed == 1.0 and not grade and not endf) else "ffmpeg"
+    timeline["op"] = "none" if (full and tl.speed == 1.0 and not grade and not endf and not morph) else "ffmpeg"
     timeline["key"] = sha1_json(["timeline", canvas["key"], timeline, quality if timeline["op"] != "none" else None], 16)
     sfx = sorted([[round(tl.to_edit(e["start"], "start") or 0.0, 3), e["params"]["name"], e["params"].get("gain", 1.0)]
                   for e in effs if e["effect"] == "sfx-placement" and tl.span(e["start"], e["start"] + 0.05)])
@@ -618,6 +622,7 @@ def run_timeline(spec, src, out, quality, workdir):
             g.append(f"[0:a:0]atrim=start={a:.6f}:end={b:.6f},asetpts=PTS-STARTPTS{fades},aresample=48000,"
                      f"aformat=channel_layouts=stereo[a{k}]")
     cv, ca, L = "v0", "a0", segs[0][1] - segs[0][0]
+    cuts = []                                         # edited seconds (before speed) of the plain joins
     for k in range(1, len(segs)):
         n = segs[k][1] - segs[k][0]
         j = jd.get(k - 1)
@@ -629,6 +634,7 @@ def run_timeline(spec, src, out, quality, workdir):
                 g.append(f"[{ca}][a{k}]acrossfade=d={d:.4f}[ax{k}]")
             L += n - d
         else:
+            cuts.append(L)
             g.append(f"[{cv}][v{k}]concat=n=2:v=1:a=0[vx{k}]")
             if has_a:
                 g.append(f"[{ca}][a{k}]concat=n=2:v=0:a=1[ax{k}]")
@@ -659,6 +665,12 @@ def run_timeline(spec, src, out, quality, workdir):
     cmd += (["-map", "[aout]"] if has_a else [])
     cmd += _enc("inter", quality, audio=has_a) + [out]
     m.run(cmd)
+    if spec.get("morph"):
+        # smooth jump cuts: this edit's own plain joins + the cuts already baked into the source (a cleaned body)
+        from vstudio import morphcut
+        J = sorted(set(round(c / s, 4) for c in cuts) | set(morphcut.find_cuts(out)))
+        morphcut.smooth_inplace(out, J, small=float(spec["morph"].get("max_move") or morphcut.SMALL),
+                                report=os.path.join(workdir, "morph.json"))
     return out
 
 

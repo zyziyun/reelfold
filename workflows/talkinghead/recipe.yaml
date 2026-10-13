@@ -23,7 +23,7 @@ items:
   sources: [single, files, folder, csv, variants]
   from_input: video
   per_item: [title, body, tags, range, cleanup_reply, hook, cover]
-  shared: [pipeline, edit_style, theme, platforms, speed, hook_speed, cleanup_profile, layout, language, keywords, subtitles,
+  shared: [pipeline, edit_style, smooth_cuts, theme, platforms, speed, hook_speed, cleanup_profile, layout, language, keywords, subtitles,
            subtitle_lang]
   variants: [platform, hook, language]
   share_cache: [probe, extract, asr, glossary]
@@ -55,6 +55,11 @@ params:
       x-format: notes
       title: 记笔记 panels, progress-bar chapters and highlighted keywords drafted from the clip (vtrack)
       x-zh: 记笔记面板 + 进度条章节 + 关键词高亮（从这条口播里自动起草，可改）
+    smooth_cuts:
+      type: boolean
+      x-format: smooth_cuts
+      title: Smooth the jump cuts (a short morph where she barely moved; shot changes and bigger moves stay clean cuts)
+      x-zh: 平滑跳剪（几乎没动的跳剪用几帧补帧过渡；换机位 / 动作大的保持干净硬切）
     cover_retouch:
       type: boolean
       x-format: cover.retouch

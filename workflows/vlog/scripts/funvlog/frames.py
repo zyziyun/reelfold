@@ -167,13 +167,23 @@ def decode_frames(src, start, dur, vf=""):
         p.wait()
 
 
+def _rife():
+    try:
+        from vstudio import rife
+        return rife if rife.available() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def video_shot_frames(src, src_times, W, H, fitter_args, vf="", blend=True, freeze_from=None, card=None,
-                      report=None):
+                      report=None, rife_slowmo=True):
     """Yield one canvas frame per entry of ``src_times`` (monotonic source seconds).
 
     fitter_args: kwargs for ``make_fitter`` except start/dur. freeze_from: output index from which the last
     live frame is held as a photo card (``card(still, k_since_freeze)``). report: dict that receives the
-    fitter summary (reframe mode used, face hit rate)."""
+    fitter summary (reframe mode used, face hit rate). rife_slowmo: where the shot runs slower than its source
+    (a slow-motion ramp: less than one source frame per output frame) the in-between is a RIFE frame of the two
+    fitted neighbours (``vstudio.rife``, Apple silicon) instead of a blend; without RIFE the blend stays."""
     info = media.probe(src)
     fps_src = info["fps"] or 30.0
     lim = max(0.0, (info["duration"] or 1e9) - 1.0 / fps_src)
@@ -198,6 +208,13 @@ def video_shot_frames(src, src_times, W, H, fitter_args, vf="", blend=True, free
             state["max_i"] = j
 
     last, still = None, None
+    R = _rife() if (blend and rife_slowmo) else None
+    fitted = {}
+
+    def fitted_at(j, fr):
+        if j not in fitted:
+            fitted[j] = fit(j, fr)
+        return fitted[j]
     try:
         for k, s in enumerate(st):
             if freeze_from is not None and k >= freeze_from:
@@ -216,6 +233,16 @@ def video_shot_frames(src, src_times, W, H, fitter_args, vf="", blend=True, free
             else:
                 f0 = buf.get(i0, buf[max(buf)] if i0 > max(buf) else buf[min(buf)])
                 f1 = buf.get(i0 + 1, f0)
+                slow = k > 0 and (s - st[k - 1]) * fps_src < 0.999
+                for j in [j for j in fitted if j < i0]:
+                    del fitted[j]
+                if R is not None and slow and 0.02 < w < 0.98 and f1 is not f0 and i0 in buf and i0 + 1 in buf:
+                    # slow motion: a real in-between frame (RIFE) at the output size, not a double exposure
+                    a_, b_ = fitted_at(i0, f0), fitted_at(i0 + 1, f1)
+                    img = R.interpolate(a_[..., ::-1], b_[..., ::-1], [w])[0][..., ::-1].copy()
+                    last = img
+                    yield img
+                    continue
                 if blend and 0.2 < w < 0.8 and f1 is not f0:
                     # between two source frames (a speed that is not a whole step, 60p too): a weighted blend
                     # keeps the cadence even - nearest-frame picks step 2, 3, 2, 2, 3 frames and judder

@@ -40,6 +40,15 @@ TRANSITIONS = ("cut", "whip", "zoom", "flash", "leak", "glitch")
 CLEAN_SWAP = {"flash": "cut", "glitch": "cut", "leak": "cut", "whip": "cut"}
 
 
+
+def _rife_ok():
+    """RIFE in-betweens available for slow-motion ramps (vstudio.rife)."""
+    try:
+        from vstudio import rife
+        return rife.available()
+    except Exception:  # noqa: BLE001
+        return False
+
 def transition_style(cfg):
     """edit.json ``transitions`` ("clean" | "expressive"), else persona ``vlog.fun_transitions``, else "clean"."""
     v = (cfg or {}).get("transitions")
@@ -666,10 +675,11 @@ class Planner:
             avoid.setdefault(s["src"], []).append((s["start"], s["start"] + need))
             s["src_span"] = (s["start"], s["start"] + need)
             minr = min(r for _, r in keys)
-            if minr < 0.5 and ((s.get("info") or {}).get("fps") or 30) < 50:
+            if minr < 0.5 and ((s.get("info") or {}).get("fps") or 30) < 50 and not _rife_ok():
                 self.warn.append(f"{os.path.basename(s['src'])}: rate {minr:g} on a "
                                  f"{(s.get('info') or {}).get('fps') or 30:g} fps source is not true slow-mo "
-                                 "(frames blended); shoot 60/120 fps for clean slow motion")
+                                 "(frames blended; RIFE in-betweens need Apple silicon + the rife-mlx download); "
+                                 "shoot 60/120 fps for clean slow motion")
 
     # ---- transitions + budgets
     def _transitions(self, tl, meta):

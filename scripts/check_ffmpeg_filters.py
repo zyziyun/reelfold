@@ -125,7 +125,8 @@ def built_graphs():
     from vstudio import cut, ffmpeg_filters as F
     graphs = [F.grade(brightness=0.05, contrast=1.12, saturation=1.18, gamma=1.04), F.grade(gamma=1.1, gamma_r=1.2),
               F.dim(-0.08), F.blur(20), F.box_blur(30, 3), F.denoise(0.3), F.DEFAULT_TH_GRADE,
-              cut.fit_chain("1920:1080", "blur").replace("{L}", "x"), F.retime(59.94, 1.2, 30), F.retime(59.94, 1, 30)]
+              cut.fit_chain("1920:1080", "blur").replace("{L}", "x"), F.retime(59.94, 1.2, 30), F.retime(59.94, 1, 30),
+              F.retime(29.97, 0.5, 30)]
     for legacy in ("eq=brightness=-0.06:contrast=1.08:saturation=1.05:gamma=0.96", "eq=brightness=0.04",
                    "eq=contrast=1.22:brightness=-0.07:saturation=1.3", "eq=1.06:0.015", "smartblur=1.5:-0.35",
                    "smartblur=2:0.5", "boxblur=lr=10:lp=2", "hqdn3d=1.2:1.2:3:3,eq=contrast=1.06:brightness=0.015:"

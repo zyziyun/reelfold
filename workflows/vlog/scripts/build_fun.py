@@ -275,7 +275,7 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
             ff = int(n - round(s.get("freeze_s", 0.0) * fps)) if s.get("freeze") else None
             gen = FR.video_shot_frames(s["src"], times, W, H, fa, vf=vf, blend=cfg.get("blend_slowmo", True),
                                        freeze_from=ff, card=FR.card_renderer(W, H, g_unit, flash=PL.transition_style(cfg) != "clean") if ff else None,
-                                       report=rinfo)
+                                       report=rinfo, rife_slowmo=cfg.get("rife_slowmo", True))
         k = -1
         for k, img in enumerate(gen):
             if k >= n:

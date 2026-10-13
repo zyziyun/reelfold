@@ -90,8 +90,12 @@ def test_retime_keeps_an_even_cadence():
     assert F.retime(59.94, 0.5, 30) == "setpts=PTS/0.5,fps=30"
     assert F.retime(29.97, 1.0, 30) == "fps=30"
     assert F.retime(119.88, 1.0, 30) == "fps=30"
-    for src, sp in ((59.94, 1.2), (29.97, 1.3), (29.97, 0.5)):
+    for src, sp in ((59.94, 1.2), (29.97, 1.3)):
         assert "framerate=fps=30" in F.retime(src, sp, 30)
+    # slow motion past the source's frames: motion-compensated in-betweens (RIFE's ffmpeg fallback), or the old blend
+    assert "minterpolate=fps=30" in F.retime(29.97, 0.5, 30)
+    assert "minterpolate=fps=30" in F.retime(59.94, 0.25, 30)
+    assert "framerate=fps=30" in F.retime(29.97, 0.5, 30, slowmo="blend")
 
 
 def test_colour_flash_is_caught():

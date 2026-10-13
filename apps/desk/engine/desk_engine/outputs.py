@@ -112,6 +112,12 @@ EFFECTS = [
     dict(id="end-fade", label=dict(en="End fade", zh="结尾淡出"), category="transition", stage="timeline",
          default_dur=0, whole=True, description=dict(en="Fade out at the end", zh="结尾淡出"),
          params=dict(duration=_num(0.8, 0.2, 3.0, "时长"))),
+    dict(id="morph-cuts", label=dict(en="Smooth jump cuts", zh="平滑跳剪"), category="transition", stage="timeline",
+         default_dur=0, whole=True,
+         description=dict(en="A few interpolated frames where the speaker barely moved across a jump cut; shot changes "
+                             "and bigger moves stay clean cuts",
+                          zh="口播跳剪处人几乎没动时用几帧补帧平滑过渡；换机位 / 动作大的保持干净硬切"),
+         params=dict(max_move=_num(0.06, 0.02, 0.15, "动作幅度上限"))),
     dict(id="vlog-grade", label=dict(en="Colour grade", zh="调色"), category="grade", stage="timeline", default_dur=0,
          whole=True, description=dict(en="Warmer, punchier colour", zh="更暖、更有层次的色调"),
          params=dict(sat=_num(1.1, 0.5, 1.6, "饱和度"), warm=_num(0.1, -0.5, 0.5, "暖色"))),
@@ -124,7 +130,18 @@ EFFECTS = [
 EFFECT_BY_ID = {e["id"]: e for e in EFFECTS}
 ALIASES = {"pop-word": "pop-words", "弹字": "pop-words", "弹出大字": "pop-words", "印章": "stacking-stamps",
            "推近": "punch-in", "progress-bar": "progress-bar-pil", "进度条": "progress-bar-pil",
-           "磨皮": "portrait-retouch", "美颜": "portrait-retouch", "skin": "portrait-retouch", "beauty": "portrait-retouch"}
+           "磨皮": "portrait-retouch", "美颜": "portrait-retouch", "skin": "portrait-retouch", "beauty": "portrait-retouch",
+           "平滑跳剪": "morph-cuts", "跳剪": "morph-cuts", "morph": "morph-cuts", "smooth-cuts": "morph-cuts"}
+
+
+
+
+def _wants_morph(text):
+    """平滑跳剪 / "smooth the jump cuts" / 跳剪太生硬 / "morph cut" (the engine's wants_morph_cuts phrases)."""
+    t = text or ""
+    return bool(re.search(r"morph[ -]?cuts?", t, re.I) or
+                (re.search(r"跳剪|跳切|jump[ -]?cuts?|剪辑点", t, re.I) and
+                 re.search(r"平滑|顺滑|丝滑|自然|生硬|突兀|太跳|smooth|morph|jarring|harsh|abrupt|seamless", t, re.I)))
 
 
 # ------------------------------------------------------------------ media facts (ffprobe, cached)
@@ -729,7 +746,8 @@ def retime(state, base, cut_ops):
     extra, removed, trimmed, sfx = [], [], [], 0
     by = {x["id"]: x for x in EFFECTS}
     for e in state["effects"]:
-        if e["effect"] in ("music-bed", "end-fade", "vlog-grade", "progress-bar-pil", "xfade-joins", "portrait-retouch"):
+        if e["effect"] in ("music-bed", "end-fade", "vlog-grade", "progress-bar-pil", "xfade-joins", "portrait-retouch",
+                           "morph-cuts"):
             continue
         lab = (by.get(e["effect"]) or {}).get("label") or dict(en=e["effect"], zh=e["effect"])
         before = max(0.0, e["end"] - e["start"])
@@ -1968,6 +1986,10 @@ def propose(doc, prompt, context=None):
                  params=dict(strength=lv, mode=mode)),
             _m("op-effect-add", "add Skin smoothing to the whole clip", "整条加磨皮美颜", effect="portrait-retouch",
                start=0, end=round(dur, 3)), _m("why-style", "as asked", "按你说的调整"))
+    if _wants_morph(p):                                                          # 平滑跳剪 / smooth the jump cuts
+        add(dict(op="effect_add", effect="morph-cuts", start=0, end=round(dur, 3)),
+            _m("op-effect-add", "smooth the jump cuts", "平滑跳剪", effect="morph-cuts", start=0, end=round(dur, 3)),
+            _m("why-style", "as asked", "按你说的调整"))
     if re.search(r"进度条|progress bar", p, re.I):
         add(dict(op="effect_add", effect="progress-bar-pil", start=0, end=round(dur, 3)),
             _m("op-effect-add", "add a progress bar", "加进度条", effect="progress-bar-pil", start=0, end=round(dur, 3)),

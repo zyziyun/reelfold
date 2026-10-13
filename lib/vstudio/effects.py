@@ -479,6 +479,15 @@ _add("speed-ramps", "Speed ramps", "transitions", "Per-segment setpts (+ atempo)
      {FF: [VL + ":seg_speed", "vstudio.media:atempo_chain"]}, "`vlog/build_vlog.py:seg_speed`; `media.atempo_chain`",
      [("speed", 1.2, "1.1-1.3 is invisible tightening; >2 is a deliberate effect")], "Tightening or energy ramps", "med", "per segment",
      "ramps as an effect: 1 star use", [], "tests/test_core.py", "`setpts=PTS/s` + `media.atempo_chain(s)`")
+_add("morph-cuts", "Morph cut (smooth jump cuts)", "transitions",
+     "Talking-head jump cuts where the face barely moved bridged by 3-6 RIFE frames (length-neutral)", [FF],
+     {FF: ["vstudio.morphcut:smooth", "vstudio.morphcut:plan", "vstudio.rife:interpolate", "vstudio.cut:xfade_assemble"]},
+     "`lib/vstudio/morphcut.py`; `cut.xfade_assemble(transition=\"morph\")`; cleanup.apply(smooth=True)",
+     [("max_move", 0.06, "face move in eye distances; above it the cut stays (a morph of a big move warps the face)"),
+      ("frames", "3-6", "at 30 fps, more for a bigger move; scaled with the frame rate")],
+     "Talking head / 口播 after filler and pause removal", "low", "0.1-0.2 s per cut", "every small-move jump cut",
+     ["Never across a shot / angle change (background check)", "Needs the rife-mlx download (Apple silicon)"],
+     "tests/test_morphcut.py", "`morphcut.smooth(body, out, joints)`")
 _add("end-fade", "End fade (no fade-in)", "transitions", "fade=t=out + afade; never a black first frame", [FF],
      {FF: [VL + ":fade_out"]}, "`vlog/build_vlog.py`", [("fade_out", 1.5, "longer is wistful; < 0.8 s feels cut off")],
      "Last pass of any video", "low", "1.5 s", "1 per video", ["Never fade in from black (first frame = cover)"], "no", "Use in any final pass")

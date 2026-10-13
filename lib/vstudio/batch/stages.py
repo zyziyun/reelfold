@@ -194,7 +194,10 @@ def run_apply(ctx):
         ids = {e["id"] for e in E["edits"]}
         keep = ids if off else (set(r["keep"]) & ids)
         res = C.apply(edl, approve=set(r["approve"]) & ids, keep=keep, all_confirm=bool(r["all_confirm"]) and not off,
-                      out=ctx.path(f"{part}.mp4"), media_path=src, force=True)
+                      out=ctx.path(f"{part}.mp4"), media_path=src, force=True,
+                      smooth=part == "body" and p.get("smooth_cuts") is True)
+        if res.get("morph"):
+            out[f"{part}_morphed"] = sum(1 for d in res["morph"] if d.get("action") == "morph")
         out[part] = res["out"]
         out[f"{part}_sidecar"] = res["sidecar"]
         out[f"{part}_dur"] = round(res["duration"], 3)
@@ -828,6 +831,16 @@ def _keyp(*keys):
     return lambda job, spec: {k: _p(job).get(k) for k in keys}
 
 
+def _smooth_key(fn):
+    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys)."""
+    def key(job, spec):
+        d = fn(job, spec)
+        if _p(job).get("smooth_cuts") is True:
+            d["smooth_cuts"] = True
+        return d
+    return key
+
+
 def _export_params(job, spec):
     d = dict(_keyp("platforms", "layout", "crop_bottom", "captions", "cover", "preset", "trims")(job, spec),
              max_len=_p(job).get("max_len") or spec.get("max_len"))
@@ -891,7 +904,7 @@ def speech_stages(copy=False):
               params=cleanup_params("range", "hook", "cleanup_profile", "cleanup_overrides", "cleanup_policy", "language",
                                     optional=("cuts",)),
               units=_dur, version=4),
-        Stage("apply", "cpu-render", run_apply, deps=("cleanup",), params=_keyp("cleanup_reply", "cleanup_profile"),
+        Stage("apply", "cpu-render", run_apply, deps=("cleanup",), params=_smooth_key(_keyp("cleanup_reply", "cleanup_profile")),
               units=_dur, purge=("*.mp4", "*.wav", "*.asr.json")),
         Stage("compose", "cpu-render", run_compose, deps=("apply",), params=_compose_params,
               units=_dur, purge=("master.mp4",)),

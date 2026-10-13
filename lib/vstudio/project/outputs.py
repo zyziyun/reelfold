@@ -1474,7 +1474,7 @@ def normalize(doc, st, op):
             e = dur if whole else min(dur, s + float(sp["default_dur"]))
         if e - s < 0.05 and sp["kind"] not in ("audio", "join"):
             raise _err("bad-time", f"{eid}: end must be after start", "结束要晚于开始", effect=eid, start=s, end=e)
-        if eid in ("end-fade", "vlog-grade", "music-bed", "progress-bar-pil", "portrait-retouch") and \
+        if eid in ("end-fade", "vlog-grade", "music-bed", "progress-bar-pil", "portrait-retouch", "morph-cuts") and \
                 any(x["effect"] == eid for x in st["effects"]):
             raise _err("duplicate-effect", f"{eid} is already on this output (effect_update changes it)",
                        f"{sp['zh']} 已经有了（用 effect_update 修改）", effect=eid)
@@ -2506,6 +2506,18 @@ def _focus(rec, st, ctx):
     return f
 
 
+# "smooth the jump cuts" / 平滑跳剪 / 跳剪太生硬 -> morph-cuts (RIFE bridges where the face barely moved)
+MORPH_CUT_RE = r"跳剪|跳切|jump[ -]?cuts?|剪辑点"
+MORPH_HOW_RE = r"平滑|顺滑|丝滑|自然|生硬|突兀|太跳|smooth|morph|jarring|harsh|abrupt|seamless"
+
+
+def wants_morph_cuts(text):
+    """The creator asks to smooth the jump cuts (平滑跳剪, "smooth the jump cuts", "跳剪太生硬", "morph cut")."""
+    t = text or ""
+    return bool(re.search(r"morph[ -]?cuts?", t, re.I) or
+                (re.search(MORPH_CUT_RE, t, re.I) and re.search(MORPH_HOW_RE, t, re.I)))
+
+
 def _rule_ops(text, dur, ctx=None):
     """Offline fallback (no model configured): a few literal phrases -> ops (``ctx``: the selection they refer to)."""
     ops = []
@@ -2538,6 +2550,8 @@ def _rule_ops(text, dur, ctx=None):
             pick = "editorial"
         if pick:
             ops.append(dict(op="theme", theme=pick))
+    if wants_morph_cuts(text):
+        ops.append(dict(op="effect_add", effect="morph-cuts", start=0))
     if re.search(r"进度条|progress bar", text, re.I):
         ops.append(dict(op="effect_add", effect="progress-bar-pil", start=0))
     if re.search(r"淡出|fade out", text, re.I):

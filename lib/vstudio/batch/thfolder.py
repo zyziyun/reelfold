@@ -247,6 +247,46 @@ def run_prep(ctx):
     return out
 
 
+def _with_smooth(fn):
+    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys)."""
+    def key(job, spec):
+        d = fn(job, spec)
+        if (job.get("params") or {}).get("smooth_cuts") is True:
+            d["smooth_cuts"] = True
+        return d
+    return key
+
+
+def body_joints(pass1, strict=None, tol=1e-3):
+    """Output seconds of every jump cut in the final V-track body: the pass-1 joints (consecutive segments that are
+    not contiguous in their raw clip) carried through the strict keep, plus the strict pass's own joints."""
+    from vstudio import cut, morphcut
+    segs = (pass1 or {}).get("segs") or []
+    j1 = [b["b0"] for a, b in zip(segs, segs[1:])
+          if a.get("clip") != b.get("clip") or abs(float(b["t0"]) - float(a["t1"])) > tol]
+    keep = (strict or {}).get("keep")
+    if not keep:
+        return sorted(round(float(t), 4) for t in j1)
+    tm = cut.TimeMap.from_segments([tuple(k) for k in keep])
+    out = set(round(t, 4) for t in morphcut.joints_of(tm))
+    for t in j1:
+        if any(a + tol < t < b - tol for a, b in keep):
+            out.add(round(tm.to_final(t), 4))
+    return sorted(out)
+
+
+def smooth_body(ctx):
+    """Morph the small-move jump cuts of body2_v.mp4 in place (smooth_cuts); -> number morphed (None: no RIFE)."""
+    from vstudio import morphcut
+    J = body_joints(read_json(ctx.path("segs.pass1.json"), {}), read_json(ctx.path("segs.strict.json"), {}))
+    try:
+        rep = morphcut.smooth_inplace(ctx.path("body2_v.mp4"), J, report=ctx.path("morph.json"), log=ctx.log)
+    except Exception as e:  # noqa: BLE001  (a failed morph never stops the edit: the clean cuts stay)
+        ctx.log(f"smooth cuts skipped: {type(e).__name__}: {str(e)[:200]}")
+        return None
+    return rep["morphed"] if rep["available"] else None
+
+
 def run_cleanup_th(ctx):
     pr, p = ctx.inputs["asr"], ctx.params
     for k, name in (("sdr", "sdr1.mp4"), ("wav", "a1.wav"), ("whisper", "a1.json")):
@@ -275,13 +315,16 @@ def run_cleanup_th(ctx):
     _run(_py("cut_pass1.py", "edit_list.py"), ctx.dir, "cut_pass1.log")
     _run(_py("strict_pass.py", "apply", "strict.py", "body_v.mp4", "body_a.wav", "body2_v.mp4", "body2_a.wav"),
          ctx.dir, "strict_pass.log")
+    morphed = None
+    if p.get("smooth_cuts") is True:
+        morphed = smooth_body(ctx)
     edl = ctx.path("cleanup.c1.json")
     E = read_json(edl, {}) or {}
     confirm = [dict(id=e["id"], part="body", kind=e.get("kind"), text=e.get("text", ""), t0=e["t0"], t1=e["t1"],
                     reason=e.get("reason", "")) for e in E.get("edits") or [] if e.get("action") == "confirm"]
     write_json(ctx.path("confirm.json"), confirm)
     files = [ctx.path(f) for f in ("body2_v.mp4", "body2_a.wav", "segs.json", "sids.json")]
-    return dict(body=edl if os.path.exists(edl) else None, sentences=n, confirm=len(confirm),
+    return dict(body=edl if os.path.exists(edl) else None, sentences=n, confirm=len(confirm), morphed=morphed,
                 confirm_file=ctx.path("confirm.json"), review=ctx.path("cleanup_review.md"),
                 video=files[0], audio=files[1], segs=files[2], sids=files[3], files=files)
 
@@ -419,7 +462,8 @@ def th_stages():
               params=lambda j, s: dict(ST._asr_opts(j, s), platform=(j["params"].get("platforms") or [None])[0],
                                        orient=_th(s).get("orient")), purge=("sdr1.mp4", "a1.wav")),
         Stage("cleanup", "cpu-render", run_cleanup_th, deps=("asr",), units=dur,
-              params=_keys("cleanup_reply", "cleanup_profile", "range"), purge=("body_v.mp4", "*.wav"), version=3),
+              params=_with_smooth(_keys("cleanup_reply", "cleanup_profile", "range")), purge=("body_v.mp4", "*.wav"),
+              version=3),
         Stage("face", "face", run_face_th, deps=("cleanup",), units=dur, params=lambda j, s: dict(on=_th(s).get("face", True))),
         base["glossary"],                             # before the notes: the drafted 记笔记 cards use its fixes
         Stage("notes", "cpu", run_notes_th, deps=("cleanup", "glossary"), params=_notes_params,
