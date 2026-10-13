@@ -5,7 +5,7 @@
    "id": "core",
    "required": true,
    "root": "vstudio-cache",
-   "licence": "Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).",
+   "licence": "Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono, Instrument Serif, LXGW WenKai). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).",
    "files": [
     {
      "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf",
@@ -56,6 +56,18 @@
      "size": 274096
     },
     {
+     "url": "https://raw.githubusercontent.com/google/fonts/7085eb89a950e85db5b166b7a58d414544b4140c/ofl/instrumentserif/InstrumentSerif-Regular.ttf",
+     "dest": "fonts/InstrumentSerif-Regular.ttf",
+     "sha256": "498efd461f6ddfcb7a111bf9a565709d2085d48201d501ead960d93e84ffbb88",
+     "size": 70012
+    },
+    {
+     "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf",
+     "dest": "fonts/LXGWWenKai-Regular.ttf",
+     "sha256": "39ad71264b588165b469e35e6afb162a378dacd1f95348160240ba9038ac3009",
+     "size": 25575676
+    },
+    {
      "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
      "dest": "models/face_landmarker.task",
      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
@@ -90,6 +102,24 @@
      "dest": "models/transnetv2/variables.data-00000-of-00001",
      "sha256": "b8c9dc3eb807583e6215cabee9ca61737b3eb1bceff68418b43bf71459669367",
      "size": 30516656
+    }
+   ]
+  },
+  {
+   "id": "font-smiley",
+   "required": true,
+   "root": "fonts/smiley-sans-2.0.1",
+   "extract": true,
+   "env": {
+    "VSTUDIO_FONT_DISPLAY_ZH": "SmileySans-Oblique.otf"
+   },
+   "licence": "Smiley Sans (得意黑), SIL OFL 1.1 (atelier-anchor). Chinese display headlines.",
+   "files": [
+    {
+     "url": "https://github.com/atelier-anchor/smiley-sans/releases/download/v2.0.1/smiley-sans-v2.0.1.zip",
+     "dest": "smiley-sans-v2.0.1.zip",
+     "sha256": "299c0be6c960ae37361762eca76f7d0cd516615435bb96c0d4b98a1e70178a07",
+     "size": 5781344
     }
    ]
   },

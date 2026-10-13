@@ -21,6 +21,21 @@ fetch "https://github.com/google/fonts/raw/main/ofl/stixtwotext/STIXTwoText%5Bwg
 fetch "https://github.com/google/fonts/raw/main/ofl/stixtwotext/STIXTwoText-Italic%5Bwght%5D.ttf" "$CACHE/fonts/STIXTwoText-Italic.ttf"
 fetch https://github.com/JetBrains/JetBrainsMono/raw/master/fonts/ttf/JetBrainsMono-Regular.ttf "$CACHE/fonts/JetBrainsMono-Regular.ttf"
 fetch https://github.com/JetBrains/JetBrainsMono/raw/master/fonts/ttf/JetBrainsMono-Bold.ttf "$CACHE/fonts/JetBrainsMono-Bold.ttf"
+# typography kit (vstudio.config FONTS display-zh / zh-humanist / serif-display): Instrument Serif for English titles,
+# LXGW WenKai 霞鹜文楷 for quotes, Smiley Sans 得意黑 for Chinese headlines (only published as a zip: sha256-checked,
+# then just its two font files are unpacked)
+fetch "https://github.com/google/fonts/raw/7085eb89a950e85db5b166b7a58d414544b4140c/ofl/instrumentserif/InstrumentSerif-Regular.ttf" "$CACHE/fonts/InstrumentSerif-Regular.ttf"
+fetch https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf "$CACHE/fonts/LXGWWenKai-Regular.ttf"
+if [ -s "$CACHE/fonts/SmileySans-Oblique.otf" ]; then echo "  ✓ SmileySans-Oblique.otf"; else
+  SMILEY_ZIP="$CACHE/fonts/smiley-sans-v2.0.1.zip"
+  fetch https://github.com/atelier-anchor/smiley-sans/releases/download/v2.0.1/smiley-sans-v2.0.1.zip "$SMILEY_ZIP"
+  if python3 -c 'import hashlib,sys; sys.exit(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest() != sys.argv[2])' \
+      "$SMILEY_ZIP" 299c0be6c960ae37361762eca76f7d0cd516615435bb96c0d4b98a1e70178a07; then
+    unzip -o -q -j "$SMILEY_ZIP" SmileySans-Oblique.otf SmileySans-Oblique.ttf -d "$CACHE/fonts" && rm -f "$SMILEY_ZIP"
+  else
+    echo "  !! smiley-sans-v2.0.1.zip checksum mismatch - skipped (headlines fall back to Noto Sans SC)"; rm -f "$SMILEY_ZIP"
+  fi
+fi
 
 echo "models (Apache-2.0, MediaPipe) -> $CACHE/models"
 fetch https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task "$CACHE/models/face_landmarker.task"

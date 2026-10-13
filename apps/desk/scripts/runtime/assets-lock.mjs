@@ -11,6 +11,11 @@ const PINS = {
   notoCjk: 'f8d157532fbfaeda587e826d4cd5b21a49186f7c',
   googleFonts: '7085eb89a950e85db5b166b7a58d414544b4140c',
   jetbrainsMono: '19371302b95d218af43299bce79ddbddd0bc364d',
+  // the typography kit (vstudio.config FONTS display-zh / zh-humanist / serif-display; theme.type_scale pairs), all
+  // SIL OFL 1.1: LXGW WenKai (霞鹜文楷) is a plain release file; Smiley Sans (得意黑) is only published as a zip, so it
+  // is its own extract group (font-smiley); Instrument Serif comes from google/fonts at the googleFonts pin above
+  lxgwWenKai: 'https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf',
+  smileySans: { version: '2.0.1', url: 'https://github.com/atelier-anchor/smiley-sans/releases/download/v2.0.1/smiley-sans-v2.0.1.zip' },
   mlxWhisper: { repo: 'mlx-community/whisper-large-v3-turbo', rev: 'a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb' },
   // 4-bit turbo: ~460 MB instead of 1.6 GB, near-identical captions; the first-run default (the full one is optional)
   mlxWhisperFast: { repo: 'mlx-community/whisper-large-v3-turbo-q4', rev: '660c343bbf4e52ac257f0b7d952e5388e6f93bef' },
@@ -77,6 +82,7 @@ const fonts = [
   ['google/fonts', PINS.googleFonts, 'ofl/stixtwotext/STIXTwoText-Italic%5Bwght%5D.ttf', 'STIXTwoText-Italic.ttf'],
   ['JetBrains/JetBrainsMono', PINS.jetbrainsMono, 'fonts/ttf/JetBrainsMono-Regular.ttf', 'JetBrainsMono-Regular.ttf'],
   ['JetBrains/JetBrainsMono', PINS.jetbrainsMono, 'fonts/ttf/JetBrainsMono-Bold.ttf', 'JetBrainsMono-Bold.ttf'],
+  ['google/fonts', PINS.googleFonts, 'ofl/instrumentserif/InstrumentSerif-Regular.ttf', 'InstrumentSerif-Regular.ttf'],
 ];
 const MP = 'https://storage.googleapis.com/mediapipe-models';
 const models = [
@@ -95,18 +101,33 @@ const engineModels = [
   [`${TRANSNET}/variables.data-00000-of-00001`, 'models/transnetv2/variables.data-00000-of-00001'],
 ];
 
+const CORE_LICENCE = 'Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono, Instrument Serif, LXGW WenKai). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).';
 const groups = [];
 log('fonts + models');
 groups.push({
   id: 'core',
   required: true,
   root: 'vstudio-cache',
-  licence: 'Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).',
+  licence: CORE_LICENCE,
   files: [
     ...(await Promise.all(fonts.map(([r, s, p, n]) => file(raw(r, s, p), `fonts/${n}`)))),
+    await file(PINS.lxgwWenKai, 'fonts/LXGWWenKai-Regular.ttf'),
     ...(await Promise.all(models.map(([u, n]) => file(u, `models/${n}`)))),
     ...(await Promise.all(engineModels.map(([u, d]) => file(u, d)))),
   ],
+});
+log('smiley sans');
+// required (5.8 MB): the modern Chinese display face for headlines; the zip holds SmileySans-Oblique.otf/.ttf at its
+// top level. Its own private root (an extract root is replaced as a whole, never the shared engine cache); the engine
+// finds it through VSTUDIO_FONT_DISPLAY_ZH (CLI installs put it in <cache>/fonts instead)
+groups.push({
+  id: 'font-smiley',
+  required: true,
+  root: `fonts/smiley-sans-${PINS.smileySans.version}`,
+  extract: true,
+  env: { VSTUDIO_FONT_DISPLAY_ZH: 'SmileySans-Oblique.otf' },
+  licence: 'Smiley Sans (得意黑), SIL OFL 1.1 (atelier-anchor). Chinese display headlines.',
+  files: [await file(PINS.smileySans.url, `smiley-sans-v${PINS.smileySans.version}.zip`)],
 });
 log('whisper');
 // asr-mlx-fast comes first: both set VSTUDIO_WHISPER_MLX and a later installed group wins, so the full model takes

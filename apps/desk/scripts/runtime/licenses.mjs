@@ -176,7 +176,8 @@ Fetched from the upstream URLs pinned in \`packaging/assets.json\` into the app 
 |---|---|---|---|
 ${assetRows.join('\n')}
 
-Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
+Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text and Instrument Serif (google/fonts), JetBrains
+Mono, LXGW WenKai 霞鹜文楷 (lxgw/LxgwWenKai), Smiley Sans 得意黑 (atelier-anchor/smiley-sans) — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
 segmenter) — Apache-2.0, Google. Beat This! final0 checkpoint (beat / downbeat tracker, CPJKU / JKU Linz, read without
 torch) — MIT. TransNet V2 weights (shot boundaries, Tomáš Souček, read without TensorFlow) — MIT. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;

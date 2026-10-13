@@ -300,7 +300,8 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 
 | Asset group | Targets | Licence | Host |
 |---|---|---|---|
-| core | all | Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek). | raw.githubusercontent.com |
+| core | all | Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono, Instrument Serif, LXGW WenKai). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek). | raw.githubusercontent.com |
+| font-smiley | all | Smiley Sans (得意黑), SIL OFL 1.1 (atelier-anchor). Chinese display headlines. | github.com |
 | asr-mlx-fast | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (4-bit MLX conversion by mlx-community). | huggingface.co |
 | asr-mlx | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (MLX conversion by mlx-community). | huggingface.co |
 | asr-ct2 | darwin-x64, win32-x64 | OpenAI Whisper large-v3-turbo weights, MIT (CTranslate2 conversion). | huggingface.co |
@@ -314,7 +315,8 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | chromium-darwin-x64 | darwin-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-win32-x64 | win32-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 
-Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
+Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text and Instrument Serif (google/fonts), JetBrains
+Mono, LXGW WenKai 霞鹜文楷 (lxgw/LxgwWenKai), Smiley Sans 得意黑 (atelier-anchor/smiley-sans) — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
 segmenter) — Apache-2.0, Google. Beat This! final0 checkpoint (beat / downbeat tracker, CPJKU / JKU Linz, read without
 torch) — MIT. TransNet V2 weights (shot boundaries, Tomáš Souček, read without TensorFlow) — MIT. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
