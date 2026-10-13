@@ -258,3 +258,18 @@ def test_explainer_draft_record_gets_the_fact_check(tmp_path):
     assert rec["facts"]["softened"] == 1 and rec["facts"]["where"] == "item" and os.path.isfile(rec["facts"]["file"])
     assert rec["review"]["summary"]["params"]["text"] == "ok"
     assert "Fact check" in rec["review"]["lines"][0]["params"]["label"]
+def test_plan_card_warns_only_for_told_projects():
+    from vstudio.intake import plan as PL
+    hist = dict(recipe="photo-story", name="Elliott Bay waterfront history", params=dict(mode="narration"))
+    mood = dict(recipe="photo-story", name="Autumn essay", params=dict(mode="music"))
+    vlog = dict(recipe="vlog", name="Seattle history trip", params={})
+    expl = dict(recipe="explainer", name="Quantization", params={})
+    assert PL.fact_risks([mood, vlog]) == []
+    assert PL.fact_risks([dict(mood, name="Elliott Bay history")]) == []          # music mode: no voice, no check
+    en = PL.fact_risks([mood, hist])
+    assert len(en) == 1 and "fact-checked" in en[0] and "facts.md" in en[0]
+    assert "事实核查" in PL.fact_risks([expl], "zh")[0] and PL.fact_risks([expl], "fr")[0].startswith("La narration")
+    assert PL.fact_risks([dict(recipe="photo-story", name="Bay", params={},
+                               template=dict(id="history-explainer"))]) == [PL.FACT_RISK["en"]]
+
+

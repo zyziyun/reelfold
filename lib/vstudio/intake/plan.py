@@ -794,6 +794,32 @@ def voice_risks(projects, ui_lang="en"):
     return []
 
 
+FACT_RISK = {
+    "en": "History narration is fact-checked: claims that cannot be verified (rankings, 'largest', 'busiest') are "
+          "softened or dropped; review facts.md before posting.",
+    "zh": "历史 / 讲解旁白会做事实核查：无法核实的说法（排名、「最大」「最繁忙」）会被弱化或删掉；发布前请看一下 facts.md。",
+    "fr": "La narration historique est vérifiée : les affirmations invérifiables (classements, « le plus grand », « le "
+          "plus fréquenté ») sont atténuées ou retirées ; relisez facts.md avant de publier.",
+}
+
+
+def fact_risks(projects, ui_lang="en"):
+    """A plain-words note for the plan card when a told piece will be fact-checked (vstudio.factguard): an explainer,
+    or a narrated photo story whose name / title / why / template is history or an explainer - once. Never for a
+    music-mode mood piece."""
+    from vstudio import factguard as FG
+    for p in projects:
+        params = p.get("params") or {}
+        told = p.get("recipe") == "explainer"
+        if p.get("recipe") == "photo-story" and params.get("mode", "narration") != "music":
+            tid = (p.get("template") or {}).get("id")
+            told = tid in ("history-explainer", "concept-explainer", "documentary") or FG.is_told(
+                " ".join(str(x or "") for x in (p.get("name"), params.get("title"), p.get("why"))))
+        if told:
+            return [FACT_RISK.get(ui_lang) or FACT_RISK["en"]]
+    return []
+
+
 def platform_split(raw_projects, intent):
     """The model split the request's platforms between its projects (Chinese lines for Xiaohongshu + Bilibili, English
     for YouTube): every project names some of them and together they name all. Then each keeps its own platforms;
@@ -1337,6 +1363,7 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
         info.setdefault("reason", "rule planner")
     projects, questions = split_by_language(projects, questions)     # YouTube is always English: its own version
     risks += [r for r in voice_risks(projects, ui_lang) if r not in risks]
+    risks += [r for r in fact_risks(projects, ui_lang) if r not in risks]
     if any(n["code"] == "intake.need.footage" for n in needs):
         projects, questions, risks = [], [], []       # nothing is made up without her recordings
     elif not projects and not media and not ignore_needs:
