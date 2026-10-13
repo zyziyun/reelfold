@@ -234,5 +234,30 @@ and Chinese, each changeable by her (desk: the project page's "How it's cut" sec
   `brain decide --approve --code`), is recorded in project.yaml (`brain.gen`), and the generation itself goes through
   the Create spend gate. Generated shots are labelled AI.
 
+* **Steering the builders** (`brain/steer.py`): the plan (her per-shot changes in it) is each builder's own edit
+  decisions. Calm vlog (build_vlog): segments with the window, `xfade` = the join into it (a dissolve's seconds, 0 = a
+  hard cut), `speed: 0.5` where slow motion is planned, `stabilize`, `brain` = the shot id. Beat short (build_fun):
+  beat-aligned holds (1 / 2 / 4 beats), the one speed ramp (`ramp: fast-slow-fast`, 4 beats), `ramp: slowmo` where
+  planned (RIFE in-betweens under 50p). Photo story: the drafter gets the moments with their in-points, joins and the
+  text-safe third, plus the stills worth cutting for the cover; the drafted spec's video shots get `tr` (fade | cut)
+  and `label_at` (upper | lower) where the drafter left them open - always where she chose. Talking head: each jump
+  cut of the cleaned body is smoothed as the plan of its span says - `morph` (RIFE) | `punch` (a small punch-in, compose
+  `PUNCH`) | `cut` - and her placed B-roll is a cut-away at its sentence (compose `BROLL`); the stage keys carry them.
+  The AI drafter's own windows get the plan's treatment where they overlap (`steer.annotate`); her change of a shot
+  reaches the drafted edit files at once (`steer.restyle`) and the desk re-renders.
+* **Per-shot edit list**: every builder writes `<master>.edl.json` (talking head: the compose stage's `edl.json`):
+  `shots [{i, t0, t1, src, src_in, src_out, join, speed, role, brain}]`. `brain shots --dir P --output <id>` joins it
+  with the plan (why, choices, her changes; a generated take with its proposal) - the clip timeline's Shots lane.
+* **Generating a proposal** (`brain/generate.py` over `vstudio.create.oneoff`, the Create spend gate for one job
+  outside an episode): `brain estimate` prices it (rate card, the month cap, the service ready, its credits, its own
+  quote) with an 8-hex confirm code that expires in 15 min - nothing is sent; her click in the gate runs `brain
+  generate --estimate --confirm --max-cny --code`: her approval at this price, ONE submit (never retried; a timeout
+  after the request left is `unknown-charge` in `state/brain/gen/spend.jsonl`, counted in the month), poll, download
+  to `state/brain/gen/`, then `place`: a calm / fun vlog's edit.json gets an `ai: true` segment / shot at the anchor
+  (the opening, after the shot a bridge leaves, where the weak shot was, the end), a photo story's spec a video shot,
+  a talking head a cut-away; the render watches those files. `brain place --undo` takes it out again (the paid take
+  is kept; a generated proposal cannot be "undone" like an idea). Only her click calls `generate`; the autopilot,
+  `show` and every stage never do. Tests use Create's provider stand-ins (`tests/create_fake.py`).
+
 `python -m vstudio.brain show --dir <project> [--refresh] --json` computes what is missing (tiles, signals, plan,
 proposals: `state/brain/`, the tile stills in `state/brain/thumbs/`) and returns the doc the desk shows.

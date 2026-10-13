@@ -40,6 +40,15 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   reason, and you can change any shot. "Could be generated" cards suggest AI shots where they would help (a missing
   establishing shot, a dark or shaky moment with no other take, a bridge, a cover background) with a price; nothing
   is generated or spent until you approve.
+- **Generate a suggested shot**: "Generate ≈ ¥X" on a card opens the same spend check as Create (the price, the most
+  it can cost, what is left of the month, whether Kling is connected); only your click there sends one request
+  (never retried), the take goes into the edit where it was suggested, labelled AI, and the video re-renders. "Take
+  it out" puts the edit back (the take is kept).
+- **The shot plan drives every cut**: calm films, beat-cut shorts (holds on the beat, the one speed ramp, slow motion
+  where planned), photo stories (moments, dissolves, where a label fits) and talking heads (a smoothed jump cut or a
+  small punch-in per cut, B-roll at its sentence) are drafted from it, and your change of a shot re-renders the video.
+- **Shots on the clip timeline**: a Shots lane shows each shot of the cut with the take it plays; a click says why
+  it is cut that way, with the same alternatives as the project page, and marks AI-generated shots.
 - **Choose the AI model**: Settings › AI picks the model of each provider (Claude Code: Opus 5.5, Sonnet 5.5,
   Haiku 5.5, Fable 5.1 or the CLI default; Codex: the models your login can use; API keys: the provider's list), a
   job can still have its own, and the AI chip shows and switches it. In the clip chat, `/model` shows what runs with
