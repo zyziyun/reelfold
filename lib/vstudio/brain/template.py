@@ -26,8 +26,8 @@ AMBIGUOUS = 0.12
 WORDS = {
     "beat-short": (r"卡点|快节奏|快剪|燃|动感|节奏感|on the beat|beat[- ]?(?:cut|sync)|fast cuts|upbeat|energetic|"
                    r"hype|punchy|action reel|\breel\b", 3.0),
-    "travel-calm": (r"舒缓|安静|慢节奏|治愈|电影感|高级感|空镜|no voice|unhurried|calm|cinematic film|slow premium|"
-                    r"golden[- ]hour film|music bed|follow the light|just music", 2.0),
+    "travel-calm": (r"舒缓|安静|慢节奏|治愈|电影感|高级感|空镜|unhurried|calm|cinematic film|slow premium|"
+                    r"golden[- ]hour film|music bed|follow the light", 2.0),
     "trip-vlog": (r"vlog|旅行记录|旅游|旅行|road[- ]trip|trip vlog|travel vlog|day in|place and time captions", 2.0),
     "history-explainer": (r"历史|history|historic|heritage|world'?s fair|built (?:in|for)|verifiable facts|"
                           r"故事背景", 3.0),

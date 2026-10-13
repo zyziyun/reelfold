@@ -225,9 +225,11 @@ def test_reframe_follows_faces_or_subjects_for_a_vertical_output():
 
 
 def test_talking_head_jump_cuts_morph_with_rife_else_punch_in():
-    ts = [_tile(1, "talk", 0, 20, faces=1, speech=1.0), _tile(2, "talk", 22, 15, faces=1, speech=1.0)]
+    ts = [_tile(1, "talk", 0, 20, faces=1, face_area=0.08, speech=1.0), _tile(2, "talk", 22, 15, faces=1, face_area=0.082, speech=1.0)]
     ts[1]["id"] = "C1.S2"
-    cont = [dict(ts[0]), dict(ts[1], start=20.0)]
+    cont = [dict(ts[0], id="C1.S1.1"), dict(ts[1], id="C1.S1.2", start=20.0)]      # one shot played on
+    cut_in_source = [dict(ts[0]), dict(ts[1], start=20.0)]                          # the recording cuts there
+    assert TR.plan(cut_in_source, "th-refined", rife=True)["shots"][1]["transition"]["kind"] == "morph"
     assert TR.plan(cont, "th-refined", rife=True)["shots"][1]["transition"]["kind"] == "continuous"
     with_rife = TR.plan(ts, "th-refined", rife=True)["shots"][1]
     assert with_rife["transition"]["kind"] == "morph" and with_rife["hold_s"] == 15
@@ -288,12 +290,12 @@ def test_bridge_only_in_a_narrated_piece_across_a_place_change():
 
 
 def test_broll_for_a_long_talking_head_stretch():
-    sents = [dict(start=k * 6.0, end=k * 6.0 + 5.5, text=f"sentence {k} about attention heads") for k in range(10)]
+    sents = [dict(start=k * 6.0, end=k * 6.0 + 5.5, text=f"sentence {k} about attention heads") for k in range(40)]
     props = G.propose("th-refined", dict(shots=[dict(_tile(1, "talk", 0, 60, faces=1), skip=False, why=[],
                                                      transition=dict(kind="open"), hold_s=60)]),
                       {}, stage="cut", sentences=sents)
     b = [x for x in props if x["kind"] == "broll"]
-    assert len(b) == 2 and "attention heads" in b[0]["prompt"]
+    assert len(b) == 3 and "attention heads" in b[0]["prompt"] and "sentence" in b[0]["prompt"]
 
 
 def test_confirm_code_follows_the_price():
@@ -408,3 +410,18 @@ def test_calm_vlog_drafter_reads_the_shot_plan(tmp_path, monkeypatch):
     assert "c2 20.0-25.0s (dissolve, slow motion: the light changes)" in line and "Calm travel film" in line
     monkeypatch.setattr(ST, "show", lambda project, light=False: (_ for _ in ()).throw(RuntimeError("no shots")))
     assert V.brain_plan(Ctx(), {"c1": str(a)}) == ("", [])
+
+
+def test_calm_aerials_join_with_dissolves_and_a_beat_short_never_does():
+    ts = [_tile(1, "a", aerial=True), _tile(2, "b", aerial=True)]
+    assert TR.plan(ts, "travel-calm")["shots"][1]["transition"]["kind"] == "dissolve"
+    assert TR.plan(ts, "trip-vlog")["shots"][1]["transition"]["kind"] in ("cut", "match-cut")
+    assert TR.plan(ts, "beat-short", beats=True)["shots"][1]["transition"]["kind"] in ("beat-cut", "match-cut")
+
+
+def test_a_change_of_framing_stays_a_clean_cut():
+    ts = [_tile(1, "talk", 0, 20, faces=1, face_area=0.05, speech=1.0),
+          _tile(2, "talk", 20, 15, faces=1, face_area=0.11, speech=1.0)]
+    ts[1]["id"] = "C1.S2"
+    r = TR.plan(ts, "th-refined", rife=True)["shots"][1]
+    assert r["transition"]["kind"] == "cut" and r["punch_in"] == "none"

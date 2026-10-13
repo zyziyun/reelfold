@@ -32,7 +32,8 @@ IMAGE = ("kling-mcp", "kling-image-v3_0_omni")
 STAGES = ("planned", "cut", "review")
 FOOTAGE_RECIPES = ("vlog", "photo-story")
 SPEECH_RECIPES = ("talkinghead", "longform-to-short", "promo-recut", "call-clips")
-BROLL_AFTER_S = 25.0       # a talking head alone on screen this long gets one illustrative shot
+BROLL_AFTER_S = 30.0       # a talking head alone on screen this long gets one illustrative shot
+BROLL_MAX = 3              # at most this many per video (restraint: the talk is the film)
 SHORT_SHARE = 0.8          # usable footage under this share of the target length -> extra shots
 
 
@@ -152,8 +153,9 @@ def propose(template, treatment=None, signals=None, stage="cut", place=None, tar
             run.append(snt)
             run_s = float(snt["end"]) - float(run[0]["start"])
             if run_s >= BROLL_AFTER_S:
-                mid = run[len(run) // 2]
-                text = str(mid.get("text") or "")[:160]
+                k = len(run) // 2
+                mid = run[k]
+                text = " ".join(str(x.get("text") or "").strip() for x in run[max(0, k - 1):k + 2])[:160]
                 out.append(_mk("broll", f"{run[0]['start']:.0f}",
                                dict(en=f"One illustrative shot at {int(float(mid['start']))} s",
                                     zh=f"{int(float(mid['start']))} 秒处加一个示意镜头"),
@@ -163,6 +165,11 @@ def propose(template, treatment=None, signals=None, stage="cut", place=None, tar
                                "Natural light, no text, no faces.", 5,
                                dict(t=float(mid["start"]), sentence=text)))
                 run, run_s = [], 0.0
+    brolls = [x for x in out if x["kind"] == "broll"]
+    if len(brolls) > BROLL_MAX:                    # spread the few kept over the talk
+        step = len(brolls) / BROLL_MAX
+        keep = {brolls[int(i * step + step / 2)]["id"] for i in range(BROLL_MAX)}
+        out = [x for x in out if x["kind"] != "broll" or x["id"] in keep]
     order = dict(weak=0, establishing=1, bridge=2, short=3, broll=4, cover=5)
     out.sort(key=lambda x: order.get(x["kind"], 9))
     return out

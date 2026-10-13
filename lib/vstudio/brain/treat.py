@@ -65,6 +65,24 @@ def _lab_d(a, b):
     return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
+def _same_framing(a, b):
+    """Both sides frame the face the same way (size within 15 %, centre within 5 % of the frame): a jump cut that
+    shows. A change of framing (a punch-in already in the edit, a new angle) is a clean cut and stays one."""
+    fa, fb = a.get("face_area"), b.get("face_area")
+    if not fa or not fb:
+        return False
+    if abs(fa - fb) / max(fa, fb) > 0.15:
+        return False
+    xa, xb = a.get("subject_xy"), b.get("subject_xy")
+    return not (xa and xb and math.hypot(xa[0] - xb[0], xa[1] - xb[1]) > 0.05)
+
+
+def _shot_of(tid):
+    """'C1.S2.3' -> 'C1.S2' (the shot a moment belongs to)."""
+    parts = str(tid).split(".")
+    return ".".join(parts[:2])
+
+
 def _pick(cands):
     """{name: (fit, why)} -> (name, fit, ambiguous, ranked [(name, fit)])."""
     ranked = sorted(((k, round(v[0], 2)) for k, v in cands.items()), key=lambda kv: -kv[1])
@@ -176,8 +194,12 @@ def _transition(prev, t, pol, rife, beats):
                    _w(name, "a hard cut on the music's beat" if name == "beat-cut" else "a hard cut: same light, same place",
                       "卡在音乐的拍点上硬切" if name == "beat-cut" else "硬切：光线和地点没变"))
     if "dissolve" in allowed:
-        f = 0.35
+        f = 0.6 if allowed[0] == "dissolve" else 0.35       # the template's own join (calm films: P1)
         bits_en, bits_zh = [], []
+        if prev.get("aerial") and t.get("aerial") and not same_clip:
+            f += 0.2
+            bits_en.append("aerial to aerial")
+            bits_zh.append("航拍接航拍")
         if db is not None and db >= LIGHT_JUMP:
             f += 0.25
             bits_en.append(f"the light changes ({prev.get('bright')}→{t.get('bright')})")
@@ -204,10 +226,14 @@ def _transition(prev, t, pol, rife, beats):
             c["match-cut"] = (0.8, _w("match-cut", "a match cut: the same colour and the camera keeps moving",
                                       "匹配剪辑：颜色一致，镜头运动连贯", lab_d=round(dl, 1)))
     pu, tu = prev.get("_use") or [prev["start"], prev["end"]], t.get("_use") or [t["start"], t["end"]]
-    jump = same_clip and float(tu[0]) - float(pu[1]) > 0.05                 # a cut inside one take: a jump cut
+    gap = same_clip and float(tu[0]) - float(pu[1]) > 0.05
+    same_shot = same_clip and _shot_of(prev["id"]) == _shot_of(t["id"])
+    # a cut inside one recording: time skipped (a gap), or the recording cuts there itself (a new shot) - a jump cut
+    # when a face is on both sides; the same shot played on is no cut at all
+    jump = gap or (same_clip and not same_shot)
     if same_clip and not jump:
         c = {"continuous": (0.95, _w("continuous", "the same take continues", "同一条镜头接着播"))}
-    elif "morph" in allowed and jump and t.get("faces"):
+    elif "morph" in allowed and jump and t.get("faces") and _same_framing(prev, t):
         if rife:
             c["morph"] = (0.85, _w("morph", "a morph cut hides the jump inside the same take (RIFE)",
                                    "同一条里的跳切用补帧平滑（RIFE）"))
@@ -307,6 +333,8 @@ def plan(tiles, template, target_s=None, out_aspect=None, beats=False, overrides
         mid = (best[0] + best[1]) / 2
         a = max(float(t["start"]), mid - hold / 2)
         b = min(float(t["end"]), a + hold)
+        if speechy:                                  # words are kept whole: the shot plays from start to end
+            a, b = float(t["start"]), float(t["end"])
         sp, x, sfit, why_s, sranked, samb = _speed(t, pol, pol["hold"][0], rife, ramps_left,
                                                    t["id"] == peak_id)
         if sp == "slowmo":
