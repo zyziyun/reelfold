@@ -86,7 +86,8 @@ const models = [
 ];
 
 // beat / downbeat tracker (vstudio.beatthis) and shot boundaries (vstudio.transnet): read without torch / TensorFlow
-const BEAT_THIS = 'https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt';
+// Mirrored on Reelfold's GitHub (MIT; original: https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt)
+const BEAT_THIS = 'https://github.com/zyziyun/reelfold/releases/download/models-beat-this-final0/final0.ckpt';
 const TRANSNET = 'https://media.githubusercontent.com/media/soCzech/TransNetV2/85cef72af9a916bdfd7cc94a670c9cdfbf12d1ed/inference/transnetv2-weights/variables';
 const engineModels = [
   [BEAT_THIS, 'models/beat_this/final0.ckpt'],

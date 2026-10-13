@@ -28,7 +28,8 @@ CHUNK = 1500
 BORDER = 6
 ENV = "VSTUDIO_BEAT_THIS"
 CHECKPOINT = "final0"
-# sha256 of the official checkpoints (https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/<name>.ckpt)
+# sha256 of the official checkpoints (https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/<name>.ckpt;
+# final0 is mirrored at https://github.com/zyziyun/reelfold/releases/tag/models-beat-this-final0)
 SHA256 = {"final0": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
           "small0": "6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b"}
 

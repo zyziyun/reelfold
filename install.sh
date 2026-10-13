@@ -28,7 +28,9 @@ fetch https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_seg
 fetch https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite "$CACHE/models/selfie_multiclass_256x256.tflite"
 echo "models (MIT: Beat This! beat tracker, TransNet V2 shot detector) -> $CACHE/models"
 mkdir -p "$CACHE/models/beat_this" "$CACHE/models/transnetv2"
-fetch https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt "$CACHE/models/beat_this/final0.ckpt"
+# mirrored on Reelfold's GitHub (MIT); the original JKU host is the fallback
+fetch https://github.com/zyziyun/reelfold/releases/download/models-beat-this-final0/final0.ckpt "$CACHE/models/beat_this/final0.ckpt" \
+  || fetch https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt "$CACHE/models/beat_this/final0.ckpt"
 TNV2=https://media.githubusercontent.com/media/soCzech/TransNetV2/85cef72af9a916bdfd7cc94a670c9cdfbf12d1ed/inference/transnetv2-weights/variables
 fetch "$TNV2/variables.index" "$CACHE/models/transnetv2/variables.index"
 fetch "$TNV2/variables.data-00000-of-00001" "$CACHE/models/transnetv2/variables.data-00000-of-00001"

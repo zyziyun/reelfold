@@ -74,7 +74,7 @@
      "size": 16371837
     },
     {
-     "url": "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt",
+     "url": "https://github.com/zyziyun/reelfold/releases/download/models-beat-this-final0/final0.ckpt",
      "dest": "models/beat_this/final0.ckpt",
      "sha256": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
      "size": 81058141
