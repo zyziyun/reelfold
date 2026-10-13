@@ -219,3 +219,10 @@ def test_vlog_recipe_exports_follow_by_default():
     ex = next(s for s in m["stages"] if s["id"] == "export")
     assert "{reframe}" in ex["run"]["argv"] and "pad-blur" not in json.dumps(ex["run"]["argv"])
     assert {"framing", "copy"} <= {c["id"] for c in m["checkpoints"]}
+
+
+def test_face_mode_falling_back_to_subject_takes_subject_options(clips):
+    """A subject option (shot_pad) given to a face-mode plan that falls back to the subject (DJI fun reel crash)."""
+    pl = R.plan(clips["two"], 180, 320, mode="face", fallback="subject", detector=lambda fr: [],
+                analyzer=S.Analyzer(person=False), shot_pad=False)
+    assert all(s["kind"] != "pad-blur" for s in pl.get("shots") or [])

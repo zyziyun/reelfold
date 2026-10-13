@@ -628,7 +628,7 @@ def plan(src, target_w, target_h, mode="face", safe=None, start=0.0, dur=None, d
     hit_rate = hits / max(1, len(samples))
     out.update(n_frames=n, cuts=cuts, hit_rate=round(hit_rate, 4), samples=len(samples))
     if hit_rate < o["min_hit"] and o["fallback"] == "subject" and (src is not None or hasattr(frames, "__len__")):
-        so = dict(DEFAULTS, **SUBJECT, **{k: v for k, v in opts.items() if v is not None})
+        so = dict(dict(DEFAULTS, **SUBJECT), **{k: v for k, v in opts.items() if v is not None})
         sub = _subject_out(dict(out, mode_used="subject"), src, tw, th, safe, caption, start, dur, sw, sh, fps, so,
                            detector, analyzer, frames, region, transitions, fit_scale)
         sub["fallback_reason"] = f"face hit rate {hit_rate:.2f} < {o['min_hit']}"
