@@ -92,7 +92,7 @@ def main():
     ap.add_argument("units", nargs="*", type=int, help="only these unit indices")
     ap.add_argument("--voice", help="override TTS voice")
     ap.add_argument("--sample", action="store_true", help="synthesise one line in several voices")
-    ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "clone"],
+    ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "qwen", "clone"],
                     help="override VOICE/TTS engine (auto: OpenAI with its key, else the free local voice)")
     a = ap.parse_args()
 
@@ -118,13 +118,17 @@ def main():
         print(f"clone voice: ref {os.path.basename(cc['ref_wav'])} ({cc['ref_hash']}), model {cc['model']}, {lang}")
     elif engine == "openai" and not os.environ.get("OPENAI_API_KEY"):
         sys.exit("OPENAI_API_KEY is not set in the environment")
-    picked_zh = str(a.voice or cfg.get("voice") or "").startswith(("zf_", "zm_"))   # she named a Chinese voice
+    picked_zh = str(a.voice or cfg.get("voice") or "").startswith(("zf_", "zm_"))   # she named a Kokoro Chinese voice
+    if cfg["language"] == "zh" and engine == "kokoro" and not picked_zh:
+        engine = vtts.zh_engine(engine)       # the free Chinese voice (qwen) when it is on this computer
     if cfg["language"] == "zh" and engine == "kokoro" and not (picked_zh or vtts.zh_local_opt_in()):
         # the built-in Chinese voice is opt-in (it sounds robotic): the English lines are narrated, the 中文
         # subtitles still lead (Ctx.ZH_LEAD reads the spec's TTS language)
         print("note: " + vtts.ZH_LOCAL_NOTE["en"], flush=True)
         cfg["language"] = "en"
     voice = a.voice or cfg["voice"]
+    if engine == "qwen" and str(voice or "").lower() not in vtts.QWEN_ZH_VOICES:
+        voice = None                          # a Kokoro / OpenAI voice name means nothing to the Chinese voice
     if local and (not voice or voice in OPENAI_VOICES):   # an OpenAI voice name means nothing to the local voice
         voice = vtts.zh_voice(engine) if cfg["language"] == "zh" else None
         voice = voice or vtts.DEFAULT_VOICE.get(engine)

@@ -127,8 +127,9 @@ def test_request_says_voice_or_mood():
 def test_voice_plan_chinese_version(monkeypatch):
     monkeypatch.setattr(tts, "available_engine", lambda name="auto": "kokoro" if name in (None, "auto") else name)
     vp = N.voice_plan("zh")
-    assert vp["narrate"] == "en" and vp["sub_lead"] == "zh" and "robotic" in N.note_text(vp["note"], "en")
-    assert "本地中文配音" in N.note_text(vp["note"], "zh")
+    # the free Chinese voice is not on this computer (tests/conftest.py): English narration, and how to get it
+    assert vp["narrate"] == "en" and vp["sub_lead"] == "zh" and "Settings > Voice" in N.note_text(vp["note"], "en")
+    assert "中文配音" in N.note_text(vp["note"], "zh")
     assert N.voice_plan("en")["narrate"] == "en" and N.voice_plan("en")["note"] is None
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     assert N.voice_plan("zh", "openai") == dict(narrate="zh", sub_lead="zh", engine="openai", note=None)
@@ -246,7 +247,7 @@ def test_explainer_chinese_version_narrates_in_english_without_a_good_voice(monk
     assert E.explainer_voice(dict(platforms=["bilibili"]), True)["narrate"] == "zh"
     rec = E._with_voice_note(dict(review=dict(lines=[])), N.voice_plan("zh", "openai")["note"] or tts.ZH_LOCAL_NOTE,
                              "en")
-    assert "robotic" in rec["review"]["lines"][0]["params"]["label"]
+    assert "free Chinese voice" in rec["review"]["lines"][0]["params"]["label"]
 
 
 # ------------------------------------------------------------------------------------------- intake planner
@@ -281,7 +282,7 @@ def test_planner_prompt_and_voice_note(monkeypatch):
     PL._call_model("a history film", {}, dict(tts_engine="auto"), {},
                    call=lambda s, b: seen.update(system=s) or dict(json={}, model="m"))
     assert seen["system"].rstrip().endswith(PL.zh_voice_line({}))
-    assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "en")[0].startswith("The built-in Chinese voice")
+    assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "en")[0].startswith("The free Chinese voice")
     assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"], mode="music")], "en") == []
     assert PL.voice_risks([_proj("photo-story", ["youtube"])], "en") == []
 

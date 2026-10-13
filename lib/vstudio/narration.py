@@ -6,9 +6,9 @@ planner follow.
    (narration / voice-over / 旁白 / 配音 / 解说) does it get one.
 2. A history / explainer piece is narrated. Its YouTube version is English (vstudio.platform.lang_for: YouTube is
    always English). Its Chinese version (小红书 / B站 / 抖音) is narrated in Chinese only when a good Chinese voice is
-   set up (vstudio.tts.zh_voice_engine: OpenAI with its key, a cloned voice, a persona voice, a TTS server); else it
-   is narrated in English with the Chinese subtitles leading. The built-in Chinese voice (Kokoro) is opt-in
-   (persona ``tts.zh_local: true``): it sounds robotic.
+   set up (vstudio.tts.zh_voice_engine: the free Chinese voice Qwen3-TTS once downloaded, OpenAI with its key, a
+   cloned voice, a persona voice, a TTS server); else it is narrated in English with the Chinese subtitles leading.
+   Kokoro's Mandarin voice is opt-in (persona ``tts.zh_local: true``): it sounds robotic.
 
     from vstudio import narration as N
     N.is_mood_piece("an autumn essay of the red leaves")     -> True

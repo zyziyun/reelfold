@@ -8,8 +8,16 @@
 Engines (all optional imports, nothing is needed until you call one):
   openai  gpt-4o-mini-tts (supports ``instructions`` = delivery direction). Key from the
           OPENAI_API_KEY environment variable ONLY. ``openai`` package if installed, else plain HTTPS.
-  kokoro  Kokoro-82M via ``mlx_audio`` (Apple Silicon, offline).
-  edge    Microsoft Edge neural voices via ``edge_tts`` (needs network, no key).
+  kokoro  Kokoro-82M via ``mlx_audio`` (Apple Silicon, offline): the free English voice.
+  qwen    Qwen3-TTS 1.7B CustomVoice via ``mlx_audio`` (Apple Silicon, offline, Apache-2.0): the free Chinese voice -
+          native Mandarin speakers (serena, vivian, uncle_fu, dylan = Beijing, eric = Sichuan; ``QWEN_ZH_VOICES``),
+          tones / polyphones / English terms read by the model itself. A Chinese line meant for the free voice goes
+          here (``zh_engine``); the Kokoro Mandarin voice (zf_xiaobei) is only used when asked for by name.
+          One take per child process (vstudio.qwen_synth); ``qwen_model()`` like ``kokoro_model()``.
+  edge    Microsoft Edge neural voices via ``edge_tts`` (needs network, no key). Unofficial: it talks to the Read
+          Aloud service of Microsoft's Edge browser, which is not a public API (no terms for other apps; it has gone
+          down for days at a time, e.g. 403 since 2026-10-10) - for your own use, opt in by name; never the default
+          and not in the desk app (edge-tts is LGPL).
   clone   your OWN voice, cloned from a short reference recording: Qwen3-TTS (Base) via ``mlx_audio``
           (Apple Silicon, offline). Needs ``ref_wav`` (5-15 s of clean speech) + ``ref_text`` (its exact
           transcript), passed as arguments or set in persona.local.yaml (never commit the recording):
@@ -27,6 +35,7 @@ Engines (all optional imports, nothing is needed until you call one):
   elevenlabs  ElevenLabs API (optional): ELEVENLABS_API_KEY from the environment ONLY; voice = a voice id
           (persona ``tts.elevenlabs_voice``), model eleven_multilingual_v2; speed 0.7-1.2.
 "auto" = persona ``tts.engine`` / env VSTUDIO_TTS_ENGINE, else kokoro (Apple Silicon) -> edge -> openai.
+Chinese text on the free voice: ``zh_engine("kokoro")`` -> "qwen" when it is ready here (``qwen_ready``).
 ``available_engine()`` is the voice a plan defaults to (the explainer): persona ``tts.engine``, else a paid engine
 only when its key is set, else the free local voice (``local_engine()``). A paid engine without its key raises
 ``MissingKey`` (a plain message naming the service and the fix); ``missing_key(engine)`` says so beforehand.
@@ -34,7 +43,8 @@ only when its key is set, else the free local voice (``local_engine()``). A paid
 Output is always 48 kHz mono 16-bit wav. Cache: ``$VSTUDIO_CACHE/tts/<sha1>.wav`` keyed by
 engine+model+voice+speed+instructions+text, so re-running a script never pays twice.
 Voice defaults: persona ``tts.<engine>_voice`` else DEFAULT_VOICE; for Chinese text ``zh_voice(engine)`` (persona
-``tts.<engine>_voice_zh`` else ZH_VOICE). Kokoro voices carry their language in the prefix (``zf_xiaobei`` =
+``tts.<engine>_voice_zh`` else ZH_VOICE; the app's Settings > Voice choice comes first for qwen: the JSON file at env
+VSTUDIO_TTS_PREFS, ``{"zh_voice": "vivian"}``, read on every call). Kokoro voices carry their language in the prefix (``zf_xiaobei`` =
 Mandarin, ``af_heart`` = US English, ``jf_alpha`` = Japanese ...) and it is passed on as Kokoro's ``lang_code``;
 Mandarin needs ``pip install "misaki[zh]"``, English ``misaki[en]``.
 Kokoro's model: ``kokoro_model()`` = env VSTUDIO_KOKORO_MODEL (a local folder: config.json, kokoro-v1_0.safetensors,
@@ -66,17 +76,21 @@ import urllib.request
 from . import media
 
 DEFAULT_VOICE = {"openai": "cedar", "kokoro": "af_heart", "edge": "en-US-AriaNeural", "clone": "ref",
-                 "openai-compatible": "af_heart", "elevenlabs": "21m00Tcm4TlvDq8ikWAM"}
+                 "openai-compatible": "af_heart", "elevenlabs": "21m00Tcm4TlvDq8ikWAM", "qwen": "serena"}
 DEFAULT_MODEL = {"openai": "gpt-4o-mini-tts", "kokoro": "mlx-community/Kokoro-82M-bf16", "edge": None,
+                 "qwen": "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
                  "clone": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "openai-compatible": "kokoro",
                  "elevenlabs": "eleven_multilingual_v2"}
 # Chinese voices (中文讲解); openai's voices are multilingual, clone speaks like its reference
 ZH_VOICE = {"kokoro": "zf_xiaobei", "edge": "zh-CN-XiaoxiaoNeural", "openai": "cedar", "openai-compatible": None,
-            "elevenlabs": None, "clone": None}
+            "elevenlabs": None, "clone": None, "qwen": "serena"}
+# the free Chinese voice's Mandarin speakers (Settings > Voice; samples in apps/desk resources)
+QWEN_ZH_VOICES = ("serena", "vivian", "uncle_fu", "dylan", "eric")
 KOKORO_LANGS = "abefhijpz"          # Kokoro's lang codes = the first letter of its voice ids
-ENGINES = ("openai", "kokoro", "edge", "clone", "openai-compatible", "elevenlabs")
+ENGINES = ("openai", "kokoro", "qwen", "edge", "clone", "openai-compatible", "elevenlabs")
 ALIASES = {"compatible": "openai-compatible", "tts-server": "openai-compatible", "eleven": "elevenlabs",
-           "11labs": "elevenlabs", "edge-tts": "edge", "qwen3-clone": "clone"}
+           "11labs": "elevenlabs", "edge-tts": "edge", "qwen3-clone": "clone", "qwen3": "qwen", "qwen3-tts": "qwen",
+           "qwen-tts": "qwen"}
 LANG_NAMES = {"en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "de": "German", "fr": "French",
               "es": "Spanish", "it": "Italian", "pt": "Portuguese", "ru": "Russian"}
 _CLONE_MODELS = {}
@@ -85,6 +99,9 @@ SR = 48000
 KEY_ENV = {"openai": "OPENAI_API_KEY", "elevenlabs": "ELEVENLABS_API_KEY"}
 SERVICE = {"openai": "OpenAI", "elevenlabs": "ElevenLabs"}
 KOKORO_MODEL_ENV = "VSTUDIO_KOKORO_MODEL"      # a local Kokoro folder (the desk app's download)
+QWEN_MODEL_ENV = "VSTUDIO_QWEN_TTS_MODEL"      # a local Qwen3-TTS folder (the desk app's download, tts-qwen-zh)
+QWEN_OFF_ENV = "VSTUDIO_QWEN_TTS"            # "off": the free Chinese voice is never used (tests; a creator's choice)
+PREFS_ENV = "VSTUDIO_TTS_PREFS"               # the app's voice choices (Settings > Voice): {"zh_voice": "..."}
 MANAGED_ENV = "VSTUDIO_TTS_MODELS_MANAGED"     # the app downloads voice models; the engine never fetches them
 
 
@@ -101,11 +118,14 @@ class MissingKey(RuntimeError):
 
 
 class VoiceNotDownloaded(RuntimeError):
-    """The app's free voice (Kokoro) is not downloaded yet: the desk offers the download (Settings > Downloads)."""
+    """The app's free voice (Kokoro) - or its Chinese voice (Qwen3-TTS, ``chinese=True``) - is not downloaded yet: the
+    desk offers the download (vstudio.proctail.voice_failure)."""
 
-    def __init__(self):
-        super().__init__("The free voice is not downloaded yet: download it in Settings > Downloads "
-                         "(Free voice), then try again.")
+    def __init__(self, chinese=False):
+        self.chinese = bool(chinese)
+        super().__init__("The free Chinese voice is not downloaded yet: download it in Settings > Voice, then try "
+                         "again." if chinese else "The free voice is not downloaded yet: download it in Settings > "
+                         "Downloads (Free voice), then try again.")
 
 
 def _cache_dir():
@@ -167,12 +187,12 @@ def _persona_engine():
     return None
 
 
-LOCAL = ("kokoro", "clone", "edge")      # free voices (edge: Microsoft's online voices, no key)
+LOCAL = ("kokoro", "qwen", "clone", "edge")      # free voices (edge: Microsoft's online voices, no key)
 
 
 def installed(engine):
     """Can ``engine`` run here at all (its package is installed; a key is ``missing_key``'s business)?"""
-    if engine in ("kokoro", "clone"):
+    if engine in ("kokoro", "clone", "qwen"):
         return platform.system() == "Darwin" and platform.machine() == "arm64" and \
             bool(importlib.util.find_spec("mlx_audio"))
     if engine == "edge":
@@ -183,6 +203,27 @@ def installed(engine):
 def kokoro_ready():
     """Kokoro's model is here or may be fetched on use (False only in the app before its download)."""
     return os.path.isdir(kokoro_model()) or not os.environ.get(MANAGED_ENV)
+
+
+def qwen_model(model=None):
+    """Qwen3-TTS model: ``model`` > env VSTUDIO_QWEN_TTS_MODEL > persona ``tts.qwen_model`` > DEFAULT_MODEL (HF repo)."""
+    m = str(model or os.environ.get(QWEN_MODEL_ENV) or _tts_cfg().get("qwen_model") or DEFAULT_MODEL["qwen"])
+    return os.path.expanduser(m) if m.startswith("~") else m
+
+
+def qwen_ready():
+    """The free Chinese voice can speak here: Apple Silicon + mlx-audio, and its model is on disk or may be fetched on
+    use (False in the app before its download). env VSTUDIO_QWEN_TTS=off: never (Kokoro's rules as before)."""
+    if os.environ.get(QWEN_OFF_ENV, "").strip().lower() in ("off", "0", "false", "no"):
+        return False
+    return installed("qwen") and (os.path.isdir(qwen_model()) or not os.environ.get(MANAGED_ENV))
+
+
+def zh_engine(engine):
+    """The engine that says a Chinese line meant for ``engine``: the free voice (kokoro) -> qwen when it is ready here
+    (Kokoro's Mandarin sounds robotic); any other engine speaks Chinese itself."""
+    e = ALIASES.get(str(engine or "").lower(), str(engine or "").lower())
+    return "qwen" if e == "kokoro" and qwen_ready() else e
 
 
 def local_engine():
@@ -216,8 +257,13 @@ def providers(probe=True):
                  detail=("pip install mlx-audio (Apple Silicon)" if not (mac_arm and mlx) else
                          f"mlx-audio Kokoro-82M, {kokoro_model()}" if kokoro_ready() else
                          "mlx-audio Kokoro-82M, not downloaded yet (Settings > Downloads)")),
+            dict(provider="qwen", kind="local", ready=qwen_ready(),
+                 detail=("pip install mlx-audio (Apple Silicon)" if not (mac_arm and mlx) else
+                         f"mlx-audio Qwen3-TTS (Chinese voice), {qwen_model()}" if qwen_ready() else
+                         "mlx-audio Qwen3-TTS (Chinese voice), not downloaded yet (Settings > Voice)")),
             dict(provider="edge", kind="api (no key)", ready=edge,
-                 detail="edge-tts (Microsoft online voices, no key)" if edge else "pip install edge-tts"),
+                 detail=("edge-tts (Microsoft's Edge read-aloud voices, unofficial: may stop working)" if edge else
+                         "pip install edge-tts (unofficial Microsoft online voices, opt-in)")),
             dict(provider="clone", kind="local", ready=mac_arm and mlx and clone_ok,
                  detail=("mlx-audio Qwen3-TTS; " if mac_arm and mlx else "needs mlx-audio (Apple Silicon); ") + clone_d),
             dict(provider="elevenlabs", kind="api", ready=bool(os.environ.get("ELEVENLABS_API_KEY")),
@@ -244,16 +290,17 @@ def default_voice(engine="auto"):
 
 
 # ---------------------------------------------------------------------------------------- Chinese narration policy
-# The bundled local Chinese voice (Kokoro zf_*) sounds robotic: it is opt-in. A Chinese version is narrated in Chinese
-# only by a better voice (OpenAI with its key, the creator's cloned voice, a voice she set in her persona, a TTS
-# server); otherwise in English with Chinese subtitles leading (or with no voice at all for a mood / scenery piece).
+# A Chinese version is narrated in Chinese by a natural voice: the free Chinese voice (Qwen3-TTS, once it is on this
+# computer), OpenAI with its key, the creator's cloned voice, a voice she set in her persona, a TTS server. Kokoro's
+# Mandarin (zf_*) sounds robotic: only when asked for (persona tts.zh_local: true and no Chinese voice here). Without
+# any of them, English narration with Chinese subtitles leading (or no voice at all for a mood / scenery piece).
 ZH_LOCAL_ENV = "VSTUDIO_ZH_LOCAL_VOICE"
 ZH_LOCAL_NOTE = {
-    "en": "The built-in Chinese voice sounds robotic, so the Chinese version uses English narration with Chinese "
-          "subtitles. Turn on 'local Chinese voice' (persona tts.zh_local: true) if you still want it, or add an "
-          "OpenAI key or your own cloned voice for natural Chinese narration.",
-    "zh": "内置的中文配音听起来很机械，所以中文版用英文旁白 + 中文字幕。如果仍想用它，请打开「本地中文配音」"
-          "（persona tts.zh_local: true）；或者添加 OpenAI 密钥、克隆自己的声音，就能有自然的中文旁白。"}
+    "en": "The free Chinese voice is not on this computer yet, so the Chinese version uses English narration with "
+          "Chinese subtitles. Download it in Settings > Voice (about 3 GB, Apple silicon) for natural Chinese "
+          "narration, or add an OpenAI key or your own cloned voice.",
+    "zh": "免费的中文配音还没下载到这台电脑，所以中文版先用英文旁白 + 中文字幕。在「设置 > 配音」下载它（约 3 GB，"
+          "Apple 芯片），就能有自然的中文旁白；也可以添加 OpenAI 密钥，或克隆自己的声音。"}
 
 
 def _truthy(v):
@@ -276,12 +323,15 @@ def zh_local_opt_in():
 
 def zh_voice_engine(engine="auto"):
     """The engine that would read a Chinese narration well enough to use it by default, or None (then: English
-    narration with Chinese subtitles). OpenAI with its key, ElevenLabs with its key, a cloned voice with its
-    reference, a TTS server, Microsoft's online voices (edge) -> that engine; the built-in Kokoro voice only when
-    ``zh_local_opt_in``. An engine that cannot run here (no key, no reference) -> None."""
+    narration with Chinese subtitles). The free voice -> the free Chinese voice (qwen) when it is ready here, else
+    Kokoro's Mandarin only when ``zh_local_opt_in``; OpenAI with its key, ElevenLabs with its key, a cloned voice with
+    its reference, a TTS server, Microsoft's online voices (edge) -> that engine. An engine that cannot run here (no
+    key, no reference, the Chinese voice not downloaded) -> None."""
     e = available_engine(engine)
-    if e == "kokoro":
-        return e if zh_local_opt_in() else None
+    if e in ("kokoro", "qwen"):
+        if qwen_ready():
+            return "qwen"
+        return "kokoro" if e == "kokoro" and zh_local_opt_in() else None
     if missing_key(e):
         return None
     if e == "clone":
@@ -299,8 +349,26 @@ def zh_narration_ok(engine="auto"):
     return zh_voice_engine(engine) is not None
 
 
+def prefs():
+    """The app's voice choices (Settings > Voice): the JSON file at env VSTUDIO_TTS_PREFS, {} when none."""
+    f = os.environ.get(PREFS_ENV)
+    if not f:
+        return {}
+    try:
+        with open(f, encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def zh_voice(engine):
-    """The Chinese voice of ``engine`` (persona tts.<engine>_voice_zh, else ZH_VOICE); None = the engine's default."""
+    """The Chinese voice of ``engine``: for qwen the app's choice (``prefs()["zh_voice"]``, one of QWEN_ZH_VOICES)
+    first; then persona tts.<engine>_voice_zh, else ZH_VOICE; None = the engine's default."""
+    if engine == "qwen":
+        v = str(prefs().get("zh_voice") or "").lower()
+        if v in QWEN_ZH_VOICES:
+            return v
     v = (_tts_cfg() or {}).get(f"{engine}_voice_zh")
     return v or ZH_VOICE.get(engine)
 
@@ -415,6 +483,26 @@ def _kokoro(text, voice, speed, model, dst, tmp):
     shutil.move(out, dst)
 
 
+def _qwen(text, voice, model, dst, tmp, instructions=None):
+    if not importlib.util.find_spec("mlx_audio"):
+        raise RuntimeError("qwen needs mlx-audio (pip install mlx-audio; Apple Silicon)")
+    local = os.path.isdir(model)
+    if not local and os.environ.get(MANAGED_ENV):
+        raise VoiceNotDownloaded(chinese=True)
+    lib = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in (lib, os.environ.get("PYTHONPATH")) if p))
+    if local:
+        env["HF_HUB_OFFLINE"] = "1"                  # a local folder: never reach for the hub
+    out = os.path.join(tmp, "qwen.wav")
+    r = subprocess.run([sys.executable, "-m", "vstudio.qwen_synth", "--model", model, "--voice", str(voice),
+                        "--out", out] + (["--instruct", instructions] if instructions else []),
+                       input=text, capture_output=True, text=True, env=env)
+    tail = lambda: "\n".join(((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-15:])
+    if r.returncode != 0 or not os.path.exists(out):
+        raise RuntimeError(f"qwen failed (exit {r.returncode}):\n{tail()}")
+    shutil.move(out, dst)
+
+
 def clone_config(ref_wav=None, ref_text=None, model=None, language=None):
     """Resolve the clone engine's reference + model: arguments first, then persona ``tts.clone.*``.
     Returns dict(ref_wav, ref_text, model, language, ref_hash). Raises RuntimeError when the reference
@@ -493,9 +581,9 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
           ref_wav=None, ref_text=None, language=None, seed=None):
     """Synthesise ``text`` -> 48 kHz mono wav; returns the wav path (``out`` if given, else the cache file).
 
-    Args: engine "openai" | "kokoro" | "edge" | "clone" | "openai-compatible" | "elevenlabs" | "auto"; voice (default persona tts.<engine>_voice);
-    speed (1.0 = normal; openai 0.25-4, edge as +-% rate; ignored by clone); instructions = delivery direction
-    (openai gpt-4o-* only); model overrides DEFAULT_MODEL; cache=False forces a new take (still cached after).
+    Args: engine "openai" | "kokoro" | "qwen" | "edge" | "clone" | "openai-compatible" | "elevenlabs" | "auto"; voice
+    (default persona tts.<engine>_voice); speed (1.0 = normal; openai 0.25-4, edge as +-% rate, qwen by ffmpeg atempo;
+    ignored by clone); instructions = delivery direction (openai gpt-4o-*, qwen: a style line); model overrides DEFAULT_MODEL; cache=False forces a new take (still cached after).
     clone only: ref_wav / ref_text / language (default persona tts.clone.*), seed (reproducible take; part
     of the cache key).
     """
@@ -509,7 +597,7 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         voice = f"ref:{ccfg['ref_hash']}:{ccfg['language'] or 'auto'}:{seed if seed is not None else '-'}"
     else:
         voice = _voice(engine, voice)
-        model = kokoro_model(model) if engine == "kokoro" else \
+        model = kokoro_model(model) if engine == "kokoro" else qwen_model(model) if engine == "qwen" else \
             model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
     mkey = f"{server_config()['base_url']}#{model}" if engine == "openai-compatible" else model
     if engine == "kokoro":
@@ -529,12 +617,16 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
                 _elevenlabs(text, voice, speed, model, raw)
             elif engine == "kokoro":
                 _kokoro(text, voice, speed, model, raw, tmp)
+            elif engine == "qwen":
+                _qwen(text, voice, model, raw, tmp, instructions)
             elif engine == "clone":
                 _clone(text, ccfg, raw, seed)
             else:
                 _edge(text, voice, speed, raw)
             part = cpath + ".part.wav"
-            media.run(["ffmpeg", "-y", "-i", raw, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", part])
+            tempo = ["-af", f"atempo={max(0.5, min(2.0, float(speed))):.4f}"] if engine == "qwen" and \
+                abs(float(speed) - 1.0) > 1e-3 else []          # Qwen3-TTS has no speed of its own
+            media.run(["ffmpeg", "-y", "-i", raw, *tempo, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", part])
             os.replace(part, cpath)
     if out:
         os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

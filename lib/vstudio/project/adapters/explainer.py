@@ -108,7 +108,7 @@ def voice_payload(env, cp):
     derived = None
     if engine and engine != "openai" and cur in VOICES:   # OpenAI's voices: show the voice that will really speak
         from vstudio import tts
-        cur = derived = "clone" if engine == "clone" else (tts.zh_voice(engine) if lang == "zh" else None) or \
+        cur = derived = "clone" if engine == "clone" else (tts.zh_voice(tts.zh_engine(engine)) if lang == "zh" else None) or \
             tts.DEFAULT_VOICE.get(engine) or engine
     paid = engine in PAID_ENGINES
     voices = VOICES if engine == "openai" else [cur] if engine else []

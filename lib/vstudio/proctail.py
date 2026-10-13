@@ -86,14 +86,18 @@ _KNOWN = ((re.compile(r"no '## Line N' blocks in SCRIPT\.md|SCRIPT\.md is not in
           (re.compile(r"launch-kit config:"), "stage-launch-config", "ask-fix-config"))
 
 
-# the app's free voice (Kokoro) before its one-time download (vstudio.tts.VoiceNotDownloaded): the desk offers it
-_VOICE_MISSING = re.compile(r"free voice is not downloaded", re.I)
+# the app's free voice (Kokoro) / free Chinese voice (Qwen3-TTS) before its one-time download
+# (vstudio.tts.VoiceNotDownloaded): the desk offers it
+_VOICE_MISSING = re.compile(r"free (chinese )?voice is not downloaded", re.I)
 
 
 def voice_failure(text):
-    """The free voice not downloaded yet -> {code: "tool-voice", params: {tool: "voice", fix: "download-voice"}}."""
-    if _VOICE_MISSING.search(str(text or "")):
-        return dict(code="tool-voice", params=dict(tool="voice", fix="download-voice"))
+    """The free voice not downloaded yet -> {code: "tool-voice", params: {tool: "voice", fix: "download-voice"}};
+    the free Chinese voice -> fix "download-zh-voice"."""
+    m = _VOICE_MISSING.search(str(text or ""))
+    if m:
+        return dict(code="tool-voice", params=dict(tool="voice",
+                                                   fix="download-zh-voice" if m.group(1) else "download-voice"))
     return None
 
 

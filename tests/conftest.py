@@ -14,6 +14,10 @@ os.environ["VSTUDIO_CLI_EXTRA_DIRS"] = ""
 # the live transcript (vstudio.agentlog) is off unless a test turns it on
 os.environ.pop("VSTUDIO_AGENT_LOG", None)
 
+# the free Chinese voice (Qwen3-TTS) is not on the test machine unless a test says so (vstudio.tts.qwen_ready): the
+# voice-policy tests are about the choice, never about a 3 GB model the developer may or may not have
+os.environ["VSTUDIO_QWEN_TTS"] = "off"
+
 
 import pytest  # noqa: E402
 

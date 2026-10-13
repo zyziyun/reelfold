@@ -211,7 +211,8 @@ OpenAI-compatible transcription server, use the `openai-compatible` backend.
 |---|---|---|
 | `openai` | API | `OPENAI_API_KEY`; `gpt-4o-mini-tts` with per-line `instructions` (delivery direction) |
 | `kokoro` | local (Apple Silicon), offline | `pip install mlx-audio "misaki[en,zh]"`; model `VSTUDIO_KOKORO_MODEL` (a local folder) or the HF repo `mlx-community/Kokoro-82M-bf16`. Bundled in the Mac app (Apple silicon) |
-| `edge` | online, no key | `pip install edge-tts` (Microsoft online voices) |
+| `qwen` | local (Apple Silicon), offline | the free Chinese voice: Qwen3-TTS 1.7B CustomVoice (Apache-2.0) via `mlx-audio`; model `VSTUDIO_QWEN_TTS_MODEL` (a local folder) or the HF repo `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit`; voices `serena` (default), `vivian`, `uncle_fu`, `dylan` (Beijing), `eric` (Sichuan). In the Mac app: the optional download `tts-qwen-zh` (~3 GB, Settings > Voice) |
+| `edge` | online, no key, opt-in | `pip install edge-tts` (Microsoft's Edge read-aloud voices; unofficial, not a public API, has been down for days at a time; LGPL, not in the app) |
 | `clone` | local (Apple Silicon) | `mlx-audio` + persona `tts.clone.ref_wav` / `ref_text` (your own voice only) |
 | `openai-compatible` | self-hosted | a `/v1/audio/speech` server (Kokoro-FastAPI on port 8880, openedai-speech, LocalAI): `VSTUDIO_TTS_BASE_URL` or persona `tts.server.{base_url, api_key_env, model, voice}` |
 | `elevenlabs` | API (optional) | `ELEVENLABS_API_KEY`; voice = a voice id (persona `tts.elevenlabs_voice`), model `eleven_multilingual_v2`, speed 0.7-1.2 |
@@ -226,7 +227,11 @@ A paid engine without its key raises `tts.MissingKey` (the service and the fix, 
 explainer narration takes `--engine`; drills take `--engine`. Takes are cached by engine + model (+ server URL) +
 voice + speed + direction + text.
 
-Chinese narration (中文讲解): Kokoro's Mandarin voices (`zf_xiaobei`, `zm_yunjian`, ...; the voice prefix is passed
+Chinese narration (中文讲解): the free voice says Chinese lines with `qwen` (`tts.zh_engine("kokoro")`) once it is
+on this machine (`tts.qwen_ready()`; env `VSTUDIO_QWEN_TTS=off` switches it off): natural tones and polyphones (行长,
+重新, 划船), English terms (MCP, Tool Calling, Space Needle) read as English, about 1x real time on an M-series Mac. A/B
+(2026-10, six lines, Whisper round trip): Kokoro v1.0 zf_xiaobei CER 3.3%, Kokoro v1.1-zh 0.8-2.5% (same tone slips,
+划 read as 画), Qwen3-TTS 1.7B serena 1.2%, MeloTTS 15.6%. Without it, Kokoro's Mandarin voices (`zf_xiaobei`, `zm_yunjian`, ...; the voice prefix is passed
 as Kokoro's `lang_code`, `pip install "misaki[zh]"`) read Chinese only - English terms inside a Chinese sentence
 (MCP, JSON-RPC) come out garbled. For a course full of English terms use `clone` (Qwen3-TTS reads both). Without a
 recording of your own voice, a free local reference works: a 10-15 s Kokoro `zf_xiaobei` sample of plain Chinese

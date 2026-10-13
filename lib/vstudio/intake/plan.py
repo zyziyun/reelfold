@@ -716,8 +716,8 @@ def zh_voice_line(ctx=None):
     eng = tts.zh_voice_engine((ctx or {}).get("tts_engine") or "auto")
     if eng:
         return f"{eng} - a Chinese version may be narrated in Chinese."
-    return ("only the built-in one, which sounds robotic - a Chinese version is narrated in English with Chinese "
-            "subtitles (or has no voice); never plan the built-in Chinese voice.")
+    return ("none here yet (the free Chinese voice is not downloaded; Kokoro's Mandarin sounds robotic) - a Chinese "
+            "version is narrated in English with Chinese subtitles (or has no voice); never plan Kokoro's Chinese voice.")
 
 
 # recipes whose words (narration, subtitles, on-screen lines, cover, post) are written for the version: one project

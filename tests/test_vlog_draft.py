@@ -188,7 +188,7 @@ def test_photo_story_spec_is_drafted_as_data_with_frames_and_music(tmp_path, cli
     os.remove(path)
     rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
     assert rec["language"] == "zh" and rec["narration"] == "en" and PS.spec_language(path) == "en"
-    assert "SUB_LEAD = 'zh'" in open(path).read() and "robotic" in rec["review"]["summary"]["params"]["text"]
+    assert "SUB_LEAD = 'zh'" in open(path).read() and "free Chinese voice" in rec["review"]["summary"]["params"]["text"]
     assert 'SUB_LEAD = "zh"' in seen["body"]
     evil = dict(json=dict(content="import os\nX = 1\n"), provider="claude-code", model="t")
     os.remove(path)
