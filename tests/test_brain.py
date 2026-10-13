@@ -233,6 +233,8 @@ def test_talking_head_jump_cuts_morph_with_rife_else_punch_in():
     assert TR.plan(cont, "th-refined", rife=True)["shots"][1]["transition"]["kind"] == "continuous"
     with_rife = TR.plan(ts, "th-refined", rife=True)["shots"][1]
     assert with_rife["transition"]["kind"] == "morph" and with_rife["hold_s"] == 15
+    from vstudio import effects as E
+    assert with_rife["effects"] == ["morph-cuts"] and all(e in E.REGISTRY for e in TR.EFFECT_OF.values())
     without = TR.plan(ts, "th-refined", rife=False)["shots"][1]
     assert without["transition"]["kind"] == "morph-fallback" and without["punch_in"] == "jump-cover"
     calm = TR.plan(ts, "travel-calm", rife=True)["shots"]

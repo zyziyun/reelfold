@@ -611,6 +611,8 @@ export interface BrainShot {
   /** each decision's candidates with their fit, best first */
   choices?: Record<string, [string, number][]>;
   ambiguous?: string[];
+  /** the effect catalogue entries (/api/effects) the choices are made with */
+  effects?: string[];
   by: 'rules' | 'her' | 'ai';
 }
 export interface BrainProposal {

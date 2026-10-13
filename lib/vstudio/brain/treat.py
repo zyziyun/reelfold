@@ -8,7 +8,7 @@
 
 Restrained by default (AESTHETICS.md): a hard cut or a dissolve where the place / light changes, never a flash, a
 whip or a glitch; slow motion only on a steady shot with movement in it and only where the frame cadence stays even
-(60p at 0.5x, or RIFE frames when ``vstudio.rife`` is in the engine); one speed ramp at most in a beat short; a
+(60p at 0.5x, or RIFE frames when ``vstudio.rife`` has its model); one speed ramp at most in a beat short; a
 punch-in only in talking heads; text only where the frame is steady and has room.
 
 Every choice is an "effect fit": each candidate gets a 0-1 fit from the shot's numbers; the best wins, the others are
@@ -361,6 +361,7 @@ def plan(tiles, template, target_s=None, out_aspect=None, beats=False, overrides
                    why=[w for w in (why_t, why_h, why_s, why_r, why_x) if w] + why_g +
                    ([_w("stabilize", "a little shaky: stabilised", "有点晃：做稳定")] if stab else []),
                    choices=dict(transition=tranked, speed=sranked))
+        row["effects"] = _effects(row)
         if tamb or samb:
             row["ambiguous"] = [k for k, v in (("transition", tamb), ("speed", samb)) if v]
             ambiguous.append(row)
@@ -410,6 +411,17 @@ def plan(tiles, template, target_s=None, out_aspect=None, beats=False, overrides
         checks=dict(ramps=sum(1 for r in used if r["speed"] == "ramp") <= max(1, pol["ramps"]),
                     no_flash=all(r["transition"]["kind"] not in ("flash", "whip", "glitch", "light-leak") for r in used)))
     return dict(template=template, policy=_jsonable(pol), shots=out, summary=summary)
+
+
+# the effect catalogue entries (vstudio.effects, /api/effects) each choice is made with
+EFFECT_OF = {"dissolve": "xfade-joins", "morph": "morph-cuts", "morph-fallback": "punch-in", "ramp": "speed-ramps",
+             "stabilize": "stabilize"}
+
+
+def _effects(row):
+    ids = [EFFECT_OF.get(row["transition"]["kind"]), EFFECT_OF.get(row["speed"]),
+           EFFECT_OF["stabilize"] if row.get("stabilize") else None]
+    return [x for x in dict.fromkeys(ids) if x]
 
 
 def _jsonable(pol):

@@ -220,7 +220,9 @@ and Chinese, each changeable by her (desk: the project page's "How it's cut" sec
   wide view, when the output aspect differs), the join (cut | beat cut | dissolve where the light / place / time of
   day changes | match cut | a morph for a jump cut inside one take, a small punch-in without RIFE | continuous),
   exposure / colour match against the film's median and hero shot, deflicker for a pumping drone, where text may
-  sit, stabilise. Quality and darkness are measured against the film's own light (a night film keeps its night
+  sit, stabilise; each used shot names the effect-catalogue entries it is made with (`effects`: `xfade-joins`,
+  `morph-cuts` (`vstudio.morphcut` / `vstudio.rife` when the RIFE model is downloaded), `punch-in`, `speed-ramps`,
+  `stabilize`). Quality and darkness are measured against the film's own light (a night film keeps its night
   shots). Each choice keeps its candidates with a 0-1 fit (`choices`) so "why this effect" can say "dissolve .95 vs
   cut .55"; close ones go to the AI judge when asked; her changes (`brain shot --set transition=cut`) win.
 * **Generation proposals** (`brain/genplan.py`): by stage (`planned` -> `cut` -> `review`): an establishing shot
