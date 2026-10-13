@@ -173,7 +173,7 @@ def test_photo_story_youtube_render_is_english_only(tmp_path):
     spec = tmp_path / "spec.py"
     spec.write_text('PLATFORM = "youtube"\nTITLE_ZH = "西雅图 1962"\nTITLE_EN = "Seattle 1962"\n'
                     'SECTIONS = ["开场"]\nSECTIONS_EN = ["Opening"]\nTTS = dict(language="zh")\nSCRIPT = []\n'
-                    f'CACHE = "{tmp_path / "cache"}"\n')
+                    f'CACHE = {str(tmp_path / "cache")!r}\n')
     C = Ctx(load_spec(str(spec)))
     assert C.SUBS == "en" and not C.ZH_LEAD and C.EN_LEAD and C.HEAD_MAIN == "Seattle 1962" and C.HEAD_SUB == ""
     assert C.HEAD_SECTIONS == ["Opening"] and C.sub_pair("The Needle.", "太空针。") == ("The Needle.", "")
