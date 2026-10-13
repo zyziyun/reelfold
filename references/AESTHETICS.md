@@ -25,10 +25,15 @@ aerial pan). Default calm speed is 1.0 (was 1.2 / 1.3).
 **P3. Matched, restrained grade.** Contrast 1.04, saturation 1.04, no sharpen (a sharpened 4K -> 1080 downscale
 makes city lights and water shimmer), `deflicker` evens out the drone's exposure pumping inside a clip, and each
 segment's brightness is pulled 60 % toward the film's median (max +-0.06) so no cut jumps in exposure
-(`match_exposure`). No orange-and-teal push, no vignette.
+(`match_exposure`), and each shot's colour (white balance, tint, saturation) 60 % toward the film's reference shot
+(`vstudio.colormatch`: MKL chroma + Reinhard luma, capped, one LUT per shot). A film look at 35 % at most
+(`cinema-neutral` by default in the cinema look; `kodak-2383-soft`, `portra-warm`, `fuji-cool`, `mono-silver`,
+`bleach-soft`). No orange-and-teal push, no vignette.
 
 **P4. Cinematic pacing.** Hold the beautiful aerials: 7-14 s windows (10-14 s on the best ones), motivated cuts on
 the music's bars, wide -> closer, the light changing from shot to shot. Fewer, longer shots beat many short ones.
+Never a long dissolve between two framings of the same subject (it shows it twice, a ghosted double exposure): a
+cut, or a 0.3 s dissolve when it moved little (`vstudio.dissolve`).
 
 **P5. Restrained typography.** One font pair: Noto Serif SC (titles, chapter names, quotes) + Noto Sans SC Regular
 (subtitles, labels). Generous letter spacing on small labels (0.14-0.22 em), small sizes, near-white type on a soft
