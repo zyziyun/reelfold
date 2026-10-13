@@ -191,7 +191,7 @@ def _project_outputs(pdir):
     p = Project(pdir)
     collect = M.resolve_ref(p.manifest["outputs"]["collect"])
     st = Store(p.state_dir)
-    out = []
+    out, ids = [], set()
     try:
         for j in st.jobs():
             if j["state"] == "dropped":
@@ -206,11 +206,16 @@ def _project_outputs(pdir):
                 if not f or not os.path.isfile(f) or os.path.splitext(f)[1].lower() not in VIDEO:
                     continue
                 tag = "-".join(x for x in (e.get("platform"), e.get("orientation")) if x) or os.path.basename(f)
-                out.append(dict(id=f"{j['id']}/{tag}", file=os.path.abspath(f), item=j["id"], job_state=j["state"],
+                oid = f"{j['id']}/{tag}"
+                if oid in ids:                       # out/story.mp4 + out/bilibili/story.mp4: the folder tells them apart
+                    oid = f"{j['id']}/{os.path.basename(os.path.dirname(f))}-{tag}"
+                ids.add(oid)
+                out.append(dict(id=oid, file=os.path.abspath(f), item=j["id"], job_state=j["state"],
                                 platform=e.get("platform"), orientation=e.get("orientation"),
                                 title=(j["params"] or {}).get("title"), cover=e.get("cover"), post=e.get("post"),
                                 duration=e.get("duration"),
-                                **{k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box") if e.get(k) is not None},
+                                **{k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box", "platforms", "posts")
+                                   if e.get(k) is not None},
                                 _rows=rows, _params=j["params"] or {}))
     finally:
         st.close()
@@ -220,7 +225,8 @@ def _project_outputs(pdir):
 def item_files(pdir):
     """What each item of a project has made, from the one source every reader shares (the recipe's
     ``outputs.collect`` over the stage records: the same list ``export`` and ``output list`` use) ->
-    ``{item: {state, files: [{file, platform, orientation, cover, post, duration, w, h, fps, ...}]}}``.
+    ``{item: {state, files: [{file, platform, orientation, platforms, cover, post, posts, duration, w, h, fps,
+    ...}]}}`` (``platforms``: the planned platforms the file is for; ``posts``: {platform: post.md} when they differ).
     Only existing video files; the desk's clip list, its thumbnails and the Ready count read this, so a recipe whose
     exports live under ``items/<item>/`` (vlog, explainer, polish, photo-story...) counts as made like a batch one."""
     out = {}

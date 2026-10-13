@@ -960,9 +960,13 @@ class Project:
                 for e in collect(self, j, rows) or []:
                     if not e.get("file") or not os.path.exists(e["file"]):
                         continue
-                    tag = "-".join(x for x in (e.get("clip"), e.get("platform"), e.get("orientation")) if x) or "file"
+                    # ``tag``: a collector's own name for a file (a photo story's out/story.mp4 and
+                    # out/bilibili/story.mp4 are "xiaohongshu-vertical" and "bilibili"), like a platform export's
+                    pf = e.get("platform") or e.get("tag")
+                    tag = "-".join(x for x in (e.get("clip"), pf, e.get("orientation")) if x) or \
+                        os.path.splitext(os.path.basename(e["file"]))[0] or "file"
                     ext = os.path.splitext(e["file"])[1]
-                    name = f"{tag}{ext}" if e.get("platform") else os.path.basename(e["file"])
+                    name = f"{tag}{ext}" if pf else os.path.basename(e["file"])
                     dst = copy_into(e["file"], os.path.join(out_dir, j["id"], name))
                     rec = dict(item=j["id"], platform=e.get("platform"), orientation=e.get("orientation"),
                                **({"clip": e["clip"]} if e.get("clip") else {}),

@@ -684,3 +684,49 @@ def more_platforms(env):
     from ..build import file_sha
     return dict(files=[f for f in files if os.path.exists(f)], platforms=out,
                 digest="".join(file_sha(f) or "" for f in files if os.path.exists(f))[:64] or "none")
+
+
+def collect(project, job, rows):
+    """A photo story's made versions: ``out/story.mp4`` is the first platform's (render / cover / export
+    ``--platform``), ``out/<platform>/`` each other one's (``more_platforms``: its own render when the canvas differs,
+    else the same video, and always its own cover and post copy). One entry per video file with the platforms it
+    is for, their post copies (``posts``), its cover and frame facts; a planned platform with no file is not made
+    and is left out. Then the manifest's other files (subtitles, the A/B covers...)."""
+    from . import common as C
+    p = job["params"] or {}
+    plats = [str(x) for x in p.get("platforms") or []]
+    item_dir = p.get("_item_dir") or ""
+    out_dir = os.path.join(item_dir, "out")
+    primary = os.path.join(out_dir, "story.mp4")
+    first = _canvas(plats[0]) if plats else None
+    by_file, order = {}, []
+    for i, pf in enumerate(plats or [None]):
+        d = out_dir if i == 0 else os.path.join(out_dir, re.sub(r"[^a-z0-9]+", "-", pf.lower()).strip("-"))
+        own = os.path.join(d, "story.mp4")
+        if os.path.isfile(own):
+            f = own
+        elif i and os.path.isfile(primary) and _canvas(pf) == first:
+            f = primary                                       # the same canvas: the same video
+        else:
+            continue                                          # not made (yet)
+        post = os.path.join(d, "post.md")
+        if f not in by_file:
+            e = C.video_entry(f, platforms=[])
+            cov = os.path.join(d, "cover.png")
+            if os.path.isfile(cov):
+                e["cover"] = cov
+            if os.path.isfile(post):
+                e["post"] = post
+            e["posts"] = {}
+            by_file[f] = e
+            order.append(f)
+        e = by_file[f]
+        if pf:
+            e.setdefault("tag", re.sub(r"[^a-z0-9]+", "-", pf.lower()).strip("-"))
+            e["platforms"].append(pf)
+            if os.path.isfile(post):
+                e["posts"].setdefault(pf.split(":")[0], post)
+    used = set(order) | {x for e in by_file.values() for x in (e.get("cover"), e.get("post")) if x}
+    rest = [e for e in C.collect_files(project, job, rows)
+            if e.get("kind") != "video" and e.get("file") not in used]
+    return [by_file[f] for f in order] + rest

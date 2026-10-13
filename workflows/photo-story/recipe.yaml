@@ -198,7 +198,7 @@ checkpoints:
     auto: default
 outputs:
   platforms: ["xiaohongshu:vertical", "xiaohongshu:full", douyin, youtube, youtube-shorts, bilibili, "bilibili:vertical"]
-  collect: vstudio.project.adapters.common:collect_files
+  collect: vstudio.project.adapters.photostory:collect
   files: ["{item_dir}/out/story.mp4", "{item_dir}/out/cover.png", "{item_dir}/out/subtitles.srt", "{item_dir}/out/post.md",
           "{item_dir}/out/voice.mp3", "{item_dir}/out/*/story.mp4", "{item_dir}/out/*/cover.png",
           "{item_dir}/out/*/post.md", "{item_dir}/out/cover.ab*", "{item_dir}/out/*/cover.ab*"]

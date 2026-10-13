@@ -671,10 +671,82 @@ def _geometry(e):
     return {k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box") if e.get(k) is not None}
 
 
+_FACTS = {}
+
+
+def video_facts(f):
+    """A made video's frame facts {w, h, fps, duration} (display size), cached per (path, size, mtime): a listing
+    reads them every few seconds and a probe is a process. {} when it cannot be read."""
+    try:
+        st = os.stat(f)
+    except OSError:
+        return {}
+    k = (os.path.abspath(f), st.st_size, st.st_mtime_ns)
+    if k not in _FACTS:
+        try:
+            from vstudio import media
+            i = media.probe(f)
+            _FACTS[k] = dict(w=int(i.get("display_w") or i["w"]), h=int(i.get("display_h") or i["h"]),
+                             fps=float(i["fps"] or 0) or None, duration=round(float(i["duration"] or 0), 3) or None)
+        except Exception:  # noqa: BLE001  (no ffprobe, a file mid-write: no facts, never a broken listing)
+            return {}
+        if len(_FACTS) > 2000:
+            _FACTS.clear()
+    return dict(_FACTS[k])
+
+
+def canvas_of(platform):
+    """A platform name ("bilibili", "xiaohongshu:vertical") -> its canvas (w, h), or None (unknown)."""
+    from vstudio import platform as P
+    try:
+        p = P.profile(platform)
+        return int(p.w), int(p.h)
+    except (KeyError, ValueError):
+        return None
+
+
+def platforms_on(plats, w, h):
+    """The planned platforms (``params.platforms``) whose canvas has the shape of a w x h file, in plan order."""
+    if not w or not h:
+        return []
+    out = []
+    for p in plats or []:
+        cv = canvas_of(p)
+        if cv and abs(cv[0] / cv[1] - w / h) < 0.02:
+            out.append(str(p))
+    return out
+
+
+def _sidecar(dirs, names):
+    for d in dirs:
+        for n in names:
+            hits = sorted(_glob(os.path.join(d, n)))
+            if hits:
+                return hits[0]
+    return None
+
+
+def video_entry(f, plats=(), item_dir=None, platforms=None):
+    """A made video as a collector entry: its frame facts, the planned platforms it is for (given, else the ones
+    on its canvas), its cover and post copy (beside it, else in the item folder). ``platform`` stays None: the
+    output's id and export name keep reading the file's name (her edit docs are keyed on them)."""
+    e = dict(platform=None, orientation=None, kind="video", file=f, **video_facts(f))
+    e["platforms"] = list(platforms) if platforms is not None else platforms_on(plats, e.get("w"), e.get("h"))
+    stem = os.path.splitext(os.path.basename(f))[0]
+    dirs = [os.path.dirname(f)] + ([item_dir] if item_dir and os.path.abspath(item_dir) != os.path.dirname(
+        os.path.abspath(f)) else [])
+    e["cover"] = _sidecar(dirs, [f"{stem}.cover.png", f"{stem}.cover.jpg", "cover.png", "cover.jpg", "cover-*.jpg",
+                                 "cover-*.png"])
+    e["post"] = _sidecar(dirs, [f"{stem}.post.md", "post.md"])
+    return e
+
+
 def collect_files(project, job, rows):
-    """``outputs.files`` templates of the manifest (item dir relative), the ones that exist."""
+    """``outputs.files`` templates of the manifest (item dir relative), the ones that exist. A video carries its
+    frame facts, the planned platforms on its canvas and its cover / post copy (``video_entry``)."""
     m = project.manifest
     t = static_tctx(m, job["params"], job["id"])
+    plats = list((job["params"] or {}).get("platforms") or [])
     out = []
     for tpl in m["outputs"].get("files") or []:
         try:
@@ -682,7 +754,10 @@ def collect_files(project, job, rows):
         except M.Missing:
             continue
         for f in sorted(_glob(p)):
-            out.append(dict(platform=None, orientation=None, kind=_kind_of(f), file=f))
+            if _kind_of(f) == "video":
+                out.append(video_entry(f, plats, t.get("item_dir")))
+            else:
+                out.append(dict(platform=None, orientation=None, kind=_kind_of(f), file=f))
     return out
 
 
