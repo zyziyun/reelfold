@@ -1,11 +1,15 @@
 ---
 title: Qué es Reelfold
-description: Reelfold (千剪) es una herramienta de video gratuita, abierta y local que convierte una grabación en todos los cortes para cada plataforma. Así funciona.
+description: "Reelfold (千剪) es el taller de código abierto para creadores: tu propio material, editado en videos para cada plataforma y programado, en tu Mac. Así funciona."
 ---
 
-Reelfold (千剪) convierte una sola grabación en la tanda de clips que vas a publicar esta semana. Describes lo que quieres con tus propias palabras y sueltas el material. Reelfold planifica los clips, los edita en tu propio Mac, revisa cada archivo y solo te muestra lo que necesita tu atención. Cada plataforma recibe su propia exportación, portada, título, descripción y etiquetas.
+Reelfold (千剪) es el taller de código abierto para creadores. Parte del material que grabaste y lo lleva hasta la publicación: describes lo que quieres con tus propias palabras y sueltas una grabación, una carpeta o una tarjeta SD, o un video terminado que quieras seguir editando. Reelfold planifica los videos, edita muchos a la vez en tu propio Mac (en piloto automático, con modelos locales si quieres), revisa cada archivo y solo te muestra lo que necesita tu atención. Cada plataforma recibe su propia exportación, portada, título, descripción y etiquetas, primero YouTube, TikTok, Instagram, X y LinkedIn, luego Xiaohongshu, Douyin, Bilibili y WeChat Channels, y el calendario de publicación ordena la semana.
 
 Es gratis, tiene licencia MIT y es de código abierto. El código está en [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
+
+## Primero tu material
+
+Reelfold no genera una película a partir de un prompt. Trabaja con lo que ya grabaste: charlas, clases, entrevistas, clips de viaje, fotos, videos terminados. Se encarga de todo lo que viene después de la cámara: montaje, subtítulos, portadas, una versión por plataforma, textos de publicación y calendario. Si falta un plano, puede sugerir uno generado, con su precio, y no se gasta nada sin tu aprobación.
 
 ## Dos formas de usarlo
 

@@ -9,8 +9,8 @@
   </picture>
 </p>
 
-<p align="center"><b>Un enregistrement, chaque montage, pour chaque plateforme.</b><br>
-Un outil vidéo gratuit et open source pour celles et ceux qui montent en série.</p>
+<p align="center"><b>L’atelier open source des créateurs.</b><br>
+Vos propres rushes, montés en vidéos pour chaque plateforme et planifiés, sur votre Mac. Gratuit, MIT.</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/fr/">Documentation</a> ·
@@ -19,11 +19,16 @@ Un outil vidéo gratuit et open source pour celles et ceux qui montent en série
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Décrivez, déposez les rushes.** Dites ce que vous voulez avec vos mots ; Reelfold choisit les extraits et les monte
-  en parallèle sur votre propre Mac.
-- **Ne relisez que les exceptions.** Chaque fichier est vérifié automatiquement ; vous ne regardez que ce qui est signalé.
-- **Chaque plateforme dans son format.** 20 plateformes, chacune avec sa taille, ses sous-titres, son volume sonore, sa
-  couverture et son texte. La publication est assistée : Reelfold remplit la page de mise en ligne, vous cliquez sur publier.
+- **Tout part de vos rushes.** Déposez ce que vous avez filmé (une intervention, un cours, une carte SD de voyage) ou
+  une vidéo finie à reprendre, et dites ce que vous voulez avec vos mots. Reelfold ne génère pas un film à partir
+  d’un prompt ; il fait le travail qui vient après la caméra.
+- **Plusieurs vidéos à la fois, en pilote automatique.** Il planifie les vidéos, regroupe un dossier en histoires et
+  les monte en parallèle sur votre propre Mac, avec des modèles locaux si vous voulez. Chaque fichier est vérifié ;
+  vous ne regardez que ce qui est signalé.
+- **Chaque plateforme dans son format, dans un calendrier.** YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis
+  Xiaohongshu, Douyin, Bilibili et WeChat Channels : 20 plateformes, chacune avec sa taille, ses sous-titres, son
+  volume sonore, sa couverture et son texte. Planifiez la semaine dans le calendrier ; Reelfold remplit chaque page
+  de mise en ligne et c’est vous qui publiez.
 
 ![Face caméra · extraits de cours · récit photo · vlog rythmé · podcast masqué · vidéo explicative](docs/demos/strip.jpg)
 
@@ -50,6 +55,8 @@ L'IA tourne avec ce que vous avez déjà : votre connexion Claude Code ou Codex,
 
 | Vous voulez | Dites par exemple |
 |---|---|
+| Plusieurs vidéos d’une carte | « Fais plusieurs vidéos avec ma carte DJI, chacune avec son thème, pour YouTube et Instagram » |
+| Reprendre une vidéo finie | « Voici la vidéo de la semaine dernière : resserre le début, nouvelle couverture, et une version verticale pour TikTok » |
 | Un face caméra bien serré | « Retire les pauses, les tics de langage et les répétitions, accélère à 1,1×, ajoute des sous-titres et une barre de progression, exporte pour TikTok et Shorts » |
 | Un cours en extraits verticaux | « Découpe ce cours de 70 minutes en 3 épisodes verticaux, une idée par épisode, zoome sur le code, avec couvertures et textes de publication » |
 | Un extrait de podcast | « Trouve la meilleure minute de ce podcast Zoom, masque le visage et le nom de l'invité, en vertical » |

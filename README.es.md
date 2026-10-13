@@ -9,8 +9,8 @@
   </picture>
 </p>
 
-<p align="center"><b>Una grabación, todos los cortes, para cada plataforma.</b><br>
-Una herramienta de vídeo gratuita y de código abierto para quien edita por lotes.</p>
+<p align="center"><b>El taller de código abierto para creadores.</b><br>
+Tu propio material, editado en vídeos para cada plataforma y programado, en tu Mac. Gratis, MIT.</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/es/">Documentación</a> ·
@@ -19,11 +19,14 @@ Una herramienta de vídeo gratuita y de código abierto para quien edita por lot
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Descríbelo y suelta el material.** Di lo que quieres con tus palabras; Reelfold elige los clips y los edita en
-  paralelo en tu propio Mac.
-- **Revisa solo las excepciones.** Cada archivo se comprueba automáticamente; tú solo miras lo que queda marcado.
-- **Cada plataforma con su formato.** 20 plataformas, cada una con su tamaño, subtítulos, volumen, portada y texto. La
-  publicación es asistida: Reelfold rellena la página de subida y tú pulsas publicar.
+- **Parte de tu material.** Suelta lo que grabaste (una charla, una clase, una tarjeta SD de un viaje) o un vídeo
+  terminado que quieras seguir editando, y di lo que quieres con tus palabras. Reelfold no genera una película a
+  partir de un prompt; hace el trabajo que viene después de la cámara.
+- **Muchos vídeos a la vez, en piloto automático.** Planifica los vídeos, agrupa una carpeta en historias y los edita
+  en paralelo en tu propio Mac, con modelos locales si quieres. Cada archivo se comprueba; tú solo miras lo marcado.
+- **Cada plataforma con su formato, en un calendario.** Primero YouTube, TikTok, Instagram, X y LinkedIn, luego
+  Xiaohongshu, Douyin, Bilibili y WeChat Channels: 20 plataformas, cada una con su tamaño, subtítulos, volumen, portada
+  y texto. Planifica la semana en el calendario de publicación; Reelfold rellena cada página de subida y tú publicas.
 
 ![Vídeo a cámara · clips de una clase · historia con fotos · vlog al ritmo · pódcast con caras ocultas · vídeo explicativo](docs/demos/strip.jpg)
 
@@ -50,6 +53,8 @@ La IA funciona con lo que ya tienes: tu sesión de Claude Code o Codex, tu propi
 
 | Quieres | Di algo como |
 |---|---|
+| Varios vídeos de una tarjeta | "Haz varios vídeos con mi tarjeta DJI, cada uno con su tema, para YouTube e Instagram" |
+| Seguir editando un vídeo terminado | "Este es el vídeo de la semana pasada: ajusta el inicio, portada nueva y una versión vertical para TikTok" |
 | Un vídeo a cámara bien ajustado | «Quita las pausas, las muletillas y las repeticiones, acelera a 1,1×, añade subtítulos y una barra de progreso, y expórtalo para TikTok y Shorts» |
 | Una clase en clips verticales | «Corta esta clase de 70 minutos en 3 episodios verticales, una idea por episodio, con zoom al código, portadas y textos para publicar» |
 | Un clip de pódcast | «Busca el mejor minuto de este pódcast de Zoom, oculta la cara y el nombre del invitado, en vertical» |

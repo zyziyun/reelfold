@@ -9,8 +9,9 @@
   </picture>
 </p>
 
-<p align="center"><b>One recording, every cut, for every platform.</b><br>
-Free, open-source video tool for people who cut in batches. 千剪：一条素材，千条成片。</p>
+<p align="center"><b>The open-source workbench for creators.</b><br>
+Your own footage, edited into videos for every platform and scheduled, on your Mac. Free, MIT.<br>
+千剪：开源自媒体工作者工作台。</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/">Docs</a> ·
@@ -19,11 +20,14 @@ Free, open-source video tool for people who cut in batches. 千剪：一条素�
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Describe it, drop the footage.** Say what you want in plain words; Reelfold plans the clips and edits them in
-  parallel on your own Mac.
-- **Review only the exceptions.** Every file is checked automatically; you look at what was flagged.
-- **Every platform in its own shape.** 20 platforms, each with its own size, captions, loudness, cover and copy.
-  Publishing is assisted: Reelfold fills in the upload page, you press publish.
+- **Starts from your footage.** Drop in what you shot (a talk, a lecture, an SD card of travel clips) or a finished
+  video you want to keep editing, and say what you want in plain words. Reelfold doesn't generate a film from a
+  prompt; it runs the work that comes after the camera.
+- **Many videos at once, on autopilot.** It plans the videos, groups a folder into stories, and edits them in
+  parallel on your own Mac, with local models if you like. Every file is checked; you look only at what was flagged.
+- **Every platform in its own shape, on a calendar.** YouTube, TikTok, Instagram, X and LinkedIn first, then
+  Xiaohongshu, Douyin, Bilibili and WeChat Channels: 20 platforms, each with its own size, captions, loudness, cover
+  and copy. Plan the week on the publishing calendar; Reelfold fills in each upload page and you press publish.
 
 ![Talking head · lecture slices · photo story · beat-cut vlog · podcast with masked faces · explainer](docs/demos/strip.jpg)
 
@@ -50,6 +54,8 @@ AI runs on what you already have: your Claude Code or Codex login, your own API 
 
 | You want | Say something like |
 |---|---|
+| Several videos from one card | "Make several videos from my DJI card, each with its own theme, for YouTube and Instagram" |
+| Keep editing a finished video | "Here is last week's video: tighten the opening, new cover, and make a vertical version for TikTok" |
 | A tight talking-head short | "Cut the pauses, filler words and repeats, speed it up 1.1×, add captions and a progress bar, export for TikTok and Shorts" |
 | A lecture as vertical clips | "Slice this 70-minute lecture into 3 vertical episodes, one idea each, zoom into the code, with covers and post copy" |
 | A podcast clip | "Find the best minute of this Zoom podcast, hide the guest's face and name label, vertical" |

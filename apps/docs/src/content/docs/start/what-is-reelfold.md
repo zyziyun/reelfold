@@ -1,11 +1,15 @@
 ---
 title: What is Reelfold
-description: Reelfold (千剪) is a free, open-source, local-first video tool that turns one recording into every cut for every platform. Learn how it works.
+description: "Reelfold (千剪) is the open-source workbench for creators: your own footage, edited into videos for every platform and scheduled, on your Mac. Learn how it works."
 ---
 
-Reelfold (千剪) turns one recording into the set of clips you post this week. You describe what you want in plain language and drop in the footage. Reelfold plans the clips, edits them on your own Mac, checks every file and shows you only what needs a look. Each platform gets its own export, cover, title, caption and tags.
+Reelfold (千剪) is the open-source workbench for creators. It starts from the footage you shot and carries it all the way to publishing: you describe what you want in plain language and drop in a recording, a folder or an SD card, or a finished video you want to keep editing. Reelfold plans the videos, edits many at once on your own Mac (on autopilot, with local models if you like), checks every file and shows you only what needs a look. Each platform gets its own export, cover, title, caption and tags, YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu, Douyin, Bilibili and WeChat Channels, and the publishing calendar lines up the week.
 
 It is free, MIT licensed and open source. The code lives at [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
+
+## Footage first
+
+Reelfold is not a tool that generates a film from a prompt. It works on what you already shot: talks, lectures, interviews, travel clips, photos, finished videos. The work it takes off your hands is everything after the camera: cutting, captions, covers, a version per platform, post copy and the posting schedule. Where a shot is missing it can suggest a generated one, with a price, and nothing is spent until you approve.
 
 ## Two ways to use it
 

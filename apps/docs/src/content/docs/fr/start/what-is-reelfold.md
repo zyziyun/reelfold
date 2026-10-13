@@ -1,11 +1,15 @@
 ---
 title: Qu’est-ce que Reelfold
-description: Reelfold (千剪) est un outil vidéo libre, gratuit et local qui tire d’un enregistrement tous les montages pour chaque plateforme. Voici comment il fonctionne.
+description: "Reelfold (千剪) est l’atelier open source des créateurs : vos propres rushes, montés en vidéos pour chaque plateforme et planifiés, sur votre Mac. Voici comment il fonctionne."
 ---
 
-Reelfold (千剪) transforme un seul enregistrement en la série de clips que vous publierez cette semaine. Vous décrivez ce que vous voulez avec vos mots et vous déposez vos rushes. Reelfold planifie les clips, les monte sur votre propre Mac, vérifie chaque fichier et ne vous montre que ce qui mérite un coup d’œil. Chaque plateforme reçoit son propre export, sa couverture, son titre, sa légende et ses hashtags.
+Reelfold (千剪) est l’atelier open source des créateurs. Il part des images que vous avez filmées et les mène jusqu’à la publication : vous décrivez ce que vous voulez avec vos mots et déposez un enregistrement, un dossier ou une carte SD, ou une vidéo finie à reprendre. Reelfold planifie les vidéos, en monte plusieurs à la fois sur votre propre Mac (en pilote automatique, avec des modèles locaux si vous voulez), vérifie chaque fichier et ne vous montre que ce qui mérite un coup d’œil. Chaque plateforme reçoit son propre export, sa couverture, son titre, sa légende et ses hashtags, YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis Xiaohongshu, Douyin, Bilibili et WeChat Channels, et le calendrier de publication organise la semaine.
 
 Il est gratuit, sous licence MIT et open source. Le code se trouve sur [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
+
+## Les rushes d’abord
+
+Reelfold ne génère pas un film à partir d’un prompt. Il travaille sur ce que vous avez déjà filmé : interventions, cours, entretiens, images de voyage, photos, vidéos finies. Il vous décharge de tout ce qui vient après la caméra : montage, sous-titres, couvertures, une version par plateforme, textes de publication et calendrier. S’il manque un plan, il peut en suggérer un généré, avec son prix, et rien n’est dépensé sans votre accord.
 
 ## Deux façons de l’utiliser
 
