@@ -304,7 +304,7 @@ export interface LiveState {
 
 /** A job's transcript, live: the backlog first, then whatever the engine announces (`live` events), with a slow
  * re-read as a safety net (it also keeps the engine watching the job). */
-export function useLive(kind: 'request' | 'project', id: string | null | undefined, enabled = true): LiveState {
+export function useLive(kind: 'request' | 'project' | 'ask', id: string | null | undefined, enabled = true): LiveState {
   const { client, subscribe } = useEngine();
   const [st, setSt] = useState<LiveState>({ lines: [], running: false, loaded: false, error: null, version: 0 });
   const cursor = useRef<string | null>(null);

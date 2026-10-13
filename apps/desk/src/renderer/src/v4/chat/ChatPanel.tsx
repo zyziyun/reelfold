@@ -20,13 +20,14 @@ import { useAskAiEdits } from '../../lib/prefs';
 import { useEngine } from '../../lib/engine';
 import { go } from '../../lib/router';
 import { textLang } from '../../lib/transcript';
-import { ModelPicker } from '../AiChip';
+import { FallbackNote, ModelPicker } from '../AiChip';
 import { ProjectAiChip } from '../AiPick';
-import { Sk } from '../kit';
 import { effectLabel, emsg, errText } from '../msg';
 import { useUi } from '../ui';
 import { CaptionsCard, CARD_ICON, CoverCard, EffectCard, ExportCard, FallbackCard, primaryPlatform, TrimCard, type CardEnv, type ExportRun } from './cards';
 import { CutCard } from './CutCard';
+import { EditProgress } from './EditProgress';
+import { editEstimate, rememberEditTime, timeKey } from '../../lib/editProgress';
 import './chat.css';
 import { trackUsage } from '../../lib/usage';
 import { keyHint } from '../../lib/keys';
@@ -81,6 +82,8 @@ interface Local {
 }
 
 const r1 = (x: number) => fmtClock(x, true);
+/** a chat edit's live id (its transcript: GET /api/live/ask/<id>) */
+const liveId = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
 /** how long the panel waits for an answered /ask turn to appear in the conversation before showing an error */
 const LOST_TURN_MS = 12_000;
 const SUG_ICON = { pauses: Scissors, pop: Sparkles, platform: Upload, cover: ImageIcon };
@@ -102,7 +105,9 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   const turns = useMemo(() => doc.chat ?? [], [doc.chat]);
   const [local, setLocal] = useState<Record<string, Local>>({});
   const [adjust, setAdjust] = useState<{ turn: string; i: number } | null>(null);
-  const [pending, setPending] = useState<{ text: string; ctx: AskContext | null; token: number; turn?: string } | null>(null);
+  // the request on its way: its live id (the bubble's progress + the AI's log), when it left, the changes being put on
+  // the clip, and - when it failed - why (the bubble names the step and offers Retry; never a silent stop)
+  const [pending, setPending] = useState<{ text: string; ctx: AskContext | null; token: number; turn?: string; live: string; started: number; estimate: number | null; applying?: number | null; applied?: boolean; failed?: string | null } | null>(null);
   // /ask answered but its turn never showed up in the clip's conversation: stop the spinner and say so
   const [lost, setLost] = useState<{ text: string; ctx: AskContext | null } | null>(null);
   // Before / after: a draft's ops over the clip, or an applied change against the clip as it was before it
@@ -225,35 +230,46 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     if (sc) return runSlash(sc, q); // a command is never sent to the model
     const ctx = contextOf(p.sel, p.fxSel, doc);
     const token = ++tok.current;
+    const live = liveId();
+    const t0 = Date.now();
+    // her usual time on the model this request goes to (keyed as chosen: "CLI default" stays one key)
+    const now = projNow();
+    const key = timeKey(now?.provider, now?.model);
     setLost(null);
-    setPending({ text: q, ctx, token });
+    setPending({ text: q, ctx, token, live, started: t0, estimate: editEstimate(key) });
     setText('');
     try {
-      const r = await client.askOutput(item, clip, q, ctx);
+      const r = await client.askOutput(item, clip, q, ctx, live);
       if (tok.current !== token) return;
+      // answered by that model (not a fallback, not the rules): how long it took, for the next "about N s left"
+      if (r.provider && r.provider !== 'rules' && (!now || r.provider === now.provider)) rememberEditTime(key ?? timeKey(r.provider, r.model), (Date.now() - t0) / 1000);
       // act at once, make it undoable: the change goes on the clip now (Undo / Before / after on its card); what
       // removes most of the clip or cannot be taken back cheaply - or everything, when she asked for that - waits
       const ops = (r.proposals ?? []).map((x) => x.op);
       if (r.turn && ops.length && !askAi && !askFirstReason(ops, doc)) {
         const turn = r.turn;
         setBefores((m) => ({ ...m, [turn]: doc }));
+        setPending((x) => (x && x.token === token ? { ...x, applying: ops.length } : x));
         try {
           await client.editOutput(item, clip, ops, turn);
         } catch (e) {
           setErrs((m) => ({ ...m, [turn]: errText(e) }));
         }
       }
+      setPending((x) => (x && x.token === token ? { ...x, applying: x.applying ?? 0, applied: true } : x));
       setPending((x) => (x && x.token === token ? { ...x, turn: r.turn ?? undefined } : x));
       p.reload();
       if (!r.turn) setPending(null);
     } catch (e) {
-      if (tok.current === token) setPending(null);
-      ui.toast(errText(e), { error: true });
+      // the bubble stays: the step it stopped at, why, Retry
+      if (tok.current === token) setPending((x) => (x && x.token === token ? { ...x, failed: errText(e) || t('ce.pg.failedWhy') } : x));
     }
   };
   const stop = () => {
     tok.current++;
+    const live = pending?.live;
     setPending(null);
+    if (client && live) void client.stopAsk(live).catch(() => undefined); // the engine call + the model CLI end too
   };
   /** /model, /help, an unknown /word: a turn in the thread (her command + the answer), no model involved */
   const runSlash = async (sc: Slash, raw: string) => {
@@ -721,6 +737,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
           )}
           {body}
           {cost && <span className="cost" data-testid="chat-cost">{cost}</span>}
+          {x.fallback && <FallbackNote fallback={x.fallback} />}
         </div>
       </div>
     );
@@ -945,14 +962,30 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
         {pending && (
           <div className="col" style={{ gap: 10 }}>
             {meBubble(pending.text, pending.ctx)}
-            <div className="cc-ai" data-testid="chat-thinking">
+            <div className="cc-ai" data-testid={pending.failed ? 'chat-failed' : 'chat-thinking'}>
               <span className="av">
                 <Sparkles className="ico" />
               </span>
-              <div className="body skl">
-                <span className="muted">{pending.ctx?.range ? t('ce.thinkingRange', { a: r1(pending.ctx.range[0]), b: r1(pending.ctx.range[1]) }) : t('ce.thinking')}</span>
-                <Sk w="78%" h={10} />
-                <Sk w="52%" h={10} />
+              <div className="body">
+                <EditProgress
+                  key={pending.live}
+                  live={pending.live}
+                  started={pending.started}
+                  local={{ applying: pending.applying, applied: pending.applied }}
+                  estimate={pending.estimate}
+                  failed={pending.failed}
+                  label={pending.ctx?.range ? t('ce.thinkingRange', { a: r1(pending.ctx.range[0]), b: r1(pending.ctx.range[1]) }) : null}
+                />
+                {pending.failed && (
+                  <div className="row" style={{ gap: 8 }}>
+                    <button className="btn" onClick={() => void send(pending.text)} data-testid="chat-failed-retry">
+                      {t('ce.off.retry')}
+                    </button>
+                    <button className="btn ghost" onClick={() => setPending(null)}>
+                      {t('ce.lostDismiss')}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1034,7 +1067,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
           <div className="bot">
             <div className="chips">
               {quick.map((c) => (
-                <button key={c.id} className="chip" onClick={c.run} disabled={!!pending} data-testid={`quick-${c.id}`}>
+                <button key={c.id} className="chip" onClick={c.run} disabled={!!pending && !pending.failed} data-testid={`quick-${c.id}`}>
                   {c.label}
                 </button>
               ))}
@@ -1048,7 +1081,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
             ) : (
               <ProjectAiChip item={item} testId="ce-provider-chip" compact orTask="edit" />
             )}
-            {pending ? (
+            {pending && !pending.failed ? (
               <button className="send on" onClick={stop} aria-label={t('ce.stop')} data-tip={t('ce.stop')} data-testid="chat-stop">
                 <Square className="ico" style={{ width: 12, height: 12 }} />
               </button>

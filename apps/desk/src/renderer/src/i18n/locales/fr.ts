@@ -1701,6 +1701,22 @@ const chatEditFr: Record<keyof typeof chatEditEn, string> = {
   'ce.drawer.close': 'Fermer l’édition précise',
   'ce.manualStep': 'Modifié à la main',
   'ce.kbd.title': 'Touches',
+  'ce.pg.read': 'Lecture du clip',
+  'ce.pg.think': 'L’IA prépare les changements',
+  'ce.pg.check': 'Vérification des changements',
+  'ce.pg.apply': '{n, plural, =0 {Application des changements au clip} one {Application de # changement au clip} other {Application de # changements au clip}}',
+  'ce.pg.done': 'Terminé',
+  'ce.pg.step': 'Étape {i} sur {n}',
+  'ce.pg.left': 'encore environ {s} s',
+  'ce.pg.quiet': 'Toujours en cours — l’IA réfléchit',
+  'ce.pg.wait': 'En attente des premiers mots de l’IA…',
+  'ce.pg.log': 'Voir le journal de l’IA ({n})',
+  'ce.pg.logHide': 'Masquer le journal',
+  'ce.pg.copy': 'Copier',
+  'ce.pg.failedAt': 'Arrêté à : {step}',
+  'ce.pg.failedWhy': 'L’IA n’a pas répondu.',
+  'ce.pg.stopped': 'Arrêté',
+  'ce.pg.applyClip': 'Application au clip {i} sur {n}…',
 };
 
 // ---------------------------------------------------------------- ./channels.ts

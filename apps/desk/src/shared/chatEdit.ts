@@ -1,6 +1,7 @@
 // The chat-first clip editor (ux/CHAT_EDIT.md, direction C): the clip's chat transcript as the engine / desk keep
 // it with the clip's edit doc (`output chat`, show.chat), the context she points at, export jobs.
 import type { EngineMsg, OutputDoc, Proposal, Step } from './v04';
+import type { FallbackInfo } from './aiRoutes';
 
 /** What she points at: a timeline selection, caption cues, the open effect (engine `output ai --context`). */
 export interface AskContext {
@@ -35,6 +36,8 @@ export interface ChatTurn {
    * 'model' / 'help' = her /model or /help command and its answer (`reply`), never sent to the model */
   card?: CardKind | 'transcript' | 'model' | 'help' | null;
   reply?: string | null;
+  /** the AI she picked failed and another answered (who, why): the footer says so */
+  fallback?: FallbackInfo | null;
 }
 
 export type HistStep = Step & { reverted?: boolean; revert_of?: string | null };

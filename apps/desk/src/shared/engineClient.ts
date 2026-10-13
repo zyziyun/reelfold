@@ -315,8 +315,9 @@ export class EngineClient {
   }
   /** 「看过程」: the run's last events as codes (the desk words them) */
   /** a request's / a project run's live transcript after ``cursor`` (the live pane) */
-  live(kind: 'request' | 'project', id: string, cursor?: string | null) {
-    return this.req<LiveDoc>('GET', `/api/live/${kind}/${bid(id)}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+  live(kind: 'request' | 'project' | 'ask', id: string, cursor?: string | null) {
+    const k = kind === 'ask' ? (/^[0-9a-f]{10,12}$/.test(id) ? id : bid(id)) : bid(id); // ask: a chat edit / a project-ask job
+    return this.req<LiveDoc>('GET', `/api/live/${kind}/${k}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
   }
   progressFeed(id: string, n = 30) {
     return this.req<ProgressFeed>('GET', `/api/history/item/${bid(id)}/progress?n=${n}`);
@@ -466,13 +467,20 @@ export class EngineClient {
   previewEdl(item: string, clip: string, ops: EditOp[], signal?: AbortSignal) {
     return this.req<PreviewEdl>('POST', `/api/outputs/${bid(item)}/${clipId(clip)}/preview-edl`, { ops }, signal);
   }
-  /** context: what she points at (timeline selection, caption cues, the open effect) */
-  askOutput(item: string, clip: string, prompt: string, context?: AskContext | null) {
+  /** context: what she points at (timeline selection, caption cues, the open effect); live: an id for this request -
+   * its steps and the model's streamed lines are read with live('ask', id) while it runs (the bubble's progress) */
+  askOutput(item: string, clip: string, prompt: string, context?: AskContext | null, live?: string | null) {
+    if (live && !/^[0-9a-f]{12}$/.test(live)) throw new EngineError(400, `bad ask id ${live}`);
     return this.req<AskResult & { turn?: string | null; context?: AskContext | null; cost_usd?: number | null; seconds?: number | null }>(
       'POST',
       `/api/outputs/${bid(item)}/${clipId(clip)}/ask`,
-      context ? { prompt: prompt.slice(0, 500), context } : { prompt: prompt.slice(0, 500) },
+      { prompt: prompt.slice(0, 500), ...(context ? { context } : {}), ...(live ? { live } : {}) },
     );
+  }
+  /** Stop a chat edit sent with a live id: the engine call and the model CLI it started are killed */
+  stopAsk(live: string) {
+    if (!/^[0-9a-f]{12}$/.test(live)) throw new EngineError(400, `bad ask id ${live}`);
+    return this.req<{ ok: boolean; killed: number }>('POST', `/api/live/ask/${live}/stop`, {});
   }
   /** project-level 让 AI 改: one request for every clip (or `clips`) of the project -> a background job */
   projectAsk(item: string, prompt: string, clips?: string[] | null, context?: Record<string, unknown> | null) {

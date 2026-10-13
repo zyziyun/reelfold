@@ -19,6 +19,9 @@ import { go } from '../lib/router';
 import { useUi } from './ui';
 import { AnsweredBy, FallbackNote } from './AiChip';
 import { ProjectAiChip } from './AiPick';
+import { AgentLog } from './chat/EditProgress';
+import { useLive } from '../lib/live';
+import './chat/chat.css';
 
 interface Msg {
   id: number;
@@ -116,6 +119,10 @@ export function ProjectAIPanel({
     return () => window.removeEventListener('project-chat:prefill', on);
   }, [item]);
   const busy = Boolean(job && job.state === 'running') || started > 0;
+  // the AI's own log while it plans (the model CLI's stream, GET /api/live/ask/<job>)
+  const plive = useLive('ask', job?.job ?? null, !!job);
+  // "Apply to all": which clip it is putting the changes on now (1 of 3, 2 of 3…)
+  const [applying, setApplying] = useState<{ i: number; n: number } | null>(null);
   useEffect(() => {
     log.current?.scrollTo({ top: 1e9, behavior: 'smooth' });
   }, [msgs, job?.stages.length]);
@@ -253,7 +260,15 @@ export function ProjectAIPanel({
   };
   const applyAll = async (m: Msg) => {
     let n = 0;
-    for (const g of m.result?.groups ?? []) if (g.proposals.length && !m.applied?.[g.clip] && (await applyGroup(m.id, g, true))) n++;
+    const todo = (m.result?.groups ?? []).filter((g) => g.proposals.length && !m.applied?.[g.clip]);
+    try {
+      for (const [i, g] of todo.entries()) {
+        setApplying({ i: i + 1, n: todo.length });
+        if (await applyGroup(m.id, g, true)) n++;
+      }
+    } finally {
+      setApplying(null);
+    }
     onApplied?.();
     if (n) ui.toast(t('pai.appliedAll', { n }));
   };
@@ -459,6 +474,17 @@ export function ProjectAIPanel({
               </button>
             </span>
             {asking && elapsed >= 20 && job && <span className="faint small">{t('pai.slow', { s: Math.round(job.timeout) })}</span>}
+            <AgentLog lines={plive.lines} />
+          </div>
+        )}
+        {applying && (
+          <div className="msg col" style={{ gap: 6 }} data-testid="pai-applying" aria-live="polite">
+            <span>{t('ce.pg.applyClip', { i: applying.i, n: applying.n })}</span>
+            <div className="ep-bar" role="progressbar" aria-valuemin={0} aria-valuemax={applying.n} aria-valuenow={applying.i - 1}>
+              {Array.from({ length: applying.n }, (_, k) => (
+                <i key={k} className={k < applying.i - 1 ? 'done' : k === applying.i - 1 ? 'now' : ''} />
+              ))}
+            </div>
           </div>
         )}
       </div>

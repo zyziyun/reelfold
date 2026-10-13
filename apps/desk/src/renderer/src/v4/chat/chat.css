@@ -228,3 +228,27 @@
 .ce-top .ct-edit { opacity: 0.45; }
 .ce-top .ct-edit:hover, .ce-top .ct-edit:focus-visible { opacity: 1; }
 .ce-top h1[data-testid='editor-title'] { cursor: text; }
+
+/* a chat edit while it runs (EditProgress): the step, a slim segmented bar, the AI's log under it */
+.ep { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ep-hd { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ep-hd .sp { flex: 1; }
+.ep-meta { color: var(--text-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ep-what { font-size: 12px; }
+.ep-bar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; height: 4px; }
+.ep-bar i { border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; position: relative; }
+.ep-bar i.done { background: var(--accent); }
+.ep-bar i.bad { background: var(--danger); }
+.ep-bar i.now { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.ep-bar i.now::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--accent); border-radius: 2px; animation: ep-run 1.4s ease-in-out infinite; }
+@keyframes ep-run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .ep-bar i.now::after { animation: none; width: 100%; opacity: 0.6; } }
+.ep-quiet { font-size: 12px; }
+.ep-why { font-size: 12.5px; }
+.ep-log.lv { height: auto; border-radius: 7px; padding: 6px 0; font-family: var(--mono, ui-monospace, monospace); font-size: 11.5px; line-height: 1.5; max-height: 4.9em; overflow: hidden; }
+.ep-log.lv.open { max-height: 240px; overflow: auto; user-select: text; }
+.ep-log .lv-ln { grid-template-columns: 70px minmax(0, 1fr); padding: 0 10px; }
+.ep-log:not(.open) .lv-x { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.ep-log .ep-wait { display: block; color: var(--lp-dim); }
+.ep-ft { display: flex; gap: 4px; }
+.ep.bad .ep-hd b { color: var(--danger); }

@@ -19,6 +19,10 @@ let item = '';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vsdesk-chat-'));
 const watch = path.join(tmp, 'demos');
 const fuye = path.join(watch, 'fuye');
+// the test engine keeps a chat edit in its "AI is planning" step while HOLD exists, fails it there while FAIL exists
+const HOLD = path.join(tmp, 'ask.hold');
+const FAIL = path.join(tmp, 'ask.fail');
+const FALLBACK = path.join(tmp, 'ask.fallback');
 
 function ffmpeg(args: string[]) {
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...args]);
@@ -36,7 +40,7 @@ test.beforeAll(async () => {
   }
   app = await electron.launch({
     args: [path.resolve(import.meta.dirname, '../..')],
-    env: { ...process.env, DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_EXPORT_STEP: '0.4', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_STUDIO: '0', DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
+    env: { ...process.env, DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_EXPORT_STEP: '0.4', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_STUDIO: '0', DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '', DESK_MOCK_ASK_HOLD: HOLD, DESK_MOCK_ASK_FAIL: FAIL, DESK_MOCK_ASK_FALLBACK: FALLBACK },
   });
   page = await app.firstWindow();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -279,5 +283,56 @@ test('an answered request whose turn never shows up stops the spinner and says s
     const w = window as unknown as { fetch: typeof fetch; __realFetch?: typeof fetch };
     if (w.__realFetch) w.fetch = w.__realFetch;
   });
+  await page.evaluate(() => localStorage.removeItem('i18n.strict'));
+});
+
+test('a request shows its real progress: the step, step x of 4, the AI’s own log; a failure names the step + Retry', async () => {
+  test.setTimeout(90000);
+  for (const lang of ['en', 'zh-CN'] as const) {
+    await openEditor(lang, 'A_换圈子');
+    const before = (await api('A_换圈子')).chat?.length ?? 0;
+    fs.writeFileSync(HOLD, '');
+    await say(lang === 'en' ? '1.1x speed' : '1.1倍速');
+    const pg = page.getByTestId('edit-progress');
+    await expect(pg).toBeVisible();
+    // the engine's "think" step + the simulated Claude Code stream (thinking, the tool call, its result, the reply)
+    await expect(pg).toHaveAttribute('data-phase', 'think', { timeout: 15000 });
+    await expect(page.getByTestId('edit-phase')).toHaveText(lang === 'en' ? 'The AI is planning the changes' : 'AI 在构思怎么改');
+    await expect(page.getByTestId('edit-meta')).toContainText(lang === 'en' ? 'Step 2 of 4' : '第 2/4 步');
+    await expect(page.getByTestId('edit-log-line').first()).toBeVisible({ timeout: 15000 });
+    expect(await page.getByTestId('edit-log-line').count()).toBeLessThanOrEqual(3); // a rolling tail by default
+    await page.getByTestId('edit-log-toggle').click();
+    await expect(page.getByTestId('edit-log-line').filter({ hasText: 'Looking at where the pauses are.' })).toBeVisible();
+    await expect(page.locator('[data-testid=edit-log-line][data-kind=tool]')).toBeVisible();
+    const shown = await page.getByTestId('edit-log').innerText();
+    expect(shown).toContain('clip/transcript.json');
+    expect(shown).not.toContain(os.homedir()); // the home folder never shows (redacted to ~ by the engine)
+    await expect(page.getByTestId('chat-stop')).toBeVisible();
+    await noMissingKeys();
+    fs.rmSync(HOLD);
+    // answered and applied: the bubble gives way to the reply card
+    await expect(page.getByTestId('chat-thinking')).toHaveCount(0, { timeout: 20000 });
+    await expect.poll(async () => (await api('A_换圈子')).chat?.length ?? 0, { timeout: 15000 }).toBeGreaterThan(before);
+  }
+  // a failure in the planning step: named in plain words, Retry works, nothing hangs
+  fs.writeFileSync(FAIL, '');
+  await say('1.1x speed');
+  await expect(page.getByTestId('chat-failed')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('edit-progress')).toHaveAttribute('data-phase', 'failed');
+  await expect(page.getByTestId('edit-phase')).toHaveText('停在了：AI 在构思怎么改');
+  await expect(page.getByTestId('chat-stop')).toHaveCount(0);
+  fs.rmSync(FAIL);
+  await page.getByTestId('chat-failed-retry').click();
+  await expect(page.getByTestId('chat-failed')).toHaveCount(0);
+  await expect(page.getByTestId('chat-thinking')).toHaveCount(0, { timeout: 20000 });
+  // the AI she picked fails and another answers: said in the log while it runs and under the reply, never silent
+  fs.writeFileSync(FALLBACK, '');
+  fs.writeFileSync(HOLD, '');
+  await say('1.1倍速');
+  await expect(page.getByTestId('edit-progress').getByTestId('fallback-note')).toContainText('Codex', { timeout: 15000 });
+  fs.rmSync(HOLD);
+  await expect(page.getByTestId('chat-thinking')).toHaveCount(0, { timeout: 20000 });
+  await expect(page.getByTestId('chat-ai').last().getByTestId('fallback-note')).toContainText(/Claude Code.*Codex/);
+  fs.rmSync(FALLBACK);
   await page.evaluate(() => localStorage.removeItem('i18n.strict'));
 });
