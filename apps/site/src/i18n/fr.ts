@@ -4,10 +4,10 @@ import type { Dict } from './en';
 
 export const fr: Dict = {
   meta: {
-    title: 'Reelfold : éditeur vidéo IA gratuit et open source pour Mac',
+    title: 'Reelfold : studio open source pour créateurs, montage vidéo IA',
     description:
-      'Montez vos vidéos automatiquement sur Mac : une longue vidéo devient des shorts pour 20 plateformes, vos notes une vidéo de cours. Avec Claude Code. Gratuit.',
-    ogAlt: 'Reelfold. Un enregistrement. Toutes les plateformes. Gratuit et open source, pour les Mac Apple Silicon.',
+      'L’atelier open source des créateurs : un éditeur vidéo IA qui monte vos propres rushes pour YouTube, TikTok, Instagram et plus, puis planifie leur publication.',
+    ogAlt: 'Reelfold, l’atelier open source des créateurs. Vos rushes, montés pour chaque plateforme et planifiés. Gratuit, pour les Mac Apple Silicon.',
   },
   nav: {
     skip: 'Aller au contenu',
@@ -33,10 +33,10 @@ export const fr: Dict = {
     windows: 'Windows (aperçu, non signé)',
   },
   hero: {
-    eyebrow: 'Gratuit et open source · pour Mac Apple Silicon',
-    h1a: 'Un enregistrement.',
-    h1b: 'Toutes les plateformes.',
-    sub: 'Reelfold transforme une longue vidéo, un dossier de rushes ou vos notes de cours en clips finis pour vingt plateformes. Dites ce que vous voulez en une phrase. Il avance seul sur votre Mac, montre chaque étape, et ne vous demande que ce dont il n’est pas sûr.',
+    eyebrow: 'L’atelier open source des créateurs',
+    h1a: 'Vos propres rushes,',
+    h1b: 'montés pour chaque plateforme.',
+    sub: 'Reelfold est l’atelier gratuit et open source des créateurs. Déposez ce que vous avez filmé et dites ce que vous voulez. Il monte une version pour YouTube, TikTok, Instagram, X et LinkedIn, puis Xiaohongshu, Douyin, Bilibili et WeChat Channels, et la place dans un calendrier de publication. Plusieurs vidéos à la fois, en pilote automatique, sur votre Mac, avec des modèles locaux si vous préférez. Il part de vos vraies images, pas d’un prompt.',
     fig: 'En cours. Claude Code planifie et découpe une conférence en shorts ; demandez un changement pendant qu’il travaille.',
     figAlt: 'Une conférence découpée en shorts verticaux en pilote automatique : la barre d’étapes au rendu, clip 6 sur 6, les choix de l’IA avec les raisons de Claude Code, cinq images de clips finis, et la discussion où Claude Code propose des sous-titres plus grands pour cinq clips.',
   },
@@ -60,7 +60,7 @@ export const fr: Dict = {
   },
   who: {
     k: 'Pour qui',
-    t: 'Pour celles et ceux qui publient la même idée partout.',
+    t: 'Les créateurs qui filment eux-mêmes et publient partout.',
     items: [
       { slug: 'course-slicing', t: 'Cours et conférences', b: 'Transformez un cours enregistré en série de leçons courtes, avec un code et des slides qui restent lisibles.', more: 'Découper un cours' },
       { slug: 'podcast-clips', t: 'Podcasts et interviews', b: 'Tirez d’une longue conversation les réponses qui tiennent seules, sous-titres et visages gérés.', more: 'Clips de podcast' },
@@ -86,15 +86,15 @@ export const fr: Dict = {
   },
   makes: {
     k: 'Ce qu’il fait',
-    t: 'Bien plus que des clips.',
-    l: 'Tout a commencé avec les longs enregistrements. Voici ce qu’il réalise aussi sur votre Mac aujourd’hui.',
+    t: 'Tout votre flux, pas un seul clip.',
+    l: 'Il part de ce que vous avez filmé et va jusqu’au calendrier. Voici ce qu’il fait sur votre Mac aujourd’hui.',
     items: [
-      { t: 'Des cours à partir de vos notes', b: 'Déposez des notes de cours ou une page Notion exportée et demandez un épisode. Reelfold le rédige à la durée voulue, le narre et l’anime.' },
-      { t: 'Une voix gratuite, hors ligne', b: 'Sur les Mac Apple Silicon, la narration en anglais ou en mandarin se fait sur votre Mac avec Kokoro. Pas de clé d’API ; un téléchargement unique de 330 Mo.' },
+      { t: 'Plusieurs vidéos d’une carte', b: 'Indiquez un dossier ou une carte SD et demandez plusieurs vidéos. Il regroupe les rushes en histoires, propose un thème pour chacune et les réalise quelques-unes à la fois.' },
+      { t: 'Reprendre une vidéo finie', b: 'Importez une vidéo faite n’importe où, avec ou sans ses rushes. Changez le texte, les coupes, les sous-titres, la musique, la couverture ou le format, et créez de nouvelles versions par plateforme.' },
       { t: 'Le vertical suit le sujet', b: 'Les images horizontales destinées à TikTok, Reels ou Xiaohongshu sont recadrées plan par plan autour des personnes et du mouvement, avec une caméra fluide.' },
-      { t: 'Un texte par plateforme', b: 'Un titre, un texte et des hashtags dans les limites de chaque plateforme. Un vlog reçoit aussi le lieu et le crédit musical.' },
-      { t: 'Enregistrez-vous', b: 'Un prompteur sous l’objectif et un seul bouton d’enregistrement. Plus tard, sélectionnez une phrase et réenregistrez seulement celle-ci.' },
-      { t: 'Votre marque sur chaque export', b: 'Votre pseudo ou votre logo dans le coin choisi, avec un aperçu en vertical et en horizontal.' },
+      { t: 'Textes et calendrier par plateforme', b: 'Un titre, un texte et des hashtags dans les limites de chaque plateforme, placés dans un calendrier de la semaine. Reelfold remplit chaque page de mise en ligne ; vous appuyez sur publier.' },
+      { t: 'Des cours à partir de vos notes', b: 'Déposez des notes de cours ou une page Notion exportée et demandez un épisode. Reelfold le rédige à la durée voulue, le narre et l’anime.' },
+      { t: 'Modèles locaux, voix hors ligne', b: 'La transcription et la narration se font sur votre Mac ; sur Apple Silicon, la voix Kokoro ne demande pas de clé d’API. Branchez un modèle local pour la planification et rien ne sort.' },
     ],
   },
   plat: {
@@ -135,6 +135,8 @@ export const fr: Dict = {
     k: 'FAQ',
     t: 'Questions, réponses franches.',
     items: [
+      { q: 'Qu’est-ce que Reelfold ?', a: 'L’atelier open source des créateurs. Il prend les images que vous avez filmées, les monte en vidéos pour chaque plateforme où vous publiez et les place dans un calendrier de publication. Il tourne sur votre Mac, gratuit sous licence MIT.' },
+      { q: 'Est-ce un générateur de vidéos IA ?', a: 'Non. Un générateur de vidéos IA crée un film à partir d’un prompt. Reelfold part de vos propres images et gère le reste de votre flux : montage, sous-titres, couvertures, versions par plateforme, textes et calendrier de publication. Il peut suggérer un plan généré là où il en manque un, et ne dépense rien sans votre accord.' },
       { q: 'C’est vraiment gratuit ?', a: 'Oui. Reelfold est sous licence MIT et gratuit. Le seul coût, c’est l’IA que vous branchez : le cours de 124 minutes ci-dessus a coûté 0,29 $. Avec un abonnement que vous avez déjà, ou un modèle local, aucune facture en plus.' },
       { q: 'Puis-je monter des vidéos avec Claude Code ?', a: 'Oui. Reelfold peut utiliser votre abonnement Claude Code comme IA : il prévoit les coupes, écrit les sous-titres et les textes, et le panneau en direct montre chacune de ses étapes. Le même moteur s’installe aussi comme skill Claude Code, pour demander un montage depuis le terminal.' },
       { q: 'De quoi ai-je besoin ?', a: 'D’un Mac Apple Silicon, et d’une IA pour planifier et écrire : un abonnement Claude Code ou Codex, une clé d’API, ou un modèle local. La narration peut utiliser la voix gratuite sur votre Mac. Une préversion Windows existe, non signée ; la narration y demande une clé OpenAI.' },
@@ -145,9 +147,9 @@ export const fr: Dict = {
       { q: 'Dois-je signaler le contenu généré par IA ?', a: 'Beaucoup de plateformes demandent d’indiquer les contenus modifiés ou générés par IA. La liste de contrôle de publication de Reelfold vous le rappelle sur chacune.' },
     ],
   },
-  final: { t: 'Toute la semaine, à partir d’un enregistrement.' },
+  final: { t: 'Apportez vos rushes. Repartez avec la semaine.' },
   footer: {
-    tag: 'Transforme un enregistrement en clips prêts pour chaque plateforme. Gratuit et open source.',
+    tag: 'L’atelier open source des créateurs : vos rushes, montés pour chaque plateforme et planifiés. Gratuit.',
     product: 'Produit',
     useCases: 'Usages',
     compare: 'Comparer',

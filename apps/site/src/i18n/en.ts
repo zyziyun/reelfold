@@ -3,10 +3,10 @@
 
 export const en = {
   meta: {
-    title: 'Reelfold: free, open-source AI video editor for Mac',
+    title: 'Reelfold: open-source creator studio and AI video editor',
     description:
-      'Auto edit videos on your Mac: repurpose a long video into shorts for 20 platforms, or make a course video from notes. Works with Claude Code. Free, MIT.',
-    ogAlt: 'Reelfold. One recording. Every platform. Free and open source, for Apple Silicon Macs.',
+      'The open-source workbench for creators: an AI video editor that turns your own footage into videos for YouTube, TikTok, Instagram and more, then schedules them.',
+    ogAlt: 'Reelfold, the open-source workbench for creators. Your footage, edited for every platform and scheduled. Free, for Apple Silicon Macs.',
   },
   nav: {
     skip: 'Skip to content',
@@ -32,10 +32,10 @@ export const en = {
     windows: 'Windows (preview, unsigned)',
   },
   hero: {
-    eyebrow: 'Free and open source · for Apple Silicon Macs',
-    h1a: 'One recording.',
-    h1b: 'Every platform.',
-    sub: 'Reelfold turns a long video, a folder of footage or your course notes into finished clips for twenty platforms. Say what you want in a sentence. It runs on its own on your Mac, shows each step as it works, and asks you only where it isn’t sure.',
+    eyebrow: 'The open-source workbench for creators',
+    h1a: 'Your own footage,',
+    h1b: 'edited for every platform.',
+    sub: 'Reelfold is the free, open-source workbench for creators. Drop in what you shot and say what you want. It edits a version for YouTube, TikTok, Instagram, X and LinkedIn, then Xiaohongshu, Douyin, Bilibili and WeChat Channels, and puts them on a publishing calendar. Many videos at once, on autopilot, on your Mac, with local models if you prefer. It starts from your real footage, not from a prompt.',
     fig: 'Making. Claude Code plans and cuts a talk into shorts; ask for a change while it works.',
     figAlt: 'A recorded talk being cut into vertical shorts on autopilot: the step bar at Render, clip 6 of 6, what the AI decided with Claude Code’s reasons, five finished clip frames, and the Ask AI chat where Claude Code proposes bigger captions for five clips.',
   },
@@ -59,7 +59,7 @@ export const en = {
   },
   who: {
     k: 'Made for',
-    t: 'People who post the same idea in many places.',
+    t: 'Creators who shoot their own and post everywhere.',
     items: [
       { slug: 'course-slicing', t: 'Course and lecture creators', b: 'Turn a recorded class into a series of short lessons, code and slides kept readable.', more: 'Course slicing' },
       { slug: 'podcast-clips', t: 'Podcast and interview clips', b: 'Pull the strongest answers from a long conversation, with captions and faces handled.', more: 'Podcast clips' },
@@ -85,15 +85,15 @@ export const en = {
   },
   makes: {
     k: 'What it makes',
-    t: 'More than clips.',
-    l: 'Long recordings are where it started. This is what else it makes on your Mac today.',
+    t: 'Your whole workflow, not one clip.',
+    l: 'It starts from what you shot and carries it to the calendar. This is what it does on your Mac today.',
     items: [
-      { t: 'Course videos from notes', b: 'Drop in lecture notes or an exported Notion page and ask for an episode. Reelfold drafts it to the length you asked for, narrates it and animates it.' },
-      { t: 'A free voice, offline', b: 'On Apple silicon, narration in English or Mandarin runs on your Mac with Kokoro. No API key; a one-time 330 MB download.' },
+      { t: 'Many videos from one card', b: 'Point it at a folder or an SD card and ask for several videos. It groups the footage into stories, proposes a theme for each, and makes them a few at a time.' },
+      { t: 'Keep editing a finished video', b: 'Import a video made anywhere, with or without its footage. Change the words, cuts, captions, music, cover or size, and make new platform versions.' },
       { t: 'Vertical that follows the subject', b: 'Landscape footage made for TikTok, Reels or Xiaohongshu is cropped shot by shot around people and movement, with a smooth camera.' },
-      { t: 'Copy for each platform', b: 'A title, text and hashtags within each platform’s limits. A vlog also gets the place and the music credit.' },
-      { t: 'Record yourself', b: 'A teleprompter under the lens and one record button. Select a sentence later and record just that part again.' },
-      { t: 'Your mark on every export', b: 'Your handle or logo in the corner you choose, previewed on a vertical and a wide frame.' },
+      { t: 'Copy and a calendar for each platform', b: 'A title, text and hashtags within each platform’s limits, placed on a week calendar. Reelfold fills in each upload page; you press publish.' },
+      { t: 'Course videos from notes', b: 'Drop in lecture notes or an exported Notion page and ask for an episode. Reelfold drafts it to the length you asked for, narrates it and animates it.' },
+      { t: 'Local models, offline voice', b: 'Transcription and narration run on your Mac; on Apple silicon the Kokoro voice needs no API key. Connect a local model for planning and nothing leaves.' },
     ],
   },
   plat: {
@@ -134,6 +134,8 @@ export const en = {
     k: 'FAQ',
     t: 'Questions, answered plainly.',
     items: [
+      { q: 'What is Reelfold?', a: 'The open-source workbench for creators. It takes the footage you shot, edits it into videos for every platform you post on, and lines them up on a publishing calendar. It runs on your Mac, free under the MIT license.' },
+      { q: 'Is it an AI video generator?', a: 'No. AI video generators make a film from a prompt. Reelfold starts from your own footage and runs the rest of your workflow: cutting, captions, covers, platform versions, copy and the posting schedule. It can suggest a generated shot where one is missing, and spends nothing until you approve.' },
       { q: 'Is it really free?', a: 'Yes. Reelfold is MIT licensed and free to use. The only cost is the AI you connect: the 124-minute class above used $0.29. With a subscription you already have, or a local model, there’s no extra bill.' },
       { q: 'Can I edit videos with Claude Code?', a: 'Yes. Reelfold can use your Claude Code subscription as its AI: it plans the cuts and writes captions and copy, and the live pane shows each step it takes. The same engine also installs as a Claude Code skill, so you can ask Claude Code to edit a video from the terminal.' },
       { q: 'What do I need?', a: 'A Mac with Apple Silicon, and an AI for planning and writing: a Claude Code or Codex subscription, an API key, or a local model. Narration can use the free voice on your Mac. A Windows preview is available, unsigned; there, narration needs an OpenAI key.' },
@@ -144,9 +146,9 @@ export const en = {
       { q: 'Do I need to label AI content?', a: 'Many platforms ask you to disclose AI-edited or AI-generated content. Reelfold’s publishing checklist reminds you on each one.' },
     ],
   },
-  final: { t: 'Make the week from one recording.' },
+  final: { t: 'Bring your footage. Leave with the week’s posts.' },
   footer: {
-    tag: 'Turns one recording into many platform-ready clips. Free and open source.',
+    tag: 'The open-source workbench for creators: your footage, edited for every platform and scheduled. Free.',
     product: 'Product',
     useCases: 'Use cases',
     compare: 'Compare',

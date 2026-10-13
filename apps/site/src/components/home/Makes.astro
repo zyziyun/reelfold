@@ -6,7 +6,7 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = t(lang);
 // items with a use-case page of their own (by position in c.makes.items): internal links for readers and search
-const PAGE: Record<number, string> = { 0: 'course-from-notes', 2: 'travel-vlog' };
+const PAGE: Record<number, string> = { 2: 'travel-vlog', 4: 'course-from-notes' };
 ---
 <section class="wrap" id="makes" aria-labelledby="mk-h">
   <div class="head2">
