@@ -38,6 +38,9 @@ GATED = {
         "zscale": "hdr_to_sdr_args: only when has_filter('zscale'), else libplacebo",
         "libplacebo": "hdr_to_sdr_args: only when has_filter('libplacebo'), else the approximate colorspace chain",
     },
+    "lib/vstudio/shots.py": {
+        "scale_vt": "VideoToolbox decode only when has_filter('scale_vt') (macOS), else the software scale",
+    },
     "workflows/longform-to-short/scripts/burn_final.py": {
         "ass": "ffmpeg_bin(need=['ass']) picks an ffmpeg with libass (--no-subs needs none)",
     },
