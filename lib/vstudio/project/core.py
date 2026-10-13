@@ -564,10 +564,12 @@ class Project:
 
     def _auto_answerable(self, pay, pol):
         cp = self.checkpoint(pay["id"])
-        if cp["kind"] in NEVER_AUTO or cp.get("auto", "never") != "default":
+        if cp["kind"] in NEVER_AUTO or cp.get("auto", "never") not in ("default", "always"):
             return False
         if pay.get("no_key"):                          # a paid voice without its key: Ask-me-first asks her
             return False
+        if cp.get("auto") == "always":                 # the engine's choice, changed afterwards (the cast voice)
+            return pay.get("default") is not None
         if not ({"all", cp["id"], cp["kind"]} & pol):
             return False
         return pay.get("default") is not None
@@ -626,7 +628,9 @@ class Project:
             for p, d in todo:
                 target = "*" if p["scope"] == "project" else p["item"]
                 value = d["value"] if d else p["default"]
-                meta = AP.answer_meta(d) if d else None
+                # who decided and why: the judge's / rules' decision, else the payload's own (the cast voice's reason)
+                meta = AP.answer_meta(d) if d else AP.answer_meta(p["default_meta"]) if isinstance(
+                    p.get("default_meta"), dict) else None
                 self.answer(p["id"], value, items=None if target == "*" else [target], replan=False,
                             auto=True, meta=meta)
                 if d:

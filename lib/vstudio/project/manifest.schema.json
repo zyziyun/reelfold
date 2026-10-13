@@ -364,6 +364,7 @@
       "author",
       "music-pick",
       "voice-pick",
+      "voice-cast",
       "media-selection",
       "reframe-pick",
       "copy-pick",
@@ -406,9 +407,10 @@
      "enum": [
       "never",
       "skip-if-empty",
-      "default"
+      "default",
+      "always"
      ],
-     "description": "never: a human must answer; default: --auto may answer with the default"
+     "description": "never: a human must answer; default: --auto may answer with the default; always: every run answers with the default (a choice the engine makes and she changes afterwards, e.g. the cast voice)"
     },
     "reask": {
      "type": "boolean",

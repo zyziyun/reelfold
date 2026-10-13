@@ -730,3 +730,205 @@ def collect(project, job, rows):
     rest = [e for e in C.collect_files(project, job, rows)
             if e.get("kind") != "video" and e.get("file") not in used]
     return [by_file[f] for f in order] + rest
+
+
+# --------------------------------------------------------------------------- voice casting (checkpoint ``voice``)
+def _project_yaml(pdir):
+    import yaml
+    try:
+        with open(os.path.join(pdir or "", "project.yaml"), encoding="utf-8") as f:
+            d = yaml.safe_load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+    except Exception:  # noqa: BLE001  (a project.yaml mid-write: nothing hand-set seen this time)
+        return {}
+
+
+def _raw_voice(pdir, item):
+    """The voice set by hand in project.yaml (the item's params, else the project's) - not the cast the engine
+    stored in ``overrides``."""
+    d = _project_yaml(pdir)
+    base = item.split(".")[0] if item else item
+    for it in d.get("items") or []:
+        if isinstance(it, dict) and it.get("id") in (item, base) and (it.get("params") or {}).get("voice"):
+            return it["params"]["voice"]
+    return (d.get("params") or {}).get("voice")
+
+
+def _her_voice(params, engine=None):
+    """Her own voice for this item (a pick she made in the app / chat, a speaker named in project.yaml) or None."""
+    from vstudio import voicecast as VC
+    return VC.explicit(params.get("voice"), engine) or VC.explicit(_raw_voice(params.get("_project_dir"),
+                                                                              params.get("_item") or ""), engine)
+
+
+def _script_text(spec_path, lang):
+    """The narration lines of the spec (the 中文 for a Chinese narration), for the casting."""
+    try:
+        with open(spec_path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return ""
+    out = []
+    for unit in _spec_value(text, "SCRIPT") or []:
+        try:
+            for en, zh in unit[1]:
+                out.append(((zh or en) if lang == "zh" else (en or zh)).replace("**", ""))
+        except (TypeError, ValueError, IndexError):
+            continue
+    return ("" if lang == "zh" else " ").join(out)
+
+
+def _voice_lang(params, spec_path):
+    """The narration language and the engine that says it: the spec's TTS language (zh only while a Chinese voice is
+    here: the free Chinese voice falls back to English narration like tts.py does)."""
+    from vstudio import tts
+    from vstudio import voicecast as VC
+    lang = "zh" if spec_language(spec_path) == "zh" else "en"
+    engine = VC.narration_engine(lang, params.get("tts_engine") or "auto")
+    if lang == "zh" and engine == "kokoro" and not tts.zh_local_opt_in():
+        lang, engine = "en", VC.narration_engine("en", params.get("tts_engine") or "auto")
+    return lang, engine
+
+
+def _voice_digest(lang, engine, mine):
+    import hashlib
+    sig = f"{lang}|{engine}|" + (f"{mine.get('speaker')}|{mine.get('style') or ''}" if mine else "cast")
+    return hashlib.sha1(sig.encode()).hexdigest()[:16]
+
+
+def voice_payload(env, cp, ai=True):
+    """The narration voice for this story, cast before the voice is made (vstudio.voicecast): her own voice when she
+    chose one (never cast again), else the cast already made for it, else the routed AI casts one from the
+    catalog for the story's kind, language, platforms and script (the rules when no model answers). Options: every
+    voice of the catalog the narration's engine can say here. Skipped for an engine without a catalog (OpenAI, a
+    cloned voice: their own voice). ``ai=False``: the rules cast (a remake of a story made before the cast)."""
+    from vstudio import voicecast as VC
+    spec = os.path.join(env.item_dir, "work", "spec.py")
+    p = env.params
+    lang, engine = _voice_lang(p, spec)
+    cands = VC.candidates(engine, lang)
+    if not cands:
+        return dict(options=[], skip=True, skip_reason=f"the {engine} voice is used as it is (no voices to cast)")
+    mine = _her_voice(p, engine)
+    cur = VC.parse(p.get("voice"), engine)
+    d = _project_yaml(env.project_dir)
+    request = "\n".join(x for x in (d.get("prompt"), d.get("name"), str(p.get("title") or ""),
+                                    ((((p.get("_answers") or {}).get("story") or {}).get("params") or {})
+                                     .get("text"))) if x)
+    plats = list(p.get("platforms") or [])
+    ctx = dict(lang=lang, engine=engine, platforms=plats, title=str(p.get("title") or ""), request=request[:800])
+    ui = ((d.get("autopilot") or {}) if isinstance(d.get("autopilot"), dict) else {}).get("lang") or \
+        ("zh" if lang == "zh" else "en")
+    if mine:
+        c = dict(mine, reason=mine.get("reason") or ("你选的配音" if ui == "zh" else "your choice"), by="you")
+    elif cur and cur.get("by") in VC.CAST_BY and cur["engine"] == engine and any(
+            v["speaker"] == cur["speaker"] for v in cands):
+        c = cur                                    # cast before: kept (a re-run never re-casts)
+    else:
+        c = VC.cast(lang, engine, platforms=plats, title=ctx["title"], request=request,
+                    script=_script_text(spec, lang), ui=ui, complete=None if ai else False)
+        env.log(f"voice cast: {c['speaker']} ({c['by']}) - {c.get('reason')}")
+    rec = VC.record(c)
+    opts = [dict(id=i, kind="voice", speaker=v["speaker"], engine=v["engine"], gender=v["gender"], tone=v["tone"],
+                 fit=v["fit"], labels=dict(v["label"]), checked=v["speaker"] == c["speaker"])
+            for i, v in enumerate(cands)]
+    meta = dict(by="ai" if c.get("by") == "ai" else "rules", reason=c.get("reason"), reason_code="voice-cast",
+                provider=c.get("provider"),
+                params=dict(speaker=c["speaker"], label=VC.label(c, "en"), label_zh=VC.label(c, "zh"),
+                            style=c.get("style"), mine=bool(mine)))
+    # the voice the story has now (a cast / her pick, else what its narration was made with): a change picks another
+    ctx["current"] = (cur or {}).get("speaker") or _tts_log_speaker(env.state_dir, env.job) or c["speaker"]
+    return dict(options=opts, default=rec, default_reason=c.get("reason"), default_meta=meta, cast=ctx,
+                kind=c.get("kind"), digest=_voice_digest(lang, engine, mine), previews=[])
+
+
+def voice_apply(a):
+    """{speaker[, style], by} (the default: the cast) | {pick: k} (an option) | {ask: "换个男声"} (her words: the AI
+    casts again for them) -> the item's ``voice: {engine, speaker, style, reason, by}`` (project.yaml overrides). A pick
+    or a request of hers is hers from then on (``by: you``): never cast again."""
+    from vstudio import voicecast as VC
+    v = a.value or {}
+    pay = a.payload or {}
+    ctx = pay.get("cast") or {}
+    lang, engine = ctx.get("lang") or "zh", ctx.get("engine") or "qwen"
+    opts = pay.get("options") or []
+    if v.get("ask"):
+        cur = VC.parse(a.params.get("voice"), engine) or ctx.get("current") or VC.parse(pay.get("default"), engine)
+        c = VC.cast(lang, engine, platforms=ctx.get("platforms"), title=ctx.get("title"), request=ctx.get("request"),
+                    instruction=str(v["ask"])[:200], current=cur)
+        if not c:
+            raise ValueError("voice: no voice to cast here")
+        rec = dict(VC.record(c), by="you", ask=str(v["ask"])[:200])
+    elif "pick" in v:
+        k = int(v["pick"])
+        if not 0 <= k < len(opts):
+            raise ValueError(f"voice: pick {k} out of range")
+        o = opts[k]
+        d = pay.get("default") or {}
+        same = o.get("speaker") == d.get("speaker")
+        rec = dict(engine=o["engine"], speaker=o["speaker"], style=d.get("style") if same else
+                   VC.style_for(pay.get("kind"), lang) if o["engine"] == "qwen" else None,
+                   reason=d.get("reason") if same else None, by=d.get("by") if same else "you")
+        rec = {x: y for x, y in rec.items() if y}
+    else:
+        p = VC.parse(v, engine)
+        if not p:
+            raise ValueError(f"voice: no voice {v.get('speaker')!r} in the catalog")
+        rec = VC.record(dict(p, by=v.get("by") or "you"))
+    mine = rec if rec.get("by") not in VC.CAST_BY else None
+    return dict(params=dict(voice=rec), digest=_voice_digest(lang, engine, mine))
+
+
+def voice_recheck(params):
+    """The gate's extra key: her hand-set voice in project.yaml (a change re-opens the cast), else None."""
+    from vstudio import voicecast as VC
+    raw = VC.explicit(_raw_voice((params or {}).get("_project_dir"), (params or {}).get("_item") or ""))
+    return dict(speaker=raw["speaker"], style=raw.get("style")) if raw else None
+
+
+def _tts_log_speaker(state_dir, item):
+    try:
+        with open(os.path.join(state_dir, "jobs", item, "tts", "run.log"), encoding="utf-8") as f:
+            m = re.search(r"^voice: (\w[\w-]*) (\S+) \((\w+)\)", f.read(), re.M)
+    except OSError:
+        return None
+    return m.group(2) if m and m.group(2) != "None" else None
+
+
+def voice_current(project, cp, item):
+    """A story made before the voice was cast: the voice its narration has (the tts step's log) -> {choice}."""
+    sp = _tts_log_speaker(project.state_dir, item)
+    return dict(pick=None, choice=sp, options=[]) if sp else None
+
+
+def voice_remake(env, cp, choice):
+    """Her words about the voice on a finished story ("换个男声", "用 vivian", "a calmer voice"): cast again for them
+    (vstudio.voicecast, the routed AI, else the rules), recorded as hers, then only the voice and what is made from
+    it run again (tts -> render -> export -> the other platforms; the cut, stills and cover are kept)."""
+    p = env.project
+    env.at("cp_" + cp["id"])
+    pay = None
+    try:
+        import json
+        with open(os.path.join(env.state_dir, "checkpoints", env.job, f"{cp['id']}.json"), encoding="utf-8") as f:
+            pay = json.load(f)
+    except (OSError, ValueError):
+        pay = None
+    if not pay or not pay.get("cast"):           # made before the cast: its payload now (the rules, no model)
+        pay = env.write_payload(cp, voice_payload(env, cp, ai=False))
+    if pay.get("skip"):
+        raise RuntimeError(f"voice: {pay.get('skip_reason')}")
+    ask = str(choice or "").strip() or "换一个更合适的配音"
+    p.answer(cp["id"], dict(ask=ask), items=[env.job], replan=True)
+    events = getattr(env, "emit", None)
+    out = p.run(only=[env.job], on_event=(lambda ev: events(ev) if ev.get("event") not in (
+        "run-start", "project-end") else None) if events else None)
+    if out.get("exit_code") not in (0, 7):
+        raise RuntimeError("voice: the new voice was cast but the video was not made again (" +
+                           str(out.get("status")) + ")")
+    p.reload()
+    rec = ((p.data.get("overrides") or {}).get(env.job) or {}).get("voice") or {}
+    return dict(answer=None, speaker=rec.get("speaker"), reason=rec.get("reason"), status=out.get("status"),
+                keep_live=out.get("exit_code") != 0)

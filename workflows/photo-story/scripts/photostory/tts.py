@@ -91,11 +91,17 @@ def main():
     ap.add_argument("spec")
     ap.add_argument("units", nargs="*", type=int, help="only these unit indices")
     ap.add_argument("--voice", help="override TTS voice")
+    ap.add_argument("--speaker", help="the cast voice (vstudio.voicecast: a Qwen3-TTS / Kokoro speaker); wins over --voice")
+    ap.add_argument("--style", help="the cast delivery instruction (Qwen3-TTS instruct; Kokoro has none)")
     ap.add_argument("--sample", action="store_true", help="synthesise one line in several voices")
     ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "qwen", "clone"],
                     help="override VOICE/TTS engine (auto: OpenAI with its key, else the free local voice)")
     a = ap.parse_args()
 
+    if a.voice and a.voice.lstrip().startswith("{"):
+        a.voice = None                        # a recorded cast ({engine, speaker, ...}) comes as --speaker / --style
+    if a.speaker:
+        a.voice = a.speaker
     spec = load_spec(a.spec)
     C = Ctx(spec)
     cfg = dict(DEFAULTS)
@@ -134,7 +140,8 @@ def main():
         voice = voice or vtts.DEFAULT_VOICE.get(engine)
     if local:
         cfg["tries"] = 1                      # a local voice says a line the same way every time: one take
-    print(f"voice: {engine} {voice} ({cfg['language']})", flush=True)
+    style = (a.style or cfg.get("style") or "").strip() or None if engine == "qwen" else None
+    print(f"voice: {engine} {voice} ({cfg['language']})" + (f" style: {style}" if style else ""), flush=True)
     say_tts = dict(getattr(spec, "SAY_TTS", {}) or {})          # SAY_TTS: the drafter's respellings
     if local:   # a curated name (vstudio.kokoro_lexicon) is said from its phonemes, never from an older respelling
         from vstudio import kokoro_lexicon
@@ -151,7 +158,7 @@ def main():
                        language=cc["language"], seed=seed, out=path)
         elif local:
             vtts.synth(text, engine=engine, voice=v, speed=float(cfg.get("speed") or 1.0), out=path,
-                       cache=not fresh)
+                       cache=not fresh, instructions=style)
         else:
             vtts.synth(text, engine="openai", voice=v, instructions=cfg["instructions"], model=cfg["model"],
                        out=path, cache=not fresh)
@@ -188,7 +195,9 @@ def main():
         if clone:
             key = hashlib.md5(f"clone|{cc['ref_hash']}|{cc['model']}|{cc['language']}|{say_text}".encode()).hexdigest()[:16]
         elif local:
-            key = hashlib.md5(f"{engine}|{voice}|{cfg.get('speed') or 1.0}|{say_text}".encode()).hexdigest()[:16]
+            # no style: the key of a take made before the cast (its cache stays valid)
+            key = hashlib.md5((f"{engine}|{voice}|{cfg.get('speed') or 1.0}|{say_text}" +
+                               (f"|{style}" if style else "")).encode()).hexdigest()[:16]
         else:   # unchanged key -> existing OpenAI caches stay valid
             key = hashlib.md5(f"{voice}|{cfg['model']}|{cfg['instructions']}|{say_text}".encode()).hexdigest()[:16]
         cw, cj = os.path.join(out, "cache", f"{key}.wav"), os.path.join(out, "cache", f"{key}.json")

@@ -53,7 +53,9 @@ params:
       title: Layout still times (s)
       x-zh: 预览静帧时间点
     voice:
-      type: string
+      # a voice name (her pick: kept), an engine ("qwen": the cast picks the speaker) or the cast the voice step
+      # recorded: {engine, speaker, style, reason, by: ai | rules | you} (vstudio.voicecast)
+      type: [string, object]
       default: marin
       title: TTS voice
       x-zh: 配音音色
@@ -108,7 +110,8 @@ stages:
     watch: ["{item_dir}/work/spec.py"]
     run:
       argv: ["{python}", "{workflow_dir}/scripts/photostory/tts.py", "{item_dir}/work/spec.py", "--voice", "{voice}",
-             "--engine", "{tts_engine}"]
+             "--engine", "{tts_engine}", {if: voice.speaker, args: ["--speaker", "{voice.speaker}"]},
+             {if: voice.style, args: ["--style", "{voice.style}"]}]
       files: []
     produces: [work/tts/uNN.wav, work/tts/timing.json]
   - id: render
@@ -183,6 +186,30 @@ checkpoints:
       properties: {approve: {type: boolean}, reason: {type: string}}
       required: [approve]
     auto: default
+  - id: voice
+    kind: voice-cast
+    scope: item
+    after: stills
+    blocks: [tts]
+    when: {mode: narration}
+    labels: {zh: "选配音", en: "Cast the voice", fr: "Choisir la voix"}
+    help:
+      zh: AI 按视频类型、语言、平台和文案语气从配音库里挑一个声音（历史纪录片沉稳、课程清晰温暖、Vlog 活泼）；你点名的声音不会被换掉。在对话里说「换个男声」就只重做配音和混音
+      en: The AI picks the narration voice from the catalog for the video's kind, language, platform and script tone (history calm and authoritative, a course clear and warm, a vlog lively); a voice you named is never replaced. Say "a male voice" in the chat to redo only the voice and the mix
+      fr: L'IA choisit la voix off selon le genre de la vidéo, la langue, la plateforme et le ton du texte ; une voix que vous avez nommée n'est jamais remplacée
+    payload: vstudio.project.adapters.photostory:voice_payload
+    apply: vstudio.project.adapters.photostory:voice_apply
+    recheck: vstudio.project.adapters.photostory:voice_recheck
+    current: vstudio.project.adapters.photostory:voice_current
+    remake: vstudio.project.adapters.photostory:voice_remake
+    remake_as: voice
+    answer:
+      type: object
+      properties: {engine: {type: string}, speaker: {type: string}, style: {type: string}, reason: {type: string},
+                   by: {type: string}, kind: {type: string}, provider: {type: string}, pick: {type: integer, minimum: 0},
+                   ask: {type: string}}
+    # the cast is taken as the AI made it (also in Ask-me-first): she changes it in the chat or the Inbox
+    auto: always
   - id: publish
     kind: publish
     scope: item
@@ -209,4 +236,5 @@ agent:
 gaps:
   - The story spec (selection, order, chapters, lines, shots, effects) is agent-authored; render.py --preview and the voice sample (tts.py --sample) are manual.
   - Music pick has no catalog stage (BGM path in the spec).
+  - The voice is cast from vstudio/voices.json (Qwen3-TTS / Kokoro); OpenAI and cloned voices are used as named.
 capabilities: [photo-fx, transitions, bilingual, tts, music-beats, chapter-cards, cover, post-copy]

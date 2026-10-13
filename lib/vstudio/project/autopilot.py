@@ -113,6 +113,14 @@ def rules(cp, pay, spend_cap=0.0):
             return _block("needs-key", f"no {svc} key and no free voice on this computer", service=svc)
         return _rule("free-voice", f"used the free local voice — no {svc} key", default,
                      service=svc, engine=nk.get("free_engine"), voice=nk.get("free_voice"))
+    if kind == "voice-cast":
+        # the voice the casting picked (the routed AI, else the rules) or the one she named: taken with its reason
+        if default is None:
+            return _block("needs-input", "no voice to cast")
+        m = pay.get("default_meta") or {}
+        return dict(value=default, by=m.get("by") or "rules", reason=m.get("reason") or pay.get("default_reason") or
+                    "the voice cast for this video", reason_code="voice-cast", params=m.get("params") or {},
+                    **({"provider": m["provider"]} if m.get("provider") else {}))
     if kind == "budget-approval":
         total = float(pay.get("total_credits") or 0)
         unknown = pay.get("unknown_items") or []
@@ -381,6 +389,9 @@ def choices(project, kinds=SETTING_KINDS):
             cp = project.checkpoint(cid)
         except Exception:  # noqa: BLE001
             continue
+        if cp["kind"] == "voice-cast":
+            out += _voice_choices(project, cp, per)
+            continue
         if cp["kind"] not in kinds:
             continue
         for item, rec in (per or {}).items():
@@ -412,10 +423,29 @@ def choices(project, kinds=SETTING_KINDS):
             if cur:
                 out.append(dict(checkpoint=cp["id"], kind=cp["kind"], item=row["id"], pick=cur.get("pick"),
                                 choice=cur.get("choice"), options=list(cur.get("options") or []),
-                                by="before" if cp["kind"] in kinds else (cur.get("choice") or "her"),
+                                by="before" if cp["kind"] in kinds or cp["kind"] == "voice-cast" else
+                                (cur.get("choice") or "her"),
                                 **({"remake_as": cp["remake_as"]} if cp.get("remake_as") else {}),
                                 # the explainer's visuals: the scenes a redo kept as before ("Redraw scene 14")
                                 **({k: cur[k] for k in ("kept", "total") if cur.get("kept")})))
+    return out
+
+
+def _voice_choices(project, cp, per):
+    """The cast voice of each item (``voice-cast``): {choice = the speaker, label, reason, by: ai | rules | her,
+    remake_as: voice} - the clip page shows it, the chat changes it ("换个男声": ``remake --do voice=...``)."""
+    from vstudio import voicecast as VC
+    out = []
+    for item, rec in (per or {}).items():
+        if not isinstance(rec, dict):
+            continue
+        v = VC.parse(((project.data.get("overrides") or {}).get(item) or {}).get("voice")) or VC.parse(rec.get("value"))
+        if not v:
+            continue
+        by = v.get("by") if v.get("by") in VC.CAST_BY else "her"
+        out.append(dict(checkpoint=cp["id"], kind=cp["kind"], item=item, pick=None, choice=v["speaker"], options=[],
+                        by=by, reason=v.get("reason"), label=VC.label(v, "en"), label_zh=VC.label(v, "zh"),
+                        **({"remake_as": cp["remake_as"]} if cp.get("remake_as") else {})))
     return out
 
 
