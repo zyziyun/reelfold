@@ -49,6 +49,7 @@ HyperFrames workflows (explainer, promo-recut, launch-kit) also need Node 18+ an
 | A **finished** clip to tweak (trim, captions, theme, effects, cover, speed, re-layout, plain-language edits, undo) | `python -m vstudio.project output ...` (references/OUTPUT_EDIT.md) |
 | A sentence + a mixed pile of files → a plan of recipes | `python -m vstudio.intake` (references/INTAKE.md) |
 | "Just make it" / several jobs at once, no questions → finished exports | `python -m vstudio.intake apply --plan P --autopilot`, then `python -m vstudio.project run --dir D --autopilot`: the engine decides every checkpoint itself (AI judge + rules), records why (`decisions --dir D`), and only stops for consent, spend over the cap, a red QC or a file only she can write (references/PROJECTS.md §3) |
+| Which template fits, what each shot gets, where AI generation would help (proposals with a price, never spent) | `python -m vstudio.brain classify / treat / gen / show --dir D` (references/INTAKE.md §9) |
 | 气口 / filler / 重复 / 口误 in any recording with her speech | `python -m vstudio.cleanup` (references/CLEANUP.md), inside every workflow |
 
 Mixed jobs chain workflows (preproduction → record → talkinghead → cover → polish). Phrase table, capability index and

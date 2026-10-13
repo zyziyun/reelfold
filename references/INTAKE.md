@@ -197,3 +197,40 @@ named in the words); the desk sends it there (its composer also has 「Several v
   autopilot; a failure or a stall is retried once, then the video is dropped with its reason; the goal is done when
   every video is made or dropped, and the unfinished ones can be cleared.
 
+
+## 9. The editor brain (`vstudio.brain`): template, shot treatment, generation proposals
+
+Three judgements an editor makes, each recorded with who made it (`rules` | `her` | `ai`) and a reason in English
+and Chinese, each changeable by her (desk: the project page's "How it's cut" section; CLI: `python -m vstudio.brain`).
+
+* **Template** (`brain/template.py`, templates in `brain/presets.py`): the inputs' signals (speech share, talking
+  head / several people / screen recording, a DJI flight log, motion from `shots`, photos vs clips, music, length,
+  evening / night) + the request's words (en / zh) -> a template = recipe + params + a shot policy: `travel-calm`,
+  `beat-short`, `trip-vlog`, `history-explainer`, `documentary`, `essay`, `photo-story`, `th-refined` (口播精剪),
+  `lecture-shorts`, `conversation-clips`, `concept-explainer`, `product-promo`, `launch-film`, `ai-short`. Her words
+  win (`by: her`) but only for templates the materials can make (口播 over silent drone footage stays a footage
+  film); a close call may go to the routed AI (`--ai`), else the rules' pick says it was close. The plan carries it
+  per sub-project (`projects[].template`, the plan card's "Cut as … · why"); `apply` keeps it in project.yaml
+  (`brain.template`); a vlog without a style takes the template's (English "fast cuts on the beat" -> `fun`). Goal
+  kinds map onto templates (`goal.RECIPE` comes from `presets.for_goal_kind`). "A history explainer from these drone
+  shots" is a narrated photo-story, not the 3b1b explainer.
+* **Shot treatment** (`brain/treat.py` over `brain/tiles.py`): every shot tile (`vstudio.shots` moments when the
+  engine has them, else one tile per clip) gets hold length, speed (1x | slow motion only where the cadence stays even:
+  60p at 0.5x or RIFE frames | one speed ramp in a beat short), reframe (follow face / subject / steady centre for a
+  wide view, when the output aspect differs), the join (cut | beat cut | dissolve where the light / place / time of
+  day changes | match cut | a morph for a jump cut inside one take, a small punch-in without RIFE | continuous),
+  exposure / colour match against the film's median and hero shot, deflicker for a pumping drone, where text may
+  sit, stabilise. Quality and darkness are measured against the film's own light (a night film keeps its night
+  shots). Each choice keeps its candidates with a 0-1 fit (`choices`) so "why this effect" can say "dissolve .95 vs
+  cut .55"; close ones go to the AI judge when asked; her changes (`brain shot --set transition=cut`) win.
+* **Generation proposals** (`brain/genplan.py`): by stage (`planned` -> `cut` -> `review`): an establishing shot
+  when the film opens close, extra shots when the usable footage is well under the asked length, a cover background
+  when no frame is clean, a first+last-frame bridge across a place / time jump in a narrated piece, a steady
+  image-to-video take of a moment whose only shot is too dark / shaky, one illustrative shot after 25 s of talking
+  head alone. Each is a brief (mode, prompt, source still, seconds) with a price from the Create rate cards (Kling
+  first). **Nothing is spent**: autopilot only proposes; her Approve carries the proposal's confirm code (this price,
+  `brain decide --approve --code`), is recorded in project.yaml (`brain.gen`), and the generation itself goes through
+  the Create spend gate. Generated shots are labelled AI.
+
+`python -m vstudio.brain show --dir <project> [--refresh] --json` computes what is missing (tiles, signals, plan,
+proposals: `state/brain/`, the tile stills in `state/brain/thumbs/`) and returns the doc the desk shows.
