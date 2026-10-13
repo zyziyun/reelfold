@@ -204,9 +204,18 @@ def models(provider, probe=True):
             if r["models"]:
                 out["models"], out["source"] = [dict(m) for m in r["models"]], "agent"
             out["cli_default"] = r.get("current_model")
-            if r["state"] not in ("logged-in", "not-installed"):
-                out["problem"] = _problem(f"agent-{r['state']}", f"{llm.acp.label(p)}: {r.get('detail') or r['state']}",
-                                          f"{llm.acp.label(p)}：{r.get('detail') or r['state']}", state=r["state"])
+            kind = llm.acp.issue(r["state"], r.get("detail"))
+            if kind:
+                # a calm line + what to do (the desk shows it beside the agent, the raw text only as a tooltip)
+                name = llm.acp.label(p)
+                en, zh = {"sign-in": (f"Sign in to {name} to use it here", f"登录 {name} 后就能在这里用"),
+                          "update": (f"Update {name} to use it here", f"更新 {name} 后就能在这里用"),
+                          "region": (f"{name} is not available in your region", f"你所在的地区用不了 {name}"),
+                          "timeout": (f"{name} did not answer: check again in a moment", f"{name} 没有响应，稍后再检查一次"),
+                          }.get(kind, (f"{name} could not start here: try it in a terminal",
+                                       f"{name} 在这里启动不了，先在终端里试试"))
+                out["problem"] = _problem(f"agent-{kind}", en, zh, state=r["state"], issue=kind,
+                                          detail=(r.get("detail") or "")[:300] or None)
         return out
     preset = llm.PRESETS.get(p)
     if preset and preset["kind"] == "api":

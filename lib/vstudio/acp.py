@@ -532,6 +532,24 @@ def run(agent, system, prompt, model=None, timeout=600.0, images=(), opts=None, 
                 seconds=round(time.time() - t0, 1))
 
 
+UPDATE_WORDS = re.compile(r"did not start in ACP mode|unknown (flag|option|command|argument)|unrecognized (option|argument)"
+                          r"|no such (option|command)", re.I)
+
+
+def issue(state, detail=None):
+    """What stands between an installed agent and using it here, in one word: sign-in | update | region | timeout |
+    error; None when it works (or is simply not installed). The desk shows it as one calm line with its action."""
+    if state in (None, "logged-in", "installed", "not-installed", "ready"):
+        return None
+    if state in ("not-logged-in", "expired"):
+        return "sign-in"
+    if state in ("region-blocked", "region"):
+        return "region"
+    if state == "timeout":
+        return "timeout"
+    return "update" if UPDATE_WORDS.search(detail or "") else "error"
+
+
 def probe(agent, timeout=30.0, opts=None):
     """Is the agent installed and signed in, and which models does it offer? A session is opened and closed (no
     prompt: nothing is spent). -> {agent, state, installed, exe, models, current_model, agent_info, auth_methods,

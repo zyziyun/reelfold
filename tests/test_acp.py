@@ -152,7 +152,8 @@ def test_probe_status_models_and_login_command(agents):
     rows = {r["provider"]: r for r in llm_auth.status(["kimi-cli", "qwen-code", "gemini-cli", "codebuddy"])}
     assert rows["kimi-cli"]["state"] == "logged-in" and rows["kimi-cli"]["models"] == ["fake-small", "fake-big"]
     assert rows["kimi-cli"]["china"] == "yes" and rows["kimi-cli"]["acp"] is True
-    assert rows["qwen-code"]["state"] == "not-logged-in" and "qwen" in rows["qwen-code"]["message"]["message_zh"]
+    assert rows["qwen-code"]["state"] == "not-logged-in" and rows["qwen-code"]["issue"] == "sign-in"
+    assert rows["qwen-code"]["message"]["message"] == "Sign in to Qwen Code to use it here"
     assert rows["gemini-cli"]["state"] == "not-installed" and rows["gemini-cli"]["install"]["url"]
     quick = llm_auth.status(["kimi-cli"], probe=False)[0]
     assert quick["state"] == "installed" and quick["ready"] is True
@@ -208,3 +209,14 @@ def test_every_agent_is_named_and_ordered():
     # Gemini CLI set to an API key it does not have: not signed in, in plain words
     e = acp._plain("gemini-cli", acp.AcpError("Gemini API key is missing or not configured.", code=-32603))
     assert llm.failure_code(e) == "not-logged-in" and "`gemini`" in str(e)
+
+
+def test_issue_is_one_calm_word():
+    # what the desk shows beside an installed agent instead of its raw error
+    assert acp.issue("logged-in") is None and acp.issue("not-installed") is None and acp.issue("installed") is None
+    assert acp.issue("not-logged-in", "Gemini API key is missing") == "sign-in"
+    assert acp.issue("error", "GitHub Copilot CLI did not start in ACP mode: ✘ unknown flag: --acp") == "update"
+    assert acp.issue("error", "error: unknown option '--acp'") == "update"
+    assert acp.issue("region-blocked", "User location is not supported") == "region"
+    assert acp.issue("timeout") == "timeout"
+    assert acp.issue("error", "segfault") == "error"

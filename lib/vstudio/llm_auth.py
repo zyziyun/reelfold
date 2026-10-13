@@ -84,9 +84,11 @@ MSG = {   # code -> (en, zh); {params} filled from the row
     "auth-not-logged-in": ("Not logged in", "未登录"),
     "auth-not-installed": ("{exe} is not installed", "未安装 {exe}"),
     "agent-installed": ("Installed · sign-in not checked yet", "已安装 · 还没检查登录"),
-    "agent-not-logged-in": ("Not signed in: run {display} and sign in", "未登录：运行 {display} 登录"),
-    "agent-region": ("Not available in your region: {error}", "你所在的地区用不了：{error}"),
-    "agent-not-acp": ("This version does not speak ACP: update it ({command})", "这个版本不支持 ACP，请更新（{command}）"),
+    "agent-not-logged-in": ("Sign in to {label} to use it here", "登录 {label} 后就能在这里用"),
+    "agent-region": ("{label} is not available in your region", "你所在的地区用不了 {label}"),
+    "agent-not-acp": ("Update {label} to use it here", "更新 {label} 后就能在这里用"),
+    "agent-timeout": ("{label} did not answer: check again in a moment", "{label} 没有响应，稍后再检查一次"),
+    "agent-error": ("{label} could not start here: try it in a terminal", "{label} 在这里启动不了，先在终端里试试"),
     "agent-login-first-run": ("Run {display}; it asks you to sign in, then type /quit", "运行 {display}，按提示登录，然后输入 /quit 退出"),
     "auth-unavailable": ("Not available in this version of the app (it cannot run {exe})",
                          "这个版本的应用不能使用（无法运行 {exe}）"),
@@ -464,19 +466,22 @@ def _agent(p, probe=True, timeout=PROBE_TIMEOUT):
         return dict(row, state="logged-in", ready=True, verified=True, message=msg("auth-logged-in", dict(
             plan_s="", email_s=""), plan=None, email=None))
     detail = r.get("detail")
-    if r["state"] == "not-logged-in":
-        return dict(row, state="not-logged-in", verified=True, detail=detail,
-                    message=msg("agent-not-logged-in", display=_login_display(p)))
-    if r["state"] == "region-blocked":
-        return dict(row, state="error", detail=detail, message=msg("agent-region", error=(detail or "")[:160]),
+    # one calm line and its action (sign in, update), never the agent's raw error: that stays in ``detail``
+    kind = acp.issue(r["state"], detail)
+    lab = dict(label=spec["label"])
+    if kind == "sign-in":
+        return dict(row, state="not-logged-in", verified=True, detail=detail, issue=kind,
+                    message=msg("agent-not-logged-in", lab, display=_login_display(p)))
+    if kind == "region":
+        return dict(row, state="error", detail=detail, issue=kind, message=msg("agent-region", lab),
                     code="region-blocked")
-    if r["state"] == "timeout":
-        return dict(row, state="error", detail=detail, message=msg("auth-timeout", seconds=min(timeout, 45)),
-                    code="timeout")
-    if detail and "did not start in ACP mode" in detail:
-        return dict(row, state="error", detail=detail, message=msg("agent-not-acp", command=spec["install"]["command"]),
-                    code="not-acp")
-    return dict(row, state="error", detail=detail, message=msg("auth-error", error=(detail or "unknown")[:160]))
+    if kind == "timeout":
+        return dict(row, state="error", detail=detail, issue=kind,
+                    message=msg("agent-timeout", lab, seconds=min(timeout, 45)), code="timeout")
+    if kind == "update":
+        return dict(row, state="error", detail=detail, issue=kind, ready=False,
+                    message=msg("agent-not-acp", lab, command=spec["install"]["command"]), code="not-acp")
+    return dict(row, state="error", detail=detail, issue="error", message=msg("agent-error", lab), code="error")
 
 
 def _api(p):
