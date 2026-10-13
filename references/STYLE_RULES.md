@@ -26,7 +26,10 @@ anywhere = `classic`, so old setups do not change under the creator) → `editor
 style's `color` / `highlight`, a title's `color` / `band_color`) always win; the `theme` op clears them
 (`restyle: false` keeps them).
 
-Fonts are OFL only: Noto Sans SC / Noto Serif SC (Source Han). Never ship GPL or non-commercial fonts.
+Fonts are OFL only: Noto Sans SC / Noto Serif SC (Source Han), plus the typography kit - Smiley Sans 得意黑
+(`display-zh`, headlines), LXGW WenKai 霞鹜文楷 (`zh-humanist`, quotes), Instrument Serif (`serif-display`, English
+titles). Each theme names its pair in `theme.PAIRS`; `theme.type_scale(w, h)` gives the sizes, tracking, line height
+and characters per line for a canvas. Never ship GPL or non-commercial fonts.
 
 ## Rules
 
@@ -77,4 +80,6 @@ explicit `color` param for one-off overrides, default `None` = theme.
   `quote_block`, `stamp`, `progress_line`, `marker_line`, `chapter_rule`, `counter`, `lower_third`),
   `draw.emph_layer` (theme-aware text with marker / colour / underline emphasis).
 - Output edit: `{"op": "theme", "theme": "editorial"}` ("换成更高级的配色", "换成黑白", "夜间模式").
-- Tests: `tests/test_theme.py`.
+- Text lint: `lib/vstudio/textlint.py` (words per line, 避头尾, text area, > 2 type styles, stacked stroke + shadow
+  + colour, emoji, doubled punctuation, a line in the wrong language for the platform); firstpass runs it on the cues.
+- Tests: `tests/test_theme.py`, `tests/test_typography.py`.

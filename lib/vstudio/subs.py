@@ -136,8 +136,13 @@ def strip_markup(text):
 # ------------------------------------------------------------------ wrapping
 # a latin-script word (accented / Greek / Cyrillic letters too: "café", "Ελλάδα") is one unbreakable unit
 _LATIN = re.compile(r"[A-Za-z0-9\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u1E00-\u1EFF%/+.\-'’&@#_$€£]+")
-_CLOSE = set("，。、！？；：”’）》」』】,.!?;:)]…%")
-_OPEN = set("“‘（《「『【([")
+_CLOSE = set("，。、！？；：”’）》」』】〉〕｝,.!?;:)]}…%｡､｣")   # closing punctuation: a good place to break AFTER
+_OPEN = set("“‘（《「『【〈〔｛([{｢")
+# 避头尾 (kinsoku): marks that may never START a line (closing punctuation plus dashes, the middle dot and the tilde,
+# which are glued to the token before them but are not a preferred break) and marks that may never END one.
+# Half-width ' and " are left out: the same glyph opens and closes, so it cannot be judged from the character alone.
+NO_LINE_START = _CLOSE | set("—–·・~～‥")
+NO_LINE_END = set(_OPEN)
 
 
 def char_width(c):
@@ -170,9 +175,9 @@ def _tokens(text):
                 raw.append((seg[i], hi)); i += 1
     out = []
     for t, hi in raw:
-        if out and t and t[0] in _CLOSE and not out[-1][0].isspace():
+        if out and t and t[0] in NO_LINE_START and not out[-1][0].isspace():
             out[-1][0] += t; out[-1][1].append([t, hi])
-        elif out and out[-1][0] and out[-1][0][-1] in _OPEN and not t.isspace():
+        elif out and out[-1][0] and out[-1][0][-1] in NO_LINE_END and not t.isspace():
             out[-1][0] += t; out[-1][1].append([t, hi])
         else:
             out.append([t, [[t, hi]]])
@@ -259,6 +264,34 @@ def _break_bonus(toks, word_aware=True):
     return bonus
 
 
+def _visible_len(s):
+    """Characters of ``s`` that are not punctuation (the 避头尾 sets) or space."""
+    return sum(1 for c in s if c not in NO_LINE_START and c not in NO_LINE_END and not c.isspace())
+
+
+def kinsoku_violations(lines):
+    """避头尾 problems in wrapped lines -> [{line, kind, char}] (empty = clean). kind: ``start`` (a line opens
+    with closing punctuation, a dash, ·, ~), ``end`` (a line ends with an opening bracket / quote) or ``orphan``
+    (the last of several lines is a single character, punctuation not counted). Markup is ignored. Used by
+    ``vstudio.textlint`` on every on-screen line (a cue's first line counts too: a cue split before a ，);
+    ``balanced_wrap`` never produces these."""
+    out = []
+    ls = [strip_markup(str(x or "")).strip() for x in lines]
+    for i, ln in enumerate(ls):
+        if not ln:
+            continue
+        if ln[0] in NO_LINE_START and (i > 0 or ln[0] not in "…‥—–"):   # a lead-in "……" may open a text
+            out.append(dict(line=i, kind="start", char=ln[0]))
+        if i < len(ls) - 1 and ln[-1] in NO_LINE_END:
+            out.append(dict(line=i, kind="end", char=ln[-1]))
+    nonempty = [i for i, ln in enumerate(ls) if ln]
+    if len(nonempty) > 1:
+        last = ls[nonempty[-1]]
+        if _visible_len(last) == 1 and not _LATIN.fullmatch(last.strip("".join(NO_LINE_START | NO_LINE_END))):
+            out.append(dict(line=nonempty[-1], kind="orphan", char=last))
+    return out
+
+
 def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True):
     """Wrap into the FEWEST lines that fit ``max_width``, then balance them (similar lengths, breaks
     preferred after punctuation, never a one-character orphan line, latin words never split).
@@ -291,7 +324,8 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
         while b > a and toks[b - 1][0].isspace():
             b -= 1
         span_w[i, j] = sum(widths[a:b]) if a < b else 0.0
-        span_orphan[i, j] = b - a == 1 and len(toks[a][0]) == 1 and not _LATIN.fullmatch(toks[a][0])
+        # one CJK character on its own line, punctuation not counted ("了。" is still an orphan)
+        span_orphan[i, j] = b - a == 1 and _visible_len(toks[a][0]) == 1 and not _LATIN.fullmatch(toks[a][0])
 
     def lw(i, j):
         if (i, j) not in span_w:
@@ -328,6 +362,8 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
                     last = toks[j - 1][0]
                     if j < m and last and last[-1] in _CLOSE:
                         c -= 0.5 * target                   # break after punctuation
+                    elif j < m and last and last[-1] in "·・":
+                        c += 0.5 * target                   # inside a name (玛丽·安): keep it on one line
                     elif j < m:
                         c += bonus[j] * target
                     if dp[L - 1][i] + c < dp[L][j]:

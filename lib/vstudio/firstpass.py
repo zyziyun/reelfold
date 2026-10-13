@@ -209,6 +209,13 @@ def check_caption_lang(cues, prof, title=None, text=None):
     return out
 
 
+def check_text(cues, prof):
+    """On-screen text lint of the burned captions (vstudio.textlint: words per line, 避头尾, emoji, 。。, a line in
+    the wrong language for the platform) - all warn items."""
+    from vstudio import textlint
+    return textlint.lint([dict(text=c["text"], start=c.get("start")) for c in cues], platform=prof)
+
+
 def _luma(path):
     from PIL import Image, ImageStat
     with Image.open(path) as im:
@@ -350,6 +357,7 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     items += check_media(video, prof, media_checks and info.get("has_audio"))
     items += check_speed(info["duration"], [s["duration"] for s in srcs], sp, hook_seconds)
     items += check_captions(load_cues(cues), f, locale)
+    items += check_text(load_cues(cues), prof)
     items += check_cover(cover, info, f)
     t, txt = load_post(post)
     items += check_post(title or t, txt, prof, f)
