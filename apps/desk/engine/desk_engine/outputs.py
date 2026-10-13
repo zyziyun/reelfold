@@ -33,7 +33,8 @@ from .common import BadRequest, need, read_json, write_json
 
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add", "theme",
        "caption_remove", "caption_placement", "title", "effect_add", "effect_update", "effect_remove", "cover",
-       "export_add", "export_remove", "reset", "shot_swap", "override_reset")
+       "export_add", "export_remove", "reset", "shot_swap", "override_reset", "voiceover", "voiceover_remove")
+VO_MODES = ("intro", "full", "span")
 NLE_FORMATS = ("xmeml", "jianying", "capcut", "otio")
 TARGET_RE = re.compile(r"^([a-z][a-z-]{0,30}(:[a-z]{3,12})?|\d{1,2}:\d{1,2})$")
 
@@ -495,6 +496,19 @@ def validate_ops(ops):
             need(isinstance(o["sig"], str) and re.match(r"^[0-9a-f]{6,40}$", o["sig"]), "sig: the words signature")
         if o.get("why") is not None:
             need(isinstance(o["why"], str) and len(o["why"]) <= 200, "why: text")
+        if o["op"] == "voiceover":            # a narration over the clip (engine vstudio.project.outvoice)
+            need(o.get("mode") in (None,) + VO_MODES, "mode: intro | full | span")
+            need(o.get("source") in (None, "tts", "take"), "source: tts | take")
+            for k in ("text", "text_zh", "ask", "voice"):
+                need(o.get(k) is None or (isinstance(o[k], str) and len(o[k]) <= 2000), f"{k}: text")
+            need(o.get("take") is None or (isinstance(o["take"], str) and 0 < len(o["take"]) < 4096), "take: a file")
+            ln = o.get("lines")
+            need(ln is None or (isinstance(ln, list) and len(ln) <= 60 and all(
+                isinstance(x, dict) and all(isinstance(v, (str, int, float)) and not isinstance(v, bool)
+                                            for v in x.values()) for x in ln)), "lines: [{start, end, text, text_zh}]")
+            need(o.get("voices") is None or isinstance(o["voices"], dict), "voices: {lang: voice}")
+        if o["op"] == "voiceover_remove":
+            need(isinstance(o.get("id"), str) and re.match(r"^vo\d{1,6}$", o["id"]), "id: a voice-over id")
         if o["op"] == "override_reset":
             need(isinstance(o.get("key"), str) and re.match(r"^[a-z_]{1,24}(:[\w.-]{1,80})?$", o["key"]),
                  "key: one of her hand edits (overrides[].key)")
@@ -512,6 +526,9 @@ def _new_state():
 def apply_op(state, o, base):
     """One op on the desk state -> (describe, value). Raises EngineMessage like the engine would."""
     op = o["op"]
+    if op in ("voiceover", "voiceover_remove"):     # new speech is made by the engine (its TTS and mix)
+        raise EngineMessage(_m("voiceover-needs-engine", "a voice-over is made by the engine (it is not running)",
+                               "旁白需要引擎来生成（引擎没有运行）"))
     dur = base["duration"] or 1e9
     mode = base["mode"]
 
