@@ -25,6 +25,20 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   interrupted; the switch goes into the decisions log). `/model` in a project's chat now switches that project only,
   with "Make this my default". A goal group switches all its videos not made yet, or one of them. Lists show a
   project's own AI. Settings › AI keeps the default, the fallback order and the per-job overrides (advanced).
+- **A CC0 music library**: 52 tracks, all CC0 / public domain (free in published videos, no credit needed), one
+  download in Settings › Downloads. Each video's music is picked for its mood, pace and your words; videos made
+  together never share a track and your recent videos' tracks are skipped. Settings › Music plays a preview of every
+  track, and marks favourites or "Never use".
+- **YouTube publishes through the official Data API only**: sign in with Google in your own browser (Google refuses
+  sign-in inside embedded browsers), tokens in the keychain; Publish and Schedule upload the video, cover and copy
+  (a scheduled post goes up private with its publish time). Uploads from a Google Cloud project that has not passed
+  YouTube's API audit stay private until you make them public. "Upload in your browser" stays for every platform;
+  other platforms keep the assisted fill. The official upload API of every platform is audited in
+  `references/PUBLISHING.md`.
+- **Delete for good**: any project, batch, import or video can be deleted from its row menu, either Move to Trash
+  (with Undo) or Delete permanently (a second confirm). The dialog names what Reelfold made and goes; your recordings
+  and footage are never deleted.
+- **One version switcher per clip**: a clip's versions across its languages and platforms are in one switcher.
 - **Premium finish for footage films**:
   - Shots are matched in colour: each shot's white balance and tint move toward the film's reference shot, and six
     film looks (Cinema neutral, Kodak 2383 soft, Portra warm, Fuji cool, Silver mono, Soft bleach) are mixed in at
