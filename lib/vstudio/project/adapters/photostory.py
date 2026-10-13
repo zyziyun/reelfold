@@ -133,18 +133,9 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     else:
         lang_note = 'this version is narrated in English: TTS = dict(language="en").'
     plat_names = ", ".join(plats) or "its platforms"
-    bgm = None
-    if _wants_music(request):
-        from vstudio import music as MU
-        ranked = MU.rank(request, style="calm")
-        mood = next((t["mood"] for t in ranked if t["source"] == "builtin"), "calm")
-        made = MU.make(mood, round(target + 20, 1))
-        bgm = os.path.join(work, f"music_{mood}{os.path.splitext(made)[1]}")
-        import shutil
-        os.makedirs(work, exist_ok=True)
-        shutil.copyfile(made, bgm)
-    bgm_note = (f'Music: BGM = "{os.path.basename(bgm)}", BGM_LUFS = -28, BGM_DUCK = -6 (a built-in bed already '
-                f"made for this video)." if bgm else "BGM = None.")
+    bgm = music_bed(ctx, work, request, target, music_mode)
+    bgm_note = (f'Music: BGM = "{bgm}", BGM_LUFS = -28, BGM_DUCK = -6 (already set for this video).' if bgm
+                else "BGM = None.")
     tpl = DR._read(template, DR.TEMPLATE_CHARS) if template else ""
     doc = DR._read(os.path.join(M.ROOT, (cp.get("author") or {}).get("doc") or "workflows/photo-story/WORKFLOW.md"),
                    20000)
@@ -207,6 +198,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         for n in missing:
             text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
     text = enforce_voice(text, vp, lang_zh, music_mode)
+    if bgm:
+        text = enforce_bgm(text, work, bgm)
     if vp.get("narrate") == "en":
         text = add_respellings(text, complete)
     os.makedirs(work, exist_ok=True)
@@ -222,6 +215,44 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
                 language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"))
+
+
+_AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")
+
+
+def music_bed(ctx, work, request, target, music_mode):
+    """The spec's BGM (a path relative to ``work``, the spec's folder) or None: her own music input (linked into
+    ../inputs by the prepare stage), else a built-in bed (vstudio.music) when the request wants music - and always in
+    music mode, whose timeline is cut on the bed's beats ("MODE music needs BGM" stopped every history video drafted
+    as a mood piece without a music word)."""
+    for v in (ctx.inputs or {}).values():
+        for src in (v if isinstance(v, list) else [v]):
+            if isinstance(src, str) and src.lower().endswith(_AUDIO_EXT) and os.path.isfile(src):
+                linked = os.path.join(os.path.dirname(work), "inputs", os.path.basename(src))
+                return (os.path.join("..", "inputs", os.path.basename(src)) if os.path.exists(linked)
+                        else os.path.abspath(src))
+    if not (music_mode or _wants_music(request)):
+        return None
+    from vstudio import music as MU
+    ranked = MU.rank(request, style="calm")
+    mood = next((t["mood"] for t in ranked if t["source"] == "builtin"), "calm")
+    made = MU.make(mood, round(target + 20, 1))
+    name = f"music_{mood}{os.path.splitext(made)[1]}"
+    import shutil
+    os.makedirs(work, exist_ok=True)
+    shutil.copyfile(made, os.path.join(work, name))
+    return name
+
+
+def enforce_bgm(text, work, bgm):
+    """``BGM`` in the spec is the bed made for it, whatever the model wrote (None, left out, or a file that does not
+    exist) - a file of hers the model chose that exists is kept."""
+    cur = _spec_value(text, "BGM")
+    if isinstance(cur, str) and cur.strip():
+        p = os.path.expanduser(cur)
+        if os.path.isfile(p if os.path.isabs(p) else os.path.join(work, p)):
+            return text
+    return _set_global(text, "BGM", bgm)
 
 
 def _set_global(text, name, value):
