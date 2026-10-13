@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editKey, RenderQueue, renderTargets, upToDate, type RenderState } from '../../src/renderer/src/lib/autoRender';
+import { editKey, RenderQueue, renderTargets, unrendered, upToDate, type RenderState } from '../../src/renderer/src/lib/autoRender';
 
 function harness() {
   const timers: (() => void)[] = [];
@@ -81,5 +81,19 @@ describe('what to render', () => {
     expect(upToDate({ ...doc, renders: r })).toBe(false);
     expect(upToDate({ ...doc, renders: [...r, { target: 'douyin:vertical', fresh: true, quality: 'final', file: 'b' }] })).toBe(true);
     expect(upToDate({ ...doc, renders: [...r, { target: 'douyin:vertical', fresh: true, quality: 'preview', file: 'b' }] })).toBe(false);
+  });
+});
+
+describe('unrendered', () => {
+  const r = (at: string, fresh = false) => ({ target: 'primary', quality: 'final', file: 'x.mp4', fresh, at });
+  const st = (id: string, at: string, reverted = false) => ({ id, at, describe: [], reverted });
+  it('a change applied after the last render (the AI voice-over while she was away) renders on open', () => {
+    expect(unrendered({ exports: [], renders: [r('2026-10-13T12:04:19')], steps: [st('s3', '2026-10-13T12:04:04'), st('s4', '2026-10-13T12:53:33')] })).toBe(true);
+  });
+  it('an edit that was rendered, a fresh render, or nothing changed: no render on open', () => {
+    expect(unrendered({ exports: [], renders: [r('2026-10-13T12:04:19')], steps: [st('s3', '2026-10-13T12:04:04')] })).toBe(false);
+    expect(unrendered({ exports: [], renders: [r('2026-10-13T12:04:19', true)], steps: [st('s4', '2026-10-13T12:53:33')] })).toBe(false);
+    expect(unrendered({ exports: [], renders: [], steps: [] })).toBe(false);
+    expect(unrendered({ exports: [], renders: [r('2026-10-13T12:04:19')], steps: [st('s4', '2026-10-13T12:53:33', true)] })).toBe(false);
   });
 });

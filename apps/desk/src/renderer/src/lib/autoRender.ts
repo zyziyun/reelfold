@@ -24,6 +24,17 @@ export function upToDate(d: Pick<OutputDoc, 'renders' | 'exports'>): boolean {
   return renderTargets(d).every((tg) => fresh.has(tg));
 }
 
+/** A change was made after the clip's newest final render and never rendered (an AI change applied while she was
+ * away from the editor - the 77 s voice-over ask): opening the clip renders it. Older edits that were rendered stay. */
+export function unrendered(d: Pick<OutputDoc, 'renders' | 'exports' | 'steps'>): boolean {
+  if (upToDate(d)) return false;
+  const steps = (d.steps ?? []).filter((x) => !x.reverted && x.at);
+  if (!steps.length) return false;
+  const last = steps.map((x) => String(x.at)).sort().pop()!;
+  const made = (d.renders ?? []).filter((r) => !r.simulated && (r.quality ?? 'final') === 'final' && r.at).map((r) => String(r.at)).sort().pop();
+  return !made || last > made;
+}
+
 /** The render's targets: the clip itself and every version it has. */
 export function renderTargets(d: Pick<OutputDoc, 'exports'>): string[] {
   return ['primary', ...new Set((d.exports ?? []).map((x) => x.target))];
@@ -160,6 +171,7 @@ export function useAutoRender(item: string, clip: string, doc: OutputDoc | null,
     const id = `${item}/${clip}`;
     if (seen.current?.clip !== id) {
       seen.current = { clip: id, key }; // the clip as she opened it
+      if (docRef.current && unrendered(docRef.current)) q.request(); // a change made while she was away: rendered now
       return;
     }
     if (seen.current.key === key) return;
