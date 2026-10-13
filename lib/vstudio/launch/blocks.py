@@ -302,8 +302,13 @@ def hook_html(ctx, sid, s, land, st, du, js, sfx):
     x0, y0, x1, y1 = L["text"]
     zh = lang == "zh"
     hi = int(L["type_px"][0] * 1.3)
-    px, ls = B.fit(s["text"], ctx["heavy_file"], (hi, int(L["type_px"][1])), int(L["type_w"]), L["type_lines"] + 1,
-                   lang, ctx["heavy"])
+    if "\n" in s["text"]:                              # her own line breaks: each line fitted on its own
+        ls = [x.strip() for x in s["text"].split("\n") if x.strip()]
+        px = min(B.fit(x, ctx["heavy_file"], (hi, int(L["type_px"][1] * 0.6)), int(L["type_w"]), 1, lang,
+                       ctx["heavy"])[0] for x in ls)
+    else:
+        px, ls = B.fit(s["text"], ctx["heavy_file"], (hi, int(L["type_px"][1])), int(L["type_w"]),
+                       L["type_lines"] + 1, lang, ctx["heavy"])
     lh = 1.16 if zh else 1.02
     h = px * lh * len(ls)
     top = int((y0 + y1) / 2 - h / 2)

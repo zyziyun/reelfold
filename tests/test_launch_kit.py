@@ -982,6 +982,13 @@ def test_blocks_build_waterfall_lift_hook_on_a_cream_stage(cfg, shots, tmp_path)
     CO.build(short, S.plan(short, shots, "demo", "en", "9:16"), sp, quiet=True)
     sh = open(os.path.join(sp, "index.html"), encoding="utf-8").read()
     assert 'class="type heavy"' in sh and 'scale: 1.5' in sh
+    two = C.film_cfg(dict(c, films=[dict(c["films"][1], film=dict(c["films"][1]["film"],
+                                                                     hook=dict(en="Open source.\nOn your Mac.")))]),
+                     "short")
+    tp = str(tmp_path / "two")
+    CO.build(two, S.plan(two, shots, "demo", "en", "9:16"), tp, quiet=True)
+    th = open(os.path.join(tp, "index.html"), encoding="utf-8").read()
+    assert th.count('<span class="ln">') >= 2 and ">source.<" in th                 # her line breaks are kept
 
 
 def test_review_page_and_contact_sheet(cfg, kitdir, tmp_path):
