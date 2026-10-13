@@ -279,6 +279,7 @@ Rules:
 - Respect each output's capability flags. A flattened output (no clean master) cannot remove, replace or restyle
   text that is burned into the picture: list such outputs in needs_rerender with the reason instead of ops.
 - Prefer few, purposeful ops.
+- `her_edits` of an output = what the creator changed by hand there: never change those (such ops are dropped).
 Return {"summary": "<one sentence>", "groups": [{"output": "<id>", "ops": [{"op": ...}], "summary": "..."}],
 "needs_rerender": {"outputs": ["<id>"], "why": "..."}}."""
 
@@ -309,11 +310,13 @@ def _summary(rec, doc, st):
                 canvas=[rec["info"]["w"], rec["info"]["h"]], caps={k: caps.get(k) for k in keep},
                 state=dict(trim=st["trim"], cuts=len(st["cuts"]), speed=st["speed"], title=st["title"],
                            effects=[dict(id=e["id"], effect=e["effect"], start=e["start"]) for e in st["effects"]]),
-                transcript=lines)
+                her_edits=[o["key"] for o in O.overrides(doc)], transcript=lines)
 
 
-def _validate(doc, st, raw_ops):
+def _validate(doc, st, raw_ops, instruction=None, guard=True):
+    """``guard``: a model's ops keep her hand edits (unless her instruction names them); rule ops are her words."""
     proposed, dropped, cur = [], [], st
+    mine = {o["key"] for o in O.overrides(doc)} if guard else set()
     for op in raw_ops or []:
         if not isinstance(op, dict):
             dropped.append(dict(op=op, error=O.msg("bad-op", "not an object", "不是对象")))
@@ -324,6 +327,12 @@ def _validate(doc, st, raw_ops):
         except O.OutputError as e:
             dropped.append(dict(op=op, error=e.info))
             continue
+        kept, why_kept, note = O.guard_ai_op(n, mine, None, instruction, st)
+        if kept is None:
+            dropped.append(dict(op=op, error=why_kept))
+            continue
+        if kept is not n:
+            n, w, clean = kept, w + [note], dict(clean, restyle=False)
         cur = O.fold(cur, n)
         why = op.get("why") or op.get("reason")
         proposed.append(dict(op=clean, normalized=n, describe=O.describe(n), why=why, warnings=w,
@@ -390,7 +399,7 @@ def plan(d, instruction, outputs=None, context=None, provider=None, model=None, 
         elif cls["kind"] in ("text-remove", "text-replace"):
             ours = _ours(st, cls["stems"])
             if ours and cls["kind"] == "text-remove":
-                prop, drop = _validate(doc, st, ours)
+                prop, drop = _validate(doc, st, ours, guard=False)
                 groups.append(dict(output=rec["id"], title=rec.get("title"), mode=rec["mode"], proposed=prop,
                                    dropped=drop, summary=None, source="rules"))
                 continue
@@ -421,7 +430,7 @@ def plan(d, instruction, outputs=None, context=None, provider=None, model=None, 
         route = llm.route("output_edit", provider, model)
         if route.provider == "none":
             for rec, doc, st in ask:
-                prop, drop = _validate(doc, st, O._rule_ops(instruction, rec["info"]["duration"]))
+                prop, drop = _validate(doc, st, O._rule_ops(instruction, rec["info"]["duration"]), guard=False)
                 if prop or drop:
                     groups.append(dict(output=rec["id"], title=rec.get("title"), mode=rec["mode"], proposed=prop,
                                        dropped=drop, summary=None, source="rules"))
@@ -475,7 +484,7 @@ def plan(d, instruction, outputs=None, context=None, provider=None, model=None, 
                                        "模型给了不存在的成片", output=g.get("output")))
                     continue
                 rec, doc, st = hit
-                prop, drop = _validate(doc, st, g.get("ops"))
+                prop, drop = _validate(doc, st, g.get("ops"), instruction)
                 groups.append(dict(output=rec["id"], title=rec.get("title"), mode=rec["mode"], proposed=prop,
                                    dropped=drop, summary=g.get("summary"), source="model"))
             nr = j.get("needs_rerender") if isinstance(j.get("needs_rerender"), dict) else None

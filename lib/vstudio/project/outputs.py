@@ -42,7 +42,7 @@ DOC_VERSION = 1
 MIN_KEEP_S = 1.0
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add",
        "caption_remove", "caption_placement", "title", "theme", "effect_add", "effect_remove", "effect_update", "cover",
-       "export_add", "export_remove", "reset", "pickup", "shot_swap")
+       "export_add", "export_remove", "reset", "pickup", "shot_swap", "override_reset")
 # what a `theme` op hands back to the theme (restyle=true): explicit look keys of captions / title / effects
 THEME_LOOK = dict(caption=("color", "highlight", "stroke", "stroke_color", "font", "box", "box_color"),
                   title=("color", "band_color"), effect=("color", "anim", "angle", "theme"))
@@ -483,9 +483,14 @@ class Doc:
 
     def state(self, steps=None):
         st = empty_state()
-        for s in active_steps(self.d["steps"] if steps is None else steps):
+        act = active_steps(self.d["steps"] if steps is None else steps)
+        resets = [(i, o["key"]) for i, s in enumerate(act) for o in s["ops"] if o["op"] == "override_reset"]
+        for i, s in enumerate(act):
+            later = [k for j, k in resets if j > i] if resets and s.get("by") != "ai" else ()
             for op in s["ops"]:
-                st = fold(st, op)
+                op = _without_keys(op, later) if later and not op.get("derived") else op
+                if op is not None:
+                    st = fold(st, op)
         if st["captions"]["enabled"] is None:
             st["captions"]["enabled"] = bool(self.rec.get("captions_on"))
         # ids stay unique across reverted steps too (a revert can itself be undone)
@@ -513,6 +518,212 @@ def active_steps(steps):
     """The steps whose ops make the current state: everything except revert markers and what they cancel."""
     dead = reverted_ids(steps)
     return [s for s in steps if s["id"] not in dead and not s.get("revert_of")]
+
+
+# --------------------------------------------------------------------------- her edits (overrides)
+# What she changed by hand in the clip editor / inspector is an override: an AI step (a chat proposal, the project
+# AI) never changes it unless she points at it, a new render of the output (a re-run, "Redo the visuals") re-applies
+# it, the model is told about it, and each one can go back to the AI version (``override_reset {key}``: her ops on
+# that key are left out of the fold; undo brings them back). The idea of OpenFilm's ``overrides`` attribute
+# (github.com/openfilm/openfilm, MIT): edits a person made that agents must keep.
+_STYLE_KEY = "caption_style:"
+_SIMPLE_KEYS = {"trim": "trim", "speed": "speed", "loudness": "loudness", "captions": "captions", "title": "title",
+                "theme": "theme", "cover": "cover", "caption_placement": "caption_placement"}
+
+
+def override_keys(op):
+    """The things a normalized op sets that count as a hand edit: ``caption:<cue>``, ``caption_style:<field>``,
+    ``effect:<id>``, ``title``, ``cover``, ``trim``, ``speed``, ``theme``, ``captions``, ``caption_placement``,
+    ``loudness``. Cuts, exports, pickups and shot swaps are not overrides (they are her cut, kept as steps)."""
+    k = op.get("op")
+    if k in _SIMPLE_KEYS:
+        return [_SIMPLE_KEYS[k]]
+    if k in ("caption_text", "caption_remove"):
+        return [f"caption:{op.get('cue')}"]
+    if k == "caption_add":
+        return [f"caption:{c.get('id')}" for c in op.get("cues") or [] if c.get("id")]
+    if k == "caption_style":
+        return [_STYLE_KEY + f for f in sorted(op.get("style") or {})]
+    if k in ("effect_add", "effect_update", "effect_remove"):
+        return [f"effect:{op.get('id')}"]
+    return []
+
+
+def _without_keys(op, keys):
+    """``op`` with the parts that set ``keys`` taken out (a reset to the AI version) -> op | None (nothing left)."""
+    mine = set(override_keys(op)) & set(keys)
+    if not mine:
+        return op
+    if op["op"] == "caption_style":
+        style = {f: v for f, v in op["style"].items() if _STYLE_KEY + f not in mine}
+        return dict(op, style=style) if style else None
+    if op["op"] == "caption_add":
+        cues = [c for c in op.get("cues") or [] if f"caption:{c.get('id')}" not in mine]
+        return dict(op, cues=cues) if cues else None
+    return None
+
+
+def _override_label(key, op, st):
+    """{code, params, message, message_zh} naming one override for the desk's list."""
+    kind, _, ref = key.partition(":")
+    if kind == "caption":
+        return msg("override-caption", f"caption {ref}", f"字幕 {ref}", cue=ref)
+    if kind == "caption_style":
+        return msg("override-caption-style", f"caption {ref}", f"字幕{ref}", field=ref)
+    if kind == "effect":
+        e = next((x for x in st["effects"] if x["id"] == ref), None) or {}
+        sp = FX.SPECS.get(e.get("effect") or op.get("effect") or "") or {}
+        return msg("override-effect", f"{sp.get('en') or 'effect'} {ref}", f"{sp.get('zh') or '特效'} {ref}",
+                   id=ref, effect=e.get("effect") or op.get("effect"))
+    names = dict(trim=("trim", "首尾裁剪"), speed=("speed", "速度"), loudness=("loudness", "响度"),
+                 captions=("captions on / off", "字幕开关"), title=("title band", "标题条"), theme=("theme", "配色主题"),
+                 cover=("cover", "封面"), caption_placement=("caption placement", "字幕位置"))
+    en, zh = names.get(kind, (kind, kind))
+    return msg(f"override-{kind.replace('_', '-')}", en, zh)
+
+
+def overrides(doc, steps=None):
+    """Her hand edits in force -> [{key, label, by_step, at, added, ops [describe]}], oldest first. A key is hers
+    while the last active step that set it is hers (``by`` not ``ai``); an AI step she applied after it takes it
+    over, a ``reset`` clears them all, an ``override_reset`` gives that key back to the AI version."""
+    cur, created = _override_map(doc.d["steps"] if steps is None else steps)
+    if not cur:
+        return []
+    st = doc.state(steps)
+    out = []
+    for key, o in cur.items():
+        out.append(dict(key=key, label=_override_label(key, o["op"], st), by_step=o["by_step"], at=o["at"],
+                        added=key in created, ops=o["ops"]))
+    return out
+
+
+def _override_map(steps):
+    """{key: {by_step, at, op, ops}}, {keys she created} from an edit document's steps."""
+    cur, created = {}, set()
+    for s in active_steps(steps or []):
+        ai_ = s.get("by") == "ai"
+        for op in s["ops"]:
+            if op["op"] == "reset":
+                cur.clear()
+                continue
+            if op["op"] == "override_reset":
+                cur.pop(op["key"], None)
+                continue
+            if op.get("derived"):
+                continue                     # captions / effects re-timed by a cut: the cut is the edit
+            if op["op"] == "effect_add" or op["op"] == "caption_add":
+                for key in override_keys(op):
+                    if not ai_:
+                        created.add(key)
+            for key in override_keys(op):
+                if ai_:
+                    cur.pop(key, None)
+                    continue
+                o = cur.get(key) or dict(key=key, first=s["id"], ops=[])
+                o.update(by_step=s["id"], at=s.get("at"), op=op)
+                o["ops"] = (o["ops"] + [describe(op)])[-4:]
+                cur[key] = o
+    return cur, created
+
+
+def item_overrides(d, item):
+    """Her hand edits on every output of one project item -> {output id: [keys]} (only outputs that have some):
+    what a re-made item (Redo the visuals) re-applies, for the model's brief. Reads the edit documents only."""
+    out = {}
+    try:
+        rows = list_outputs(d)["outputs"]
+    except Exception:  # noqa: BLE001  (a project that cannot list its outputs has no edits to keep)
+        return out
+    for r in rows:
+        if r.get("item") != item or not r.get("steps"):
+            continue
+        doc = read_json(os.path.join(r["edit_dir"], "edit.json"), None) or {}
+        keys = sorted(_override_map(doc.get("steps") or [])[0])
+        if keys:
+            out[r["id"]] = keys
+    return out
+
+
+_NAMES = dict(title=r"title|标题|标题条|headline", cover=r"cover|thumbnail|封面", trim=r"trim|head|tail|开头|结尾|裁",
+              speed=r"speed|faster|slower|倍速|速度|加速|减速|快一点|慢一点", theme=r"theme|look|palette|配色|风格|主题",
+              loudness=r"loud|volume|音量|响度|声音", captions=r"captions?|subtitles?|字幕",
+              caption_placement=r"caption (?:position|placement)|字幕(?:位置|放)",
+              caption_style=r"captions?|subtitles?|字幕")
+
+
+def named_in(instruction, key, st=None):
+    """Does her instruction name the part ``key`` is ("remove the title" names ``title``; an effect by its id, its
+    name or its text; a caption by its id or its words)? Then the AI may change it: she asked."""
+    t = str(instruction or "")
+    if not t.strip():
+        return False
+    kind, _, ref = key.partition(":")
+    if kind in _NAMES and re.search(_NAMES[kind], t, re.I):
+        return True
+    if kind == "title":
+        txt = ((st or {}).get("title") or {}).get("text") if isinstance((st or {}).get("title"), dict) else None
+        parts = [x for x in re.split(r"[\s【】,，。.!！?？:：|/-]+", txt or "") if len(x) >= 2 and not x.isdigit()]
+        return any(x.lower() in t.lower() for x in parts)
+    if kind == "effect":
+        e = next((x for x in (st or {}).get("effects") or [] if x["id"] == ref), None)
+        if ref and ref in t:
+            return True
+        if e:
+            sp = FX.SPECS.get(e["effect"]) or {}
+            words = [sp.get("en"), sp.get("zh"), e["effect"]] + [v for k_, v in (e.get("params") or {}).items()
+                                                                 if k_ in ("text", "title", "name") and v]
+            return any(w and len(str(w)) >= 2 and str(w).lower() in t.lower() for w in words)
+    if kind == "caption":
+        return bool(re.search(r"(?:caption|cue|字幕)\s*#?" + re.escape(ref) + r"\b", t, re.I))
+    return False
+
+
+def override_conflict(keys, mine, focus=None, instruction=None, st=None):
+    """The keys of an AI op that would change her hand edits (``mine``: {key}), minus what she points at in
+    ``focus`` (cues / an effect of the chat context) or names in her ``instruction``: then she asked for that one."""
+    pointed = {k for k in mine if named_in(instruction, k, st)}
+    for c in (focus or {}).get("cues") or []:
+        pointed.add(f"caption:{c.get('id') if isinstance(c, dict) else c}")
+    eff = (focus or {}).get("effect")
+    if eff:
+        pointed.add(f"effect:{eff.get('id') if isinstance(eff, dict) else eff}")
+    return sorted((set(keys) & set(mine)) - pointed)
+
+
+def kept_message(keys):
+    return msg("user-override", "you changed this by hand, so the AI left it as you made it (Reset to the AI "
+               "version first to let the AI change it)", "这里你手动改过，AI 保留了你的版本（想让 AI 改，先「恢复 AI 版本」）",
+               keys=list(keys))
+
+
+def guard_ai_op(n, mine, focus=None, instruction=None, st=None):
+    """An AI op against her overrides -> (op to keep | None, error msg | None, warning | None). A theme keeps her
+    colours (restyle off); a reset is refused while she has hand edits; anything else touching one is dropped -
+    unless she points at it (``focus``) or names it in her ``instruction``."""
+    if not mine:
+        return n, None, None
+    if n["op"] == "reset" and not re.search(r"\breset\b|start over|from scratch|全部恢复|重来|恢复原样", str(instruction or ""),
+                                            re.I):
+        return None, kept_message(sorted(mine)), None
+    if n["op"] == "reset":
+        return n, None, None
+    if n["op"] == "theme" and n.get("restyle") and any(
+            (k.startswith(_STYLE_KEY) or k == "title" or k.startswith("effect:")) and not named_in(instruction, k, st)
+            for k in mine):
+        return dict(n, restyle=False), None, msg("theme-kept-yours", "the new theme keeps the colours you set by "
+                                                 "hand", "新配色保留了你手动设置的颜色")
+    hit = override_conflict(override_keys(n), mine, focus, instruction, st)
+    if hit:
+        return None, kept_message(hit), None
+    return n, None, None
+
+
+def overrides_note(mine):
+    """One line for a model prompt: what she changed by hand (keep it)."""
+    if not mine:
+        return ""
+    return ("The creator changed these by hand in the editor; they are kept (an op that changes them is dropped "
+            "unless she points at that exact part): " + ", ".join(sorted(mine)) + ".")
 
 
 # --------------------------------------------------------------------------- fold (pure: normalized op -> state)
@@ -599,6 +810,8 @@ def fold(st, op):
         st["shots"] = sh
     elif k == "revert":
         pass                                     # a marker: Doc.state() skips the step it cancels
+    elif k == "override_reset":
+        pass                                     # Doc.state() leaves her ops on that key out
     elif k == "reset":
         seq = st["seq"]
         st = empty_state()
@@ -1561,6 +1774,15 @@ def normalize(doc, st, op):
                              "新镜头上没有原来烧录的字幕（标题条、字幕底框会保留）；需要的话为这段加字幕", shot=n["shot"]))
     elif k == "reset":
         pass
+    elif k == "override_reset":
+        key = str(op.get("key") or "")
+        mine = {o["key"]: o for o in overrides(doc)}
+        if key not in mine:
+            raise _err("unknown-override", f"{key!r} is not one of your hand edits", f"{key!r} 不是你手动改过的地方",
+                       key=key, known=sorted(mine))
+        n["key"] = key
+        value["label"] = mine[key]["label"]
+        value["added"] = mine[key]["added"]
     return n, value, warns
 
 
@@ -1724,6 +1946,10 @@ def describe(op, value=None):
         return msg("op-pickup", f"{'replace' if rep_ else 'insert'} a pickup at {op['at']:g}s{q}",
                    f"在 {op['at']:g} 秒{'替换为' if rep_ else '补录'}" + (f"「{said[:40]}」" if said else ""),
                    at=op["at"], end=op["end"], dur=op["dur"], said=said, replaced=op.get("replaced") or "")
+    if k == "override_reset":
+        lab = (value or {}).get("label") or {}
+        return msg("op-override-reset", f"back to the AI version: {lab.get('message') or op['key']}",
+                   f"恢复 AI 版本：{lab.get('message_zh') or op['key']}", key=op["key"])
     if k == "revert":
         return msg("op-revert", f"revert step {op['step']}", "撤销了其中一步", step=op["step"])
     if k == "theme":
@@ -1797,6 +2023,7 @@ def apply_ops(doc, ops, by="user", note=None, dry=False):
         new_cuts = [(n["start"], n["end"]) for n in normed if n["op"] == "cut"]
         derived, retimed = retime(doc, st0, st, new_cuts)
         for n in derived:
+            n["derived"] = True              # made by the cut: not a hand edit of its own (overrides)
             st = fold(st, n)
             normed.append(n)
             descs.append(describe(n))
@@ -2260,6 +2487,7 @@ def show_doc(rec, doc):
                paths=dict(doc=doc.path, dir=doc.dir, renders=os.path.join(doc.dir, "renders"),
                           transcript=transcript_path(doc)))
     out["pickups"] = list(st.get("pickups") or [])
+    out["overrides"] = overrides(doc)
     out["imported"] = _imported_doc(rec, st)
     W = cached_words(doc)
     out["words_sig"] = words_sig(W) if W is not None else None
@@ -2379,6 +2607,8 @@ Rules:
   ...); each version shows its own language. Premium look: few words, no exclamation marks, no emoji.
 - Respect the capability flags (e.g. a flattened output cannot restyle or edit burned-in captions).
 - Prefer few, purposeful ops; do not repeat existing effects.
+- `her_edits` lists what the creator changed by hand (caption text / style fields, effects, title, cover, trim ...):
+  keep them exactly; do not propose an op that changes one unless she points at it or names it.
 - `output.speech` says whether anyone speaks in the clip. With speech false there is no voice: never say music is
   ducked / lowered under a voice or that captions follow the speech; describe only what the ops really do.
 Return {"ops": [{"op": ..., ...}], "summary": "<one sentence, English>"}."""
@@ -2437,6 +2667,7 @@ def _ai_context(rec, doc, st, use_asr=True):
                                       effects=[dict(id=e["id"], effect=e["effect"], start=e["start"], end=e["end"])
                                                for e in st["effects"]], exports=st["exports"],
                                       caption_style=st["captions"]["style"]),
+                her_edits=[dict(key=o["key"], what=o["label"]["message"]) for o in overrides(doc)],
                 ops={k: v for k, v in OP_DOC.items() if k != "shot_swap" or caps.get("shot_swap")}, effects=fx,
                 transcript=lines, **_shots_context(rec, st))
 
@@ -2695,6 +2926,7 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
         used = dict(provider=r["provider"], model=r["model"], routed=route.provider, fallback=r.get("fallback"))
     proposed, dropped = [], []
     cur = st
+    mine = {o["key"] for o in overrides(doc)}
     for op in raw_ops:
         if not isinstance(op, dict):
             dropped.append(dict(op=op, error=msg("bad-op", "not an object", "不是对象")))
@@ -2705,6 +2937,13 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
         except OutputError as e:
             dropped.append(dict(op=op, error=e.info))
             continue
+        kept, why_kept, note = guard_ai_op(n, mine if used["provider"] != "rules" else (), focus, instruction, st)
+        if kept is None:                                  # her hand edit stays as she made it (rules = her words)
+            dropped.append(dict(op=op, error=why_kept))
+            continue
+        if kept is not n:
+            n, w = kept, w + [note]
+            clean = dict(clean, restyle=False)
         why_not = KIT.refuse(kit, n) if kit else None
         if why_not:                                       # a voice treatment on a film with no voice, a 2nd music bed
             dropped.append(dict(op=op, error=why_not))

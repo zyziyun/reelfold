@@ -643,7 +643,16 @@ def scenes_remake(env, cp, choice):
     else:
         env.log(f"remake visuals: going on with {item} - only the scenes still missing")
     # every scene not drawn by the AI in the new folder (a Try again goes on where the last try stopped)
-    res = S.author_scenes(item, env.workflow_dir, request=_request(p), instruction=instruction, out_dir=new,
+    request = _request(p)
+    try:                     # her hand edits on the finished clip are re-applied over the new video: say so
+        from .. import outputs as O
+        mine = sorted({k for keys in O.item_overrides(p.dir, env.job).values() for k in keys})
+        if mine:
+            request += ("\nThe creator's hand edits on the finished clip are kept and laid over the new video ("
+                        + ", ".join(mine) + "): leave room for them (a title band sits at the top, captions low).")
+    except Exception:  # noqa: BLE001  (a brief without the note is still a brief)
+        pass
+    res = S.author_scenes(item, env.workflow_dir, request=request, instruction=instruction, out_dir=new,
                           only=set(only) if only else None, keep_ai=True, log=env.log)
     inp = S.scene_inputs(item, env.workflow_dir)
     target = [s for s in inp["scenes"] if not only or s["id"] in only]
