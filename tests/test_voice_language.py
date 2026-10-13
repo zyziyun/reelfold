@@ -179,7 +179,7 @@ def test_photo_story_youtube_render_is_english_only(tmp_path):
     assert C.HEAD_SECTIONS == ["Opening"] and C.sub_pair("The Needle.", "太空针。") == ("The Needle.", "")
     assert C.shown("Pyramid · 金字塔构图") == "Pyramid" and C.shown("Draft 草稿") == "Draft"
     assert C.shown("示意图，非精确比例 · schematic, not to scale") == "schematic, not to scale"
-    assert C.shown("画家的海岸") == "画家的海岸"                      # nothing English to show: kept
+    assert C.shown("画家的海岸") == ""             # nothing English to show: not shown on YouTube (P9)
     spec.write_text(spec.read_text().replace('"youtube"', '"xiaohongshu"').replace(
         'TTS = dict(language="zh")', 'TTS = dict(language="en")\nSUB_LEAD = "zh"'))
     C = Ctx(load_spec(str(spec)))
@@ -283,8 +283,8 @@ def test_planner_prompt_and_voice_note(monkeypatch):
                    call=lambda s, b: seen.update(system=s) or dict(json={}, model="m"))
     assert seen["system"].rstrip().endswith(PL.zh_voice_line({}))
     risk = PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "en")[0]
-    assert risk["code"] == "intake.risk.zh-voice" and risk["message"].startswith("The free Chinese voice")
-    assert "约 3 GB" in risk["message_zh"]                       # the desk offers the download next to it
+    assert risk.startswith("The free Chinese voice") and risk.info["code"] == "intake.risk.zh-voice"
+    assert "约 3 GB" in PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "zh")[0]   # the desk offers the download
     assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"], mode="music")], "en") == []
     assert PL.voice_risks([_proj("photo-story", ["youtube"])], "en") == []
 

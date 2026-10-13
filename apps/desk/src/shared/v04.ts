@@ -474,6 +474,8 @@ export interface IntakePlan {
   /** text in ``ui_lang``; with a code (references/MESSAGES.md) the UI words it itself */
   questions: { id: string; project?: string; text: string; code?: string; params?: EngineMsg['params']; options?: string[]; default?: string }[];
   risks: (string | EngineMsg)[];
+  /** each risk's message dict (code + params), in the order of ``risks`` */
+  risks_info?: EngineMsg[];
   warnings: string[];
   estimate: { machine_min?: number; wall_min?: number; api_usd?: number };
   /** what only she can give before it runs (her recordings, her Notion pages): the request waits (state needs) */

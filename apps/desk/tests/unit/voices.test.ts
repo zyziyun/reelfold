@@ -132,6 +132,7 @@ describe('the plan card offers the Chinese voice', () => {
 
   it('next to the engine risk intake.risk.zh-voice, worded by the UI', () => {
     expect(wantsZhVoice(plan([zh]))).toBe(true);
+    expect(wantsZhVoice({ ...plan([zh.message]), risks_info: [zh] } as IntakePlan)).toBe(true); // the engine's coded string
     expect(wantsZhVoice(plan(['The free Chinese voice is not on this computer yet']))).toBe(false);
     expect(wantsZhVoice(plan([]))).toBe(false);
     setLang('en');

@@ -2,7 +2,7 @@
 // will make, four numbers, the one thing to decide, "just say it" revisions, and ONE primary: start with a pilot.
 import { useEffect, useState } from 'react';
 import { Check, FolderOpen, Plus, RotateCcw, Send, Sparkles, Square } from 'lucide-react';
-import type { IntakeJob, IntakePlan } from '../../../shared/v04';
+import type { EngineMsg, IntakeJob, IntakePlan } from '../../../shared/v04';
 import { fmtClock, fmtMinutes, fmtMoney, getLang, has, t, type Lang } from '../i18n';
 import { nameAsSample, planSentence } from '../lib/firstRun';
 import { planProgressView, type PlanProgressView } from '../lib/planProgress';
@@ -57,7 +57,8 @@ export function summaryView(plan: IntakePlan, ui: Lang): { own: boolean; lang?: 
 /** The plan names the missing Chinese voice (engine risk ``intake.risk.zh-voice``: a Chinese version would be narrated
  * in English with Chinese subtitles). */
 export function wantsZhVoice(plan: IntakePlan): boolean {
-  return (plan.risks ?? []).some((r) => typeof r !== 'string' && r.code === 'intake.risk.zh-voice');
+  const coded = [...(plan.risks_info ?? []), ...(plan.risks ?? []).filter((r): r is EngineMsg => typeof r !== 'string')];
+  return coded.some((r) => r?.code === 'intake.risk.zh-voice');
 }
 
 /** "Download the Chinese voice" next to that risk: the one-time download (about 3 GB) this app offers on Apple silicon;

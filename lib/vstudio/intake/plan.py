@@ -776,8 +776,9 @@ def name_lang(name):
 
 def voice_risks(projects, ui_lang="en"):
     """The plan card's note when a Chinese version will be narrated in English (no good Chinese voice set up;
-    vstudio.narration.voice_plan) - once. A coded message (``intake.risk.zh-voice``): the desk words it and offers
-    the free Chinese voice's download next to it (a version drafted after the download is narrated in Chinese)."""
+    vstudio.narration.voice_plan) - once. A coded string (``intake.risk.zh-voice``, in ``risks_info``): the desk
+    offers the free Chinese voice's download next to it (a version drafted after the download is narrated in
+    Chinese)."""
     from vstudio import narration as NR
     from vstudio import platform as P
     for p in projects:
@@ -790,7 +791,7 @@ def voice_risks(projects, ui_lang="en"):
             continue
         vp = NR.voice_plan("zh", (p.get("params") or {}).get("tts_engine") or "auto")
         if vp["note"]:
-            return [MSG.msg("intake.risk.zh-voice")]
+            return [MSG.cs("intake.risk.zh-voice", ui_lang if ui_lang in ("zh", "fr") else "en")]
     return []
 
 
