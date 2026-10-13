@@ -123,7 +123,7 @@ def _fit_resize(fr, W, H):
     return np.ascontiguousarray(r[y:y + H, x:x + W])
 
 
-def make_fitter(src, info, W, H, mode, fallback, safe, start, dur, cache):
+def make_fitter(src, info, W, H, mode, fallback, safe, start, dur, cache, shot_pad=True):
     """(fn(i, frame) -> canvas, plan_summary). Same aspect (within 1 %) -> cover resize."""
     from vstudio import reframe as R
     sw, sh = info["display_w"], info["display_h"]
@@ -135,7 +135,7 @@ def make_fitter(src, info, W, H, mode, fallback, safe, start, dur, cache):
     pl = cache.get(key)
     if pl is None:
         pl = R.plan(src, W, H, mode=mode, safe=safe, start=start, dur=dur, fallback=fallback,
-                    shot_pad=fallback != "center")      # clean reels: no shot shown whole on a blurred pad
+                    shot_pad=shot_pad and fallback != "center")   # clean reels: no shot on a blurred pad
         cache[key] = pl
     return R.frame_fn(pl), dict(mode=mode, mode_used=pl["mode_used"], hit_rate=pl.get("hit_rate"),
                                 reason=pl.get("fallback_reason"))

@@ -271,7 +271,8 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
             if cfg.get("deflicker", True):        # the drone's exposure pumping, evened out inside the clip
                 vf += ",deflicker=size=5:mode=am"
             fmode = s.get("fit") or mode
-            fa = dict(mode=fmode, fallback=fallback, safe=safe, cache=fit_cache)
+            fa = dict(mode=fmode, fallback=fallback, safe=safe, cache=fit_cache,
+                      shot_pad=PL.transition_style(cfg) != "clean")
             ff = int(n - round(s.get("freeze_s", 0.0) * fps)) if s.get("freeze") else None
             gen = FR.video_shot_frames(s["src"], times, W, H, fa, vf=vf, blend=cfg.get("blend_slowmo", True),
                                        freeze_from=ff, card=FR.card_renderer(W, H, g_unit, flash=PL.transition_style(cfg) != "clean") if ff else None,
