@@ -108,6 +108,47 @@ def cmd_decide(a):
     return _out(a, ST.decide_gen(_project(a), a.id, act, code=a.code))
 
 
+def _create_error(e):
+    return dict(ok=False, error=str(e), code=e.code, params=e.params)
+
+
+def cmd_estimate(a):
+    from vstudio.create.i18n import CreateError
+    from . import generate as GN
+    try:
+        return _out(a, dict(GN.estimate(_project(a), a.id), ok=True))
+    except CreateError as e:
+        _out(a, _create_error(e))
+        return 2
+
+
+def cmd_generate(a):
+    """Her confirm in the spend gate: the ONE paid submit (never from the autopilot), then the take is placed."""
+    from vstudio.create.i18n import CreateError
+    from . import generate as GN
+    try:
+        if a.check:
+            return _out(a, GN.check(_project(a), a.id, a.estimate, a.confirm, a.max_cny, code=a.code))
+        r = GN.generate(_project(a), a.id, a.estimate, a.confirm, a.max_cny, code=a.code,
+                        place_it=not a.no_place,
+                        on_event=(lambda ev: print(json.dumps(ev), file=sys.stderr, flush=True)))
+    except CreateError as e:
+        _out(a, _create_error(e))
+        return 2
+    return _out(a, r)
+
+
+def cmd_place(a):
+    from . import generate as GN
+    pr = _project(a)
+    return _out(a, dict(GN.unplace(pr, a.id) if a.undo else GN.place(pr, a.id), ok=True, id=a.id))
+
+
+def cmd_shots(a):
+    from . import edl
+    return _out(a, edl.shots(_project(a), output=a.output, item=a.item))
+
+
 def cmd_presets(a):
     rows = [dict(P.card(k, a.lang), recipe=P.get(k)["recipe"]) for k in P.ids()]
     return _out(a, rows, "\n".join(f"{r['id']:20s} {r['recipe']:18s} {r['label']}" for r in rows))
@@ -160,6 +201,26 @@ def build_parser():
     g.add_argument("--skip", action="store_true")
     g.add_argument("--undo", action="store_true")
     p.add_argument("--code", default=None, help="the proposal's confirm code (its price)")
+    p = add("estimate", cmd_estimate, "the spend gate's price for one proposal (nothing is sent)")
+    p.add_argument("--dir", required=True)
+    p.add_argument("--id", required=True)
+    p = add("generate", cmd_generate, "her confirm in the spend gate: generate one proposal and place it (PAID)")
+    p.add_argument("--dir", required=True)
+    p.add_argument("--id", required=True)
+    p.add_argument("--estimate", required=True, help="the estimate id the gate showed")
+    p.add_argument("--confirm", required=True, help="the estimate's 8-hex confirm code")
+    p.add_argument("--max-cny", type=float, required=True, help="the most she agreed to spend")
+    p.add_argument("--code", default=None, help="the proposal's confirm code (its price)")
+    p.add_argument("--no-place", action="store_true", help="keep the take out of the edit")
+    p.add_argument("--check", action="store_true", help="only check the gate (nothing is sent)")
+    p = add("place", cmd_place, "put a generated take into the edit (--undo: take it out)")
+    p.add_argument("--dir", required=True)
+    p.add_argument("--id", required=True)
+    p.add_argument("--undo", action="store_true")
+    p = add("shots", cmd_shots, "a clip's per-shot edit list joined with the shot plan")
+    p.add_argument("--dir", required=True)
+    p.add_argument("--output", default=None, help="an output id (output list) or its file")
+    p.add_argument("--item", default=None)
     p = add("presets", cmd_presets, "the templates")
     p.add_argument("--lang", default="en", choices=("en", "zh"))
     return ap

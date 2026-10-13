@@ -418,6 +418,9 @@ def master_shots(env, master=None):
     if cfg.get("style") == "fun" or len(segs) < 2:
         return None
     D = float(cfg.get("xfade", 0.8))
+    fps = float(cfg.get("fps") or 30)
+    # the join into each segment (build_vlog: its own "xfade", 0 = a one-frame cut)
+    jd = [0.0] + [max(1.0 / fps, float(s.get("xfade", D))) for s in segs[1:]]
     total = float(media.probe(rmaster)["duration"])
     out = cfg.get("out") or "vlog_master.mp4"
     segdir = os.path.join(os.path.dirname(os.path.join(os.path.dirname(epath), out)), "clips")
@@ -427,19 +430,21 @@ def master_shots(env, master=None):
     else:                                   # speed not given per segment: the one the render used, from the length
         fixed = sum(float(s["dur"]) / float(s["speed"]) for s in segs if s.get("speed"))
         free = sum(float(s["dur"]) for s in segs if not s.get("speed"))
-        room = total + (len(segs) - 1) * D - fixed
+        room = total + sum(jd) - fixed
         if free and room <= 0:
             return None
         sp = free / room if free else 1.0
         durs = [float(s["dur"]) / (float(s["speed"]) if s.get("speed") else sp) for s in segs]
-    if min(durs) <= D or abs(sum(durs) - (len(durs) - 1) * D - total) > 0.15:
-        env.log(f"shots: the edit does not add up to the master ({sum(durs) - (len(durs) - 1) * D:.2f}s vs "
+    if any(min(durs[k - 1], durs[k]) <= jd[k] for k in range(1, len(durs))) or \
+            abs(sum(durs) - sum(jd) - total) > 0.15:
+        env.log(f"shots: the edit does not add up to the master ({sum(durs) - sum(jd):.2f}s vs "
                 f"{total:.2f}s): none written")
         return None
     joins, L = [], durs[0]
-    for d in durs[1:]:
-        joins.append([round(L - D, 3), round(L, 3)])
-        L += d - D
+    for d, j in zip(durs[1:], jd[1:]):
+        if j > 1.5 / fps:
+            joins.append([round(L - j, 3), round(L, 3)])
+        L += d - j
     write_json(path, dict(transitions=joins, duration=round(L, 3), segments=len(segs), derived="edit.json"))
     return path
 
@@ -646,7 +651,13 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
                  f"{target:.0f} s. Order the windows so the light and the motion flow (wide -> closer, golden -> "
                  "blue hour; a move continues the direction of the one before); neighbouring windows should be "
                  "similar in brightness so no cut jumps in exposure.")
-    brain_line, brain_picks = ("", []) if fun else brain_plan(ctx, clips)
+    doc = None
+    try:
+        from vstudio.brain import steer as BST
+        doc = BST.plan_doc(ctx.project_dir)
+    except Exception:  # noqa: BLE001  (no shot analysis here: the drafter works from the sheets as before)
+        BST = None
+    brain_line, brain_picks = brain_plan(ctx, clips, fun, doc=doc or {})
     if brain_line:
         rules += "\n" + brain_line
     cur = ""
@@ -703,6 +714,8 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
             if isinstance(s.get("place"), str) and s["place"].strip():
                 one["place"] = s["place"].strip()[:40]
         picks.append(one)
+    if picks and doc:                           # the AI's windows get the plan's treatment (her changes win)
+        picks = BST.annotate(picks, doc, clips, fun)
     if fun and picks:
         picks = fit_beats(picks, fun_body_beats(target))
     rules = not picks
@@ -764,31 +777,20 @@ def calm_speed(cfg):
     return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.0))))
 
 
-def brain_plan(ctx, clips):
-    """The editor brain's shot plan for this calm film (``vstudio.brain``: the same plan the project page shows) ->
-    (a line for the drafter's prompt, windows for the no-model draft). ("", []) when it cannot be made."""
-    try:
-        from vstudio.brain import store as BS
-        from vstudio.project.core import Project
-        doc = BS.show(Project(ctx.project_dir), light=True)
-    except Exception:  # noqa: BLE001  (no shot analysis here: the drafter works from the sheets as before)
+def brain_plan(ctx, clips, fun=False, doc=None):
+    """The editor brain's shot plan for this vlog (``vstudio.brain``: the same plan the project page shows, her
+    per-shot changes in it) -> (a line for the drafter's prompt, the windows for the no-model draft: a calm film's
+    segments with their joins / slow motion / stabilise, a beat short's beat-aligned shots with the one ramp and the
+    slow motion). ("", []) when it cannot be made."""
+    from vstudio.brain import steer as BST
+    if doc is None:
+        doc = BST.plan_doc(ctx.project_dir)
+    if not doc:
         return "", []
-    by_real = {os.path.realpath(p): k for k, p in clips.items()}
-    rows = [r for r in ((doc.get("plan") or {}).get("shots") or []) if not r.get("skip")
-            and os.path.realpath(r["clip"]) in by_real]
-    if not rows:
+    picks = BST.fun(doc, clips) if fun else BST.calm(doc, clips)
+    if not picks:
         return "", []
-    picks, bits = [], []
-    for r in rows:
-        cid = by_real[os.path.realpath(r["clip"])]
-        a, b = r["use"]
-        picks.append(dict(clip=cid, start=round(a, 2), dur=round(max(1.0, b - a), 2)))
-        why = next((w["en"] for w in r["why"] if w["code"] not in ("hold", "open")), "")
-        bits.append(f"{cid} {a:.1f}-{b:.1f}s ({r['transition']['kind']}"
-                    f"{', slow motion' if r['speed'] == 'slowmo' else ''}{': ' + why if why else ''})")
-    t = doc.get("template") or {}
-    return (f"Editor's shot plan ({t.get('label') or 'calm film'}, from the shot analysis - follow it unless the "
-            f"sheets show a better moment): " + "; ".join(bits[:24]), picks)
+    return BST.prompt_line(doc, clips, fun), picks
 
 
 def rules_windows(by_id, order, target, fun):

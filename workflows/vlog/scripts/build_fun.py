@@ -499,6 +499,7 @@ def main(argv=None):
     if fq is not None:
         report["flicker"] = {k: fq[k] for k in ("ok", "max_jump", "flash", "flash_region", "blink", "events")}
     _dump(rp, report)
+    write_edl(stem + ".edl.json", tl, cuts, T)
     if fq is not None and not fq["ok"] and flicker.mode_for(cfg) == "fail":
         sys.exit(f"!! render failed - {flicker.describe(fq)}")
     for w in warnings:
@@ -508,6 +509,24 @@ def main(argv=None):
         print(f"multi-platform: python -m vstudio.export {stem}.clean.mp4 --platforms douyin,youtube-shorts "
               f"--cues {stem}.cues.json --out exports/")
     return report
+
+
+def write_edl(path, tl, cuts, total):
+    """``<stem>.edl.json``: the reel's per-shot source edit list - where each shot sits on the beat grid, which file
+    and source window it plays (photos: the still), its role (hook / body / finale / outro), the join into it, the
+    ramp / slow motion, and the editor brain's shot id when the edit list came from its plan (``brain``)."""
+    join = {c["i"]: c["kind"] for c in cuts}
+    shots = []
+    for i, s in enumerate(tl):
+        span = s.get("src_span") or ()
+        shots.append(dict(i=i, t0=round(float(s["t0"]), 3), t1=round(float(s["t1"]), 3),
+                          src=os.path.realpath(s["src"]) if s.get("src") else None, clip=s.get("clip"),
+                          kind=s.get("kind"), role=s.get("role"),
+                          src_in=round(float(span[0]), 3) if span else None,
+                          src_out=round(float(span[1]), 3) if span else None,
+                          beats=s.get("nb"), ramp=s.get("ramp"), join=join.get(i) if i else None,
+                          brain=s.get("brain"), ai=bool(s.get("ai"))))
+    _dump(path, dict(version=1, builder="fun", duration=round(float(total), 3), shots=shots))
 
 
 def _dump(path, obj):

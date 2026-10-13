@@ -144,9 +144,13 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     guide = GUIDE.format(first=ids[0] if ids else "CLIP", lang_note=lang_note, target=int(target), bgm_note=bgm_note,
                          length_of="of on-screen lines" if music_mode else "of narration", platforms=plat_names,
                          words_lang="Chinese" if lang_zh else "English")
+    from vstudio.brain import steer as BST
+    doc = BST.plan_doc(ctx.project_dir) if vids else None
+    brain_line = BST.photo_line(doc, by_id) if doc else ""
     body = "\n\n".join(x for x in [
         f"Request: {request or '(none)'}",
         f"This project: {(ctx.data or {}).get('name') or ''} {ctx.params.get('title') or ''}".strip(),
+        brain_line,
         ("Footage (clip id: facts; one contact sheet per clip is attached, tiles labelled with the clip's "
          f"seconds). {footage.MOMENTS_NOTE}\n{ftext}") if ftext else "",
         guide,
@@ -197,6 +201,9 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
             return None
         for n in missing:
             text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
+    steered = []
+    if doc:                                  # the plan's joins / label places (her changes always), still plain data
+        text, steered = BST.photo_fix(text, doc, by_id)
     text = enforce_voice(text, vp, lang_zh, music_mode)
     if bgm:
         text = enforce_bgm(text, work, bgm)
@@ -214,7 +221,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         rv["summary"] = dict(code="draft.generic", params=dict(text=summ))
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
-                language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"))
+                language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"),
+                brain=len(steered))
 
 
 _AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")

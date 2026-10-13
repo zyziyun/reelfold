@@ -410,7 +410,8 @@ def test_calm_vlog_drafter_reads_the_shot_plan(tmp_path, monkeypatch):
     class Ctx:
         project_dir = str(tmp_path)
     line, picks = V.brain_plan(Ctx(), {"c1": str(a), "c2": str(b)})
-    assert picks == [dict(clip="c1", start=3.0, dur=10.0), dict(clip="c2", start=20.0, dur=5.0)]
+    assert picks == [dict(clip="c1", start=3.0, dur=10.0, brain="C1.S1"),
+                     dict(clip="c2", start=20.0, dur=5.0, brain="C2.S2", speed=0.5, xfade=0.8)]
     assert "c2 20.0-25.0s (dissolve, slow motion: the light changes)" in line and "Calm travel film" in line
     monkeypatch.setattr(ST, "show", lambda project, light=False: (_ for _ in ()).throw(RuntimeError("no shots")))
     assert V.brain_plan(Ctx(), {"c1": str(a)}) == ("", [])

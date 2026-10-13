@@ -196,7 +196,7 @@ def chosen_keywords(p, spec):
     return list(dict.fromkeys(list(_th(spec).get("keywords") or []) + list(p.get("keywords") or [])))
 
 
-def config_file(p, spec, has_face, hooks=None, notes=None):
+def config_file(p, spec, has_face, hooks=None, notes=None, punch=None, broll=None):
     th = _th(spec)
     plats = list(p.get("platforms") or [])
     lines = ["# written by vstudio.batch talkinghead-folder (compose.py config)",
@@ -218,6 +218,10 @@ def config_file(p, spec, has_face, hooks=None, notes=None):
         lines.append(f"PANELS = {[tuple(x) for x in notes['panels']]!r}")
     if notes and notes.get("chapters"):
         lines.append(f"CHAPTERS = {[tuple(x) for x in notes['chapters']]!r}")
+    if punch:                                          # the shot plan's punch-ins over jump cuts (sentence ids)
+        lines.append(f"PUNCH = {sorted(set(int(x) for x in punch))!r}")
+    if broll:                                          # her approved, generated B-roll (cut-aways, voice on)
+        lines.append(f"BROLL = {[dict(b) for b in broll]!r}")
     hs = p.get("hook_speed") or th.get("hook_speed")
     bs = p.get("speed") if p.get("speed") is not None else th.get("body_speed")     # 1.0 = no speed-up, kept
     if hs:
@@ -248,13 +252,100 @@ def run_prep(ctx):
 
 
 def _with_smooth(fn):
-    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys)."""
+    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys) + the editor brain's
+    join policy for this recording when it has one (her "cut here" / "punch in here" re-runs the cleanup)."""
     def key(job, spec):
         d = fn(job, spec)
-        if (job.get("params") or {}).get("smooth_cuts") is True:
+        p = job.get("params") or {}
+        if p.get("smooth_cuts") is True:
             d["smooth_cuts"] = True
+        spans = brain_spans(p)
+        if spans:
+            d["brain_joins"] = [[round(x["a"], 2), round(x["b"], 2), x["join"]] for x in spans if x["join"]]
         return d
     return key
+
+
+def brain_spans(p):
+    """The editor brain's plan for this item's recording (``vstudio.brain.steer.talk``: how each span's jump cuts are
+    smoothed - morph / punch / cut, her changes in it), from the project's cached brain; [] without one."""
+    if not p.get("_project_dir") or not p.get("source"):
+        return []
+    try:
+        from vstudio.brain import steer
+        doc = steer.cached_doc(p["_project_dir"])
+        return steer.talk(doc, p["source"]) if doc else []
+    except Exception:  # noqa: BLE001  (no brain: the recipe's own smoothing)
+        return []
+
+
+def brain_broll(p):
+    """Generated B-roll she approved and placed (project.yaml ``brain.gen``, kind broll, status placed):
+    [{id, file, t (source second), seconds}]."""
+    if not p.get("_project_dir"):
+        return []
+    try:
+        import yaml
+        with open(os.path.join(p["_project_dir"], "project.yaml"), encoding="utf-8") as f:
+            gen = (((yaml.safe_load(f) or {}).get("brain") or {}).get("gen") or {})
+    except (OSError, ValueError):
+        return []
+    out = []
+    for gid, rec in sorted(gen.items()):
+        pl = rec.get("placed") or {}
+        snap = rec.get("snapshot") or {}
+        if rec.get("status") == "placed" and snap.get("kind") == "broll" and pl.get("file") and \
+                os.path.exists(pl["file"]) and (snap.get("source") or {}).get("t") is not None:
+            out.append(dict(id=gid, file=pl["file"], t=float(snap["source"]["t"]),
+                            seconds=float(pl.get("seconds") or snap.get("seconds") or 5)))
+    return out
+
+
+def src_to_body(t_src, pass1, strict=None):
+    """A second of the recording -> the cleaned body's second (pass 1 segments, then the strict keep), or None when
+    that moment was cut."""
+    from vstudio import cut
+    b = None
+    for sg in (pass1 or {}).get("segs") or []:
+        if float(sg["t0"]) - 1e-3 <= t_src <= float(sg["t1"]) + 1e-3:
+            b = float(sg["b0"]) + (t_src - float(sg["t0"]))
+            break
+    if b is None:
+        return None
+    keep = (strict or {}).get("keep")
+    if not keep:
+        return b
+    return cut.TimeMap.from_segments([tuple(k) for k in keep]).to_final(b, snap="fwd")
+
+
+def body_to_src(b1, pass1):
+    """A second of the pass-1 body -> the recording's second."""
+    for sg in (pass1 or {}).get("segs") or []:
+        if float(sg["b0"]) - 1e-3 <= b1 <= float(sg["b1"]) + 1e-3:
+            return float(sg["t0"]) + (b1 - float(sg["b0"]))
+    return None
+
+
+def body_joint_sources(pass1, strict=None, tol=1e-3):
+    """[(output second of a jump cut in the final body, the recording's second right after it)]."""
+    from vstudio import cut
+    segs = (pass1 or {}).get("segs") or []
+    pairs = [(float(b["b0"]), float(b["t0"])) for a, b in zip(segs, segs[1:])
+             if a.get("clip") != b.get("clip") or abs(float(b["t0"]) - float(a["t1"])) > tol]
+    keep = (strict or {}).get("keep")
+    if not keep:
+        return sorted((round(t, 4), s) for t, s in pairs)
+    tm = cut.TimeMap.from_segments([tuple(k) for k in keep])
+    out = {}
+    items = [x for x in tm.to_list() if isinstance(x, dict) and "src0" in x]
+    for x, y in zip(items, items[1:]):
+        if abs(float(y["src0"]) - float(x["src1"])) > tol:
+            src = body_to_src(float(y["src0"]), pass1)
+            out[round(float(y["dst0"]), 4)] = src
+    for t, s_ in pairs:
+        if any(a + tol < t < b - tol for a, b in keep):
+            out[round(tm.to_final(t), 4)] = s_
+    return sorted(out.items())
 
 
 def body_joints(pass1, strict=None, tol=1e-3):
@@ -275,10 +366,27 @@ def body_joints(pass1, strict=None, tol=1e-3):
     return sorted(out)
 
 
-def smooth_body(ctx):
-    """Morph the small-move jump cuts of body2_v.mp4 in place (smooth_cuts); -> number morphed (None: no RIFE)."""
+def joint_plan(ctx, spans=None):
+    """Each jump cut of the final body -> morph | punch | cut: the editor brain's plan for the span it falls in (her
+    change wins), else the recipe's own (morph when ``smooth_cuts``, else a clean cut). -> {output second: how}."""
+    from vstudio.brain import steer
+    p1, st = read_json(ctx.path("segs.pass1.json"), {}), read_json(ctx.path("segs.strict.json"), {})
+    J = body_joints(p1, st)
+    src = dict(body_joint_sources(p1, st))
+    default = "morph" if ctx.params.get("smooth_cuts") is True else "cut"
+    spans = brain_spans(ctx.params) if spans is None else spans
+    return {t: steer.joint_policy(spans, src[t], default) if src.get(t) is not None else default for t in J}
+
+
+def smooth_body(ctx, spans=None):
+    """Morph the jump cuts the plan morphs (body2_v.mp4 in place) and list the ones a punch-in covers
+    (``punch.json``, read by compose) -> number morphed (None: no RIFE)."""
     from vstudio import morphcut
-    J = body_joints(read_json(ctx.path("segs.pass1.json"), {}), read_json(ctx.path("segs.strict.json"), {}))
+    plan = joint_plan(ctx, spans)
+    write_json(ctx.path("punch.json"), sorted(t for t, how in plan.items() if how == "punch"))
+    J = sorted(t for t, how in plan.items() if how == "morph")
+    if not J:
+        return 0
     try:
         rep = morphcut.smooth_inplace(ctx.path("body2_v.mp4"), J, report=ctx.path("morph.json"), log=ctx.log)
     except Exception as e:  # noqa: BLE001  (a failed morph never stops the edit: the clean cuts stay)
@@ -316,15 +424,21 @@ def run_cleanup_th(ctx):
     _run(_py("strict_pass.py", "apply", "strict.py", "body_v.mp4", "body_a.wav", "body2_v.mp4", "body2_a.wav"),
          ctx.dir, "strict_pass.log")
     morphed = None
-    if p.get("smooth_cuts") is True:
-        morphed = smooth_body(ctx)
+    spans = brain_spans(p)
+    if p.get("smooth_cuts") is True or spans:
+        morphed = smooth_body(ctx, spans)
     edl = ctx.path("cleanup.c1.json")
     E = read_json(edl, {}) or {}
     confirm = [dict(id=e["id"], part="body", kind=e.get("kind"), text=e.get("text", ""), t0=e["t0"], t1=e["t1"],
                     reason=e.get("reason", "")) for e in E.get("edits") or [] if e.get("action") == "confirm"]
     write_json(ctx.path("confirm.json"), confirm)
     files = [ctx.path(f) for f in ("body2_v.mp4", "body2_a.wav", "segs.json", "sids.json")]
+    for f in ("punch.json", "segs.pass1.json", "segs.strict.json"):
+        if os.path.exists(ctx.path(f)):
+            files.append(ctx.path(f))
     return dict(body=edl if os.path.exists(edl) else None, sentences=n, confirm=len(confirm), morphed=morphed,
+                punch=ctx.path("punch.json") if os.path.exists(ctx.path("punch.json")) else None,
+                pass1=ctx.path("segs.pass1.json"), strict=ctx.path("segs.strict.json"),
                 confirm_file=ctx.path("confirm.json"), review=ctx.path("cleanup_review.md"),
                 video=files[0], audio=files[1], segs=files[2], sids=files[3], files=files)
 
@@ -382,8 +496,9 @@ def run_compose_th(ctx):
         ctx.log("hook: the picked sentences were cut from the body; no hook montage")
     nf = (ctx.inputs.get("notes") or {}).get("notes")
     notes = read_json(nf, None) if nf else None
+    punch, broll = brain_compose(cl, subs, p)
     with open(ctx.path("config.py"), "w", encoding="utf-8") as f:
-        f.write(config_file(p, ctx.spec, bool(fc.get("face")), hooks, notes))
+        f.write(config_file(p, ctx.spec, bool(fc.get("face")), hooks, notes, punch, broll))
     _run(_py("compose.py", ctx.path("config.py"), "all", "--clean-only"), ctx.dir, "compose.log")
     cid = p["_clip_id"]
     master = ctx.path("out", f"{cid}.clean.mp4")
@@ -397,11 +512,86 @@ def run_compose_th(ctx):
     post = dict(title=p.get("title") or "", body=p.get("body") or "", tags=p.get("tags") or None)
     write_json(ctx.path("post.json"), post)
     hook_dur = read_json(ctx.path("timeline.json"), {}).get("BODY_START", 0.0) if hooks else 0.0
-    return dict(master=master, final=master, cues=cues_path, post=ctx.path("post.json"),
+    edl = write_edl(ctx, cl, p, master, broll)
+    return dict(master=master, final=master, cues=cues_path, post=ctx.path("post.json"), edl=edl,
                 duration=round(media.probe(master)["duration"], 3), n_cues=len(d.get("cues") or []),
                 hook_dur=round(float(hook_dur or 0.0), 3), notes=nf if notes else None,
                 notes_warnings=list((notes or {}).get("notes") or []),
                 files=[master, cues_path])
+
+
+def brain_compose(cl, subs, p):
+    """The shot plan's punch-ins (the sentence that starts at a jump cut the plan covers with a punch-in) and her
+    placed B-roll (body seconds from the recording's second) for compose -> (punch sids, BROLL items)."""
+    punch = []
+    ts = read_json(cl.get("punch") or "", []) if cl.get("punch") else []
+    for t in ts or []:
+        hit = [x for x in subs if abs(float(x.get("start", -9)) - float(t)) < 0.35 and x.get("sid") is not None]
+        if hit:
+            punch.append(hit[0]["sid"])
+    broll = []
+    gens = brain_broll(p)
+    if gens:
+        p1 = read_json(cl.get("pass1") or "", {}) if cl.get("pass1") else {}
+        st = read_json(cl.get("strict") or "", {}) if cl.get("strict") else {}
+        for g in gens:
+            b = src_to_body(g["t"], p1, st)
+            if b is None:
+                continue
+            broll.append(dict(t0=round(b, 3), t1=round(b + min(5.0, g["seconds"]), 3), src=g["file"], mode="cut",
+                              loop=False))
+    return punch, broll
+
+
+def write_edl(ctx, cl, p, master, broll=None):
+    """``edl.json``: the clip's per-shot source edit list - the hook montage, then each kept span of the recording
+    where it sits on the master (body seconds through the body speed) and the placed B-roll cut-aways - each with
+    the editor brain's shot id of the span it comes from."""
+    from vstudio import cut
+    tl = read_json(ctx.path("timeline.json"), {}) or {}
+    p1 = read_json(cl.get("pass1") or "", {}) if cl.get("pass1") else {}
+    st = read_json(cl.get("strict") or "", {}) if cl.get("strict") else {}
+    if not p1.get("segs"):
+        return None
+    bs = float(tl.get("BODY_SPEED") or 1.0)
+    b0 = float(tl.get("BODY_START") or 0.0)
+    keep = st.get("keep")
+    tm = cut.TimeMap.from_segments([tuple(k) for k in keep]) if keep else None
+    spans = brain_spans(p)
+    src = os.path.realpath(p.get("source") or "") if p.get("source") else None
+    rows = []
+    if b0 > 0.05:
+        rows.append(dict(t0=0.0, t1=round(b0, 3), src=src, role="hook", join=None))
+    for sg in p1["segs"]:
+        pieces = [(float(sg["b0"]), float(sg["b1"]))]
+        if keep:
+            pieces = [(max(a, pieces[0][0]), min(b, pieces[0][1])) for a, b in keep
+                      if min(b, pieces[0][1]) - max(a, pieces[0][0]) > 0.02]
+        for a, b in pieces:
+            fa = tm.to_final(a, snap="fwd") if tm else a
+            fb = tm.to_final(b, snap="back") if tm else b
+            if fa is None or fb is None or fb - fa < 0.02:
+                continue
+            s_in = float(sg["t0"]) + (a - float(sg["b0"]))
+            span = next((x for x in spans if x["a"] - 1e-3 <= s_in + 0.05 <= x["b"] + 1e-3), None)
+            row = dict(t0=round(b0 + fa / bs, 3), t1=round(b0 + fb / bs, 3), src=src, role="body",
+                       src_in=round(s_in, 3), src_out=round(s_in + (b - a), 3), speed=bs, sid=sg.get("sid"),
+                       brain=span["brain"] if span else None)
+            if rows and rows[-1].get("role") == "body" and abs(rows[-1]["t1"] - row["t0"]) < 0.02 and \
+                    abs(rows[-1]["src_out"] - row["src_in"]) < 0.02:
+                rows[-1].update(t1=row["t1"], src_out=row["src_out"])          # the same take played on
+                continue
+            row["join"] = None if not rows else "cut"
+            rows.append(row)
+    for g in broll or []:
+        rows.append(dict(t0=round(b0 + g["t0"] / bs, 3), t1=round(b0 + g["t1"] / bs, 3), src=g["src"],
+                         role="broll", join="cut", ai=True))
+    rows.sort(key=lambda r: (r["t0"], r.get("role") == "broll"))
+    for i, r in enumerate(rows):
+        r["i"] = i
+    out = ctx.path("edl.json")
+    write_json(out, dict(version=1, builder="talking-head", duration=tl.get("TOTAL"), master=master, shots=rows))
+    return out
 
 
 _HES = None
@@ -450,6 +640,9 @@ def _compose_params(job, spec):
     from .edits import key_copy
     d = _keys("platforms", "speed", "hook_speed", "style", "keywords", "hook", "note_cards")(job, spec)
     d.update({k: key_copy(job["params"], k) for k in ("title", "body", "tags")})
+    gens = brain_broll(job.get("params") or {})
+    if gens:                                           # placed / taken out B-roll re-composes the clip
+        d["brain_broll"] = [[g["id"], os.path.basename(g["file"]), round(g["t"], 2)] for g in gens]
     return dict(d, th={k: v for k, v in _th(spec).items() if k not in ("orient", "face", "notes_call")})
 
 

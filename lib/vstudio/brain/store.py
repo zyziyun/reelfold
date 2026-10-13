@@ -185,6 +185,19 @@ def _keep_thumbs(d, ts):
             continue
 
 
+def sentences_of(project):
+    """The spoken sentences of the project's first recording, once its transcript exists (a speech recipe's asr
+    stage: ``state/jobs/<item>/asr/a1.json``, whisper segments in the recording's seconds) -> [{start, end, text}]."""
+    import glob
+    for p in sorted(glob.glob(os.path.join(project.state_dir, "jobs", "*", "asr", "a1.json"))):
+        d = _read(p, {}) or {}
+        segs = [dict(start=float(x["start"]), end=float(x["end"]), text=str(x.get("text") or "").strip())
+                for x in d.get("segments") or [] if isinstance(x, dict) and "start" in x and "end" in x]
+        if segs:
+            return segs
+    return None
+
+
 def stage_of(project, have_tiles):
     ex = os.path.join(project.dir, "exports")
     if os.path.isdir(ex) and any(os.scandir(ex)):
@@ -232,21 +245,27 @@ def show(project, refresh=False, shots=True, judge=None, echo=None, light=False)
                      overrides=her.get("shots"), judge=judge)
         doc["plan"] = pl
     doc["stage"] = stage_of(project, bool(tiles))
-    props = G.propose(tpl["template"], doc["plan"], s, stage=doc["stage"], target_s=target, tiles=tiles)
+    props = G.propose(tpl["template"], doc["plan"], s, stage=doc["stage"], target_s=target, tiles=tiles,
+                      sentences=sentences_of(project) if tpl["recipe"] in G.SPEECH_RECIPES else None)
     st = her.get("gen") or {}
     for x in props:
         x["code"] = G.confirm_code(x)
         if x["id"] in st:
-            x.update({k: v for k, v in st[x["id"]].items() if k in ("status", "at", "by", "approved_cny")})
+            x.update({k: v for k, v in st[x["id"]].items() if k in GEN_KEYS})
     # proposals she approved / skipped earlier stay listed even when the plan no longer raises them
     for pid, rec in st.items():
         if not any(x["id"] == pid for x in props) and rec.get("snapshot"):
-            props.append(dict(rec["snapshot"], **{k: rec[k] for k in ("status", "at", "by") if k in rec}, stale=True))
+            props.append(dict(rec["snapshot"], **{k: rec[k] for k in GEN_KEYS if k in rec}, stale=True))
     doc["proposals"] = props
     doc["cost"] = G.total([x for x in props if x.get("status") == "proposed"])
     doc["decisions"] = decisions(doc)
     _write(os.path.join(_dir(project), "brain.json"), doc)
     return doc
+
+
+# what her record of a proposal adds to it in the doc: her answer, and once generated the take and where it went
+GEN_KEYS = ("status", "at", "by", "approved_cny", "file", "placed", "run", "error")
+SPENT = ("generating", "generated", "placed", "unknown-charge")
 
 
 def decisions(doc):
@@ -294,14 +313,23 @@ def set_shot(project, sid, **change):
     shots = b.setdefault("shots", {})
     shots.setdefault(sid, {}).update(change)
     _save_her(project, b)
-    return dict(ok=True, shot=sid, change=shots[sid])
+    return dict(ok=True, shot=sid, change=shots[sid], edit=_restyle(project))
 
 
 def reset_shot(project, sid):
     b = _her(project)
     (b.get("shots") or {}).pop(sid, None)
     _save_her(project, b)
-    return dict(ok=True, shot=sid)
+    return dict(ok=True, shot=sid, edit=_restyle(project))
+
+
+def _restyle(project):
+    """Her change reaches the drafted edit files at once (``steer.restyle``; the render watches them)."""
+    from . import steer
+    try:
+        return steer.restyle(project)
+    except Exception as e:  # noqa: BLE001  (the plan keeps her change; the next draft reads it)
+        return [dict(error=str(e)[:200])]
 
 
 def decide_gen(project, pid, action, code=None):
@@ -315,6 +343,8 @@ def decide_gen(project, pid, action, code=None):
         raise BrainError(f"no proposal {pid}")
     b = _her(project)
     gen = b.setdefault("gen", {})
+    if (gen.get(pid) or {}).get("status") in SPENT:
+        raise BrainError(f"{pid} is {gen[pid]['status']}: it was generated (paid); take it out of the edit instead")
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     snap = {k: prop[k] for k in ("id", "kind", "anchor", "title", "why", "mode", "prompt", "source", "seconds",
                                  "provider", "model", "estimate", "ai_label") if k in prop}

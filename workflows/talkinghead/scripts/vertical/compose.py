@@ -233,14 +233,16 @@ def zoom_level(z, sid):
 def _xf_box(b, A):
     return (b[0] * A[0, 0] + A[0, 2], b[1] * A[1, 1] + A[1, 2], b[2] * A[0, 0] + A[0, 2], b[3] * A[1, 1] + A[1, 2])
 ZCACHE = {}
+PUNCH = set(G('PUNCH', []))       # sentences whose jump cut the shot plan covers with a punch-in (even zoom off)
 def sid_zoom(sid):
     if sid not in ZCACHE:
         z0 = ST['emph_zoom'] if sid in G('EMPH', set()) else (1.0 if sid % 2 == 0 else ST['alt_zoom'])
+        if sid in PUNCH: z0 = max(z0, ST['alt_zoom'])
         ZCACHE[sid] = zoom_level(z0, sid)
     return ZCACHE[sid]
 def face_on_canvas(sid):
     """Face box as shown (after the punch-in of that sentence, if zoom is on)."""
-    if ST['zoom'] and sid_zoom(sid) > 1.001: return _xf_box(fbox(sid), zoom_affine(sid_zoom(sid), sid))
+    if (ST['zoom'] or sid in PUNCH) and sid_zoom(sid) > 1.001: return _xf_box(fbox(sid), zoom_affine(sid_zoom(sid), sid))
     return tuple(fbox(sid))
 def zoom(fr, z, sid):
     if z <= 1.001: return fr
@@ -588,7 +590,7 @@ def compose(fr, t, captions=True):
         blitc(fr, title, L.card_title[0], L.card_title[1], min(1, (b - t0) / BS / 0.2))
         for i, (tt, im) in enumerate(ls):
             if b >= tt: blitc(fr, im, L.card_lines[0], L.card_lines[1] + i * 58, min(1, (b - tt) / BS / 0.2))
-    elif ST['zoom'] and not (br and br.mode != 'pip'):
+    elif (ST['zoom'] or sid in PUNCH) and not (br and br.mode != 'pip'):
         fr = zoom(fr, sid_zoom(sid), sid)
     if br:
         fr = broll_frame(fr, br, b, t)

@@ -391,12 +391,21 @@ def plan(tiles, template, target_s=None, out_aspect=None, beats=False, overrides
         for k, v in ch.items():
             if k == "transition":
                 row["transition"] = dict(kind=v, s=pol["dissolve_s"] if v == "dissolve" else 0.0)
+                _her_why(row, JOIN_CODES, _w("her-join", f"your choice: {HER_JOIN.get(v, (v, v))[0]}",
+                                             f"你选的：{HER_JOIN.get(v, (v, v))[1]}", kind=v))
             elif k == "speed":
                 row["speed"], row["speed_x"] = v, 0.5 if v == "slowmo" else 1.0
+                _her_why(row, ("speed-normal", "speed-slowmo", "speed-ramp"),
+                         _w("her-speed", f"your choice: {HER_SPEED.get(v, (v, v))[0]}",
+                            f"你选的：{HER_SPEED.get(v, (v, v))[1]}", speed=v))
             elif k == "skip":
                 row["skip"] = bool(v)
+                if v:
+                    row["why"] = [_w("her-skip", "you left this shot out", "你没用这个镜头")] + list(row.get("why") or [])
             elif k in ("reframe", "punch_in"):
                 row[k] = v
+        if not row["skip"] and row.get("transition") and row.get("speed"):
+            row["effects"] = _effects(row)
         row["by"] = "her"
     used = [r for r in out if not r["skip"]]
     summary = dict(
@@ -411,6 +420,18 @@ def plan(tiles, template, target_s=None, out_aspect=None, beats=False, overrides
         checks=dict(ramps=sum(1 for r in used if r["speed"] == "ramp") <= max(1, pol["ramps"]),
                     no_flash=all(r["transition"]["kind"] not in ("flash", "whip", "glitch", "light-leak") for r in used)))
     return dict(template=template, policy=_jsonable(pol), shots=out, summary=summary)
+
+
+JOIN_CODES = ("open", "cut", "beat-cut", "dissolve", "match-cut", "morph", "punch-cover", "continuous")
+HER_JOIN = {"cut": ("a hard cut", "硬切"), "beat-cut": ("a cut on the beat", "卡点切"), "dissolve": ("a dissolve", "叠化"),
+            "match-cut": ("a match cut", "匹配剪辑"), "morph": ("a smoothed jump cut", "跳切平滑")}
+HER_SPEED = {"normal": ("normal speed", "原速"), "slowmo": ("slow motion", "慢动作"), "ramp": ("a speed ramp", "变速")}
+
+
+def _her_why(row, codes, why):
+    """Her change replaces the rules' reason for that decision (the other reasons stay)."""
+    rest = [w for w in row.get("why") or [] if w.get("code") not in codes]
+    row["why"] = [why] + rest
 
 
 # the effect catalogue entries (vstudio.effects, /api/effects) each choice is made with

@@ -137,12 +137,14 @@ def main():
             box = N.copy()
         sec = T.section_at(gt)
         box = film_look(C, box, gt, sec in C.FILM_SECTIONS or sh["src"].startswith("film:"))
-        if "_lab" in sh:                               # picture label, bottom-left
-            fl = 0.6 if C.cinema else 0.3
+        if "_lab" in sh:                               # picture label, bottom-left (upper-left: label_at="upper",
+            fl = 0.6 if C.cinema else 0.3              # where the shot plan found room above the subject)
             la = ease(min(1, (gt - sh["start"] - 0.45) / fl, (sh["end"] - gt) / fl))
             if la > 0:
                 m = C.b(44)
                 lab_y = C.LAB_BOT - m - sh["_lab"].shape[0]
+                if sh.get("label_at") == "upper":            # under the platform's top safe line
+                    lab_y = max(m, C.SAFE[1] - C.HDR + m)
                 rise = int((1 - la) * C.b(12)) if C.cinema else 0     # cinema: a quiet 12 px settle as it fades in
                 paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y + rise, la)
         if chap_len and sec >= 1 and gt - T.sec_bounds[sec] < chap_len:     # chapter card
@@ -186,6 +188,8 @@ def main():
     out = a.out or (os.path.join(C.cache_dir, "preview.mp4") if a.preview else C.path(getattr(C.spec, "OUT", "out/story.mp4")))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     mix_audio(C, T, t_from, end_t, vid_tmp, out)
+    if not a.preview and not t_from:
+        write_edl(C, T, out)
     if not a.preview:
         from vstudio import flicker
         try:
@@ -200,6 +204,34 @@ def main():
         cp_ = os.path.splitext(out)[0] + ".cues.json"
         json.dump(cues, open(cp_, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("cues:", cp_, f"({len(cues)})  ->  python3 -m vstudio.export {out} --platforms ... --cues {cp_}")
+
+
+def write_edl(C, T, out):
+    """``<out>.edl.json``: the story's per-shot source edit list - where each shot sits (from the middle of the join
+    into it), which file it shows (a clip and its in-point, or a still), its join and label place, and the editor
+    brain's shot id when the spec came from its plan (``brain``)."""
+    rows = []
+    n = len(T.shots)
+    for k, sh in enumerate(T.shots):
+        kind, arg = parse_src(C, sh["src"])
+        src = None
+        try:
+            src = C.find_video(arg) if kind == "video" else (C.find_image(arg) if kind == "img" else None)
+        except Exception:  # noqa: BLE001  (a composite shot: no single source)
+            src = None
+        t0 = 0.0 if k == 0 else sh["start"] + (sh.get("trd") or 0) / 2
+        t1 = T.total if k == n - 1 else T.shots[k + 1]["start"] + (T.shots[k + 1].get("trd") or 0) / 2
+        off = float(sh.get("off", 0.0) or 0.0)
+        sp = float(sh.get("speed", 1.0) or 1.0)
+        rows.append(dict(i=k, t0=round(t0, 3), t1=round(t1, 3), src=os.path.realpath(src) if src else None,
+                         kind=kind, name=arg, src_in=round(off, 3) if kind == "video" else None,
+                         src_out=round(off + (t1 - t0) * sp, 3) if kind == "video" else None, speed=sp,
+                         join=None if k == 0 else ("dissolve" if sh.get("tr") == "fade" else sh.get("tr")),
+                         join_s=round(float(sh.get("trd") or 0), 3), label=sh.get("label"),
+                         label_at=sh.get("label_at"), brain=sh.get("brain")))
+    with open(os.path.splitext(out)[0] + ".edl.json", "w", encoding="utf-8") as f:
+        json.dump(dict(version=1, builder="photo-story", duration=round(T.total, 3), shots=rows), f,
+                  ensure_ascii=False, indent=1)
 
 
 SUB_FADE = 0.18            # a cue fades in / out over 2 x this, centred on its edges: the next cue crossfades in

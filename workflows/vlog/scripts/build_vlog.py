@@ -34,7 +34,8 @@ folder. Full schema + worked example: ../references/recipes.md. Quick schema:
   ]
 }
 Per segment: clip, start, dur (SOURCE seconds), optional speed (default 1.0: aerials play in real time; any speed
-gets an even frame cadence via ffmpeg_filters.retime), kind
+gets an even frame cadence via ffmpeg_filters.retime), xfade (the join INTO it: a dissolve's seconds, 0 = a hard cut;
+default the film's "xfade"), brain (the editor brain's shot id the segment comes from), kind
 ("subject" | "empty"), bright (added to grade.brightness), stabilize, cleanup (a segment where someone
 talks: true | "gentle" | "standard" | "tight" | "pauses" | {profile, approve, keep, reply} -> the shared
 vstudio.cleanup 气口/filler/repeat pass before assembly; needs "ambient_audio": true; see clean_speech).
@@ -312,6 +313,26 @@ def clean_speech(cfg, segdir, dry=False):
         print("[warn]", w, flush=True)
 
 
+def write_edl(cfg, out, starts, durs, jd, total, one):
+    """``<out>.edl.json``: the master's per-shot source edit list - where each shot sits on the master (from the
+    middle of the join into it to the middle of the join out), which file and source window it plays, its speed and
+    join, and the editor brain's shot id when the edit came from its plan (``brain``)."""
+    shots = []
+    n = len(durs)
+    for k, seg in enumerate(cfg["segments"]):
+        t0 = 0.0 if k == 0 else starts[k] + jd[k] / 2
+        t1 = total if k == n - 1 else starts[k + 1] + jd[k + 1] / 2
+        src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
+        shots.append(dict(i=k, t0=round(t0, 3), t1=round(t1, 3), src=os.path.realpath(src), clip=seg.get("clip"),
+                          src_in=round(float(seg["start"]), 3), src_out=round(float(seg["start"]) + float(seg["dur"]), 3),
+                          speed=seg_speed(cfg, seg), join=None if k == 0 else ("dissolve" if jd[k] > 1.5 * one else "cut"),
+                          join_s=0.0 if k == 0 else round(jd[k], 3), brain=seg.get("brain"), ai=bool(seg.get("ai")),
+                          stabilize=bool(seg.get("stabilize", cfg.get("stabilize", False)))))
+    with open(os.path.splitext(out)[0] + ".edl.json", "w", encoding="utf-8") as f:
+        json.dump(dict(version=1, builder="calm", duration=round(total, 3), shots=shots), f, ensure_ascii=False,
+                  indent=1)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Grade + speed + crossfade B-roll clips into one master.")
     ap.add_argument("config", help="edit.json")
@@ -364,8 +385,15 @@ def render(cfg, out, segdir, prof, a):
     print("intermediates done", flush=True)
 
     D = cfg.get("xfade", 0.8)
-    if D > 0 and min(durs) <= D:
-        sys.exit(f"a segment is shorter on screen ({min(durs):.2f}s) than the crossfade ({D}s)")
+    one = 1.0 / float(cfg.get("fps", 30))
+    # the join INTO each segment: its own "xfade" (the editor brain's shot plan: a dissolve's seconds, 0 = a hard
+    # cut) else the film's; a hard cut is a one-frame crossfade (xfade needs a length), which reads as a cut
+    jd = [0.0] + [max(one, float(s.get("xfade", D))) if float(s.get("xfade", D)) > 0 else one
+                  for s in cfg["segments"][1:]]
+    for k in range(1, len(durs)):
+        if min(durs[k - 1], durs[k]) <= jd[k]:
+            sys.exit(f"a segment is shorter on screen ({min(durs[k - 1], durs[k]):.2f}s) than the crossfade "
+                     f"({jd[k]:g}s)")
     inputs = []
     for s in segs:
         inputs += ["-i", s]
@@ -380,15 +408,19 @@ def render(cfg, out, segdir, prof, a):
         print(f"[note] transition {tr!r} flashes through black / white between shots: using a plain crossfade "
               "(set \"allow_dips\": true to keep it)", flush=True)
         tr = "fade"
+    starts = [0.0]
     for k in range(1, len(segs)):
-        joins.append([round(L - D, 3), round(L, 3)])
+        d = jd[k]
+        if d > 1.5 * one:                     # a real crossfade (a one-frame join is a cut the reframe sees itself)
+            joins.append([round(L - d, 3), round(L, 3)])
         fc.append(f"[{prev}][{k}:v]xfade=transition={tr}"
-                  f":duration={D}:offset={L - D:.3f}[x{k}]")
+                  f":duration={d:.4f}:offset={L - d:.3f}[x{k}]")
         prev = f"x{k}"
         if audio:
-            fc.append(f"[{aprev}][{k}:a]acrossfade=d={D}[ax{k}]")
+            fc.append(f"[{aprev}][{k}:a]acrossfade=d={d:.4f}[ax{k}]")
             aprev = f"ax{k}"
-        L = L + durs[k] - D
+        starts.append(L - d)
+        L = L + durs[k] - d
     fo = cfg.get("fade_out", 1.5)
     # no fade-in on purpose (no black first frame); only fade out at the end
     fc.append(f"[{prev}]fade=t=out:st={L - fo:.3f}:d={fo}[vout]")
@@ -410,6 +442,7 @@ def render(cfg, out, segdir, prof, a):
     # the shot changes are crossfades a frame difference cannot see: the export's subject reframe reads them here
     with open(os.path.splitext(out)[0] + ".shots.json", "w") as f:
         json.dump(dict(transitions=joins, duration=round(L, 3), segments=len(segs)), f)
+    write_edl(cfg, out, starts, durs, jd, L, one)
     from vstudio import flicker
     try:
         flicker.check(out, "calm", flicker.mode_for(cfg))
