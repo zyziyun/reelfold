@@ -1,7 +1,7 @@
 """Cover compositors (PIL) and cover-frame helpers.
 
     from vstudio import cover as C
-    C.score_frames("talk.mp4", top_n=6)            # smile / eyes open / centred face picks (vstudio.face)
+    C.score_frames("talk.mp4", top_n=6)            # sharp / exposed / clear subject / face / LAION aesthetic picks
     C.split_cover({...}, out="cover-4x3.jpg")     # premium split cover: 4:3, 16:9 side-by-side, 3:4 stacked
     C.notes_cover(frame, panels=[...], fun=..., kicker=...)   # notes-board 16:9 cover (+ 4:3 centre crop)
     C.framed_cover(shot, {...}, size=(1920, 1080))           # dark plate + big text + tilted framed screenshot
@@ -88,43 +88,107 @@ def score_blend(blend: dict, cx_frac: float) -> float:
     return float(sm - 1.5 * bl - abs(cx_frac - 0.5))
 
 
-def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landmarker=None):
-    """Rank frames of `video` for a cover. Returns [{"t", "frame", "score", "image" (BGR)}] best first,
-    picks at least min_gap seconds apart. Returns [] (with a message) when no face model is available."""
+def frame_quality(bgr_small):
+    """Cheap per-frame cover cues on an analysis-size BGR frame -> {sharp, exposure, subject} (each about 0..1).
+    sharp: variance of the Laplacian (log-scaled); exposure: 1 at a mid-key frame, lower when dark, washed out or
+    clipped; subject: how much one region stands out (``vstudio.saliency`` spectral residual + colour contrast:
+    the top 5 % of the map against its median) - a clear subject reads at thumbnail size."""
+    import cv2
+    from . import saliency as S
+    g = cv2.cvtColor(bgr_small, cv2.COLOR_BGR2GRAY)
+    lap = float(cv2.Laplacian(g, cv2.CV_32F).var())
+    sharp = float(np.clip(np.log10(lap + 1.0) / 3.0, 0, 1))                    # var 1000 -> 1.0
+    m = float(g.mean()) / 255.0
+    clip = float(((g < 6) | (g > 250)).mean())
+    exposure = float(np.clip(1.0 - abs(m - 0.45) * 1.8 - clip * 2.5, 0, 1))
+    try:
+        sal = 0.6 * S.spectral_residual(g) + 0.4 * S.color_contrast(bgr_small)
+        subject = float(np.clip(np.percentile(sal, 95) - np.median(sal), 0, 1))
+    except Exception:  # noqa: BLE001
+        subject = 0.0
+    return dict(sharp=sharp, exposure=exposure, subject=subject)
+
+
+W_FRAME = dict(sharp=1.0, exposure=1.2, subject=0.8, face=1.5, aesthetic=1.6)
+
+
+def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landmarker=None, aesthetic="auto",
+                 avoid=None, log=print):
+    """Rank frames of `video` for a cover. Returns [{"t", "frame", "score", "parts", "image" (BGR)}] best first,
+    picks at least min_gap seconds apart.
+
+    Cues (``W_FRAME`` weights): sharpness, exposure, subject saliency (``frame_quality``), the face expression
+    (smile, eyes open, centred - ``score_blend``; only when the video has faces: then a frame without one ranks
+    low), and the LAION aesthetic v2 score (``vstudio.aesthetic``, Apache-2.0) on the best few, when its model is
+    downloaded (``aesthetic``: "auto" | True | False). ``avoid``: [[t0, t1], ...] spans to skip (crossfades)."""
     import cv2
     from . import face as F
-    try:
-        lm = landmarker or F.landmarker(1)
-    except Exception as e:  # noqa: BLE001
-        print("score_frames: face model unavailable:", e)
-        return []
+    lm = landmarker
+    if lm is None:
+        try:
+            lm = F.landmarker(1)
+        except Exception as e:  # noqa: BLE001  (no face model: the other cues still rank)
+            log(f"score_frames: face model unavailable ({e}); ranking without faces")
+            lm = None
     cap = cv2.VideoCapture(str(video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    res, i = [], 0
+    rows, i = [], 0
+    spans = [(float(a) - 0.3, float(b) + 0.3) for a, b in (avoid or [])]
     while True:
+        t = i / fps
+        want = i % step == 0 and not any(a <= t <= b for a, b in spans)
+        if not want:                                 # grab only: no colour conversion for the frames we skip
+            if not cap.grab():
+                break
+            i += 1
+            continue
         ok, img = cap.read()
         if not ok:
             break
-        if i % step == 0:
+        if want:
             h, w = img.shape[:2]; s = analysis_width / w
             small = cv2.resize(img, (analysis_width, int(h * s)))
-            f = F.main_face(F.detect(lm, small))
-            if f is not None and f["blend"]:
-                res.append((score_blend(f["blend"], f["pts"][:, 0].mean() / analysis_width), i, i / fps))
+            parts = frame_quality(small)
+            f = F.main_face(F.detect(lm, small)) if lm is not None else None
+            parts["face"] = (score_blend(f["blend"], f["pts"][:, 0].mean() / analysis_width) + 1.0
+                             if f is not None and f.get("blend") else None)
+            rows.append(dict(t=t, frame=i, parts=parts, small=small))
         i += 1
-    res.sort(reverse=True)
-    picks = []
-    for sc, fi, t in res:
-        if all(abs(t - p["t"]) > min_gap for p in picks):
-            picks.append({"t": t, "frame": fi, "score": sc})
-        if len(picks) == top_n:
+    if landmarker is None and lm is not None:   # ours: close it now (one GC'd on a worker thread deadlocks mediapipe)
+        lm.close()
+    has_face = any(r["parts"]["face"] is not None for r in rows)
+    for r in rows:
+        p = r["parts"]
+        fc = (p["face"] if p["face"] is not None else -1.0) if has_face else 0.0
+        r["score"] = (W_FRAME["sharp"] * p["sharp"] + W_FRAME["exposure"] * p["exposure"]
+                      + W_FRAME["subject"] * p["subject"] + W_FRAME["face"] * fc)
+    rows.sort(key=lambda r: -r["score"])
+    pool = []
+    for r in rows:                                   # spread first, then let the aesthetic model reorder the pool
+        if all(abs(r["t"] - p["t"]) > min_gap for p in pool):
+            pool.append(r)
+        if len(pool) >= max(2 * top_n, 8):
             break
+    use_aes = aesthetic is True or aesthetic == "auto"
+    if use_aes and pool:
+        try:
+            from . import aesthetic as A
+            if A.available():
+                for r, a in zip(pool, A.score([r["small"] for r in pool])):
+                    r["parts"]["aesthetic"] = round(a, 3)
+                    r["score"] += W_FRAME["aesthetic"] * (a - 5.0)   # ~5 = an average photo
+                pool.sort(key=lambda r: -r["score"])
+            elif aesthetic is True:
+                log("score_frames: aesthetic model not downloaded (asset group cover-aesthetic)")
+        except Exception as e:  # noqa: BLE001  (said, not hidden: the other cues still rank)
+            log(f"score_frames: aesthetic score skipped ({str(e)[:120]})")
+    picks = [dict(t=r["t"], frame=r["frame"], score=round(r["score"], 4),
+                  parts={k: (round(v, 4) if isinstance(v, float) else v) for k, v in r["parts"].items()})
+             for r in pool[:top_n]]
     for p in picks:  # frame-index seek: exact frame, unlike -ss
         cap.set(cv2.CAP_PROP_POS_FRAMES, p["frame"]); ok, img = cap.read()
         p["image"] = img if ok else None
     cap.release()
-    if landmarker is None:      # ours: close it now (one garbage-collected on a worker thread deadlocks mediapipe)
-        lm.close()
     return picks
 
 

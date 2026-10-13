@@ -400,8 +400,8 @@ def grab_frame(video, t, out):
 
 
 def cover_frames(env):
-    """Candidate cover frames of the composed (caption-free) master: face-ranked when a face model is there
-    (``vstudio.cover.score_frames``), else evenly spaced; + a contact sheet."""
+    """Candidate cover frames of the composed (caption-free) master, ranked by ``vstudio.cover.score_frames``
+    (sharpness, exposure, subject, faces, LAION aesthetic; crossfades skipped), else evenly spaced; + a sheet."""
     from vstudio import media
     video = None
     for dep in ["compose"] + [d for d in env.inputs if d != "compose"]:
@@ -418,7 +418,8 @@ def cover_frames(env):
     if env.params.get("cover_face_rank", True):
         try:
             from vstudio.cover import score_frames
-            ts = [p["t"] for p in score_frames(video, top_n=n, step=6, min_gap=max(1.0, dur / (2 * n)))]
+            ts = [p["t"] for p in score_frames(video, top_n=n, step=6, min_gap=max(1.0, dur / (2 * n)),
+                                               avoid=_transitions_of(env), log=env.log)]
         except Exception as e:  # noqa: BLE001  (no face model / no face: evenly spaced frames)
             env.log(f"face ranking skipped: {str(e)[:120]}")
     if not ts:
@@ -474,7 +475,6 @@ def cover_payload(env, cp):
 
 
 def cover_apply(a):
-    from vstudio.batch.edits import _text_cover
     v = a.value or {}
     opts = a.payload.get("options") or []
     if "t" in v:
@@ -489,9 +489,67 @@ def cover_apply(a):
     retouched = None
     if a.params.get("cover_retouch"):                 # the format's cover rule: her face slimmed + light makeup
         frame, retouched = retouch_cover_frame(frame, a.answer_path(f"cover_frame_{int(t * 1000)}.retouched.jpg"))
+    try:
+        cv = designed_covers(frame, text, a, t, retouched)
+    except Exception as e:  # noqa: BLE001  (engine 2.0 failed: the classic covers, said in the record)
+        cv = classic_covers(frame, text, a, t, retouched)
+        cv["engine_error"] = str(e)[:200]
+    cv.update(file=cv.get("file"), t=t, text=text)
+    if retouched is not None:
+        cv["retouched"] = retouched
+    return dict(params=dict(cover=cv))
+
+
+# generic canvases (the export picks the closest aspect for any platform without its own cover) and the platforms
+# with a cover of their own (exact size, keep-outs, their language): vstudio.cover_engine
+GENERIC_COVERS = {"file": ((1920, 1080), (160, 80, 1760, 1000)), "v916": ((1080, 1920), (60, 300, 1020, 1620)),
+                  "v34": ((1080, 1440), (60, 120, 1020, 1240))}
+OWN_COVERS = {"en": "youtube", "en_v916": "youtube-shorts", "bili": "bilibili"}
+
+
+def designed_covers(frame, text, a, t, retouched):
+    """Cover engine 2.0 (``vstudio.cover_engine``): the generic canvases in the Chinese text when a Chinese
+    platform is targeted (else English), YouTube / Shorts in English, B站 in Chinese, + the YouTube A/B pack."""
+    from vstudio import cover_engine as CE
+    from vstudio import platform as P
+    plats = a.params.get("platforms")
+    plats = [x.strip() for x in (plats if isinstance(plats, (list, tuple)) else str(plats or "").split(","))
+             if str(x).strip()]
+    langs = {P.lang_for(p, "en") for p in plats} or {"zh" if _has_cjk(text) else "en"}
+    title = a.params.get("title") or ""
+    texts = {"zh": CE.mono_text(text, "zh") or CE.mono_text(title, "zh"),
+             "en": CE.mono_text(text, "en") or CE.mono_text(title, "en")}
+    gen_lang = "zh" if "zh" in langs and texts["zh"] else "en"
+    tag = sha1_json([text, retouched, sorted(plats)])[:8]
+    out_dir = os.path.dirname(a.answer_path(f"covers_{int(t * 1000)}_{tag}/x"))
+    targets = {k: dict(name="generic", key=f"generic:{k}", size=sz, safe=safe, keepouts=[], lang=gen_lang,
+                       max_bytes=None) for k, (sz, safe) in GENERIC_COVERS.items()}
+    base = {P.canonical(p.split(":")[0]) for p in plats}
+    for key, plat in OWN_COVERS.items():
+        if plat in base:
+            targets[key] = plat
+    res = CE.make_covers(frame, texts, list(targets.values()), out_dir, stem=f"cover_{int(t * 1000)}",
+                         log=lambda m: print(m))
+    cv = dict(engine="cover-2", analysis=res.get("_analysis"))
+    for key, tg in targets.items():
+        r = res.get(tg if isinstance(tg, str) else tg["key"])
+        if r:
+            cv[key] = r["file"]
+            cv.setdefault("legibility", {})[key] = r.get("ok")
+    yt = res.get("youtube") or {}
+    if len(yt.get("variants") or []) >= 2:
+        cv["youtube_ab"] = ",".join(x["file"] for x in yt["variants"])
+    if texts["en"]:
+        cv["text_en"] = texts["en"]
+    return cv
+
+
+def classic_covers(frame, text, a, t, retouched):
+    """The pre-2.0 covers: the frame + the text (``_text_cover``), subject crops for 9:16 / 3:4, an English twin."""
+    from vstudio.batch.edits import _text_cover
     out = a.answer_path(f"cover_{int(t * 1000)}_{sha1_json([text, retouched])[:8]}.jpg")
     _text_cover(frame, text, out)
-    cv = dict(file=out, t=t, text=text)
+    cv = dict(file=out)
     # a landscape frame on a portrait cover: its own crop around the subject, with the same text (the export used
     # to fit the landscape cover on a blurred pad - a small picture in a grey band on 小红书 / Shorts)
     for key, (aw, ah) in (("v916", (9, 16)), ("v34", (3, 4))):
@@ -511,9 +569,7 @@ def cover_apply(a):
         src916 = _crop_of(cv, a, t, "v916") or frame
         cv["en_v916"] = _text_cover(src916, en, a.answer_path(f"cover_{int(t * 1000)}_v916_en_{tag}.jpg"))
         cv["text_en"] = en
-    if retouched is not None:
-        cv["retouched"] = retouched
-    return dict(params=dict(cover=cv))
+    return cv
 
 
 def _crop_of(cv, a, t, key):

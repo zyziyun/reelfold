@@ -561,7 +561,7 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
-               cover_targets=None, post_lang=None, watermark=None, **reframe_opts):
+               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     captions=False: never burn ``cues`` (the master already has them). cover_targets: {target: path}
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
@@ -693,11 +693,44 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     if prof.feed_crop:
         entry["notes"].append(f"{prof.label} feed shows a centre {prof.feed_crop} crop of the video "
                               f"{list(P.feed_crop_box(prof))}: keep faces and captions inside it")
+    ab = _cover_for(prof, cover_ab) if cover_ab else None
+    if ab:
+        entry["cover_ab"] = write_cover_ab(prof, [x for x in str(ab).split(",") if x.strip()], out_dir, stem)
     if post:
         src_cues = cue_list or (load_cues(cues) if cues is not None else [])
         warnings += write_post(prof, out_dir, post, entry, cues=src_cues, post_lang=post_lang)
+        if entry.get("cover_ab") and entry.get("post"):
+            with open(os.path.join(out_dir, entry["post"]), "a", encoding="utf-8") as f:
+                f.write("\n" + cover_ab_note(entry["cover_ab"]))
     entry["warnings"] = list(dict.fromkeys(warnings))
     return entry
+
+
+def write_cover_ab(prof, files, out_dir, stem):
+    """A thumbnail A/B pack (YouTube Studio "Test & Compare" takes up to 3): each file fitted to the cover size as
+    ``<stem>.cover.ab<k>.jpg`` (under the profile's byte cap) -> [basenames]."""
+    from PIL import Image
+    out = []
+    for k, src in enumerate(files[:3]):
+        if not os.path.exists(src):
+            continue
+        dst = os.path.join(out_dir, f"{stem}.cover.ab{k + 1}.jpg")
+        q = 92
+        im = fit_cover(Image.open(src), P.cover_size(prof))
+        im.save(dst, quality=q)
+        while prof.cover.get("max_bytes") and os.path.getsize(dst) > prof.cover["max_bytes"] and q > 60:
+            q -= 8
+            im.save(dst, quality=q)
+        out.append(os.path.basename(dst))
+    return out
+
+
+def cover_ab_note(names):
+    """The post.md section that goes with an A/B pack."""
+    rows = "\n".join(f"{k + 1}. {n}" for k, n in enumerate(names))
+    return ("## Thumbnail A/B test\n\nIn YouTube Studio open the video > Thumbnail > Test & Compare and upload "
+            f"these {len(names)}; YouTube keeps the one with the most watch time. Number 1 is the cover set now.\n\n"
+            + rows + "\n")
 
 
 def write_post(prof, out_dir, post, entry, cues=None, post_lang=None):
@@ -770,6 +803,8 @@ def export(master, targets, out_dir="exports", cues=None, covers=None, post=None
     covers, per = parse_covers(covers)
     if per:
         kw = dict(kw, cover_targets=dict(per, **(kw.get("cover_targets") or {})))
+    if kw.get("cover_ab") is not None:
+        kw["cover_ab"] = parse_covers(kw["cover_ab"])[1] or None
     from .batch.livestatus import heartbeat
     done = []
 
@@ -818,6 +853,9 @@ def main(argv=None):
     ap.add_argument("--cover", action="append", default=[],
                     help="cover image(s): a path (closest aspect wins; another aspect is fitted on a blurred pad) "
                          "or platform[:orientation]=path for one target, e.g. --cover xiaohongshu=c34.png")
+    ap.add_argument("--cover-ab", action="append", default=[],
+                    help="thumbnail A/B pack for one target: platform=a.jpg,b.jpg,c.jpg (YouTube Test & Compare) "
+                         "-> <target>.cover.ab1..3.jpg + a note in its post")
     ap.add_argument("--no-captions", action="store_true",
                     help="do not burn --cues (the master already carries its captions)")
     ap.add_argument("--title", help="post title (checked against each platform's limit)")
@@ -858,7 +896,7 @@ def main(argv=None):
     man = export(a.master, targets, a.out, cues=a.cues, covers=a.cover, post=post, account=a.account,
                  mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
                  start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions=not a.no_captions,
-                 watermark=None if a.watermark == "auto" else a.watermark == "on")
+                 watermark=None if a.watermark == "auto" else a.watermark == "on", cover_ab=a.cover_ab or None)
     for e in man["exports"]:
         print(f"{e['file']:32s} {e['w']}x{e['h']} {e['duration']:.1f}s "
               f"{(e['loudness'] or {}).get('i', '-')} LUFS  reframe={e['reframe']['mode_used']}")

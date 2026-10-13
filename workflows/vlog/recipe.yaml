@@ -134,6 +134,8 @@ stages:
              {if: cover.v34, args: ["--cover", "{cover.v34}"]},
              {if: cover.en, args: ["--cover", "youtube={cover.en}"]},
              {if: cover.en_v916, args: ["--cover", "youtube-shorts={cover.en_v916}"]},
+             {if: cover.bili, args: ["--cover", "bilibili={cover.bili}"]},
+             {if: cover.youtube_ab, args: ["--cover-ab", "youtube={cover.youtube_ab}"]},
              {if: title, args: ["--title", "{title}"]},
              {if: out.music.post, args: ["--post", "{out.music.post}"]},
              {if: out.copy.post, args: ["--post", "{out.copy.post}"]},

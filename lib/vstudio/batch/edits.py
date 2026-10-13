@@ -402,21 +402,34 @@ def _wrap_cover(text, f, maxw, d):
 
 
 def cover_style():
-    """persona ``style.cover``: "cinema" (default: serif title on a soft gradient, a premium travel / documentary
-    thumbnail) | "bold" (the old heavy white-on-black-stroke title)."""
+    """persona ``style.cover``: "designed" (default: ``vstudio.cover_engine`` - the title placed by saliency away
+    from faces / the subject, one language, a local scrim, checked for small-size legibility) | "cinema" (serif
+    title centred on a soft bottom gradient) | "bold" (the old heavy white-on-black-stroke title)."""
     try:
         from vstudio.config import persona
         st = (persona() or {}).get("style")
         v = st.get("cover") if isinstance(st, dict) else None
     except Exception:  # noqa: BLE001
         v = None
-    return "bold" if str(v or "").lower() in ("bold", "classic", "loud") else "cinema"
+    v = str(v or "").lower()
+    if v in ("bold", "classic", "loud"):
+        return "bold"
+    return "cinema" if v in ("cinema", "centred", "centered") else "designed"
 
 
 def _text_cover(frame_path, text, out_path, style=None):
     """A frame + the cover text -> out_path. Falls back to the bare frame. ``style`` (default ``cover_style()``):
-    cinema = references/AESTHETICS.md P8 (``_cinema_cover``), bold = the old bold CJK title with a black stroke."""
-    if (style or cover_style()) == "cinema":
+    designed = ``vstudio.cover_engine.single_cover`` (cover engine 2.0), cinema = references/AESTHETICS.md P8
+    (``_cinema_cover``), bold = the old bold CJK title with a black stroke."""
+    style = style or cover_style()
+    if style == "designed" and text:
+        try:
+            from vstudio.cover_engine import single_cover
+            return single_cover(frame_path, text, out_path)
+        except Exception as e:  # noqa: BLE001  (said; the cinema cover still makes a cover)
+            print(f"cover: designed cover failed ({str(e)[:120]}); cinema cover")
+            style = "cinema"
+    if style == "cinema":
         try:
             return _cinema_cover(frame_path, text, out_path)
         except Exception:  # noqa: BLE001  (no font: fall through to the plain path)
