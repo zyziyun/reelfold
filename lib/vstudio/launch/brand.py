@@ -28,7 +28,8 @@ RED_HUES = ((345, 360), (0, 15))
 INTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "Inter-latin-wght.woff2")
 INTER_W = 560                 # type weight when the bundled Inter sets it (refined: medium-semibold, not bold)
 ZH_MEDIUM = "NotoSansSC-Medium.otf"   # Chinese type face (./install.sh); without it Regular is set a touch heavier
-BACKDROPS = ("studio", "deep", "paper")
+ZH_HEAVY = ("NotoSansSC-Black.otf", "NotoSansSC-ExtraBold.otf")   # the heavy Chinese face when ./install.sh has one
+BACKDROPS = ("studio", "deep", "paper", "cream")
 
 
 def theme(cfg):
@@ -72,10 +73,12 @@ def font_files(cfg, lang):
     """{display, text, text_bold} -> font file paths for ``lang``."""
     f = (cfg.get("brand") or {}).get("fonts") or {}
     if lang == "zh":
-        return dict(display=zh_display(), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"))
+        return dict(display=zh_display(), text=_engine_font("cjk"), text_bold=_engine_font("cjk-bold"),
+                    heavy=heavy_file("zh"))
     disp = f.get("display") or (INTER if os.path.exists(INTER) else _engine_font("serif"))
     return dict(display=disp, text=f.get("text") or _engine_font("cjk"),
-                text_bold=f.get("text_bold") or f.get("text") or _engine_font("cjk-bold"))
+                text_bold=f.get("text_bold") or f.get("text") or _engine_font("cjk-bold"),
+                heavy=f.get("heavy") or heavy_file("en"))
 
 
 def zh_display():
@@ -85,6 +88,28 @@ def zh_display():
         return VC.font(ZH_MEDIUM)
     except VC.MissingAsset:
         return _engine_font("cjk")
+
+
+def heavy_file(lang):
+    """The face of the heavy brand-moment type: the bundled Inter (variable, 100-900) for Latin; for Chinese Noto Sans
+    SC Black when installed, else Bold (compose thickens it with a stroke so it reads Black)."""
+    if lang != "zh":
+        return INTER
+    for name in ZH_HEAVY:
+        try:
+            return VC.font(name)
+        except VC.MissingAsset:
+            continue
+    return _engine_font("cjk-bold")
+
+
+def heavy_weight(cfg):
+    return int((cfg.get("type") or {}).get("heavy") or 880)
+
+
+def zh_faux_heavy(path):
+    """Is ``path`` a Bold face standing in for Noto Sans SC Black (set with a stroke)?"""
+    return os.path.basename(path or "") not in ZH_HEAVY
 
 
 def zh_faux_medium(path):
@@ -138,6 +163,10 @@ def backdrop(cfg):
                     flat=mix("#0B0D0E", ac, 0.06),
                     glow2=rgba(ac, 0.18), ink="#F4F7F6", ink2=mix("#F4F7F6", ac, 0.25), accent=ac,
                     accent_text=mix(ac, "#FFFFFF", 0.2), shadow="0,0,0", mark="on-dark")
+    if kind == "cream":                       # a warm light stage (the brand moments), the UI on the same flat
+        return dict(kind=kind, top="#F7F2EA", bottom=mix("#ECE4D8", ac, 0.05), glow=rgba(ac, 0.12),
+                    flat="#F2ECE3", glow2="rgba(255,244,228,.7)", ink="#151412", ink2="#5E5850", accent=ac,
+                    accent_text=mix(ac, "#0B0F0F", 0.42), shadow="60,44,24", mark="on-light")
     return dict(kind=kind, top=T["paper"], bottom=T["paper"], flat=T["paper"], glow="transparent", glow2="transparent",
                 ink=T["ink"],
                 ink2=T["ink2"], accent=ac, accent_text=ac, shadow="20,20,20", mark="on-light")

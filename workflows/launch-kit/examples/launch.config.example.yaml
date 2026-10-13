@@ -81,8 +81,25 @@ film: {variety: balanced, text: 0.4, captions: auto}   # the film's rhythm: no t
                                            # wordmark, badges), a reel of every feature cut on the beat, chapters
                                            # (titles slam in), UI in perspective, zoom-throughs into cards, quiet
                                            # foley (motion.sfx: false = off), end card with the badges
-type: {scale: 1.0}                         # type size (0.7-1.3); weight: 400-700 (default Inter 560, Noto Sans SC 500)
-make: [demo, loop, clips]                  # which videos (a promo only: [demo])
+                                           # blocks (arc: launch): the opening, default [brand, reel]; also
+                                           # waterfall (real video thumbnails pour into the wordmark; waterfall:
+                                           # {thumbs: <folder of covers / frames>}), lift (the platforms' marks lift
+                                           # "Create · Edit · Publish" / "做 · 剪 · 发"; lift: {words, sub}) and hook
+                                           # (one heavy line: hook: {en, zh}); reel: [ids] = the reel's moments;
+                                           # cold_open: false = open on the first block
+type: {scale: 1.0}                         # type size (0.7-1.3); weight: 400-900 (default Inter 560, Noto Sans SC 500);
+                                           # heavy: 700-900 (the blocks' display type, default 880); titles: heavy
+make: [demo, loop, clips]                  # which videos (a promo only: [demo]; a set of films: [films])
+# films:                                   # the set: one config -> several films, each a demo cut with its own
+#   - id: hero                             # shots / renders and any section overridden (film, demo, type, brand...)
+#     shots: [plan, review, links]         # -> <out>/films/hero-en-16x9.mp4 (+ cover, contact sheet), index.html
+#     renders: ["en:16:9", "en:9:16", "zh:9:16"]
+#     film: {blocks: [waterfall, lift, reel]}
+#   - id: short-links
+#     shots: [links]
+#     renders: ["en:9:16"]
+#     demo: {min_seconds: 15, max_seconds: 25}
+#     film: {blocks: [hook], cold_open: false, hook: {en: "Notes that link themselves."}}
 demo: {min_seconds: 30, max_seconds: 60}   # + shots: [ids] (default all), renders: ["en:16:9", "zh:9:16", ...],
                                            # title_card: false (open on the first feature, no title card)
 loop: {seconds: 15}                        # README loop (MP4 + GIF); shots default: the first three features

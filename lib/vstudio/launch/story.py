@@ -21,6 +21,11 @@ has a ``layout``:
            badges (free / open source / MIT / Mac) snapping in under it
   reel     (arc: launch) a montage: one window, a hard cut on every beat through a moment of each feature, a filmstrip
            of them running under a fixed playhead (the promise line above it)
+  waterfall (a block) hundreds of real video thumbnails pour down the frame and land as the tiles of the wordmark,
+           which then resolves into the solid name in heavy type (the tagline under it)
+  lift     (a block) the platforms' marks rise from below and lift three heavy words ("Create · Edit · Publish" /
+           "做 · 剪 · 发") into place, the promise line under them
+  hook     (a block) one heavy line slammed in (a short's opening line)
 ``rhythm`` picks them per film: features are grouped into short sequences; a sequence opens on a type beat (its first
 feature's line), the lead feature gets an establishing shot and a detail cut, the rest rotate through float / split /
 full. No two adjacent scenes share a layout, and text is on screen for at most ``film.text`` (0.4) of the runtime:
@@ -43,7 +48,8 @@ HOLD = 1.5                    # minimum time the camera stays on an action
 MERGE = 0.6                   # actions closer than this share one camera move
 LT_IN, LT_HOLD = 0.3, 2.6     # a lower third arrives this long after its scene lands and stays up this long
 FOOTAGE = ("full", "macro", "split", "float")
-CARDS = ("chapter", "type", "end", "brand")
+CARDS = ("chapter", "type", "end", "brand", "waterfall", "lift", "hook")
+TITLES = ("type", "chapter", "brand", "waterfall", "lift", "hook")     # a card footage zooms out of
 REEL = "reel"
 ARCS = ("plain", "launch")
 VARIETY = ("calm", "balanced", "lively")
@@ -77,8 +83,14 @@ LAYOUTS = {
                  kicker_px=40, badge_px=34, chip_px=38),
 }
 # screen time (s, before the overlap) and its floor per layout
-SECONDS = dict(full=3.0, macro=2.2, split=3.8, float=3.6, chapter=2.2, type=2.0, end=3.2, brand=3.0)
-FLOOR = dict(full=2.0, macro=1.6, split=3.0, float=3.0, chapter=1.8, type=1.5, end=2.4, brand=2.4, reel=2.0)
+SECONDS = dict(full=3.0, macro=2.2, split=3.8, float=3.6, chapter=2.2, type=2.0, end=3.2, brand=3.0, waterfall=4.2,
+               lift=3.2, hook=1.9)
+FLOOR = dict(full=2.0, macro=1.6, split=3.0, float=3.0, chapter=1.8, type=1.5, end=2.4, brand=2.4, reel=2.0,
+             waterfall=3.6, lift=2.6, hook=1.5)
+WATERFALL_TEXT = 2.3          # the wordmark resolves (words on screen) this long into a waterfall block
+LIFT_WORDS = {"en": ["Create", "Edit", "Publish"], "zh": ["做", "剪", "发"]}
+LIFT_PLATFORMS = ["youtube", "tiktok", "instagram", "x", "linkedin", "xiaohongshu", "douyin", "bilibili",
+                  "wechat-channels"]
 REEL_MAX = 7                  # moments in the reel
 REEL_CUT = 0.75               # about this long per moment (s), rounded to whole beats of the music bed
 ROTATION = {"calm": ("float", "full"), "balanced": ("float", "split", "full"), "lively": ("split", "full", "float")}
@@ -107,7 +119,7 @@ def media_window(feat, shot):
 
 
 def film_opts(cfg):
-    f = dict(variety="balanced", text=0.4, captions="auto", arc="plain")
+    f = dict(variety="balanced", text=0.4, captions="auto", arc="plain", blocks=None, cold_open=True)
     f.update({k: v for k, v in (cfg.get("film") or {}).items() if v is not None})
     return f
 
@@ -391,22 +403,43 @@ def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True, slot=REEL_CUT)
                       screen=SECONDS["brand"])
     names = [x.lower() for x in (name, C.text(product.get("name_zh"), "zh")) if x]
     named = units and any(n in c.lower() for n in names for c in units[0]["all_captions"])
-    if opening and units and (named or (arc and not d.get("title_card", True))):
+    blocks = list(fo["blocks"]) if arc and fo.get("blocks") is not None else (["brand", "reel"] if arc else [])
+    cold = fo.get("cold_open", True) is not False
+    if opening and units and cold and (named or (arc and not d.get("title_card", True))):
         u = units.pop(0)                                  # her first line is the product's name: a cold open, then it
         feat("full", [u], T(u, 3.0) * 0.8, panes=[dict(fid=u["id"], sid=u["shots"][0], k=0, first=True)])
-        add(**opener)
-    elif opening and (d.get("title_card", True) or arc):
         if not arc:
-            opener["sub"] = C.text(product.get("one_liner"), lang)
+            add(**opener)
+    elif opening and not arc and d.get("title_card", True):
+        opener["sub"] = C.text(product.get("one_liner"), lang)
         opener["screen"] = float(d.get("title_seconds") or SECONDS[opener["layout"]]) - xf
         add(**opener)
-    if arc and units:                                     # the reel: everything it does, a cut on every beat
-        ru = reel_units(units)
-        promise = C.text(product.get("promise"), lang)
-        add(kind="reel", layout=REEL, id="reel", units=[u["id"] for u in ru], slot=slot, screen=slot * len(ru),
-            text=promise if promise and caps != "none" and ("reel", "reel") not in drop else "",
-            panes=[dict(fid=u["id"], sid=u["shots"][-1], k=0) for u in ru])
-        out[-1]["min"] = out[-1]["dur"]
+    elif opening and arc and "brand" in blocks and not out:
+        opener["screen"] = float(d.get("title_seconds") or SECONDS["brand"]) - xf
+    for b in blocks if opening else []:
+        if b == "brand":
+            add(**opener)
+        elif b == "reel" and (units or fo.get("reel")):   # the reel: everything it does, a cut on every beat
+            ru = [_unit(cfg, fid, lang) for fid in fo["reel"]] if fo.get("reel") else reel_units(units)
+            promise = C.text(product.get("promise"), lang)
+            add(kind="reel", layout=REEL, id="reel", units=[u["id"] for u in ru], slot=slot, screen=slot * len(ru),
+                text=promise if promise and caps != "none" and ("reel", "reel") not in drop else "",
+                panes=[dict(fid=u["id"], sid=u["shots"][-1], k=0) for u in ru])
+            out[-1]["min"] = out[-1]["dur"]
+        elif b == "waterfall":                            # real thumbnails pour into the wordmark
+            add(kind="waterfall", layout="waterfall", id="waterfall", title=name,
+                eyebrow=C.text(product.get("name_zh"), lang) if lang == "zh" else "",
+                kicker=C.text(product.get("tagline"), lang), screen=SECONDS["waterfall"])
+        elif b == "lift":                                 # the platforms lift Create · Edit · Publish
+            words = C.texts((fo.get("lift") or {}).get("words"), lang) or LIFT_WORDS["zh" if lang == "zh" else "en"]
+            pls = (fo.get("lift") or {}).get("platforms") or LIFT_PLATFORMS
+            add(kind="lift", layout="lift", id="lift", words=words, platforms=list(pls),
+                sub=C.text((fo.get("lift") or {}).get("sub") or product.get("promise"), lang) if caps != "none" else "",
+                screen=SECONDS["lift"])
+        elif b == "hook":                                 # one heavy line
+            line = C.text(fo.get("hook"), lang)
+            add(kind="hook", layout="hook", id="hook", text=line, kicker=C.text(fo.get("hook_kicker"), lang),
+                screen=round(clamp(1.2 + 0.1 * _words(line, lang), 1.6, 2.6), 2))
     # sequences: a chapter: feature starts a new one; otherwise PHRASE sizes in turn
     seqs, cur, sizes = [], [], PHRASE[variety]
     for u in units:
@@ -557,7 +590,9 @@ def text_spans(scenes, xf):
     out, n = [], len(scenes)
     for i, s in enumerate(scenes):
         a, b = s["start"], s["start"] + s["dur"]
-        if s["layout"] in CARDS or (s["layout"] == REEL and s.get("text")):
+        if s["layout"] == "waterfall":                  # words only once the wordmark resolves
+            out.append((a + WATERFALL_TEXT, b - (xf / 2 if i < n - 1 else 0.0)))
+        elif s["layout"] in CARDS or (s["layout"] == REEL and s.get("text")):
             out.append((a + (xf / 2 if i else 0.0), b - (xf / 2 if i < n - 1 else 0.0)))
         elif s.get("text") or s.get("labels"):
             t0 = a + (xf * 0.55 if i else 0.0) + LT_IN
@@ -797,8 +832,12 @@ def caption_cues(p):
     titles and lower thirds, in order."""
     out = []
     for s in p["scenes"]:
-        txt = s.get("text") if s["layout"] not in ("chapter", "brand") else s.get("title")
-        if s["layout"] == "brand" and s.get("kicker"):
+        txt = s.get("text") if s["layout"] not in ("chapter", "brand", "waterfall") else s.get("title")
+        if s["layout"] == "lift":
+            txt = " · ".join(s.get("words") or []) + (f' / {s["sub"]}' if s.get("sub") else "")
+        if s["layout"] == "hook" and s.get("kicker"):
+            txt = f'{s["kicker"]} / {txt}'
+        if s["layout"] in ("brand", "waterfall") and s.get("kicker"):
             txt = f'{s["kicker"]} / {txt}'
         if s.get("chips"):
             txt = f'{txt} / {" · ".join(s["chips"])}'

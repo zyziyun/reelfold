@@ -267,7 +267,7 @@ def transition_of(plan, i):
     cur, prev = sc[i], sc[i - 1]
     if cur["layout"] in S.CARDS:
         return "through" if plan.get("arc") == "launch" and prev["layout"] in S.FOOTAGE + (S.REEL,) else "fade"
-    if prev["layout"] in ("type", "chapter", "brand"):
+    if prev["layout"] in S.TITLES:
         return "zoom"
     if (cur.get("panes") or [{}])[0].get("cont"):
         return "cut"
@@ -652,6 +652,9 @@ def build(cfg, plan, proj, quiet=False):
         strings += [s.get("text", ""), s.get("title", ""), s.get("eyebrow", ""), s.get("version", ""), s.get("sub", ""),
                     s.get("kicker", "")]
         strings += list(s.get("labels") or []) + list(s.get("chips") or []) + list(s.get("badges") or [])
+    from . import blocks as BL
+    if BL.used(plan):
+        strings.append(BL.words(plan))
     langs = [lang] + (["en"] if zh else [])
     faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"), "".join(strings), langs)
     from vstudio import theme as TH
@@ -671,6 +674,15 @@ def build(cfg, plan, proj, quiet=False):
            .replace("{KTRACK}", ".08em" if zh else ".01em")
            .replace("{STROKE}", stroke).replace("{LATIN}", latin)
            .replace("{DISPLAY}", display).replace("{TEXT}", B.families(faces, lang, "text")))
+    heavy_titles = (cfg.get("type") or {}).get("titles") == "heavy"
+    bctx = dict(W=W, H=H, L=L, cfg=cfg, proj=proj, lang=lang, files=files, lw=lw, ink=Bk["ink"],
+                heavy=B.heavy_weight(cfg), heavy_file=files.get("heavy") or files["display"],
+                heavy_file_en=B.font_files(cfg, "en").get("heavy") or B.INTER,
+                heavy_family=B.families(faces, lang, "heavy"),
+                shots={p0["shot"]: dict(still=p0["media"].get("still")) for s0 in plan["scenes"]
+                       for p0 in s0.get("panes") or [] if p0.get("media")})
+    css += BL.css(bctx)
+    hv = " heavy" if heavy_titles else ""
     body, js = [], []
     total = plan["duration"]
     b = cfg.get("brand") or {}
@@ -741,7 +753,13 @@ def build(cfg, plan, proj, quiet=False):
         else:
             inner.append(_field(sid, ncard, W, H, st, du, Bk, js))
             ncard += 1
-        if lay == "type":
+        if lay == "waterfall":
+            inner.append(BL.waterfall_html(bctx, sid, s, land, st, du, js, sfx))
+        elif lay == "lift":
+            inner.append(BL.lift_html(bctx, sid, s, land, st, du, js, sfx))
+        elif lay == "hook":
+            inner.append(BL.hook_html(bctx, sid, s, land, st, du, js, sfx))
+        elif lay == "type":
             lo = max(40, int(L["type_px"][1] * scale))
             px, ls = _fit(s["text"], files, (int(L["type_px"][0] * scale), lo), L["type_w"], L["type_lines"], lang, tw)
             lh = 1.3 if zh else 1.08
@@ -776,8 +794,12 @@ def build(cfg, plan, proj, quiet=False):
             title = s.get("title") or p["name"]
             ascii_title = all(ord(c) < 0x2E80 for c in title)
             tpx = cpx if ascii_title else int(cpx * 0.72)
-            fam = "" if ascii_title else f' font-family:{display};'
-            grp.append(f'<div class="center chap" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px;{fam}">'
+            fam = "" if ascii_title or heavy_titles else f' font-family:{display};'
+            mf = bctx["heavy_file"] if heavy_titles else files["display"]
+            while tpx > 40 and B.measure(title, mf, tpx, bctx["heavy"] if heavy_titles else min(700, tw + 50)) > \
+                    (tx1 - tx0) * 0.96:
+                tpx -= 4
+            grp.append(f'<div class="center chap{hv}" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px;{fam}">'
                        f'{_chars_html(title)}</div>')
             if plan.get("arc") == "launch":
                 _slam(js, f"#{sid}n .w", t0 + 0.1)
@@ -823,7 +845,7 @@ def build(cfg, plan, proj, quiet=False):
                     js.append(f'tl.fromTo("#{sid}i", {{opacity: 0, scale: .9, filter: "blur(8px)"}}, {{opacity: 1, '
                               f'scale: 1, filter: "blur(0px)", duration: .7, ease: "expo.out"}}, {_r(t0)});')
                     t0 += 0.15
-                grp.append(f'<div class="center chap" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px">'
+                grp.append(f'<div class="center chap{hv}" id="{sid}n" style="top:{int(ty)}px; font-size:{tpx}px">'
                            f'{_chars_html(p["name"])}</div>')
                 _blur_in(js, f"#{sid}n .w", t0, stagger=0.03, dur=0.8, rise=18)
                 cy = ty + tpx * 1.25

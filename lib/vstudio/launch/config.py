@@ -44,12 +44,22 @@ DEFAULTS = {
     # come), text = most of the runtime with words on screen, captions auto (type beats + lower thirds) | type |
     # lower | none. type: scale (x the type sizes), weight (CSS 400-700; default Inter 560 / Noto Sans SC 500)
     # arc plain | launch (cold open, brand card, a reel of everything, chapters, end card with badges)
+    # blocks (arc launch): the opening blocks in order, default [brand, reel]; also waterfall (hundreds of video
+    # thumbnails pour down into the wordmark), lift (platform marks lift "Create · Edit · Publish" in heavy type) and
+    # hook (one heavy line, for a short); cold_open: false = start on the first block, not on the product
     "film": {"variety": "balanced", "text": 0.4, "captions": "auto", "arc": "plain"},
-    "type": {"scale": 1.0, "weight": None},
-    "make": ["demo", "loop", "clips"],   # which videos: demo (the launch video), loop (README GIF), clips (per feature)
+    # heavy = the weight of the brand-moment display type (waterfall wordmark, lift words, hook), 700-900
+    "type": {"scale": 1.0, "weight": None, "heavy": 880},
+    "make": ["demo", "loop", "clips"],   # which videos: demo (the launch video), loop (README GIF), clips (per feature),
+                                         # films (the set: every entry of ``films``)
 }
 TRANSITIONS = ("crossfade", "push", "zoom", "mix")
-MAKE = ("demo", "loop", "clips")
+MAKE = ("demo", "loop", "clips", "films")
+BLOCKS = ("brand", "reel", "waterfall", "lift", "hook")
+# the set: ``films: [{id, title?, shots, renders, <any config section to override>}]``; each film is a demo cut of
+# its own (the overrides deep-merged into the config) -> <out>/films/<id>-<lang>-<canvas>.mp4
+FILM_KEYS = ("id", "title", "shots", "renders", "film", "demo", "type", "brand", "product", "end_card", "music",
+             "motion", "pace", "features")
 
 
 class ConfigError(ValueError):
@@ -269,8 +279,9 @@ def validate(cfg, check_files=True):
             if not os.path.exists(im["file"]):
                 e.append(f"capture.images.{im.get('id')}: not found: {im['file']}")
     bd = (cfg.get("brand") or {}).get("backdrop")
-    if bd and bd not in ("studio", "deep", "paper"):
-        e.append(f"brand.backdrop: one of studio, deep, paper (got {bd!r})")
+    if bd and bd not in ("studio", "deep", "paper", "cream"):
+        e.append(f"brand.backdrop: one of studio, deep, paper, cream (got {bd!r})")
+    e += _validate_films(cfg, ids, langs)
     mo = cfg.get("motion") or {}
     if mo.get("transition") not in TRANSITIONS:
         e.append(f"motion.transition: one of {', '.join(TRANSITIONS)} (got {mo.get('transition')!r})")
@@ -289,6 +300,14 @@ def validate(cfg, check_files=True):
         e.append(f"film.variety: one of calm, balanced, lively (got {fo.get('variety')!r})")
     if fo.get("arc", "plain") not in ("plain", "launch"):
         e.append(f"film.arc: plain or launch (got {fo.get('arc')!r})")
+    bad = [b for b in fo.get("blocks") or [] if b not in BLOCKS]
+    if bad:
+        e.append(f"film.blocks: pick from {', '.join(BLOCKS)} (got {', '.join(map(str, bad))})")
+    for sid in fo.get("reel") or []:
+        if sid not in ids:
+            e.append(f"film.reel: unknown feature '{sid}'")
+    if "hook" in (fo.get("blocks") or []) and not text(fo.get("hook")):
+        e.append("film.hook: the line the hook block sets (film.blocks has hook)")
     if fo.get("captions", "auto") not in ("auto", "type", "lower", "none"):
         e.append(f"film.captions: one of auto, type, lower, none (got {fo.get('captions')!r})")
     try:
@@ -300,8 +319,12 @@ def validate(cfg, check_files=True):
     try:
         if not 0.7 <= float(ty.get("scale") or 1.0) <= 1.3:
             e.append("type.scale: between 0.7 and 1.3")
-        if ty.get("weight") is not None and not 400 <= int(ty["weight"]) <= 700:
-            e.append("type.weight: a CSS weight between 400 and 700")
+        if ty.get("weight") is not None and not 400 <= int(ty["weight"]) <= 900:
+            e.append("type.weight: a CSS weight between 400 and 900")
+        if ty.get("heavy") is not None and not 700 <= int(ty["heavy"]) <= 900:
+            e.append("type.heavy: a CSS weight between 700 and 900")
+        if ty.get("titles", "auto") not in ("auto", "heavy"):
+            e.append(f"type.titles: auto or heavy (got {ty.get('titles')!r})")
     except (TypeError, ValueError):
         e.append("type.scale / type.weight: numbers")
     for f in feats:
@@ -330,6 +353,63 @@ def validate(cfg, check_files=True):
             if not text(f.get("vo")):
                 e.append(f"features.{f.get('id')}: voiceover.enabled needs a vo line per feature")
     return e
+
+
+def _validate_films(cfg, ids, langs):
+    e = []
+    films = cfg.get("films") or []
+    if "films" in (cfg.get("make") or []) and not films:
+        e.append("make: films needs a films list (the set)")
+    fids = [f.get("id") if isinstance(f, dict) else None for f in films]
+    if len(set(fids)) != len(fids) or not all(fids):
+        e.append("films: every film needs a unique id")
+    for f in films:
+        if not isinstance(f, dict):
+            continue
+        fid = f.get("id")
+        bad = [k for k in f if k not in FILM_KEYS]
+        if bad:
+            e.append(f"films.{fid}: unknown key(s) {', '.join(bad)} (one of {', '.join(FILM_KEYS)})")
+        own = [x.get("id") for x in f.get("features") or [] if isinstance(x, dict)]
+        for sid in f.get("shots") or []:
+            if sid not in ids and sid not in own:
+                e.append(f"films.{fid}.shots: unknown feature '{sid}'")
+        for r in f.get("renders") or []:
+            try:
+                lang, _ = parse_render(r)
+                if lang not in langs:
+                    e.append(f"films.{fid}.renders: {r}: language '{lang}' not in languages")
+            except ValueError as ex:
+                e.append(f"films.{fid}.renders: {ex}")
+        if fid and isinstance(f.get("film"), dict):
+            sub = film_cfg(cfg, fid)
+            e += [f"films.{fid}: {x}" for x in validate(dict(sub, films=[]), check_files=False)
+                  if x.startswith(("film.", "type."))]
+    return e
+
+
+def film_cfg(cfg, fid):
+    """One film of the set -> the config it is cut from: its sections deep-merged over the config's, its ``shots``
+    as ``demo.shots`` and its ``renders`` as ``demo.renders`` (its own ``features`` are added to the config's)."""
+    f = next((x for x in cfg.get("films") or [] if x.get("id") == fid), None)
+    if f is None:
+        raise ConfigError(f"films: no film '{fid}'")
+    over = {k: v for k, v in f.items() if k not in ("id", "title", "shots", "renders", "features")}
+    out = _merge(cfg, over)
+    if "music" in over:
+        out["music"] = music_spec(f["music"], cfg.get("_root") or ".")
+    if f.get("features"):
+        have = {x["id"] for x in f["features"]}
+        out["features"] = [x for x in cfg.get("features") or [] if x["id"] not in have] + list(f["features"])
+    out["demo"] = dict(out.get("demo") or {}, shots=list(f.get("shots") or (out.get("demo") or {}).get("shots") or []) or None,
+                       renders=list(f.get("renders") or []) or None)
+    out["film_id"] = fid
+    return out
+
+
+def films(cfg):
+    """[(film id, [(lang, aspect)])] of the set, in order (renders default: the demo's)."""
+    return [(f["id"], renders(film_cfg(cfg, f["id"]), "demo")) for f in cfg.get("films") or []]
 
 
 def music_spec(v, root="."):

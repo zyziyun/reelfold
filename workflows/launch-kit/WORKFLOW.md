@@ -76,7 +76,13 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    floating windows that swing in from a 3D angle and split panes angled like an open book, the camera eased in log
    space (a push reads even, the target never swims), a zoom-through from footage into each card, quiet code-made
    foley (swish per moving transition, tick per badge / chip / reel cut; `motion.sfx: false` = off), and an end card
-   with the badges.
+   with the badges. `film.blocks` picks the opening (default brand card + reel): a **waterfall** (hundreds of real
+   video thumbnails, `film.waterfall.thumbs`, pour down and land as the tiles of the wordmark, which resolves into the
+   solid name in heavy type), a **lift** (the platforms' own marks rise and lift "Create · Edit · Publish" / "做 · 剪 ·
+   发" in heavy type) or a **hook** (one heavy line, for a short); `brand.backdrop: cream` is a warm light stage,
+   `type.heavy` (700-900) the blocks' weight and `type.titles: heavy` sets chapter titles in it too.
+   **A set from one config:** `films: [{id, shots, renders, <sections to override>}]` + `make: [films]` renders every
+   film to `films/<id>-<lang>-<canvas>.mp4` with a cover and a contact sheet, and an `index.html` to review the set.
    Chinese is broken after its punctuation and subset to the characters on screen (Noto Sans SC Medium from
    ./install.sh; without it Regular with a hairline stroke),
    and an end card that animates the mark (`brand.mark`), the name, the call to action and the site. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.

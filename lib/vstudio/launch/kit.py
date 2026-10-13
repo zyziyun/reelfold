@@ -35,6 +35,10 @@ def jobs(cfg, only=None):
     for lang, asp in C.renders(cfg, "loop") if C.makes(cfg, "loop") else []:
         n = f"loop-{lang}"
         js.append((n, "loop", lang, asp, None, os.path.join(out_dir, "readme", n + ".mp4")))
+    for film, rs in C.films(cfg) if C.makes(cfg, "films") else []:
+        for lang, asp in rs:
+            n = f"{film}-{lang}-{CANVAS_TAG[asp]}"
+            js.append((n, "film", lang, asp, film, os.path.join(out_dir, "films", n + ".mp4")))
     for fid in C.cut_features(cfg, "clips") if C.makes(cfg, "clips") else []:
         for lang, asp in C.renders(cfg, "clips"):
             n = f"{fid}-{lang}-{CANVAS_TAG[asp]}"
@@ -57,9 +61,15 @@ def build(cfg, only=None):
     sh = shots(cfg)
     made = []
     for name, cut, lang, asp, fid, _ in jobs(cfg, only):
-        plan = S.plan(cfg, sh, cut, lang, asp, feature=fid)
-        made.append(CO.build(cfg, plan, os.path.join(cfg["out"], "build", name)))
+        c = job_cfg(cfg, cut, fid)
+        plan = S.plan(c, sh, "demo" if cut == "film" else cut, lang, asp, feature=None if cut == "film" else fid)
+        made.append(CO.build(c, plan, os.path.join(cfg["out"], "build", name)))
     return made
+
+
+def job_cfg(cfg, cut, fid):
+    """The config a job is cut from: a film of the set gets its own merged config."""
+    return C.film_cfg(cfg, fid) if cut == "film" else cfg
 
 
 def cover_time(plan):
@@ -116,11 +126,79 @@ def render(cfg, only=None, quality="delivery", rebuild=True):
         with open(os.path.join(proj, "plan.json"), encoding="utf-8") as f:
             plan = json.load(f)
         pick_cover(video, plan, video[:-4] + ".cover.jpg")
+        if cut == "film":
+            sheet(video, video[:-4] + ".sheet.jpg")
         if cut == "loop":
             CO.gif(video, video[:-4] + ".gif", width=cfg["loop"]["width"], fps=cfg["loop"]["gif_fps"])
         done.append(video)
     write_manifest(cfg)
+    if C.makes(cfg, "films"):
+        review_page(cfg)
     return done
+
+
+def sheet(video, out, n=12):
+    """A contact sheet of ``n`` frames spread over the video (4 per row), each stamped with its time."""
+    from vstudio import media
+    from PIL import Image, ImageDraw
+    info = media.probe(video)
+    dur, w, h = float(info["duration"]), int(info["w"]), int(info["h"])
+    tw = 480 if w >= h else 270
+    th = int(tw * h / w)
+    cols = 4 if w >= h else 6
+    rows = -(-n // cols)
+    im = Image.new("RGB", (cols * tw + (cols + 1) * 8, rows * (th + 26) + 8), (242, 236, 227))
+    tmp = out + ".f.jpg"
+    for k in range(n):
+        t = dur * (k + 0.5) / n
+        media.grab_frame(video, t, tmp, quality=3)
+        with Image.open(tmp) as f:
+            fr = f.convert("RGB").resize((tw, th), Image.LANCZOS)
+        x, y = 8 + (k % cols) * (tw + 8), 8 + (k // cols) * (th + 26)
+        im.paste(fr, (x, y))
+        ImageDraw.Draw(im).text((x + 2, y + th + 5), f"{t:4.1f}s", fill=(60, 56, 50))
+    os.remove(tmp)
+    im.save(out, quality=86)
+    return out
+
+
+def review_page(cfg):
+    """<out>/index.html: one page to review the set - every film, each canvas and language, its contact sheet."""
+    import html as H
+    out = cfg["out"]
+    rows = []
+    for film in cfg.get("films") or []:
+        vids = [(n, lang, asp, v) for n, cut, lang, asp, fid, v in jobs(cfg) if cut == "film" and fid == film["id"]]
+        cells = []
+        for n, lang, asp, v in vids:
+            if not os.path.exists(v):
+                continue
+            rel = _relpath(v, out)
+            sh = v[:-4] + ".sheet.jpg"
+            cover = v[:-4] + ".cover.jpg"
+            from vstudio import media
+            d = media.probe(v).get("duration") or 0
+            cells.append(f'<figure class="v a{CANVAS_TAG[asp]}"><video controls preload="metadata" src="{H.escape(rel)}"'
+                         + (f' poster="{H.escape(_relpath(cover, out))}"' if os.path.exists(cover) else "")
+                         + f'></video><figcaption>{lang} · {asp} · {d:.1f}s · <a href="{H.escape(rel)}">mp4</a>'
+                         + (f' · <a href="{H.escape(_relpath(sh, out))}">sheet</a>' if os.path.exists(sh) else "")
+                         + "</figcaption></figure>")
+        title = C.text(film.get("title"), "en") or film["id"]
+        rows.append(f'<section><h2>{H.escape(title)}</h2><p class="id">{H.escape(film["id"])}</p>'
+                    f'<div class="row">{"".join(cells) or "<p>not rendered yet</p>"}</div></section>')
+    name = cfg["product"]["name"]
+    doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{H.escape(name)} - film set</title>
+<style>body{{font:15px/1.45 -apple-system,Inter,sans-serif;background:#F2ECE3;color:#151412;margin:32px}}
+h1{{font-size:28px;letter-spacing:-.02em;margin:0 0 4px}} h2{{font-size:20px;margin:28px 0 2px}} .id{{color:#857d72;margin:0 0 10px}}
+.row{{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}} figure{{margin:0;background:#fff;border-radius:10px;padding:8px;
+box-shadow:0 8px 24px -16px rgba(0,0,0,.4)}} video{{display:block;border-radius:6px;background:#000}}
+.a16x9 video{{width:480px}} .a9x16 video{{width:220px}} .a1x1 video{{width:300px}} figcaption{{font-size:13px;color:#5E5850;margin-top:6px}}
+a{{color:#0E7C70}}</style></head><body><h1>{H.escape(name)} - film set</h1>
+<p>Rendered by the launch kit from <code>{H.escape(os.path.basename(cfg["_path"]))}</code>; each video has a contact sheet.</p>
+{"".join(rows)}</body></html>"""
+    with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as f:
+        f.write(doc)
+    return os.path.join(out, "index.html")
 
 
 def stills(cfg):
@@ -225,6 +303,7 @@ def write_manifest(cfg):
         return sorted(_relpath(p, out) for pat in pats for p in glob.glob(os.path.join(out, pat)))
     man = dict(product=cfg["product"]["name"], version=cfg["product"].get("version"),
                demo=rel(["demo/*.mp4"]), readme=rel(["readme/*.mp4", "readme/*.gif"]), clips=rel(["clips/*.mp4"]),
+               films=rel(["films/*.mp4"]),
                covers=rel(["demo/*.cover.jpg", "clips/*.cover.jpg", "readme/*.cover.jpg"]),
                stills=rel(["stills/*.png"]), copy=rel(["copy/COPY.md", "copy/*.md"]),
                schedule=rel(["schedule/*"]))

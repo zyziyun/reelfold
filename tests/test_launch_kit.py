@@ -342,9 +342,9 @@ def test_split_and_lower_third_stay_inside_the_text_box(cfg, shots):
 
 
 def test_film_and_type_keys_are_checked(cfg):
-    bad = dict(cfg, film=dict(variety="wild", text=0.9, captions="loud"), type=dict(scale=3, weight=900))
+    bad = dict(cfg, film=dict(variety="wild", text=0.9, captions="loud"), type=dict(scale=3, weight=950, heavy=600, titles="huge"))
     errs = " ".join(C.validate(bad, check_files=False))
-    for want in ("film.variety", "film.text", "film.captions", "type.scale", "type.weight"):
+    for want in ("film.variety", "film.text", "film.captions", "type.scale", "type.weight", "type.heavy", "type.titles"):
         assert want in errs, want
 
 
@@ -891,3 +891,108 @@ def test_launch_arc_builds_slam_tilt_log_camera_and_foley(cfg, shots, tmp_path):
 def test_film_arc_is_validated(cfg):
     bad = dict(cfg, film=dict(cfg["film"], arc="epic"))
     assert any("film.arc" in e for e in C.validate(bad, check_files=False))
+
+
+# ------------------------------------------------------------------------------------------------ the set, blocks
+def _set_cfg(cfg, **film):
+    c = _arc_film(cfg)
+    c["films"] = [
+        dict(id="hero", title="Hero", shots=[f["id"] for f in c["features"]], renders=["en:16:9", "zh:9:16"],
+             film=dict(blocks=["waterfall", "lift", "reel"], text=0.3, **film), brand=dict(backdrop="cream"),
+             type=dict(titles="heavy"), demo=dict(title_card=False)),
+        dict(id="short", shots=["f1", "f3"], renders=["en:9:16"], demo=dict(min_seconds=12, max_seconds=22),
+             film=dict(blocks=["hook"], cold_open=False, hook=dict(en="Hundreds of videos. One run.",
+                                                                   zh="几百条视频，一次跑完。")))]
+    c["make"] = ["films"]
+    return c
+
+
+def test_film_set_merges_each_film_and_names_its_jobs(cfg):
+    from vstudio.launch import kit as K
+    c = _set_cfg(cfg)
+    assert C.validate(c, check_files=False) == []
+    hero, short = C.film_cfg(c, "hero"), C.film_cfg(c, "short")
+    assert hero["brand"]["backdrop"] == "cream" and hero["brand"]["colors"] == c["brand"]["colors"]   # deep merge
+    assert hero["film"]["blocks"] == ["waterfall", "lift", "reel"] and hero["film"]["arc"] == "launch"
+    assert short["demo"]["shots"] == ["f1", "f3"] and short["demo"]["max_seconds"] == 22
+    assert C.films(c) == [("hero", [("en", "16:9"), ("zh", "9:16")]), ("short", [("en", "9:16")])]
+    names = [j[0] for j in K.jobs(c)]
+    assert names == ["hero-en-16x9", "hero-zh-9x16", "short-en-9x16"]
+    assert all(j[1] == "film" and "/films/" in j[5] for j in K.jobs(c))
+    assert [j[0] for j in K.jobs(c, ["short"])] == ["short-en-9x16"]
+    bad = dict(c, films=[dict(id="x", shots=["nope"], renders=["fr:16:9"], film=dict(blocks=["fireworks", "hook"]),
+                              colour="red"), dict(id="x")])
+    errs = " | ".join(C.validate(bad, check_files=False))
+    for want in ("unique id", "unknown feature 'nope'", "language 'fr'", "film.blocks", "film.hook", "unknown key"):
+        assert want in errs, (want, errs)
+    assert any("make: films" in e for e in C.validate(dict(c, films=[]), check_files=False))
+
+
+def test_blocks_open_the_film_and_text_counts_after_the_wordmark(cfg, shots):
+    c = _set_cfg(cfg)
+    for asp in S.LAYOUTS:
+        p = S.plan(C.film_cfg(c, "hero"), shots, "demo", "en", asp)
+        lays = [s["layout"] for s in p["scenes"]]
+        assert lays[:4] == ["full", "waterfall", "lift", "reel"] and lays[-1] == "end", lays
+        assert S.adjacent_ok(p["scenes"]) and p["text_share"] <= 0.3 + 1e-6
+        wf = p["scenes"][1]
+        span = next(x for x in S.text_spans(p["scenes"], p["xf"]) if x[0] >= wf["start"])
+        assert abs(span[0] - (wf["start"] + S.WATERFALL_TEXT)) < 1e-6         # no words while the tiles pour
+        lift = p["scenes"][2]
+        assert lift["words"] == ["Create", "Edit", "Publish"] and lift["platforms"][:2] == ["youtube", "tiktok"]
+    pz = S.plan(C.film_cfg(c, "hero"), shots, "demo", "zh", "9:16")
+    assert pz["scenes"][2]["words"] == ["做", "剪", "发"]
+    ps = S.plan(C.film_cfg(c, "short"), shots, "demo", "en", "9:16")
+    assert [s["layout"] for s in ps["scenes"]][0] == "hook" and ps["scenes"][0]["text"] == "Hundreds of videos. One run."
+    assert 12 <= ps["duration"] <= 22
+    assert any("Hundreds of videos" in q["text"] for q in S.caption_cues(ps))
+    plain = S.plan(_arc_film(cfg), shots, "demo", "en", "16:9")              # default blocks: brand + reel, as before
+    assert [s["layout"] for s in plain["scenes"]][:2] == ["brand", "reel"]
+
+
+def test_mosaic_tiles_sit_on_the_letters():
+    from vstudio.launch import blocks as BL
+    from PIL import Image
+    cells, (cw, ch), word = BL.mosaic("Reelfold", B.INTER, 880, (1920, 1080), (200, 380, 1520, 320), target=360)
+    assert 220 <= len(cells) <= 520 and abs(cw / ch - 16 / 9) < 0.01
+    assert 190 <= word["x"] and word["x"] + word["w"] <= 1730 and word["px"] > 250
+    a = word["img"].split()[3].resize((int(word["w"]), int(word["h"])), Image.BILINEAR)
+    on = sum(1 for cx, cy in cells if a.getpixel((min(a.width - 1, int(cx - word["x"])),
+                                                   min(a.height - 1, int(cy - word["y"])))) > 60)
+    assert on / len(cells) > 0.8                               # tiles land on the solid wordmark's pixels
+    xs = [x for x, _ in cells]
+    assert min(xs) > 180 and max(xs) < 1760
+
+
+def test_blocks_build_waterfall_lift_hook_on_a_cream_stage(cfg, shots, tmp_path):
+    c = _set_cfg(cfg)
+    hero = C.film_cfg(c, "hero")
+    proj = str(tmp_path / "hero")
+    CO.build(hero, S.plan(hero, shots, "demo", "en", "16:9"), proj, quiet=True)
+    html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
+    assert html.count('class="tile"') > 150 and "assets/thumbs/t000-" in html
+    assert os.path.exists(os.path.join(proj, "assets", "brand", "wordmark-1920x1080.png"))
+    assert 'class="pmark"' in html and html.count('class="pm"') == 9 and ">Publish<" in html
+    assert "font-weight: 880" in html and "--lk-flat:#F2ECE3" in html                 # heavy type, cream stage
+    assert 'class="center chap heavy"' in html                                       # heavy chapter titles
+    assert 'ease: "power2.in"' in html and "yPercent: 115" in html
+    short = C.film_cfg(c, "short")
+    sp = str(tmp_path / "short")
+    CO.build(short, S.plan(short, shots, "demo", "en", "9:16"), sp, quiet=True)
+    sh = open(os.path.join(sp, "index.html"), encoding="utf-8").read()
+    assert 'class="type heavy"' in sh and 'scale: 1.5' in sh
+
+
+def test_review_page_and_contact_sheet(cfg, kitdir, tmp_path):
+    from vstudio.launch import kit as K
+    c = dict(_set_cfg(cfg), out=str(tmp_path))
+    os.makedirs(tmp_path / "films")
+    v = str(tmp_path / "films" / "short-en-9x16.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=180x320:r=30:d=3", "-pix_fmt",
+                    "yuv420p", v], check=True)
+    K.sheet(v, v[:-4] + ".sheet.jpg")
+    from PIL import Image
+    with Image.open(v[:-4] + ".sheet.jpg") as im:
+        assert im.width > 1000
+    page = open(K.review_page(c), encoding="utf-8").read()
+    assert "films/short-en-9x16.mp4" in page and "short-en-9x16.sheet.jpg" in page and "not rendered yet" in page
