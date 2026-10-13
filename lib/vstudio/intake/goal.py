@@ -616,10 +616,26 @@ def cuts_sentence(v):
     return " Cuts: " + "; ".join(bits) + "."
 
 
+def _stories_of(v, by_id):
+    """The video's stories; a video that plays only some of their clips (``pick``: one planned after the group was
+    made, cut from the clips no other video plays) sees only those."""
+    st = [by_id[s] for s in v.get("stories") or [] if s in by_id]
+    pick = v.get("pick")
+    if not pick:
+        return st
+    keep, out = set(pick), []
+    for s in st:
+        clips = s.get("clips") or []
+        secs = s.get("clip_secs") or [float(s.get("seconds") or 0) / max(1, len(clips))] * len(clips)
+        both = [(p, d) for p, d in zip(clips, secs) if p in keep]
+        out.append(dict(s, clips=[p for p, _d in both], clip_secs=[d for _p, d in both], videos=len(both),
+                        seconds=round(sum(d for _p, d in both), 1), stills=[]))
+    return out
+
+
 def _inputs_of(v, by_id):
     clips, stills = [], []
-    for sid in v.get("stories") or []:
-        s = by_id.get(sid) or {}
+    for s in _stories_of(v, by_id):
         clips += s.get("clips") or []
         stills += s.get("stills") or []
     if v.get("kind") == "photos":
@@ -705,7 +721,7 @@ def _finish_video(v, by_id, platforms, asked=None, lang="en"):
     if v["kind"] == "reel" and "youtube" in v["platforms"] and "youtube-shorts" not in v["platforms"]:
         # vertical first: YouTube means its Shorts (both named: the 16:9 cut and the Shorts version, as she asked)
         v["platforms"] = ["youtube-shorts" if p == "youtube" else p for p in v["platforms"]]
-    st = [by_id[s] for s in v.get("stories") or [] if s in by_id]
+    st = _stories_of(v, by_id)
     v["possible_s"] = footage_max(st, v["kind"])
     v["possible"] = possible_line(v["possible_s"], lang) if v["possible_s"] else None
     # per-platform lengths: each platform's habit for this kind (references/platforms/<name>.md), capped by what the
@@ -719,8 +735,8 @@ def _finish_video(v, by_id, platforms, asked=None, lang="en"):
     v["length_s"] = max(v["lengths"].values()) if v["lengths"] else int(asked or 60)
     v["over_footage"] = bool(v["possible_s"] and v["length_s"] > v["possible_s"] * 1.15)
     v["inputs"] = _inputs_of(v, by_id)
-    v["clips"] = sum((by_id.get(s) or {}).get("videos") or 0 for s in v.get("stories") or [])
-    v["stills"] = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
+    v["clips"] = sum(s.get("videos") or 0 for s in st)
+    v["stills"] = 0 if v.get("pick") else sum(s.get("photos") or 0 for s in st)
     v["request"] = request_text(v, by_id)
     v["recipe"] = RECIPE[v["kind"]]
     return v
@@ -965,6 +981,11 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
 
 
 # --------------------------------------------------------------------------- edits on the plan card
+def _picked(v, by_id):
+    """The clips a video is cut from (its ``pick``, else every clip of its stories)."""
+    return list(v.get("pick") or [p for sid in v.get("stories") or [] for p in (by_id.get(sid) or {}).get("clips") or []])
+
+
 def edit_goal(doc, ops):
     """Her edits on the plan card -> the same document with every touched video's ``request`` rebuilt.
     ops: {op: drop, video} | {op: rename, video, title} | {op: kind, video, kind}
@@ -1026,6 +1047,8 @@ def edit_goal(doc, ops):
             first = get(ids[0])
             for vid in ids[1:]:
                 other = get(vid)
+                if first.get("pick") or other.get("pick"):   # cut from some clips only: the joined video too
+                    first["pick"] = list(dict.fromkeys([*_picked(first, by_id), *_picked(other, by_id)]))
                 first["stories"] = list(dict.fromkeys([*first["stories"], *other["stories"]]))
                 first["why"] = ""                 # its footage facts no longer hold (the card counts its clips)
                 other["dropped"] = True
@@ -1045,3 +1068,153 @@ def edit_goal(doc, ops):
         _finish_video(v, by_id, doc.get("platforms"), doc.get("asked_s"), _ui(doc.get("ui_lang")))
     doc["edited"] = time.time()
     return doc
+
+
+# --------------------------------------------------------------------------- the group after it is made
+# "再多做几条 / 补够 12 条 / 再做一条关于 X 的": more videos over the same survey, cut only from clips no video of the
+# group plays yet (what each made video plays comes from its builder's edit list, ``*.edl.json``)
+def edl_files(d):
+    """A project's edit lists (one per item / version its builders wrote), newest first."""
+    import glob
+    pats = [os.path.join(d, "items", "*", "work", "*.edl.json"), os.path.join(d, "items", "*", "out", "*.edl.json"),
+            os.path.join(d, "items", "*", "out", "*", "*.edl.json")]
+    hits = {p for pat in pats for p in glob.glob(pat)}
+    return sorted(hits, key=lambda p: -os.path.getmtime(p))
+
+
+def _edl(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return [s for s in (d.get("shots") if isinstance(d, dict) else None) or [] if isinstance(s, dict)]
+
+
+def edl_shots(d):
+    """The shots of a project's newest cut in timeline order: [{i, src, name, src_in, src_out}] (clips only)."""
+    for p in edl_files(d):
+        out = []
+        for s in _edl(p):
+            if s.get("src") and s.get("kind") in (None, "video"):
+                out.append(dict(i=len(out) + 1, src=s["src"], name=os.path.basename(s["src"]),
+                                src_in=s.get("src_in"), src_out=s.get("src_out")))
+        if out:
+            return out
+    return []
+
+
+def used_in_project(d):
+    """{source clip: [[in, out], ...]} every cut of one project plays (all its edit lists)."""
+    out = {}
+    for p in edl_files(d):
+        for s in _edl(p):
+            src = s.get("src")
+            if not src or s.get("kind") not in (None, "video"):
+                continue
+            a, b = s.get("src_in"), s.get("src_out")
+            rng = out.setdefault(src, [])
+            if isinstance(a, (int, float)) and isinstance(b, (int, float)) and b > a and [round(a, 2), round(b, 2)] not in rng:
+                rng.append([round(a, 2), round(b, 2)])
+    return out
+
+
+def rest_stories(doc, used):
+    """The survey's stories with only the clips no video uses (``used``: clip paths); stories with none left go."""
+    used = set(used or ())
+    out = []
+    for s in (doc.get("survey") or {}).get("stories") or []:
+        clips = s.get("clips") or []
+        secs = s.get("clip_secs") or [float(s.get("seconds") or 0) / max(1, len(clips))] * len(clips)
+        keep = [(p, d) for p, d in zip(clips, secs) if p not in used]
+        if not keep:
+            continue
+        out.append(dict(s, clips=[p for p, _d in keep], clip_secs=[d for _p, d in keep], videos=len(keep),
+                        seconds=round(sum(d for _p, d in keep), 1), short_clips=sum(1 for _p, d in keep if d < 15)))
+    return out
+
+
+def _norm_title(t):
+    return re.sub(r"\W+", "", str(t or "").lower())
+
+
+def _about_first(story_list, about):
+    """Stories her words name (a place, a folder, a date) first."""
+    if not about:
+        return story_list
+    a = about.lower()
+
+    def hit(s):
+        p = s.get("place") or {}
+        words = [p.get("en"), p.get("zh"), s.get("folder"), s.get("date"), s.get("time_of_day"),
+                 _TOD_ZH.get(s.get("time_of_day") or "")]
+        return any(w and (w.lower() in a or a in w.lower()) for w in words)
+    return sorted(story_list, key=lambda s: 0 if hit(s) else 1)
+
+
+def _more_prompt(doc, live, n, about):
+    made = "; ".join(f'"{v.get("title")}" ({v.get("kind")}, stories {", ".join(v.get("stories") or [])})' for v in live)
+    s = (f"{doc.get('prompt') or ''}\n\nThe group already has these videos - do not repeat their angles: {made}.\n"
+         f"Now propose {n} MORE video{'s' if n > 1 else ''} for the group, cut only from the clips listed below (the "
+         f"clips the other videos play are left out).")
+    if about:
+        s += f" She wants {'it' if n == 1 else 'them'} about: {about}."
+    return s
+
+
+def extend_goal(doc, n, used=(), about=None, ui_lang=None, provider=None, model=None, call=None, on_event=None,
+                timeout=None):
+    """More videos for a group that is made (or being made): ``n`` new plan cards over the same survey, each cut only
+    from clips no video of the group uses (``used``: clip paths). The model plans them (its SYSTEM, with the videos the
+    group has and her ``about``); the rules when no model answers. -> (doc, new video ids, planner info); the new
+    videos carry ``extra`` (the round) and ``pick`` (the clips they may use)."""
+    if doc.get("kind") != KIND:
+        raise ValueError("not a goal document")
+    n = max(1, min(ASK_CAP, int(n or 1)))
+    about = (str(about).strip()[:200] or None) if about else None
+    lang = _ui(ui_lang or doc.get("ui_lang"))
+    plats = doc.get("platforms") or DEFAULT_PLATFORMS
+    by_id = {s["id"]: s for s in (doc.get("survey") or {}).get("stories") or []}
+    rest = [s for s in rest_stories(doc, used) if s["seconds"] >= MIN_STORY_S]
+    rest_by = {s["id"]: s for s in rest}
+    live = [v for v in doc.get("videos") or [] if not v.get("dropped")]
+    titles = {_norm_title(v.get("title")) for v in doc.get("videos") or []}
+    _emit(on_event, stage="model" if rest else "write", files=len(rest))
+    raw, info = None, dict(provider="none", fallback=True, reason="no footage left that no video uses")
+    if rest:
+        raw, _line, info = _model_videos(_more_prompt(doc, live, n, about), _about_first(rest, about), plats, lang,
+                                         dict(want=n, min=n, max=n), provider, model, call, timeout, on_event)
+    vids = [v for v in (_clean(raw, rest_by, plats, lang) if raw else []) if _norm_title(v["title"]) not in titles]
+    if not vids and rest:
+        info["fallback"] = True
+        vids = [v for v in rule_videos(_about_first(rest, about), plats, lang, n) if v.get("kind") != "vlog"]
+        for v in vids:
+            if about:
+                v["brief"] = f"{v['brief']}; about {about}"
+            if _norm_title(v["title"]) in titles:        # "Seattle · evening" again: told apart by the story's clock
+                s = rest_by[v["stories"][0]]
+                tag = (s.get("start") or "")[11:16] or s["id"]
+                v["title"], v["title_zh"] = f"{v['title']} · {tag}", f"{v.get('title_zh') or v['title']} · {tag}"
+    vids = vids[:n]
+    nums = [int(v["id"][1:]) for v in doc.get("videos") or [] if re.match(r"^v\d+$", str(v.get("id")))]
+    nxt = max(nums or [0]) + 1
+    rnd = 1 + max([int(v.get("extra") or 0) for v in doc.get("videos") or []] or [0])
+    taken = set()
+    out = []
+    for v in vids:
+        pick = [p for sid in v["stories"] for p in rest_by[sid]["clips"] if p not in taken]
+        if not pick:                                   # two new videos of one story: the second has nothing new
+            continue
+        taken.update(pick)
+        v.update(id=f"v{nxt}", extra=rnd, about=about, pick=pick)
+        nxt += 1
+        _finish_video(v, by_id, plats, doc.get("asked_s"), lang)
+        out.append(v)
+    doc["videos"] = [*(doc.get("videos") or []), *out]
+    if isinstance(doc.get("count"), dict):
+        doc["count"]["planned"] = sum(1 for v in doc["videos"] if not v.get("dropped"))
+    info = {k: info.get(k) for k in ("provider", "model", "fallback", "reason", "seconds", "cost_usd")}
+    doc.setdefault("more", []).append(dict(round=rnd, asked=n, about=about, added=[v["id"] for v in out],
+                                           left=len(rest), at=time.time(), planner=info))
+    _emit(on_event, stage="write", files=len(out))
+    return doc, [v["id"] for v in out], info

@@ -1,9 +1,10 @@
-"""python -m vstudio.intake analyze | plan | revise | apply | goal | goal-edit | schema  (every command: --json -> one
-document).
+"""python -m vstudio.intake analyze | plan | revise | apply | goal | goal-edit | goal-more | schema  (every command:
+--json -> one document).
 
 goal: one goal-style request ("make as many videos as you can from this card") -> a survey of the footage (stories by
 time + place + light) and a plan of several videos, each with the request its own ``plan`` starts from (goal.py).
 goal-edit: her edits on that plan card (drop / rename / kind / length / merge / platforms).
+goal-more: more videos for a group already made - new plan cards cut from the clips no video of it plays yet.
 
 plan / revise --json-events: one JSON event per line on stdout while it works (logs -> stderr), the progress the
 desk's plan card shows: {event: stage | progress, stage: scan | probe | listen | faces | transcribe | model | write,
@@ -167,6 +168,40 @@ def cmd_goal_edit(a):
     return 0
 
 
+def cmd_goal_more(a):
+    from . import goal as G
+    used = []
+    if a.used:
+        with open(a.used, encoding="utf-8") as f:
+            used = [p for p in json.load(f) if isinstance(p, str)]
+    doc = _load(a.goal)
+
+    def run(ev):
+        return G.extend_goal(doc, a.n, used, about=a.about, ui_lang=a.ui_lang, provider=a.provider, model=a.model,
+                             on_event=ev, timeout=a.timeout)
+    if not a.json_events:
+        try:
+            out, ids, info = run(None)
+        except ValueError as e:
+            _out(a, dict(ok=False, error=str(e)), f"error: {e}")
+            return 5
+        _save(a.out or (a.goal if a.in_place else None), out)
+        _out(a, dict(ok=True, added=ids, planner=info, plan=out),
+             "\n".join(f"{v['id']} {v['kind']:8} {v['title']}" for v in out["videos"] if v["id"] in ids) or "nothing new")
+        return 0
+    from vstudio.batch.cli import json_event_sink
+    emit, stream = json_event_sink()
+    try:
+        out, ids, info = run(emit)
+        _save(a.out or (a.goal if a.in_place else None), out)
+    except Exception as e:
+        emit(dict(event="error", ts=round(time.time(), 2), error=f"{type(e).__name__}: {e}"[:600]))
+        raise
+    emit(dict(event="done", ts=round(time.time(), 2), plan=out, added=ids, planner=info))
+    stream.flush()
+    return 0
+
+
 def cmd_schema(a):
     _out(a, PL.schema())
     return 0
@@ -249,6 +284,19 @@ def build_parser():
     p.add_argument("--ops", required=True, help='JSON list, e.g. [{"op": "drop", "video": "v2"}]')
     p.add_argument("--out")
     p.add_argument("--in-place", action="store_true", help="overwrite --goal")
+
+    p = add("goal-more", cmd_goal_more, "more videos for a made group: new plan cards from the clips no video plays")
+    p.add_argument("--goal", required=True)
+    p.add_argument("--n", type=int, default=3, help="how many more videos")
+    p.add_argument("--about", help="what they are about, in her words")
+    p.add_argument("--used", help="a JSON list of the clip paths the group's videos already play")
+    p.add_argument("--provider")
+    p.add_argument("--model")
+    p.add_argument("--timeout", type=float)
+    p.add_argument("--ui-lang", choices=sorted(PL.REPLY_LANGS))
+    p.add_argument("--out")
+    p.add_argument("--in-place", action="store_true", help="overwrite --goal")
+    p.add_argument("--json-events", action="store_true", help="progress events on stdout, then {event: done, plan}")
 
     add("schema", cmd_schema, "the plan JSON Schema")
     return ap
