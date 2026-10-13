@@ -169,18 +169,20 @@ def waterfall_html(ctx, sid, s, land, st, du, js, sfx):
     html.append(f'<div class="full" id="{sid}m">' + "".join(tiles) + "</div>")
     html.append(f'<img class="mark" id="{sid}w" src="{os.path.relpath(wpath, proj)}" alt="" style="left:{word["x"]}px; '
                 f'top:{word["y"]}px; width:{word["w"]}px; height:{word["h"]}px">')
-    # the pour: a sweep from left to right with some chaos; tiles fall big (they read as videos) and land small
+    # the pour: a sweep from left to right with some chaos; tiles fall big (they read as videos) and land small. They
+    # start as the scene starts (under the transition) from just above the frame and enter at once, so the stage is
+    # never an empty backdrop waiting for them
     xs = [c[0] for c in cells] or [0]
     lo, span = min(xs), max(1.0, max(xs) - min(xs))
     lands = []
     for k, (cx, cy) in enumerate(cells):
         r1, r2, r3 = rnd.random(), rnd.random(), rnd.random()
-        t0 = land + 0.05 + (cx - lo) / span * 0.5 + r1 * 0.62
-        d = 0.62 + r2 * 0.26
-        fall = cy + ch + H * (0.25 + r3 * 0.8)
+        t0 = st + (cx - lo) / span * 0.45 + r1 * 0.55
+        d = 0.6 + r2 * 0.26
+        fall = cy + ch * 2.2 + H * (0.02 + r3 * 0.3)
         js.append(f'tl.fromTo("#{sid}t{k}", {{y: {-int(fall)}, x: {int((r1 - 0.5) * 90)}, scale: {_r(2.4 + r2 * 1.4)}, '
                   f'rotation: {_r((r3 - 0.5) * 24)}, opacity: 1}}, {{y: 0, x: 0, scale: 1, rotation: 0, opacity: 1, '
-                  f'duration: {_r(d)}, ease: "power2.in"}}, {_r(t0)});')
+                  f'duration: {_r(d)}, ease: "power1.in"}}, {_r(t0)});')
         lands.append(t0 + d)
     for k, t in enumerate(sorted(lands)[::max(1, len(lands) // 26)]):
         sfx.append(dict(t=t, sfx=("tick", "tick_b")[k % 2], gain_db=-17))
@@ -272,17 +274,19 @@ def lift_html(ctx, sid, s, land, st, du, js, sfx):
         html.append(f'<div class="pm" id="{sid}p{i}" style="left:{int(ix + i * (ipx + gap))}px; top:{int(iy)}px">'
                     f'{_mark(pid, ipx)}</div>')
     rnd = random.Random(11)
-    for i in range(len(pls)):                            # the marks rise from below the frame, the middle first
-        t = land + 0.05 + 0.055 * abs(i - (len(pls) - 1) / 2) + rnd.random() * 0.05
+    # the marks rise from below the frame, the middle first, as the scene starts (under the transition): the stage is
+    # never empty between the previous scene and the words
+    for i in range(len(pls)):
+        t = st + 0.055 * abs(i - (len(pls) - 1) / 2) + rnd.random() * 0.05
         js.append(f'tl.fromTo("#{sid}p{i}", {{y: {int(H - iy + ipx)}, rotation: {int((rnd.random() - .5) * 40)}, '
                   f'opacity: 1}}, {{y: 0, rotation: 0, opacity: 1, duration: .7, ease: "back.out(1.5)"}}, {_r(t)});')
         sfx.append(dict(t=t + 0.42, sfx=("pop", "pop_b")[i % 2], gain_db=-15))
     for i in range(k):                                    # each word is lifted out from under its line
-        t = land + 0.32 + 0.16 * i
+        t = st + 0.3 + 0.16 * i
         js.append(f'tl.fromTo("#{sid}w{i}", {{yPercent: 115, opacity: 1}}, {{yPercent: 0, opacity: 1, duration: .62, '
                   f'ease: "expo.out"}}, {_r(t)});')
         sfx.append(dict(t=t + 0.05, sfx="swoosh_b", gain_db=-18))
-    js.append(f'tl.fromTo("#{sid}c .sep", {{opacity: 0}}, {{opacity: 1, duration: .3}}, {_r(land + 0.5)});')
+    js.append(f'tl.fromTo("#{sid}c .sep", {{opacity: 0}}, {{opacity: 1, duration: .3}}, {_r(st + 0.45)});')
     if s.get("sub"):
         spx, sl = CO._fit(s["sub"], ctx["files"], (L["oneliner_px"], int(L["oneliner_px"] * 0.7)), x1 - x0, 2, lang,
                           ctx["lw"])

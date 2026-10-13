@@ -977,6 +977,11 @@ def test_blocks_build_waterfall_lift_hook_on_a_cream_stage(cfg, shots, tmp_path)
     assert "font-weight: 880" in html and "--lk-flat:#F2ECE3" in html                 # heavy type, cream stage
     assert 'class="center chap heavy"' in html                                       # heavy chapter titles
     assert 'ease: "power2.in"' in html and "yPercent: 115" in html
+    # the stage is never an empty backdrop: the thumbnails and the platform marks start moving in with the scene
+    for lay, part in (("waterfall", "t"), ("lift", "p")):
+        sid, st = re.search(r'id="(s\d+)" data-start="([\d.]+)"[^>]*data-layout="%s"' % lay, html).groups()
+        first = min(float(x) for x in re.findall(r'tl\.fromTo\("#%s%s\d+", [^;]*, ([\d.]+)\);' % (sid, part), html))
+        assert first - float(st) <= 0.1, (lay, st, first)
     short = C.film_cfg(c, "short")
     sp = str(tmp_path / "short")
     CO.build(short, S.plan(short, shots, "demo", "en", "9:16"), sp, quiet=True)
