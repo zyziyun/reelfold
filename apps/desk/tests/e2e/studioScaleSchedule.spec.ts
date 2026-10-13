@@ -85,18 +85,30 @@ test(`⌘A then Schedule: the button says ${N} (what Ready to post says), progre
   await expect(bar).toContainText(`${N} selected`);
   const btn = bar.getByTestId('studio-bulk-schedule');
   await expect(btn).toHaveText(`Schedule · ${N}`);
-  const ms = await page.evaluate(async () => {
-    const seen: string[] = [];
-    const t0 = performance.now();
-    document.querySelector<HTMLElement>('[data-testid=studio-bulk-schedule]')!.click();
-    while (performance.now() - t0 < 60000) {
-      const p = document.querySelector('[data-testid=studio-bulk-scheduling]')?.textContent;
-      if (p && seen[seen.length - 1] !== p) seen.push(p);
-      if ([...document.querySelectorAll('[data-testid=toast]')].some((x) => /Scheduled \d+ videos/.test(x.textContent ?? ''))) break;
-      await new Promise((r) => requestAnimationFrame(r));
-    }
-    return { ms: performance.now() - t0, seen };
-  });
+  // every DOM change is seen (a MutationObserver, not a frame loop: the hidden window's frames are throttled - on the
+  // Windows runner the whole bulk was over before a frame showed its progress)
+  const ms = await page.evaluate(
+    () =>
+      new Promise<{ ms: number; seen: string[] }>((resolve) => {
+        const seen: string[] = [];
+        const t0 = performance.now();
+        const look = () => {
+          const p = document.querySelector('[data-testid=studio-bulk-scheduling]')?.textContent;
+          if (p && seen[seen.length - 1] !== p) seen.push(p);
+          if ([...document.querySelectorAll('[data-testid=toast]')].some((x) => /Scheduled \d+ videos/.test(x.textContent ?? ''))) done();
+        };
+        const obs = new MutationObserver(look);
+        const timer = setTimeout(() => done(), 60000);
+        function done() {
+          obs.disconnect();
+          clearTimeout(timer);
+          resolve({ ms: performance.now() - t0, seen });
+        }
+        obs.observe(document.body, { subtree: true, childList: true, characterData: true });
+        document.querySelector<HTMLElement>('[data-testid=studio-bulk-schedule]')!.click();
+        look();
+      }),
+  );
   perf.bulkSchedule = Math.round(ms.ms);
   expect(ms.seen[0]).toMatch(new RegExp(`Scheduling \\d+ of ${N}`));
   expect(ms.ms).toBeLessThan(20000); // ~1 s on a quiet Mac (never finished before)
