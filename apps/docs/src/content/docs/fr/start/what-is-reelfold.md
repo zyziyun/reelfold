@@ -1,15 +1,19 @@
 ---
 title: Qu’est-ce que Reelfold
-description: "Reelfold (千剪) est l’atelier open source des créateurs : vos propres rushes, montés en vidéos pour chaque plateforme et planifiés, sur votre Mac. Voici comment il fonctionne."
+description: "Reelfold (千剪) est l’atelier open source des créateurs et des formateurs : créer, monter et publier vos vidéos pour chaque plateforme, des centaines à la fois, sur votre Mac."
 ---
 
-Reelfold (千剪) est l’atelier open source des créateurs. Il part des images que vous avez filmées et les mène jusqu’à la publication : vous décrivez ce que vous voulez avec vos mots et déposez un enregistrement, un dossier ou une carte SD, ou une vidéo finie à reprendre. Reelfold planifie les vidéos, en monte plusieurs à la fois sur votre propre Mac (en pilote automatique, avec des modèles locaux si vous voulez), vérifie chaque fichier et ne vous montre que ce qui mérite un coup d’œil. Chaque plateforme reçoit son propre export, sa couverture, son titre, sa légende et ses hashtags, YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis Xiaohongshu, Douyin, Bilibili et WeChat Channels, et le calendrier de publication organise la semaine.
+Reelfold (千剪) est l’atelier open source des créateurs et des formateurs : une seule app pour créer des vidéos, monter vos propres rushes et publier sur chaque plateforme. Vous décrivez ce que vous voulez avec vos mots et partez de ce que vous avez : un enregistrement, un cours enregistré, un dossier ou une carte SD, une vidéo finie à reprendre, ou simplement des notes et un sujet. Reelfold planifie les vidéos, en réalise des centaines d’un coup sur votre propre Mac (en pilote automatique, quelques-unes à la fois, avec des modèles locaux si vous voulez), vérifie chaque fichier et ne vous montre que ce qui mérite un coup d’œil. Chaque plateforme reçoit son propre export, sa couverture, son titre, sa légende et ses hashtags, YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis Xiaohongshu, Douyin, Bilibili et WeChat Channels, et le calendrier de publication organise la semaine.
 
 Il est gratuit, sous licence MIT et open source. Le code se trouve sur [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
 
-## Les rushes d’abord
+## Créer, monter, publier
 
-Reelfold ne génère pas un film à partir d’un prompt. Il travaille sur ce que vous avez déjà filmé : interventions, cours, entretiens, images de voyage, photos, vidéos finies. Il vous décharge de tout ce qui vient après la caméra : montage, sous-titres, couvertures, une version par plateforme, textes de publication et calendrier. S’il manque un plan, il peut en suggérer un généré, avec son prix, et rien n’est dépensé sans votre accord.
+Reelfold couvre tout le travail, sans changer d’outil entre l’idée et la publication :
+
+- **Créer.** Transformez des notes, une page Notion exportée ou un sujet en [vidéo de cours](/docs/fr/guides/course-from-notes/), en [vidéo explicative](/docs/fr/guides/explainer/), en short IA ou en [film de lancement](/docs/fr/guides/launch-videos/). Avant toute génération IA payante, il montre le plan et le prix, et rien n’est dépensé sans votre accord.
+- **Monter.** Travaillez sur ce que vous avez déjà filmé : interventions, [cours enregistrés](/docs/fr/guides/course-slicing/), entretiens, images de voyage, photos, vidéos finies. Montage, sous-titres, couvertures et une version par plateforme.
+- **Publier, à grande échelle.** Textes de publication et calendrier pour chaque plateforme, pour une vidéo ou pour [des centaines en un lot](/docs/fr/guides/batch-100/), vérifiées et traitées ensemble dans Tous les projets.
 
 ## Deux façons de l’utiliser
 

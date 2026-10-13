@@ -1,15 +1,19 @@
 ---
 title: What is Reelfold
-description: "Reelfold (千剪) is the open-source workbench for creators: your own footage, edited into videos for every platform and scheduled, on your Mac. Learn how it works."
+description: "Reelfold (千剪) is the open-source workbench for creators and course makers: create, edit and publish videos for every platform in one app, hundreds at a time, on your Mac."
 ---
 
-Reelfold (千剪) is the open-source workbench for creators. It starts from the footage you shot and carries it all the way to publishing: you describe what you want in plain language and drop in a recording, a folder or an SD card, or a finished video you want to keep editing. Reelfold plans the videos, edits many at once on your own Mac (on autopilot, with local models if you like), checks every file and shows you only what needs a look. Each platform gets its own export, cover, title, caption and tags, YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu, Douyin, Bilibili and WeChat Channels, and the publishing calendar lines up the week.
+Reelfold (千剪) is the open-source workbench for creators and course makers: one app to create videos, edit your own footage and publish to every platform. You describe what you want in plain language and start from whatever you have: a recording, a recorded class, a folder or an SD card, a finished video you want to keep editing, or just notes and a topic. Reelfold plans the videos, makes hundreds of them in one run on your own Mac (on autopilot, a few at a time, with local models if you like), checks every file and shows you only what needs a look. Each platform gets its own export, cover, title, caption and tags, YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu, Douyin, Bilibili and WeChat Channels, and the publishing calendar lines up the week.
 
 It is free, MIT licensed and open source. The code lives at [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
 
-## Footage first
+## Create, edit, publish
 
-Reelfold is not a tool that generates a film from a prompt. It works on what you already shot: talks, lectures, interviews, travel clips, photos, finished videos. The work it takes off your hands is everything after the camera: cutting, captions, covers, a version per platform, post copy and the posting schedule. Where a shot is missing it can suggest a generated one, with a price, and nothing is spent until you approve.
+Reelfold covers the whole job, so you do not switch tools between the idea and the post:
+
+- **Create.** Turn notes, an exported Notion page or a topic into a [course video](/docs/guides/course-from-notes/), an [explainer](/docs/guides/explainer/), an AI short or a [launch film](/docs/guides/launch-videos/). Before any paid AI generation it shows the plan and the price, and nothing is spent until you approve.
+- **Edit.** Work on what you already shot: talks, [recorded classes](/docs/guides/course-slicing/), interviews, travel clips, photos, finished videos. Cutting, captions, covers and a version per platform.
+- **Publish, at scale.** Post copy and the posting schedule for every platform, for one video or for [hundreds in one batch](/docs/guides/batch-100/), reviewed and acted on together in All projects.
 
 ## Two ways to use it
 

@@ -40,7 +40,7 @@ export default defineConfig({
     sitemap({ filter: (page) => !fallbackUrls.has(page) }),
     starlight({
       title: { en: 'Reelfold Docs', 'zh-CN': '千剪 Reelfold 文档', fr: 'Documentation Reelfold', es: 'Documentación de Reelfold' },
-      description: 'Reelfold (千剪) documentation: install the free Mac app or the Claude Code skill, and turn your own footage into videos for every platform: the open-source workbench for creators.',
+      description: 'Reelfold (千剪) documentation: the open-source workbench for creators and course makers. Install the free Mac app or the Claude Code skill to create, edit and publish videos for every platform.',
       logo: {
         light: './src/assets/wordmark-on-light.svg',
         dark: './src/assets/wordmark-on-dark.svg',
