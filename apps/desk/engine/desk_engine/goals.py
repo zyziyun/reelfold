@@ -77,6 +77,29 @@ def _sig(progress):
     return repr((progress.get("stage"), progress.get("i"), progress.get("done_s")))
 
 
+def _lang_of(p):
+    """A video's language version from its project's name ("… (English)" / "… (中文)"), else None."""
+    n = str((p or {}).get("name") or "")
+    if re.search(r"\((English|EN)\)\s*$", n, re.I):
+        return "en"
+    if re.search(r"\((中文|Chinese|ZH)\)\s*$", n, re.I):
+        return "zh"
+    if re.search(r"\((Français|French|FR)\)\s*$", n, re.I):
+        return "fr"
+    return None
+
+
+def _retire(v):
+    """The video's request / projects are left behind for a fresh try: they stay the group's (``past``), so the lists
+    never show them as loose rows of their own."""
+    past = v.setdefault("past", dict(intakes=[], dirs=[]))
+    if v.get("intake") and v["intake"] not in past["intakes"]:
+        past["intakes"].append(v["intake"])
+    for p in v.get("projects") or []:
+        if p.get("dir") and p["dir"] not in past["dirs"]:
+            past["dirs"].append(p["dir"])
+
+
 def _blocker(d):
     """Why autopilot left the project's last run to her (its ``autopilot-blocked`` event), or None."""
     from . import pilot
@@ -279,6 +302,7 @@ class Goals:
     def _take_plan(self, g, doc):
         g["goal"], g["goal_code"] = doc.get("goal"), doc.get("goal_code")
         g["planner"] = {k: (doc.get("planner") or {}).get(k) for k in ("provider", "model", "fallback", "reason")}
+        g["count"] = doc.get("count") if isinstance(doc.get("count"), dict) else None
         sv = doc.get("survey") or {}
         g["survey"] = dict(totals=sv.get("totals"), notes=sv.get("notes"), unused=sv.get("unused"),
                            stories=[{k: s.get(k) for k in ("id", "place", "date", "start", "end", "time_of_day", "videos",
@@ -361,6 +385,7 @@ class Goals:
             self._drop(v, "by-you")
         else:
             need(v.get("state") == "dropped", "only a dropped video can be tried again")
+            _retire(v)
             v.update(state="waiting", attempts=0, intake=None, projects=[], reason=None, reason_code=None,
                      cleared=None)
             if g["state"] in ("done", "stopped"):
@@ -374,6 +399,7 @@ class Goals:
         g = self._get(gid)
         for v in g["videos"]:
             if v.get("state") == "dropped" and not v.get("cleared"):
+                _retire(v)
                 v.update(state="waiting", attempts=0, intake=None, projects=[], reason=None, reason_code=None)
         self._save(g)
         return self.view(gid)
@@ -384,6 +410,10 @@ class Goals:
         need(g["state"] in ("done", "stopped"), "the goal is still going")
         reqs, dirs = [], []
         for v in g["videos"]:
+            past = v.get("past") or {}               # what a fresh try left behind goes too, whatever became of it
+            reqs += [r for r in past.get("intakes") or [] if r not in reqs]
+            dirs += [d for d in past.get("dirs") or [] if d not in dirs]
+            v["past"] = dict(intakes=[], dirs=[])
             if v.get("state") != "dropped" or v.get("cleared"):
                 continue
             if v.get("projects"):
@@ -511,6 +541,8 @@ class Goals:
             if st == "error":
                 return self._failed(g, v, j.get("error_code") or "plan", now, j.get("error"))
             if st == "stopped":
+                if (j.get("stopped_by") or "you") != "you":   # stopped by the app (it hung): a failure, tried again
+                    return self._failed(g, v, "stalled", now)
                 return self._drop(v, "stopped")
             if st == "needs":                         # what only she could add: on a goal, plan with what is there
                 try:
@@ -530,7 +562,7 @@ class Goals:
                 v.update(sig=prog, seen=now)
             elif now - (v.get("seen") or now) > STALL_S:
                 try:
-                    self.intake.stop(v["intake"])
+                    self.intake.stop(v["intake"], by="stall")    # the goal stopped it, not her
                 except Exception:  # noqa: BLE001
                     pass
                 return self._failed(g, v, "stalled", now)
@@ -545,6 +577,10 @@ class Goals:
         stuck = next(((p, d) for p, s, d in states if s == "you" and d.get("blocker") in RETRY_BLOCKERS), None)
         if stuck:                                     # autopilot could not draft a step: a failure, not a question
             return self._failed(g, v, stuck[1]["blocker"], now, project=stuck[0])
+        v["versions"] = [dict(item=p.get("item"), dir=p.get("dir"), name=p.get("name"), lang=_lang_of(p), state=s,
+                              code=d.get("code"), queued=bool(d.get("queued")),
+                              progress=(d.get("live") or {}).get("progress") if s == "running" else None)
+                         for p, s, d in states]
         if all(s == "made" for _p, s, _d in states):
             v.update(state="made", finished=now, progress=1.0, live=None)
             return None
@@ -589,7 +625,8 @@ class Goals:
                         return
             except Exception:  # noqa: BLE001  (a retry that cannot start: a fresh request instead)
                 pass
-            v.update(state="waiting", intake=None, projects=[])
+            _retire(v)
+            v.update(state="waiting", intake=None, projects=[], versions=None)
             v["attempts"] -= 1                       # _begin counts the try
             return
         self._drop(v, code)
@@ -623,11 +660,11 @@ class Goals:
             counts["total"] = sum(1 for v in g.get("videos") or [] if not v.get("planned_out"))
         out = {k: g.get(k) for k in ("id", "prompt", "inputs", "platforms", "lang", "mode", "state", "step", "goal",
                                      "survey", "planner", "error", "error_code", "progress", "created", "updated",
-                                     "approved", "finished", "dismissed_at")}
+                                     "approved", "finished", "dismissed_at", "count")}
         out["videos"] = [{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills",
                                                 "stories", "platforms", "request", "state", "intake", "projects",
                                                 "attempts", "retried", "reason_code", "progress", "live", "queued", "started",
-                                                "finished", "planned_out", "merged_into", "cleared")}
+                                                "finished", "planned_out", "merged_into", "cleared", "versions", "last_error")}
                          for v in g.get("videos") or []]
         out["counts"] = counts
         out["goal_code"] = g.get("goal_code") or _goal_code(g.get("goal"))
@@ -654,12 +691,17 @@ class Goals:
             if g.get("dismissed_at"):
                 continue
             for v in g.get("videos") or []:
-                if v.get("intake"):
-                    reqs[v["intake"]] = (g["id"], v["id"])
-                for p in v.get("projects") or []:
-                    if p.get("dir"):
-                        dirs[os.path.realpath(p["dir"])] = (g["id"], v["id"])
+                past = v.get("past") or {}
+                for rid in [*(past.get("intakes") or []), *([v["intake"]] if v.get("intake") else [])]:
+                    reqs[rid] = (g["id"], v["id"])
+                for d in [*(past.get("dirs") or []), *[p.get("dir") for p in v.get("projects") or []]]:
+                    if d:
+                        dirs[os.path.realpath(d)] = (g["id"], v["id"])
         return reqs, dirs
+
+    def _video(self, gid, vid):
+        g = self.goals.get(gid) or {}
+        return next((v for v in g.get("videos") or [] if v.get("id") == vid), None) or {}
 
     def mark(self, rows, key):
         """Put ``goal`` / ``goal_video`` on rows of the lists (``key``: "id" for requests, "dir" for projects)."""
@@ -668,7 +710,30 @@ class Goals:
             hit = reqs.get(r.get("id")) if key == "id" else dirs.get(os.path.realpath(r.get("dir") or "")) if r.get("dir") else None
             if hit:
                 r["goal"], r["goal_video"] = hit
+                v = self._video(*hit)            # the row's title is the video's, never the request's raw words
+                r["goal_title"], r["goal_title_zh"] = v.get("title"), v.get("title_zh")
         return rows
+
+    def filter_inbox(self, items, hist=None):
+        """The group is the one place a goal's videos are followed: a question of one of its projects reaches the
+        Inbox only when the goal itself says the video waits for her (``you``) - never an autopilot step it answers
+        by itself, never a project it already left behind for a fresh try."""
+        _reqs, dirs = self.owned()
+        if not dirs:
+            return items
+        by_id = {e.get("id"): os.path.realpath(e.get("dir") or "") for e in hist or [] if e.get("dir")}
+        out = []
+        for x in items or []:
+            d = (x.get("engine") or {}).get("dir") or by_id.get((x.get("project") or {}).get("id"))
+            hit = dirs.get(os.path.realpath(d)) if d else None
+            if hit:
+                v = self._video(*hit)
+                hers = {os.path.realpath(x.get("dir") or "") for x in v.get("versions") or []
+                        if x.get("state") in ("you", "failed")}
+                if v.get("state") != "you" or os.path.realpath(d) not in hers:
+                    continue
+            out.append(x)
+        return out
 
     def inbox_items(self):
         """For the Inbox: a plan of videos that waits for her 「Make these videos」 and a goal whose survey failed."""

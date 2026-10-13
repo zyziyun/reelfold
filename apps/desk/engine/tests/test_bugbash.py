@@ -286,6 +286,37 @@ class LaunchVideoInbox(unittest.TestCase):
         self.assertEqual(items[0]["options"][0]["label"]["code"], "inbox.opt.cutWord")
 
 
+class AutopilotStepsAreNotHers(unittest.TestCase):
+    """Her goal on autopilot: a project parked at its layout check while its run still renders showed "Take a look"
+    in Needs you (an empty page, nothing to look at) - the run answers that check itself when it ends."""
+
+    def test_a_checkpoint_of_a_running_autopilot_project_is_not_an_item(self):
+        from desk_engine import inbox as IB
+        from desk_engine import pilot
+        from vstudio.project import inbox as PI
+        d = tempfile.mkdtemp()
+        auto = [True]
+
+        class Hist:
+            def list(self):
+                return dict(items=[dict(id="p1", dir=d, name="P", kind="project", autopilot=auto[0])])
+
+            def allow_media(self, paths):
+                pass
+        ib = IB.Inbox(tempfile.mkdtemp(), Hist(), InboxPollIsCheap.Runner(), "real")
+        entry = dict(project=d, id="layout", item="01", kind="review", options=[])
+        with mock.patch.object(PI, "inbox", return_value=dict(entries=[entry])):
+            with mock.patch.object(pilot, "running", return_value=dict(started=1.0)):
+                self.assertEqual(ib.list()["items"], [])
+                ib._forget_engine()
+                auto[0] = False                                    # ask me first: hers at once
+                self.assertEqual([i["kind"] for i in ib.list()["items"]], ["review"])
+            ib._forget_engine()
+            auto[0] = True
+            with mock.patch.object(pilot, "running", return_value=None):   # the run ended and left it to her
+                self.assertEqual([i["kind"] for i in ib.list()["items"]], ["review"])
+
+
 class EnglishTranscriptWords(unittest.TestCase):
     """Recording the desk on an English take: a cut's words, a pop word and a quoted phrase read "posts.Hi" or
     were not found, the desk's joiner only spaced two letters / digits."""

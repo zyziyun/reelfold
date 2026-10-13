@@ -90,6 +90,26 @@ class RequestRowTest(unittest.TestCase):
         self.assertIn(self.it.get(pid)["state"], ("running", "done"))
 
 
+    def test_who_stopped_it_is_said_and_the_kill_is_no_failure(self):
+        """A goal's planning that hung is stopped by the app: the request says so (never "by you"), and the killed
+        engine's exit (-15) is not a red failure line in the live pane."""
+        import json as _j
+        pid = self.it.start("剪 2 条切片", [self.video], mode="autopilot")["id"]
+        self.it._set(pid, state="running")
+        self.it.stop(pid, by="stall")
+        self.it._fail(pid, RuntimeError("vstudio.intake plan exited -15: intake: analyzing DJI_0001.MP4"))
+        row = next(x for x in self.it.open()["items"] if x["id"] == pid)
+        self.assertEqual((row["state"], row["stopped_by"]), ("stopped", "stall"))
+        with open(self.it.live_path(pid), encoding="utf-8") as f:
+            lines = [_j.loads(x) for x in f if x.strip()]
+        self.assertEqual([x["text"] for x in lines if x["kind"] == "stop"], ["stopped: planning showed no progress for too long"])
+        self.assertFalse([x for x in lines if x["kind"] == "error"])
+        self.it.retry(pid)
+        self.assertIsNone(self.it.get(pid).get("stopped_by"))
+        with self.assertRaises(BadRequest):
+            self.it.stop(pid, by="someone")
+
+
 class TrashPlanTest(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="rowtrash-")

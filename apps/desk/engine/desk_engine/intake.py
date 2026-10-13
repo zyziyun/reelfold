@@ -130,7 +130,7 @@ class Intake:
 
     JOB_KEYS = ("id", "state", "step", "prompt", "inputs", "error", "error_code", "error_provider", "started",
                 "seconds", "platforms", "lang", "mode", "sample_name", "applied", "discarded", "failed_apply",
-                "failed_revise", "name", "needs", "ignore_needs", "archived_at")
+                "failed_revise", "name", "needs", "ignore_needs", "archived_at", "stopped_by")
 
     def _job_path(self, pid):
         return os.path.join(self.dir, f"{pid}.job.json")
@@ -302,7 +302,8 @@ class Intake:
                        prompt=j.get("prompt"), inputs=j.get("inputs") or [], started=j.get("started"),
                        progress=j.get("progress"), error_code=j.get("error_code"), error=j.get("error"),
                        name=j.get("name") or (names[0] if names else None), projects=len(names) or None,
-                       failed_apply=bool(j.get("failed_apply")), needs=j.get("needs") or None)
+                       failed_apply=bool(j.get("failed_apply")), needs=j.get("needs") or None,
+                       stopped_by=j.get("stopped_by") if j.get("state") == "stopped" else None)
             if archived:
                 row.update(archived=True, archived_at=j.get("archived_at"))
             out.append(row)
@@ -505,7 +506,7 @@ class Intake:
         need(j.get("state") in ("error", "stopped"), "only a failed or stopped plan can be tried again")
         if j.get("state") == "stopped":            # she stopped it: 「再试一次」 plans it again from the start
             with self._lock:
-                self.jobs[pid] = dict(self.jobs[pid], state="error")
+                self.jobs[pid] = dict(self.jobs[pid], state="error", stopped_by=None)
         if j.get("failed_revise"):
             return self.revise(pid, j["failed_revise"])
         if j.get("failed_apply") and j.get("plan"):
@@ -580,24 +581,38 @@ class Intake:
         """A plain reason code for the card (pilot.classify) and the error without paths."""
         from . import pilot
         txt = str(e)
+        if (self.jobs.get(pid) or {}).get("state") == "stopped":
+            return                               # stopped: the killed engine's exit (-15) is not a failure to show
         own = str(((getattr(e, "doc", None) or {}) if isinstance(getattr(e, "doc", None), dict) else {}).get("code") or "")
         code = "intake" if isinstance(e, Unavailable) else own if re.match(r"^plan-[a-z-]{2,30}$", own) else \
             "plan-empty" if "no inputs" in txt else pilot.classify(txt)
-        self._live(pid, "error", f"failed · {code} · {pilot.scrub(txt, 300)}")
+        # the log line says what failed in plain words (the pane words it from the code); the engine's text is kept
+        # in the line's data for "show details", never as the line itself
+        self._live(pid, "error", f"planning failed · {code}", dict(code=code, detail=pilot.scrub(txt, 300)))
         j = self._set(pid, state="error", error=pilot.scrub(txt, 500), error_code=code,
                       error_provider=None if isinstance(e, Unavailable) else pilot.provider_of(txt))
         if j.get("mode") and self.bus:              # a request from Home: All projects and the Inbox say so
             self.bus.publish("batches")
             self.bus.publish("inbox")
 
-    def stop(self, pid):
-        """「停止」 while planning / revising: ends the engine (and the model CLI it started); the composer is back."""
+    STOP_WORDS = {"you": "stopped by you", "stall": "stopped: planning showed no progress for too long",
+                  "goal": "stopped by the goal"}
+
+    def stop(self, pid, by="you"):
+        """「停止」 while planning / revising: ends the engine (and the model CLI it started); the composer is back.
+        ``by``: who stopped it - she did (``you``), or the app did (``stall``: a goal's planning that hung, ``goal``):
+        the request says so, never "by you" for a stop she did not make."""
         from .caps import kill_tracked
+        need(by in self.STOP_WORDS, "by: you | stall | goal")
         j = self.get(pid)
+        with self._lock:                       # stopped before the kill: the engine's exit is not read as a failure
+            was = (self.jobs.get(pid) or {}).get("state")
+            if was == "running":
+                self.jobs[pid] = dict(self.jobs[pid], state="stopped", step="stopped", error=None, stopped_by=by)
         killed = kill_tracked(self._procs.get(pid) or [])
         if j.get("state") == "running":
-            self._live(pid, "stop", "stopped by you")
-            self._set(pid, state="stopped", step="stopped", error=None)
+            self._live(pid, "stop", self.STOP_WORDS[by], dict(by=by))
+            self._set(pid, state="stopped", step="stopped", error=None, stopped_by=by)
         return dict(ok=True, id=pid, killed=killed)
 
     # ---------------------------------------------------------- apply (+ pilot)

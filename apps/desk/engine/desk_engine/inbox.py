@@ -21,6 +21,7 @@ import threading
 import time
 
 from . import inbox_labels as L
+from . import pilot
 from . import works as WK
 from .common import need, read_json, write_json
 
@@ -307,6 +308,7 @@ class Inbox:
         self._engine_doc = (0.0, None)
         self._engine_lock = threading.Lock()
         self.extra = []          # more sources: callables -> [item] (Create: takes to pick, paused runs ...)
+        self.post = []           # filters: callables (items, history rows) -> items (goal mode: its group decides)
         self.outputs = None      # outputs.Outputs (app.py sets it): names the clip an engine question is about
         self.handlers = {}       # source -> fn(item, answer): desk-side items that act when answered (feedback)
         self.undo_hooks = []     # fn(keys): an answer taken back
@@ -442,6 +444,10 @@ class Inbox:
                     if archived and arch_dir is None:
                         arch_dir = {os.path.realpath(r["dir"]): r for r in self.history.list(archived=True)["items"]}
                     e = (arch_dir or {}).get(pd) or {} if archived else by_dir.get(pd) or {}
+                    if e.get("autopilot") and pilot.running(pd):
+                        # on autopilot with its run still going: the run answers this itself when it ends (a layout
+                        # check, the story draft) - only what autopilot leaves to her reaches the Inbox, after the run
+                        continue
                     kind = p.get("kind") or p.get("checkpoint_kind") or "checkpoint"
                     spend = kind == "budget-approval"
                     params = dict(n=p.get("n_options") or 0)
@@ -494,6 +500,11 @@ class Inbox:
             try:
                 items += [i for i in src() if i["key"] not in answers]
             except Exception:  # noqa: BLE001  (an optional source never breaks the inbox)
+                pass
+        for f in self.post:
+            try:
+                items = f(items, hist)
+            except Exception:  # noqa: BLE001  (a filter never breaks the inbox)
                 pass
         # an archived project's checkpoints stay listed but marked ``archived``: the Inbox, Home, the badge and the
         # triage queue leave them out; the project's own page still shows them (restore -> they are plain again)

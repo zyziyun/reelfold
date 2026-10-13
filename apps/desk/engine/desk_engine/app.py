@@ -560,6 +560,8 @@ class Api:
         # a goal's own requests are its business (it retries or drops them): not Inbox items of their own
         self.inbox.extra.append(lambda: self.goals.without_owned(self.intake.inbox_items()))
         self.inbox.extra.append(self.goals.inbox_items)
+        if hasattr(self.inbox, "post"):            # the group decides what of its projects needs her (goals.py)
+            self.inbox.post.append(self.goals.filter_inbox)
         from .share import Share                   # share for review: static page + feedback -> Inbox
         self.share = Share(engine.data_dir, self.history, self.outputs, self.inbox, bus)
         from .watermark import Watermark           # Settings › Watermark (vstudio.watermark settings + previews)

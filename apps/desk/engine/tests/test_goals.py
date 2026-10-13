@@ -64,9 +64,9 @@ class FakeIntake:
     def apply(self, rid, plan=None, run=True):
         self.calls.append(("apply", rid))
 
-    def stop(self, rid):
+    def stop(self, rid, by="you"):
         self.calls.append(("stop", rid))
-        self.jobs[rid]["state"] = "stopped"
+        self.jobs[rid].update(state="stopped", stopped_by=by)
 
     def delete(self, ids):
         self.calls.append(("delete", tuple(ids)))
@@ -230,6 +230,7 @@ class FailureAndCompletion(Base):
         rid = G.view(gid)["videos"][0]["intake"]
         G.tick(gid, now=time.time() + GO.STALL_S + 60)
         self.assertIn(("stop", rid), self.intake.calls)
+        self.assertEqual(self.intake.jobs[rid]["stopped_by"], "stall")      # the app stopped it, never "by you"
         v = G.view(gid)["videos"][0]
         self.assertEqual((v["state"], v["attempts"]), ("planning", 2))     # a fresh request, its second try
         self.assertNotEqual(v["intake"], rid)
@@ -248,7 +249,7 @@ class FailureAndCompletion(Base):
         G.video(gid, "v2", "drop")
         G.tick(gid)
         r = G.clear(gid)
-        self.assertEqual(r["cleared"]["requests"], 3)
+        self.assertEqual(r["cleared"]["requests"], 4)          # v2's first request (left behind by Try again) too
 
     def test_a_video_waiting_for_her_holds_the_goal_and_frees_its_slot(self):
         G, gid = self._running(1)
@@ -380,3 +381,63 @@ class Api(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OneGroupOneTruth(Base):
+    """The group is the one place its videos are followed: what a retry left behind stays the group's (never a loose
+    row), rows carry the video's title (never the request's words), a stop the app made is a failure tried again,
+    each video's language versions are listed, and only a video the group says waits for her reaches the Inbox."""
+
+    def _running(self, n=2):
+        G = self.goals(plan_doc(n))
+        gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
+        self.wait(G, gid, "running")
+        return G, gid
+
+    def test_a_retry_keeps_what_it_left_behind_in_the_group(self):
+        G, gid = self._running(1)
+        first = G.view(gid)["videos"][0]["intake"]
+        self.intake.fail(first, "ai-timeout")
+        self.intake.retry = lambda rid: (_ for _ in ()).throw(RuntimeError("cannot"))   # a fresh request instead
+        G.tick(gid)
+        v = G.view(gid)["videos"][0]
+        self.assertNotEqual(v["intake"], first)
+        reqs, _dirs = G.owned()
+        self.assertEqual(reqs[first], (gid, "v1"))                # the old request is still the group's
+        rows = G.mark([dict(id=first, prompt="Title: \"Video 1\". Make a 45-second film")], "id")
+        self.assertEqual((rows[0]["goal"], rows[0]["goal_title"]), (gid, "Video 1"))
+
+    def test_a_stop_the_app_made_is_tried_again(self):
+        G, gid = self._running(1)
+        rid = G.view(gid)["videos"][0]["intake"]
+        self.intake.stop(rid, by="stall")
+        G.tick(gid)
+        v = G.view(gid)["videos"][0]
+        self.assertEqual((v["state"], v["attempts"], v["retried"]), ("planning", 2, "stalled"))
+        # one she stopped (the request's own Stop) is hers: dropped, Try again brings it back
+        rid = v["intake"]
+        self.intake.stop(rid)
+        G.tick(gid)
+        self.assertEqual(G.view(gid)["videos"][0]["reason_code"], "stopped")
+
+    def test_language_versions_and_the_inbox(self):
+        G, gid = self._running(1)
+        rid = G.view(gid)["videos"][0]["intake"]
+        en, zh = self.proj("en"), self.proj("zh")
+        self.intake.jobs[rid].update(state="done", applied=[dict(dir=en, name="Video 1 (English)"),
+                                                            dict(dir=zh, name="Video 1 (中文)")])
+        G.tick(gid)
+        self.states[en] = ("running", dict(live=dict(progress=0.5)))
+        self.states[zh] = ("you", dict(blocker=None))
+        G.tick(gid)
+        v = G.view(gid)["videos"][0]
+        self.assertEqual([(x["lang"], x["state"]) for x in v["versions"]], [("en", "running"), ("zh", "you")])
+        self.assertEqual(v["state"], "making")                     # one version still being made: not hers yet
+        hist = [dict(id="a1", dir=en), dict(id="a2", dir=zh), dict(id="o", dir=self.proj("other"))]
+        items = [dict(key="k1", project=dict(id="a2"), engine=dict(dir=zh)), dict(key="k2", project=dict(id="a1")),
+                 dict(key="k3", project=dict(id="o"))]
+        self.assertEqual([x["key"] for x in G.filter_inbox(items, hist)], ["k3"])
+        self.states[en] = ("made", {})
+        G.tick(gid)
+        self.assertEqual(G.view(gid)["videos"][0]["state"], "you")
+        self.assertEqual([x["key"] for x in G.filter_inbox(items, hist)], ["k1", "k3"])   # now it waits for her
