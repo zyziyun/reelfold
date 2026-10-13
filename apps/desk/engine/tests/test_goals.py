@@ -441,3 +441,28 @@ class OneGroupOneTruth(Base):
         G.tick(gid)
         self.assertEqual(G.view(gid)["videos"][0]["state"], "you")
         self.assertEqual([x["key"] for x in G.filter_inbox(items, hist)], ["k1", "k3"])   # now it waits for her
+
+
+class SafeToUpdate(Base):
+    """She updates the app while her goal runs: a video whose planning the quit cut short is planned again (no try
+    used up, never "stopped by you"), and a request an older version left behind is adopted by its video."""
+
+    def test_a_planning_cut_short_by_a_restart_is_planned_again(self):
+        G = self.goals(plan_doc(1))
+        gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
+        self.wait(G, gid, "running")
+        rid = G.view(gid)["videos"][0]["intake"]
+        self.intake.jobs[rid].update(state="error", error_code="stopped", error="the app was closed while this was being planned")
+        G.tick(gid)
+        v = G.view(gid)["videos"][0]
+        self.assertIn(("retry", rid), self.intake.calls)
+        self.assertEqual((v["state"], v["attempts"], v["intake"]), ("planning", 1, rid))
+
+    def test_a_request_left_behind_by_an_older_version_is_adopted(self):
+        G = self.goals(plan_doc(1))
+        gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
+        self.wait(G, gid, "running")
+        old = "0" * 11 + "f"
+        self.intake.jobs[old] = dict(id=old, state="stopped", prompt="Make video 1", started=time.time(), mode="autopilot")
+        again = Goals(self.tmp, None, self.intake, self.history, ticker=False)
+        self.assertEqual(again.owned()[0][old], (gid, "v1"))

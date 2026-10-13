@@ -80,11 +80,11 @@ def _sig(progress):
 def _lang_of(p):
     """A video's language version from its project's name ("… (English)" / "… (中文)"), else None."""
     n = str((p or {}).get("name") or "")
-    if re.search(r"\((English|EN)\)\s*$", n, re.I):
+    if re.search(r"[(（]\s*(English|EN)\s*[)）]", n, re.I):
         return "en"
-    if re.search(r"\((中文|Chinese|ZH)\)\s*$", n, re.I):
+    if re.search(r"[(（]\s*(中文|Chinese|ZH)\s*[)）]", n, re.I):
         return "zh"
-    if re.search(r"\((Français|French|FR)\)\s*$", n, re.I):
+    if re.search(r"[(（]\s*(Français|French|FR)\s*[)）]", n, re.I):
         return "fr"
     return None
 
@@ -167,6 +167,7 @@ class Goals:
         self._thread = None
         self._ticker = ticker
         self._load()
+        self._adopt()
         if ticker and any(g.get("state") == "running" for g in self._all()):
             self._ensure_ticker()
 
@@ -188,6 +189,26 @@ class Goals:
             if g.get("state") == "surveying":     # the desk quit while it read the footage: say so, offer Try again
                 g.update(state="failed", error_code="stopped", error="the app was closed while this was being planned")
             self.goals[g["id"]] = g
+
+    def _adopt(self):
+        """A goal's requests from before ``past`` was kept (a Try again left the old one behind as a loose "Stopped by
+        you" row): a request with a video's own words, sent after the goal began, is that video's."""
+        jobs = getattr(self.intake, "jobs", None)
+        if not isinstance(jobs, dict):
+            return
+        for g in list(self.goals.values()):
+            by_req = {v.get("request"): v for v in g.get("videos") or [] if v.get("request")}
+            changed = False
+            for rid, j in list(jobs.items()):
+                v = by_req.get((j or {}).get("prompt"))
+                if not v or rid == v.get("intake") or (j.get("started") or 0) < (g.get("created") or 0):
+                    continue
+                past = v.setdefault("past", dict(intakes=[], dirs=[]))
+                if rid not in past["intakes"]:
+                    past["intakes"].append(rid)
+                    changed = True
+            if changed:
+                self._save(g, quiet=True)
 
     def _all(self):
         with self._lock:
@@ -538,6 +559,15 @@ class Goals:
                 v.update(state="making", seen=now)
                 return None
             st = j.get("state")
+            if st == "error" and j.get("error_code") == "stopped":
+                # the app was closed (an update, a restart) while it planned: planned again, not a failure - no try
+                # is used up and nothing is dropped as "stopped by you"
+                try:
+                    self.intake.retry(v["intake"])
+                    v["seen"] = now
+                    return None
+                except Exception as e:  # noqa: BLE001
+                    return self._failed(g, v, "app-closed", now, str(e))
             if st == "error":
                 return self._failed(g, v, j.get("error_code") or "plan", now, j.get("error"))
             if st == "stopped":

@@ -205,6 +205,26 @@ def engine_answer(kind, answer):
     return answer
 
 
+IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def _pictures(previews, n=12):
+    """What a review shows: the images its payload points at (a folder of stills: its first ``n`` images)."""
+    out = []
+    for pv in previews or []:
+        path = pv.get("path") if isinstance(pv, dict) else pv
+        if not isinstance(path, str) or not path:
+            continue
+        if os.path.isdir(path):
+            try:
+                out += [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.lower().endswith(IMAGE_EXT)]
+            except OSError:
+                pass
+        elif path.lower().endswith(IMAGE_EXT) and os.path.isfile(path):
+            out.append(path)
+    return out[:n]
+
+
 def _key(*parts):
     return hashlib.sha1("\0".join(str(p) for p in parts).encode()).hexdigest()[:16]
 
@@ -465,7 +485,9 @@ class Inbox:
                         raw = []                          # the draft is the decision, never a "☑ 1 0" option row
                         allow += [x for x in (author["file"], author["doc"]) if x]
                         author["drafting"] = self._drafting.get(_key(pd, p.get("id"), p.get("item"))) is not None
-                    video = None if e.get("thumb") else _item_video(pd, p.get("item"))
+                    pics = _pictures(p.get("previews")) if kind == "review" else []
+                    allow += pics
+                    video = None if e.get("thumb") and not (kind == "review" and not pics) else _item_video(pd, p.get("item"))
                     if video:
                         allow.append(video)
                     items.append(dict(key=_key(pd, p.get("id"), p.get("item"), p.get("digest")), kind=kind,
@@ -483,6 +505,7 @@ class Inbox:
                                       clip=clip_of(e.get("id"), p.get("item")),
                                       previews=[] if author else p.get("previews") or [],
                                       default=p.get("default"), minutes=1 if not author else 2, source="engine",
+                                      pictures=pics, help=p.get("help") if isinstance(p.get("help"), dict) else None,
                                       engine=dict(dir=pd, id=p.get("id"), item=p.get("item")),
                                       **({"archived": True} if archived else {}),
                                       **({"no_key": _no_key(p.get("no_key"))} if p.get("no_key") else {}),
