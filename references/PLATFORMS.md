@@ -92,6 +92,45 @@ horizontal 44-60 px, 22 CJK / 48 latin. 小红书 9:16 band centred on y ≈ 152
 | x | 15-90 | 140 (standard) | 140 s / 512 MB [3P, all agree]; **Premium**: sources disagree (2 h vs 4 h, 8 vs 16 GB; Android 10 min) → profile tiers `premium` 7200 s / 8 GB, `premium_plus` 14400 s / 16 GB [3P, unverified: help.x.com blocked automated reads] |
 | instagram | 15-90 | 1200 | 20 min Reels since 2025 [3P, several]; **> 3 min is not recommended to non-followers** (`reach_max` 180, warned) [3P citing the IG Help Center]; min 3 s; 4 GB [3P] |
 
+### Length habits per kind (`references/platforms/<name>.md`)
+
+The table above is what a platform **allows**; how long a video **should** be there depends on the kind of video and
+lives in one editable file per platform: `references/platforms/<name>.md`, YAML front matter (`form` long / short,
+`lengths` per kind as `[min, target, max]` seconds, `chapters`, `aspects`, `captions` style / density, `title`, `hook`,
+`hashtags`, `cover`, `posting`) plus prose for people. `vstudio.platform_habits` reads it; persona
+`platforms.<name>.lengths` / `.limits` (`{min_s, max_s}`) and Settings › Publishing › Video length
+(`$VSTUDIO_HOME/platforms.json`) override it, and every band is clamped to the hard limits above. A beat-cut reel is
+never under 20 s where the platform allows it. These are conventions [C]: change the file when a platform's habits
+change. Defaults (min-max, target in brackets):
+
+| platform | form | chapters | history | film | reel | vlog | talking head | course |
+|---|---|---|---|---|---|---|---|---|
+| youtube | long | yes | 4 min-12 min (8 min) | 2 min-8 min (4 min) | 60 s-4 min (2 min) | 4 min-15 min (8 min) | 4 min-15 min (8 min) | 5 min-20 min (10 min) |
+| youtube-shorts | short | no | 30 s-3 min (50 s) | 20 s-2 min (40 s) | 20 s-60 s (30 s) | 25 s-3 min (45 s) | 30 s-3 min (50 s) | 30 s-3 min (60 s) |
+| tiktok | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| instagram | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| x | short | no | 30 s-2.5 min (60 s) | 15 s-2 min (40 s) | 20 s-45 s (25 s) | 20 s-2.5 min (45 s) | 30 s-2.5 min (60 s) | 45 s-2.5 min (90 s) |
+| facebook | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| linkedin | short | no | 45 s-3 min (90 s) | 30 s-2 min (60 s) | 20 s-60 s (30 s) | 45 s-3 min (90 s) | 45 s-3 min (90 s) | 60 s-3 min (2 min) |
+| threads | short | no | 30 s-2 min (60 s) | 15 s-90 s (30 s) | 20 s-45 s (25 s) | 20 s-2 min (45 s) | 30 s-2 min (60 s) | 45 s-2 min (75 s) |
+| reddit | short | no | 45 s-5 min (90 s) | 20 s-2 min (45 s) | 20 s-60 s (30 s) | 30 s-3 min (75 s) | 45 s-5 min (90 s) | 60 s-10 min (3 min) |
+| pinterest | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+| snapchat | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+| xiaohongshu | short | no | 45 s-3 min (90 s) | 30 s-2 min (60 s) | 20 s-60 s (30 s) | 45 s-3 min (90 s) | 45 s-3 min (90 s) | 60 s-3 min (2.5 min) |
+| douyin | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| wechat-channels | short | no | 45 s-3 min (90 s) | 20 s-2 min (45 s) | 20 s-45 s (25 s) | 30 s-3 min (60 s) | 45 s-3 min (90 s) | 60 s-3 min (2 min) |
+| bilibili | long | yes | 3 min-15 min (7 min) | 2 min-10 min (4 min) | 60 s-4 min (90 s) | 3 min-15 min (7 min) | 3 min-15 min (7 min) | 5 min-30 min (12 min) |
+| kuaishou | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| weibo | short | no | 60 s-5 min (2 min) | 30 s-3 min (60 s) | 20 s-60 s (30 s) | 45 s-5 min (2 min) | 60 s-5 min (2 min) | 2 min-10 min (4 min) |
+| zhihu | long | yes | 2 min-15 min (5 min) | 60 s-5 min (2 min) | 60 s-2 min (60 s) | 2 min-10 min (4 min) | 2 min-15 min (5 min) | 5 min-30 min (10 min) |
+| dailymotion | long | yes | 3 min-15 min (6 min) | 90 s-8 min (3 min) | 60 s-4 min (90 s) | 3 min-15 min (6 min) | 3 min-15 min (6 min) | 5 min-30 min (10 min) |
+| kwai | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+
+`H.lengths(platforms, kind, footage_max=...)` gives each platform its target, capped by what the footage carries; the
+short platforms share one length when their bands overlap (one render, not three), and so do the long ones.
+`H.cuts(...)` groups the platforms by length into the renders a video needs: a **long cut** (YouTube / B站: chapters,
+the full story) and a **short cut** (Shorts / 小红书 / TikTok ...).
+
 ## Loudness, fps, encode
 
 - **YouTube −14 LUFS** is well established [S: many guides; YouTube turns louder uploads down]. TikTok/Douyin/小红书/B站

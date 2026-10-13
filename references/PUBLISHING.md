@@ -31,6 +31,18 @@
 The selectors of every assisted-fill page are marked **unverified** until someone checks them against the live page
 with a logged-in account. The desk keeps the adapter files.
 
+## Length per platform
+
+Not every platform gets the same video length. Each platform's version is cut to that platform's habits for the kind
+of video (`references/platforms/<name>.md`, read by `vstudio.platform_habits`; table in references/PLATFORMS.md): a
+long cut with chapters for YouTube and Bilibili, a short cut for Shorts, TikTok, 小红书, Instagram, LinkedIn. One
+story is rendered twice from the same project (two items, each with its own length and platforms), not reframed.
+She sets her own shortest / longest per platform in Settings › Publishing › Video length (`$VSTUDIO_HOME/
+platforms.json`, also read by the CLI skill) or in persona.local.yaml (`platforms.<name>.limits: {min_s, max_s}`,
+`platforms.<name>.lengths: {<kind>: [min, target, max]}`). The platform files are where a platform's habits (length,
+chapters, captions, title / hook, hashtags, cover, posting times) evolve; a platform-specific playbook later reads
+the same file.
+
 ## Audit: official upload APIs (checked 2026-10)
 
 No platform below offers an official **MCP** server for uploading; where an API exists it is the one listed.
