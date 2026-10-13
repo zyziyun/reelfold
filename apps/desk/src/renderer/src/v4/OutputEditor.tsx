@@ -59,7 +59,7 @@ import './transcript/transcript.css';
 import { keyHint } from '../lib/keys';
 import { useAutoRender } from '../lib/autoRender';
 import { ClipImported } from './imports/ClipImported';
-import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVisualsRedo, RenderPill, useClipSchedule } from './ClipInfo';
+import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVisualsRedo, ClipVoice, RenderPill, useClipSchedule } from './ClipInfo';
 import { ProjectAIPanel } from './ProjectAIPanel';
 
 // cover, captions, versions and export live in the clip's info (ClipInfo) now; the drawer keeps the precise tools
@@ -1220,6 +1220,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               </div>
               <ClipFill item={id} clip={clip} onRemade={reload} />
               <ClipVisualsRedo item={id} clip={clip} />
+              <ClipVoice item={id} clip={clip} />
               {odoc.imported && <ClipImported doc={odoc} item={id} clip={clip} strip={strip} edit={edit} onSeek={(x) => pl.current?.seek(x)} />}
             </div>
           </section>

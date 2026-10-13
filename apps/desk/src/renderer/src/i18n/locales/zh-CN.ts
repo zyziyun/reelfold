@@ -211,6 +211,7 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'checkpoint.take-selection': '选镜头',
   'checkpoint.script-lock': '脚本定稿',
   'checkpoint.voice-pick': '选配音',
+  'checkpoint.voice-cast': '选配音',
   'checkpoint.consent': '确认嘉宾同意',
   'checkpoint.privacy-masks': '检查遮挡',
   'checkpoint.publish': '发布前看一眼',

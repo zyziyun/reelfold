@@ -4,6 +4,7 @@
 import type { HistoryItem, LiveStatus } from '../../../shared/v02';
 import type { AutopilotDecision, CalendarPost, OpenRequest } from '../../../shared/v04';
 import { itemStatus } from './status';
+import { getLang } from '../i18n';
 
 export const STEPS = ['plan', 'transcribe', 'cut', 'captions', 'render', 'check', 'copy', 'ready', 'out'] as const;
 export type StepId = (typeof STEPS)[number];
@@ -161,6 +162,14 @@ export function decisionWords(d: AutopilotDecision): { key: string; params: Reco
       // the library track the engine picked for her words (or none): Change offers the other fits in the Inbox
       const title = typeof p.title === 'string' ? p.title : '';
       return title ? { key: 'ap.d.music', params: { title } } : { key: 'ap.d.musicNone', params: {} };
+    }
+    case 'voice-cast': {
+      // the narration voice the casting step picked for the video's kind (the AI, else the rules) or the one she named;
+      // the AI's reason is shown under the line, the rules' one with it
+      const zh = getLang() === 'zh-CN';
+      const name = String((zh ? p.label_zh : p.label) ?? p.label ?? p.speaker ?? '');
+      const why = d.by !== 'ai' && d.reason ? ` — ${d.reason}` : '';
+      return { key: 'ap.d.voice', params: { speaker: name + why } };
     }
     case 'reframe-pick':
       // landscape footage on the vertical platforms: follow the subject (default) or the whole frame on a blur

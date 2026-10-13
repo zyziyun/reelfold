@@ -210,6 +210,7 @@ export const v04En = {
   'checkpoint.take-selection': 'Pick the takes',
   'checkpoint.script-lock': 'Lock the script',
   'checkpoint.voice-pick': 'Pick a voice',
+  'checkpoint.voice-cast': 'Cast the voice',
   'checkpoint.consent': 'Confirm guest consent',
   'checkpoint.privacy-masks': 'Check the masks',
   'checkpoint.publish': 'Review before publishing',

@@ -109,6 +109,7 @@ class EngineAnswerTest(unittest.TestCase):
         self.assertIsNone(IB.engine_answer("publish", None))
         # the voice: ticks mean the step's suggestion ("Use the free voice" when there is no key); a voice answer stays
         self.assertIsNone(IB.engine_answer("voice-pick", ticks([0])))
+        self.assertEqual(IB.engine_answer("voice-cast", ticks([2])), dict(pick=2))      # the cast voice: her pick
         v = dict(voice="zf_xiaobei", speed=1.0, approve=True, engine="kokoro")
         self.assertEqual(IB.engine_answer("voice-pick", v), v)
         self.assertEqual(IB._no_key(dict(service="OpenAI", env="OPENAI_API_KEY", engine="openai", free_engine=None)),

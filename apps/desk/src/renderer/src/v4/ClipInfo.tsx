@@ -7,7 +7,7 @@ import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus
 import type { AutopilotChoice, AutopilotDoc, ClipFile, EditOp, OutputDoc } from '../../../shared/v04';
 import type { PilotFailure } from '../../../shared/v02';
 import type { StripInfo } from '../../../shared/timeline';
-import { fmtDate, fmtList, t, type MessageKey } from '../i18n';
+import { fmtDate, fmtList, getLang, t, type MessageKey } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { nextFreeDay } from '../lib/nextSlot';
 import { versionFor } from '../lib/versions';
@@ -311,6 +311,48 @@ export function visualsOf(
   return c ? { checkpoint: c.checkpoint, item: c.item, by: c.choice, kept: c.kept ?? [], total: c.total ?? null, missing: (c.options ?? []).includes('missing') } : null;
 }
 
+/** The narration voice the casting step picked for this clip (``remake_as: voice``): speaker, its label in the UI's
+ * language and the one-line reason; null when the recipe casts no voice (or the clip has none). */
+export function voiceOf(
+  doc: Pick<AutopilotDoc, 'choices'> | null,
+  clip: string,
+  zh = false,
+): { checkpoint: string; item: string; speaker: string; label: string; reason: string | null; by: string } | null {
+  const c = (doc?.choices ?? []).find((x) => x.remake_as === 'voice' && mineItem(x.item, clip));
+  if (!c || !c.choice) return null;
+  const label = (zh ? c.label_zh : c.label) || c.label || c.choice;
+  return { checkpoint: c.checkpoint, item: c.item, speaker: c.choice, label, reason: c.reason ?? null, by: c.by };
+}
+
+const VOICE_ASKS = ['ci.voice.male', 'ci.voice.female', 'ci.voice.calmer', 'ci.voice.livelier'] as const;
+
+/** "Voice: Uncle Fu — calm, deep male · why" + a few plain asks (a male voice, calmer ...): the AI casts again for
+ * those words and only the voice and the mix are made again (the cut stays). Anything else: say it in the chat. */
+export function ClipVoice({ item, clip }: { item: string; clip: string }) {
+  const ui = useUi();
+  const s = useClipSettings(item, () => ui.toast(t('ci.voice.done')));
+  const v = voiceOf(s.doc, clip, getLang() === 'zh-CN');
+  if (!v) return null;
+  const making = s.pending === 'voice';
+  return (
+    <div className="ci-sec" data-testid="ci-voice" data-speaker={v.speaker} data-by={v.by}>
+      <span className="ci-lbl">{t('ci.voice')}</span>
+      <div className="muted small" data-testid="ci-voice-what">
+        <b>{v.label}</b>
+        {v.reason ? ` — ${v.reason}` : ''}
+      </div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        {VOICE_ASKS.map((k) => (
+          <button key={k} className="btn ghost sm" disabled={s.busy} onClick={() => void s.remake(v.item, { [v.checkpoint]: t(k) }, 'voice')} data-tip={t('ci.voice.tip')} data-testid={`ci-voice-${k.slice(9)}`}>
+            {making ? <Loader2 className="ico spin" /> : null}
+            {t(k)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** "13 of 14 scenes redrawn; scene 14 kept as before" (pure: unit-tested). */
 export function keptNote(kept: NonNullable<AutopilotChoice['kept']>, total: number | null): string {
   if (!kept.length) return '';
@@ -604,6 +646,7 @@ export function ClipInfoPanel({ doc, strip, time, edit, sched, item, clip, onRem
       </div>
       {item && clip && <ClipFill item={item} clip={clip} onRemade={onRemade} />}
       {item && clip && <ClipVisualsRedo item={item} clip={clip} />}
+      {item && clip && <ClipVoice item={item} clip={clip} />}
       {item && clip && doc.imported && <ClipImported doc={doc} item={item} clip={clip} strip={strip} edit={edit} />}
       <div className="ci-sec">
         <span className="ci-lbl">{t('ci.post')}</span>

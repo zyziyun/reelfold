@@ -895,6 +895,7 @@ const v04Fr: Record<keyof typeof v04En, string> = {
   'checkpoint.take-selection': 'Choisir les prises',
   'checkpoint.script-lock': 'Figer le script',
   'checkpoint.voice-pick': 'Choisir une voix',
+  'checkpoint.voice-cast': 'Choisir la voix',
   'checkpoint.consent': 'Confirmer l’accord de l’invité',
   'checkpoint.privacy-masks': 'Vérifier les masques',
   'checkpoint.publish': 'Relire avant publication',

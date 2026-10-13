@@ -821,6 +821,10 @@ export interface AutopilotChoice {
    * (``options: ['missing']``) */
   kept?: { id: string; n: number; how: 'before' | 'diagram'; why?: string }[];
   total?: number | null;
+  /** the cast voice (``remake_as: 'voice'``, ``choice`` = the speaker): its name in en / zh and why it was picked */
+  label?: string | null;
+  label_zh?: string | null;
+  reason?: string | null;
 }
 
 // ---------------------------------------------------------------- inbox

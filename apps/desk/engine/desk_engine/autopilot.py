@@ -53,6 +53,17 @@ _COPY = (r"(?:重写|重新写|改写|重新生成|重做|再写|写一?下?|更
          r"descriptions?)")
 
 
+# the narration voice ("换个男声", "声音太年轻了", "a calmer voice", "use Vivian"): cast again for her words, only the
+# voice and the mix made again (a recipe that casts its voice: ``remake_as: voice``)
+_VOICE = (r"(?:换|改|用|要|来)(?:个|一个|成|下)?.{0,12}(?:男声|女声|声音|配音|音色|旁白)|(?:男声|女声|声音|配音|音色|旁白).{0,8}"
+          r"(?:换|改|太|不好|难听|不喜欢|不合适|沉稳|活泼|温柔|低沉|年轻|成熟)|(?:沉稳|活泼|温柔|低沉|年轻|成熟|磁性)(?:一点|些)?的?"
+          r"(?:男声|女声|声音|配音)|"
+          r"\b(?:change|swap|switch|another|different|new|use)\b.{0,20}\b(?:voice|narrator|voice-?over)\b|"
+          r"\b(?:male|female|deeper|calmer|warmer|livelier|younger|older|more lively)\b.{0,12}\b(?:voice|narrator)\b|"
+          r"\b(?:voice|narrator)\b.{0,16}\b(?:too|sounds?)\b|"
+          r"(?:changer|autre|nouvelle).{0,12}voix|voix (?:masculine|f[ée]minine|d'homme|de femme|plus)")
+
+
 # an explainer whose visuals are too plain (her MCP course came out as text lines): every scene drawn again by the AI
 _VISUALS = (r"重新(?:设计|做|画|生成|制作)(?:一下|一遍)?(?:画面|视觉|图解|动画|场景)|(?:画面|视觉|场景|图解)(?:太|很|有点|都)?"
             r"(?:素|简陋|单调|无聊|空|丑|干)|(?:画面|视觉|场景).{0,6}(?:重做|重新设计|重画|重新画)|(?:多|加|增加|更多)(?:一些|点|些)?"
@@ -78,6 +89,8 @@ def remake_intent(text):
         out["framing"] = "blur"
     if re.search(_COPY, t, re.I):
         out["copy"] = True
+    if re.search(_VOICE, t, re.I):
+        out["voice"] = t[:200]          # her words: the casting reads them (a male voice, calmer, a named one)
     return out or None
 
 # decisions the editor lists per clip, with their options (the others are listed on the project page as before)
@@ -183,8 +196,10 @@ class Autopilot:
                 c = next((x for x in doc.get("choices") or [] if x.get("checkpoint") == cp and x.get("item") == one),
                          None)
                 need(c is not None, f"{cp}: not a setting of {one}")
-                need(choice is None or (isinstance(choice, str) and choice in (c.get("options") or [])),
-                     f"{cp}: one of {', '.join(c.get('options') or [])}")
+                free = c.get("remake_as") == "voice"      # the voice: her own words ("换个男声"), cast again for them
+                need(choice is None or (isinstance(choice, str) and (choice in (c.get("options") or []) or (
+                    free and 0 < len(choice.strip()) <= 200 and "\n" not in choice))),
+                     f"{cp}: one of {', '.join(c.get('options') or [])}" if not free else f"{cp}: your words (1-200)")
             args += ["--do", f"{cp}={choice}" if choice else cp]
         py = self.runner.python
         pilot.spawn(py, self.runner.env, d, bus=self.bus,
@@ -208,6 +223,7 @@ class Autopilot:
         frs = [c for c in mine if c.get("kind") == "reframe-pick"]
         cps = [c for c in mine if c.get("kind") == "copy-pick"]
         vis = [c for c in mine if c.get("remake_as") == "visuals"]
+        vox = [c for c in mine if c.get("remake_as") == "voice"]
         do, msgs, subs = {}, [], set()
         if want.get("visuals") and vis:
             do[vis[0]["checkpoint"]] = None
@@ -224,6 +240,9 @@ class Autopilot:
         if want.get("copy") and cps:
             do[cps[0]["checkpoint"]] = None
             subs |= {c["item"] for c in cps}
+        if want.get("voice") and vox:
+            do[vox[0]["checkpoint"]] = want["voice"]
+            subs |= {c["item"] for c in vox}
         if not do:
             return msgs or None
         if doc.get("running") or doc.get("queued"):
@@ -241,6 +260,10 @@ class Autopilot:
             msgs.append(_m("remake-visuals", "Drawing the visuals again: every scene as diagrams and animation by the "
                                              "AI, then a new render and exports. The voice and captions stay.",
                            "正在重新设计画面：AI 把每一段重新画成图解动画，再重新渲染和导出。配音和字幕不变。"))
+        if want.get("voice") and vox:
+            msgs.append(_m("remake-voice", "Casting the voice again for your words, then making only the voice and the "
+                                           "mix again - the cut, captions and cover stay.",
+                           "正在按你的要求重新挑配音，只重做配音和混音——剪辑、字幕和封面都不变。"))
         if want.get("copy") and cps:
             msgs.append(_m("remake-copy", "Writing the post copy again for every platform (title, text and hashtags in "
                                           "its language); each version's post text is replaced when it is done.",

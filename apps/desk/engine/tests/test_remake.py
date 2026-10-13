@@ -51,6 +51,13 @@ class RemakeIntentTest(unittest.TestCase):
         for text in ("make it tighter", "add a 9:16 version", "写一下封面文案", "rewrite the captions", "出抖音版"):
             self.assertIsNone(remake_intent(text), text)
 
+    def test_voice_words_are_kept_for_the_casting(self):
+        for text in ("换个男声", "配音换成女声", "声音太年轻了", "用 vivian 的声音", "a calmer voice please",
+                     "change the voice", "changer de voix"):
+            self.assertEqual(remake_intent(text), dict(voice=text), text)
+        for text in ("声音大一点", "去掉音乐", "字幕大一点", "voice-over timing is off by 2 seconds"):
+            self.assertNotIn("voice", remake_intent(text) or {}, text)
+
 
 @unittest.skipIf(os.name == "nt" or not shutil.which("ffmpeg"), "needs ffmpeg for the video")
 class RemakeOldVlogTest(unittest.TestCase):
