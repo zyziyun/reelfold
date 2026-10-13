@@ -382,10 +382,16 @@ def render(cfg, out, segdir, prof, a):
     with ThreadPoolExecutor(max_workers=a.workers or cfg.get("workers", 3)) as ex:
         results = list(ex.map(render_seg, tasks))
     segs, durs = [r[0] for r in results], [r[1] for r in results]
+    if not a.dry_run:
+        # the encoded length (whole frames: "-t 7.83" at 30 fps is 7.80 s), not the asked one: an xfade offset past
+        # the first input's last frame ends the whole join (a one-frame cut there cut the film short)
+        durs = [float(media.probe(s_)["duration"]) for s_ in segs]
     print("intermediates done", flush=True)
 
     D = cfg.get("xfade", 0.8)
-    one = 1.0 / float(cfg.get("fps", 30))
+    # one frame and a hair: xfade counts whole frames, and a duration a rounding under one frame is zero frames
+    # (then the join drops everything before it)
+    one = round(1.0 / float(cfg.get("fps", 30)) + 0.0005, 4)
     # the join INTO each segment: its own "xfade" (the editor brain's shot plan: a dissolve's seconds, 0 = a hard
     # cut) else the film's; a hard cut is a one-frame crossfade (xfade needs a length), which reads as a cut
     jd = [0.0] + [max(one, float(s.get("xfade", D))) if float(s.get("xfade", D)) > 0 else one

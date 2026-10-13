@@ -162,7 +162,12 @@ def test_thfolder_joints_follow_the_plan_and_compose_gets_punch_and_broll(tmp_pa
                        dict(clip=1, t0=22.0, t1=30.0, b0=9.0, b1=17.0, sid=2)])    # and at 9.0 (source 22.0)
     TH.write_json(str(tmp_path / "segs.pass1.json"), pass1)
     TH.write_json(str(tmp_path / "segs.strict.json"), {})
-    spans = [dict(a=0.0, b=20.0, join="morph", brain="C1.S1"), dict(a=20.0, b=35.0, join="punch", brain="C1.S2")]
+    spans = [dict(a=0.0, b=20.0, join="morph", brain="C1.S1", by="rules"),
+             dict(a=20.0, b=35.0, join="punch", brain="C1.S2", by="rules")]
+    strict = dict(keep=[[0.0, 2.0], [3.0, 17.0]])                   # a strict cut 2-3: a joint at 2.0 (source 3.0)
+    assert TH.body_joint_sources(pass1, strict) == [(2.0, 3.0), (4.0, 6.0), (8.0, 22.0)]
+    assert [t for t, _ in TH.body_joint_sources(pass1, strict)] == TH.body_joints(pass1, strict)
+    assert TH.src_to_body(24.0, pass1, strict) == 10.0 and TH.src_to_body(5.5, pass1) is None
     ctx = _Ctx(str(tmp_path), dict(smooth_cuts=False))
     plan = TH.joint_plan(ctx, spans)
     assert plan == {5.0: "morph", 9.0: "punch"}
@@ -182,6 +187,11 @@ def test_thfolder_joints_follow_the_plan_and_compose_gets_punch_and_broll(tmp_pa
     cfg = TH.config_file(dict(_clip_id="c1"), {}, False, punch=punch, broll=broll)
     assert "PUNCH = [2]" in cfg and "BROLL = [{'t0': 11.0" in cfg
     TH.write_json(str(tmp_path / "timeline.json"), dict(BODY_START=2.0, BODY_SPEED=1.0, TOTAL=19.0))
+    monkeypatch.setattr(TH, "brain_spans", lambda p: spans)
+    key = TH._with_smooth(lambda j, s: {})
+    assert key(dict(params={}), {}) == {}                              # the rules' plan never reopens a clip
+    monkeypatch.setattr(TH, "brain_spans", lambda p: [dict(spans[1], by="her", join="cut")])
+    assert key(dict(params={}), {}) == {"brain_joins": [[20.0, 35.0, "cut"]]}         # her change re-runs it
     monkeypatch.setattr(TH, "brain_spans", lambda p: spans)
     edl = json.load(open(TH.write_edl(ctx, cl, dict(source="/x/talk.mp4"), "m.mp4", broll)))
     roles = [r["role"] for r in edl["shots"]]
@@ -258,6 +268,8 @@ def test_build_vlog_joins_per_segment_and_writes_its_edit_list(tmp_path):
     assert edl["builder"] == "calm" and [s["join"] for s in edl["shots"]] == [None, "cut", "dissolve"]
     assert [s["brain"] for s in edl["shots"]] == ["C1.S1", "C2.S1", "C3.S1"]
     assert abs(edl["duration"] - (9 - 1 / 30 - 0.8)) < 0.05
+    from vstudio import media
+    assert abs(media.probe(str(tmp_path / "m.mp4"))["duration"] - edl["duration"]) < 0.1     # the file, not the plan
     sh = json.load(open(tmp_path / "m.shots.json"))
     assert len(sh["transitions"]) == 1                                  # only the real dissolve
     assert edl["shots"][1]["t1"] == edl["shots"][2]["t0"]
