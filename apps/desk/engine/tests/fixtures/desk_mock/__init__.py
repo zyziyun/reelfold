@@ -10,14 +10,14 @@ from desk_engine.caps import Capabilities
 
 from .engine import MockEngine
 from .intake import MockIntake, record_pilot, rule_plan, rule_revise
-from .parts import MockAutopilot, MockCreateApi, MockHistory, MockStrips
+from .parts import MockAutopilot, MockCreateApi, MockHistory, MockOutputs, MockStrips
 from .studio import MockStudio
 from .transcript import fake_transcript
 
 KINDS = dict(History=MockHistory, Intake=MockIntake, Strips=MockStrips, CreateApi=MockCreateApi,
-             Autopilot=MockAutopilot)
+             Autopilot=MockAutopilot, Outputs=MockOutputs)
 
-__all__ = ["KINDS", "MockAutopilot", "MockCreateApi", "MockEngine", "MockHistory", "MockIntake", "MockStrips", "MockStudio", "make_api",
+__all__ = ["KINDS", "MockAutopilot", "MockCreateApi", "MockEngine", "MockHistory", "MockIntake", "MockOutputs", "MockStrips", "MockStudio", "make_api",
            "fake_transcript", "record_pilot", "rule_plan", "rule_revise"]
 
 

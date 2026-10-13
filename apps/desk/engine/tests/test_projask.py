@@ -161,6 +161,26 @@ class ProjectAskTest(unittest.TestCase):
         self.assertEqual(sorted(g["clip"] for g in r["groups"]), sorted(j["clips"]))
         self.assertEqual(r["groups"][0]["proposals"][0]["op"], dict(op="speed", value=1.1))
 
+    def test_the_job_has_a_live_transcript_with_its_steps_and_the_model_stream(self):
+        """GET /api/live/ask/<job>: the engine child writes the model CLI's lines (VSTUDIO_AGENT_LOG), the desk its
+        steps and the end - the panel's log under the steps."""
+        from desk_engine import live as L
+        self._fake_engine("""
+            import json, os, sys, time
+            ids = json.loads(sys.argv[2])
+            def out(**e): print(json.dumps(e, ensure_ascii=False), flush=True)
+            out(event="stage", stage="ask", n=len(ids), provider="claude-code")
+            with open(os.environ["VSTUDIO_AGENT_LOG"], "a") as f:
+                f.write(json.dumps(dict(at=time.time(), src="agent", kind="tool", text="Read transcript.json")) + "\\n")
+            out(event="done", result=dict(answer="nothing", model_called=True, provider="claude-code", groups=[],
+                needs_rerender=None, seconds=0.1))
+        """)
+        job = self.pa.start(self.item, "所有片子 1.1 倍速")["job"]
+        self.assertEqual(self._done(job)["state"], "done")
+        lines = L.read([(self.o.live_path(job), "jsonl", 0)])["lines"]
+        self.assertEqual(sorted((x["src"], x["kind"]) for x in lines), [("agent", "tool"), ("engine", "stage"), ("engine", "stage")])
+        self.assertEqual([x["data"]["stage"] for x in lines if x["src"] == "engine"], ["ask", "done"])
+
     def test_watchdog_stops_a_hung_engine(self):
         self._fake_engine("""
             import json, time

@@ -2312,7 +2312,7 @@ def _find_turn(doc, turn_id):
 def _clean_turn(t):
     """Only JSON-safe, bounded fields go into the transcript (it is the creator's history, not a log dump)."""
     keep = ("text", "context", "proposed", "dropped", "summary", "provider", "model", "cost_usd", "seconds",
-            "warnings", "status", "applied_step", "applied_ops", "reverted_by", "role", "card", "reply")
+            "warnings", "status", "applied_step", "applied_ops", "reverted_by", "role", "card", "reply", "fallback")
     out = {k: t[k] for k in keep if k in t}
     if isinstance(out.get("text"), str):
         out["text"] = out["text"][:2000]
@@ -2913,6 +2913,27 @@ def kit_apply(d, output, patch):
     return dict(ok=True, item=src["item"], **done)
 
 
+def _turn_fallback(fb):
+    """The routed AI failed and another answered: who, why and when, kept with the turn (its footer says it)."""
+    if not isinstance(fb, dict) or not fb.get("from") or not fb.get("to"):
+        return None
+    out = {k: fb[k] for k in ("from", "to", "code", "seconds", "cached", "limit") if fb.get(k) is not None}
+    if fb.get("error"):
+        out["error"] = str(fb["error"])[:200]
+    return out
+
+
+def _ai_stage(stage, text, **data):
+    """A step of a chat edit in the job's live transcript (``VSTUDIO_AGENT_LOG``, set by the desk): the desk's
+    progress bar reads these (read -> think -> check) between the model CLI's own streamed lines. No-op when off."""
+    try:
+        from vstudio import agentlog
+        agentlog.emit_engine(agentlog.target(), "stage", text,
+                             data=dict(stage=stage, **{k: v for k, v in data.items() if v is not None}))
+    except Exception:  # noqa: BLE001  (the transcript never breaks the edit)
+        pass
+
+
 def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=True, context=None, record=True,
        timeout=None):
     """Natural language -> validated ops (task ``output_edit`` of vstudio.llm). Every proposed op is checked by the
@@ -2926,6 +2947,7 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
     kit = KIT.source(rec)
     if kit and KIT.wants_kit(instruction, focus):        # the film's look / motion / features: the launch kit's job
         return _kit_answer(d, output, doc, st, kit, instruction, focus, apply, record)
+    _ai_stage("read", "reading the clip: transcript, edits so far, effects")
     ctx = _ai_context(rec, doc, st, use_asr=use_asr and not kit)
     if kit:
         ctx["source"] = KIT.context(kit)
@@ -2952,6 +2974,9 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
                   + _json.dumps(ctx, ensure_ascii=False, default=str))
         schema = {"type": "object", "properties": {"ops": {"type": "array", "items": {"type": "object"}},
                                                    "summary": {"type": "string"}}, "required": ["ops"]}
+        _ai_stage("think", f"asking {route.provider}" + (f" ({route.model})" if route.model else "")
+                  + f" · {len(ctx.get('transcript') or [])} transcript lines", provider=route.provider,
+                  model=route.model)
         try:
             ct = timeout if timeout is not None else (None if os.environ.get("VSTUDIO_LLM_CLI_TIMEOUT")
                                                       else AI_CLI_TIMEOUT)
@@ -2967,6 +2992,7 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
         summary = j.get("summary")
         cost = r.get("cost_usd") or 0.0
         used = dict(provider=r["provider"], model=r["model"], routed=route.provider, fallback=r.get("fallback"))
+    _ai_stage("check", f"checking {len(raw_ops)} proposed change(s)", n=len(raw_ops))
     proposed, dropped = [], []
     cur = st
     mine = {o["key"] for o in overrides(doc)}
@@ -3009,7 +3035,8 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
                                                   for p in proposed],
                                         dropped=[dict(error=x["error"]) for x in dropped], warnings=warns,
                                         provider=used.get("provider"), model=used.get("model"), cost_usd=cost,
-                                        seconds=out["seconds"], status="draft" if proposed else "note"),
+                                        seconds=out["seconds"], status="draft" if proposed else "note",
+                                        fallback=_turn_fallback(used.get("fallback"))),
                         _doc=doc)["turn"]
         out["turn"] = turn["id"]
     if apply and proposed:

@@ -886,10 +886,11 @@ class Outputs:
             self._real = ok
         return self._real
 
-    def _cli(self, args, timeout=600):
+    def _cli(self, args, timeout=600, env_extra=None, track=None):
         from .caps import CliError
         try:
-            return self.runner.sibling("vstudio.project").json(["output", *args, "--json"], timeout=timeout)
+            return self.runner.sibling("vstudio.project").json(["output", *args, "--json"], timeout=timeout,
+                                                               env_extra=env_extra, track=track)
         except CliError as e:
             doc = getattr(e, "doc", None)
             if isinstance(doc, dict) and doc.get("code"):
@@ -1692,7 +1693,71 @@ class Outputs:
                     source_duration=dur, dropped=dropped, engine="desk")
 
     # ---------------------------------------------------------- 让 AI 改 (natural language -> proposed ops)
-    def ask(self, item_id, clip_id, prompt, context=None):
+    # ---------------------------------------------------------- a chat edit's live transcript (its progress bar)
+    LIVE_RE = re.compile(r"^[0-9a-f]{10,12}$")
+
+    def live_path(self, live):
+        """``<outputs>/live/<id>.jsonl``: one chat edit's (or one project-level ask's) transcript - the engine's steps
+        (``stage``: start / read / think / check / done, ``error``) and the model CLI's own stream (agentlog), read by
+        GET /api/live/ask/<id>. None for no / a bad id."""
+        if not (isinstance(live, str) and self.LIVE_RE.match(live)):
+            return None
+        d = os.path.join(self.dir, "live")
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, f"{live}.jsonl")
+
+    def _prune_live(self):
+        d = os.path.join(self.dir, "live")
+        try:
+            for n in os.listdir(d):
+                f = os.path.join(d, n)
+                if time.time() - os.path.getmtime(f) > 2 * 86400:
+                    os.remove(f)
+        except OSError:
+            pass
+
+    def asking(self, live):
+        return live in self.__dict__.get("_asks", {})
+
+    def stop_ask(self, live):
+        """Stop: the engine call (and the model CLI it started) is killed; the request then fails quietly."""
+        need(isinstance(live, str) and self.LIVE_RE.match(live), "bad ask id")
+        track = self.__dict__.get("_asks", {}).get(live)
+        from .caps import kill_tracked
+        n = kill_tracked(track) if track else 0
+        from .live import emit_engine
+        if track is not None:
+            emit_engine(self.live_path(live), "stop", "stopped", data=dict(by="you"))
+        return dict(ok=True, killed=n)
+
+    def ask(self, item_id, clip_id, prompt, context=None, live=None):
+        """``live``: an id the desk made for this request; its steps and the model's streamed lines go to
+        :meth:`live_path` while it runs (the chat bubble's progress bar and log)."""
+        need(live is None or (isinstance(live, str) and self.LIVE_RE.match(live)), "live: an id")
+        from .live import emit_engine
+        path = self.live_path(live) if live else None
+        track = []
+        if live:
+            self._prune_live()
+            self.__dict__.setdefault("_asks", {})[live] = track
+        emit_engine(path, "stage", "start", data=dict(stage="start"))
+        try:
+            r = self._ask(item_id, clip_id, prompt, context, path, track)
+        except BaseException as ex:
+            doc = getattr(ex, "doc", None)
+            code = doc.get("code") if isinstance(doc, dict) else None
+            emit_engine(path, "error", str(ex)[:300] or "failed", data=dict(code=code or "ask-failed"))
+            raise
+        finally:
+            if live:
+                self.__dict__.get("_asks", {}).pop(live, None)
+        emit_engine(path, "stage", f"done · {len(r.get('proposals') or [])} change(s)",
+                    data=dict(stage="done", n=len(r.get("proposals") or []), provider=r.get("provider"),
+                              model=r.get("model"), seconds=r.get("seconds")))
+        return r
+
+    def _ask(self, item_id, clip_id, prompt, context, path, track):
+        from .live import emit_engine
         need(isinstance(prompt, str) and 0 < len(prompt.strip()) <= 500, "prompt: 1-500 chars")
         context = _check_context(context)
         e, c = self._clip(item_id, clip_id)
@@ -1708,7 +1773,9 @@ class Outputs:
         if oid:
             try:
                 extra = ["--context", json.dumps(context)] if context and self._ext else []
-                r = self._cli(["ai", "--project", e["dir"], "--output", oid, "--instruction", prompt, *extra], timeout=600)
+                from .live import AGENT_ENV
+                r = self._cli(["ai", "--project", e["dir"], "--output", oid, "--instruction", prompt, *extra], timeout=600,
+                              env_extra={AGENT_ENV: path} if path else None, track=track)
                 props = [dict(id=f"p{i + 1}", op=p.get("normalized") or p.get("op"), describe=p.get("describe"),
                               why=p.get("why")) for i, p in enumerate(r.get("proposed") or []) if isinstance(p, dict)]
                 out = dict(summary=r.get("summary"), proposals=props, dropped=r.get("dropped") or [],
@@ -1726,7 +1793,9 @@ class Outputs:
                 if m.doc.get("code") not in ("llm-failed", "llm-bad-json"):
                     raise
                 note = m.doc                                  # no working model: the desk rules still help
-        r = propose(self.show(item_id, clip_id), prompt, context)
+                emit_engine(path, "stage", "the AI did not answer: simple rules instead",
+                            data=dict(stage="rules", code=m.doc.get("code")))
+        r = self._propose_desk(item_id, clip_id, prompt, context, path)
         r.setdefault("provider", "rules")
         if note:
             r["warnings"] = [note] + r.get("warnings", [])
@@ -1738,6 +1807,10 @@ class Outputs:
         r.update(context=context, cost_usd=0.0, seconds=round(time.time() - t0, 2))
         r["turn"] = self._record_ask(e, clip_id, prompt, context, r, oid)
         return r
+
+    def _propose_desk(self, item_id, clip_id, prompt, context, path):
+        """The desk's rule proposals (no engine / no working model). ``path``: the request's live transcript."""
+        return propose(self.show(item_id, clip_id), prompt, context)
 
     def _kit_rerender(self, e, oid, out):
         """The clip chat asked a launch-kit film for a change of the film itself (vstudio.project.outkit): the engine
@@ -1799,7 +1872,8 @@ class Outputs:
                     proposed=r.get("proposals") or [], dropped=r.get("dropped") or [],
                     warnings=r.get("warnings") or [], provider=r.get("provider"),
                     model=r.get("model"), cost_usd=r.get("cost_usd"), seconds=r.get("seconds"),
-                    status="draft" if r.get("proposals") else "note")
+                    status="draft" if r.get("proposals") else "note",
+                    **({"fallback": r["fallback"]} if isinstance(r.get("fallback"), dict) else {}))
         if oid and self._ext:
             try:
                 doc = self._cli(["chat", "--project", e["dir"], "--output", oid, "--add",
@@ -1838,7 +1912,7 @@ class Outputs:
 TURN_RE = re.compile(r"^t\d{1,5}-[0-9a-f]{2,12}$")
 TURN_STATUS = ("draft", "applied", "discarded", "reverted", "note")
 TURN_KEYS = ("role", "text", "context", "proposed", "dropped", "summary", "provider", "model", "cost_usd", "seconds",
-             "warnings", "status", "applied_step", "applied_ops", "reverted_by", "card", "reply")
+             "warnings", "status", "applied_step", "applied_ops", "reverted_by", "card", "reply", "fallback")
 
 
 def _check_context(ctx):

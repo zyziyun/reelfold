@@ -1168,6 +1168,10 @@ def complete(task, system, prompt, schema=None, provider=None, model=None, max_t
                 continue
         if not retry and (cname in [a["provider"] for a in attempts] or (i and cname == cands[0][1])):
             continue
+        if attempts:                              # the live transcript says it plainly: who failed, why, who next
+            agentlog.emit("fallback", f"{attempts[-1]['provider']} failed ({attempts[-1]['code']}): "
+                                      f"{attempts[-1]['error'][:160]} -> trying {cname}", src="engine", task=task,
+                          data={"from": attempts[-1]["provider"], "to": cname, "code": attempts[-1]["code"]})
         if attempts and on_fallback:
             try:
                 on_fallback({"from": attempts[-1]["provider"], "to": cname, "code": attempts[-1]["code"],

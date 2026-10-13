@@ -335,6 +335,7 @@ class ProjectAsk:
         killed = self._kill(j)
         if j["state"] == "running":
             j["state"] = "cancelled"
+            self._live(j, "stop", "stopped", by="you")
             self._emit(j, event="cancelled")
         return dict(ok=True, job=job, killed=killed)
 
@@ -358,9 +359,17 @@ class ProjectAsk:
         if self.bus:
             self.bus.publish("project-ask", item=j["item"], job=j["job"], **ev)
 
+    def _live(self, j, kind, text, **data):
+        """A line in the job's live transcript (GET /api/live/ask/<job>: the panel's log, next to the model CLI's
+        own streamed lines)."""
+        from .live import emit_engine
+        emit_engine(self.o.live_path(j["job"]), kind, text, data={k: v for k, v in data.items() if v is not None})
+
     def _stage(self, j, stage, **kw):
         j["stages"].append(dict(stage=stage, at=round(time.time() - j["started"], 2), **kw))
         self._emit(j, event="stage", stage=stage, **kw)
+        self._live(j, "stage", " · ".join(str(x) for x in (stage, kw.get("n"), kw.get("provider")) if x), stage=stage,
+                   **{k: v for k, v in kw.items() if isinstance(v, (str, int, float))})
 
     def _kill(self, j):
         p = j.get("proc")
@@ -380,9 +389,11 @@ class ProjectAsk:
         j["ended"] = time.time()
         if error:
             j.update(state="failed", error=error)
+            self._live(j, "error", str(error.get("message") or "failed")[:300], code=error.get("code"))
             self._emit(j, event="failed", error=error)
         else:
             j.update(state="done", result=result)
+            self._live(j, "stage", "done", stage="done")
             self._emit(j, event="done", answer=result.get("answer"))
 
     def _run(self, j, e, clips, context):
@@ -413,6 +424,10 @@ class ProjectAsk:
 
     def _run_engine(self, j, e, ids, context):
         cmd, env = self.command(e, j, list(ids), context)
+        from .live import AGENT_ENV
+        path = self.o.live_path(j["job"])
+        if path:                                     # the model CLI's stream -> the job's live transcript
+            env = dict(env or os.environ, **{AGENT_ENV: path})
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, text=True,
                              env=env, start_new_session=True)
         j["proc"] = p

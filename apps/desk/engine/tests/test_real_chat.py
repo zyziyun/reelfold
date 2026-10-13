@@ -1,5 +1,6 @@
 """Chat editing against the real engine (this monorepo's lib/): the capability probe sees the extended output
 commands, and ``ask`` -> ``show`` returns the new turn (the desk must read the engine's transcript, P0-2)."""
+import json
 import os
 import shutil
 import subprocess
@@ -85,6 +86,53 @@ class RealChatTest(unittest.TestCase):
         self.assertEqual(r.get("provider"), "rules")
         self.assertIn(r["turn"], [t["id"] for t in self.o.show(self.item, clip)["chat"]])
         self.assertEqual(len(self.o.show(self.item, clip)["chat"]), len(before["chat"]) + 1)
+
+    def test_ask_with_a_live_id_writes_its_steps_and_the_model_stream(self):
+        """The chat bubble's progress: /ask {live} -> the engine's steps (start, read, think, ..., done) and the model
+        CLI's own stream-json lines (thinking, tool call, result) in the request's transcript, redacted; a model answer
+        that is not {ops} falls back to the rules (a step of its own), never a silent stop."""
+        from desk_engine import live as L
+        fake = os.path.join(ENGINE, "tests", "fixtures", "fake_cli")
+        self.env.update(VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER="claude-code", VSTUDIO_LLM_FALLBACK="",
+                        PATH=fake + os.pathsep + self.env.get("PATH", ""))
+        clip = self.o.clips(self.item)["clips"][0]["id"]
+        r = self.o.ask(self.item, clip, "1.1倍速", live="abcdef012345")
+        self.assertTrue(r.get("turn"))
+        self.assertFalse(self.o.asking("abcdef012345"))
+        lines = L.read([(self.o.live_path("abcdef012345"), "jsonl", 0)])["lines"]
+        stages = [x["data"]["stage"] for x in lines if x["src"] == "engine" and x["kind"] == "stage"]
+        self.assertEqual(stages[:3], ["start", "read", "think"])
+        self.assertEqual(stages[-1], "done")
+        kinds = {(x["src"], x["kind"]) for x in lines}
+        for k in (("agent", "turn"), ("agent", "thinking"), ("agent", "tool"), ("agent", "result")):
+            self.assertIn(k, kinds)
+        self.assertNotIn("SECRETSECRET", json.dumps(lines))
+        with self.assertRaises(Exception):
+            self.o.ask(self.item, clip, "1.1倍速", live="../etc")
+        self.assertIsNone(self.o.live_path("nope"))
+
+    def test_a_fallback_is_said_in_the_log_and_kept_with_the_turn(self):
+        """The AI she picked (Claude Code) fails, the route's fallback (Codex) answers: the live transcript says
+        "claude-code failed (...) -> trying codex", the reply and its turn carry {from, to, code} (the footer words
+        it) - never a silent switch."""
+        from desk_engine import live as L
+        fake = os.path.join(ENGINE, "tests", "fixtures", "fake_cli")
+        self.env.update(VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER="claude-code", VSTUDIO_LLM_OUTPUT_EDIT_FALLBACK="codex",
+                        FAKE_CLI_FAIL="1", FAKE_CLI_REPLY=json.dumps({"ops": [{"op": "speed", "value": 1.1}],
+                                                                      "summary": "faster"}),
+                        PATH=fake + os.pathsep + self.env.get("PATH", ""))
+        clip = self.o.clips(self.item)["clips"][0]["id"]
+        r = self.o.ask(self.item, clip, "1.1倍速", live="abcdef012346")
+        self.assertEqual(r["provider"], "codex")
+        self.assertEqual((r["fallback"]["from"], r["fallback"]["to"]), ("claude-code", "codex"))
+        turn = next(t for t in self.o.show(self.item, clip)["chat"] if t["id"] == r["turn"])
+        self.assertEqual((turn["provider"], turn["fallback"]["from"], turn["fallback"]["to"]), ("codex", "claude-code", "codex"))
+        self.assertTrue(turn["fallback"]["code"])
+        lines = L.read([(self.o.live_path("abcdef012346"), "jsonl", 0)])["lines"]
+        fb = [x for x in lines if x["kind"] == "fallback"]
+        self.assertEqual(len(fb), 1)
+        self.assertEqual((fb[0]["src"], fb[0]["data"]["from"], fb[0]["data"]["to"]), ("engine", "claude-code", "codex"))
+        self.assertIn("claude-code failed", fb[0]["text"])
 
 
 if __name__ == "__main__":

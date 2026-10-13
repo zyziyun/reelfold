@@ -2,6 +2,15 @@
 file, and Create with fake video services and a fake AI in this process (tests/create_fake.py). Tests only.
 
   DESK_MOCK_ASR_STEP   seconds 「听一遍」 takes (default 2)
+  DESK_MOCK_ASK_HOLD   a file: a chat edit sent with a live id stays in its "the AI is planning" step while it exists
+                       (at most 60 s) - the bubble's progress bar and log can be looked at
+  DESK_MOCK_ASK_FAIL   a file: while it exists, a chat edit fails in that step (the bubble names the step, Retry)
+  DESK_MOCK_ASK_FALLBACK  a file: while it exists, Claude Code "times out" and Codex answers (the fallback line, the
+                       reply's fallback note)
+
+A chat edit sent with a live id (``/ask {live}``) writes the steps of a real one into its live transcript: read ->
+think (one simulated Claude Code call streamed through the engine's own parser, like the planner's) -> check, then
+the desk's rule answer.
 """
 import importlib.util
 import os
@@ -11,6 +20,7 @@ from desk_engine.autopilot import Autopilot
 from desk_engine.common import BadRequest, need, write_json
 from desk_engine.create import CreateApi, Refused
 from desk_engine.history import History
+from desk_engine.outputs import EngineMessage, Outputs
 from desk_engine.timeline import Strips, parse_srt, tokens
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), *[".."] * 6))
@@ -207,3 +217,34 @@ class MockAutopilot(Autopilot):
             self.bus.publish("batches")
             self.bus.publish("inbox")
         return dict(ok=True, autopilot=dict(on=on), resumed=resumed)
+
+
+class MockOutputs(Outputs):
+    def _propose_desk(self, item_id, clip_id, prompt, context, path):
+        if path:
+            from desk_engine.live import emit_engine
+            from .intake import mock_turn
+            step = 0.05
+            emit_engine(path, "stage", "reading the clip: transcript, edits so far, effects", data=dict(stage="read"))
+            time.sleep(step)
+            emit_engine(path, "stage", "asking claude-code (claude-sonnet-test)", data=dict(stage="think", provider="claude-code",
+                                                                                           model="claude-sonnet-test"))
+            mock_turn(path, "output_edit", f"Instruction from the creator:\n{prompt}", "Looking at where the pauses are.",
+                      os.path.join(os.path.expanduser("~"), "clip", "transcript.json"), "42 lines", '{"ops": [...]}', step)
+            fb = os.environ.get("DESK_MOCK_ASK_FALLBACK")
+            fell = bool(fb and os.path.exists(fb))
+            if fell:
+                emit_engine(path, "fallback", "claude-code failed (timeout): timed out after 180 s -> trying codex",
+                            data={"from": "claude-code", "to": "codex", "code": "timeout"})
+            hold, fail = os.environ.get("DESK_MOCK_ASK_HOLD"), os.environ.get("DESK_MOCK_ASK_FAIL")
+            t0 = time.time()
+            while hold and os.path.exists(hold) and time.time() - t0 < 60:
+                time.sleep(0.1)
+            if fail and os.path.exists(fail):
+                raise EngineMessage(dict(code="ask-failed", message="the AI stopped answering", message_zh="AI 没有回答"))
+            emit_engine(path, "stage", "checking the proposed changes", data=dict(stage="check"))
+            r = super()._propose_desk(item_id, clip_id, prompt, context, path)
+            if fell:
+                r["fallback"] = {"from": "claude-code", "to": "codex", "code": "timeout", "limit": 180}
+            return r
+        return super()._propose_desk(item_id, clip_id, prompt, context, path)

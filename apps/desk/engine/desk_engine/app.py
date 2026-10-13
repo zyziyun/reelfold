@@ -82,6 +82,8 @@ Delete (purge.py: Reelfold-made files only - her footage / recordings never; run
   GET  /api/live/request/<id>?cursor=      the live pane (live.py): a request's / a project run's transcript - the
   GET  /api/live/project/<item>?cursor=    model CLIs' turns + the engine's stages and log, redacted - after the
                                            cursor; while watched, ``live {key}`` stream events say it grew
+  GET  /api/live/ask/<id>?cursor=          (a chat edit sent with /ask {live: id}, a project-ask job: same shape);
+  POST /api/live/ask/<id>/stop             stop that chat edit (kills the engine call + the model CLI)
 v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk implementation otherwise)
   GET  /api/outputs/<item>                 one clip per output {clips [{id, title, state, files, cover, post}], confirm}
   GET  /api/outputs/<item>/<clip>          player + editor document (words, captions, effects, caps, ops, version)
@@ -516,14 +518,15 @@ class Api:
         from .intake import Intake
         from .timeline import Strips
         from .autopilot import Autopilot
-        K = {**dict(History=History, Intake=Intake, Strips=Strips, CreateApi=CreateApi, Autopilot=Autopilot),
-             **(kinds or {})}
+        from .outputs import Outputs
+        K = {**dict(History=History, Intake=Intake, Strips=Strips, CreateApi=CreateApi, Autopilot=Autopilot,
+                    Outputs=Outputs), **(kinds or {})}
         self.history = K["History"](engine.data_dir, getattr(engine, "reg", None) or Registry(engine.data_dir), engine)
         from .inbox import Inbox
-        from .outputs import Outputs, probe
+        from .outputs import probe
         runner = getattr(studio, "runner", None)
         real = engine.mode == "real"
-        self.outputs = Outputs(engine.data_dir, self.history, runner if real else None, bus)
+        self.outputs = K["Outputs"](engine.data_dir, self.history, runner if real else None, bus)
         from .projask import ProjectAsk
         self.project_ask = ProjectAsk(self.outputs, bus)
         self.strips = K["Strips"](engine.data_dir, self.outputs, self.history, bus)
@@ -708,7 +711,7 @@ class Api:
                     return self.outputs.pickup(parts[1], clip, b.get("session_dir"), at_word=b.get("at_word"),
                                                replace=b.get("replace"), sig=b.get("sig"))
                 if verb == "ask":
-                    return self.outputs.ask(parts[1], clip, b.get("prompt"), context=b.get("context"))
+                    return self.outputs.ask(parts[1], clip, b.get("prompt"), context=b.get("context"), live=b.get("live"))
                 if verb == "render":
                     return self.outputs.render(parts[1], clip, b.get("quality") or "preview", b.get("targets") or "primary",
                                                with_ops=b.get("with_ops"))
@@ -1139,7 +1142,7 @@ class Api:
         """GET /api/live/request/<id> | /api/live/project/<item> ?cursor= -> the job's transcript after the cursor
         (``desk_engine.live``); each call keeps the job watched (``live`` events while its files grow)."""
         from . import live as L
-        need(len(parts) == 2 and parts[0] in ("request", "project"), "live/request/<id> | live/project/<item>")
+        need(len(parts) == 2 and parts[0] in ("request", "project", "ask"), "live/request/<id> | live/project/<item> | live/ask/<id>")
         cursor = (query.get("cursor") or [None])[0]
         need(cursor is None or re.match(r"^[0-9:,]{0,80}$", cursor), "bad cursor")
         if parts[0] == "request":
@@ -1147,6 +1150,12 @@ class Api:
             src = L.request_sources(self.engine.data_dir, parts[1])
             j = self.intake.jobs.get(parts[1]) or {}
             running = j.get("state") == "running"
+        elif parts[0] == "ask":                         # a chat edit / a project-level ask (outputs.live_path)
+            path = self.outputs.live_path(parts[1])
+            need(path, "bad ask id")
+            src = [(path, "jsonl", 0)]
+            j = self.project_ask.jobs.get(parts[1]) or {}
+            running = self.outputs.asking(parts[1]) or j.get("state") == "running"
         else:
             need(ID_RE.match(parts[1]), "bad item id")
             d = self.history.find(parts[1])["dir"]
@@ -1181,6 +1190,8 @@ class Api:
             r = self.watermark.route(method, parts, body, query)
             if r is not None:
                 return r
+        if parts[:2] == ["live", "ask"] and len(parts) == 4 and parts[3] == "stop" and method == "POST":
+            return self.outputs.stop_ask(parts[2])
         if parts[:1] == ["live"] and method == "GET":
             return self.route_live(parts[1:], query)
         if parts[:1] != ["batches"]:
