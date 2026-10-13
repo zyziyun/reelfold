@@ -119,6 +119,18 @@ def test_shared_cache_hit_and_idempotent_rerun(tmp_path):
     assert res["exit_code"] == 0
 
 
+def test_skipped_stage_keeps_its_place_in_the_graph(tmp_path):
+    """Music mode skips the voice (tts): the render after it still waits for the stills before it (it ran at once,
+    before the story existed, and every music film failed "MODE music needs BGM" on its first run)."""
+    bdir, res = plan_run(tmp_path, [dict(id="j1", x=1)], recipe="test-skipchain", test=dict(sleep=dict(stills=0.3)))
+    assert res["exit_code"] == 0
+    order = [s for _j, s in H.calls(bdir)]
+    assert order == ["prepare", "stills", "render"]
+    st = Store(bdir)
+    assert {r["stage"]: r["state"] for r in st.q("SELECT * FROM stages")}["tts"] == "skipped"
+    st.close()
+
+
 def test_concurrency_limits_respected(tmp_path):
     js = [dict(id=f"j{i}", x=i, source=f"src{i}") for i in range(6)]
     bdir, _ = plan_run(tmp_path, js, run=False, test=dict(sleep=dict(render=0.15, asr=0.05)),

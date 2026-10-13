@@ -403,6 +403,10 @@ class Runner:
         t = now()
         for st in self.order:
             if not st.enabled(job, self.spec):
+                # a skipped stage still stands where it is in the graph: what comes after it waits for what comes
+                # before it (music mode skips the voice, and the render must still wait for the story and the stills)
+                if not all(d in sat for d in st.deps):
+                    continue
                 r = rows.get(st.name)
                 if not r or r["state"] != "skipped":
                     self._set(job["id"], st.name, state="skipped", key=None, out={}, error=None)

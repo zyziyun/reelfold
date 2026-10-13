@@ -118,6 +118,17 @@ register(Recipe(
     ]))
 
 
+register(Recipe(
+    name="test-skipchain", expand=fake_expand, description="a skipped stage between two that run (music mode: no voice)",
+    stages=[
+        Stage("prepare", "io", make_stage_fn("prepare", "io"), units=lambda j, s: 1.0),
+        Stage("stills", "cpu", make_stage_fn("stills", "cpu"), deps=("prepare",), units=lambda j, s: 1.0),
+        Stage("tts", "cpu", make_stage_fn("tts", "cpu"), deps=("stills",), units=lambda j, s: 1.0,
+              enabled=lambda j, s: bool(j["params"].get("voice"))),
+        Stage("render", "cpu-render", make_stage_fn("render", "cpu-render"), deps=("tts",), units=lambda j, s: 1.0),
+    ]))
+
+
 def calls(batch_dir):
     p = os.path.join(batch_dir, "calls.log")
     if not os.path.exists(p):
