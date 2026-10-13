@@ -601,6 +601,9 @@ def _prefix_exports(man, out_dir, cid):
                 e[k] = f"{cid}-{e[k]}"
         if (e.get("reframe") or {}).get("plan"):
             e["reframe"]["plan"] = f"{cid}-{e['reframe']['plan']}"
+        for sc in e.get("sidecars") or []:              # the caption files (<stem>.<lang>.srt) were renamed too
+            if not sc["file"].startswith(cid + "-"):
+                sc["file"] = f"{cid}-{sc['file']}"
     with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(man, f, ensure_ascii=False, indent=2)
     return man

@@ -71,6 +71,9 @@ HW_BITRATE_1080P30 = 8_000_000
 # name -> common fields + per-orientation fields. Coordinates are px on that orientation's canvas.
 # safe: margins {top, bottom, left, right} + optional right_lower {w, from_y} keep-out (button column).
 # caption.band: [y0, y1] of the caption block. length: seconds. encode: media.delivery_args kwargs.
+# caption_upload: where the upload page takes a caption file (SRT) that viewers switch on - vstudio.export writes
+# <stem>.<lang>.srt next to the video, and ``--captions sidecar`` leaves those videos clean (YouTube / Shorts, X,
+# Facebook, LinkedIn). Platforms without it (小红书, 抖音, TikTok, Instagram ...) always get burned captions.
 PLATFORMS = {
     "xiaohongshu": dict(
         label="小红书 RedNote", default="vertical",
@@ -148,6 +151,7 @@ PLATFORMS = {
         title_max=100, title_count="chars", title_required=True, desc_max=5000,
         hashtags=dict(style="description", max=15, note="first 3 show above the title; >60 = all ignored"),
         chapters=dict(supported=True, min_count=3, min_len=10, first_zero=True),
+        caption_upload="YouTube Studio > Subtitles > Add language > Upload file",
         loudness=dict(_LOUD), fps=dict(default=30, max=60),
         encode=dict(crf=18, maxrate="16M", bufsize="32M"),
         length=dict(sweet=[420, 1200], max=43200, min=1),
@@ -165,6 +169,7 @@ PLATFORMS = {
         title_max=100, title_count="chars", desc_max=5000,
         hashtags=dict(style="description", max=3),
         chapters=dict(supported=False),
+        caption_upload="YouTube Studio > Subtitles > Add language > Upload file",
         loudness=dict(_LOUD), fps=dict(default=30, max=60),
         encode=dict(crf=18, maxrate="16M", bufsize="32M"),
         length=dict(sweet=[20, 60], max=180, min=3),
@@ -235,6 +240,7 @@ PLATFORMS = {
         length=dict(sweet=[15, 90], max=140, min=0.5),
         limits=dict(max_bytes=512_000_000, max_bitrate="25M", max_w=1920, max_h=1200),
         captions=dict(burn="recommended", reason="X autoplays video muted in the timeline: burn the captions"),
+        caption_upload="the post composer: the video's Edit > Captions (.srt)",
         account="standard",
         tiers=dict(premium=dict(desc_max=25000, length=dict(max=7200), limits=dict(max_bytes=8_000_000_000)),
                    premium_plus=dict(desc_max=25000, length=dict(max=14400), limits=dict(max_bytes=16_000_000_000))),
@@ -295,6 +301,7 @@ PLATFORMS = {
         hashtags=dict(style="inline", max=5, recommend=[3, 5], note="up to ~30 work; 3-5 recommended; low impact"),
         links=dict(clickable=True, note="feed posts: URLs are clickable; Reels captions: not reliably"),
         chapters=dict(supported=False),
+        caption_upload="the video's Captions > Upload SRT file",
         loudness=dict(_LOUD), fps=dict(default=30, max=60),
         encode=dict(crf=20, maxrate="12M", bufsize="24M"),
         length=dict(sweet=[15, 90], max=14400, min=3,
@@ -335,6 +342,7 @@ PLATFORMS = {
         limits=dict(max_bytes=5_000_000_000, aspect_range=[1 / 2.4, 2.4]),
         captions=dict(burn="recommended", reason="LinkedIn autoplays muted in the feed: burn the captions (or add one "
                       "SRT on upload)"),
+        caption_upload="the video upload's Add captions (.srt)",
         orientations=dict(
             horizontal=dict(w=1920, h=1080, aspect="16:9",
                             safe=dict(top=54, bottom=90, left=96, right=96),

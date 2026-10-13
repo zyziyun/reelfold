@@ -1,7 +1,8 @@
 """Multi-platform export: one clean master -> a file + cover + post stub per platform, plus a manifest.
 
     python -m vstudio.export master.mp4 --platforms xiaohongshu:vertical,douyin,youtube --out exports/ \\
-        [--cues cues.json | --cues subs.srt] [--no-captions] [--cover cover.png | --cover douyin=c916.png ...]
+        [--cues cues.json | --cues subs.srt | --cues en=cues.en.json --cues zh=cues.zh.json]
+        [--captions both|burn|sidecar] [--no-captions] [--cover cover.png | --cover douyin=c916.png ...]
         [--title "..."] [--post post.json]
 
 Per target (vstudio.platform profile):
@@ -15,6 +16,11 @@ Per target (vstudio.platform profile):
      cues.json ([{t0, t1, box: [x, y, w, h]}] in master px - or 0..1 fractions - and final seconds:
      panels, stamps, titles already burned into the master) are mapped through the reframe and the
      caption moves above/below them while they are on screen;
+     ONE language per platform (references/AESTHETICS.md P9): ``--cues lang=path`` (repeatable) gives one track per
+     language and each platform takes the track of its language (vstudio.platform.lang_for: English on YouTube /
+     Shorts, Chinese on 小红书 / B站 / 抖音); a bare ``--cues path`` is one track for every platform, the line in the
+     platform's language picked per cue (cues_for_platform). A platform whose language has no track gets another
+     track through cues_for_platform and a warning. The keepouts and the post copy language follow the picked track;
      the creator's watermark (vstudio.watermark) goes on top when she set one up and it is on by default
      (``--watermark on|off`` / ``watermark=`` per call), placed in the profile's safe box above the captions;
   3. two-pass loudnorm to the profile's LUFS / true-peak target (audio.loudnorm_2pass);
@@ -24,6 +30,13 @@ Per target (vstudio.platform profile):
      centre crop would cut the headline off) with a warning to supply a per-target cover; else a frame
      of the export. Covers shown as a centre crop in the feed also get a ``.feed.jpg`` preview;
   6. post stub via publish.post_body when --title / --post is given;
+  7. caption files: a platform whose upload page takes one (profile ``caption_upload``: YouTube / Shorts, X,
+     Facebook, LinkedIn) gets ``<stem>.<lang>.srt`` next to its video for every caption language there is (timed
+     like the burned cues: shifted by --start, cut at --dur), listed in the manifest (``sidecars`` + a note) and
+     under the post.md text where the platform's text limit leaves room (X keeps post.md the exact 280 to paste).
+     ``--captions``: ``both`` (default) burns everywhere and writes the files; ``sidecar``
+     leaves the upload-capable videos clean (viewers switch the captions on; YouTube also indexes them) and still
+     burns where there is no caption upload (小红书, 抖音 ...); ``burn`` burns only, no files. --no-captions: neither;
 and ``manifest.json`` with files, durations, measured loudness, reframe stats and warnings.
 
 Masters should be caption-free: keep a clean master + cues (JSON from subs.Cue.to_dict, or SRT) so each
@@ -33,6 +46,7 @@ cropped or covered on other canvases.
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -128,6 +142,157 @@ def cues_for_platform(prof, cues, bilingual=None):
     name = "English" if lang == "en" else "Chinese"
     warn = [f"{prof.name}: captions are {name} only, but {bare} cue(s) have no {name} line"] if bare else []
     return out, warn
+
+
+# ----------------------------------------------------------------------------------- caption tracks
+# a language key of ``--cues lang=path``: "en", "zh", "zh-Hans", "pt-BR". Anything else before a "=" is part of a
+# path (a Windows "C:\\clips\\a=b.json" never reads as a track).
+LANG_KEY = re.compile(r"^[a-z]{2}(-[A-Za-z]{2,4})?$")
+CAPTION_MODES = ("both", "burn", "sidecar")
+_LATIN = re.compile(r"[A-Za-z]{2,}")
+
+
+def parse_cues_arg(values):
+    """--cues values -> one track (a path: every platform) or {lang: path} (a track per language; a bare path next
+    to them is the ``"*"`` track for the other languages). Only ``^[a-z]{2}(-[A-Za-z]{2,4})?=`` names a language, and
+    an existing file wins over that reading, so ``C:\\x.json`` and ``a=b.json`` stay paths."""
+    if values is None:
+        return None
+    if isinstance(values, (str, os.PathLike)):
+        values = [values]
+    tracks, bare = {}, []
+    for v in values:
+        v = os.fspath(v)
+        k, sep, path = v.partition("=")
+        if sep and LANG_KEY.match(k.strip()) and path.strip() and not os.path.exists(v):
+            tracks[k.strip()] = path.strip()
+        else:
+            bare.append(v)
+    if len(bare) > 1:
+        raise ValueError(f"--cues: one bare path at most (the track for every platform), got {bare}; name the others "
+                         "lang=path, e.g. --cues en=cues.en.json --cues zh=cues.zh.json")
+    if not tracks:
+        return bare[0] if bare else None
+    if bare:
+        tracks["*"] = bare[0]
+    return tracks
+
+
+def is_track_map(cues):
+    """True for a {lang: path-or-list} caption map (not one track)."""
+    return isinstance(cues, dict) and bool(cues) and all(k == "*" or LANG_KEY.match(str(k)) for k in cues)
+
+
+def _lang_base(k):
+    return str(k or "").split("-")[0].lower()
+
+
+def _lang_name(lang):
+    return {"en": "English", "zh": "Chinese"}.get(_lang_base(lang), str(lang))
+
+
+def pick_track(prof, cues):
+    """The caption source for one platform -> (source, track_lang, warnings). One track: (cues, None, []). A map: the
+    track of the platform's language (``zh`` serves ``zh-Hans``), else the ``"*"`` track, else the first other track
+    with a warning naming it (cues_for_platform then keeps the line in the platform's language where a cue has one)."""
+    if not is_track_map(cues):
+        return cues, None, []
+    lang = P.lang_for(prof.name, "en")
+    named = [(k, v) for k, v in cues.items() if k != "*"]
+    for k, v in named:
+        if k == lang:
+            return v, k, []
+    for k, v in named:
+        if _lang_base(k) == lang:
+            return v, k, []
+    if "*" in cues:
+        return cues["*"], None, []
+    k, v = named[0]
+    return v, k, [f"{prof.name}: no {_lang_name(lang)} caption track (--cues {lang}=...): used the {k} track, its "
+                  f"{_lang_name(lang)} line where a cue has one"]
+
+
+def _line_in(c, lang):
+    """The line of cue ``c`` in ``lang`` (text or alt; markup kept) or None. en = Latin words and no CJK; zh = CJK."""
+    from .subs import _ZH
+    for x in (c.text or "", c.alt or ""):
+        if not x.strip():
+            continue
+        if lang == "zh" and _ZH.search(x):
+            return x
+        if lang == "en" and not _ZH.search(x) and _LATIN.search(x):
+            return x
+    return None
+
+
+def _neutral(c):
+    """A cue with no words in any language (a year, a score): it belongs to every language's track."""
+    from .subs import _ZH
+    s = (c.text or "") + (c.alt or "")
+    return bool(s.strip()) and not _ZH.search(s) and not _LATIN.search(s)
+
+
+def caption_tracks(cues, prof):
+    """Every caption language there is -> {lang: [Cue]} (one line each, the platform's language first, then English,
+    then Chinese, then other named tracks). A map gives its tracks (each kept to its language's line); one track gives
+    each language it has a line in (a bilingual cues.json -> en + zh)."""
+    from .subs import Cue
+    want = P.lang_for(prof.name, "en")
+    srcs = list(cues.items()) if is_track_map(cues) else [("*", cues)]
+    out = {}
+    for k, src in srcs:
+        cl = load_cues(src)
+        langs = [k] if k != "*" else ["en", "zh"]
+        for L in langs:
+            base = _lang_base(L)
+            if base in ("en", "zh"):
+                if not any(_line_in(c, base) for c in cl):
+                    continue
+                cs = [Cue(c.start, c.end, _line_in(c, base) or c.text, "", c.meta) for c in cl
+                      if _line_in(c, base) or _neutral(c)]
+            else:
+                cs = [Cue(c.start, c.end, c.text, "", c.meta) for c in cl if (c.text or "").strip()]
+            if cs:
+                out.setdefault(L, cs)
+    order = sorted(out, key=lambda L: (_lang_base(L) != want, _lang_base(L) != "en", _lang_base(L) != "zh"))
+    return {L: out[L] for L in order}
+
+
+def write_sidecars(prof, cues, out_dir, stem, start=0.0, dur=None):
+    """``<stem>.<lang>.srt`` for every caption language (caption_tracks), timed like the burned captions: shifted by
+    ``start``, cut at ``dur``. -> [{lang, file, cues}]."""
+    from .subs import Cue, srt_write
+    out = []
+    for L, cs in caption_tracks(cues, prof).items():
+        cs = [Cue(c.start - start, c.end - start, c.text, c.alt, c.meta) for c in cs if c.end > start]
+        if dur:
+            cs = [Cue(c.start, min(c.end, dur), c.text, c.alt, c.meta) for c in cs if c.start < dur]
+        path = os.path.join(out_dir, f"{stem}.{L}.srt")
+        n = srt_write(cs, path, trailing_newline=True)
+        if not n:
+            os.remove(path)
+            continue
+        out.append(dict(lang=L, file=os.path.basename(path), cues=n))
+    return out
+
+
+def sidecar_note(prof, sidecars):
+    """The post.md section that goes with the caption files: which file is which language, where to upload it."""
+    where = prof.extra.get("caption_upload")
+    where = where if isinstance(where, str) else "the upload page's captions field"
+    rows = "\n".join(f"- {_lang_name(s['lang'])}: {s['file']}" for s in sidecars)
+    return f"## Caption files\n\nUpload in {where}, one file per language:\n\n{rows}\n"
+
+
+def captions_mode(captions):
+    """``captions`` of export_one -> "off" | "both" | "burn" | "sidecar" (True / None = "both", False = "off")."""
+    if captions is True or captions is None:
+        return "both"
+    if captions is False or captions == "off":
+        return "off"
+    if captions in CAPTION_MODES:
+        return captions
+    raise ValueError(f"captions={captions!r}: one of {', '.join(CAPTION_MODES)} (or off)")
 
 
 def load_keepouts(path, master_size=None):
@@ -563,7 +728,9 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
                cover_targets=None, post_lang=None, watermark=None, cover_ab=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
-    captions=False: never burn ``cues`` (the master already has them). cover_targets: {target: path}
+    cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
+    captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
+    them) - see the module doc, step 7. cover_targets: {target: path}
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
     never drawn when none is set up)."""
     from . import audio
@@ -595,10 +762,16 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     if wide and pl["mode_used"] == "subject":
         warnings.append(f"{len(wide)} of {len(pl['shots'])} shots shown whole on a blurred fill: "
                         + "; ".join(dict.fromkeys(x["reason"] for x in wide)))
-    cue_list = load_cues(cues) if (cues is not None and captions) else []
-    cue_list, lang_warn = cues_for_platform(prof, cue_list)
-    warnings += lang_warn
-    kos = load_keepouts(cues, (info["display_w"], info["display_h"])) if cue_list else []
+    cmode = captions_mode(captions)
+    upload = bool(prof.extra.get("caption_upload"))
+    src, track_lang, track_warn = pick_track(prof, cues)
+    burn = cmode in ("both", "burn") or (cmode == "sidecar" and not upload)
+    all_cues = load_cues(src) if (src is not None and cmode != "off") else []
+    shown, lang_warn = cues_for_platform(prof, all_cues)
+    cue_list = shown if burn else []
+    if all_cues:
+        warnings += track_warn + (lang_warn if burn else [])
+    kos = load_keepouts(src, (info["display_w"], info["display_h"])) if cue_list else []
     if start:
         from .subs import Cue
         cue_list = [Cue(c.start - start, c.end - start, c.text, c.alt, c.meta) for c in cue_list if c.end > start]
@@ -674,9 +847,13 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     if lim.get("max_bytes") and os.path.getsize(out_mp4) > lim["max_bytes"]:
         warnings.append(f"file {os.path.getsize(out_mp4) / 1e6:.0f} MB over the {prof.name} upload cap "
                         f"{lim['max_bytes'] / 1e6:.0f} MB ({prof.extra.get('account') or 'standard'} account)")
+    sidecars = write_sidecars(prof, cues, out_dir, stem, start, dur) \
+        if (upload and cues is not None and cmode in ("both", "sidecar")) else []
     capr = prof.extra.get("captions") or {}
-    if capr.get("burn") == "recommended" and not cue_list and captions:
-        warnings.append(f"{prof.name}: {capr.get('reason', 'burned captions recommended')} (pass --cues)")
+    if capr.get("burn") == "recommended" and not cue_list and cmode != "off":
+        warnings.append(f"{prof.name}: {capr.get('reason', 'burned captions recommended')} "
+                        + ("(--captions sidecar: only the caption file, which viewers must switch on)" if sidecars
+                           else "(pass --cues)"))
     cover_path, notes = make_cover(prof, covers, out_mp4, os.path.join(out_dir, stem + ".cover.jpg"),
                                    per_target=cover_targets, warnings=warnings)
     entry = dict(platform=prof.name, orientation=prof.orientation, label=prof.label, file=os.path.basename(out_mp4),
@@ -686,10 +863,16 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                      hit_rate=pl.get("hit_rate"), cuts=len(pl.get("cuts") or []),
                      switches=pl.get("switches"), stats=pl.get("stats"), plan=os.path.basename(crop_json),
                      **({"band": band} if band else {}), **({"shots": shot_summary(pl)} if pl.get("shots") else {})),
-                 captions=len(cue_list), keepouts=len(kos), captions_moved_frames=cap_report.get("moved", 0),
+                 captions=len(cue_list), captions_mode=cmode, keepouts=len(kos), captions_moved_frames=cap_report.get("moved", 0),
                  cover=os.path.basename(cover_path), cover_size=list(P.cover_size(prof)),
                  notes=notes, safe_box=list(P.safe_box(prof)), caption_box=list(P.caption_box(prof)),
                  watermark=dict(WM.summary(wm_cfg), box=list(WM.box(wm_cfg, prof.w, prof.h, prof))) if wm_cfg else None)
+    if track_lang:
+        entry["caption_track"] = track_lang
+    if sidecars:
+        entry["sidecars"] = [dict(lang=s["lang"], file=s["file"]) for s in sidecars]
+        entry["notes"].append(f"caption files to upload on {prof.label} (one per language): "
+                              + ", ".join(s["file"] for s in sidecars))
     if prof.feed_crop:
         entry["notes"].append(f"{prof.label} feed shows a centre {prof.feed_crop} crop of the video "
                               f"{list(P.feed_crop_box(prof))}: keep faces and captions inside it")
@@ -697,8 +880,9 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     if ab:
         entry["cover_ab"] = write_cover_ab(prof, [x for x in str(ab).split(",") if x.strip()], out_dir, stem)
     if post:
-        src_cues = cue_list or (load_cues(cues) if cues is not None else [])
-        warnings += write_post(prof, out_dir, post, entry, cues=src_cues, post_lang=post_lang)
+        src_cues = cue_list or shown or (load_cues(src) if src is not None else [])
+        own = _lang_base(track_lang) if (track_lang and not track_warn) else None   # the copy follows the track
+        warnings += write_post(prof, out_dir, post, entry, cues=src_cues, post_lang=post_lang or own)
         if entry.get("cover_ab") and entry.get("post"):
             with open(os.path.join(out_dir, entry["post"]), "a", encoding="utf-8") as f:
                 f.write("\n" + cover_ab_note(entry["cover_ab"]))
@@ -749,8 +933,14 @@ def write_post(prof, out_dir, post, entry, cues=None, post_lang=None):
         if note not in entry.setdefault("notes", []):
             entry["notes"].append(note)
     pp = os.path.join(out_dir, f"{prof.name}-{prof.orientation}.post.md")
+    text = body
+    if entry.get("sidecars"):                        # the upload notes, outside the measured post text; a short-post
+        note = sidecar_note(prof, entry["sidecars"])    # platform (X: 280) keeps post.md the exact text to paste
+        fuller = body.rstrip("\n") + "\n\n" + note
+        if not prof.desc_max or P.text_len(prof, fuller) <= prof.desc_max:
+            text = fuller
     with open(pp, "w", encoding="utf-8") as f:
-        f.write(body)
+        f.write(text)
     entry.update(post=os.path.basename(pp), post_lang=copy.get("lang"), post_len=P.text_len(prof, body),
                  post_warnings=list(dict.fromkeys(msgs)))
     return msgs
@@ -849,7 +1039,14 @@ def main(argv=None):
                     help="comma list of name[:orientation], e.g. xiaohongshu:vertical,douyin,youtube "
                          "(default persona platforms.default). Known: " + ", ".join(P.list_profiles()))
     ap.add_argument("--out", default="exports")
-    ap.add_argument("--cues", help="cues.json (subs.Cue dicts) or .srt to burn per platform")
+    ap.add_argument("--cues", action="append", default=None,
+                    help="cues.json (subs.Cue dicts) or .srt to burn per platform; repeatable as lang=path, one track "
+                         "per language (--cues en=cues.en.json --cues zh=cues.zh.json): each platform takes the "
+                         "track in its language (YouTube English, 小红书 / B站 / 抖音 Chinese)")
+    ap.add_argument("--captions", choices=list(CAPTION_MODES), default="both",
+                    help="both (default): burn + a <target>.<lang>.srt where the platform takes a caption upload "
+                         "(YouTube, X, Facebook, LinkedIn); sidecar: no burn there (clean video + SRT), still "
+                         "burned elsewhere; burn: burn only, no SRT")
     ap.add_argument("--cover", action="append", default=[],
                     help="cover image(s): a path (closest aspect wins; another aspect is fitted on a blurred pad) "
                          "or platform[:orientation]=path for one target, e.g. --cover xiaohongshu=c34.png")
@@ -893,9 +1090,9 @@ def main(argv=None):
         post = dict(post or {}, title=a.title)
     if post is not None and (a.lang or a.bilingual):
         post = dict(post, _lang=a.lang, _bilingual=a.bilingual or None)
-    man = export(a.master, targets, a.out, cues=a.cues, covers=a.cover, post=post, account=a.account,
+    man = export(a.master, targets, a.out, cues=parse_cues_arg(a.cues), covers=a.cover, post=post, account=a.account,
                  mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
-                 start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions=not a.no_captions,
+                 start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions="off" if a.no_captions else a.captions,
                  watermark=None if a.watermark == "auto" else a.watermark == "on", cover_ab=a.cover_ab or None)
     for e in man["exports"]:
         print(f"{e['file']:32s} {e['w']}x{e['h']} {e['duration']:.1f}s "

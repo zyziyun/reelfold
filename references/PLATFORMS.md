@@ -181,6 +181,14 @@ A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest 
   px (or 0..1 fractions), final seconds. Each box is mapped through the reframe and the caption moves above /
   below it while it is on screen (`captions_moved_frames` in the manifest; a warning if there is no free spot).
   `--no-captions` skips burning when the master already has its captions.
+- **One caption language per platform** (AESTHETICS P9): `--cues en=cues.en.json --cues zh=cues.zh.json` gives a
+  track per language; YouTube / Shorts take `en`, 小红书 / B站 / 抖音 take `zh` (`platform.lang_for`). A bare
+  `--cues cues.json` is one track for all, the cue line in the platform's language picked per cue. A platform with
+  no track in its language gets another one and a warning.
+- **Caption files**: platforms with `caption_upload` in the registry (YouTube / Shorts, X, Facebook, LinkedIn) get
+  `<platform>-<orientation>.<lang>.srt` per caption language (manifest `sidecars`, a note under post.md where the
+  text limit leaves room). `--captions both` (default) burns and writes them; `sidecar` leaves those videos clean
+  (still burned on 小红书 / 抖音 ...); `burn` writes no files.
 - **Keyword colour** survives re-burning: 【kw】 markup in cue text, or per cue `"hl": ["kw", ...]` / `[[i, j]]`
   char spans, and `"style": {"fill": "#fff", "highlight": "#FFD60A"}`.
 - **Covers**: `--cover xiaohongshu=cover_3x4.png --cover douyin=cover_9x16.png` gives each target its own cover.
