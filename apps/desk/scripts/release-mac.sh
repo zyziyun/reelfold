@@ -89,19 +89,22 @@ DMG="dist/Reelfold-$VERSION-mac-arm64.dmg"
 [ -d "$APP" ] || die "no $APP"
 [ -f "$DMG" ] || die "no $DMG"
 
+# stapler talks to Apple's ticket service (CloudKit); a dropped connection (Error 68) is retried, not fatal on try one
+retry() { local n; for n in 1 2 3 4 5; do "$@" && return 0; echo "  … $* failed (try $n), retrying in $((n * 20)) s"; sleep $((n * 20)); done; "$@"; }
+
 say "sign + notarize + staple the DMG"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 xcrun notarytool submit "$DMG" "${NOTARY_ARGS[@]}" --wait
-xcrun stapler staple "$DMG"
+retry xcrun stapler staple "$DMG"
 
 # ---------------------------------------------------------------- verify
 say "verify"
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority=Developer ID Application|TeamIdentifier|Runtime Version|flags=" || true
 spctl --assess --type execute --verbose=4 "$APP"
-xcrun stapler validate "$APP"
+retry xcrun stapler validate "$APP"
 spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG"
-xcrun stapler validate "$DMG"
+retry xcrun stapler validate "$DMG"
 codesign --verify --strict --verbose=2 "$DMG"
 
 if [ "${SKIP_TESTS:-0}" != "1" ]; then
