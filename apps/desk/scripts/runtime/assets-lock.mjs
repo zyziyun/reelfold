@@ -23,6 +23,11 @@ const PINS = {
   // Chromium.app snapshot - a bare executable with no app bundle, so macOS never sees an app that could ask for
   // notifications. The version is the one HyperFrames manages itself (CHROME_VERSION in the hyperframes CLI), so its
   // renders run on the browser it is tested with and it does not download a second copy.
+  // cover engine 2.0 (vstudio.cover_engine): subject cutout, upscale, frame aesthetics - all MIT / BSD / Apache
+  birefnet: { repo: 'onnx-community/BiRefNet_lite-ONNX', rev: 'de15b22ba131738a16dff04aab8bdf8dc32e3ac1' },
+  clipL14: { repo: 'Xenova/clip-vit-large-patch14', rev: 'c307790166907339eed5a9a53a249af534102536' },
+  aesthetic: { repo: 'christophschuhmann/improved-aesthetic-predictor', sha: '6934dd81792f086e613a121dbce43082cb8be85e' },
+  esrgan: 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth',
   headlessShell: { version: '152.0.7977.30', platforms: { 'darwin-arm64': 'mac-arm64', 'darwin-x64': 'mac-x64', 'win32-x64': 'win64' } },
 };
 const skipChromium = process.argv.includes('--skip-chromium');
@@ -126,6 +131,37 @@ groups.push({
   env: { VSTUDIO_KOKORO_MODEL: '' },
   licence: 'Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community).',
   files: await hf(PINS.kokoro, '.', ['config.json', 'kokoro-v1_0.safetensors', ...PINS.kokoro.voices.map((v) => `voices/${v}.safetensors`)]),
+});
+log('cover models');
+// first run: the subject cutout every cover uses (onnxruntime on every target) and, on Apple silicon (MLX), the
+// upscaler for small cover crops; optional: the frame-aesthetics model (covers rank frames without it)
+groups.push({
+  id: 'matte-birefnet',
+  required: true,
+  root: 'models/birefnet-lite',
+  env: { VSTUDIO_BIREFNET_MODEL: 'model.onnx' },
+  licence: 'BiRefNet-lite, MIT (ZhengPeng7/BiRefNet; ONNX export by onnx-community, MIT). Cover subject cutout.',
+  files: await hf(PINS.birefnet, '.', ['onnx/model.onnx']).then((fs) => fs.map((f) => ({ ...f, dest: './model.onnx' }))),
+});
+groups.push({
+  id: 'upscale-esrgan',
+  required: true,
+  targets: ['darwin-arm64'],
+  root: 'models/realesrgan',
+  env: { VSTUDIO_ESRGAN_WEIGHTS: 'realesr-general-x4v3.pth' },
+  licence: 'Real-ESRGAN realesr-general-x4v3 weights, BSD-3-Clause (xinntao). Upscales small cover crops (MLX).',
+  files: [await file(PINS.esrgan, './realesr-general-x4v3.pth')],
+});
+groups.push({
+  id: 'cover-aesthetic',
+  required: false,
+  root: 'models/aesthetic',
+  env: { VSTUDIO_AESTHETIC_MODEL: '' },
+  licence: 'LAION aesthetic predictor v2, Apache-2.0 (christophschuhmann/improved-aesthetic-predictor) on OpenAI CLIP ViT-L/14, MIT (q4f16 ONNX by Xenova). Ranks cover frames.',
+  files: [
+    ...(await hf(PINS.clipL14, '.', ['onnx/vision_model_q4f16.onnx'])).map((f) => ({ ...f, dest: './vision_model.onnx' })),
+    await file(raw(PINS.aesthetic.repo, PINS.aesthetic.sha, 'sac%2Blogos%2Bava1-l14-linearMSE.pth'), './sac+logos+ava1-l14-linearMSE.pth'),
+  ],
 });
 const CFT = 'https://storage.googleapis.com/chrome-for-testing-public';
 for (const [target, plat] of Object.entries(PINS.headlessShell.platforms)) {

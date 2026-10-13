@@ -223,6 +223,66 @@
    ]
   },
   {
+   "id": "matte-birefnet",
+   "required": true,
+   "root": "models/birefnet-lite",
+   "env": {
+    "VSTUDIO_BIREFNET_MODEL": "model.onnx"
+   },
+   "licence": "BiRefNet-lite, MIT (ZhengPeng7/BiRefNet; ONNX export by onnx-community, MIT). Cover subject cutout.",
+   "files": [
+    {
+     "url": "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model.onnx",
+     "dest": "./model.onnx",
+     "sha256": "5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333",
+     "size": 224005088
+    }
+   ]
+  },
+  {
+   "id": "upscale-esrgan",
+   "required": true,
+   "targets": [
+    "darwin-arm64"
+   ],
+   "root": "models/realesrgan",
+   "env": {
+    "VSTUDIO_ESRGAN_WEIGHTS": "realesr-general-x4v3.pth"
+   },
+   "licence": "Real-ESRGAN realesr-general-x4v3 weights, BSD-3-Clause (xinntao). Upscales small cover crops (MLX).",
+   "files": [
+    {
+     "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
+     "dest": "./realesr-general-x4v3.pth",
+     "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292",
+     "size": 4885111
+    }
+   ]
+  },
+  {
+   "id": "cover-aesthetic",
+   "required": false,
+   "root": "models/aesthetic",
+   "env": {
+    "VSTUDIO_AESTHETIC_MODEL": ""
+   },
+   "licence": "LAION aesthetic predictor v2, Apache-2.0 (christophschuhmann/improved-aesthetic-predictor) on OpenAI CLIP ViT-L/14, MIT (q4f16 ONNX by Xenova). Ranks cover frames.",
+   "files": [
+    {
+     "url": "https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/vision_model_q4f16.onnx",
+     "dest": "./vision_model.onnx",
+     "sha256": "46c54f1fdabca466ed8f02967347d5070c8a05211f93f2e390140befc26c441f",
+     "size": 173140193
+    },
+    {
+     "url": "https://raw.githubusercontent.com/christophschuhmann/improved-aesthetic-predictor/6934dd81792f086e613a121dbce43082cb8be85e/sac%2Blogos%2Bava1-l14-linearMSE.pth",
+     "dest": "./sac+logos+ava1-l14-linearMSE.pth",
+     "sha256": "21dd590f3ccdc646f0d53120778b296013b096a035a2718c9cb0d511bff0f1e0",
+     "size": 3714759
+    }
+   ]
+  },
+  {
    "id": "chromium-darwin-arm64",
    "required": false,
    "targets": [

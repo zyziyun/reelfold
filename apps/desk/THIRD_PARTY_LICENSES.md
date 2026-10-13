@@ -237,6 +237,7 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | numba | 0.68.0 | BSD License | darwin-arm64 | https://numba.pydata.org |
 | numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | darwin-arm64, win32-x64 | https://pypi.org/project/numpy/ |
 | numpy | 1.26.4 | BSD License | darwin-x64 | https://github.com/numpy/numpy |
+| onnxruntime | 1.31.0 | MIT License | darwin-arm64 | https://onnxruntime.ai |
 | onnxruntime | 1.19.2 | MIT License | darwin-x64 | https://onnxruntime.ai |
 | onnxruntime | 1.30.0 | MIT License | win32-x64 | https://onnxruntime.ai |
 | openai | 3.24.0 | Apache-2.0 | all | https://github.com/openai/openai-python |
@@ -250,8 +251,8 @@ Hash-locked in `packaging/requirements/<target>.txt`.
 | pillow | 12.3.0 | MIT-CMU | all | https://github.com/python-pillow/Pillow |
 | preshed | 3.0.13 | MIT License | darwin-arm64 | https://github.com/explosion/preshed |
 | proces | 0.1.7 | MIT License | darwin-arm64 | https://github.com/Ailln/proces |
+| protobuf | 7.36.2 | 3-Clause BSD License | darwin-arm64, win32-x64 | https://developers.google.com/protocol-buffers/ |
 | protobuf | 4.25.9 | 3-Clause BSD License | darwin-x64 | https://developers.google.com/protocol-buffers/ |
-| protobuf | 7.36.2 | 3-Clause BSD License | win32-x64 | https://developers.google.com/protocol-buffers/ |
 | pycparser | 3.0 | BSD-3-Clause | all | https://github.com/eliben/pycparser |
 | pydantic | 2.13.5 | MIT | all | https://github.com/pydantic/pydantic |
 | pydantic-core | 2.46.5 | MIT | all | https://github.com/pydantic/pydantic/tree/main/pydantic-core |
@@ -304,6 +305,9 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | asr-mlx | darwin-arm64 | OpenAI Whisper large-v3-turbo weights, MIT (MLX conversion by mlx-community). | huggingface.co |
 | asr-ct2 | darwin-x64, win32-x64 | OpenAI Whisper large-v3-turbo weights, MIT (CTranslate2 conversion). | huggingface.co |
 | tts-kokoro | darwin-arm64 | Kokoro-82M v1.0 weights and voices, Apache-2.0 (hexgrad; MLX conversion by mlx-community). | huggingface.co |
+| matte-birefnet | all | BiRefNet-lite, MIT (ZhengPeng7/BiRefNet; ONNX export by onnx-community, MIT). Cover subject cutout. | huggingface.co |
+| upscale-esrgan | darwin-arm64 | Real-ESRGAN realesr-general-x4v3 weights, BSD-3-Clause (xinntao). Upscales small cover crops (MLX). | github.com |
+| cover-aesthetic | all | LAION aesthetic predictor v2, Apache-2.0 (christophschuhmann/improved-aesthetic-predictor) on OpenAI CLIP ViT-L/14, MIT (q4f16 ONNX by Xenova). Ranks cover frames. | huggingface.co |
 | chromium-darwin-arm64 | darwin-arm64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-darwin-x64 | darwin-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-win32-x64 | win32-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
