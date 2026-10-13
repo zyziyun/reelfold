@@ -425,6 +425,28 @@ def lint_scenes(scenes_dir, scenes, W, H, timeout=180):
     return out
 
 
+LOOK = os.environ.get("VSTUDIO_SCENE_LOOK", "1") != "0"
+
+
+def look_problems(item_dir, scenes_dir, scenes, canvas):
+    """The look of the scenes (``vstudio.look.look_scenes``): each drawn twice in shuffled order (a picture that
+    changes = not seek-safe), fonts that cannot load (its CSS against the item's assets/fonts and the subsets the
+    render makes; then the browser's own), text cut off or in the caption band -> {scene id: [problem + fix]}."""
+    from vstudio import look as LK
+    from .explainer import _CJK_FONTS
+    W, H = canvas["W"], canvas["H"]
+    band = None
+    cap = canvas.get("caption")                # (x0, y0, x1, y1): the bilingual captions' band
+    if isinstance(cap, (list, tuple)) and len(cap) == 4 and H:
+        band = round(float(cap[1]) / H, 3)
+    made = [f"assets/fonts/{o}.woff2" for _r, outs in _CJK_FONTS for o in outs]
+    try:
+        return LK.look_scenes(scenes_dir, scenes, W, H, assets=os.path.join(item_dir, "assets"), caption_band=band,
+                              will_exist=made)
+    except Exception:  # noqa: BLE001  (a look that cannot run is no reason to refuse the scenes)
+        return {}
+
+
 def is_ai_scene(path):
     return AI_MARK in _read(path, 400)
 
@@ -539,13 +561,19 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
                 res["written"].append(sc["id"])
                 res["provider"], res["model"] = info.get("provider"), info.get("model")
                 res["cost_usd"] += float(info.get("cost_usd") or 0.0)
-    # the renderer's checks on what was drawn (its lint, then the scenes run in a browser): a scene they refuse is
-    # asked again with the finding and its fix - two rounds (the browser pass only runs once the lint is clean)
-    linted = set()
+    # the renderer's checks on what was drawn (its lint, then the scenes run in a browser), then the look (each scene
+    # drawn twice in shuffled order, its fonts, text cut / in the caption band: vstudio.look): a scene they refuse
+    # is asked again with the finding and its fix - two rounds (the browser pass only runs once the lint is clean)
+    linted, looked = set(), {}
     for _round in range(2 if (LINT if lint is None else lint) and res["written"] else 0):
         by_id = {s["id"]: s for s in inp["scenes"]}
-        bad = {k: v for k, v in lint_scenes(out_dir, [(i, by_id[i]["duration"]) for i in res["written"]],
-                                           inp["canvas"]["W"], inp["canvas"]["H"]).items() if k in by_id}
+        todo_ = [(i, by_id[i]["duration"]) for i in res["written"] if i in by_id]
+        bad = {k: v for k, v in lint_scenes(out_dir, todo_, inp["canvas"]["W"], inp["canvas"]["H"]).items()
+               if k in by_id}
+        if not bad and LOOK:
+            bad = {k: v for k, v in look_problems(item_dir, out_dir, todo_, inp["canvas"]).items() if k in by_id}
+            for k, v in bad.items():
+                looked[k] = v
         if not bad:
             break
         linted |= set(bad)
@@ -562,6 +590,7 @@ def author_scenes(item_dir, workflow_dir, request="", instruction=None, complete
                 f.write(AI_MARK + "\n" + html + "\n")
             log(f"scene {sid}: fixed after the renderer's check ({len(problems)} finding(s))")
     res["linted"] = sorted(linted)
+    res["looked"] = {k: v[:3] for k, v in looked.items()}
     if res["failed"]:
         res["ok"] = False
         errs = " ".join(res["failed"].values()).lower()

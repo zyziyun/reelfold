@@ -222,6 +222,7 @@ def test_a_scene_the_renderer_s_lint_refuses_is_drawn_again_with_the_fix(tmp_pat
     checks = []
     monkeypatch.setattr(S, "lint_scenes", lambda sd, scenes, W, H: checks.append(1) or (
         {"f02-usb-c": [finding]} if len(checks) == 1 else {}))
+    monkeypatch.setattr(S, "look_problems", lambda *a, **k: {})               # no browser here
     prompts = []
     model = scene_model()
 
@@ -231,6 +232,28 @@ def test_a_scene_the_renderer_s_lint_refuses_is_drawn_again_with_the_fix(tmp_pat
     r = S.author_scenes(str(d), WF, complete=complete)
     assert r["ok"] and r["linted"] == ["f02-usb-c"] and len(prompts) == 3 and len(checks) == 2   # checked again
     assert finding in prompts[-1] and "Your previous version" in prompts[-1] and "SCENE_ID = f02-usb-c" in prompts[-1]
+
+
+def test_a_scene_the_look_check_refuses_is_drawn_again_with_its_findings(tmp_path, monkeypatch):
+    """The look (vstudio.look: drawn twice in shuffled order, fonts, text cut) runs once the lint is clean; what it
+    finds goes back to the AI word for word, with the fix."""
+    from vstudio import look as LK
+    d = item_dir(tmp_path)
+    monkeypatch.setattr(S, "LINT", True)
+    monkeypatch.setattr(S, "lint_scenes", lambda *a, **k: {})
+    f = LK._finding("look-nondeterministic", "the same time drew two different pictures at 1.2s", t=1.2)
+    looks = []
+    monkeypatch.setattr(S, "look_problems", lambda item, sd, scenes, canvas: looks.append(
+        [i for i, _d in scenes]) or ({"f01-mn": [LK.problem_text(f)]} if len(looks) == 1 else {}))
+    prompts = []
+    model = scene_model()
+
+    def complete(task, system, prompt, **kw):
+        prompts.append(prompt)
+        return model(task, system, prompt, **kw)
+    r = S.author_scenes(str(d), WF, complete=complete)
+    assert r["ok"] and r["looked"] == {"f01-mn": [LK.problem_text(f)]} and len(looks) == 2
+    assert "look-nondeterministic" in prompts[-1] and "fromTo" in prompts[-1] and "SCENE_ID = f01-mn" in prompts[-1]
 
 
 # --------------------------------------------------------------------------- the autopilot

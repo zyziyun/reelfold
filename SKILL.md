@@ -23,8 +23,10 @@ HyperFrames workflows (explainer, promo-recut, launch-kit) also need Node 18+ an
    `--status waiting --needs-you` at a question, `--status done` at the end (details: references/PROJECTS.md).
 3. **Open the workflow's `WORKFLOW.md`** (table below) and follow it.
 4. **First-pass check before she sees anything:** `python -m vstudio.firstpass final.mp4 --format <id> --source <raw>
-   --cues <cues.json> --cover <cover> --post <post.md>`. Fix every 必须修 item, then look at 3-4 frames (busiest moment,
-   a transition, the cover). Never hand over with a red item.
+   --cues <cues.json> --cover <cover> --post <post.md>` (an HTML / HyperFrames-made video: add `--hf <project>`, or
+   run `python -m vstudio.look <project>`: frames drawn twice in shuffled order, fonts, text cut, sounds, contact
+   sheet). Fix every 必须修 item, then look at 3-4 frames (busiest moment, a transition, the cover). Never hand over
+   with a red item.
 5. **Hand over**: the file paths (finals in one place, intermediates under `work/`), the summary line of what was applied
    (speed, cleanup, hooks, cover), the firstpass result, and any choice left to her as a numbered menu.
 

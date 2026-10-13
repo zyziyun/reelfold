@@ -6,7 +6,7 @@
     K.stills(cfg)           # -> <out>/stills/ (Product Hunt gallery 1270x760, OG 1200x630)
     K.posts(cfg)            # -> <out>/copy/ (COPY.md, per platform x language)
     K.schedule(cfg)         # -> <out>/schedule/ (proposal; --apply puts it on the publish calendar as planned posts)
-    K.check(cfg)            # vstudio.firstpass on every video -> <video>.firstpass.md + <out>/firstpass.json
+    K.check(cfg)            # vstudio.firstpass (+ vstudio.look of its build) on every video -> <video>.firstpass.md + <out>/firstpass.json
 
 Every step reads the files the previous one wrote, so each can be re-run alone after an edit to the config.
 """
@@ -202,8 +202,10 @@ def check(cfg, lang_report="en"):
         proj = os.path.join(cfg["out"], "build", name)
         cues = os.path.join(proj, "cues.json")
         cover = video[:-4] + ".cover.jpg"
+        # the film's HyperFrames project too: frames drawn twice in shuffled order, fonts, text cut, sounds (look)
         res = FP.run(video, fmt="launch", platform=CHECK_PLATFORM[(lang, asp)], cues=cues if os.path.exists(cues) else None,
-                     cover=cover if os.path.exists(cover) else None, locale=lang)
+                     cover=cover if os.path.exists(cover) else None, locale=lang,
+                     hf=proj if os.path.isfile(os.path.join(proj, "index.html")) else None)
         with open(video[:-4] + ".firstpass.md", "w", encoding="utf-8") as f:
             f.write(FP.report(res, lang_report))
         ok = ok and res["ok"]

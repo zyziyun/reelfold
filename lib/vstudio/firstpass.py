@@ -237,6 +237,50 @@ def check_style(fmt=None, hook_seconds=0.0):
 
 
 # ------------------------------------------------------------------------------------------------ run
+LOOK_ZH = {"look-nondeterministic": "同一时间点两次渲染画面一致（画面只由时间决定）",
+           "look-font-failed": "字体都加载成功（没有回退成别的字体）",
+           "look-text-clipped": "文字没有被裁切 / 没有出框",
+           "look-safe-area": "文字不在字幕区 / 画面边缘",
+           "look-script-error": "页面脚本运行无报错",
+           "look-audio-missing": "声音文件都在、有声音",
+           "look-static": "画面随时间变化（不是一张静止图）",
+           "look-lint": "渲染器检查通过"}
+LOOK_EN = {"look-nondeterministic": "the same time draws the same picture (frames depend only on the time)",
+           "look-font-failed": "every font loads (no fallback face)", "look-text-clipped": "no text cut off",
+           "look-safe-area": "no text in the caption band or at the edge", "look-script-error": "no script errors",
+           "look-audio-missing": "every sound is there and audible", "look-static": "the picture moves with time",
+           "look-lint": "the renderer's lint passes"}
+
+
+def check_look(res):
+    """``vstudio.look`` result (an HTML-rendered video's HyperFrames project) -> items: one per kind of finding
+    (red for errors, warn for warnings), a passed item per kind checked clean, the contact sheet as info."""
+    if not res:
+        return []
+    items, by = [], {}
+    for f in res.get("findings") or []:
+        by.setdefault(f["code"], []).append(f)
+    ran = {"look-audio-missing"}                         # what was checked clean shows as a passed item
+    if res.get("frames"):
+        ran |= {"look-nondeterministic", "look-font-failed"}
+    if any("no text cut off" in p for p in res.get("passed") or []):
+        ran |= {"look-text-clipped", "look-safe-area"}
+    for code in list(LOOK_ZH):
+        fs = by.get(code) or []
+        if not fs and code not in ran:
+            continue
+        sev = "red" if any(f["severity"] == "error" for f in fs) else "warn" if fs else \
+            ("warn" if code in ("look-safe-area", "look-static") else "red")
+        items.append(_item(code, not fs, LOOK_ZH[code], LOOK_EN[code], sev,
+                           [f["message"][:160] for f in fs[:3]] or None, fix_zh=(fs[0].get("fix") or "") if fs else "",
+                           fix_en=(fs[0].get("fix") or "") if fs else ""))
+    if res.get("sheet"):
+        items.append(_item("look-sheet", None, "画面联系表", "contact sheet", "info", res["sheet"]))
+    for s in res.get("skipped") or []:
+        items.append(_item("look-skipped", None, f"跳过：{s}", f"skipped: {s}", "info"))
+    return items
+
+
 def _profile(platform, info):
     from vstudio import platform as PL
     from vstudio.config import persona
@@ -248,9 +292,12 @@ def _profile(platform, info):
 
 
 def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover=None, post=None, title=None,
-        hook_seconds=0.0, media_checks=True, locale=None):
+        hook_seconds=0.0, media_checks=True, locale=None, hf=None, look=None):
     """-> {ok, video, format, summary, platform, items: [{id, ok, severity, value, zh, en, fix_zh}]}.
-    ok is False when any red item failed (ok None = skipped / info)."""
+    ok is False when any red item failed (ok None = skipped / info). ``hf``: the HyperFrames project the video was
+    rendered from (an explainer item, a launch-kit build): its look is checked too (``vstudio.look``: frames drawn
+    twice in shuffled order, fonts, text cut / outside the safe area, sounds; a contact sheet) - or pass ``look``,
+    a result already made. VSTUDIO_LOOK=0 skips it."""
     from vstudio import formats as F
     from vstudio import media
     f = F.get(fmt) if isinstance(fmt, str) and fmt else (fmt or None)
@@ -267,9 +314,22 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     t, txt = load_post(post)
     items += check_post(title or t, txt, prof, f)
     items += check_style(f, hook_seconds)
+    if look is None and hf and os.environ.get("VSTUDIO_LOOK", "1") != "0" and os.path.isdir(hf):
+        from vstudio import look as LK
+        look = LK.look(hf, video=os.fspath(video), caption_band=_caption_band(prof))
+    items += check_look(look)
     ok = not any(i["ok"] is False and i["severity"] == "red" for i in items)
     return dict(ok=ok, video=os.fspath(video), format=(f or {}).get("id"), summary=F.summary(f) if f else None,
                 summary_en=F.summary(f, "en") if f else None, platform=prof.key, items=items)
+
+
+def _caption_band(prof):
+    """Top of the platform's caption band as a fraction of the height (``platform.caption_box``), or None."""
+    try:
+        from vstudio import platform as PL
+        return round(min(0.95, max(0.5, PL.caption_box(prof)[1] / float(prof.h))), 3)
+    except Exception:  # noqa: BLE001  (no band known: the look runs without the caption-band check)
+        return None
 
 
 def report(res, lang="zh"):
@@ -310,11 +370,13 @@ def _cli(argv=None):
     ap.add_argument("--title")
     ap.add_argument("--locale")
     ap.add_argument("--no-media", action="store_true", help="skip loudness / sync / black-frame measurements")
+    ap.add_argument("--hf", help="the HyperFrames project the video was rendered from: check its look too "
+                    "(vstudio.look)")
     ap.add_argument("--lang", default="zh", choices=["zh", "en"])
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     res = run(a.video, a.fmt, a.platform, a.source, a.speed, a.cues, a.cover, a.post, a.title, a.hook_seconds,
-              not a.no_media, a.locale)
+              not a.no_media, a.locale, hf=a.hf)
     print(json.dumps(res, ensure_ascii=False, indent=1, default=str) if a.json else report(res, a.lang))
     return 0 if res["ok"] else 1
 
