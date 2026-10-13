@@ -134,7 +134,8 @@ def make_fitter(src, info, W, H, mode, fallback, safe, start, dur, cache):
     key = hashlib.sha1(f"{os.path.abspath(src)}|{start:.3f}|{dur:.3f}|{W}x{H}|{mode}|{fallback}|{safe}".encode()).hexdigest()[:16]
     pl = cache.get(key)
     if pl is None:
-        pl = R.plan(src, W, H, mode=mode, safe=safe, start=start, dur=dur, fallback=fallback)
+        pl = R.plan(src, W, H, mode=mode, safe=safe, start=start, dur=dur, fallback=fallback,
+                    shot_pad=fallback != "center")      # clean reels: no shot shown whole on a blurred pad
         cache[key] = pl
     return R.frame_fn(pl), dict(mode=mode, mode_used=pl["mode_used"], hit_rate=pl.get("hit_rate"),
                                 reason=pl.get("fallback_reason"))

@@ -82,6 +82,7 @@ SUBJECT = dict(
     split=0.55,            # a subject peak outside the window >= split x the one inside -> that sample cannot be cropped
     split_share=0.5,       # ... in this share of a shot's samples -> the shot is shown whole (blurred fill)
     panorama=4.0,          # the crop keeps < 1/panorama of the width and nothing stands out -> shown whole
+    shot_pad=True,         # False: such shots are cropped on their strongest interest too (no blurred bands)
     hold=0.06,             # the shot's target moves less than this share of the crop -> the camera holds still
     min_shot=1.2,          # shots shorter than this (s) hold still
     lead=0.4,              # s the camera looks ahead on the (offline) target path: it arrives with the subject
@@ -490,6 +491,8 @@ def _plan_subject(src, tw, th, safe, caption, start, dur, sw, sh, fps, o, det, a
             path, share = _window_path(cols, k, o["move_cost"], o["center_bias"])
             split = _split(cols, path, k, o)
             flat = float(np.mean(share)) < 1.5 * k / G
+            if not o.get("shot_pad", True):
+                split, flat = 0.0, False                     # premium: crop the strongest interest, no blurred fill
             if split >= o["split_share"]:
                 kind, why = "pad-blur", f"two subjects too far apart for one crop in {split:.0%} of the shot"
             elif sw / cw > o["panorama"] and flat:

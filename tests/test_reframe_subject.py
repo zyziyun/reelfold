@@ -118,6 +118,8 @@ def test_two_subjects_far_apart_and_a_flat_panorama_are_shown_whole(clips, tmp_p
     assert "too far apart" in pl["fallback_reason"]
     pano = plan(clips["pano"])                                          # 4:1, nothing stands out: a crop keeps 14 %
     assert pano["mode_used"] == "pad-blur" and "panorama" in pano["fallback_reason"]
+    # clean fun reels (shot_pad=False): no shot on a blurred pad - the strongest interest is cropped instead
+    assert plan(clips["two"], shot_pad=False)["shots"][0]["kind"] != "pad-blur"
     # only that shot: a moving-subject shot after it still follows (mixed plan -> null rects for the wide shot)
     frames = [_disk(_disk(_ground(0), 90, 180), 550, 170, color=(220, 70, 30)) for _ in range(45)]
     other = _ground(5, tint=(200, 190, 210))
