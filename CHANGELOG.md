@@ -53,6 +53,30 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   not seek-safe), and checked for fonts that did not load, text cut off or in the caption band, and sounds that are
   missing; a scene that fails is redrawn by the AI with the findings, and `python -m vstudio.look DIR` (or
   `vstudio.firstpass --hf DIR`) gives the findings with a contact sheet. After OpenFilm's `look`.
+- **Premium finish for footage films**:
+  - Shots are matched in colour: each shot's white balance and tint move toward the film's reference shot, and six
+    film looks (Cinema neutral, Kodak 2383 soft, Portra warm, Fuji cool, Silver mono, Soft bleach) are mixed in at
+    35 %. This is one LUT per shot, made by our own code with no third-party LUT files.
+  - A long dissolve between two framings of the same subject (two Space Needles at once) becomes a cut or a short
+    dissolve.
+  - Picture labels always follow the version's language.
+  - Doubled punctuation is cleaned up.
+- **Chinese narration with the free Chinese voice**: once Qwen3-TTS is downloaded it narrates every Chinese
+  version. Until then the plan card offers the download, and Chinese versions use English narration with Chinese
+  subtitles. Settings › Voice has a switch for the older built-in Chinese voice (Kokoro, robotic; off by default).
+- **Fact check for history and explainer narration**: the AI lists each claim with how sure it is and the kind of
+  source. Rankings and claims nobody can check ("one of the West Coast's largest", "Seattle's busiest") are softened
+  or dropped, and a `facts.md` per project shows what changed. The plan card says the narration will be checked.
+- **Captions per language and platform**: exports take one caption track per language
+  (`--cues en=… --cues zh=…`). YouTube, X, Facebook and LinkedIn also get `.srt` caption files to upload, and
+  `--captions sidecar` keeps their video clean. The first-pass check flags captions in the wrong language for the
+  platform.
+- **Typography kit**:
+  - Three new OFL fonts (Smiley Sans 得意黑, LXGW WenKai 霞鹜文楷, Instrument Serif) download on first run.
+  - Themes get type-scale tokens and font pairs.
+  - Chinese line breaking keeps punctuation off line starts (避头尾).
+  - The first-pass check lints on-screen text: words per line, text area, stacked styles, emoji, doubled punctuation
+    and lines in the wrong language.
 - **The editor brain**: each project says how it is cut and why ("Cut as Calm travel film: drone footage, no
   talking, evening light"), from the footage and your words, and you can change it. A shot plan shows what each
   shot gets (hold, cut or dissolve, slow motion only where it stays smooth, follow the subject for vertical) with the
