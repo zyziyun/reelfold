@@ -14,6 +14,8 @@ VERSION="${TAG#v}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
 REPO_URL="https://github.com/zyziyun/reelfold"
+# One line under every release: what Reelfold is (hand-written notes in apps/desk/release-notes/ carry their own).
+ABOUT="_Reelfold (千剪) is the open-source workbench for creators: your own footage, edited into videos for every platform (YouTube, TikTok, Instagram, X and LinkedIn, then Xiaohongshu, Douyin, Bilibili and WeChat Channels) and scheduled, on your Mac. Free, MIT._"
 
 if [ -f "apps/desk/release-notes/$TAG.md" ]; then
   cat "apps/desk/release-notes/$TAG.md"
@@ -28,7 +30,7 @@ for cl in apps/desk/CHANGELOG.md CHANGELOG.md; do
              for (i = 1; i <= n; i++) if (w[i] == ver) { found = 1; next } }
     found { print }' "$cl")
   if [ -n "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
-    printf '%s\n' "$section"
+    printf '%s\n\n%s\n' "$section" "$ABOUT"
     exit 0
   fi
 done
@@ -78,6 +80,8 @@ if [ ${#feat[@]} -eq 0 ] && [ ${#fix[@]} -eq 0 ] && [ ${#perf[@]} -eq 0 ] && [ $
   echo "Maintenance release."
   echo
 fi
+echo "$ABOUT"
+echo
 echo "**Install:** download \`Reelfold-$VERSION-mac-arm64.dmg\` below (Apple silicon, macOS 14+), open it and drag Reelfold to Applications. Installed copies update themselves."
 if [ -n "$prev" ]; then
   echo
