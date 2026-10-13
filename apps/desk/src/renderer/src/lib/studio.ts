@@ -70,7 +70,11 @@ function clipGroup(c: Clip, mine: CalendarPost[], ask: boolean, projectRunning: 
   const on = mine.filter((p) => p.enabled !== false);
   const next = on.filter((p) => p.state !== 'posted').sort((a, b) => a.at.localeCompare(b.at))[0] ?? null;
   const last = on.filter((p) => p.state === 'posted').sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
-  if (ask || st === 'you') return { group: 'you', tone: 'you', post: next, posted: false };
+  if (ask) return { group: 'you', tone: 'you', post: next, posted: false };
+  // its project's run is still going (on autopilot it answers its own checks, and a step that failed in an earlier
+  // round is being made again): in progress - never "Needs you" / "Stopped" while the run goes on
+  if (projectRunning && (st === 'you' || st === 'error') && !made) return { group: 'run', tone: 'run', post: null, posted: false };
+  if (st === 'you') return { group: 'you', tone: 'you', post: next, posted: false };
   if (st === 'error') return { group: 'you', tone: 'error', post: null, posted: false };
   if (!made) return { group: 'run', tone: c.state === 'running' || projectRunning ? 'run' : 'off', post: null, posted: false };
   if (next) return { group: 'scheduled', tone: 'done', post: next, posted: false };
@@ -129,7 +133,8 @@ export function studioRows(
       kind: 'request',
       item: null,
       clip: null,
-      title: r.name || r.prompt || '',
+      // a goal's request: its video's title, never the request's raw words ("Title: … Make a 110-second …")
+      title: r.goal_title || r.name || r.prompt || '',
       project: null,
       pos: null,
       thumb: null,

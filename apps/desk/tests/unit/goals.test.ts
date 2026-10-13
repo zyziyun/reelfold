@@ -3,7 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Goal, GoalVideo } from '../../src/shared/goal';
 import { setLang } from '../../src/renderer/src/i18n';
-import { dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
+import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, requestTitle, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
 import { platformsFor } from '../../src/renderer/src/v4/GoalView';
 
 const vid = (id: string, x: Partial<GoalVideo> = {}): GoalVideo => ({ id, title: `Video ${id}`, kind: 'film', length_s: 45, clips: 3, stories: ['s1'], platforms: ['youtube', 'xiaohongshu', 'bilibili'], request: 'Make it', state: 'waiting', ...x });
@@ -61,7 +61,9 @@ describe('a video', () => {
     expect(videoLine(vid('v1', { state: 'making', progress: 0.42 }))).toBe('Making · 42%');
     expect(videoLine(vid('v1', { state: 'making', queued: true }))).toBe('Waiting for a free slot');
     expect(videoTone(vid('v1', { state: 'making', queued: true }))).toBe('off');
-    expect(videoLine(vid('v1', { state: 'planning', retried: 'ai-timeout' }))).toBe('Planning the edit · trying again');
+    // a failure the group retries: what happened and what happens next, in plain words
+    expect(videoLine(vid('v1', { state: 'planning', retried: 'ai-timeout', attempts: 2 }))).toBe('Planning the edit · The AI didn’t answer in time — trying again (1 of 1)');
+    expect(videoLine(vid('v1', { state: 'planning', retried: 'stalled', attempts: 2 }))).toBe('Planning the edit · Planning took too long — trying again (1 of 1)');
     expect(videoLine(vid('v1', { state: 'made' }))).toBe('Made');
     expect(videoTone(vid('v1', { state: 'made' }))).toBe('done');
     expect(videoTone(vid('v1', { state: 'you' }))).toBe('you');
@@ -95,5 +97,30 @@ describe('a made file', () => {
     expect(platformsFor({ w: 1080, h: 1920, aspect: '9:16' }, ['youtube-shorts', 'bilibili'])).toEqual(['youtube-shorts']);
     // a version of its own (the Chinese one): its file is its own platform's only
     expect(platformsFor({ platform: 'bilibili', w: 1920, h: 1080, aspect: '16:9' }, [])).toEqual(['bilibili']);
+  });
+});
+
+describe('one group, one truth (her DJI goal, 2026-10-13)', () => {
+  it('a video\'s language versions are inside it, each with the group\'s words', () => {
+    expect(versionLabel({ lang: 'en' })).toBe('English');
+    expect(versionLabel({ lang: 'zh' })).toBe('中文');
+    expect(versionLabel({ lang: null })).toBe('Video');
+    expect(versionLine({ state: 'running', queued: true })).toBe('Waiting for a free slot');
+    expect(versionLine({ state: 'running', progress: 0.25 })).toBe('Making · 25%');
+    expect(versionLine({ state: 'failed' })).toBe('Failed — the group tries it again');
+    expect(versionTone({ state: 'made' })).toBe('done');
+  });
+  it('a goal\'s request row reads as its video, never the raw request', () => {
+    const r = { goal_title: 'The Needle After Dark', goal_title_zh: '夜晚的太空针塔', name: null, prompt: 'Title: "The Needle After Dark". Make a 110-second history explainer' };
+    expect(requestTitle(r, 'en')).toBe('The Needle After Dark');
+    expect(requestTitle(r, 'zh-CN')).toBe('夜晚的太空针塔');
+    expect(requestTitle({ name: null, prompt: 'cut my talk' }, 'en')).toBe('cut my talk');
+  });
+  it('the count she asked for: met, or why it is short', () => {
+    expect(countNote({ count: { min: 10, max: 15, asked: 12, planned: 12 } })).toBe('You asked for 10–15: 12 planned.');
+    expect(countNote({ count: { min: 10, max: 15, asked: 12, planned: 8, short: true, photo_only: 9, thin: 1 } })).toBe(
+      'You asked for at least 10; the footage carries 8. 9 stories are photos only · 1 has too little video',
+    );
+    expect(countNote({ count: null })).toBeNull();
   });
 });

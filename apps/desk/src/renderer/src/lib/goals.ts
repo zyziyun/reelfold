@@ -1,7 +1,8 @@
 // Goal mode in the UI: the groups of videos one request asked for (engine/desk_engine/goals.py). Pure helpers (unit
 // tested) + one hook that keeps the goals fresh (engine events; a short poll while one is going).
 import { useEffect, useMemo } from 'react';
-import type { Goal, GoalVideo } from '../../../shared/goal';
+import type { Goal, GoalVersion, GoalVideo } from '../../../shared/goal';
+import type { OpenRequest } from '../../../shared/v04';
 import type { PilotFailure } from '../../../shared/v02';
 import { getLang, has, t, tk, type MessageKey } from '../i18n';
 import { useEngine, useLoad } from './engine';
@@ -64,7 +65,7 @@ export function goalTone(g: Pick<Goal, 'state' | 'videos' | 'counts'>): 'run' | 
   return g.counts.made ? 'done' : 'error';
 }
 
-const GOAL_CODES = new Set(['by-you', 'stopped', 'stalled', 'lost', 'plan', 'apply', 'intake', 'items-failed', 'missing', 'needs-input', 'needs-model']);
+const GOAL_CODES = new Set(['by-you', 'stopped', 'app-closed', 'stalled', 'lost', 'plan', 'apply', 'intake', 'items-failed', 'missing', 'needs-input', 'needs-model']);
 
 /** Why a video was dropped, in her words (the engine's failure code; goal codes have their own words). */
 export function dropReason(v: Pick<GoalVideo, 'reason_code'>): string {
@@ -72,6 +73,24 @@ export function dropReason(v: Pick<GoalVideo, 'reason_code'>): string {
   if (GOAL_CODES.has(c)) return t(`goal.why.${c}` as MessageKey);
   if (/^plan-/.test(c)) return has(`goal.why.${c}`) ? tk(`goal.why.${c}`) : t('goal.why.plan');
   return failureReason({ code: c || 'unknown', state: 'failed' } as unknown as PilotFailure);
+}
+
+/** Why a video is being tried again, in a few plain words ("Planning took too long"); ``making``: it failed while
+ * being made (not planned). */
+export function retryWhy(code: string | null | undefined, making = false): string {
+  const c = code ?? '';
+  if (c === 'stalled') return making ? t('goal.retryWhy.stalledMaking') : t('goal.retryWhy.stalled');
+  if (c === 'lost') return t('goal.retryWhy.lost');
+  if (c === 'app-closed') return t('goal.retryWhy.appClosed');
+  if (c === 'plan' || /^plan-/.test(c)) return t('goal.retryWhy.plan');
+  if (/^ai-/.test(c) || c === 'needs-model') return t('goal.retryWhy.ai');
+  if (!c || c === 'unknown' || c === 'stopped') return t('goal.retryWhy.other');
+  return t('goal.retryWhy.failed');
+}
+
+/** "Planning took too long — trying again (1 of 1)": a failure the group is retrying, and what happens next. */
+function retrying(v: Pick<GoalVideo, 'retried' | 'attempts' | 'state'>): string {
+  return t('goal.v.retryLine', { why: retryWhy(v.retried, v.state === 'making'), n: Math.max(1, (v.attempts ?? 2) - 1), of: 1 });
 }
 
 /** One plain line for a video's row: where it is. */
@@ -82,12 +101,12 @@ export function videoLine(v: GoalVideo): string {
     case 'waiting':
       return t('goal.v.waiting');
     case 'planning':
-      return v.retried ? `${t('goal.v.planning')} · ${t('goal.v.retrying')}` : t('goal.v.planning');
+      return v.retried ? `${t('goal.v.planning')} · ${retrying(v)}` : t('goal.v.planning');
     case 'making': {
       if (v.queued) return t('goal.v.queued');
       const pct = v.progress != null ? Math.round(v.progress * 100) : null;
       const base = pct ? t('goal.v.makingPct', { pct }) : t('goal.v.making');
-      return v.retried ? `${base} · ${t('goal.v.retrying')}` : base;
+      return v.retried ? `${base} · ${retrying(v)}` : base;
     }
     case 'you':
       return t('goal.v.you');
@@ -98,6 +117,53 @@ export function videoLine(v: GoalVideo): string {
     default:
       return '';
   }
+}
+
+/** A language version's name: English / 中文 / Français (a video with one language: "Video"). */
+export function versionLabel(x: Pick<GoalVersion, 'lang'>): string {
+  return x.lang && has(`goal.ver.${x.lang}`) ? tk(`goal.ver.${x.lang}`) : t('goal.ver.one');
+}
+
+/** Where one language version is - in the group's words (never a loose "Stopped" while the group goes on). */
+export function versionLine(x: GoalVersion): string {
+  switch (x.state) {
+    case 'made':
+      return t('goal.v.made');
+    case 'you':
+      return t('goal.v.you');
+    case 'failed':
+      return t('goal.ver.failed');
+    case 'stopped':
+      return t('goal.ver.stopped');
+    default: {
+      if (x.queued) return t('goal.v.queued');
+      const pct = x.progress != null ? Math.round(x.progress * 100) : null;
+      return pct ? t('goal.v.makingPct', { pct }) : t('goal.v.making');
+    }
+  }
+}
+
+export function versionTone(x: Pick<GoalVersion, 'state' | 'queued'>): 'run' | 'you' | 'error' | 'done' | 'off' {
+  return x.state === 'made' ? 'done' : x.state === 'you' ? 'you' : x.state === 'failed' ? 'error' : x.state === 'stopped' || x.queued ? 'off' : 'run';
+}
+
+/** A goal's request row: the video's title (never the raw request words "Title: … Make a 110-second …"). */
+export function requestTitle(r: Pick<OpenRequest, 'goal_title' | 'goal_title_zh' | 'name' | 'prompt'>, lang = getLang()): string {
+  if (r.goal_title) return (lang === 'zh-CN' && r.goal_title_zh) || r.goal_title;
+  return r.name || r.prompt || '';
+}
+
+/** How many she asked for against what was planned (the plan card says why when it is fewer), or null. */
+export function countNote(g: Pick<Goal, 'count'>): string | null {
+  const c = g.count;
+  if (!c || !(c.min || c.max || c.asked)) return null;
+  if (c.short && c.min) {
+    const why = c.reason || [c.photo_only ? t('goal.countPhotos', { n: c.photo_only }) : null, c.thin ? t('goal.countThin', { n: c.thin }) : null].filter(Boolean).join(' · ');
+    return [t('goal.countShort', { min: c.min, n: c.planned }), why].filter(Boolean).join(' ');
+  }
+  if (c.min && c.max && c.min !== c.max) return t('goal.countOk', { min: c.min, max: c.max, n: c.planned });
+  if (c.asked) return t('goal.countAbout', { want: c.asked, n: c.planned });
+  return null;
 }
 
 /** The group's one line: "4 of 6 made · 1 making · 1 dropped" (or what it is doing before the videos exist). */

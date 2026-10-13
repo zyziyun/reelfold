@@ -32,6 +32,20 @@ export interface GoalProject {
   item: string;
 }
 
+/** One language version of a video (its own project: the YouTube English cut, the Chinese cut). */
+export interface GoalVersion {
+  item?: string | null;
+  dir?: string | null;
+  name?: string | null;
+  /** en | zh | fr, from the project's name; null when it has one language */
+  lang?: string | null;
+  state: 'made' | 'running' | 'you' | 'failed' | 'stopped';
+  /** failed: the engine's failure code */
+  code?: string | null;
+  queued?: boolean | null;
+  progress?: number | null;
+}
+
 export interface GoalVideo {
   id: string;
   title: string;
@@ -66,6 +80,25 @@ export interface GoalVideo {
   merged_into?: string | null;
   /** the unfinished video was cleared (request deleted / project archived) */
   cleared?: boolean | null;
+  /** its language versions while / once they are made (one project each) */
+  versions?: GoalVersion[] | null;
+  /** the last failure's words (scrubbed): shown under "details", never as the reason */
+  last_error?: string | null;
+}
+
+/** How many videos she asked for, and whether the plan reached it (lib/vstudio/intake/goal.py ``count``). */
+export interface GoalCount {
+  asked?: number | null;
+  min?: number | null;
+  max?: number | null;
+  planned: number;
+  /** fewer than her minimum: the footage cannot carry more */
+  short?: boolean | null;
+  /** the AI's own line on why (in the UI language) */
+  reason?: string | null;
+  /** stories that are photos / panoramas only, and stories with too little video */
+  photo_only?: number | null;
+  thin?: number | null;
 }
 
 export interface GoalCounts {
@@ -119,6 +152,7 @@ export interface Goal {
   dismissed_at?: number | null;
   videos: GoalVideo[];
   counts: GoalCounts;
+  count?: GoalCount | null;
 }
 
 export type GoalEditOp =

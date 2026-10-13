@@ -10,17 +10,34 @@ import { ansiSpans, clockOf, filterLines, lastModel, lineTag, searchHits, transc
 import { providerName } from '../../../shared/aiRoutes';
 import { modelLabel } from '../../../shared/aiModels';
 import { useUi } from './ui';
+import { failureReason } from './Failure';
+import type { PilotFailure } from '../../../shared/v02';
 import './livepane.css';
 
 const STICK_PX = 28;
 
+/** An engine stop / failure in plain words (who stopped it; what failed, from its code) - the engine's own text stays
+ * on hover, never as the line. Other lines: as written (the pane is a log). */
+export function plainLine(l: LiveLine): { text: string; detail: string | null } {
+  const d = (l.data ?? {}) as Record<string, unknown>;
+  if (l.src === 'engine' && l.kind === 'stop') {
+    const by = typeof d.by === 'string' && ['you', 'stall', 'goal'].includes(d.by) ? d.by : 'you';
+    return { text: t(`lp.stop.${by as 'you' | 'stall' | 'goal'}`), detail: null };
+  }
+  if (l.src === 'engine' && l.kind === 'error' && typeof d.code === 'string') {
+    return { text: t('lp.err', { why: failureReason({ code: d.code, state: 'failed' } as unknown as PilotFailure) }), detail: typeof d.detail === 'string' ? d.detail : null };
+  }
+  return { text: l.text, detail: null };
+}
+
 const Line = memo(function Line({ l, hit, cur, first }: { l: LiveLine; hit: boolean; cur: boolean; first: boolean }) {
-  const spans = useMemo(() => ansiSpans(l.text), [l.text]);
+  const shown = useMemo(() => plainLine(l), [l]);
+  const spans = useMemo(() => ansiSpans(shown.text), [shown.text]);
   return (
     <div className={`lv-ln k-${l.kind} s-${l.src} ${hit ? 'lv-hit' : ''} ${cur ? 'lv-cur' : ''} ${l.kind === 'turn' && !first ? 'lv-gap' : ''}`} data-testid="live-line" data-src={l.src} data-kind={l.kind}>
       <span className="lv-t">{clockOf(l.at)}</span>
       <span className="lv-tag">{lineTag(l)}</span>
-      <span className="lv-x">
+      <span className="lv-x" title={shown.detail ?? undefined}>
         {l.kind === 'turn' ? '▸ ' : ''}
         {spans.map((s, i) => (s.cls ? <span key={i} className={s.cls}>{s.text}</span> : s.text))}
       </span>

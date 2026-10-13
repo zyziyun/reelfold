@@ -34,6 +34,7 @@
 .runv-tl li.done { border-color: var(--accent); color: var(--text-muted); }
 .runv-tl li.current { color: var(--text); font-weight: 600; border-image: linear-gradient(90deg, var(--accent) 55%, var(--surface-3) 55%) 1; }
 .runv-tl li.current small { font-weight: 400; color: var(--text-muted); }
+.runv-tl li.stopped { color: var(--text); border-image: linear-gradient(90deg, var(--danger, #d4513b) 55%, var(--surface-3) 55%) 1; }
 .runv-tl li.skipped { color: var(--text-faint); text-decoration: line-through; }
 
 .runv-h { margin: 36px 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-faint); }

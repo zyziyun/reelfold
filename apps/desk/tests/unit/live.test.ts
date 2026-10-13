@@ -82,6 +82,11 @@ describe('planStory', () => {
     expect(s[3].facts.map((f) => f.key)).toEqual(['run.f.asked', 'run.f.tokens']);
     expect(s[3].end).toBeNull();
   });
+  it('a stopped request ends on the step it was on (never "now" under a stopped request)', () => {
+    const s = planStory([E(1, { stage: 'model', provider: 'claude-code' }), { src: 'engine', kind: 'stop', text: 'stopped by you', at: 5, data: { by: 'you' } }], 60);
+    expect(s.map((e) => [e.step, e.state, e.end])).toEqual([['model', 'done', 5]]);
+    expect(s[0].facts.map((f) => f.key)).toEqual(['run.f.asked', 'run.f.stoppedHere']);
+  });
   it('the file being read now is marked; the plan written closes the story', () => {
     const now = planStory([E(1, { stage: 'probe', file: 'a.mp4', i: 1, n: 2 }), E(2, { stage: 'probe', file: 'b.mp4', i: 2, n: 2 })], 3);
     expect(now[0].files.map((f) => f.state)).toEqual(['done', 'now']);

@@ -530,6 +530,8 @@ export interface IntakeJob {
   /** the planner's language for this job (``--ui-lang``): en | zh | fr */
   lang?: string | null;
   plan: IntakePlan | null;
+  /** stopped: who stopped it (you | stall | goal) */
+  stopped_by?: 'you' | 'stall' | 'goal' | null;
   error?: string | null;
   error_code?: import('./v02').FailureCode | null;
   error_provider?: string | null;
@@ -567,6 +569,11 @@ export interface OpenRequest {
   /** a video of a goal (goal mode): the goal's id and the video's (the lists show it under its group) */
   goal?: string | null;
   goal_video?: string | null;
+  /** a goal's video: its title (the row says it, never the request's raw words) */
+  goal_title?: string | null;
+  goal_title_zh?: string | null;
+  /** stopped: who stopped it - she did (you), or the app did (stall: planning showed no progress; goal) */
+  stopped_by?: 'you' | 'stall' | 'goal' | null;
 }
 
 /** What Delete picks (POST /api/delete/*): project / batch / work folders, single videos, requests. */
@@ -872,6 +879,11 @@ export interface InboxItem {
   need?: EngineMsg | null;
   /** kind "failed" (a request): the plan's own reason code */
   error_code?: string | null;
+  /** an engine review (a layout check): the pictures to look at (its stills) and the step's own help line */
+  pictures?: string[];
+  help?: { en?: string; zh?: string; fr?: string } | null;
+  /** the step's default answer (what the AI / the rules would choose) */
+  default?: unknown;
   /** an engine question about one clip: which (its title, else its place in the project) */
   clip?: { id: string; title?: string | null; n: number } | null;
   /** the voice question when the chosen paid voice has no key: the service, and the free voice this computer has

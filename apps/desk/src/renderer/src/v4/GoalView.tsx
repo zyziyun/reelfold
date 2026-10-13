@@ -13,7 +13,7 @@ import { GOAL_KINDS, type Goal, type GoalEditOp, type GoalKind, type GoalStory, 
 import type { Clip } from '../../../shared/v04';
 import { fmtLen, getLang, t } from '../i18n';
 import { useEngine } from '../lib/engine';
-import { dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, videoHref, videoLine, videoTitle, videoTone, GOAL_POLL_MS } from '../lib/goals';
+import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone, GOAL_POLL_MS } from '../lib/goals';
 import { failureReason } from './Failure';
 import { Thumb } from './kit';
 import { errText } from './msg';
@@ -117,6 +117,11 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
         <p className="runv-now" data-testid="goal-now">
           <i className={`dot ${goalTone(g)}`} /> {goalLine(g)}
         </p>
+        {g.state !== 'planned' && countNote(g) && (
+          <p className={`small ${g.count?.short ? 'goalv-note' : 'muted'}`} data-testid="goal-count">
+            {countNote(g)}
+          </p>
+        )}
         {g.state !== 'planned' && g.state !== 'failed' && (
           <>
             <div className="runv-big">
@@ -199,6 +204,11 @@ function GoalPlan({ g, busy, onOps, onApprove }: { g: Goal; busy: boolean; onOps
     <section className="goalv-sec goalv-plan" data-testid="goal-plan">
       <h2 className="runv-h">{t('goal.planTitle', { n: keep.length })}</h2>
       <p className="muted small">{t('goal.planLead')}</p>
+      {countNote(g) && (
+        <p className={`small ${g.count?.short ? 'goalv-note' : 'muted'}`} data-testid="goal-count">
+          {countNote(g)}
+        </p>
+      )}
       {tot && (
         <p className="muted small" data-testid="goal-found">
           {t('goal.found', { clips: tot.videos, photos: tot.photos, days: tot.days.length })}
@@ -353,6 +363,7 @@ export function VideoRow({ gid, v, on, busy, onAct }: { gid: string; v: GoalVide
             <i style={{ width: `${Math.max(4, pct ?? 30)}%` }} />
           </span>
         )}
+        <Versions v={v} />
       </span>
       {v.projects?.length ? (
         <a className="btn sm ghost" href={videoHref(gid, v)} data-testid="goal-video-open">
@@ -360,7 +371,7 @@ export function VideoRow({ gid, v, on, busy, onAct }: { gid: string; v: GoalVide
         </a>
       ) : null}
       {onAct && (v.state === 'waiting' || v.state === 'planning' || v.state === 'making' || v.state === 'you') && (
-        <button className="btn sm ghost" disabled={busy} onClick={() => onAct('drop')} data-testid="goal-video-drop">
+        <button className="btn sm ghost" disabled={busy} onClick={() => window.confirm(t('goal.dropAsk', { title: videoTitle(v) })) && onAct('drop')} data-testid="goal-video-drop">
           {t('goal.dropVideo')}
         </button>
       )}
@@ -371,6 +382,43 @@ export function VideoRow({ gid, v, on, busy, onAct }: { gid: string; v: GoalVide
         </button>
       )}
     </div>
+  );
+}
+
+/** A video's language versions (one project each): one line per version inside the video, each opening its own
+ * page - the English and the Chinese cut are one video, never two loose rows. */
+export function Versions({ v, item }: { v: GoalVideo; item?: string }) {
+  const xs = v.versions ?? [];
+  if (xs.length < 2 || v.state === 'made' || v.state === 'dropped') return null;
+  return (
+    <span className="goalv-vers" data-testid="goal-versions">
+      {xs.map((x, k) => (
+        // a span (the group's row around it is a link already): it opens the version's own page
+        <span
+          key={x.item ?? k}
+          role="link"
+          tabIndex={0}
+          className={`goalv-ver ${item && x.item === item ? 'on' : ''}`}
+          data-testid="goal-version"
+          data-lang={x.lang ?? ''}
+          data-state={x.state}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (x.item) location.hash = `#/studio/${x.item}`;
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || !x.item) return;
+            e.preventDefault();
+            e.stopPropagation();
+            location.hash = `#/studio/${x.item}`;
+          }}
+        >
+          <i className={`dot ${versionTone(x)}`} />
+          <b>{versionLabel(x)}</b> <span className="muted">{versionLine(x)}</span>
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -567,6 +615,7 @@ export function GoalGroup({ g, on, vid, item }: { g: Goal; on: boolean; vid?: st
                     <i style={{ width: `${Math.max(4, Math.round((v.progress ?? 0.3) * 100))}%` }} />
                   </span>
                 )}
+                <Versions v={v} item={item} />
               </span>
             </a>
           );

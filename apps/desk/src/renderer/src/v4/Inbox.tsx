@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, FileText, Film, Inbox as InboxIcon, Maximize2, Minimize2, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import type { InboxItem, InboxOption } from '../../../shared/v04';
-import { fmtClock, has, intlLocale, t } from '../i18n';
+import { fmtClock, getLang, has, intlLocale, t } from '../i18n';
 import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueDo, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, reviewReasons, secsLabel } from '../lib/inboxView';
 import { DraftPane, useDraftIt, type KeepEdits } from './DraftReview';
 import { useEngine } from '../lib/engine';
@@ -283,6 +283,8 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
     if (x.failure) return;
     if (noKey) return noKey.free_engine ? takeFreeVoice() : undefined; // "Use the free voice" = the step's default
     if (x.href) return void (location.hash = x.href);
+    // an engine review (a layout check of stills): answered here with what she saw; a batch review opens the player
+    if (x.kind === 'review' && x.source === 'engine') return onDone(undefined);
     if (x.kind === 'review' && x.project.id) return go({ name: 'focus', id: x.project.id });
     if (author) {
       if (author.drafting) return;
@@ -360,6 +362,8 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
             </div>
           ) : author ? (
             <DraftPane itemKey={x.key} a={author} edits={edits} onEdits={setEdits} />
+          ) : x.kind === 'review' && x.source === 'engine' ? (
+            <EngineReview x={x} />
           ) : x.kind === 'review' ? (
             <div className="col" style={{ gap: 10 }}>
               {reviewReasons(x.reasons ?? []).map((r) => (
@@ -424,7 +428,9 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
             <Check className="ico" />
             {x.kind === 'confirm'
               ? t('inbox.confirmEdits', { n: opts.length })
-              : x.kind === 'review'
+              : x.kind === 'review' && x.source === 'engine'
+                ? t('inbox.lookGood')
+                : x.kind === 'review'
                 ? t('inbox.startReview', { m: t('inbox.minutes', { n: x.minutes ?? 1 }) })
                 : x.kind === 'feedback-approve'
                   ? t('inbox.markReady')
@@ -437,6 +443,36 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** An engine review (a layout check): the pictures it is about (its stills), else the video, the step's own help
+ * line and the AI's choice - never an empty page with only a button. */
+function EngineReview({ x }: { x: InboxItem }) {
+  const lang = getLang();
+  const help = x.help ? (lang === 'zh-CN' ? x.help.zh : lang === 'fr' ? (x.help.fr ?? x.help.en) : x.help.en) : null;
+  const pics = x.pictures ?? [];
+  const approve = !!(x.default && typeof x.default === 'object' && (x.default as { approve?: boolean }).approve);
+  return (
+    <div className="col" style={{ gap: 10 }} data-testid="inbox-engine-review">
+      {help ? <p className="small">{help}</p> : null}
+      {pics.length ? (
+        <div className="ux-stills" data-testid="inbox-stills">
+          {pics.map((p) => (
+            <img key={p} src={media(p)} alt="" loading="lazy" />
+          ))}
+        </div>
+      ) : x.project.video ? (
+        <video className="ux-stillvid" src={media(x.project.video)} controls preload="metadata" data-testid="inbox-review-video" />
+      ) : (
+        <p className="muted small">{t('inbox.nothingToSee')}</p>
+      )}
+      {approve ? (
+        <p className="muted small" data-testid="inbox-ai-choice">
+          <Sparkles className="ico" /> {t('inbox.aiChoice')}
+        </p>
+      ) : null}
     </div>
   );
 }

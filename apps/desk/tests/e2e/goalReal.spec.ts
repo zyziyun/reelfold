@@ -89,7 +89,19 @@ function api<T>(p: string, body?: unknown): Promise<T> {
   ) as Promise<T>;
 }
 
-type G = { id: string; state: string; counts: { total: number; made: number; dropped: number }; videos: { id: string; title: string; state: string; projects?: { item: string }[] }[] };
+type G = { id: string; state: string; counts: { total: number; made: number; dropped: number }; videos: { id: string; title: string; state: string; intake?: string | null; projects?: { item: string }[]; versions?: { lang?: string | null; state: string; item?: string }[] | null }[] };
+
+/** Her DJI goal (2026-10-13): the group is the one place its videos are followed - none of its requests / projects /
+ * language versions is a loose row of the list (in any group), and none of their steps autopilot answers is in the
+ * Inbox. */
+async function onlyInTheGroup(g: G) {
+  const items = g.videos.flatMap((v) => (v.projects ?? []).map((p) => p.item));
+  for (const it of items) await expect(page.locator(`[data-testid^=studio-group-] [data-row^="${it}"]`)).toHaveCount(0);
+  for (const v of g.videos) if (v.intake) await expect(page.locator(`[data-testid^=studio-group-] [data-row="r:${v.intake}"]`)).toHaveCount(0);
+  const inbox = await api<{ items: { project: { id: string | null } }[] }>('/api/inbox');
+  const waiting = new Set(g.videos.filter((v) => v.state === 'you').flatMap((v) => (v.projects ?? []).map((p) => p.item)));
+  expect(inbox.items.filter((x) => x.project.id && items.includes(x.project.id) && !waiting.has(x.project.id))).toEqual([]);
+}
 
 test('her request becomes a goal: the footage is surveyed into stories and a plan card of videos waits', async () => {
   test.setTimeout(240000);
@@ -161,6 +173,11 @@ test('the group shows each video’s own progress in the list, on its page and o
   // both in flight at once (two at a time)
   await expect.poll(async () => (await api<G>(`/api/goals/${gid}`)).videos.filter((v) => v.state === 'planning' || v.state === 'making').length, { timeout: 30000 }).toBe(2);
   await expect(group.getByTestId('studio-goal-row').first()).toHaveAttribute('data-state', /planning|making|made/);
+  // a video made in two languages (YouTube English, Xiaohongshu Chinese) is ONE row with its versions inside it
+  await expect
+    .poll(async () => (await api<G>(`/api/goals/${gid}`)).videos.some((v) => (v.versions ?? []).map((x) => x.lang).sort().join() === 'en,zh'), { timeout: 90000, intervals: [2000] })
+    .toBe(true);
+  await onlyInTheGroup(await api<G>(`/api/goals/${gid}`));
   await shot('03-running');
   await hash('#/');
   const card = page.getByTestId('home-goal');
@@ -191,6 +208,7 @@ test('every video is made: the goal finishes with what was made per platform and
   expect(items.length).toBeGreaterThanOrEqual(2);
   await expect(page.getByTestId('studio-goal').getByTestId('studio-goal-row')).toHaveCount(2);
   for (const it of items) await expect(page.locator(`[data-testid=studio-group-ready] [data-row^="${it}"]`)).toHaveCount(0);
+  await onlyInTheGroup(g);
   await shot('05-done-summary');
   // a row opens its video
   await page.getByTestId('studio-goal').getByTestId('studio-goal-row').first().click();

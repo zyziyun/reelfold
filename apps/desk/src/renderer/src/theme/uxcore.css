@@ -235,3 +235,7 @@
 .ux-slash button { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .ux-slash button:hover { background: var(--surface-2, var(--accent-soft)); }
 .ux-slash small { color: var(--text-muted); }
+/* an engine review's stills (a layout check): what she is asked to look at, inline */
+.ux-stills { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.ux-stills img { width: 100%; aspect-ratio: auto; border-radius: 6px; background: var(--surface-2); object-fit: contain; max-height: 220px; }
+.ux-stillvid { width: 100%; max-height: 320px; border-radius: 8px; background: #000; }

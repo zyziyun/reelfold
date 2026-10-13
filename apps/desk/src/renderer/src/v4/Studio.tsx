@@ -4,17 +4,17 @@
 // one AI bar). A request still being planned or a project with no clips yet opens its own detail; a question about a
 // whole project opens the question itself. ＋ New video (⌘N) starts the next one from here; ↑ ↓ and ⌘1–9 switch.
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ChevronDown, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, ChevronRight, LayoutGrid, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Play, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
 import type { CalendarPost, InboxItem, OpenRequest } from '../../../shared/v04';
-import { fmtDate, fmtLen, fmtMinutes, t } from '../i18n';
+import { fmtDate, fmtLen, fmtMinutes, t, tk } from '../i18n';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { inboxTitle } from '../lib/inboxView';
 import { keyHint } from '../lib/keys';
 import { reviewInRow } from '../lib/nav';
 import { href, routeQuery } from '../lib/router';
-import { goalActive, useGoals } from '../lib/goals';
+import { goalActive, groupVideos, useGoals } from '../lib/goals';
 import { GoalGroup, GoalPage } from './GoalView';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
 import { STUDIO_FILTERS, grouped, needsYou, notMadeYet, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
@@ -25,7 +25,8 @@ import { ItemPane, useResolve } from './Inbox';
 import { Empty, Sk, Thumb } from './kit';
 import { OutputEditor } from './OutputEditor';
 import { ProjectDetail, stateLine } from './Hub';
-import { itemPipeline } from '../lib/pipeline';
+import { itemPipeline, stepOfStage } from '../lib/pipeline';
+import { failureReason } from './Failure';
 import { Composer } from './Composer';
 import { isTyping, useUi } from './ui';
 import { archivedLine } from '../lib/archive';
@@ -120,12 +121,35 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   };
   const dfind = useDeferredValue(find);
   const rows = useMemo(() => findRows(allRows, dfind, posts), [allRows, dfind, posts]);
-  const groups = useMemo(() => grouped(rows), [rows]);
   useGoalParam(); // a new ?goal= is a new page (the route itself stays #/studio)
   const q = routeQuery();
-  // goal mode: the groups of videos one request asked for, each above the list with its videos under it; their
-  // requests / projects being made or ready sit in the group, not twice in the groups below
+  // goal mode: the groups of videos one request asked for, each above the list with its videos under it. The group
+  // is the one place they are followed: none of a goal's requests / projects (its language versions, what a retry
+  // left behind) is a loose row of its own, in any group - their state is the group's, never a contradicting one
   const { goals } = useGoals();
+  const inGoal = useMemo(() => {
+    const ids = new Set(goals.map((g) => g.id));
+    return (r: StudioRow) => {
+      const gid = r.i?.goal ?? r.r?.goal;
+      return !!gid && ids.has(gid);
+    };
+  }, [goals]);
+  const freeRows = useMemo(() => rows.filter((r) => !inGoal(r)), [rows, inGoal]);
+  const freeAll = useMemo(() => allRows.filter((r) => !inGoal(r)), [allRows, inGoal]);
+  const groups = useMemo(() => grouped(freeRows), [freeRows]);
+  // the goals' own videos, counted where the group shows them (needs you / in progress / ready)
+  const goalN = useMemo(() => {
+    const n = { you: 0, run: 0, ready: 0, scheduled: 0 } as Record<StudioGroup, number>;
+    for (const g of goals) {
+      if (g.state === 'planned' || g.state === 'failed') n.you += 1;
+      for (const v of groupVideos(g)) {
+        if (v.state === 'you') n.you += 1;
+        else if (v.state === 'waiting' || v.state === 'planning' || v.state === 'making') n.run += 1;
+        else if (v.state === 'made') n.ready += 1;
+      }
+    }
+    return n;
+  }, [goals]);
   const goalSel = !id && q.goal ? q.goal : null;
   const [filter, setFilterS] = useState<ListFilter>(() => (LIST_FILTERS.includes(q.f as ListFilter) ? (q.f as ListFilter) : ((sessionStorage.getItem(FKEY) as ListFilter | null) ?? 'all')));
   useEffect(() => {
@@ -158,13 +182,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   }, [inArchive, wantArchived]);
   const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
   // a project with several videos is one header with its videos under it (its question as the header's badge)
-  const listRows = useMemo(() => {
-    const ids = new Set(goals.map((g) => g.id));
-    return rows.filter((r) => {
-      const gid = r.i?.goal ?? r.r?.goal;
-      return !(gid && ids.has(gid) && (r.group === 'run' || r.group === 'ready'));
-    });
-  }, [rows, goals]);
+  const listRows = freeRows;
   const pieces = useMemo(() => screenPieces(listRows, order), [listRows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownGoals = inArchive || finding(dfind) ? [] : goals.filter((g) => filter === 'all' || (filter === 'run' && goalActive(g) && g.state !== 'planned') || (filter === 'you' && (g.state === 'planned' || g.state === 'failed' || g.counts.you > 0)) || (filter === 'ready' && g.state === 'done'));
   const list = pieces.flatMap((x) => x.pieces.flatMap((pc) => (pc.kind === 'row' ? [pc.r] : pc.r ? [pc.r] : [])));
@@ -368,7 +386,8 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
     return () => window.removeEventListener('keydown', on, true);
   }, []);
 
-  const count = (g: ListFilter) => (g === 'all' ? rows.length : g === 'archived' ? nArchived : groups[g].length);
+  const count = (g: ListFilter) => (g === 'all' ? freeRows.length + goalN.you + goalN.run + goalN.ready : g === 'archived' ? nArchived : groups[g].length + goalN[g]);
+  const youN = needsYou(freeAll) + goalN.you;
   // the list: resizable, folds to the edge (⌘B, its button, or dragged past its min); saved on this Mac
   const [boxRef, box] = useBox<HTMLDivElement>();
   const pane = usePane('studio.list', box.w ? box.w - PAGE_MIN : undefined);
@@ -411,9 +430,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
               <LayoutGrid className="ico" />
             </button>
           )}
-          {ready && needsYou(allRows) > 0 && (
-            <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${needsYou(allRows)}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
-              <i className="dot you" /> {needsYou(allRows)}
+          {ready && youN > 0 && (
+            <button className="st-rail-you" onClick={() => (setFilter('you'), pane.toggle())} aria-label={`${t('st.f.you')} · ${youN}`} data-tip={t('st.f.you')} data-tip-x="start" data-testid="studio-rail-you">
+              <i className="dot you" /> {youN}
             </button>
           )}
         </aside>
@@ -506,9 +525,9 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
         <footer className="st-foot muted">
           <span>{t('st.jump', { key: keyHint('⌘K') })}</span>
           <span className="sp" />
-          {ready && needsYou(allRows) > 0 && (
+          {ready && youN > 0 && (
             <span className="st-you" data-testid="studio-you-count">
-              <i className="dot you" /> {needsYou(allRows)}
+              <i className="dot you" /> {youN}
             </span>
           )}
         </footer>
@@ -759,13 +778,54 @@ function EmptyClip({ r, ra, kind }: { r: StudioRow; ra: RowActionsApi; kind: 'no
   );
 }
 
+/** A video that stopped before it was made (its step failed): where and why, in plain words, and what she can do -
+ * never "the recording may have been empty". */
+function FailedClip({ r, ra }: { r: StudioRow; ra: RowActionsApi }) {
+  const x = targetOf(r);
+  const acts = new Set(ra.items(x).map((m) => m.testId));
+  const f = r.i?.failure ?? null;
+  const step = stepOfStage(f?.stage) ?? (f ? null : r.p.current);
+  return (
+    <div className="st-emptyclip failed" role="status" data-testid="studio-failed-clip">
+      <span className="tx">
+        <b>{t('st.failedClip.title')}</b>
+        {step ? <span className="muted"> · {t('st.failedClip.at', { step: tk(`hub.step.${step}`) })}</span> : null}
+        {f ? <span className="muted"> · {failureReason(f)}</span> : null}
+        <br />
+        <span className="muted small">{t('st.failedClip.next')}</span>
+      </span>
+      <span className="sp" />
+      {acts.has('row-retry') && (
+        <button className="btn sm primary" onClick={() => void ra.run('retry', [x])} data-testid="studio-failed-retry">
+          <RotateCcw className="ico" />
+          {t('run.tryAgain')}
+        </button>
+      )}
+      {acts.has('row-archive') && (
+        <button className="btn sm" onClick={() => void ra.run('archive', [x])} data-testid="studio-failed-drop">
+          <Archive className="ico" />
+          {t('st.failedClip.drop')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** The right side: the video's page, or what a request / a project without clips / a project's question needs. */
 function Page({ r, posts, more, ra }: { r: StudioRow; posts: CalendarPost[]; more: (e: { clientX: number; clientY: number }) => void; ra: RowActionsApi }) {
   const head = <MoreButton onMenu={more} testId="studio-page-more" className="st-pagemore" />;
-  const empty = r.kind === 'clip' && r.group !== 'run' && !notMadeYet(r) ? emptyClip(r.video, r.duration) : null;
+  const failed = r.kind === 'clip' && !r.video && r.clipState === 'failed';
+  const empty = r.kind === 'clip' && r.group !== 'run' && !notMadeYet(r) && !failed ? emptyClip(r.video, r.duration) : null;
   // a made clip: its page; one still being made: what it waits for (its question), else where its project is
   if (r.kind === 'clip' && r.video)
     return <OutputEditor id={r.item!} clip={r.clip!} layout="studio" ask={r.ask} place={{ project: r.project, pos: r.pos }} more={<MoreButton onMenu={more} testId="studio-page-more" />} notice={empty ? <EmptyClip r={r} ra={ra} kind={empty} /> : null} />;
+  if (failed && !r.ask && r.p.state !== 'run' && r.p.state !== 'queued')
+    return (
+      <div className="st-detail st-withmore">
+        {head}
+        <FailedClip r={r} ra={ra} />
+      </div>
+    );
   if (r.kind === 'clip' && empty === 'none' && !r.ask)
     return (
       <div className="st-detail st-withmore">

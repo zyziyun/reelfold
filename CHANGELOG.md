@@ -35,6 +35,23 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   - The first-pass check lints on-screen text: words per line, text area, stacked styles, emoji, doubled punctuation
     and lines in the wrong language.
 
+### Fixed
+
+- **Several videos from one folder (goal mode)**:
+  - The plan follows the count you ask for ("12 or so, at least 10, at most 15"): a rich place can carry two
+    videos with their own angle, unused stories fill up to your minimum, and a plan that still falls short says why.
+  - A goal's videos live only in its group: each video is one row with its English and Chinese versions inside it.
+    No loose "Stopped" / "Needs you" rows, and steps that autopilot answers itself never reach the Inbox.
+  - A stop the app makes is never labelled "Stopped by you". A failure the group retries reads in plain words with
+    what happens next ("Planning took too long — trying again (1 of 1)"). An app restart or update mid-goal plans
+    the interrupted video again without using up its retry.
+  - "Drop this video" asks first.
+- **Music-only films no longer fail on their first run**: a skipped step (no voice) now keeps its place, so the
+  render waits for the story and the layout check instead of starting with no music.
+- A stopped request no longer shows "Plan ready — your go". A video that stopped before it was made says where and
+  why (Try again / Drop), not "the recording may have been empty". A layout check shows its stills and the AI's
+  choice.
+
 ## [0.2.8] - 2026-10-13
 
 ### Added

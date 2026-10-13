@@ -17,6 +17,7 @@ import { liveText } from '../lib/liveStatus';
 import { useBox, usePane } from '../lib/panes';
 import { STEPS, stepState, type Pipeline } from '../lib/pipeline';
 import { planProgressView, PLAN_STEPS } from '../lib/planProgress';
+import { requestTitle } from '../lib/goals';
 import { useIntakeJob } from '../lib/useIntakeJob';
 import { Decisions, stateLine } from './Hub';
 import { LivePane } from './LivePane';
@@ -234,7 +235,17 @@ export function RequestRun({ r }: { r: OpenRequest }) {
   const at = view ? PLAN_STEPS.indexOf(view.steps.find((s) => s.state === 'current')?.id ?? 'scan') : 0;
   const pct = running ? Math.min(99, Math.round(((Math.max(0, at) + (view?.fraction ?? 0.35)) / PLAN_STEPS.length) * 100)) : job?.plan ? 100 : null;
   const started = job?.started ?? r.started ?? null;
-  const p: Pipeline = { state: r.state === 'error' ? 'failed' : r.state === 'needs' ? 'you' : running ? 'planning' : 'plan-ready', current: 'plan', progress: null, eta: null };
+  const st = job?.state ?? r.state;
+  const stopped = st === 'stopped';
+  // "Plan ready — your go" only for a plan that is ready and waits for her (ask me first); a stopped / failed request
+  // says so, and an autopilot plan being made into its projects is still on its way
+  const p: Pipeline = {
+    state: st === 'error' ? 'failed' : st === 'needs' ? 'you' : stopped ? 'stopped' : running ? 'planning' : job?.plan && r.mode !== 'autopilot' ? 'plan-ready' : 'planning',
+    current: 'plan',
+    progress: null,
+    eta: null,
+  };
+  const req = { ...r, stopped_by: job?.stopped_by ?? r.stopped_by };
   const sentence = running ? (view ? [view.label, view.detail].filter(Boolean).join(' — ') : job?.step === 'revise' ? t('plan.revising') : t('plan.reading')) : stateLine(p, undefined, r);
   const stepNote = (id: string) => {
     const e = story.find((x) => x.step === id);
@@ -245,7 +256,7 @@ export function RequestRun({ r }: { r: OpenRequest }) {
     <Hero
       eyebrow={
         <>
-          <span>{running ? t('run.planning') : stateLine(p, undefined, r)}</span>
+          <span data-testid="run-state">{running ? t('run.planning') : stateLine(p, undefined, req)}</span>
           {started ? <span className="tnum">· {t('run.startedAt', { at: fmtTime(started * 1000) })}</span> : null}
           {running && started ? (
             <span className="tnum" data-testid="plan-elapsed">
@@ -272,14 +283,17 @@ export function RequestRun({ r }: { r: OpenRequest }) {
           </button>
         </>
       }
-      title={r.name || r.prompt || t('home.planningRow')}
-      prompt={r.name ? r.prompt : null}
+      title={requestTitle(r) || t('home.planningRow')}
+      prompt={r.goal_title ? null : r.name ? r.prompt : null}
       now={sentence}
       pct={pct}
       left={running ? t('run.soFar', { t: fmtClock(Math.max(0, now - (started ?? now))) }) : job?.seconds ? t('run.took', { t: fmtClock(job.seconds) }) : ''}
       timeline={
         <ol className="runv-tl" data-testid="run-timeline">
-          {(view?.steps ?? PLAN_STEPS.map((id) => ({ id, label: t(`plan.step.${id}` as MessageKey), state: running ? ('pending' as const) : ('done' as const), note: null }))).map((s) => (
+          {(view?.steps ?? PLAN_STEPS.map((id) => ({ id, label: t(`plan.step.${id}` as MessageKey), state: running || !job?.plan ? ('pending' as const) : ('done' as const), note: null })))
+            // stopped / failed: the step it was on is where it stopped, never "now"
+            .map((s) => (!running && !job?.plan && s.state === 'current' ? { ...s, state: 'stopped' as const } : s))
+            .map((s) => (
             <li key={s.id} className={s.state} data-testid={`plan-step-${s.id}`} data-state={s.state}>
               <span>{s.label}</span>
               <small className="tnum">{stepNote(s.id) ?? ' '}</small>
@@ -293,6 +307,20 @@ export function RequestRun({ r }: { r: OpenRequest }) {
     <RunShell live={live} hero={hero} running={running} testId="hub-request" attrs={{ 'data-mode': r.mode, 'data-run': 'request' }}>
       {running ? (
         <Story entries={story} label={(s) => t(`plan.step.${s}` as MessageKey)} now={now} empty={t('run.storyNone')} />
+      ) : stopped ? (
+        <div className="runv-plan">
+          <div className="card plan" data-testid="plan-card" data-state="stopped">
+            <p className="muted" data-testid="plan-stopped-reason">
+              {req.stopped_by && req.stopped_by !== 'you' ? t('run.stoppedApp') : t('run.stoppedYou')}
+            </p>
+            <div className="row">
+              <button className="btn primary" onClick={() => void retry().catch((e) => ui.toast(errText(e), { error: true }))} data-testid="plan-retry">
+                {t('run.tryAgain')}
+              </button>
+            </div>
+          </div>
+          {story.length > 0 && <Story entries={story} label={(s) => t(`plan.step.${s}` as MessageKey)} now={now} empty="" />}
+        </div>
       ) : (
         <div className="runv-plan">
           <PlanCard

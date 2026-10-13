@@ -100,3 +100,9 @@
 /* the composer's 「Several videos」 */
 .btn.ux-many { color: var(--text-muted); }
 .btn.ux-many.on { color: var(--accent); background: var(--accent-soft); }
+/* a video's language versions, inside its row (one video, two cuts) */
+.goalv-vers { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; }
+.goalv-ver { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; margin-left: -6px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.goalv-ver:hover, .goalv-ver.on { background: var(--surface-2); }
+.goalv-ver b { font-weight: 500; }
+.goalv-ver .dot { width: 6px; height: 6px; }

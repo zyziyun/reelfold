@@ -145,3 +145,21 @@ describe('a video with no file', () => {
     expect(notMadeYet({ kind: 'project', video: null, clipState: 'planned' })).toBe(false);
   });
 });
+
+describe('a project whose run still goes (her DJI goal, 2026-10-13)', () => {
+  const live = { state: 'running' as const, status: 'running', stage: 'en:render', progress: 0.3, eta: 120, needs_you: false, heartbeat: NOW };
+  const it2 = item('cccccccccccc', { status: 'in-progress', live, autopilot: true });
+  it('a version that failed in an earlier round, or waits at a check autopilot answers, is in progress - not Stopped / Needs you', () => {
+    const rows = studioRows([it2], [], { cccccccccccc: [clip('en', { state: 'failed', files: [] })] }, [], [], NOW);
+    expect(rows.map((r) => [r.key, r.group, r.tone])).toEqual([['cccccccccccc/en', 'run', 'run']]);
+    const waiting = studioRows([it2], [], { cccccccccccc: [clip('en', { state: 'waiting', files: [] })] }, [], [], NOW);
+    expect(waiting[0].group).toBe('run');
+    // a question the Inbox really holds for it is hers, run or not
+    const asked = studioRows([it2], [], { cccccccccccc: [clip('en', { state: 'waiting', files: [] })] }, [], [ask('q', 'cccccccccccc', 'en')], NOW);
+    expect(asked[0].group).toBe('you');
+  });
+  it('a goal\'s request row is titled by its video', () => {
+    const rows = studioRows([], [req('dddddddddddd', { prompt: 'Title: "The Needle After Dark". Make a 110-second history explainer', goal: 'g', goal_title: 'The Needle After Dark' })], {}, [], [], NOW);
+    expect(rows[0].title).toBe('The Needle After Dark');
+  });
+});

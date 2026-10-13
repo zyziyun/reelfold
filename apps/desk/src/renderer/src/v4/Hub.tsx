@@ -172,6 +172,9 @@ export function stateLine(p: Pipeline, i?: HistoryItem, r?: OpenRequest): string
     }
     case 'idle':
       return i && workNotMade(i) ? t('hub.s.workIdle') : t('hub.s.idle');
+    case 'stopped':
+      // who stopped it: she did, or the app did (a goal's planning that showed no progress) - never "by you" for that
+      return r?.stopped_by === 'stall' ? t('hub.s.stoppedStall') : r?.stopped_by === 'goal' ? t('hub.s.stoppedGoal') : t('hub.s.stopped');
     default:
       return t(`hub.s.${p.state}` as MessageKey);
   }

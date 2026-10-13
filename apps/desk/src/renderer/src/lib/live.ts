@@ -188,6 +188,13 @@ export function planStory(lines: LiveLine[], now = Date.now() / 1000): StoryEntr
       continue;
     }
     if (!cur) continue;
+    // stopped / failed while on a step: that step ends there (never left "now" under a stopped request)
+    if (l.src === 'engine' && (l.kind === 'stop' || l.kind === 'error') && cur.state === 'now') {
+      cur.state = 'done';
+      cur.end = at;
+      cur.facts = [...cur.facts, { key: l.kind === 'stop' ? 'run.f.stoppedHere' : 'run.f.failedHere', params: {} }];
+      continue;
+    }
     const ai = aiLine(l);
     if (ai?.text) cur.ai.push(ai);
     if (l.src === 'agent' && l.kind === 'result') cur.facts = [...cur.facts.filter((f) => f.key !== 'run.f.tokens'), { key: 'run.f.tokens', params: { t: plain(l.text) } }];
