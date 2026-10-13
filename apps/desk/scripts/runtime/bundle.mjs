@@ -213,6 +213,9 @@ async function buildVstudio() {
   }
   fs.writeFileSync(path.join(dst, 'COMMIT'), vstudioCommit + '\n');
   fs.copyFileSync(path.join(ENGINE_ROOT, 'LICENSE'), path.join(OUT, 'licenses', 'video-studio-LICENSE.txt'));
+  // code adapted from other MIT projects (OpenFilm: the NLE export, the look check): their notice ships too
+  const notices = path.join(ENGINE_ROOT, 'THIRD_PARTY_NOTICES.md');
+  if (fs.existsSync(notices)) fs.copyFileSync(notices, path.join(OUT, 'licenses', 'video-studio-THIRD_PARTY_NOTICES.md'));
   log(`vstudio from ${ENGINE_ROOT} @ ${vstudioCommit.slice(0, 12)}`);
 }
 

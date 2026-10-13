@@ -338,6 +338,13 @@ num2words (LGPL-2.1; number words come from the engine's own `vstudio.numwords_e
 third-party media — voice synthesised with Kokoro-82M (Apache-2.0), slides drawn with Noto Sans SC (SIL OFL 1.1). The
 recording itself is CC0 1.0 (`packaging/sample/LICENSE.txt`).
 
+## Code adapted from other projects (in the engine)
+
+The editing-program export (`lib/vstudio/project/nle.py`: Premiere / Resolve XML, 剪映 / CapCut drafts) is ported from
+OpenFilm's `nle.mjs` / `jianying.mjs` and the look check (`lib/vstudio/look.py`) follows OpenFilm's `look` —
+OpenFilm, MIT, Copyright (c) 2026 OpenFilm contributors, https://github.com/openfilm/openfilm. The notice is in
+THIRD_PARTY_NOTICES.md at the repository root (in the app: resources/runtime/licenses/video-studio-THIRD_PARTY_NOTICES.md).
+
 ## Not bundled
 
 The optional RVM matting engine used by the engine's cover workflow is GPL-3.0 and is never shipped with the app.

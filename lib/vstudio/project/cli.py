@@ -426,6 +426,24 @@ def cmd_output(a):
              "\n".join(f"{r['id']:18s} {r['label']['zh']} / {r['label']['en']}  ({r['stage']})" for r in rows))
         return 0
     proj = a.project or a.dir or os.getcwd()
+    if act in ("nle", "nle-relink"):           # the edit for Premiere / Resolve / 剪映 / CapCut / OTIO (nle.py)
+        from . import nle as N
+        try:
+            if act == "nle-relink":
+                if not (a.out and a.media_dir):
+                    raise N.NleError("bad-param", "nle-relink needs --out EXPORT_FOLDER --media-dir NEW_MEDIA_FOLDER",
+                                     param="out")
+                r = N.relink(a.out, a.media_dir)
+            elif a.all or not a.output:
+                r = N.export_all(proj, a.format or "xmeml", out_dir=a.out, media=a.media, to_app=a.to_app,
+                                 measure=not a.no_measure, outputs=_csv(a.outputs_list) if a.outputs_list else None)
+            else:
+                r = N.export_output(proj, a.output, a.format or "xmeml", out_dir=a.out, media=a.media,
+                                    to_app=a.to_app, measure=not a.no_measure)
+        except N.NleError as e:
+            raise O.OutputError(e.code, str(e), str(e), **e.params) from None
+        _out(a, r, r.get("main") or r.get("dir") or json.dumps(r.get("relinked")))
+        return 0
     if act == "list":
         r = O.list_outputs(proj)
         _out(a, r, "\n".join(f"{x['id']}  {'edited ' + str(x['steps']) if x['edited'] else ''}" for x in r["outputs"])
@@ -776,7 +794,7 @@ def build_parser():
     p.add_argument("--outputs", help="comma list (default: videos in final/ exports/ out/)")
     p = add("output", cmd_output, "second-pass edit of a finished output (references/OUTPUT_EDIT.md)")
     p.add_argument("action", choices=["list", "show", "edit", "render", "undo", "redo", "revert", "ai", "chat",
-                                      "effects", "preview-edl", "pickup", "kit"])
+                                      "effects", "preview-edl", "pickup", "kit", "nle", "nle-relink"])
     p.add_argument("--project", help="project folder or adopted work folder (default --dir / cwd)")
     p.add_argument("--output", help="output id (output list), or its file path")
     p.add_argument("--ops", help="JSON op or list of ops")
@@ -812,6 +830,17 @@ def build_parser():
     p.add_argument("--at-word", type=int, help="pickup: insert before this transcript word (0 = the start)")
     p.add_argument("--replace", help="pickup: [i0, i1] transcript words to replace")
     p.add_argument("--sig", help="pickup: the transcript signature the word indices refer to (words_sig)")
+    p.add_argument("--format", help="nle: xmeml (Premiere / Resolve) | jianying | capcut | otio")
+    p.add_argument("--out", help="nle: the folder to write (default <edit folder>/nle/<time>-<format>); "
+                   "nle-relink: the export folder")
+    p.add_argument("--media", choices=["link", "copy"], default="link",
+                   help="nle: point at the media where it is (link) or clone it into <out>/media (copy)")
+    p.add_argument("--media-dir", help="nle-relink: the folder the media is in now")
+    p.add_argument("--to-app", action="store_true", help="nle jianying / capcut: write the draft into the app's "
+                   "drafts folder (it shows on its home screen)")
+    p.add_argument("--all", action="store_true", help="nle: every output of the project, each its own timeline")
+    p.add_argument("--outputs-list", help="nle --all: only these output ids (comma list)")
+    p.add_argument("--no-measure", action="store_true", help="nle: skip the loudness measurement (levels at 0 dB)")
     p = add("ai", cmd_ai, "project-level AI edit of every output (grouped per output; needs_rerender)")
     p.add_argument("--project", help="project folder or adopted work folder (default --dir / cwd)")
     p.add_argument("--instruction", required=True)
