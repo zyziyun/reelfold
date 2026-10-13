@@ -79,6 +79,7 @@ export const ipcSchemas = {
     usagePings: z.enum(['on', 'off']).optional(),
     openAtLogin: z.boolean().optional(),
     zhVoice: z.enum(ZH_VOICES).optional(),
+    zhLocal: z.boolean().optional(),
   }),
   // opt-in anonymous usage counts (main/usage.ts): small integers only, never text
   'usage:status': z.undefined(),

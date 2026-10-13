@@ -32,6 +32,14 @@ export const voiceEn = {
   'vo.noMac': 'The free voices need a Mac with Apple silicon. Add an OpenAI key in Settings › AI to narrate here.',
   'vo.keyNote': 'With an OpenAI key, narration uses OpenAI’s voices instead (Settings › AI).',
   'vo.saved': 'Chinese voice: {name}',
+  'vo.local.label': 'Use the built-in Chinese voice until then',
+  'vo.local.hint': 'Without the natural voice, Chinese versions are narrated in English with Chinese subtitles. Switch this on to use the older built-in Mandarin voice (Kokoro) instead; it sounds robotic. Once the natural voice is downloaded it is always used.',
+  'vo.local.on': 'Chinese versions use the built-in voice until the natural one is downloaded',
+  'vo.local.off': 'Chinese versions use English narration until the natural voice is downloaded',
+  'em.intake.risk.zh-voice': 'The free Chinese voice isn’t on this computer yet, so the Chinese version is narrated in English with Chinese subtitles. Download it (about 3 GB) before the story is written for natural Chinese narration.',
+  'plan.zhVoice.download': 'Download the Chinese voice',
+  'plan.zhVoice.started': 'Downloading the Chinese voice. Versions written after it finishes are narrated in Chinese.',
+  'plan.zhVoice.ready': 'The Chinese voice is ready: Chinese versions are narrated in Chinese.',
 };
 
 export const voiceZh: Record<keyof typeof voiceEn, string> = {
@@ -66,6 +74,14 @@ export const voiceZh: Record<keyof typeof voiceEn, string> = {
   'vo.noMac': '免费配音需要 Apple 芯片的 Mac。可以在「设置 › AI」添加 OpenAI 密钥来配音。',
   'vo.keyNote': '添加了 OpenAI 密钥时，旁白会改用 OpenAI 的声音（设置 › AI）。',
   'vo.saved': '中文配音：{name}',
+  'vo.local.label': '在那之前先用内置的中文声音',
+  'vo.local.hint': '没有自然的中文配音时，中文版用英文旁白 + 中文字幕。打开后改用旧的内置普通话声音（Kokoro），听起来比较机械。下载了自然的中文配音后，总是用它。',
+  'vo.local.on': '下载自然的中文配音之前，中文版先用内置声音',
+  'vo.local.off': '下载自然的中文配音之前，中文版先用英文旁白',
+  'em.intake.risk.zh-voice': '免费的中文配音还没下载到这台电脑，所以中文版先用英文旁白 + 中文字幕。在写稿前下载它（约 3 GB），就能有自然的中文旁白。',
+  'plan.zhVoice.download': '下载中文配音',
+  'plan.zhVoice.started': '正在下载中文配音。下载完成后再写稿的版本会用中文旁白。',
+  'plan.zhVoice.ready': '中文配音已就绪：中文版会用中文旁白。',
 };
 
 export const voiceFr: Record<keyof typeof voiceEn, string> = {
@@ -100,4 +116,12 @@ export const voiceFr: Record<keyof typeof voiceEn, string> = {
   'vo.noMac': 'Les voix gratuites demandent un Mac avec puce Apple. Ajoutez une clé OpenAI dans Réglages › IA pour narrer ici.',
   'vo.keyNote': 'Avec une clé OpenAI, la narration utilise plutôt les voix d’OpenAI (Réglages › IA).',
   'vo.saved': 'Voix chinoise : {name}',
+  'vo.local.label': 'Utiliser la voix chinoise intégrée en attendant',
+  'vo.local.hint': 'Sans la voix naturelle, les versions chinoises sont narrées en anglais avec des sous-titres chinois. Activez ceci pour utiliser plutôt l’ancienne voix mandarine intégrée (Kokoro) ; elle sonne robotique. Une fois la voix naturelle téléchargée, elle est toujours utilisée.',
+  'vo.local.on': 'Les versions chinoises utilisent la voix intégrée jusqu’au téléchargement de la voix naturelle',
+  'vo.local.off': 'Les versions chinoises sont narrées en anglais jusqu’au téléchargement de la voix naturelle',
+  'em.intake.risk.zh-voice': 'La voix chinoise gratuite n’est pas encore sur cet ordinateur : la version chinoise est narrée en anglais avec des sous-titres chinois. Téléchargez-la (environ 3 Go) avant la rédaction pour une narration chinoise naturelle.',
+  'plan.zhVoice.download': 'Télécharger la voix chinoise',
+  'plan.zhVoice.started': 'Téléchargement de la voix chinoise. Les versions rédigées après la fin sont narrées en chinois.',
+  'plan.zhVoice.ready': 'La voix chinoise est prête : les versions chinoises sont narrées en chinois.',
 };

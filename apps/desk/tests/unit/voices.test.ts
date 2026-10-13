@@ -12,6 +12,8 @@ import { ttsPrefsOf, ZH_VOICE_DEFAULT, ZH_VOICE_GROUP, ZH_VOICES, zhVoiceOf } fr
 import { setLang, tk } from '../../src/renderer/src/i18n';
 import { CHINESE_VOICE_GROUP, ensureFreeVoice } from '../../src/renderer/src/lib/freeVoice';
 import { failureReason } from '../../src/renderer/src/v4/Failure';
+import { decideLines, wantsZhVoice } from '../../src/renderer/src/v4/PlanCard';
+import type { IntakePlan } from '../../src/shared/v04';
 
 afterEach(() => setLang('en'));
 
@@ -58,8 +60,8 @@ describe('the Chinese speakers', () => {
   });
 
   it('reach the engine as its prefs file; anything else is the default', () => {
-    expect(ttsPrefsOf({ zhVoice: 'vivian' })).toEqual({ zh_voice: 'vivian' });
-    expect(ttsPrefsOf({})).toEqual({ zh_voice: 'serena' });
+    expect(ttsPrefsOf({ zhVoice: 'vivian' })).toEqual({ zh_voice: 'vivian', zh_local: false });
+    expect(ttsPrefsOf({})).toEqual({ zh_voice: 'serena', zh_local: false });
     expect(zhVoiceOf('zf_xiaobei')).toBe('serena');
     expect(ipcSchemas['settings:set'].safeParse({ zhVoice: 'dylan' }).success).toBe(true);
     expect(ipcSchemas['settings:set'].safeParse({ zhVoice: 'zf_xiaobei' }).success).toBe(false);
@@ -102,5 +104,39 @@ describe('before the Chinese voice is downloaded', () => {
     const install = vi.fn(async () => st({ queued: true }));
     expect(await ensureFreeVoice({ status: async () => st(), install }, ZH_VOICE_GROUP)).toBe('started');
     expect(install).toHaveBeenCalledWith([ZH_VOICE_GROUP]);
+  });
+});
+
+describe('the built-in Chinese voice (Kokoro) switch', () => {
+  it('is off by default and reaches the engine as prefs zh_local (vstudio.tts.zh_local_opt_in)', () => {
+    expect(ttsPrefsOf({ zhLocal: true })).toEqual({ zh_voice: 'serena', zh_local: true });
+    expect(ttsPrefsOf({ zhLocal: 'yes' as unknown as boolean }).zh_local).toBe(false);
+    expect(ipcSchemas['settings:set'].safeParse({ zhLocal: true }).success).toBe(true);
+    expect(ipcSchemas['settings:set'].safeParse({ zhLocal: 'on' }).success).toBe(false);
+    expect(ttsPy).toMatch(/prefs\(\)\.get\("zh_local"\)/);
+  });
+
+  it('is worded in every language', () => {
+    for (const lang of ['en', 'zh-CN', 'fr'] as const) {
+      setLang(lang);
+      for (const k of ['vo.local.label', 'vo.local.hint', 'vo.local.on', 'vo.local.off', 'plan.zhVoice.download', 'plan.zhVoice.started', 'plan.zhVoice.ready']) {
+        expect(tk(k)).not.toBe(k);
+      }
+    }
+  });
+});
+
+describe('the plan card offers the Chinese voice', () => {
+  const plan = (risks: IntakePlan['risks']) => ({ questions: [], risks }) as unknown as IntakePlan;
+  const zh = { code: 'intake.risk.zh-voice', params: {}, message: 'The free Chinese voice is not on this computer yet', message_zh: '免费的中文配音还没下载' };
+
+  it('next to the engine risk intake.risk.zh-voice, worded by the UI', () => {
+    expect(wantsZhVoice(plan([zh]))).toBe(true);
+    expect(wantsZhVoice(plan(['The free Chinese voice is not on this computer yet']))).toBe(false);
+    expect(wantsZhVoice(plan([]))).toBe(false);
+    setLang('en');
+    expect(decideLines(plan([zh]))[0].text).toMatch(/narrated in English with Chinese subtitles\. Download it \(about 3 GB\)/);
+    setLang('zh-CN');
+    expect(decideLines(plan([zh]))[0].text).toMatch(/中文版先用英文旁白 \+ 中文字幕/);
   });
 });

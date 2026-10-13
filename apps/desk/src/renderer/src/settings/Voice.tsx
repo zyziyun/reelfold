@@ -1,5 +1,6 @@
 // Settings › Voice: the free voices that narrate videos on this Mac. Chinese: Qwen3-TTS with five Mandarin speakers
-// (pick one, listen first); English: Kokoro. Each is a one-time download (packaging/assets.json); the samples are
+// (pick one, listen first) - once downloaded it narrates every Chinese version; until then they get English narration
+// with Chinese subtitles, or Kokoro's robotic Mandarin when she switches "the built-in Chinese voice" on; English: Kokoro. Each is a one-time download (packaging/assets.json); the samples are
 // real takes of each voice shipped with the app (scripts/voice-samples/make_voice_samples.py), so she can choose
 // before downloading. The choice applies to the next take (main/v02.ts writes the engine's prefs file).
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { useAssets } from '../components/assets';
 import { t, tk } from '../i18n';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
-import { Group, Page, Row } from './kit';
+import { Group, Page, Row, Toggle } from './kit';
 import type { SettingsCtx } from './registry';
 import enKokoro from './voice-samples/en-kokoro.mp3';
 import zhDylan from './voice-samples/zh-dylan.mp3';
@@ -101,6 +102,10 @@ export function VoiceSection({ settings: s, save }: SettingsCtx) {
       .then(() => ui.toast(t('vo.saved', { name: tk(`vo.v.${v}`) })))
       .catch((e) => ui.toast(errText(e), { error: true }));
   };
+  const setLocal = (on: boolean) =>
+    void save({ zhLocal: on })
+      .then(() => ui.toast(t(on ? 'vo.local.on' : 'vo.local.off')))
+      .catch((e) => ui.toast(errText(e), { error: true }));
   return (
     <Page title={t('vo.nav')} lead={t('vo.lead')} testId="settings-voice">
       {assets && !zh && !en && <div className="s2-note">{t('vo.noMac')}</div>}
@@ -129,6 +134,13 @@ export function VoiceSection({ settings: s, save }: SettingsCtx) {
       <p className="s2-lead" style={{ marginTop: -4 }}>
         {t('vo.pickHint')}
       </p>
+      {zh && !zh.installed && (
+        <Group testId="voice-zh-local">
+          <Row label={t('vo.local.label')} hint={t('vo.local.hint')}>
+            <Toggle checked={s.zhLocal === true} onChange={setLocal} label={t('vo.local.label')} testId="voice-zh-local-toggle" />
+          </Row>
+        </Group>
+      )}
       <Group title={t('vo.en.title')} testId="voice-en">
         <Row label={t('vo.en.engine')} hint={t('vo.en.engineHint')}>
           {en ? <DownloadState g={en} testId="voice-en" /> : null}

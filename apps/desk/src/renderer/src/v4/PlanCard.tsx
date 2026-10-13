@@ -1,6 +1,6 @@
 // The AI plan card (mockups/02-plan): one paragraph (the engine's summary, in the content language), the clips it
 // will make, four numbers, the one thing to decide, "just say it" revisions, and ONE primary: start with a pilot.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, FolderOpen, Plus, RotateCcw, Send, Sparkles, Square } from 'lucide-react';
 import type { IntakeJob, IntakePlan } from '../../../shared/v04';
 import { fmtClock, fmtMinutes, fmtMoney, getLang, has, t, type Lang } from '../i18n';
@@ -19,6 +19,7 @@ import { said } from './BrainPanel';
 import { AnsweredBy, FallbackNote } from './AiChip';
 import { openReport } from '../support/Support';
 import { orderPlatforms } from '../../../shared/platforms';
+import { CHINESE_VOICE_GROUP, ensureFreeVoice } from '../lib/freeVoice';
 
 /** How many clips a sub-project makes: its count, its rows, one for a single video; null when the engine picks
  * the number at run time (a segment planner or a focus with no count in the request). */
@@ -51,6 +52,55 @@ export function summaryView(plan: IntakePlan, ui: Lang): { own: boolean; lang?: 
   const own = noAi && (plan.summary_lang ? plan.summary_lang !== uiCode : ui !== 'zh-CN');
   if (own) return { own };
   return { own, lang: plan.summary_lang ? htmlLang(plan.summary_lang) : 'zh-CN' }; // older plans: the zh template
+}
+
+/** The plan names the missing Chinese voice (engine risk ``intake.risk.zh-voice``: a Chinese version would be narrated
+ * in English with Chinese subtitles). */
+export function wantsZhVoice(plan: IntakePlan): boolean {
+  return (plan.risks ?? []).some((r) => typeof r !== 'string' && r.code === 'intake.risk.zh-voice');
+}
+
+/** "Download the Chinese voice" next to that risk: the one-time download (about 3 GB) this app offers on Apple silicon;
+ * a version whose story is written after it finishes is narrated in Chinese (vstudio.tts.zh_voice_engine). Nothing
+ * shows where the app has no such download (Intel Mac / Windows) or once it is on disk / on its way. */
+function ZhVoiceOffer() {
+  const ui = useUi();
+  const [state, setState] = useState<'unknown' | 'offer' | 'busy' | 'none'>('unknown');
+  useEffect(() => {
+    let live = true;
+    const st = window.desk?.assets?.status;
+    if (!st) {
+      setState('none');
+      return;
+    }
+    void st()
+      .then((s) => {
+        const g = s.groups.find((x) => x.id === CHINESE_VOICE_GROUP);
+        if (live) setState(!g || g.installed || g.queued || g.progress ? 'none' : 'offer');
+      })
+      .catch(() => live && setState('none'));
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (state !== 'offer' && state !== 'busy') return null;
+  const go = () => {
+    setState('busy');
+    ensureFreeVoice(undefined, CHINESE_VOICE_GROUP)
+      .then((r) => {
+        ui.toast(t(r === 'installed' ? 'plan.zhVoice.ready' : 'plan.zhVoice.started'));
+        setState('none');
+      })
+      .catch((e) => {
+        ui.toast(errText(e), { error: true });
+        setState('offer');
+      });
+  };
+  return (
+    <button className="btn" style={{ marginTop: 8 }} onClick={go} disabled={state === 'busy'} data-testid="plan-zh-voice-download">
+      {t('plan.zhVoice.download')}
+    </button>
+  );
 }
 
 /** The "things for you to decide" lines: the planner's questions, then its risks. A coded line is worded by the UI
@@ -325,6 +375,7 @@ export function PlanCard({ job, jobId, onRevise, onRetry, onReset, onStarted, on
                 {q.text}
               </div>
             ))}
+            {wantsZhVoice(plan) && <ZhVoiceOffer />}
           </div>
         </div>
       )}

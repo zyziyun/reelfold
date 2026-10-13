@@ -47,6 +47,9 @@ export interface Settings {
   publishApi?: Partial<Record<'youtube' | 'tiktok' | 'x' | 'instagram', { auto: boolean }>>;
   /** Settings > Voice: the free Chinese voice's speaker (shared/voices.ts ZH_VOICES; unset = serena) */
   zhVoice?: string;
+  /** Settings > Voice: Kokoro's Mandarin narrates Chinese versions while the free Chinese voice is not downloaded
+   * (default off: they get English narration + Chinese subtitles) */
+  zhLocal?: boolean;
   /** Help: send redacted crash reports automatically (default off; only with a crash-report endpoint) */
   crashReportsAuto?: boolean;
 }

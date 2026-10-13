@@ -12,7 +12,8 @@ export function zhVoiceOf(v: unknown): ZhVoice {
   return (ZH_VOICES as readonly string[]).includes(String(v)) ? (v as ZhVoice) : ZH_VOICE_DEFAULT;
 }
 
-/** The engine's prefs file content for settings `zhVoice`. */
-export function ttsPrefsOf(s: { zhVoice?: string }): { zh_voice: ZhVoice } {
-  return { zh_voice: zhVoiceOf(s.zhVoice) };
+/** The engine's prefs file content for settings `zhVoice` / `zhLocal` (vstudio.tts.prefs: the speaker, and
+ * whether Kokoro's robotic Mandarin may narrate a Chinese version while Qwen3-TTS is not downloaded). */
+export function ttsPrefsOf(s: { zhVoice?: string; zhLocal?: boolean }): { zh_voice: ZhVoice; zh_local: boolean } {
+  return { zh_voice: zhVoiceOf(s.zhVoice), zh_local: s.zhLocal === true };
 }
