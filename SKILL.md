@@ -1,12 +1,12 @@
 ---
 name: video-studio
-description: One video-editing skill for every kind of edit, for 小红书 / 抖音 / 视频号 / TikTok / YouTube / Shorts / B站 / X / Instagram. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm or 卡点快节奏, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills; one master → many platforms. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
+description: Open-source creator workbench (开源自媒体工作台): your own footage → videos for every platform (YouTube / Shorts / TikTok / Instagram / X / LinkedIn, then 小红书 / 抖音 / B站 / 视频号) → scheduled; many videos from one folder or SD card; re-edit finished videos. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm or 卡点快节奏, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
 ---
 
 # video-studio
 
-Part of [Reelfold](https://github.com/zyziyun/reelfold) (千剪): the open-source engine behind the Reelfold desktop app
-(`apps/desk`); works on its own in Claude Code. One entry point, many workflows, one library (`lib/vstudio`), one
+Part of [Reelfold](https://github.com/zyziyun/reelfold) (千剪), the open-source workbench for creators: the engine behind the
+Reelfold desktop app (`apps/desk`); works on its own in Claude Code. One entry point, many workflows, one library (`lib/vstudio`), one
 creator persona. `$VSTUDIO` = this folder. Run scripts from the **project folder** of the video being edited.
 
 Setup once: `$VSTUDIO/install.sh` (deps, open fonts, MediaPipe models), `cp persona.example.yaml persona.local.yaml`
