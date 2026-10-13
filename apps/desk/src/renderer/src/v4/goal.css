@@ -115,3 +115,17 @@
 .goalv-missing { cursor: default; border-style: dashed; color: var(--text-2, inherit); }
 .goalv-missing:hover { border-color: var(--border); }
 .goalv-missing .btn { padding: 0 6px; min-height: 0; }
+
+/* 「Edit the collection」: the group's composer, the new plan cards, an edit across all, one video's other shots */
+.goalv-fill { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.goalv-chat.agent { margin-top: 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); width: auto; max-width: 1080px; height: auto; position: static; }
+.goalv-chat .hd b .ico { width: 13px; height: 13px; color: var(--accent); vertical-align: -2px; }
+.goalv-chatlog { max-height: 460px; min-height: 0; }
+.goalv-fan .goalv-fanrow { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--border); }
+.goalv-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.goalv-shot { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 3px; font: inherit; color: var(--text); text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; min-width: 0; }
+.goalv-shot .goalv-th { border-radius: 5px; }
+.goalv-shot.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.goalv-shot.out { opacity: 0.5; border-style: dashed; }
+.goalv-shotx { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; padding: 2px; border-radius: 50%; background: var(--bg); color: var(--accent); }
+.goalv-shot.out .goalv-shotx { color: var(--danger); }

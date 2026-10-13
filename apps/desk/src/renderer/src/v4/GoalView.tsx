@@ -10,7 +10,7 @@
 import { AiPickChip, AiTag } from './AiPick';
 import { labelOf } from '../lib/projectAi';
 import type { ProjectAi } from '../../../shared/projectAi';
-import { Check, ChevronDown, ChevronRight, Copy, FolderOpen, GitMerge, Layers, Play, RotateCcw, Square, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Copy, FolderOpen, GitMerge, Layers, Play, RotateCcw, Shuffle, Square, Trash2, Undo2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GOAL_KINDS, type Goal, type GoalEditOp, type GoalKind, type GoalStory, type GoalVideo } from '../../../shared/goal';
 import { EXPORT_PLATFORMS } from '../../../shared/chatEdit';
@@ -18,7 +18,8 @@ import type { Clip, EditOp } from '../../../shared/v04';
 import { fmtDuration, parseSecs } from '../../../shared/platformLengths';
 import { fmtLen, getLang, t } from '../i18n';
 import { useEngine } from '../lib/engine';
-import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone, GOAL_POLL_MS } from '../lib/goals';
+import { countNote, dedupeFiles, dropReason, fillLine, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, proposedVideos, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone, GOAL_POLL_MS } from '../lib/goals';
+import { GoalChat, type RecutAsk } from './GoalChat';
 import { failureReason } from './Failure';
 import { Thumb } from './kit';
 import { errText } from './msg';
@@ -62,6 +63,7 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
   const ui = useUi();
   const { g, setG, err } = useGoal(gid);
   const [busy, setBusy] = useState(false);
+  const [recut, setRecut] = useState<RecutAsk | null>(null);
   const act = async <G extends Goal>(fn: () => Promise<G | null | void>, done?: (x: G) => void) => {
     if (!client || busy) return;
     setBusy(true);
@@ -132,7 +134,17 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
         <p className="runv-now" data-testid="goal-now">
           <i className={`dot ${goalTone(g)}`} /> {goalLine(g)}
         </p>
-        {g.state !== 'planned' && countNote(g) && (
+        {g.state !== 'planned' && g.state !== 'surveying' && fillLine(g) && (
+          <p className="small goalv-note goalv-fill" data-testid="goal-fill">
+            <span>{fillLine(g)}</span>
+            {(g.state === 'done' || g.state === 'stopped' || g.state === 'running') && !(g.more && (g.more.state === 'planning' || g.more.state === 'ready')) && (
+              <button className="btn sm" disabled={busy} onClick={() => void act(() => client!.goalMore(g.id, { to: g.fill!.target }))} data-testid="goal-fill-btn">
+                {t('ge.fillBtn', { n: g.fill!.target })}
+              </button>
+            )}
+          </p>
+        )}
+        {g.state !== 'planned' && !fillLine(g) && countNote(g) && (
           <p className={`small ${g.count?.short ? 'goalv-note' : 'muted'}`} data-testid="goal-count">
             {countNote(g)}
           </p>
@@ -159,7 +171,11 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
       {g.state === 'planned' && <GoalPlan g={g} busy={busy} onOps={(ops) => void act(() => client!.editGoal(g.id, ops))} onApprove={() => void act(() => client!.goalAct(g.id, 'approve'))} />}
       {(g.state === 'running' || g.state === 'done' || g.state === 'stopped') && (
         <>
-          {g.state === 'done' && <GoalSummary g={g} />}
+          <GoalChat g={g} onGoal={setG} recut={recut} setRecut={setRecut} />
+          {proposedVideos(g).length > 0 && g.more?.state === 'ready' && (
+            <MorePlan g={g} busy={busy} onOps={(ops) => void act(() => client!.goalMoreEdit(g.id, ops))} onAct={(a) => void act(() => client!.goalMoreAct(g.id, a))} />
+          )}
+          {g.state === 'done' && <GoalSummary g={g} onRecut={(vid) => setRecut({ video: vid, mode: 'add' })} onUndoRecut={(vid) => void act(() => client!.goalRecutUndo(g.id, vid))} />}
           <section className="goalv-sec" data-testid="goal-videos">
             <h2 className="runv-h">{t('goal.videos')}</h2>
             {vs.map((v) => (
@@ -171,6 +187,7 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
                 busy={busy}
                 onAct={(a) => void act(() => client!.goalVideo(g.id, v.id, a))}
                 onAi={(x) => void act(() => client!.setGoalAi(g.id, x, v.id), () => ui.toast(t('tai.switched', { name: labelOf(x) })))}
+                onUndoRecut={() => void act(() => client!.goalRecutUndo(g.id, v.id), () => ui.toast(t('ge.recut.undone')))}
               />
             ))}
           </section>
@@ -274,6 +291,40 @@ function GoalPlan({ g, busy, onOps, onApprove }: { g: Goal; busy: boolean; onOps
         <button className="btn primary lg" disabled={busy || !keep.length} onClick={onApprove} data-testid="goal-approve">
           <Play className="ico" />
           {t('goal.approve', { n: keep.length })}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** 「再做几条」: the new plan cards (the same card as the plan) and 「Make these」 / 「Not these」. */
+function MorePlan({ g, busy, onOps, onAct }: { g: Goal; busy: boolean; onOps: (ops: GoalEditOp[]) => void; onAct: (a: 'approve' | 'discard') => void }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const vs = proposedVideos(g);
+  const keep = vs.filter((v) => !v.planned_out);
+  return (
+    <section className="goalv-sec goalv-plan" data-testid="goal-more-plan">
+      <h2 className="runv-h">{t('ge.more.title')}</h2>
+      <p className="muted small">{t('ge.more.lead')}</p>
+      <div className="goalv-cards">
+        {vs.map((v) => (
+          <PlanCard key={v.id} g={g} v={v} picked={picked.includes(v.id)} onPick={() => setPicked((p) => (p.includes(v.id) ? p.filter((x) => x !== v.id) : [...p, v.id]))} onOps={onOps} busy={busy} />
+        ))}
+      </div>
+      <div className="goalv-foot">
+        {picked.length >= 2 && (
+          <button className="btn" disabled={busy} onClick={() => (onOps([{ op: 'merge', videos: picked }]), setPicked([]))} data-testid="goal-more-merge">
+            <GitMerge className="ico" />
+            {t('goal.merge')}
+          </button>
+        )}
+        <span className="sp" />
+        <button className="btn ghost" disabled={busy} onClick={() => onAct('discard')} data-testid="goal-more-discard">
+          {t('ge.more.discard')}
+        </button>
+        <button className="btn primary lg" disabled={busy || !keep.length} onClick={() => onAct('approve')} data-testid="goal-more-approve">
+          <Play className="ico" />
+          {t('ge.more.approve', { n: keep.length })}
         </button>
       </div>
     </section>
@@ -421,7 +472,7 @@ function LengthBox({ p, value, own, busy, onSet }: { p: string; value: number; o
 }
 
 /** One video of the group while it is made / once it is settled. */
-export function VideoRow({ gid, v, on, busy, onAct, onAi }: { gid: string; v: GoalVideo; on?: boolean; busy?: boolean; onAct?: (a: 'drop' | 'retry') => void; onAi?: (ai: ProjectAi | null) => void }) {
+export function VideoRow({ gid, v, on, busy, onAct, onAi, onUndoRecut }: { gid: string; v: GoalVideo; on?: boolean; busy?: boolean; onAct?: (a: 'drop' | 'retry') => void; onAi?: (ai: ProjectAi | null) => void; onUndoRecut?: () => void }) {
   const tone = videoTone(v);
   const pct = v.state === 'making' && v.progress != null ? Math.round(v.progress * 100) : null;
   return (
@@ -431,6 +482,9 @@ export function VideoRow({ gid, v, on, busy, onAct, onAi }: { gid: string; v: Go
         <b className="clamp1">{videoTitle(v)}</b>
         <span className="s muted clamp1" data-testid="goal-video-line">
           {t(`goal.kind.${v.kind}`)} · {videoLine(v)}
+          {v.extra ? ` · ${t('ge.extra')}` : ''}
+          {v.recut?.state === 'making' && v.state !== 'made' ? ` · ${t('ge.recut.making')}` : ''}
+          {v.recut?.state === 'failed' ? ` · ${t('ge.recut.failed')}` : ''}
         </span>
         {(v.state === 'making' || v.state === 'planning') && (
           <span className={`bar ${pct == null ? 'indet' : ''}`}>
@@ -452,6 +506,12 @@ export function VideoRow({ gid, v, on, busy, onAct, onAi }: { gid: string; v: Go
       {onAct && (v.state === 'waiting' || v.state === 'planning' || v.state === 'making' || v.state === 'you') && (
         <button className="btn sm ghost" disabled={busy} onClick={() => window.confirm(t('goal.dropAsk', { title: videoTitle(v) })) && onAct('drop')} data-testid="goal-video-drop">
           {t('goal.dropVideo')}
+        </button>
+      )}
+      {onUndoRecut && v.can_undo_recut && (
+        <button className="btn sm ghost" disabled={busy} onClick={onUndoRecut} data-testid="goal-video-undo-recut">
+          <Undo2 className="ico" />
+          {t('ge.recut.undo')}
         </button>
       )}
       {onAct && v.state === 'dropped' && !v.cleared && (
@@ -502,7 +562,7 @@ export function Versions({ v, item }: { v: GoalVideo; item?: string }) {
 }
 
 /** What was made: each video's files per platform and its post; then what was dropped and why. */
-function GoalSummary({ g }: { g: Goal }) {
+function GoalSummary({ g, onRecut, onUndoRecut }: { g: Goal; onRecut?: (vid: string) => void; onUndoRecut?: (vid: string) => void }) {
   const vs = groupVideos(g);
   const made = vs.filter((v) => v.state === 'made');
   const dropped = vs.filter((v) => v.state === 'dropped');
@@ -511,7 +571,7 @@ function GoalSummary({ g }: { g: Goal }) {
       <h2 className="runv-h">{made.length === vs.length ? t('goal.allMade', { n: made.length }) : t('goal.doneSome', { made: made.length, total: vs.length, dropped: dropped.length })}</h2>
       {made.length ? <p className="muted small">{t('goal.summaryLead')}</p> : <p className="muted">{t('goal.noneMade')}</p>}
       {made.map((v) => (
-        <MadeVideo key={v.id} gid={g.id} v={v} />
+        <MadeVideo key={v.id} gid={g.id} v={v} onRecut={onRecut} onUndoRecut={onUndoRecut} />
       ))}
       {dropped.length > 0 && (
         <div className="goalv-dropped" data-testid="goal-summary-dropped">
@@ -545,7 +605,7 @@ interface MadeClip {
   clip: Clip;
 }
 
-function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
+function MadeVideo({ gid, v, onRecut, onUndoRecut }: { gid: string; v: GoalVideo; onRecut?: (vid: string) => void; onUndoRecut?: (vid: string) => void }) {
   const { client } = useEngine();
   const ui = useUi();
   const [made, setMade] = useState<MadeClip[] | null>(null);
@@ -595,7 +655,20 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
       <header>
         <b>{videoTitle(v)}</b>
         <span className="muted small"> · {t(`goal.kind.${v.kind}`)}</span>
+        {v.extra ? <span className="faint small"> · {t('ge.extra')}</span> : null}
         <span className="sp" />
+        {onUndoRecut && v.can_undo_recut && (
+          <button className="btn sm ghost" onClick={() => onUndoRecut(v.id)} data-testid="goal-made-undo-recut">
+            <Undo2 className="ico" />
+            {t('ge.recut.undo')}
+          </button>
+        )}
+        {onRecut && (
+          <button className="btn sm ghost" onClick={() => onRecut(v.id)} data-testid="goal-made-recut">
+            <Shuffle className="ico" />
+            {t('ge.recut.btn')}
+          </button>
+        )}
         <a className="btn sm ghost" href={videoHref(gid, v)} data-testid="goal-made-open">
           {t('goal.open')}
         </a>
@@ -608,9 +681,10 @@ function MadeVideo({ gid, v }: { gid: string; v: GoalVideo }) {
           <Thumb src={c.cover} ratio="16/9" className="goalv-th" />
           <div className="goalv-clipbody">
             <div className="goalv-files" data-testid="goal-made-files">
-              {c.files.map((f) => {
+              {dedupeFiles(c.files, (f) => platformsFor(f, (clips ?? []).length > 1 ? [] : v.platforms)).map((f) => {
                 // one version (one clip): its file of a canvas is for every platform on that canvas; several versions
-                // (a language each): each file is its own platform's
+                // (a language each): each file is its own platform's. One chip per platform + file (the primary render
+                // and the platform's own export of one canvas are one version)
                 const pls = platformsFor(f, (clips ?? []).length > 1 ? [] : v.platforms);
                 return (
                 <button key={f.path} className="goalv-file" onClick={() => void window.desk.showItem(f.path)} data-tip={t('goal.showFile')} data-testid="goal-made-file">

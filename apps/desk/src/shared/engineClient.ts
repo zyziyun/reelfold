@@ -45,7 +45,7 @@ import type {
 import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
-import type { Goal, GoalEditOp } from './goal';
+import type { Goal, GoalCandidates, GoalEditOp, GoalIntent } from './goal';
 import type { ProjectAi } from './projectAi';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
 import type { AskResult, AutopilotDoc, BrainDoc, BrainEstimate, BrainState, CalendarDoc, CalendarPost, ClipShots, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, DeletePlan, DeleteSel, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
@@ -628,6 +628,36 @@ export class EngineClient {
   }
   goalVideo(id: string, video: string, action: 'drop' | 'retry') {
     return this.req<Goal>('POST', `/api/goals/${pid(id)}/video`, { video, action });
+  }
+  /** 「Edit the collection」: her words to a made group -> more videos | one video's re-cut | an edit across all */
+  goalSay(id: string, text: string) {
+    return this.req<{ intent: GoalIntent; goal: Goal }>('POST', `/api/goals/${pid(id)}/say`, { text });
+  }
+  /** more videos for the group (new plan cards from the clips no video plays): ``n`` more, or up to ``to`` */
+  goalMore(id: string, opts: { n?: number; to?: number; about?: string }) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/more`, opts);
+  }
+  goalMoreAct(id: string, action: 'approve' | 'discard') {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/more-act`, { action });
+  }
+  goalMoreEdit(id: string, ops: GoalEditOp[]) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/more-edit`, { ops });
+  }
+  goalCandidates(id: string, video: string) {
+    return this.req<GoalCandidates>('POST', `/api/goals/${pid(id)}/candidates`, { video });
+  }
+  /** one video's re-cut: clips added, clips / shots left out, or ``pick: 'ai'`` (its planner picks) */
+  goalRecut(id: string, video: string, opts: { add?: string[]; drop?: string[]; shots?: number[]; pick?: 'ai' }) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/recut`, { video, ...opts });
+  }
+  goalRecutUndo(id: string, video: string) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/recut-undo`, { video });
+  }
+  goalFanout(id: string, prompt: string, scope?: { lang?: string }) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/fanout`, { prompt, ...(scope ? { scope } : {}) });
+  }
+  goalFanoutAct(id: string, fanout: string, action: 'apply' | 'undo', video?: string) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/fanout-act`, { fanout, action, ...(video ? { video } : {}) });
   }
   /** requests from Home that are not projects yet (All projects lists them first); ``archived``: the archived ones */
   openRequests(archived = false) {

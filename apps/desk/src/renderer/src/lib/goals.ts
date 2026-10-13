@@ -26,9 +26,43 @@ export function videoTitle(v: Pick<GoalVideo, 'title' | 'title_zh'>, lang = getL
   return (lang === 'zh-CN' && v.title_zh) || v.title;
 }
 
-/** The videos of the group (the ones dropped on the plan card are not part of it). */
+/** The videos of the group (the ones dropped on the plan card are not part of it, nor new plan cards of 「再做几条」
+ * until she makes them). */
 export function groupVideos(g: Pick<Goal, 'videos' | 'state'>): GoalVideo[] {
-  return g.videos.filter((v) => v.state !== 'skipped' && !(g.state === 'planned' && v.planned_out));
+  return g.videos.filter((v) => v.state !== 'skipped' && !v.proposed && !(g.state === 'planned' && v.planned_out));
+}
+
+/** The new plan cards of 「再做几条」 (not part of the group yet). */
+export function proposedVideos(g: Pick<Goal, 'videos'>): GoalVideo[] {
+  return g.videos.filter((v) => v.proposed);
+}
+
+/** One chip per platform and file: a file listed twice (the primary render and the platform's own export of the same
+ * canvas, both "YouTube 1920×1080 · 1:20") is shown once - the platform's own file when there is one. ``key``: what
+ * the chip says (its platforms, size, length). */
+export function dedupeFiles<F extends { path: string; platform?: string | null; w?: number | null; h?: number | null; aspect?: string | null; duration?: number | null }>(files: F[], platformsOf: (f: F) => string[]): F[] {
+  const at = new Map<string, number>();
+  const out: F[] = [];
+  for (const f of files) {
+    const pls = [...platformsOf(f)].sort().join(',');
+    const key = pls ? `${pls}|${f.w && f.h ? `${f.w}x${f.h}` : (f.aspect ?? '')}|${Math.round(f.duration ?? 0)}` : `path|${f.path}`;
+    const k = at.get(key) ?? at.get(`path|${f.path}`);
+    if (k !== undefined) {
+      if (f.platform && !out[k].platform) out[k] = f;
+      continue;
+    }
+    at.set(key, out.length);
+    at.set(`path|${f.path}`, out.length);
+    out.push(f);
+  }
+  return out;
+}
+
+/** "8 made of the 12 you asked for (at least 10)" when the group is short of her number, else null. */
+export function fillLine(g: Pick<Goal, 'fill'>): string | null {
+  const f = g.fill;
+  if (!f || f.need <= 0) return null;
+  return f.min && f.min !== f.target ? t('ge.fillShortMin', { have: f.have, target: f.target, min: f.min }) : t('ge.fillShort', { have: f.have, target: f.target });
 }
 
 /** 0..1 for the group's bar: made and dropped count whole, a video being made its own share. */

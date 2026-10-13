@@ -15,6 +15,7 @@ import { ytApiZh } from './ytApi';
 import { weekPlanZh } from './weekPlan';
 import { goalZh } from './goal';
 import { goalFlowZh } from './goalFlow';
+import { goalEditZh } from './goalEdit';
 import { autopilotZh } from './autopilot';
 import { recordZh } from './record';
 import { fewerStepsZh } from './fewerSteps';
@@ -636,4 +637,4 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'editor.zoomFit': '全部',
 };
 
-export const zhCN: Record<MessageKey, string> = { ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...ytApiZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...musicZh, ...platformLengthsZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...brainZh, ...agentsZh, ...nleZh, ...taskAiZh };
+export const zhCN: Record<MessageKey, string> = { ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...ytApiZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...musicZh, ...platformLengthsZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...goalEditZh, ...brainZh, ...agentsZh, ...nleZh, ...taskAiZh };

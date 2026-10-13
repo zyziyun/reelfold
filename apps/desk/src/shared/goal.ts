@@ -98,7 +98,80 @@ export interface GoalVideo {
   versions?: GoalVersion[] | null;
   /** the last failure's words (scrubbed): shown under "details", never as the reason */
   last_error?: string | null;
+  /** asked for after the group was made (the round of 「再做几条」), and her words on what about */
+  extra?: number | null;
+  about?: string | null;
+  /** a new plan card of the group (「再做几条」): not part of the group until 「Make these」 */
+  proposed?: boolean | null;
+  /** its last re-cut (more / other shots): making | made | failed | undone */
+  recut?: GoalRecut | null;
+  /** the cut before its re-cut can come back */
+  can_undo_recut?: boolean | null;
 }
+
+export interface GoalRecut {
+  at: number;
+  add: string[];
+  drop: string[];
+  shots?: number[];
+  state: 'making' | 'made' | 'failed' | 'undone';
+  ai?: boolean;
+}
+
+/** How far the group is from what she asked for (「补够」 makes ``need`` more). */
+export interface GoalFill {
+  target: number;
+  min?: number | null;
+  have: number;
+  need: number;
+}
+
+/** Her last ask for more videos: planning -> ready (new plan cards) | empty (nothing unused left) | failed; made /
+ * discarded once she answered. */
+export interface GoalMore {
+  state: 'planning' | 'ready' | 'empty' | 'failed' | 'made' | 'discarded';
+  n: number;
+  about?: string | null;
+  ids?: string[];
+  error?: string | null;
+  error_code?: string | null;
+  left?: number | null;
+  at?: number;
+}
+
+export type FanRowState = 'waiting' | 'asking' | 'applying' | 'rendering' | 'proposed' | 'done' | 'nothing' | 'failed' | 'undone';
+
+/** One edit across the group (「全部加水印」): per video, each version's clip through its own AI. */
+export interface GoalFanout {
+  id: string;
+  prompt: string;
+  scope?: { lang?: string | null } | null;
+  at: number;
+  state: 'running' | 'done';
+  mode?: 'autopilot' | 'ask' | null;
+  videos: {
+    video: string;
+    title?: string | null;
+    title_zh?: string | null;
+    state: FanRowState;
+    rows: { item: string; clip?: string | null; lang?: string | null; state: FanRowState; describe?: (import('./v04').EngineMsg | string | null)[] | null; summary?: string | null; error?: string | null; step?: string | null; hold?: string | null; provider?: string | null }[];
+  }[];
+  counts: { done: number; nothing: number; failed: number; proposed: number; undone: number; total: number };
+}
+
+/** What one video's re-cut can pick from: its shots now and the clips no video of the group plays. */
+export interface GoalCandidates {
+  video: string;
+  shots: { i: number; src: string; name: string; src_in?: number | null; src_out?: number | null; thumb?: string | null }[];
+  free: { path: string; name: string; dur?: number | null; story?: string | null; place?: { en: string; zh: string } | null; date?: string | null; start?: string | null; same: boolean; thumb?: string | null }[];
+  used_elsewhere?: number;
+}
+
+export type GoalIntent =
+  | { kind: 'more'; n?: number | null; to?: number | null; about?: string | null }
+  | { kind: 'recut'; video?: string | null; shot?: number | null; mode: 'add' | 'replace' | 'swap' }
+  | { kind: 'fanout'; scope?: { lang?: string } | null }
+  | { kind: 'empty' };
 
 /** How many videos she asked for, and whether the plan reached it (lib/vstudio/intake/goal.py ``count``). */
 export interface GoalCount {
@@ -169,6 +242,9 @@ export interface Goal {
   videos: GoalVideo[];
   counts: GoalCounts;
   count?: GoalCount | null;
+  fill?: GoalFill | null;
+  more?: GoalMore | null;
+  fanouts?: GoalFanout[] | null;
 }
 
 export type GoalEditOp =
