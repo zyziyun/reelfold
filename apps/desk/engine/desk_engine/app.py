@@ -113,6 +113,12 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            every AI step of it uses it, a running one from its next step; null =
                                            the app's default; POST /api/intake/<id>/ai {ai} (a request);
                                            POST /api/goals/<id>/ai {ai, video?} (the group / one of its videos)
+  POST /api/goals/<id>/say {text}          「Edit the collection」 (goaledit.py): her words -> {intent, goal}: more
+                                           videos | one video's re-cut | an edit across the group; also directly:
+                                           /more {n?, about?, to?} /more-act {action approve|discard} /more-edit
+                                           {ops} /candidates {video} /recut {video, add?, drop?, shots?, pick?}
+                                           /recut-undo {video} /fanout {prompt, scope?} /fanout-act {fanout,
+                                           action apply|undo, video?}
   POST /api/intake {prompt, inputs[], platforms?, lang?, mode? autopilot|ask, sample_name?, ai?}  -> {id};
                                            GET /api/intake/<id>; POST .../revise {prompt}; POST .../apply
                                            {plan?, run?}; POST .../stop (planning / revising); POST .../retry (a
@@ -535,7 +541,8 @@ class Api:
         self.sample = Sample(engine.data_dir, vstudio_home)
         self.intake = K["Intake"](engine.data_dir, bus, runner, engine.mode, probe=probe, sample=self.sample)
         from .goals import Goals                   # goal mode: one request -> several videos, made as a group
-        self.goals = Goals(engine.data_dir, bus, self.intake, self.history, runner if real else None, engine.mode)
+        self.goals = Goals(engine.data_dir, bus, self.intake, self.history, runner if real else None, engine.mode,
+                           outputs=self.outputs)
         self.inbox = Inbox(engine.data_dir, self.history, runner, engine.mode, bus)
         self.inbox.outputs = self.outputs
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
@@ -943,6 +950,25 @@ class Api:
             return G.view(gid)
         if len(parts) == 2 and method == "POST":
             verb = parts[1]
+            # edit the collection (a made group): her words, more videos, one video's re-cut, an edit across all
+            if verb == "say":
+                return G.say(gid, b.get("text"))
+            if verb == "more":
+                return G.more(gid, b.get("n"), b.get("about"), b.get("to"))
+            if verb == "more-act":
+                return G.more_act(gid, b.get("action"))
+            if verb == "more-edit":
+                return G.edit_more(gid, b.get("ops"))
+            if verb == "candidates":
+                return G.candidates(gid, b.get("video"))
+            if verb == "recut":
+                return G.recut(gid, b.get("video"), b.get("add"), b.get("drop"), b.get("shots"), b.get("pick"))
+            if verb == "recut-undo":
+                return G.undo_recut(gid, b.get("video"))
+            if verb == "fanout":
+                return G.fanout(gid, b.get("prompt"), b.get("scope"))
+            if verb == "fanout-act":
+                return G.fanout_act(gid, b.get("fanout"), b.get("action"), b.get("video"))
             if verb == "edit":
                 return G.edit(gid, b.get("ops"))
             if verb == "video":
