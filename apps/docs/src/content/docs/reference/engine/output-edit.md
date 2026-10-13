@@ -74,7 +74,11 @@ timeline); positions are fractions of the canvas (x, y = centre).
 | `effect_remove` | `id` | |
 | `cover` | `t, text, style card|plain|band` or `clear` | frame of the edited timeline |
 | `export_add` / `export_remove` | `target` (`platform[:orientation]`, `3:4`, `9:16`, `16:9`), `layout auto|band` | re-layout, never a plain letterbox (band is a designed layout for flattened files) |
+| `export_add` + `lang` | `target, lang en\|zh\|fr\|ja\|es\|de\|ko\|pt, voice?` | a version in another language: the transcript's sentences translated (`vstudio.bilingual`, task `translate`; refused with `needs-model` when nothing is routed), stored in the op (`lines [[start, end, said, translated]]`); the render voices them (`vstudio.tts`, said up to 1.35x faster to fit a line's slot) over a music bed (the clip's own `music-bed`, else the built-in calm mood) instead of the old mix, and captions them (over a blur mask of burned captions; an imported clip with matched footage is rebuilt from the footage, so no burned text comes along) |
+| `voiceover` / `voiceover_remove` | `mode intro\|full\|span, start?, end?, lines? [{start, text, text_zh}], text?, text_zh?, ask?, voice?, source tts\|take, take?, duck_db? (-14), captions?` / `id` | a narration over the clip (`vstudio.project.outvoice`): `intro` = a short opening from the start, `full` = the whole clip narrated with its lines placed in the gaps of on-camera speech (a line over her voice moves to the nearest pause that holds it, else is left out: `voiceover-line-dropped`), `span` = text from `start`. Only her ask: the routed AI (task `output_edit`) writes it from the transcript, the speech gaps and her words (`needs-model` without one). Each version says its own language (`text` English for YouTube / TikTok ..., `text_zh` for 小红书 / 抖音 / B站). The voice per language is cast by `vstudio.voicecast` (lively for a vlog; a speaker she names, or the project's own voice, wins) and recorded in the op (`voices`); the AI's proposal is applied as proposed (`replayable`: no second writing). Render: the source (`tts` = Qwen3-TTS / Kokoro with the cast speaker + style; `take` = her recording laid from `start`) is mixed over the clip's sound, which is ducked by `duck_db` under it, and its lines are captioned in the version's language. One step: Undo / Before-after as any edit; the step reads "Voice-over 0:00–0:03" |
+| `shot_swap` | `shot, source?, t?, restore?` | imported clips with matched footage (section 7): the picture of one shot from another take (the sound stays); no `source` = the next unused take (same clip after, then before, then other clips); the finished video's title bar stays over the new take; burned captions do not (warning `swap-hides-burned`) |
 | `reset` | | everything back to the original (undoable) |
+| `override_reset` | `key` | one of her hand edits (`show.overrides[].key`) back to the AI version: her ops on that key are left out of the state (undo brings them back); `unknown-override` when the key is not hers |
 
 ### 3a. Transcript cuts (Descript-style editing)
 
@@ -211,9 +215,28 @@ punch-in, overlays, cards, title band, captions, progress bar; encode) -> `cover
 key + only the ops it uses, so a caption / overlay change re-runs `final` only, an SFX change `audio` + `final`, a
 cut everything from `timeline`; an unchanged render (or one undone back to) is all cache hits. `preview` = same
 resolution, low bitrate (ultrafast, CRF 30, 2 Mb/s); `final` = the platform delivery encode. `show.renders` says
-which renders are `fresh` for the current state. Every render writes `.vstudio/status.json` heartbeats
+which renders are `fresh` for the current state, each with its `key`: a render replaces
+`renders/<target>.<quality>.mp4` in place, so a player keys its media URL on `key` (Chromium keeps a URL's media
+bytes for minutes and mixes the old file into the new one: a stale picture or a decode error). Every render writes `.vstudio/status.json` heartbeats
 (`output-edit:<stage>`, progress during the frame pass) into the edit folder and the owning project / work
 folder; the owner's previous record is restored afterwards.
+
+### 5a. A launch-kit film (`items/<item>/kit/{demo,clips,readme}/*.mp4` of a `launch-kit` project)
+
+A finished motion-design promo with no speech (vstudio.project.outkit). `output ai` answers a request about the
+film itself - its look ("more premium"), pacing, camera, transitions, backdrop, music, how the features show
+("show the features clearly", "focus on the calendar") - without the model and without ops: `route: launch-kit`,
+`kit {item, config, cut, patch, applied}` (`patch` = launch.config.yaml keys: `pace`, `motion`, `brand.backdrop`,
+`music`, `features [{id, seconds}]`, `film {variety, text, captions}`, `type {weight, scale}`) and one message per
+change (`kit-feature-time`, `kit-transition`, `kit-backdrop`, `kit-pace`, `kit-camera-*`, `kit-music*`,
+`kit-feature-focus`; "every shot looks the same / 每一帧都一样 / more variety" → `kit-film-variety` (film.variety:
+lively) + `kit-film-text`; "the titles are ugly / 标题太丑" → `kit-type` (type weight 520, scale 0.9) +
+`kit-film-text` (words on screen at most 30 % of the runtime), and the backdrop stays light; `kit-what` when it names nothing the
+kit has; `kit-editor-on-top` when editor changes sit on the film). `output kit --set PATCH` writes it (her header
+comments kept, the previous file in `work/launch.config.before-<time>.yaml`); `resume` then renders through the kit
+(its render stage watches the file). Literal edits of the file (cover, trim, export, a selected range) stay with
+the editor; there the model gets `source {kind: launch-kit film, speech, kit}` and `studio-sound` / a second
+`music-bed` are dropped (`kit-no-voice`, `kit-has-music`).
 
 ## 6. JSON contract (desk app)
 
@@ -224,7 +247,7 @@ descriptions) is `{code, params, message (English), message_zh}`: the desk local
 | command | stdout |
 |---|---|
 | `output list --project P` | `{ok, dir, kind project|work, outputs [{id, file, title, item, platform, orientation, edited, steps, mode, edit_dir}]}` |
-| `output show --project P --output O` | `{ok, output {id, file, mode, canvas, fps, duration, platform, master}, caps, caps_notes, state, captions [{id, start, end, text, original, edited, removed, added}], effects [{id, effect, start, end, params, label, edited [a, b]}], timeline {segments, joins, speed, duration}, history {steps [{id, at, by, note, describe, retimed}], undo, redo}, renders [{target, quality, file, fresh}], warnings, paths {doc, dir, renders, transcript}, words_sig, marks}` |
+| `output show --project P --output O` | `{ok, output {id, file, mode, canvas, fps, duration, platform, master}, caps, caps_notes, state, captions [{id, start, end, text, original, edited, removed, added}], effects [{id, effect, start, end, params, label, edited [a, b]}], timeline {segments, joins, speed, duration}, history {steps [{id, at, by, note, describe, retimed}], undo, redo}, renders [{target, quality, file, fresh, at, key}], warnings, paths {doc, dir, renders, transcript}, words_sig, marks, overrides (6a)}` |
 | `output edit ... --ops JSON` | the `show` document + `{step {id, ops, describe, retimed?}, values [per op], warnings}` |
 | `output preview-edl ... --ops JSON` | `{ok, output, keep, cuts, duration, source_duration, ops, dropped, warnings}` (nothing written) |
 | `output ai ... --instruction T [--context JSON] [--apply]` | `{ok, context, proposed [{op, normalized, describe, why, warnings}], ops, dropped [{op, error}], summary, provider, model, cost_usd, seconds, warnings, turn, applied, step?}` |
@@ -233,6 +256,8 @@ descriptions) is `{code, params, message (English), message_zh}`: the desk local
 | `output chat ...` [`--add JSON` / `--turn ID --set JSON`] | `{ok, turns}` / `{ok, turn}` |
 | `output undo|redo ...` | the `show` document + `undone` / `redone` step |
 | `output effects` | `{ok, effects [...], n}` |
+| `output nle ...` / `output nle-relink ...` | section 8 |
+| `output kit ... --set PATCH` | `{ok, item, config, backup}` (a launch-kit film, section 5a) |
 | `ai --project P --instruction T [--outputs]` | `{ok, scope project, answer changes|needs_rerender|mixed|nothing, outputs [{id, title, mode}], groups [{output, title, mode, proposed, dropped, ops, summary, source model|rules}], needs_rerender, apply_all {outputs, ops}, classified, model_called, provider, model, fallback, cost_usd, seconds, warnings}` |
 
 Errors: exit 5 + `{ok: false, error, code, params, message, message_zh}`. Codes: `unknown-owner`,
@@ -240,8 +265,73 @@ Errors: exit 5 + `{ok: false, error, code, params, message, message_zh}`. Codes:
 `duplicate-effect`, `bad-param`, `bad-time`, `too-short`, `cut-no-word`, `unknown-cut`, `no-audio`, `no-words`,
 `transcribe-failed`, `captions-not-ours`, `unknown-cue`, `empty-text`, `not-faithful`, `placement-pipeline`,
 `unknown-target`, `nothing-to-undo`, `nothing-to-redo`, `unknown-step`, `already-reverted`, `revert-conflict`,
-`bad-context`, `unknown-turn`, `llm-failed`, `llm-bad-json`, `render-failed`, `stale-words {expected, got}`.
+`bad-context`, `unknown-turn`, `llm-failed`, `llm-bad-json`, `render-failed`, `stale-words {expected, got}`,
+`not-a-kit-film`, `kit-config-invalid`.
 Warnings / notes: `flattened`, `captions-add-only`, `relayout-crops-burned`, `no-master`, `master-mismatch`,
 `source-changed`, `placement-auto`, `style-added-only`, `band-pipeline`, `effect-cut-away`, `param-adjusted`,
 `unknown-param`, `no-model`, `length`, `cut-splits-burned-caption {at}`. Op descriptions: `op-<op>` (e.g. `op-effect-add {effect, start, end}`,
 `op-revert {step, what}`).
+
+
+## 6a. Her hand edits (overrides)
+
+Whatever she changes in the clip editor / inspector is an override: an op of a step not `by: ai` sets keys
+(`outputs.override_keys`): `caption:<cue>` (caption_text / caption_add / caption_remove), `caption_style:<field>`,
+`effect:<id>` (effect_add / effect_update / effect_remove: text, position, timing), `title`, `cover`, `trim`, `speed`,
+`theme`, `captions`, `caption_placement`, `loudness`. Cuts, exports, pickups and shot swaps are steps, not overrides;
+ops a cut derives (captions / effects re-timed, `derived: true`) are not hers either. A key stays hers while the last
+active step that set it is hers: an AI step she applies later takes it over, `reset` clears all, `override_reset`
+gives one back. `show.overrides` = `[{key, label {code override-*, params, message, message_zh}, by_step, at, added,
+ops [describe]}]` (`added`: she created it, so "reset" removes it).
+
+The AI keeps them: `output ai` and the project AI (`projai`) get `her_edits` in their context and a rule in the system
+prompt, and every proposed op that would change one is dropped with `user-override` (`{code, params {keys}}`) unless
+she points at it (`--context` cues / effect) or names it in the instruction (`outputs.named_in`: "remove the title",
+the effect's name or text, "字幕颜色"); a `theme` op then keeps her colours (`restyle: false`, warning
+`theme-kept-yours`); a `reset` is dropped unless she says reset / start over. Rule answers (no model) are her literal
+words and are not filtered. A new file at the output (a re-run, Redo the visuals) re-applies every step (warning
+`source-changed`), so her overrides come back on it; Redo the visuals also tells the scene author what she changed
+(`outputs.item_overrides`). After OpenFilm's `overrides` attribute (github.com/openfilm/openfilm, MIT).
+
+## 7. Imported finished videos (`python -m vstudio.project import`, `imports.py`, `vstudio/shotmatch.py`)
+
+A finished video made anywhere (another run, CapCut / 剪映, Final Cut, Premiere, a phone app) is imported as a work
+folder of its own under `$VSTUDIO_HOME/projects/import-<stamp>-<slug>/`: `final/<clip>/<platform>.mp4` (an APFS clone /
+copy - never a link to, never a write of, the original), its cover and post copy per platform, `.vstudio/import.json`
+(clips, versions with their original path + post copy, the linked footage). Footage is linked by absolute path and
+only read. `import --check` classifies what was dropped (finished vs footage, per clip, every verdict with its
+reasons: platform / export names, output folders, a cover or post beside it, editor vs camera tags, camera file names,
+platform canvases); `import-match` / `--match` matches the shots of a clip's versions to its footage
+(`.vstudio/shots/<version>.json`: per shot the source, in point, speed, crop box, the grade that maps the footage onto
+the finished colours); `import-copy` writes the post copy again (`vstudio.postcopy`, each platform in its language;
+the copy it came with stays as `post_original`).
+
+On such an output `show` adds `imported {clip, original, platform, sources, shots [{i, start, end, source, t, score,
+swap}], coverage}` and caps `imported, sources, shots, shot_swap, languages`; the AI gets the shots with their
+alternatives. Framing of another aspect follows the subject; a version WIDER than the file (a 16:9 YouTube cut of a
+vertical 小红书 video) or in another language is rebuilt shot by shot from the full source frame when at least 60 %
+of it is matched (stage `canvas` op `sources`); swapped shots go through a `splice` stage before the canvas.
+
+
+## 8. Export for editing software (`output nle`, `nle.py`)
+
+`output nle --project P --output O --format xmeml|jianying|capcut|otio [--out DIR] [--media link|copy] [--to-app]
+[--no-measure] --json` (aliases premiere / resolve / 剪映; `--all [--outputs-list a,b]` = every output, each its own
+timeline in one folder) -> `{ok, format, dir, main, files, media, notes, cues, clips, duration, output, in_app}`.
+Default folder `<edit dir>/nle/<time>-<format>/` with a README.txt (how to open it, the media, what is not carried).
+
+| | xmeml (Premiere File › Import, Resolve File › Import › Timeline) | 剪映 / CapCut draft | OTIO |
+|---|---|---|---|
+| picture | the clean master (pipeline) or the file (flattened; a pickup's spliced file) | same | same |
+| cuts | one clipitem per kept piece, back to back, edges rounded once on the film's frames | segments, microseconds | clips + gaps |
+| speed | Time Remap (`timeremap` speed %), in/out in source frames | segment `speed` + a speeds material, source = target x speed | LinearTimeWarp |
+| sound | linked to its picture (`<link>`), Audio Levels = target LUFS (loudness op, else the platform's) over the measured source (max +12 dB); music bed on its own track | the video segment plays its own sound at that level; music an audio track | metadata `reelfold.gain` |
+| captions | SRT beside the XML (ours from the master, her added ones) | a text track (white, dark edge, low) | markers + SRT |
+
+Drafts: `draft_info.json` (+ `draft_content.json`, the Windows name) and `draft_meta_info.json` with each file in the
+media library (`draft_materials` type 0) and every material naming its entry (`local_material_id`); `--to-app` writes
+the folder into 剪映 / CapCut's drafts folder when it exists (macOS: `Movies/JianyingPro|CapCut/User Data/Projects/
+com.lveditor.draft`, Windows: `%LOCALAPPDATA%`). `--media copy` clones (APFS) / copies every file into `<out>/media/`;
+`output nle-relink --out EXPORT --media-dir NEW` re-points every timeline of an export at the files of the same name
+-> `{ok, relinked, missing, files}`. Errors: `unknown-format`, `no-outputs`. Ported from OpenFilm's `nle.mjs` /
+`jianying.mjs` (MIT, THIRD_PARTY_NOTICES.md). Tests: `tests/test_output_nle.py` (round-trip parse of every format).
