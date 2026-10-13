@@ -46,7 +46,16 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
    python3 $VSTUDIO/workflows/photo-story/scripts/photostory/render.py work/spec.py --stills 2,10,25,40
    ```
    Stills go to `work/stills/` at 1/3 size (`--full` for full size). Look at each one. Check mid-transition times too.
-4. **Voice** (skip in `MODE = "music"`). OpenAI: `OPENAI_API_KEY` must be in the environment. Your own voice:
+4. **Cast the voice, then make it** (skip in `MODE = "music"`). In a project the `voice` step casts the narrator
+   before any take is made (`vstudio.voicecast`, catalog `lib/vstudio/voices.json`): the routed AI picks the speaker
+   and a delivery instruction for the story's kind, language, platform and script tone - history / documentary calm
+   and authoritative (`uncle_fu`, `am_michael`), a course clear and warm (`serena`, `af_heart`), a vlog or reel lively
+   (`vivian`, `af_bella`) - else the catalog's rules do. It is recorded as the item's
+   `voice: {engine, speaker, style, reason, by}` in project.yaml and passed as `tts.py --speaker S --style "..."` (the
+   style is Qwen3-TTS's `instruct`; Kokoro has none). A voice you named (`voice: vivian`, a pick in the Inbox, "换个男声"
+   in the chat) is never cast again; changing it re-makes only the voice, the render and the exports. By hand:
+   `python -m vstudio.voicecast cast --lang zh --kind history` / `list`.
+   OpenAI: `OPENAI_API_KEY` must be in the environment. Your own voice:
    `VOICE = dict(engine="clone")` (see "Voice clone" below).
    ```bash
    python3 $VSTUDIO/workflows/photo-story/scripts/photostory/tts.py work/spec.py --sample   # pick a voice
@@ -65,9 +74,33 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
    1620x2160 and heavy shots (tilt, loupe, ink) are slower, so start long renders in the background.
 6. **Cover + side outputs.**
    ```bash
-   python3 .../cover.py work/spec.py         # COVER dict -> out/cover.png
+   python3 .../cover.py work/spec.py         # cover engine 2.0 -> out/cover.png (+ YouTube A/B: cover.ab1-3.jpg, cover.ab.md)
    python3 .../export.py work/spec.py        # subtitles.srt, transcript.md, voice.mp3 (-16 LUFS), post.md
    ```
+   The cover is designed per platform by `vstudio.cover_engine`: the best frame of the story (the COVER hero, every
+   still in the image folders and the clip windows the SCRIPT shows, ranked by `cover.score_frames` /
+   `score_images` with the LAION aesthetic score; the hero gets a small lead), one language (YouTube / Shorts English,
+   小红书 / B站 Chinese), the most specific title of `COVER` / `COVER_EN`, `TITLE_*` and the post title (a generic
+   "航拍西雅图" loses to the title naming the subject), placed clear of the subject and its tip, checked at thumbnail
+   size, and on YouTube the A/B trio for Test & Compare. The pick is cached in `work/cache/cover/`. persona
+   `style.cover: cinema` keeps the centred serif cover; `style.cover: scrapbook` the paper / polaroid collage that
+   `COVER` (hero, polaroids, tagline) lays out.
+
+## Voice and language per version
+- **YouTube / YouTube Shorts is always English** (`vstudio.platform.lang_for`): rendered for `PLATFORM = "youtube"`
+  the subtitles, header and chapter names are English only (`SUBS` is forced to `"en"`), the cover takes `COVER_EN`
+  (or `COVER` with every Chinese text replaced by `TITLE_EN` / left out) and the post is `POST_EN`. The Chinese
+  version goes to 小红书 / B站 / 抖音; the intake planner makes the two versions separate projects.
+- A mood / scenery piece (an autumn essay, golden hour) has **no voice-over** by default: `MODE = "music"` with a few
+  refined on-screen lines, unless the request asks for narration.
+- A told piece (history, explainer) is narrated. Its Chinese version is narrated in Chinese only when a good Chinese
+  voice is set up (the free Qwen3-TTS voice once downloaded, an OpenAI key, your cloned voice, a TTS server): the
+  built-in Kokoro Mandarin sounds robotic and is opt-in (Settings > Voice switch, persona `tts.zh_local: true`),
+  only while Qwen3-TTS is not downloaded. Otherwise the English is narrated and the 中文 subtitles lead:
+  `TTS = dict(language="en")` + `SUB_LEAD = "zh"`. tts.py applies the same rule to an older spec that still says
+  `language="zh"` (unless you name a Chinese voice, `--voice zf_xiaobei`).
+- The local English voice reads curated names from phonemes (`vstudio.kokoro_lexicon`: Elliott, Elvis, Puget,
+  Dreyfus, Yamasaki ...); other unknown names get `SAY_TTS` respellings from the drafter.
 
 ## Modes
 - **narration** (default): the TTS `timing.json` drives the timeline; optional `BGM` bed under the voice.
@@ -155,6 +188,8 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `CLIP_DUCK`, `AMBIENT_DUCK`, `CLIP_LUFS`, `AMBIENT_LUFS` | clip-audio levels / ducking (see Video clip audio) |
 | `CLEANUP` | 气口 / filler cleanup profile for every `audio="keep"` clip (default off; see Video clip audio) |
 | `CANVAS` | `"3:4"` 1080x1440 · `"3:4-hd"` 1620x2160 · `"9:16"` 1080x1920 · `"16:9"` 1920x1080 · `"WxH"` |
+| `LOOK` | `"cinema"` (default; persona `style.look`): full-bleed picture, no running header, the title once over the opening shot, refined type (Noto Serif SC + Noto Sans SC Regular, soft shadows, no boxes), every transition a 0.8 s dissolve or a cut, captions crossfade. `"classic"`: the header / chapter band / boxed labels design (the cover follows persona `style.cover`, see step 6) |
+| `QC` | `dict(flicker="fail" | "warn" | "off")`: `vstudio.flicker` on the full render (default fail) |
 | `LAYOUT` | `header`, `sub` (fraction of H or px), `overlay_subs`. Portrait default: header 13.9 %, picture box, sub band 16.7 %. Landscape default: header 15 % and subtitles overlaid on the picture over a gradient |
 | `PALETTE` | `accent ground paper ink mark route sub_en sub_zh` (hex or RGB) |
 | `TITLE_ZH/EN`, `SECTIONS`, `SECTIONS_EN` | running header + chapter cards (cards for sections ≥ 1, `CHAPTER_CARD` seconds, 0 = off) |
@@ -167,6 +202,8 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `FILM_CAPTION` | caption under film-strip frames, `{n}` / `{name}` |
 | `TTS` | `dir voice model instructions tries good use_say sample_voices sample_line whisper faster_model language` |
 | `SAY` | spoken forms for numbers/names (alignment; also TTS input when `use_say`) |
+| `SUB_LEAD`, `SUBS` | which subtitle line leads (`"zh"`: 中文 on top - a Chinese narration, or a Chinese version narrated in English) / which lines show: `"both"` (default), `"en"`, `"zh"` (YouTube: always `"en"`) |
+| `COVER_EN`, `POST_EN`, `POST_ZH` | the cover texts / post in the other language (YouTube posts English, 小红书 / B站 Chinese) |
 | `BGM`, `BGM_LUFS`, `BGM_DUCK`, `OUT`, `AUDIO_BITRATE`, `FPS`, `PACING` | music bed (your own licensed file) at `BGM_LUFS` loudness (default persona `audio.music_lufs`, -30), `BGM_DUCK` dB while the voice speaks (default 0 = static bed), output; `PACING` = `gap sec_gap tail lead end_fade`. `BGM_VOLUME` is no longer used |
 | `COVER`, `POST`, `VOCAB` | cover.py layout data / post copy (`title intro outro tags platform use_persona_tags tag_set`; `platform` picks the `vstudio.publish` format, default persona `platforms.default`; `tags` are the post's own, persona `publish.tags` are appended unless `use_persona_tags=False`; `tag_set="art"` appends persona `publish.tag_sets.art` instead) / optional study table |
 

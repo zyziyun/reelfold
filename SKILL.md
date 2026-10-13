@@ -80,7 +80,11 @@ library modules: [references/CAPABILITIES.md](references/CAPABILITIES.md). Full 
   泛泛) and rhetorical repeats stay; every cut is re-transcribed (`cleanup verify`).
 - **Cover**: same canvas as the video, bright, her full face (retouched: slimmer, light makeup), designed type, no
   clutter labels, burned into frame 1 when the platform shows frame 1. Look at it before handing over.
-- **Voice**: her own recording over TTS; her cloned voice next; a stock TTS voice only when she says so.
+- **Voice**: her own recording over TTS; her cloned voice next; a stock TTS voice only when she says so. A stock voice
+  is cast per video, never a fixed default: `vstudio.voicecast` picks the speaker + delivery for the kind (history
+  calm and authoritative, a course clear and warm, a vlog lively), language, platform and script (the routed AI, else
+  rules; catalog `lib/vstudio/voices.json`) and records `voice: {engine, speaker, style, reason}`; a voice she named
+  is never re-cast, "换个男声" re-casts and re-makes only the voice and the mix.
 - **Persona first**: speeds, loudness, theme, tags (`publish.tag_sets` per format: no career tags on an art post),
   voice rules come from `persona()`; never hard-code her taste in a script.
 - **Delivery**: H.264 High, bt709, AAC 192k / 48k, `+faststart`, two-pass loudnorm to −14 LUFS (platform profile),

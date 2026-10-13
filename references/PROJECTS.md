@@ -106,6 +106,18 @@ keeps its old version, else a simple diagram from its cues, and the video is mad
 `stage-visuals-failed {scene, total, n, why}`. A remake that fails leaves the project "done" (its video stands): the
 desk shows a notice on the clip, not Needs you.
 
+**Voice casting** (`vstudio.voicecast`, catalog `lib/vstudio/voices.json`): before any narration is made, the
+`voice` checkpoint (`kind: voice-cast`, `auto: always`: every run takes the cast, also in Ask-me-first) picks the
+speaker and a delivery instruction for the video's kind (history / documentary -> calm, authoritative; course ->
+clear, warm; vlog / reels -> lively ...), language, platforms and script, by the routed AI (task `planner`: a step
+override > the project's `ai` > the task route > the default), else by the catalog's rules. It is recorded in
+project.yaml as the item's `voice: {engine, speaker, style, reason, by: ai | rules | you}` (`overrides`) with its
+reason in the answer record; the tts stage gets `--speaker` / `--style`. A plain `voice: qwen` (an engine) is still
+read: the cast picks its speaker. A voice she chose - a speaker named in project.yaml (`voice: vivian`), a pick in
+the Inbox, her words in the chat - is never cast again; `remake --do voice=换个男声` casts again for her words and
+re-runs only tts -> render -> export -> platforms (the cut, stills and cover stay). An engine without a catalog
+(OpenAI, a cloned voice) skips the step.
+
 An `author` checkpoint whose file needs a model to be any good says `author.needs_ai: true` (the explainer's script,
 storyboard and scenes): the autopilot never approves the rules' draft of it - it asks the routed AI once more
 (`drafts.redraft`), else stops in Needs you (`needs-model`: "The visuals need an AI model — Claude Code didn't answer",
@@ -126,6 +138,7 @@ params for project scope, `items_patch` for segment edits) and a digest; then th
 | `script-lock` | preproduction, explainer, ai-video | `{lock: true[, content]}` / author answer; digest = the file hash (an edit asks again) |
 | `storyboard-approval`, `author`, `media-selection` | explainer, promo, vlog, photo-story, slides, course, cover HTML | `{done: true}` (the draft as it is), `{content: "..."}`, or for promo-recut keep `{done, spans: [[a, b]]}` (exactly what she keeps); the engine drafts the file first (below) |
 | `voice-pick` | explainer | `{approve, voice, speed}` (cost estimate in the payload, before paid TTS) |
+| `voice-cast` | photo-story | `{engine, speaker, style, reason, by}` (the cast, `auto: always`), `{pick: k}` or `{ask: "换个男声"}` (her words: cast again); -> the item's `voice` (below) |
 | `budget-approval` (project) | ai-video | `{approve, budget, allow_unknown}`; payload `aggregate: [credits]` over items; never auto |
 | `take-selection` | ai-video | `{picks: {unit: take file}}` -> auto EDL |
 | `cover-pick` | talkinghead, vlog, cover | `{pick, text}` / `{t, text}` (talkinghead, vlog) or `{pick, title, highlight, quote}` (cover) |

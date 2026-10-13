@@ -34,7 +34,16 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
    python3 $VSTUDIO/workflows/photo-story/scripts/photostory/render.py work/spec.py --stills 2,10,25,40
    ```
    Stills go to `work/stills/` at 1/3 size (`--full` for full size). Look at each one. Check mid-transition times too.
-4. **Voice** (skip in `MODE = "music"`). OpenAI: `OPENAI_API_KEY` must be in the environment. Your own voice:
+4. **Cast the voice, then make it** (skip in `MODE = "music"`). In a project the `voice` step casts the narrator
+   before any take is made (`vstudio.voicecast`, catalog `lib/vstudio/voices.json`): the routed AI picks the speaker
+   and a delivery instruction for the story's kind, language, platform and script tone - history / documentary calm
+   and authoritative (`uncle_fu`, `am_michael`), a course clear and warm (`serena`, `af_heart`), a vlog or reel lively
+   (`vivian`, `af_bella`) - else the catalog's rules do. It is recorded as the item's
+   `voice: {engine, speaker, style, reason, by}` in project.yaml and passed as `tts.py --speaker S --style "..."` (the
+   style is Qwen3-TTS's `instruct`; Kokoro has none). A voice you named (`voice: vivian`, a pick in the Inbox, "换个男声"
+   in the chat) is never cast again; changing it re-makes only the voice, the render and the exports. By hand:
+   `python -m vstudio.voicecast cast --lang zh --kind history` / `list`.
+   OpenAI: `OPENAI_API_KEY` must be in the environment. Your own voice:
    `VOICE = dict(engine="clone")` (see "Voice clone" below).
    ```bash
    python3 $VSTUDIO/workflows/photo-story/scripts/photostory/tts.py work/spec.py --sample   # pick a voice
