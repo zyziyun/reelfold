@@ -38,6 +38,7 @@ import { layoutFr } from './layout';
 import { runFr } from './runview';
 import { settingsV2Fr } from './settingsV2';
 import { watermarkFr } from './watermark';
+import { musicFr } from './music';
 import { voiceFr } from './voice';
 import { archiveFr } from './archive';
 import type { legacyEn } from '../legacy/en';
@@ -1894,4 +1895,4 @@ const releaseFr: Record<keyof typeof releaseEn, string> = {
   'set.developerHint': 'Pour travailler sur Reelfold lui-même. Rien de tout cela n’est nécessaire pour faire des vidéos.',
 };
 
-export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...ytApiFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };
+export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...ytApiFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...musicFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };

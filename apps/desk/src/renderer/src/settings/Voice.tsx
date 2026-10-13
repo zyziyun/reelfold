@@ -59,7 +59,7 @@ function PlayButton({ id, name, sample }: { id: string; name: string; sample: Re
 }
 
 /** Download / progress / Ready for one asset group. */
-function DownloadState({ g, testId }: { g: AssetGroupStatus; testId: string }) {
+export function DownloadState({ g, testId }: { g: AssetGroupStatus; testId: string }) {
   const ui = useUi();
   const act = (p: Promise<unknown>) => void p.catch((e) => ui.toast(errText(e), { error: true }));
   if (g.installed) {

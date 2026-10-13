@@ -152,6 +152,9 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   GET  /api/share/<item>                   share for review (share.py): clips + versions + privacy warnings;
                                            POST {clips?, quality?, footer?, title?, expiry_note?, ack?} -> {job};
                                            GET /api/share-jobs/<job>; POST /api/feedback/import {text} -> Inbox items
+  GET  /api/music                          Settings › Music (music.py): the CC0 library (installed?, licence, BPM,
+                                           energy), built-in beds, favourites / bans; POST /api/music/prefs
+                                           {id, favourite?, banned?}
   GET  /api/watermark                      Settings › Watermark (watermark.py): settings + previews over sample
                                            9:16 / 16:9 frames; POST {patch}; POST /api/watermark/logo {path}
   GET  /api/inbox                          every decision waiting for the creator; POST /api/inbox/answer {keys,
@@ -570,6 +573,8 @@ class Api:
         self.share = Share(engine.data_dir, self.history, self.outputs, self.inbox, bus)
         from .watermark import Watermark           # Settings › Watermark (vstudio.watermark settings + previews)
         self.watermark = Watermark()
+        from .music import Music                   # Settings › Music (vstudio.music library, favourites / bans)
+        self.music = Music()
         from .live import LiveHub                  # the live pane: a job's transcript + a nudge when it grows
         self.live = LiveHub(bus)
         self.port = None
@@ -587,6 +592,7 @@ class Api:
                 out.append(p["dir"])
         out += self.create.roots()
         out += self.goals.roots()
+        out += self.music.roots()
         return sorted(set(out))
 
     def _route_import(self, method, parts, query, b):
@@ -1159,6 +1165,10 @@ class Api:
             return self.roots()
         if parts[:1] == ["create"]:
             return self.create.route(method, parts[1:], query, body)
+        if parts[:1] == ["music"]:
+            r = self.music.route(method, parts, body, query)
+            if r is not None:
+                return r
         if parts[:1] == ["watermark"]:
             r = self.watermark.route(method, parts, body, query)
             if r is not None:

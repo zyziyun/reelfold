@@ -2,7 +2,7 @@
 // General / AI / Publishing / Advanced with status dots, the version at the bottom), each section a short page of
 // macOS-style rows. Every control applies at once; nothing has a Save button.
 import { useCallback, useEffect, useState } from 'react';
-import { AudioLines, Clapperboard, ChevronLeft, Send, Settings2, Sparkles, Stamp, Wrench } from 'lucide-react';
+import { AudioLines, Clapperboard, ChevronLeft, Music, Send, Settings2, Sparkles, Stamp, Wrench } from 'lucide-react';
 import { useCreateEnabled } from '../create';
 import { VideoGenSection } from '../create/settings/VideoGenSection';
 import type { SettingsMsg } from '../../../shared/deskApi';
@@ -13,6 +13,7 @@ import { AdvancedSection } from './Advanced';
 import { AiSection } from './Ai';
 import { GeneralSection } from './General';
 import { Dot } from './kit';
+import { MusicSection } from './Music';
 import { PublishingSection } from './Publishing';
 import { VoiceSection } from './Voice';
 import { WatermarkSection } from './Watermark';
@@ -29,6 +30,8 @@ registerSettingsSection({ id: 'video', order: 25, label: () => t('create.set.tit
 registerSettingsSection({ id: 'voice', order: 26, label: () => t('vo.nav'), icon: AudioLines, render: (c) => <VoiceSection {...c} />, testId: 'snav-voice' });
 // your handle / logo on every export (engine: vstudio.watermark)
 registerSettingsSection({ id: 'watermark', order: 27, label: () => t('wm.nav'), icon: Stamp, render: () => <WatermarkSection />, testId: 'snav-watermark' });
+// the CC0 music library: listen, favourite, never use (engine: vstudio.music)
+registerSettingsSection({ id: 'music', order: 28, label: () => t('mu.nav'), icon: Music, render: () => <MusicSection />, testId: 'snav-music' });
 registerSettingsSection({ id: 'accounts', order: 30, label: () => t('s2.nav.accounts'), icon: Send, render: (c) => <PublishingSection {...c} />, useDot: useAccountsDot, testId: 'snav-accounts' });
 registerSettingsSection({ id: 'advanced', order: 90, label: () => t('s2.nav.advanced'), icon: Wrench, render: (c) => <AdvancedSection {...c} />, useDot: useAdvancedDot, testId: 'snav-advanced' });
 

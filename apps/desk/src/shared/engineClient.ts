@@ -3,6 +3,7 @@
 // that talks to the engine's socket directly (src/main/engineTransport.ts). The engine never listens on a port the
 // page could reach.
 import type { WatermarkDoc, WatermarkSettings } from './watermark';
+import type { MusicDoc } from './music';
 import type {
   ApplyResult,
   BatchStatus,
@@ -513,6 +514,14 @@ export class EngineClient {
   /** every clip of a project, each its own timeline, in one folder */
   exportNleAll(item: string, format: NleFormat, opts: { media?: 'link' | 'copy'; to_app?: boolean } = {}) {
     return this.req<NleResult>('POST', `/api/outputs/${bid(item)}/nle`, { format, ...opts });
+  }
+  /** Settings › Music: the CC0 library, the built-in beds, her favourites / bans */
+  music() {
+    return this.req<MusicDoc>('GET', '/api/music');
+  }
+  /** favourite / ban one track (absent = leave as is) */
+  setMusicPref(id: string, pref: { favourite?: boolean; banned?: boolean }) {
+    return this.req<MusicDoc>('POST', '/api/music/prefs', { id, ...pref });
   }
   /** Settings › Watermark: the engine's watermark settings + previews over sample 9:16 / 16:9 frames */
   watermark(previews = true) {
