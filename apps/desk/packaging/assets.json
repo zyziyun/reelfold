@@ -20,6 +20,12 @@
      "size": 8543168
     },
     {
+     "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/SubsetOTF/SC/NotoSansSC-Black.otf",
+     "dest": "fonts/NotoSansSC-Black.otf",
+     "sha256": "ccb496022356b7dd14d117538a472ae40feff8f6e8f3fe8bffc5616785d2f3f9",
+     "size": 8855916
+    },
+    {
      "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Serif/SubsetOTF/SC/NotoSerifSC-Regular.otf",
      "dest": "fonts/NotoSerifSC-Regular.otf",
      "sha256": "e8f396decc1f0963a016a989c3d8852e863d1350996f573860a80767c83a1cd3",

@@ -61,6 +61,9 @@ def test_desk_manifest_pins_the_kit_fonts():
     core = {f["dest"]: f for f in groups["core"]["files"]}
     assert core["fonts/LXGWWenKai-Regular.ttf"]["sha256"] == "39ad71264b588165b469e35e6afb162a378dacd1f95348160240ba9038ac3009"
     assert core["fonts/InstrumentSerif-Regular.ttf"]["size"] == 70012
+    # the heavy Chinese titles: Noto Sans SC Black, pinned like the other Noto files
+    black = core["fonts/NotoSansSC-Black.otf"]
+    assert black["sha256"] == "ccb496022356b7dd14d117538a472ae40feff8f6e8f3fe8bffc5616785d2f3f9" and "/f8d1575" in black["url"]
     sm = groups["font-smiley"]
     assert sm["required"] and sm["extract"] and sm["env"] == {"VSTUDIO_FONT_DISPLAY_ZH": "SmileySans-Oblique.otf"}
     assert sm["files"][0]["sha256"] == "299c0be6c960ae37361762eca76f7d0cd516615435bb96c0d4b98a1e70178a07"

@@ -76,6 +76,8 @@ const raw = (repo, sha, p) => `https://raw.githubusercontent.com/${repo}/${sha}/
 const fonts = [
   ['notofonts/noto-cjk', PINS.notoCjk, 'Sans/SubsetOTF/SC/NotoSansSC-Regular.otf', 'NotoSansSC-Regular.otf'],
   ['notofonts/noto-cjk', PINS.notoCjk, 'Sans/SubsetOTF/SC/NotoSansSC-Bold.otf', 'NotoSansSC-Bold.otf'],
+  // the heavy Chinese titles (vstudio.launch.brand ZH_HEAVY): a real Black instead of Bold thickened with a stroke
+  ['notofonts/noto-cjk', PINS.notoCjk, 'Sans/SubsetOTF/SC/NotoSansSC-Black.otf', 'NotoSansSC-Black.otf'],
   ['notofonts/noto-cjk', PINS.notoCjk, 'Serif/SubsetOTF/SC/NotoSerifSC-Regular.otf', 'NotoSerifSC-Regular.otf'],
   ['notofonts/noto-cjk', PINS.notoCjk, 'Serif/SubsetOTF/SC/NotoSerifSC-Bold.otf', 'NotoSerifSC-Bold.otf'],
   ['google/fonts', PINS.googleFonts, 'ofl/stixtwotext/STIXTwoText%5Bwght%5D.ttf', 'STIXTwoText-Regular.ttf'],

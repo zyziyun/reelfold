@@ -14,6 +14,12 @@ fetch() {  # url dest
 echo "fonts (OFL) -> $CACHE/fonts"
 fetch https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf "$CACHE/fonts/NotoSansSC-Regular.otf"
 fetch https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansSC-Bold.otf "$CACHE/fonts/NotoSansSC-Bold.otf"
+# Noto Sans SC Black for heavy Chinese titles (pinned + sha256-checked; without it they are Bold set with a stroke)
+fetch https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/SubsetOTF/SC/NotoSansSC-Black.otf "$CACHE/fonts/NotoSansSC-Black.otf"
+if ! python3 -c 'import hashlib,sys; sys.exit(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest() != sys.argv[2])' \
+    "$CACHE/fonts/NotoSansSC-Black.otf" ccb496022356b7dd14d117538a472ae40feff8f6e8f3fe8bffc5616785d2f3f9; then
+  echo "  !! NotoSansSC-Black.otf checksum mismatch - removed (heavy Chinese titles fall back to Bold)"; rm -f "$CACHE/fonts/NotoSansSC-Black.otf"
+fi
 fetch https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansSC-Medium.otf "$CACHE/fonts/NotoSansSC-Medium.otf"
 fetch https://github.com/notofonts/noto-cjk/raw/main/Serif/SubsetOTF/SC/NotoSerifSC-Regular.otf "$CACHE/fonts/NotoSerifSC-Regular.otf"
 fetch https://github.com/notofonts/noto-cjk/raw/main/Serif/SubsetOTF/SC/NotoSerifSC-Bold.otf "$CACHE/fonts/NotoSerifSC-Bold.otf"
