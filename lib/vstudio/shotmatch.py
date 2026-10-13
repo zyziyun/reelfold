@@ -9,8 +9,11 @@ aspect from the full source frame.
     SM.alternatives(m, 3)   # unused windows of the linked footage for shot 3: [{source, t, dur, why}]
     SM.piece_filter(...)    # the ffmpeg -vf that puts a source piece on a W x H canvas
 
-Method. The finished video is sampled at 5 fps (grey, 96 px high) and cut into shots where consecutive frames differ
-sharply (a local peak well above the neighbourhood's median). Every source is indexed once - its key frames (drones and
+Method. The finished video is sampled at 5 fps (grey, 96 px high) and cut into shots: hard cuts where consecutive
+frames differ sharply (a local peak well above the neighbourhood's median), dissolves where a frame is a mix of the
+frames 0.2-0.6 s either side of it (and those two differ), dips through black / white at the middle of the flat
+frames. Graded, low-contrast finals and their crossfades count, a pan or a reframe that follows the subject does
+not. Every source is indexed once - its key frames (drones and
 phones write one every 0.5-1 s; decoded with VideoToolbox on a Mac: a 4K HEVC minute in ~1.5 s), else 2 fps - as grey
 128x72 thumbnails, cached in ``$VSTUDIO_CACHE/shotmatch/`` by the file's content hash. Three frames of each shot are
 compared with every indexed frame by normalised cross-correlation over the placements a finished frame can have in
@@ -162,24 +165,108 @@ def index(path, on_event=None):
 
 
 # --------------------------------------------------------------------------- shots of the finished video
-def detect_shots(t, frames, duration):
-    """Cut points of a sampled video -> [[start, end], ...] covering [0, duration]."""
-    n = len(frames)
-    if n < 3:
-        return [[0.0, round(duration, 3)]]
-    f = frames.astype(np.float32)
-    small = f.reshape(n, -1)
-    d = np.abs(np.diff(small, axis=0)).mean(axis=1)       # d[i] between frame i and i+1
+def _hard_cuts(t, d):
+    """Sample gaps that are a sharp, isolated peak of frame change -> cut times."""
     cuts = []
     for i in range(len(d)):
         lo, hi = max(0, i - 10), min(len(d), i + 11)
         med = float(np.median(d[lo:hi]))
         left = d[i - 1] if i > 0 else 0.0
         right = d[i + 1] if i + 1 < len(d) else 0.0
-        # a cut: well above the neighbourhood and a clear peak over the frames either side (a pan is not)
-        if d[i] >= max(14.0, 2.0 * med) and d[i] >= max(left, right) and \
-                d[i] - min(left, right) >= max(8.0, 1.2 * med):
+        # well above the neighbourhood and a clear peak over the frames either side (a pan is not); the floor is low
+        # enough for a cut between two shots of one grade (golden-hour aerials differ by ~8 grey levels)
+        if d[i] >= max(8.0, 2.0 * med) and d[i] >= max(left, right) and \
+                d[i] - min(left, right) >= max(5.0, 1.2 * med):
             cuts.append(float((t[i] + t[i + 1]) / 2.0))
+    return cuts
+
+
+def _flat(f):
+    """Near-uniform frames (black, white, a fade's darkest point)."""
+    return f.std(axis=1) < 4.0
+
+
+def _mix_cuts(t, f, d, flat):
+    """Dissolves: a sample that is a mix (a * before + (1 - a) * after, a in .25-.75) of the samples 1-3 steps either
+    side, which differ clearly from each other. A pan, a zoom or a reframe is a shifted picture, not a mix, so it does
+    not fit. One cut per run of mixed samples, at the best fit."""
+    n = len(f)
+    hits = []
+    for i in range(1, n - 1):
+        lo, hi = max(0, i - 15), min(len(d), i + 16)
+        base = float(np.percentile(d[lo:hi], 25))
+        best = None
+        for k in (1, 2, 3):
+            if i - k < 0 or i + k >= n or flat[i - k] or flat[i + k]:
+                continue
+            a, b, m = f[i - k], f[i + k], f[i]
+            ab = a - b
+            span = float(np.abs(ab).mean())
+            if span < max(8.0, 3.0 * base):
+                continue
+            # the change is concentrated in the transition (steady motion - a pan, a reframe that follows the subject -
+            # changes about as much just before and after it); needs ~1.5 s of picture on each side
+            before, after = d[max(0, i - k - 9):max(0, i - k - 1)], d[i + k + 1:i + k + 9]
+            if len(before) < 4 or len(after) < 4:
+                continue
+            if float(d[i - k:i + k].mean()) < 1.15 * max(float(np.median(before)), float(np.median(after))):
+                continue
+            al = float(((m - b) * ab).sum() / max(1e-6, float((ab * ab).sum())))
+            if not 0.25 <= al <= 0.75:
+                continue
+            res = float(np.abs(m - (al * a + (1.0 - al) * b)).mean())
+            near = min(float(np.abs(m - a).mean()), float(np.abs(m - b).mean()))
+            r = res / max(near, 1e-3)
+            if r < 0.6 and (best is None or r < best):
+                best = r
+        if best is not None:
+            hits.append((i, best))
+    cuts, run = [], []
+    for i, r in hits + [(n + 10, 0.0)]:
+        if run and i - run[-1][0] > 2:
+            j = min(run, key=lambda x: x[1])[0]
+            cuts.append(float(t[j]))
+            run = []
+        run.append((i, r))
+    return cuts
+
+
+def _dip_cuts(t, f):
+    """A dip to black / white (lifted by a grade or not): a sample whose contrast falls to a local minimum far below
+    the pictures ~0.5-1.6 s either side of it -> that sample."""
+    sd = f.std(axis=1)
+    cuts = []
+    for i in range(len(sd)):
+        before, after = sd[max(0, i - 8):max(0, i - 2)], sd[i + 3:i + 9]
+        if len(before) < 3 or len(after) < 3 or sd[i] > sd[max(0, i - 3):i + 4].min():
+            continue
+        if sd[i] < 0.35 * min(float(np.median(before)), float(np.median(after))):
+            cuts.append(float(t[i]))
+    return cuts
+
+
+def _merge(cuts, gap):
+    """[(time, rank)] -> times; cuts of different detectors closer than ``gap`` are one transition, placed by the
+    best-ranked one (a dip's darkest frame, then a dissolve's middle, then a hard cut). Hard cuts in a row stay."""
+    out = []
+    for c, r in sorted(cuts):
+        if out and c - out[-1][0] < gap and r != out[-1][1]:
+            if r < out[-1][1]:
+                out[-1] = (c, r)
+            continue
+        out.append((c, r))
+    return [c for c, _ in out]
+
+
+def detect_shots(t, frames, duration):
+    """Cut points of a sampled video -> [[start, end], ...] covering [0, duration]."""
+    n = len(frames)
+    if n < 3:
+        return [[0.0, round(duration, 3)]]
+    f = frames.astype(np.float32).reshape(n, -1)
+    d = np.abs(np.diff(f, axis=0)).mean(axis=1)       # d[i] between frame i and i+1
+    cuts = _merge([(c, 0) for c in _dip_cuts(t, f)] + [(c, 1) for c in _mix_cuts(t, f, d, _flat(f))] +
+                  [(c, 2) for c in _hard_cuts(t, d)], 0.9)
     bounds = [0.0]
     for c in cuts:
         if c - bounds[-1] >= MIN_SHOT_S and duration - c >= MIN_SHOT_S:
