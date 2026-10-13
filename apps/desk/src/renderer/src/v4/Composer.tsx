@@ -160,7 +160,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
       { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
       { label: t('im.menu'), icon: <Film className="ico" />, run: () => void pickImport(), testId: 'composer-import-menu' },
       ...(files.length ? [{ label: t('wp.make'), icon: <CalendarDays className="ico" />, run: () => void wp.actions.start(files, prompt.trim()).then((ok) => ok && (setPrompt(''), setFiles([]))), testId: 'composer-week' }] : []),
-      ...(createOn ? [{ label: t('nav.create'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: [] })), testId: 'composer-create' }] : []),
+      ...(createOn ? [{ label: t('create.start.script'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: ['new'] })), testId: 'composer-create' }] : []),
       { label: t('sample.try'), icon: <Play className="ico" />, run: () => void sample(), testId: 'composer-sample' },
     ]);
   };

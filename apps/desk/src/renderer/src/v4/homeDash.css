@@ -45,3 +45,16 @@ button.ux-link { background: none; border: 0; padding: 0; font: inherit; font-we
 /* one or two of them use the room they have (never a third of the row with the words cut) */
 .ux-runs { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .ux-strip { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+/* Create's starts under the composer: one quiet row of small chips (a format, write a script, record) */
+.ux-startfrom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.ux-startfrom .lbl { color: var(--text-muted); font-size: 14px; margin-right: 4px; }
+.ux-sf { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 17px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; text-decoration: none; white-space: nowrap; }
+.ux-sf:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.ux-sf > .ico { margin-left: 4px; }
+.ux-sf .ico.rec { color: var(--danger); fill: var(--danger); width: 12px; height: 12px; }
+.ux-sf .art { width: 24px; height: 24px; border-radius: 12px; overflow: hidden; flex: none; }
+.ux-sf .art .cr-art { width: 100%; height: 100%; aspect-ratio: auto; }
+.ux-sfcv { width: 36px; height: 46px; border-radius: 6px; overflow: hidden; flex: none; background: var(--surface-3); }
+.ux-sfcv img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ux-sfcv .cr-art { height: 100%; aspect-ratio: auto; }

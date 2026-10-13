@@ -4,7 +4,8 @@
 // one sentence -> plan -> bible -> 2 scripts -> storyboard -> change a shot's service -> animatic -> spend sheet
 // (cancel = nothing runs; confirm) -> Making -> pick takes -> Ready -> assemble -> open in the normal editor ->
 // send the versions to Publish; the recorder with Chromium's fake camera / mic -> a talking-head project; and with
-// the flag off: no Create nav item, #/create lands on Home. CREATE_SHOTS=<dir> also saves a screenshot per screen.
+// the flag off: no Create starts on Home, #/create… lands on Home. Create lives under Home: its starts are Home's
+// Start from row, her series Home's Keep creating, and its pages light the Home nav item. CREATE_SHOTS=<dir> also saves a screenshot per screen.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -65,11 +66,27 @@ test.describe('Create on', () => {
     await closeApp(app);
   });
 
-  test('nav shows Create; first run offers the sample', async () => {
-    await expect(page.getByTestId('nav-create')).toBeVisible({ timeout: 30000 });
-    await page.getByTestId('nav-create').click();
-    await expect(page.getByTestId('create-home')).toBeVisible();
-    await expect(page.getByTestId('create-formats').locator('button')).toHaveCount(6);
+  test('Home starts Create (no nav item of its own); first run offers the sample', async () => {
+    const start = page.getByTestId('home-start-from');
+    await expect(start).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('nav-create')).toHaveCount(0);
+    // five formats (record is its own start), write a script, record
+    await expect(start.locator('a[data-testid^="create-fmt-"]')).toHaveCount(5);
+    await expect(page.getByTestId('home-start-record')).toHaveAttribute('href', '#/create/record');
+    // nothing in progress yet: no Keep creating
+    await expect(page.getByTestId('home-keep-creating')).toHaveCount(0);
+    // a format opens the planner with it chosen; Create's pages light Home
+    await page.getByTestId('create-fmt-sketch').click();
+    await expect(page.getByTestId('create-new')).toBeVisible();
+    await expect(page.getByTestId('create-format').locator('select')).toHaveValue('sketch');
+    await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
+    // its crumb is Home; #/create is Home with the row in view
+    await page.locator('.cr-crumb a').first().click();
+    await expect(page.getByTestId('home')).toBeVisible();
+    await expect(page.getByTestId('home-start-from')).toBeInViewport();
+    await page.getByTestId('home-start-script').click();
+    await expect(page.getByTestId('create-new')).toBeVisible();
+    await expect(page.getByTestId('create-format').locator('select')).toHaveValue('');
     await expect(page.getByTestId('create-sample')).toBeVisible();
     await shot(page, 'C03-first-run');
   });
@@ -166,13 +183,20 @@ test.describe('Create on', () => {
     await expect(page.getByTestId('calendar')).toBeVisible();
   });
 
-  test('the inbox and the home list know the series', async () => {
+  test('Home keeps creating: her series under the Start from row', async () => {
     await hash('#/create');
-    await expect(page.getByTestId('create-series-card').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('home')).toBeVisible();
+    await expect(page.getByTestId('home-keep-creating').getByTestId('create-series-card').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
+    await page.evaluate(() => document.querySelector('.scroll')?.scrollTo(0, 0));
     await shot(page, 'C01-home');
+    await page.getByTestId('create-series-card').first().click();
+    await expect(page.getByTestId('create-series')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
   });
 
   test('sample series opens on its storyboard', async () => {
+    await hash('#/create/new');
     await page.getByTestId('create-open-sample').click();
     await expect(page.getByTestId('create-episode')).toBeVisible({ timeout: 30000 });
     await expect(page.getByTestId('create-shot')).toHaveCount(18);
@@ -334,7 +358,7 @@ test.describe('Create on', () => {
     await page.evaluate(() => window.desk.setSettings({ lang: 'zh-CN' }));
     await page.reload();
     await page.waitForURL(/^app:\/\/desk\//);
-    const screens: [string, string][] = [['#/create', 'C02-home-zh']];
+    const screens: [string, string][] = [['#/create', 'C02-home-zh'], ['#/create/new/talk-show', 'C02-new-zh']];
     const ids = await page.evaluate(async () => {
       const i = await window.desk.engineInfo();
       const r = await fetch(`${i.baseUrl}/api/create/series`, { headers: { Authorization: `Bearer ${i.token}` } });
@@ -361,14 +385,18 @@ test.describe('Create on', () => {
 });
 
 test.describe('Create off', () => {
-  test('no Create nav item, #/create lands on Home, no create calls', async () => {
+  test('no Create starts on Home, #/create… lands on Home, no create calls', async () => {
     const { app, page } = await launch({ DESK_CREATE: '0' }, 'off');
     try {
       await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 });
-      await expect(page.getByTestId('nav-create')).toHaveCount(0);
+      await expect(page.getByTestId('home-start-from')).toHaveCount(0);
+      await expect(page.getByTestId('composer-record')).toHaveCount(0);
       await page.evaluate(() => (location.hash = '#/create/s/x/bible'));
       await expect(page.getByTestId('home')).toBeVisible();
-      await expect(page.getByTestId('create-home')).toHaveCount(0);
+      await page.evaluate(() => (location.hash = '#/create/new'));
+      await expect(page.getByTestId('home')).toBeVisible();
+      await expect(page.getByTestId('create-new')).toHaveCount(0);
+      await expect(page.getByTestId('home-start-from')).toHaveCount(0);
       await page.evaluate(() => (location.hash = '#/settings'));
       await expect(page.getByTestId('settings-create')).toBeVisible();
       await expect(page.getByTestId('settings-video-link')).toHaveCount(0);

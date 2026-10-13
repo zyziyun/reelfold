@@ -275,7 +275,7 @@ test('Home busy: the Inbox top 3 + n more, Running, Going out today, the platfor
 });
 
 test('Inbox: list + preview, plain choices, confirm -> next one + Undo, ↑ ↓', async () => {
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await expect(page.getByTestId('inbox-list')).toBeVisible({ timeout: 30000 });
   const row = page.getByTestId('inbox-item').filter({ hasText: 'fuye' });
   await row.click();
@@ -333,7 +333,7 @@ test('Inbox: list + preview, plain choices, confirm -> next one + Undo, ↑ ↓'
 });
 
 test('Review all in a row: the triage bar, the pinned question in the editor; Skip, Next, ← Inbox', async () => {
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await page.getByTestId('inbox-item').first().click();
   await page.getByTestId('inbox-triage').click();
   const bar = page.getByTestId('triage-bar');
@@ -621,7 +621,7 @@ test('zh-CN + dark: Home, Inbox, the transcript', async () => {
   await expect(page.getByTestId('home-inbox')).toBeVisible({ timeout: 30000 });
   await noMissingKeys();
   await shot('A5-home-busy-zh');
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await page.getByTestId('inbox-item').filter({ hasText: 'fuye' }).click();
   await expect(page.getByTestId('inbox-option').nth(3)).toContainText('用哪个开头');
   await noMissingKeys();
@@ -650,7 +650,7 @@ test('zh-CN + dark: Home, Inbox, the transcript', async () => {
   await hash('#/');
   await expect(page.getByTestId('home-inbox')).toBeVisible({ timeout: 30000 });
   await noMissingKeys();
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await expect(page.getByTestId('inbox-list')).toBeVisible();
   await noMissingKeys();
   await setLook('en');

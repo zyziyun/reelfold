@@ -3,7 +3,6 @@
 // Spread into en / zh-CN / fr.
 
 export const createEn = {
-  'nav.create': 'Create',
   'inbox.openCreate': 'Open',
 
   // ---------------------------------------------------------------- home (C01 / C02 / C03)
@@ -23,6 +22,11 @@ export const createEn = {
   'create.home.yourSeries': 'Your series',
   'create.home.allProjects': 'All projects',
   'create.home.planFailed': 'The plan did not come through: {error}',
+  'create.start.title': 'Start from',
+  'create.start.script': 'Write a script',
+  'create.start.scriptTip': 'Describe it in one sentence: AI writes the series and plans every shot',
+  'create.start.recordTip': 'Record yourself with the teleprompter',
+  'create.continue.title': 'Keep creating',
   'create.series.epOf': '{format} · Ep. {n} of {total}',
   'create.series.ep': '{format} · Ep. {n}',
   'create.series.noEp': '{format} · not started',
@@ -67,7 +71,7 @@ export const createEn = {
   'create.status.draft': 'Draft',
 
   // ---------------------------------------------------------------- series (C04 / C07 / C10)
-  'create.crumb': 'Create',
+  'create.crumb': 'Home',
   'create.series.budgetLine': '{spent} of {budget} series budget',
   'create.series.budgetNone': '{spent} spent · no series budget',
   'create.series.settings': 'Series settings',
@@ -400,7 +404,6 @@ export const createEn = {
 export type CreateKey = keyof typeof createEn;
 
 export const createZh: Record<CreateKey, string> = {
-  'nav.create': '创作',
   'inbox.openCreate': '打开',
 
   'create.home.title': '做点新的',
@@ -419,6 +422,11 @@ export const createZh: Record<CreateKey, string> = {
   'create.home.yourSeries': '你的系列',
   'create.home.allProjects': '全部项目',
   'create.home.planFailed': '方案没有生成出来：{error}',
+  'create.start.title': '从这里开始',
+  'create.start.script': '写脚本',
+  'create.start.scriptTip': '一句话说清楚：AI 写好系列、规划每个镜头',
+  'create.start.recordTip': '对着提词器自己录',
+  'create.continue.title': '继续创作',
   'create.series.epOf': '{format} · 第 {n}/{total} 集',
   'create.series.ep': '{format} · 第 {n} 集',
   'create.series.noEp': '{format} · 还没开始',
@@ -461,7 +469,7 @@ export const createZh: Record<CreateKey, string> = {
   'create.status.you': '需要你',
   'create.status.draft': '草稿',
 
-  'create.crumb': '创作',
+  'create.crumb': '首页',
   'create.series.budgetLine': '系列预算 {spent} / {budget}',
   'create.series.budgetNone': '已花 {spent} · 未设系列预算',
   'create.series.settings': '系列设置',
@@ -788,7 +796,6 @@ export const createZh: Record<CreateKey, string> = {
 };
 
 export const createFr: Record<CreateKey, string> = {
-  'nav.create': 'Créer',
   'inbox.openCreate': 'Ouvrir',
 
   'create.home.title': 'Créer quelque chose',
@@ -807,6 +814,11 @@ export const createFr: Record<CreateKey, string> = {
   'create.home.yourSeries': 'Vos séries',
   'create.home.allProjects': 'Tous les projets',
   'create.home.planFailed': 'Le plan n’a pas abouti : {error}',
+  'create.start.title': 'Commencer par',
+  'create.start.script': 'Écrire un script',
+  'create.start.scriptTip': 'Décrivez-le en une phrase : l’IA écrit la série et prévoit chaque plan',
+  'create.start.recordTip': 'Vous enregistrer avec le téléprompteur',
+  'create.continue.title': 'Continuer à créer',
   'create.series.epOf': '{format} · Ép. {n} sur {total}',
   'create.series.ep': '{format} · Ép. {n}',
   'create.series.noEp': '{format} · pas commencé',
@@ -849,7 +861,7 @@ export const createFr: Record<CreateKey, string> = {
   'create.status.you': 'À vous',
   'create.status.draft': 'Brouillon',
 
-  'create.crumb': 'Créer',
+  'create.crumb': 'Accueil',
   'create.series.budgetLine': '{spent} sur {budget} de budget série',
   'create.series.budgetNone': '{spent} dépensés · pas de budget série',
   'create.series.settings': 'Réglages de la série',

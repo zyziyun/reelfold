@@ -99,7 +99,7 @@ test('two requests back to back: both become projects and finish on autopilot wi
   // ... and both reach Ready on their own: no plan card, no Start, no question
   await expect(page.getByTestId('hub-group-ready').getByTestId('hub-row').filter({ hasText: 'live_1005' })).toHaveCount(2, { timeout: 90000 });
   await expect(page.getByTestId('plan-start')).toHaveCount(0);
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await expect(page.getByTestId('inbox')).toBeVisible();
   await expect(page.getByTestId('inbox-item').filter({ hasText: 'live_1005' })).toHaveCount(0);
 });
@@ -123,7 +123,7 @@ test('the control room: pipeline, what the AI decided (take one back -> Inbox), 
   await page.locator('[data-testid=hub-decision][data-checkpoint=cover]').first().getByTestId('hub-change').click();
   await expect(page.getByTestId('toast').filter({ hasText: 'Inbox' })).toBeVisible();
   await expect(page.getByTestId('hub-decisions')).toContainText('Waiting for your answer in the Inbox');
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await expect(page.getByTestId('inbox-item').filter({ hasText: 'live_1005' })).toHaveCount(1, { timeout: 15000 });
   await page.getByTestId('nav-projects').click();
   await page.getByTestId('hub-row').filter({ hasText: 'live_1005 · 3' }).first().click();
@@ -154,7 +154,7 @@ test('Settings › Ask me first: the plan waits in the control room for Start, t
   await expect(page.getByTestId('hub-request')).toHaveAttribute('data-mode', 'ask', { timeout: 15000 });
   await expect(page.getByTestId('plan-facts')).toContainText(/2 clips/, { timeout: 30000 });
   // it is a question now: the Inbox says the plan is ready
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await expect(page.getByTestId('inbox-item').filter({ hasText: 'Plan ready' })).toHaveCount(1, { timeout: 15000 });
   await page.getByTestId('inbox-item').filter({ hasText: 'Plan ready' }).click();
   await page.getByTestId('nav-projects').click();

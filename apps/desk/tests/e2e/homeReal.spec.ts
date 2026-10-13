@@ -109,14 +109,14 @@ function api<T>(p: string, body?: unknown): Promise<T> {
   ) as Promise<T>;
 }
 
-test('Home is where the app lands: Home · Create · Inbox · All projects · Publish, Settings and the engine at the bottom', async () => {
+test('Home is where the app lands: Home · All projects · Publish, Settings and the engine at the bottom', async () => {
   await hash('#/');
   await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
   const order = await page.locator('nav.side a.nav').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(order).toEqual(['nav-home', 'nav-create', 'nav-inbox', 'nav-projects', 'nav-publish', 'nav-settings']);
+  expect(order).toEqual(['nav-home', 'nav-projects', 'nav-publish', 'nav-settings']);
   await expect(page.getByTestId('engine-status')).toContainText('Ready on this computer');
-  // the Inbox's count is the one Home says
+  // one list item carries what needs her: its count is the one Home says
   await expect(page.getByTestId('inbox-badge')).toHaveText(/^[1-9]$/, { timeout: 60000 });
 });
 
@@ -208,18 +208,22 @@ test('a running card opens its live run page in the Studio', async () => {
   await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
 });
 
-test('the Inbox in the sidebar is the list of what needs her; All projects is every video', async () => {
-  await page.getByTestId('nav-inbox').click();
+test('one list in the sidebar: it opens on what needs her while something does; All is every video', async () => {
+  await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('studio')).toBeVisible();
   await expect(page.getByTestId('studio-f-you')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('nav-inbox')).toHaveAttribute('aria-current', 'page');
-  await page.getByTestId('nav-projects').click();
+  await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
+  await page.getByTestId('studio-f-all').click();
   await expect(page.getByTestId('studio-f-all')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
+  // #/inbox still opens it on Needs you
+  await hash('#/inbox');
+  await expect(page.getByTestId('studio-f-you')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('All projects: search, filters and keys over the real list', async () => {
   await page.getByTestId('nav-projects').click();
+  await page.getByTestId('studio-f-all').click();
   const rows = page.getByTestId('studio-row');
   await expect(rows.first()).toBeVisible();
   const all = await rows.count();

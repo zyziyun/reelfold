@@ -86,10 +86,10 @@ test.describe('Create plugins', () => {
     await app?.close();
   });
 
-  test('home: platforms international first, Import board with a HyperFrames project', async () => {
-    await expect(page.getByTestId('nav-create')).toBeVisible({ timeout: 30000 });
-    await hash('#/create');
-    await expect(page.getByTestId('create-home')).toBeVisible();
+  test('new series: platforms international first, Import board with a HyperFrames project', async () => {
+    await expect(page.getByTestId('home-start-from')).toBeVisible({ timeout: 30000 });
+    await page.getByTestId('home-start-script').click();
+    await expect(page.getByTestId('create-new')).toBeVisible();
     await expect(page.getByTestId('create-platforms')).toContainText(/YouTube[^,]*, TikTok \+2/);
     await pickNext(app, FIX);
     await page.getByTestId('create-import-board').click();

@@ -84,6 +84,8 @@ describe('Create routes', () => {
       { screen: 'record' },
       { screen: 'record', eid: 'if-ads-e04', shot: '07' },
       { screen: 'record', sid: 'if-ads' },
+      { screen: 'new' },
+      { screen: 'new', format: 'sketch' },
     ];
     setCreatePrefs({ createPage: true });
     for (const r of rs) {
@@ -96,6 +98,8 @@ describe('Create routes', () => {
     // Settings › Video generation is a section of the settings sub-nav (settings/registry.ts)
     expect(parseRoute('#/settings/video')).toEqual({ name: 'settings', section: 'video' });
     expect(parseCreate(['e', 'BAD!'])).toEqual({ screen: 'home' });
+    // the recorder is its own screen, never a format to plan
+    expect(parseCreate(['new', 'record'])).toEqual({ screen: 'new' });
   });
 
   it('with the flag off every create hash lands on Home (and video settings on Settings)', () => {

@@ -1,9 +1,9 @@
-// The Create page module: one import site in App.tsx (nav item + screen) and one in Settings.tsx (Labs card).
+// The Create page module: one import site in App.tsx (its screens; its landing is Home's Start from row, the Home nav
+// item is lit on every #/create page), one in Settings.tsx (Labs card) and v4/HomeCreate (Home's starts + series).
 // Everything else (routes, api, screens, copy, css) lives under create/.
 import './create.css';
-import { Pencil } from 'lucide-react';
 import type { SettingsMsg } from '../../../shared/deskApi';
-import { CreateHome } from './CreateHome';
+import { CreatePlan } from './CreatePlan';
 import { EpisodeScreen } from './episode/EpisodeScreen';
 import { RecordStudio } from './record/RecordStudio';
 import { parseCreate } from './routes';
@@ -13,7 +13,10 @@ import { VideoGenSection } from './settings/VideoGenSection';
 export { setCreatePrefs, useCreateEnabled, createEnabled } from './flag';
 export { CreateSettingsCard } from './settings/VideoGenSection';
 
-export const CreateNavIcon = Pencil;
+/** #/create (or a path it does not know): Create has no landing of its own - Home shows its starts. */
+export function isCreateLanding(path: string[]): boolean {
+  return parseCreate(path).screen === 'home';
+}
 
 export function CreateScreen({ path, onSettings }: { path: string[]; onSettings?: (s: SettingsMsg) => void }) {
   const r = parseCreate(path);
@@ -38,11 +41,13 @@ export function CreateScreen({ path, onSettings }: { path: string[]; onSettings?
           <VideoGenSection onSettings={onSettings} />
         </div>
       );
-    default:
+    case 'new':
       return (
         <div className="scroll">
-          <CreateHome />
+          <CreatePlan key={r.format ?? ''} format={r.format} />
         </div>
       );
+    default:
+      return null; // the landing is Home (App renders it for isCreateLanding)
   }
 }

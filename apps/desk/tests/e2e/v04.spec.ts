@@ -86,7 +86,7 @@ test('Home (Ask me first): say it + a file -> sent -> the plan card in All proje
 });
 
 test('the inbox lists the folder’s edits to confirm; confirm with undo', async () => {
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   const item = page.getByTestId('inbox-item').filter({ hasText: 'fuye' });
   await expect(item).toBeVisible({ timeout: 30000 });
   await item.click(); // the list on the left, the item on the right

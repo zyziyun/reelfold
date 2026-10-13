@@ -1,8 +1,12 @@
 // Create routes live under one top-level route ({name: 'create', path}) so the app router stays untouched apart from
 // one line; this file turns the path into a screen.
-//   #/create                      home            #/create/s/<sid>[/<tab>]   series (bible|episodes|scripts|making|ready)
+//   #/create                      Home (its Start from row; Create has no landing of its own)
+//   #/create/new[/<format>]       plan a new series (one sentence + a format)
+//   #/create/s/<sid>[/<tab>]      series (bible|episodes|scripts|making|ready)
 //   #/create/e/<eid>[/<tab>]      episode (script|storyboard|takes|edit)
 //   #/create/record[/e/<eid>/<no> | /s/<sid>]     recorder             #/settings/video   Settings › Video generation
+import { FORMAT_IDS, type FormatId } from '../../../shared/create';
+
 export type SeriesTab = 'bible' | 'episodes' | 'scripts' | 'making' | 'ready';
 export type EpisodeTab = 'script' | 'storyboard' | 'takes' | 'edit';
 export const SERIES_TABS: SeriesTab[] = ['bible', 'episodes', 'scripts', 'making', 'ready'];
@@ -10,6 +14,7 @@ export const EPISODE_TABS: EpisodeTab[] = ['script', 'storyboard', 'takes', 'edi
 
 export type CreateRoute =
   | { screen: 'home' }
+  | { screen: 'new'; format?: FormatId }
   | { screen: 'series'; sid: string; tab: SeriesTab }
   | { screen: 'episode'; eid: string; tab: EpisodeTab }
   | { screen: 'record'; sid?: string; eid?: string; shot?: string }
@@ -28,6 +33,7 @@ export function parseCreate(path: string[]): CreateRoute {
     return { screen: 'record' };
   }
   if (a === 'settings') return { screen: 'settings' };
+  if (a === 'new') return FORMAT_IDS.includes(b as FormatId) && b !== 'record' ? { screen: 'new', format: b as FormatId } : { screen: 'new' };
   return { screen: 'home' };
 }
 
@@ -42,6 +48,8 @@ export function createPath(r: CreateRoute): string[] {
       return r.sid ? ['record', 's', r.sid] : ['record'];
     case 'settings':
       return ['settings'];
+    case 'new':
+      return r.format ? ['new', r.format] : ['new'];
     default:
       return [];
   }

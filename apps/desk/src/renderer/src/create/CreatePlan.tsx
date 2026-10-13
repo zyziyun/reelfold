@@ -1,17 +1,16 @@
-// Create home (C01 / C02 / C03): one sentence + a format -> a planned series. Your series, this month's spend,
-// and on first run (no service connected) a calm notice + the sample series.
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, Cloud, CircleDollarSign, Layers, Paperclip, Sparkles } from 'lucide-react';
+// Plan a new series (C01 / C02 / C03; #/create/new[/<format>]): one sentence + a format -> a planned series. This
+// month's spend, and on first run (no service connected) a calm notice + the sample series. Its starts (the formats,
+// write a script, record) and her series in progress are on Home (v4/HomeCreate) - Create lives under Home.
+import { useMemo, useRef, useState } from 'react';
+import { ChevronDown, Cloud, CircleDollarSign, Layers, Paperclip, Sparkles } from 'lucide-react';
 import type { Format, FormatId, Msg, SeriesDraft, SeriesSummary } from '../../../shared/create';
 import { yuan } from '../../../shared/create';
 import { orderPlatforms } from '../../../shared/platforms';
 import { t } from '../i18n';
-import { href } from '../lib/router';
-import { media } from '../v4/kit';
-import { JobError, lastStep, msgText, useAction, useCreate, useCreateLoad, waitJob } from './api';
+import { JobError, lastStep, useAction, useCreate, useCreateLoad, waitJob } from './api';
 import { PlanError, PlanProgress } from './PlanStatus';
 import { BoardDrop, ImportBoardButton, ImportNote, useBoardImport } from './ImportBoard';
-import { FormatArt, l10n, uiLang3 } from './bits';
+import { Crumbs, FormatArt, l10n, uiLang3 } from './bits';
 import { createHref, goCreate } from './routes';
 import { keyHint } from '../lib/keys';
 
@@ -29,22 +28,14 @@ const PLAT_STYLE: Record<string, { bg: string; g: string }> = {
   instagram: { bg: '#c13584', g: '◎' },
 };
 
-function statusClass(code?: string): string {
-  if (!code) return '';
-  if (code.endsWith('.pick') || code.endsWith('.you')) return 'you';
-  if (code.endsWith('.making') || code.endsWith('.board')) return 'run';
-  if (code.endsWith('.ready') || code.endsWith('.assemble')) return 'ok';
-  return '';
-}
-
-export function CreateHome() {
+export function CreatePlan({ format }: { format?: FormatId }) {
   const c = useCreate();
   const formats = useCreateLoad((x) => x.formats(), []);
   const series = useCreateLoad((x) => x.listSeries(), []);
   const providers = useCreateLoad((x) => x.providers(), []);
   const spend = useCreateLoad((x) => x.spend(), []);
   const [prompt, setPrompt] = useState('');
-  const [fmt, setFmt] = useState<FormatId | null>(null);
+  const [fmt, setFmt] = useState<FormatId | null>(format ?? null);
   const [budget, setBudget] = useState(60);
   const [plats, setPlats] = useState<string[]>(['youtube-shorts', 'tiktok', 'xiaohongshu', 'douyin']);
   const shown = useMemo(() => orderPlatforms(plats), [plats]);
@@ -53,15 +44,6 @@ export function CreateHome() {
   const sample = useAction();
   const imp = useBoardImport();
   const ta = useRef<HTMLTextAreaElement | null>(null);
-
-  // a recording that survived an app quit: hand it to the engine once (it remuxes, the inbox says so)
-  useEffect(() => {
-    if (!c) return;
-    void window.desk.rec
-      ?.recover()
-      .then((rows) => (rows.length ? c.recover() : null))
-      .catch(() => undefined);
-  }, [c]);
 
   const connected = (providers.data?.providers ?? []).some((p) => p.ready && (p.kind === 'cloud' || p.kind === 'mcp'));
   const rows: SeriesSummary[] = series.data?.series ?? [];
@@ -92,15 +74,10 @@ export function CreateHome() {
       }
     });
 
-  const pickFormat = (f: Format) => {
-    if (f.id === 'record') return goCreate({ screen: 'record' });
-    setFmt(fmt === f.id ? null : f.id);
-    ta.current?.focus();
-  };
-
   const used = spend.data?.used ?? 0;
   return (
-    <div className="cr cr-home" data-testid="create-home">
+    <div className="cr cr-home" data-testid="create-new">
+      <Crumbs items={[{ label: t('create.crumb'), to: { screen: 'home' } }, { label: fmtName ? l10n(fmtName.labels) : t('create.start.script') }]} />
       <h1 className="hello">{t('create.home.title')}</h1>
       <div className="tag">{firstRun ? t('create.home.tagFirst') : t('create.home.tag')}</div>
       <BoardDrop className="cr-cmp" onPath={(p) => void imp.run(p)}>
@@ -197,55 +174,8 @@ export function CreateHome() {
         </div>
       )}
 
-      <div className="cr-fmts" data-testid="create-formats">
-        {fmts.map((f) => (
-          <button key={f.id} className={`cr-fmt ${fmt === f.id ? 'on' : ''}`} onClick={() => pickFormat(f)} data-testid={`create-fmt-${f.id}`}>
-            <FormatArt id={f.id} />
-            <div className="bd">
-              <div className="nm">{l10n(f.labels)}</div>
-              <div className="how">{l10n(f.blurb)}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-
       {rows.length > 0 && (
         <>
-          <div className="cr-sh">
-            <h2>{t('create.home.yourSeries')}</h2>
-            <span className="n">{rows.length}</span>
-            <span className="sp" />
-            <a className="link" href={href({ name: 'projects' })} style={{ fontSize: 16 }}>
-              {t('create.home.allProjects')} <ArrowRight className="ico" style={{ verticalAlign: -3 }} />
-            </a>
-          </div>
-          <div className="cr-series" data-testid="create-series-list">
-            {rows.slice(0, 6).map((s) => {
-              const f = fmts.find((x) => x.id === s.format);
-              const fname = f ? l10n(f.labels) : s.format;
-              return (
-                <a key={s.id} className="cr-se" href={createHref({ screen: 'series', sid: s.id, tab: 'bible' })} data-testid="create-series-card">
-                  {s.cover ? (
-                    <img className="cv" src={media(s.cover)} alt="" />
-                  ) : (
-                    <span className="cv">
-                      <FormatArt id={s.format} badge={false} />
-                    </span>
-                  )}
-                  <span className="tx">
-                    <span className="t1 clamp1">{s.name}</span>
-                    <span className="t2">
-                      {s.last ? (s.planned ? t('create.series.epOf', { format: fname, n: s.last, total: s.planned }) : t('create.series.ep', { format: fname, n: s.last })) : t('create.series.noEp', { format: fname })}
-                    </span>
-                    <span className="t3">
-                      {s.status && <span className={`cr-pill ${statusClass(s.status.code)}`}>{msgText(s.status)}</span>}
-                      <span className="num">{s.budget ? t('create.money.ofBudget', { spent: yuan(s.spent), budget: yuan(s.budget) }) : t('create.money.spent', { spent: yuan(s.spent) })}</span>
-                    </span>
-                  </span>
-                </a>
-              );
-            })}
-          </div>
           <div className="cr-costbar" data-testid="create-costbar">
             <CircleDollarSign className="ico muted" />
             <span className="muted">{t('create.cost.thisMonth')}</span>

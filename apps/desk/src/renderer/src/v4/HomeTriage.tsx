@@ -230,7 +230,7 @@ export function HomeInbox({ items }: { items: InboxItem[] }) {
   return (
     <section className="ux-sec" data-testid="home-inbox">
       <div className="ux-sech">
-        <h2>{t('nav.inbox')}</h2>
+        <h2>{t('home.needsYou')}</h2>
         <span className="muted" data-testid="home-inbox-count">
           {t('hd.inboxLine', { n: live.length, m: minutes })}
         </span>

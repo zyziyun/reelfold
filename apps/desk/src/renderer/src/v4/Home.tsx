@@ -1,4 +1,6 @@
 // Home (ux/home-redesign A1-A6, ux/autopilot A1): say what to make, then what needs doing next, in that order.
+//   start from - Create's starts under the composer (a format, write a script, record), then her series in progress
+//               ("Keep creating") - the Create page lives under Home (v4/HomeCreate; only with the Create flag)
 //   composer  - the whole card is a drop target; files become chips; the platform chip is editable; ⌘↵ sends it:
 //               the request becomes a project in All projects at once (planned and run there, on autopilot unless
 //               Settings says "Ask me first") and the box is free for the next one (where AI runs lives in Settings)
@@ -50,6 +52,7 @@ import { AiPickChip, AiTag } from './AiPick';
 import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
 import { ManyToggle } from './ManyToggle';
 import { useCreateEnabled } from '../create/flag';
+import { HomeKeepCreating, HomeStartFrom } from './HomeCreate';
 
 /** Starting points whose request is a fixed intent (sent as written: the talking-head recipe, planned by the rules). */
 const FIXED_STARTS: MessageKey[] = ['home.idea2Prompt', 'sample.prompt'];
@@ -94,7 +97,8 @@ const homeCache: { cal: Awaited<ReturnType<EngineClient['calendar']>> | null; su
 /** Remember the last request + files so a reload never loses what she typed. */
 const DRAFT = 'v4.composer';
 
-export function Home() {
+/** ``startFrom``: opened as #/create (Create's landing is Home's Start from row) - scroll to it. */
+export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   const { client } = useEngine();
   const latest = useRef(client); // the engine restarts onto new models with a new client: retries use the newest
   useEffect(() => {
@@ -339,7 +343,7 @@ export function Home() {
                     { label: t('home.addFolder'), icon: <FolderOpen className="ico" />, run: () => addFiles('folder'), testId: 'add-folder' },
                     { label: t('im.menu'), icon: <Film className="ico" />, run: () => void pickImport(), testId: 'composer-import-menu' },
                     // write a script / episodes (Create), the recorder opens from its lines
-                    ...(createOn ? [{ label: t('nav.create'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: [] })), testId: 'composer-create' }] : []),
+                    ...(createOn ? [{ label: t('create.start.script'), icon: <Clapperboard className="ico" />, run: () => (location.hash = href({ name: 'create', path: ['new'] })), testId: 'composer-create' }] : []),
                     // the built-in recording, to see the whole way once (first run has its own card)
                     ...(firstRun ? [] : [{ label: t('sample.try'), icon: <Play className="ico" />, run: () => void trySample(), testId: 'idea-sample' }]),
                   ]);
@@ -369,6 +373,7 @@ export function Home() {
             </div>
           )}
         </div>
+        <HomeStartFrom scrollTo={startFrom} />
         {!planning && files.length > 0 && !wp.plan && (
           <div className="ux-weekrow">
             <button className="ux-weekchip" onClick={() => void startWeek()} disabled={wp.busy} title={t('wp.makeHint')} data-testid="home-week">
@@ -395,6 +400,7 @@ export function Home() {
             </div>
           </div>
         )}
+        <HomeKeepCreating />
         {!planning && !waitDl && (firstRun ? <FirstRunStarts onPick={(p) => fill(p)} onSample={() => void trySample()} /> : <Below fill={fill} addFile={(f) => setFiles((x) => [...new Set([...x, f])])} />)}
       </div>
     </div>

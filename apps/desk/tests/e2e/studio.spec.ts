@@ -117,6 +117,7 @@ test('All projects is the Studio: every video in one list, grouped; what needs h
   await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('studio')).toBeVisible({ timeout: 30000 });
   await expect(page).toHaveURL(/#\/studio/);
+  await page.getByTestId('studio-f-all').click(); // the item opens on Needs you while something waits for her
   await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByTestId('nav-home')).not.toHaveAttribute('aria-current', 'page');
   const rows = page.getByTestId('studio-row');
@@ -281,10 +282,30 @@ test('Orca-style attention: the Dock badge is the Needs you count; a new questio
   await shot('S5-attention');
 });
 
-test('with the Studio on, Create and Record yourself (her script on the teleprompter) stay one click away', async () => {
+test('with the Studio on, Home starts Create: the formats, a script, Record yourself (her script on the teleprompter)', async () => {
   await page.evaluate(() => (location.hash = '#/home'));
-  await expect(page.getByTestId('nav-create')).toBeVisible({ timeout: 15000 });
+  const start = page.getByTestId('home-start-from');
+  await expect(start).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId('nav-create')).toHaveCount(0);
+  await expect(start.locator('a[data-testid^="create-fmt-"]')).toHaveCount(5);
   await expect(page.getByTestId('composer-record')).toBeVisible();
+  await page.evaluate(() => document.querySelector('.scroll')?.scrollTo(0, 0));
+  await shot('S6-home-start-from');
+  await page.evaluate(() => window.desk.setSettings({ lang: 'zh-CN' }));
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await expect(page.getByTestId('home-start-from')).toContainText('从这里开始', { timeout: 15000 });
+  await expect(page.getByTestId('home-start-script')).toHaveText('写脚本');
+  await noMissingKeys();
+  await shot('S6-home-start-from-zh');
+  await page.evaluate(() => window.desk.setSettings({ lang: 'en' }));
+  await page.reload();
+  await page.waitForURL(/^app:\/\/desk\//);
+  // the Start from row's record and the composer's open the recorder; its page lights Home
+  await page.getByTestId('home-start-record').click();
+  await expect(page).toHaveURL(/#\/create\/record/);
+  await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
+  await page.evaluate(() => (location.hash = '#/home'));
   await page.getByTestId('composer-record').click();
   await expect(page).toHaveURL(/#\/create\/record/);
 });

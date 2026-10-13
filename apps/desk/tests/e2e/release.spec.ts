@@ -95,7 +95,7 @@ test('a failed pilot is visible: project, inbox, all projects; retry with Codex 
   await shot('04-project-failed');
 
   // inbox: the failure comes first, with the same actions
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   const item = page.locator('[data-testid="inbox-item"][data-kind="failed"]');
   await expect(item).toHaveCount(1, { timeout: 15000 });
   await expect(page.getByTestId('inbox-item').first()).toHaveAttribute('data-kind', 'failed');
@@ -114,7 +114,7 @@ test('a failed pilot is visible: project, inbox, all projects; retry with Codex 
   await shot('05-projects-failed-count');
 
   // 换 Codex 重试 from the inbox: the pilot runs again and reaches "needs you"; the failure is gone
-  await page.getByTestId('nav-inbox').click();
+  await page.evaluate(() => (location.hash = '#/inbox'));
   await item.click();
   await page.getByTestId('inbox-preview').getByTestId('fail-retry-other').click();
   await expect(page.locator('[data-testid="inbox-item"][data-kind="failed"]')).toHaveCount(0, { timeout: 30000 });

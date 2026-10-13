@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, Home as HomeIcon, Inbox as InboxIcon, LayoutGrid, Settings as SettingsIcon } from 'lucide-react';
+import { Calendar, Home as HomeIcon, LayoutGrid, Settings as SettingsIcon } from 'lucide-react';
 import type { SettingsMsg } from '../../shared/deskApi';
 import { AssetsBanner } from './components/assets';
 import { UpdatePill, UpdateProvider } from './components/update';
@@ -36,9 +36,8 @@ import { Projects } from './v4/Projects';
 import { UiProvider } from './v4/ui';
 import { SupportLayer } from './support/Support';
 import { ImportHost } from './v4/imports/Import';
-import { CreateNavIcon, CreateScreen, setCreatePrefs, useCreateEnabled } from './create';
+import { CreateScreen, isCreateLanding, setCreatePrefs } from './create';
 import { setStudioPrefs, useStudioEnabled } from './lib/studioFlag';
-import { useStudioView } from './lib/studioView';
 import { StudioProvider } from './lib/studioData';
 import { useStudioAttention } from './lib/attention';
 import { Studio } from './v4/Studio';
@@ -93,8 +92,7 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
   const { info, error } = useEngine();
   const { live } = useHistory();
   const inbox = useInbox();
-  const createOn = useCreateEnabled();
-  const view = useStudioView();
+  const studioOn = useStudioEnabled();
   useRunNotifications();
   useStudioAttention();
   const running = live.filter((i) => i.live?.state === 'running').length;
@@ -118,18 +116,18 @@ function Shell({ onSettings }: { onSettings: (s: SettingsMsg) => void }) {
           {getLang() === 'zh-CN' ? <span className="zh" aria-hidden="true">千剪</span> : null}
           <span className="sr">{t('app.name')}</span>
         </div>
-        {/* Home is the landing (triage); the Inbox is the list's Needs you filter, All projects the whole list (the
-            workbench) - with the Studio on both open the Studio list */}
-        {nav({ name: 'home' }, 'nav.home', r.name === 'home' || r.name === 'new', <HomeIcon className="ico" />, 'nav-home')}
-        {createOn && nav({ name: 'create', path: [] }, 'nav.create', r.name === 'create', <CreateNavIcon className="ico" />, 'nav-create')}
-        {nav({ name: 'inbox' }, 'nav.inbox', r.name === 'inbox' || (r.name === 'studio' && view === 'you'), <InboxIcon className="ico" />, 'nav-inbox', nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : null)}
+        {/* Home is the landing: start something (the composer, Create's starts) and what needs doing next; Create's
+            pages (#/create/...) live under it. One list for every video: it opens on Needs you while something
+            waits for her (the badge says how many), else on everything (the Inbox is that list's filter; without the
+            Studio the item opens All projects and #/inbox stays the Inbox page) */}
+        {nav({ name: 'home' }, 'nav.home', r.name === 'home' || r.name === 'new' || r.name === 'create', <HomeIcon className="ico" />, 'nav-home')}
         {nav(
-          { name: 'projects' },
+          studioOn && nIn > 0 ? { name: 'inbox' } : { name: 'projects' },
           'nav.projects',
-          r.name === 'projects' || inProject || (!createOn && r.name === 'create') || (r.name === 'studio' && view !== 'you'),
+          r.name === 'projects' || r.name === 'inbox' || inProject || r.name === 'studio',
           <LayoutGrid className="ico" />,
           'nav-projects',
-          running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null,
+          nIn > 0 ? <span className="count you" data-testid="inbox-badge">{nIn}</span> : running > 0 ? <span className="count run" data-testid="running-badge">{running}</span> : null,
         )}
         {nav({ name: 'calendar' }, 'nav.publishTop', r.name === 'calendar' || r.name === 'publish' || r.name === 'metrics' || r.name === 'channels' || r.name === 'postNow', <Calendar className="ico" />, 'nav-publish')}
         <div className="grow" />
@@ -217,7 +215,8 @@ function Screen({ r, onSettings }: { r: Route; onSettings: (s: SettingsMsg) => v
     case 'welcome':
       return <WelcomeAgain onDone={onSettings} />;
     case 'create':
-      return <CreateScreen path={r.path} onSettings={onSettings} />;
+      // Create's own landing is Home's Start from row (#/create = Home, scrolled to it); its pages render here
+      return isCreateLanding(r.path) ? <Home startFrom /> : <CreateScreen path={r.path} onSettings={onSettings} />;
     default:
       return null;
   }
