@@ -333,6 +333,9 @@ def _validate(doc, st, raw_ops, instruction=None, guard=True):
             continue
         if kept is not n:
             n, w, clean = kept, w + [note], dict(clean, restyle=False)
+        if n["op"] == "voiceover":            # applied as proposed: its lines / voices in this output's languages
+            from . import outvoice as VO
+            clean = VO.replayable(n)
         cur = O.fold(cur, n)
         why = op.get("why") or op.get("reason")
         proposed.append(dict(op=clean, normalized=n, describe=O.describe(n), why=why, warnings=w,

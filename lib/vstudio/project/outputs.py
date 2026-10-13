@@ -42,7 +42,7 @@ DOC_VERSION = 1
 MIN_KEEP_S = 1.0
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add",
        "caption_remove", "caption_placement", "title", "theme", "effect_add", "effect_remove", "effect_update", "cover",
-       "export_add", "export_remove", "reset", "pickup", "shot_swap", "override_reset")
+       "export_add", "export_remove", "reset", "pickup", "shot_swap", "override_reset", "voiceover", "voiceover_remove")
 # what a `theme` op hands back to the theme (restyle=true): explicit look keys of captions / title / effects
 THEME_LOOK = dict(caption=("color", "highlight", "stroke", "stroke_color", "font", "box", "box_color"),
                   title=("color", "band_color"), effect=("color", "anim", "angle", "theme"))
@@ -460,7 +460,8 @@ def shot_map(rec):
 def empty_state():
     return dict(trim=[None, None], cuts=[], speed=1.0, loudness=dict(lufs=None, tp=None),
                 captions=dict(enabled=None, style={}, overrides={}, removed=[], added=[], placement=None),
-                title=None, theme=None, effects=[], cover=None, exports=[], seq=0, base=None, pickups=[], shots={})
+                title=None, theme=None, effects=[], cover=None, exports=[], seq=0, base=None, pickups=[], shots={},
+                voiceovers=[])
 
 
 class Doc:
@@ -814,6 +815,12 @@ def fold(st, op):
         else:
             sh.pop(str(op["shot"]), None)
         st["shots"] = sh
+    elif k == "voiceover":                       # a narration over the clip (outvoice): one per id
+        st["voiceovers"] = [v for v in st.get("voiceovers") or [] if v["id"] != op["id"]] + [
+            {kk: v for kk, v in op.items() if kk not in ("op", "seq")}]
+        st["seq"] = max(st["seq"], op.get("seq", 0))
+    elif k == "voiceover_remove":
+        st["voiceovers"] = [v for v in st.get("voiceovers") or [] if v["id"] != op["id"]]
     elif k == "revert":
         pass                                     # a marker: Doc.state() skips the step it cancels
     elif k == "override_reset":
@@ -1436,7 +1443,8 @@ def normalize(doc, st, op):
     k = {"add_effect": "effect_add", "remove_effect": "effect_remove", "move_effect": "effect_update",
          "effect_move": "effect_update", "update_effect": "effect_update", "uncut": "cut_remove",
          "caption": "caption_text", "add_caption": "caption_add", "export": "export_add", "title_band": "title",
-         "subtitle_style": "caption_style"}.get(k, k)
+         "subtitle_style": "caption_style", "voice_over": "voiceover", "narration": "voiceover", "tts": "voiceover",
+         "add_voiceover": "voiceover", "remove_voiceover": "voiceover_remove"}.get(k, k)
     if k not in OPS:
         raise _err("unknown-op", f"unknown op {op['op']!r}; ops: {', '.join(OPS)}", f"未知操作 {op['op']!r}",
                    op=op["op"], ops=list(OPS))
@@ -1778,6 +1786,16 @@ def normalize(doc, st, op):
             warns.append(msg("swap-hides-burned", "the new take has no burned captions over it (a title bar or "
                              "caption box of the video stays); add captions for that stretch if it needs them",
                              "新镜头上没有原来烧录的字幕（标题条、字幕底框会保留）；需要的话为这段加字幕", shot=n["shot"]))
+    elif k == "voiceover":
+        from . import outvoice as VO
+        n = VO.normalize(doc, st, op, tl, dur, warns)
+        value.update(id=n["id"], lines=len(n["lines"]))
+    elif k == "voiceover_remove":
+        vid = str(op.get("id") or "")
+        if not any(v["id"] == vid for v in st.get("voiceovers") or []):
+            raise _err("unknown-voiceover", f"no voice-over {vid!r}", "没有这段旁白", id=vid,
+                       known=[v["id"] for v in st.get("voiceovers") or []])
+        n["id"] = vid
     elif k == "reset":
         pass
     elif k == "override_reset":
@@ -1945,6 +1963,11 @@ def describe(op, value=None):
     if k == "caption_add":
         return msg("op-caption-add", f"add {len(op['cues'])} caption(s)", f"新增 {len(op['cues'])} 条字幕",
                    n=len(op["cues"]))
+    if k == "voiceover":
+        from . import outvoice as VO
+        return VO.describe(op)
+    if k == "voiceover_remove":
+        return msg("op-voiceover-remove", f"remove voice-over {op['id']}", "去掉一段旁白", id=op["id"])
     if k == "pickup":
         said = str(op.get("text") or "")
         q = f" “{said[:40]}”" if said else ""
@@ -2615,6 +2638,8 @@ Rules:
 - Prefer few, purposeful ops; do not repeat existing effects.
 - `her_edits` lists what the creator changed by hand (caption text / style fields, effects, title, cover, trim ...):
   keep them exactly; do not propose an op that changes one unless she points at it or names it.
+- A voice-over / narration / 配音 / 旁白 / TTS request is the `voiceover` op: it does generate new speech (the
+  engine's own TTS) - never answer that a narration cannot be made.
 - `output.speech` says whether anyone speaks in the clip. With speech false there is no voice: never say music is
   ducked / lowered under a voice or that captions follow the speech; describe only what the ops really do.
 Return {"ops": [{"op": ..., ...}], "summary": "<one sentence, English>"}."""
@@ -2639,6 +2664,14 @@ OP_DOC = {
     "export_add": "{op, target: platform[:orientation] | 3:4 | 9:16 | 16:9, layout?: auto|band, lang?: en|zh|fr|..} "
                   "lang = a version in another language: the speech translated, voiced again and captioned "
                   "(e.g. an English YouTube version of a Chinese clip)",
+    "voiceover": "{op, mode: intro|full|span, start?, end?, lines?: [{start, text, text_zh?}], text?, text_zh?, ask?, "
+                 "voice?} a narration voice added over the clip (TTS in a voice cast for the clip: lively for a vlog, "
+                 "calm for history; a speaker she names wins): intro = a short opening from the start (1-2 lines), "
+                 "full = the whole clip narrated, lines timed to its moments and placed in the gaps of on-camera "
+                 "speech (never over her own voice), span = text from start. Write the lines yourself (English in "
+                 "text, 中文 in text_zh when the clip has versions in both); ask = her words when you cannot write "
+                 "them. The clip's sound and music are ducked under it and its lines captioned",
+    "voiceover_remove": "{op, id} remove a voice-over",
     "shot_swap": "{op, shot, source?, t?, restore?} imported clips with matched footage only (`shots` in the context): "
                  "replace the picture of one shot with another take from the linked footage (the sound stays); "
                  "no source = the next unused take; restore: true = back to the original",
@@ -2789,6 +2822,10 @@ def _rule_ops(text, dur, ctx=None):
             ops.append(dict(op="theme", theme=pick))
     if wants_morph_cuts(text):
         ops.append(dict(op="effect_add", effect="morph-cuts", start=0))
+    if re.search(r"配音|旁白|解说|tts|voice[- ]?over|narrat", text, re.I) and \
+            not re.search(r"去掉|删掉|不要|remove|delete", text, re.I):
+        full = re.search(r"全程|整个|整段|全片|从头到尾|whole|full|entire|throughout", text, re.I)
+        ops.append(dict(op="voiceover", mode="full" if full else "intro", ask=text[:200]))
     if re.search(r"进度条|progress bar", text, re.I):
         ops.append(dict(op="effect_add", effect="progress-bar-pil", start=0))
     if re.search(r"淡出|fade out", text, re.I):
@@ -2954,6 +2991,9 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
         if why_not:                                       # a voice treatment on a film with no voice, a 2nd music bed
             dropped.append(dict(op=op, error=why_not))
             continue
+        if n["op"] == "voiceover":                        # applied as proposed: its lines / voices, not written again
+            from . import outvoice as VO
+            clean = VO.replayable(n)
         cur = fold(cur, n)
         proposed.append(dict(op=clean, normalized=n, describe=describe(n, v_), why=op.get("why") or op.get("reason"),
                              warnings=w))

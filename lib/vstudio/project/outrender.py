@@ -213,9 +213,23 @@ def plan(rec, doc, st, tg, quality, watermark=None):
         audio["voice"] = dict(lang=tg["lang"], lines=vl, voice=tg.get("voice") or "auto")
         if not audio["music"]:
             audio["music"] = dict(mood="calm", sig=["mood", "calm"], duck_db=-8, music_lufs=-26)
-    audio["op"] = "none" if not (info["has_audio"] or sfx or music) else "mix"
+    vos = []
+    if st.get("voiceovers"):                      # narrations over the clip (outvoice): in this version's language
+        from . import outvoice as VO
+        vlang = target_lang(tg) or VO.version_langs(rec, st, OUT.cached_words(doc) or [])[0]
+        vos = [x for x in (VO.spec_for(v, vlang, tl) for v in st["voiceovers"]) if x]
+        if vos:
+            audio["vo"] = vos
+    audio["op"] = "none" if not (info["has_audio"] or sfx or music or vos) else "mix"
     audio["key"] = sha1_json(["audio", timeline["key"], audio], 16)
     vis = visual_spec(rec, st, tl, tg, band)
+    vo_caps = [[a_, b_, t_] for v in vos if v.get("captions") for a_, b_, t_ in v["lines"]]
+    if vo_caps:                                    # the narration captioned in the version's language
+        vis["captions"] = sorted(vis["captions"] + vo_caps)
+        if rec["mode"] == "flattened" and canvas["op"] != "sources" and not vis.get("mask"):
+            bt = (doc.d.get("burned") or {})
+            if bt.get("captions") and bt.get("box"):
+                vis["mask"] = dict(box=bt["box"], style="blur", always=True)
     if audio.get("voice"):                         # its captions: the translated lines (over the burned ones)
         vis["captions"] = sorted(vis["captions"] + [[a_, b_, t_] for a_, b_, t_ in audio["voice"]["lines"]])
         if rec["mode"] == "flattened" and canvas["op"] != "sources" and not vis.get("mask"):
@@ -422,6 +436,8 @@ def picture_untouched(rec, st, tg, full):
     if tg["target"] != "primary" or not full or float(st.get("speed") or 1.0) != 1.0:
         return False
     if st.get("title") or st.get("theme") or st.get("shots"):
+        return False
+    if any(v.get("captions", True) for v in st.get("voiceovers") or []):     # a narration's captions are drawn
         return False
     for e in st["effects"]:
         if FX.SPECS[e["effect"]]["stage"] != "audio":
@@ -700,6 +716,9 @@ def run_audio(spec, src, out, duration, workdir):
             x, _ = studiosound.enhance_array(x, A.SR, spec["studio"].get("strength") or "standard")
     else:
         x = np.zeros((int(round(duration * A.SR)), 2), np.float32)
+    if spec.get("vo"):                               # narrations: laid over, the sound ducked under them
+        from . import outvoice as VO
+        x = VO.mix_in(x, spec["vo"], len(x) / A.SR, workdir)
     if spec["sfx"]:
         ev = [dict(t=t, sfx=name, gain_db=float(20 * np.log10(max(1e-3, float(g)))) if g else -60.0)
               for t, name, g in spec["sfx"]]
