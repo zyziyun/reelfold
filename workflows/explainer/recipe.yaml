@@ -77,6 +77,20 @@ params:
       title: Title
       x-zh: 标题
       x-scope: item
+    length_s:
+      type: integer
+      minimum: 0
+      maximum: 7200
+      default: 0
+      title: Target length in seconds (0 = from the request; a platform cut sets its own)
+      x-zh: 目标时长（秒，0 = 按需求文字；平台剪辑版各自设定）
+      x-scope: item
+    cut:
+      enum: [main, long, short]
+      default: main
+      title: Which cut (long = YouTube / B站 with chapters, short = Shorts / 小红书 / TikTok)
+      x-zh: 剪辑版本（长版带章节 / 短版）
+      x-scope: item
 stages:
   - id: prepare
     resource: io

@@ -189,10 +189,34 @@ named in the words); the desk sends it there (its composer also has 「Several v
 * **Plan**: the routed model (task `intake`) proposes up to 8 videos: `title` / `title_zh`, `kind` (`history` - the
   place has a story; the request asks for well-known, verifiable facts only; `film` - just beautiful: music and a few
   short lines; `reel` - action, cut on the beat, vertical first; `vlog` - a trip across stories; `essay` - a
-  reflective voice-over; `photos`), its stories, `length_s` (never more than the footage carries), a one-line English
-  `brief`, and the plan card's `theme` / `why` in the UI language. No model (or no usable answer): one music film per
+  reflective voice-over; `photos`), its stories, a one-line English `brief`, and the plan card's `theme` / `why` in
+  the UI language. The model does not set lengths. No model (or no usable answer): one music film per
   story with enough footage (`planner.fallback`). YouTube is always English, Xiaohongshu / Bilibili / Douyin Chinese:
   each `request` names the languages per platform.
+* **Lengths per platform**: every video gets `lengths` {platform: seconds} from each platform's habit for its kind
+  (`vstudio.platform_habits`, references/platforms/<name>.md; her own range from Settings › Publishing), capped by
+  what its footage carries, and `cuts`: the platforms grouped by length (a long cut for YouTube / B站 with chapters,
+  a short cut for Shorts / 小红书 / TikTok). `length_s` is the longest. Her words ("按 90-120 秒讲解") set every
+  platform's length (hard limits only clamp them). The request carries them as `Cuts: 300 s for YouTube and Bilibili
+  (long cut, chapters); 60 s for Xiaohongshu (short cut).` Plan-card edits: `{op: length, video, length_s, platform?
+  | cut?}` (her numbers are kept in `lengths_own` and survive a change of kind).
+* **What the footage carries** (`footage_max`, shown as "about 4 min possible"): every usable moment of the story's
+  clips (`vstudio.shots` moments with score >= 0.35 when the clip was analysed before - cache only, no decode at
+  survey time - else one moment per 12 s of the clip minus take-off and tail) held for its kind (film 8 s, history 9 s
+  x 1.6 reuse under a voice, reel 1.6 s x 2), little variety (under four moments) x 0.8. No cut is cut shorter than
+  15 s (a reel: 20 s); a length she sets above it is marked `over_footage`.
+* **One project, a long and a short cut**: `rules.cut_lengths` reads the per-platform lengths back out of the request
+  (also her own pairs: "YouTube 5 min, 小红书 60 秒"); `plan.split_by_cut` (after the language split) gives a
+  photo-story / explainer / vlog project one item per length: `items.rows` `long` / `short` with params
+  `{platforms, length_s, cut}`. Each item is drafted for its own length and cut (the drafter is told "LONG cut ...
+  chapters" / "SHORT cut ... hook in 2 s", `platform_habits.cut_note`) and rendered on its own - never one length
+  reframed. One length: the project's `length_s`.
+* **Script top-up** (`vstudio.topup`): a drafted photo-story spec or explainer script more than 15 % shorter than its
+  target is sent back to the model to extend it (more beats, verified facts only) up to two rounds; the fact guard
+  runs on the final text; the draft record keeps `length` {target_s, first_s, final_s, rounds, short} and the review
+  says when it is still short. **Beat shorts**: at least 20 s - the drafter pads the body to the beat budget with more
+  moments (then longer holds), and a render that still comes out short is re-cut once (`recut` / `short` in the
+  render result).
 * The desk keeps the goal (desk `engine/desk_engine/goals.py`): a group whose videos run a few at a time on
   autopilot; a failure or a stall is retried once, then the video is dropped with its reason; the goal is done when
   every video is made or dropped, and the unfinished ones can be cleared.

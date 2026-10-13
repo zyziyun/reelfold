@@ -765,6 +765,42 @@ def split_by_language(projects, questions=None):
     return out, qs
 
 
+# recipes that render one item per length: a story's long cut (YouTube / B站: chapters, fuller) and its short cut
+# (Shorts / 小红书 / TikTok) are two items of one project, each with its own ``length_s`` and platforms
+CUT_RECIPES = ("photo-story", "explainer", "vlog")
+
+
+def split_by_cut(projects, intent):
+    """Per-platform lengths in the request (``intent["platform_lengths"]``, vstudio.intake.rules.cut_lengths) ->
+    each CUT_RECIPES project gets ``params.length_s`` (one length) or one item per length (``items.rows``: id "long" /
+    "short" ..., params {platforms, length_s, cut}) - re-drafted and rendered per cut, never one length reframed."""
+    from vstudio import platform_habits as H
+    pl = (intent or {}).get("platform_lengths") or {}
+    if not pl:
+        return projects
+    for p in projects:
+        if p.get("recipe") not in CUT_RECIPES:
+            continue
+        params = p.setdefault("params", {})
+        plats = list(params.get("platforms") or [])
+        lens = {x: pl[x.split(":")[0]] for x in plats if x.split(":")[0] in pl}
+        if not lens:
+            continue
+        cuts = H.cuts([x for x in plats if x in lens], lens)
+        items = p.setdefault("items", dict(method="single"))
+        if len(cuts) == 1 or items.get("rows") or items.get("method") not in ("single", None):
+            params["length_s"] = max(lens.values())
+            p.setdefault("param_sources", {})["length_s"] = "platform"
+            continue
+        params["length_s"] = max(lens.values())
+        p.setdefault("param_sources", {})["length_s"] = "platform"
+        items["rows"] = [dict(id=c["id"], params=dict(platforms=c["platforms"], length_s=int(c["length_s"]),
+                                                      cut=c["form"]),
+                              why=f"{c['form']} cut, {int(c['length_s'])} s") for c in cuts]
+        items["count"] = len(cuts)
+    return projects
+
+
 def name_lang(name):
     """The language a project's name says it is ("... English version", "(中文)", "zh", "EN"), else None."""
     n = str(name or "")
@@ -922,8 +958,13 @@ def _out_seconds(p, analysis):
               for x in (v if isinstance(v, list) else [v]) if isinstance(x, str) and os.path.isabs(x)
               and I.kind_of(x) in ("video", "audio"))
     ranged = [r["params"]["range"] for r in rows if (r.get("params") or {}).get("range")]
+    cut_s = [float(r["params"]["length_s"]) for r in rows if (r.get("params") or {}).get("length_s")]
     if ranged:
         out = sum(b - a for a, b in ranged) / speed
+    elif cut_s:
+        out = sum(cut_s)
+    elif params.get("length_s") and items["method"] == "single":
+        out = float(params["length_s"])
     elif items["method"] in ("planner", "focus"):
         mn = params.get("min_s") or (m["params"]["properties"].get("min_s") or {}).get("default") or 45
         mx = params.get("max_s") or (m["params"]["properties"].get("max_s") or {}).get("default") or 120
@@ -951,8 +992,10 @@ def enrich(p, analysis, ctx, auto=()):
     src, out = _out_seconds(p, analysis)
     n_items = p["items"].get("count") or 1
     p["estimate"] = EST.project(p, src, out, n_items, len(p["params"].get("platforms") or [None]), ctx.get("llm_config"))
-    p["outputs"] = dict(platforms=p["params"].get("platforms") or [], videos=n_items * max(1, len(
-        p["params"].get("platforms") or [None])), workflow_md=m["agent"]["workflow_md"])
+    rows = p["items"].get("rows") or []
+    per_row = [len((r.get("params") or {}).get("platforms") or []) for r in rows]
+    videos = sum(per_row) if rows and all(per_row) else n_items * max(1, len(p["params"].get("platforms") or [None]))
+    p["outputs"] = dict(platforms=p["params"].get("platforms") or [], videos=videos, workflow_md=m["agent"]["workflow_md"])
     return p
 
 
@@ -1364,6 +1407,7 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
         info["fallback"] = info.get("route") != "fixed"
         info.setdefault("reason", "rule planner")
     projects, questions = split_by_language(projects, questions)     # YouTube is always English: its own version
+    projects = split_by_cut(projects, intent)                        # long + short cuts, each its own length
     risks += [r for r in voice_risks(projects, ui_lang) if r not in risks]
     risks += [r for r in fact_risks(projects, ui_lang) if r not in risks]
     if any(n["code"] == "intake.need.footage" for n in needs):

@@ -133,7 +133,9 @@ def test_model_plan_is_validated(card):
     h, r = doc["videos"]
     assert h["kind"] == "history" and "state only well-known, verifiable facts" in h["request"]
     assert "Narrate in Chinese for Xiaohongshu and in English for YouTube" in h["request"]
-    assert h["length_s"] == 20                                 # never longer than the footage carries (16 s; floor 20)
+    # never longer than the footage carries (two 8 s clips: about 16 s of usable moments), whatever the model said
+    assert h["possible_s"] == 16 and h["lengths"] == {"youtube": 16, "xiaohongshu": 16} and h["length_s"] == 16
+    assert all(n >= 20 for n in r["lengths"].values())         # a beat short: never under 20 s
     assert r["platforms"] == ["youtube-shorts"] and "Vertical first" in r["request"]
     assert r["stories"] == ["s2"]
     assert doc["survey"]["unused"] == dict(stories=["s3", "s4"], photos=0, panoramas=1)

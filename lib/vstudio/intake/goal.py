@@ -17,13 +17,19 @@ Survey (offline, read-only: nothing is written next to the footage - an SD card 
 Plan: the routed model (task ``intake``) proposes the videos from the stories it sees: title, kind (``history`` - the
 place has a story worth telling, facts must be well known and verifiable; ``film`` - it is just beautiful: music and a
 few short reflective lines; ``reel`` - action, cut on the beat; ``vlog`` - a trip across stories; ``essay`` - a calm
-reflective voice-over), which stories, length, platforms. Videos are cut from clips: photos and panoramas are counted
+reflective voice-over), which stories, platforms. Videos are cut from clips: photos and panoramas are counted
 (``survey.unused``) but a story of photos alone is not a video yet (the photo story cannot draft from stills alone on
 autopilot); ``photos`` stays a kind for a request that names it. YouTube is always English;
 Xiaohongshu / Bilibili / Douyin are Chinese. Without a model (or when it fails) a rule planner proposes one music film
 per story with enough footage (``planner.fallback``). Every video carries ``request``: the sentence its own intake
 plan starts from (``vstudio.intake plan --prompt <request> --inputs <clips>``), rebuilt by ``edit_goal`` whenever its
 title / kind / length / stories change.
+
+Lengths are per platform (``lengths`` / ``cuts``, ``vstudio.platform_habits``): each platform's habit for the kind
+(references/platforms/<name>.md - YouTube / B站 long cuts with chapters, Shorts / 小红书 / TikTok short ones), capped
+by what the footage carries (``footage_max``: usable moments x the kind's hold, ``possible_s`` on the plan card); her
+own numbers on the plan card win (``lengths_own``). A video whose platforms want different lengths says so in its
+request ("Cuts: ..."), and the intake makes one item per cut (vstudio.intake.plan.split_by_cut).
 """
 import hashlib
 import json
@@ -486,7 +492,8 @@ def stories(scan_doc, sheet_dir=None):
                  aerial=bool(alts and max(alts) > 20), vertical=sum(1 for x in vids if x.get("orientation") == "vertical"),
                  light=round(sum(lights) / len(lights), 2) if lights else None,
                  geo=[round(geo[0], 3), round(geo[1], 3)] if geo else None,
-                 clips=[x["path"] for x in vids], stills=[x["path"] for x in phs],
+                 clips=[x["path"] for x in vids], clip_secs=[round(float(x.get("dur") or 0), 1) for x in vids],
+                 stills=[x["path"] for x in phs],
                  panorama_dirs=[x["path"] for x in pns],
                  thumbs=([x["frame"] for x in vids if x.get("frame")] or [x["path"] for x in phs] or
                          [x["first"] for x in pns if x.get("first")])[:4],
@@ -592,7 +599,21 @@ def request_text(v, by_id):
         body = (f"Make a {L}-second cinematic film from these {shots}: {brief}. No voice, a slow premium "
                 f"music bed and a few short high-end reflective lines on screen ({_langs(plats)}). Unhurried cuts "
                 f"that follow the light.")
-    return f"{title}{body} {export}."
+    return f"{title}{body}{cuts_sentence(v)} {export}."
+
+
+def cuts_sentence(v):
+    """" Cuts: 300 s for YouTube and Bilibili (long cut, chapters); 60 s for Xiaohongshu (short cut)." when the
+    platforms of one video want different lengths (vstudio.intake.rules.cut_lengths reads it back), else ""."""
+    cuts = v.get("cuts") or []
+    if len(cuts) < 2:
+        return ""
+    bits = []
+    for c in cuts:
+        words = [PLATFORM_WORD.get(p.split(":")[0], p) for p in c["platforms"]]
+        how = f"{c['form']} cut" + (", chapters" if c.get("chapters") else "")
+        bits.append(f"{int(c['length_s'])} s for {_j(words)} ({how})")
+    return " Cuts: " + "; ".join(bits) + "."
 
 
 def _inputs_of(v, by_id):
@@ -606,21 +627,97 @@ def _inputs_of(v, by_id):
     return clips or stills[:60]
 
 
-def _finish_video(v, by_id, platforms):
+# --------------------------------------------------------------------------- how long the footage can carry
+# seconds one usable moment (vstudio.shots) holds on screen per kind, and how often a narrated / beat piece may show
+# it again (a voice can stay on one wide aerial through two lines; a reel cuts one moment into two shots)
+HOLD_S = dict(history=9.0, essay=9.0, film=8.0, photos=6.0, reel=1.6, vlog=6.0)
+REUSE = dict(history=1.6, essay=1.4, film=1.0, photos=1.0, reel=2.0, vlog=1.0)
+MOMENT_S = 12.0              # a moment without an analysis: one every 12 s of usable footage (shots.MOMENT_MAX)
+MOMENT_SCORE = 0.35          # an analysed moment below this score is not usable (shaky, dark, soft)
+
+
+def _clip_moments(path, dur):
+    """(usable seconds, usable moments) of one clip: its analysed moments when ``vstudio.shots`` saw it before
+    (cache only - no decode at survey time), else the clip minus take-off / tail split every MOMENT_S."""
+    try:
+        from vstudio import shots as SH
+        a = SH.cached(path)
+    except Exception:  # noqa: BLE001
+        a = None
+    if a:
+        ms = [m for m in SH.moments(a) if (m.get("score") or 0) >= MOMENT_SCORE]
+        return sum(min(m["end"] - m["start"], SH.MOMENT_MAX) for m in ms), len(ms)
+    usable = max(0.0, float(dur or 0) - 2 * min(2.0, float(dur or 0) * 0.1))
+    return usable, (max(1, math.ceil(usable / MOMENT_S)) if usable >= 3 else 0)
+
+
+def footage_max(stories_, kind):
+    """The longest sensible video (seconds) the stories' usable footage carries for this kind: every usable moment
+    held for its kind's hold (``HOLD_S`` x ``REUSE``), never more than its usable seconds x reuse; little variety (under
+    four moments) counts for less. Photos alone: 5 s a still. 0 when there is nothing to cut from."""
+    kind = kind if kind in HOLD_S else "film"
+    total, moments, stills = 0.0, 0, 0
+    for s in stories_:
+        stills += int(s.get("photos") or 0)
+        secs = s.get("clip_secs") or ([float(s.get("seconds") or 0) / max(1, len(s.get("clips") or []))] *
+                                      len(s.get("clips") or []))
+        for path, dur in zip(s.get("clips") or [], secs):
+            usable, n = _clip_moments(path, dur)
+            total += min(usable * REUSE[kind], n * HOLD_S[kind] * REUSE[kind])
+            moments += n
+    if moments and moments < 4:
+        total *= 0.8
+    if not moments:
+        total = stills * 5.0
+    return int(round(total))
+
+
+def possible_line(secs, lang="en"):
+    """"about 4 min possible" / "素材够做约 4 分钟" / "environ 4 min possibles" for the plan card."""
+    from vstudio import platform_habits as H
+    if lang == "zh":
+        return f"素材够做约 {H.fmt_len(secs, 'zh')}"
+    if lang == "fr":
+        return f"environ {H.fmt_len(secs)} possibles"
+    return f"about {H.fmt_len(secs)} possible"
+
+
+_ASK_LEN = re.compile(r"(\d+(?:\.\d+)?)\s*(?:[-–~到至]\s*(\d+(?:\.\d+)?))?\s*(秒|s\b|sec|seconds?|分钟|min|minutes?)", re.I)
+
+
+def asked_seconds(prompt):
+    """The length her goal request names for every video ("按 90–120 秒讲解" -> 105, "2-minute videos" -> 120), else
+    None: the platforms' habits decide."""
+    m = _ASK_LEN.search(prompt or "")
+    if not m:
+        return None
+    lo = float(m.group(1))
+    hi = float(m.group(2) or lo)
+    v = (lo + hi) / 2 * (60 if m.group(3).lower().startswith(("分", "min")) else 1)
+    return int(v) if 10 <= v <= 3600 else None
+
+
+def _finish_video(v, by_id, platforms, asked=None, lang="en"):
+    from vstudio import platform_habits as H
     v["kind"] = v.get("kind") if v.get("kind") in KINDS else "film"
     v["platforms"] = list(dict.fromkeys(p for p in (v.get("platforms") or platforms or DEFAULT_PLATFORMS)
                                         if isinstance(p, str)))[:8]
     if v["kind"] == "reel" and "youtube" in v["platforms"] and "youtube-shorts" not in v["platforms"]:
         # vertical first: YouTube means its Shorts (both named: the 16:9 cut and the Shorts version, as she asked)
         v["platforms"] = ["youtube-shorts" if p == "youtube" else p for p in v["platforms"]]
-    secs = sum((by_id.get(s) or {}).get("seconds") or 0 for s in v.get("stories") or [])
-    stills = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
-    try:
-        L = int(v.get("length_s") or 0)
-    except (TypeError, ValueError):
-        L = 0
-    cap = max(20, int(secs * 0.8)) if secs else max(20, stills * 4)
-    v["length_s"] = max(15, min(180, L or min(90, cap), cap if secs or stills else 180))
+    st = [by_id[s] for s in v.get("stories") or [] if s in by_id]
+    v["possible_s"] = footage_max(st, v["kind"])
+    v["possible"] = possible_line(v["possible_s"], lang) if v["possible_s"] else None
+    # per-platform lengths: each platform's habit for this kind (references/platforms/<name>.md), capped by what the
+    # footage carries; her own numbers on the plan card win (``lengths_own``)
+    own = {p: int(n) for p, n in (v.get("lengths_own") or {}).items() if p in v["platforms"]}
+    v["lengths_own"] = own
+    lens = H.lengths(v["platforms"], v["kind"], footage_max=v["possible_s"] or None, asked=asked)
+    lens.update(own)
+    v["lengths"] = {p: lens[p] for p in v["platforms"] if p in lens}
+    v["cuts"] = H.cuts(v["platforms"], v["lengths"], v["kind"])
+    v["length_s"] = max(v["lengths"].values()) if v["lengths"] else int(asked or 60)
+    v["over_footage"] = bool(v["possible_s"] and v["length_s"] > v["possible_s"] * 1.15)
     v["inputs"] = _inputs_of(v, by_id)
     v["clips"] = sum((by_id.get(s) or {}).get("videos") or 0 for s in v.get("stories") or [])
     v["stills"] = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
@@ -655,7 +752,8 @@ Propose videos ({count}). Rules:
 - When she asked for a number or a range, meet it: if there are fewer strong stories, split rich stories by angle
   (above) and use the smaller ones; only go below her minimum when the footage truly cannot carry more, and then
   say why in one short line in {ui_lang} ("short_reason").
-- length_s: what the footage can carry (about half the story's seconds for a film, never more than 0.8 of it), 20-120.
+- Do not set lengths: each platform's length comes from its own habits (YouTube / Bilibili long cuts, Shorts /
+  Xiaohongshu / TikTok short ones) capped by the footage.
 - title: short, specific, in English; title_zh: the same in Chinese.
 - brief: ONE English sentence for the editor: what is in the shots and the angle (the landmarks you recognise; for
   history the topics to cover - no dates, numbers or "first / largest" claims: the writer checks those against
@@ -666,7 +764,7 @@ Propose videos ({count}). Rules:
 - goal: one short line in {ui_lang} restating her goal (at most 60 characters).
 
 Return ONE JSON object: {{"goal": "...", "short_reason": null, "videos": [{{"title": "...", "title_zh": "...", "kind": "history|film|reel|vlog|essay",
-"stories": ["s1"], "length_s": 60, "brief": "...", "theme": "...", "why": "...", "platforms": ["youtube", ...]}}]}}"""
+"stories": ["s1"], "brief": "...", "theme": "...", "why": "...", "platforms": ["youtube", ...]}}]}}"""
 
 UI_LANG_NAME = {"en": "English", "zh": "Simplified Chinese", "fr": "French"}
 GOAL_LINE = {"en": "As many videos as the footage supports, each with its own theme",
@@ -846,9 +944,10 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
         count.update(short=True, reason=info.get("short_reason"),
                      photo_only=sum(1 for s in st if not s["videos"]),
                      thin=sum(1 for s in st if s["videos"] and s["seconds"] < MIN_STORY_S and s["id"] not in used_now))
+    asked = asked_seconds(prompt)
     for k, v in enumerate(vids):
         v["id"] = f"v{k + 1}"
-        _finish_video(v, by_id, plats)
+        _finish_video(v, by_id, plats, asked, lang)
     _emit(on_event, stage="write", files=len(vids))
     totals = dict(videos=sum(s["videos"] for s in st), photos=sum(s["photos"] for s in st),
                   panoramas=sum(s["panoramas"] for s in st), seconds=round(sum(s["seconds"] for s in st), 1),
@@ -859,7 +958,7 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
                   panoramas=totals["panoramas"])
     info["seconds"] = round(time.time() - t0, 1)
     return dict(kind=KIND, version=VERSION, id=gid, created=time.time(), prompt=prompt, inputs=inputs,
-                goal=(goal_line or GOAL_LINE[lang])[:200], goal_code=None if goal_line else "default", platforms=plats, ui_lang=lang, want=want,
+                goal=(goal_line or GOAL_LINE[lang])[:200], goal_code=None if goal_line else "default", platforms=plats, ui_lang=lang, want=want, asked_s=asked,
                 count=count,
                 survey=dict(stories=st, totals=totals, unused=unused, notes=sc["notes"][:20]), videos=vids,
                 planner=info)
@@ -868,7 +967,8 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
 # --------------------------------------------------------------------------- edits on the plan card
 def edit_goal(doc, ops):
     """Her edits on the plan card -> the same document with every touched video's ``request`` rebuilt.
-    ops: {op: drop, video} | {op: rename, video, title} | {op: kind, video, kind} | {op: length, video, length_s}
+    ops: {op: drop, video} | {op: rename, video, title} | {op: kind, video, kind}
+         | {op: length, video, length_s, platform? | cut?} (no platform / cut: every platform of the video)
          | {op: merge, videos: [v1, v2]} (the first keeps its title; the stories are joined) | {op: restore, video}
          | {op: platforms, video?, platforms} (no video: every video)"""
     if doc.get("kind") != KIND:
@@ -898,10 +998,27 @@ def edit_goal(doc, ops):
             v["kind"] = op["kind"]
             v["theme"] = THEME[op["kind"]][_ui(doc.get("ui_lang"))]
         elif kind == "length":
+            # {video, length_s} every platform of the video; + platform: that one; + cut: the platforms of that cut
             n = op.get("length_s")
-            if not isinstance(n, (int, float)) or not 10 <= n <= 600:
-                raise ValueError("length_s: 10-600")
-            get(op.get("video"))["length_s"] = int(n)
+            if not isinstance(n, (int, float)) or isinstance(n, bool) or not 10 <= n <= 3600:
+                raise ValueError("length_s: 10-3600")
+            v = get(op.get("video"))
+            if op.get("platform"):
+                if op["platform"] not in (v.get("platforms") or []):
+                    raise ValueError(f"platform {op['platform']} is not one of {v['id']}'s")
+                targets = [op["platform"]]
+            elif op.get("cut"):
+                targets = next((c["platforms"] for c in v.get("cuts") or [] if c.get("id") == op["cut"]), None)
+                if not targets:
+                    raise ValueError(f"no cut {op['cut']} in {v['id']}")
+            else:
+                targets = list(v.get("platforms") or [])
+            from vstudio import platform as P
+            own = dict(v.get("lengths_own") or {})
+            for p in targets:
+                hard = (P.PLATFORMS.get(P.canonical(p.split(":")[0])) or {}).get("length") or {}
+                own[p] = int(min(float(hard.get("max") or 1e9), max(float(hard.get("min") or 1), float(n))))
+            v["lengths_own"] = own
         elif kind == "merge":
             ids = op.get("videos") or []
             if len(ids) < 2:
@@ -910,7 +1027,6 @@ def edit_goal(doc, ops):
             for vid in ids[1:]:
                 other = get(vid)
                 first["stories"] = list(dict.fromkeys([*first["stories"], *other["stories"]]))
-                first["length_s"] = min(180, int(first.get("length_s") or 60) + int(other.get("length_s") or 0) // 2)
                 first["why"] = ""                 # its footage facts no longer hold (the card counts its clips)
                 other["dropped"] = True
                 other["merged_into"] = first["id"]
@@ -920,11 +1036,12 @@ def edit_goal(doc, ops):
                 raise ValueError("platforms: one or more platform ids")
             for v in ([get(op["video"])] if op.get("video") else vids.values()):
                 v["platforms"] = pl
+                v["lengths_own"] = {p: n for p, n in (v.get("lengths_own") or {}).items() if p in pl}
             if not op.get("video"):
                 doc["platforms"] = pl
         else:
             raise ValueError(f"unknown op {kind}")
     for v in vids.values():
-        _finish_video(v, by_id, doc.get("platforms"))
+        _finish_video(v, by_id, doc.get("platforms"), doc.get("asked_s"), _ui(doc.get("ui_lang")))
     doc["edited"] = time.time()
     return doc

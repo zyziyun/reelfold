@@ -406,6 +406,18 @@ def analyze(src, backend="auto", cache=True, echo=None):
     return a
 
 
+def cached(src, backend="auto"):
+    """The analysis of ``src`` when it was made before (no decode: None otherwise) - for cheap estimates."""
+    try:
+        from . import transnet
+        key = _key(src, (backend if backend != "auto" else f"auto-{int(transnet.available())}") +
+                   f"-a{int(_aesthetic_ok())}")
+        with open(os.path.join(_cache_root(), f"{key}.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001  (no cache, no weights, a stat that fails: no estimate from moments)
+        return None
+
+
 def thumb(a, t):
     """Path of the kept thumbnail nearest to ``t`` s."""
     th = a["thumbs"]

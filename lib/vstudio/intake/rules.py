@@ -189,7 +189,39 @@ def parse_prompt(text):
         intent["trio"] = True
     intent["focus"] = focus_of(text) if intent["extract"] else []
     intent["positions"] = [dict(word=w, span=s) for w, s in POSITIONS if w in (text or "")]
+    pl = cut_lengths(text)
+    if pl:
+        intent["platform_lengths"] = pl
     return intent
+
+
+_CUTS_RX = re.compile(r"\bCuts:\s*(.+?)(?:\.\s|\.$|$)", re.S)
+_CUT_RX = re.compile(r"(\d+(?:\.\d+)?)\s*(s|sec|seconds?|min|minutes?)\s+for\s+(.+?)(?:\(([^)]*)\)|$)", re.I)
+_PAIR_RX = re.compile(r"(?:^|[\s,，;；、(（])(youtube shorts|youtube|shorts|bilibili|b站|小红书|xiaohongshu|rednote|抖音|douyin|"
+                      r"tiktok|instagram|reels|linkedin|视频号|快手|kuaishou|微博|weibo|知乎|zhihu|x)\s*[:：]?\s*"
+                      r"(\d+(?:\.\d+)?)\s*(秒|s\b|sec\b|seconds?\b|分钟|min\b|minutes?\b)", re.I)
+
+
+def cut_lengths(text):
+    """Per-platform lengths a request names -> {platform: seconds} ({} when none): a goal video's
+    "Cuts: 300 s for YouTube and Bilibili (long cut, chapters); 60 s for Xiaohongshu (short cut)." (vstudio.intake.goal),
+    or her own pairs "YouTube 5 min, 小红书 60 秒" / "B站：8分钟". vstudio.intake.plan.split_by_cut makes one item (one
+    render) per length."""
+    out = {}
+    m = _CUTS_RX.search(text or "")
+    if m:
+        for part in re.split(r"\s*;\s*", m.group(1)):
+            c = _CUT_RX.search(part)
+            if not c:
+                continue
+            secs = float(c.group(1)) * (60 if c.group(2).lower().startswith("min") else 1)
+            for p in platforms_of(c.group(3))[0]:
+                out[p] = int(secs)
+    for w, n, unit in _PAIR_RX.findall(text or ""):
+        ps = platforms_of(w)[0]
+        if len(ps) == 1 and ps[0] not in out:
+            out[ps[0]] = int(float(n) * (60 if unit.lower().startswith(("分", "min")) else 1))
+    return {p: v for p, v in out.items() if 3 <= v <= 43200}
 
 
 SUB_LANG_RX = re.compile(r"(?:中英(?:文)?|英中|中文和英文|英文和中文|双语|chinese\s*(?:and|&|/|\+)\s*english|"
