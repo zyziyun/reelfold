@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
 import { placeBrowser } from '../lib/slotBounds';
+import { BlockedNotice } from './Blocked';
 
 /** Redacted snapshot of the open platform page -> a local file (for tuning an adapter's selectors). */
 export async function capturePage(ui: ReturnType<typeof useUi>) {
@@ -19,7 +20,7 @@ export async function capturePage(ui: ReturnType<typeof useUi>) {
   }
 }
 
-export function BrowserPane({ open, hidden, state, hint }: { open: boolean; hidden?: boolean; state: PublishStateMsg | null; hint: string }) {
+export function BrowserPane({ open, hidden, state, hint, pf, onUploadInBrowser }: { open: boolean; hidden?: boolean; state: PublishStateMsg | null; hint: string; pf?: string; onUploadInBrowser?: () => void }) {
   const ui = useUi();
   const slot = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -54,6 +55,7 @@ export function BrowserPane({ open, hidden, state, hint }: { open: boolean; hidd
       </div>
       <div className="browser-slot" ref={slot} style={{ flex: 1, minHeight: 480 }} data-testid="post-slot">
         {!open && <span>{hint}</span>}
+        {open && state?.blocked && <BlockedNotice blocked={state.blocked} pf={pf ?? ''} onBack={() => void window.desk.publish.navigate('login')} onUploadInBrowser={onUploadInBrowser} />}
       </div>
     </div>
   );

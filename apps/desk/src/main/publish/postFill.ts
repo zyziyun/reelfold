@@ -7,6 +7,7 @@ import type { WebContents } from 'electron';
 import type { EngineClient } from '../../shared/engineClient';
 import { loginState } from '../../shared/channels';
 import { adapterFor, type Adapter } from '../../shared/publish/adapterSchema';
+import { apiOnly } from '../../shared/publish/apiPlatforms';
 import { planFill } from '../../shared/publish/fillPlan';
 import { copyForPost, pickFile, postedSignal } from '../../shared/publish/postNow';
 import type { CalendarPost } from '../../shared/v04';
@@ -17,7 +18,7 @@ import { probeLogin } from './loginProbe';
 
 export type PostFillOutcome =
   | { ok: true; postId: string; adapterId: string; account: string; results: StepResult[]; video: string; cover: string | null }
-  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy'; detail?: string; adapterId?: string; account?: string };
+  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api'; detail?: string; adapterId?: string; account?: string };
 
 export interface PostFillDeps {
   client: EngineClient;
@@ -83,6 +84,8 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   if (post.state === 'posted') return { ok: false, reason: 'posted' };
   const adapter = adapterFor(post.platform.split(':')[0], deps.adapters);
   if (!adapter) return { ok: false, reason: 'no-adapter', detail: post.platform };
+  // an official API is the path (YouTube): never a sign-in or a form in the built-in browser
+  if (apiOnly(adapter.id)) return { ok: false, reason: 'use-api', adapterId: adapter.id };
   if (adapter.status === 'todo') return { ok: false, reason: 'adapter-todo', adapterId: adapter.id };
   const accounts = deps.accounts[adapter.id] ?? [];
   const account = req.account && accounts.includes(req.account) ? req.account : accounts[0];

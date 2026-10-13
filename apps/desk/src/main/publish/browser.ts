@@ -2,10 +2,16 @@
 // session partition `persist:<platform>-<account>`. The creator signs in herself inside the page; the app never
 // sees, stores or exports passwords or cookies. Platform pages get no preload, run sandboxed with context
 // isolation, cannot reach the local engine, get no device permissions and cannot download.
-import { app, shell, WebContentsView, type BrowserWindow, type Session, session as electronSession } from 'electron';
+// Platforms with an official upload API that is wired (YouTube) never open here: Google refuses sign-in in embedded
+// browsers, and her rule is the official API whenever there is one. When a sign-in provider refuses this browser
+// anyway (another platform's "Continue with Google" / Facebook button), the page is hidden and the renderer explains
+// it with the right next step instead of the provider's raw error.
+import { app, shell, WebContentsView, type BrowserWindow, type Session, type WebContents, session as electronSession } from 'electron';
 import { partitionFor } from '../../shared/ipc';
 import { hostAllowed, type Adapter } from '../../shared/publish/adapterSchema';
 import { loginState, PAGE_SIGNALS_JS, type PageSignals } from '../../shared/channels';
+import { apiOnly } from '../../shared/publish/apiPlatforms';
+import { BLOCK_TEXT_JS, embeddedBlock, maybeBlockPage, type EmbedBlock } from '../../shared/publish/embedBlock';
 import { isLocalEngineRequest, isSafeExternal, REMOTE_ALLOWED_PERMISSIONS } from '../security';
 import { probeLogin } from './loginProbe';
 import { cleanUserAgent } from './ua';
@@ -31,6 +37,16 @@ export interface PublishState {
   canGoBack: boolean;
   canGoForward: boolean;
   visible: boolean;
+  /** a sign-in provider refused this embedded browser (the page is hidden; the renderer explains) */
+  blocked: EmbedBlock | null;
+}
+
+/** Refused here: the platform's official API is the path (see shared/publish/apiPlatforms.ts). */
+export class ApiOnlyError extends Error {
+  constructor(name: string) {
+    super(`${name} is published through its official API, not the built-in browser: sign in with Google in your browser (Settings › Publishing accounts)`);
+    this.name = 'ApiOnlyError';
+  }
 }
 
 const hardened = new WeakSet<Session>();
@@ -52,6 +68,7 @@ interface Entry {
   adapter: Adapter;
   account: string;
   view: WebContentsView;
+  blocked: EmbedBlock | null;
 }
 
 export class PublishBrowser {
@@ -84,7 +101,7 @@ export class PublishBrowser {
       },
     });
     const wc = view.webContents;
-    const entry: Entry = { key: partition, adapter, account, view };
+    const entry: Entry = { key: partition, adapter, account, view, blocked: null };
     const allowedPopup = (url: string) => {
       try {
         const u = new URL(url);
@@ -113,6 +130,38 @@ export class PublishBrowser {
     });
     wc.on('will-attach-webview', (e) => e.preventDefault());
     const emit = () => this.emit();
+    // a provider's "not secure / unsupported browser" page (here or in a sign-in popup): hide it, say why
+    const setBlocked = (b: EmbedBlock | null) => {
+      if (JSON.stringify(b) === JSON.stringify(entry.blocked)) return;
+      entry.blocked = b;
+      if (this.current === entry) entry.view.setVisible(this.visible && !b);
+      this.emit();
+    };
+    const checkBlock = async (w: WebContents, popup: boolean) => {
+      if (w.isDestroyed()) return;
+      const url = w.getURL();
+      let b = embeddedBlock(url);
+      if (!b && maybeBlockPage(url)) {
+        try {
+          b = embeddedBlock(url, String(await w.executeJavaScriptInIsolatedWorld(1004, [{ code: BLOCK_TEXT_JS }])));
+        } catch {
+          /* navigating */
+        }
+      }
+      if (popup) {
+        if (b) {
+          setBlocked(b);
+          if (!w.isDestroyed()) w.close();
+        }
+      } else if (!w.isDestroyed() && w.getURL() === url) setBlocked(b);
+    };
+    wc.on('did-navigate', () => void checkBlock(wc, false));
+    wc.on('did-stop-loading', () => void checkBlock(wc, false));
+    wc.on('did-create-window', (child) => {
+      const cw = child.webContents;
+      cw.on('did-navigate', () => void checkBlock(cw, true));
+      cw.on('did-stop-loading', () => void checkBlock(cw, true));
+    });
     // login state: the URL first, then what the page shows a moment after it settled (SPAs redirect late)
     let check: NodeJS.Timeout | null = null;
     // the session cookies decide when the adapter names them (any page of the platform counts, 小红书's creator home
@@ -160,6 +209,7 @@ export class PublishBrowser {
   }
 
   open(adapter: Adapter, account: string, page: 'upload' | 'login'): Entry {
+    if (apiOnly(adapter.id)) throw new ApiOnlyError(adapter.name);
     const key = partitionFor(adapter.id, account);
     let e = this.entries.get(key);
     const fresh = !e;
@@ -169,7 +219,7 @@ export class PublishBrowser {
     this.current = e;
     this.win.contentView.addChildView(e.view);
     e.view.setBounds(this.bounds);
-    e.view.setVisible(this.visible);
+    e.view.setVisible(this.visible && !e.blocked);
     // an existing view keeps its page (a half-filled upload form must survive switching tabs)
     if (fresh) void e.view.webContents.loadURL(page === 'login' ? adapter.loginUrl : adapter.uploadUrl);
     this.emit();
@@ -185,7 +235,7 @@ export class PublishBrowser {
     this.visible = b.width > 0 && b.height > 0;
     if (this.current) {
       this.current.view.setBounds(b);
-      this.current.view.setVisible(this.visible);
+      this.current.view.setVisible(this.visible && !this.current.blocked);
     }
   }
 
@@ -199,6 +249,11 @@ export class PublishBrowser {
     const e = this.current;
     if (!e) return;
     const wc = e.view.webContents;
+    if (e.blocked) {
+      // she leaves the refusal page: show the panel again (a new refusal hides it again)
+      e.blocked = null;
+      e.view.setVisible(this.visible);
+    }
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
     else if (action === 'reload') wc.reload();
@@ -218,6 +273,7 @@ export class PublishBrowser {
       canGoBack: wc?.navigationHistory.canGoBack() ?? false,
       canGoForward: wc?.navigationHistory.canGoForward() ?? false,
       visible: this.visible,
+      blocked: e?.blocked ?? null,
     });
   }
 

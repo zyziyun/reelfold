@@ -123,7 +123,7 @@ export const settingsV2En = {
   's2.si.failed': 'It stopped before finishing. Show details to see what it said.',
   's2.si.cancel': 'Cancel',
 
-  's2.pub.lead': 'Where Reelfold publishes. You sign in once inside Reelfold; it never sees your password.',
+  's2.pub.lead': 'Where Reelfold publishes. You sign in once (YouTube: with Google in your own browser); Reelfold never sees your password.',
   's2.pub.none': 'No accounts yet — add the platforms you post to.',
   's2.pub.add': 'Add an account',
   's2.pub.foot': 'Account names, posting times and upload pages live in',
@@ -305,7 +305,7 @@ export const settingsV2Zh: Record<S2Key, string> = {
   's2.si.failed': '没有完成。打开详细信息看看它说了什么。',
   's2.si.cancel': '取消',
 
-  's2.pub.lead': '千剪发布到这些地方。你在千剪里登录一次；它从不知道你的密码。',
+  's2.pub.lead': '千剪发布到这些地方。你只需登录一次（YouTube：在你自己的浏览器里用 Google 登录）；千剪从不知道你的密码。',
   's2.pub.none': '还没有账号 — 添加你在用的平台。',
   's2.pub.add': '添加账号',
   's2.pub.foot': '账号名称、发布时间和上传页面在',
@@ -485,7 +485,7 @@ export const settingsV2Fr: Record<S2Key, string> = {
   's2.si.failed': 'Ça s’est arrêté avant la fin. Affichez les détails pour voir le message.',
   's2.si.cancel': 'Annuler',
 
-  's2.pub.lead': 'Là où Reelfold publie. Vous vous connectez une fois dans Reelfold ; il ne voit jamais votre mot de passe.',
+  's2.pub.lead': 'Là où Reelfold publie. Vous vous connectez une fois (YouTube : avec Google dans votre propre navigateur) ; Reelfold ne voit jamais votre mot de passe.',
   's2.pub.none': 'Aucun compte — ajoutez les plateformes où vous publiez.',
   's2.pub.add': 'Ajouter un compte',
   's2.pub.foot': 'Noms des comptes, heures de publication et pages d’envoi sont dans',

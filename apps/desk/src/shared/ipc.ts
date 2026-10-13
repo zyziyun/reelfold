@@ -157,10 +157,32 @@ export const ipcSchemas = {
   'publish:fillPost': z.strictObject({ postId: z.string().regex(/^[0-9a-f]{12}$/), account: accountName.optional() }),
   'publish:capture': z.undefined(),
   'publish:apiStatus': z.undefined(),
-  'publish:apiClient': z.strictObject({ id: z.literal('youtube'), clientId: z.string().min(10).max(220), clientSecret: z.string().min(8).max(220) }),
-  'publish:apiConnect': z.strictObject({ id: z.literal('youtube') }),
-  'publish:apiDisconnect': z.strictObject({ id: z.literal('youtube'), forgetClient: z.boolean().optional() }),
+  // her own Google Cloud OAuth client (the secret is optional: Desktop-app clients show one, Google wants it)
+  'publish:apiClient': z.strictObject({ id: z.literal('youtube'), clientId: z.string().min(10).max(220), clientSecret: z.string().min(8).max(220).optional() }),
+  'publish:apiUseBuiltin': z.strictObject({ id: z.literal('youtube') }),
+  'publish:apiConnect': z.strictObject({ id: z.literal('youtube'), account: accountName, playlists: z.boolean().optional() }),
+  'publish:apiCancel': z.strictObject({ id: z.literal('youtube') }),
+  'publish:apiDisconnect': z.strictObject({ id: z.literal('youtube'), account: accountName.optional(), forgetClient: z.boolean().optional() }),
   'publish:apiAuto': z.strictObject({ id: z.literal('youtube'), auto: z.boolean() }),
+  'publish:ytPlaylists': z.strictObject({ account: accountName }),
+  // her Publish / Schedule click in the YouTube form (the only thing that uploads, besides her scheduled-posting switch)
+  'publish:ytPublish': z.strictObject({
+    postId: z.string().regex(/^[0-9a-f]{12}$/),
+    account: accountName,
+    title: z.string().min(1).max(400),
+    description: z.string().max(20000),
+    tags: z.array(z.string().max(120)).max(100),
+    categoryId: z.string().regex(/^\d{1,3}$/),
+    privacy: z.enum(['public', 'unlisted', 'private']),
+    publishAt: z.string().regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/).nullable(),
+    madeForKids: z.boolean(),
+    synthetic: z.boolean(),
+    short: z.boolean(),
+    thumbnail: z.boolean(),
+    playlistId: z.string().regex(/^[\w-]{2,64}$/).nullable(),
+  }),
+  // a post's file + cover + copy (Upload in your browser, the YouTube form)
+  'publish:postPackage': z.strictObject({ postId: z.string().regex(/^[0-9a-f]{12}$/) }),
   'assets:status': z.undefined(),
   'assets:install': z.strictObject({ ids: z.array(z.string().regex(/^[a-z0-9-]{1,40}$/)).max(20).optional() }),
   'assets:cancel': z.strictObject({ id: z.string().regex(/^[a-z0-9-]{1,40}$/).optional() }).optional(),
@@ -225,7 +247,7 @@ export function validateIpc<C extends IpcChannel>(channel: C, payload: unknown):
 }
 
 /** Events main -> renderer. */
-export const IPC_EVENTS = ['publish:state', 'publish:fillStep', 'engine:status', 'publish:due', 'publish:posted', 'publish:channels'] as const;
+export const IPC_EVENTS = ['publish:state', 'publish:fillStep', 'engine:status', 'publish:due', 'publish:posted', 'publish:channels', 'publish:ytProgress'] as const;
 export type IpcEvent = (typeof IPC_EVENTS)[number];
 
 export function partitionFor(adapter: string, account: string): string {

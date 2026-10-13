@@ -8,7 +8,7 @@
 //   - the drawer: only her platforms in Where (+ Add platform), the title edited inline, 小红书's 20-char counter
 //   - a post whose time has passed: overdue on launch (banner), one "Time to post" notification; clicking it opens
 //     the post page, which fills the upload form by itself; her click on 发布 -> posted (via assisted)
-//   - Settings: Open at login, YouTube API (not connected), TikTok / X / Instagram documented as not yet
+//   - Settings: Open at login, YouTube through the official API (not connected), TikTok / X / Instagram not yet
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -246,13 +246,13 @@ test('a signed-out account: the fill stops and asks her to sign in (no fake succ
   expect((await rows()).find((x) => x.id === r.ids[0])?.state).toBe('planned');
 });
 
-test('Settings: Open at login; YouTube API needs her OAuth client; TikTok / X / Instagram not yet', async () => {
+test('Settings: Open at login; YouTube signs in through Google’s API (her own client here); TikTok / X / Instagram not yet', async () => {
   await hash('#/settings/accounts');
   await expect(page.getByTestId('open-at-login')).toBeVisible();
-  await expect(page.getByTestId('api-youtube-client')).toBeVisible();
+  await expect(page.getByTestId('yt-client')).toBeVisible();
   for (const id of ['tiktok', 'x', 'instagram']) await expect(page.getByTestId(`api-${id}`)).toContainText('Not yet');
-  await page.getByTestId('api-youtube-client').click();
-  await expect(page.getByTestId('api-client-sheet')).toBeVisible();
+  await page.getByTestId('yt-own-add').click();
+  await expect(page.getByTestId('yt-guide')).toBeVisible();
   await page.screenshot({ path: path.join(SHOTS, 'settings-api.png') });
   await page.keyboard.press('Escape');
   await page.getByTestId('open-at-login').click();

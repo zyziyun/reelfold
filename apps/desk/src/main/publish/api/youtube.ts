@@ -1,23 +1,74 @@
-// YouTube Data API v3 posting (opt-in): her own Google Cloud OAuth client ("Desktop app"), OAuth 2.0 for installed
-// apps with PKCE and a loopback redirect (127.0.0.1, random port) in the system browser, scope youtube.upload only.
-// The refresh token is kept in the keychain (ApiVault). Upload = videos.insert, resumable; a time ahead -> private +
-// status.publishAt, so YouTube itself publishes at her time even when the Mac is asleep.
-// Google's rule for unverified API projects (since 2020-07-28): their uploads are locked to private until the
-// project passes YouTube's API audit - docs/PUBLISHING.md says how; the result is shown, never hidden.
+// YouTube Data API v3: the only way Reelfold posts to YouTube. Google refuses sign-in inside embedded browsers
+// ("This browser or app may not be secure"), so there is no built-in-browser path for YouTube at all.
+//   - Sign-in: OAuth 2.0 for installed apps in her SYSTEM browser, PKCE (S256) + a loopback redirect
+//     (http://127.0.0.1:<random port>), scopes youtube.upload + youtube.readonly (adding to a playlist needs the
+//     broader `youtube` scope, asked only when she turns playlists on).
+//   - The OAuth client: Reelfold's own (its ID / secret come from the build environment, never the repo) or her own
+//     Google Cloud "Desktop app" client pasted in Settings. Google treats a desktop client's secret as not secret.
+//   - Tokens: one refresh token per publishing account, encrypted in the OS keychain (ApiVault); never sent to the
+//     renderer, the engine or a log.
+//   - Upload: videos.insert as a resumable session, sent in chunks; a dropped connection or a 5xx asks the session
+//     how much arrived and resumes from there (exponential backoff). Then thumbnails.set and, when she chose one,
+//     playlistItems.insert. A time ahead = private + status.publishAt: YouTube itself publishes at her time.
+//   - Nothing is uploaded unless she pressed Publish / Schedule (or switched on scheduled posting herself).
+// Google's rule for API projects that have not passed YouTube's audit: their uploads are locked to private. The
+// result's privacy is reported as YouTube returns it, never hidden.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { Readable } from 'node:stream';
-import type { ApiVault } from './vault';
+import path from 'node:path';
+import type { ApiSecret, ApiVault } from './vault';
+export { shortsFit } from '../../../shared/publish/apiPlatforms';
 
-export const YT_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
-const AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
-const TOKEN = 'https://oauth2.googleapis.com/token';
-const REVOKE = 'https://oauth2.googleapis.com/revoke';
-const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
+export const YT_UPLOAD = 'https://www.googleapis.com/auth/youtube.upload';
+export const YT_READONLY = 'https://www.googleapis.com/auth/youtube.readonly';
+/** playlists only (playlistItems.insert accepts no narrower scope) */
+export const YT_MANAGE = 'https://www.googleapis.com/auth/youtube';
+export const YT_SCOPES = [YT_UPLOAD, YT_READONLY];
+/** @deprecated the upload scope; kept for older callers */
+export const YT_SCOPE = YT_UPLOAD;
+
+export interface GoogleEndpoints {
+  auth: string;
+  token: string;
+  revoke: string;
+  /** https://www.googleapis.com/youtube/v3 */
+  api: string;
+  /** https://www.googleapis.com/upload/youtube/v3 */
+  upload: string;
+}
+
+export const GOOGLE: GoogleEndpoints = {
+  auth: 'https://accounts.google.com/o/oauth2/v2/auth',
+  token: 'https://oauth2.googleapis.com/token',
+  revoke: 'https://oauth2.googleapis.com/revoke',
+  api: 'https://www.googleapis.com/youtube/v3',
+  upload: 'https://www.googleapis.com/upload/youtube/v3',
+};
 
 export type Fetch = typeof fetch;
+
+export interface OAuthClient {
+  clientId: string;
+  /** Google shows one for "Desktop app" clients and wants it in the token request; it is not confidential */
+  clientSecret?: string;
+}
+
+// set by scripts/build.mjs from REELFOLD_GOOGLE_CLIENT_ID / REELFOLD_GOOGLE_CLIENT_SECRET at build time
+declare const __REELFOLD_GOOGLE_CLIENT_ID__: string | undefined;
+declare const __REELFOLD_GOOGLE_CLIENT_SECRET__: string | undefined;
+
+const CLIENT_ID_RE = /^[\w.-]{5,200}\.apps\.googleusercontent\.com$/;
+const SECRET_RE = /^[\x21-\x7e]{8,200}$/;
+
+/** Reelfold's own OAuth client, when this build has one (the build environment, or the environment in development). */
+export function builtinClient(env: Record<string, string | undefined> = process.env): OAuthClient | null {
+  const id = env.REELFOLD_GOOGLE_CLIENT_ID || (typeof __REELFOLD_GOOGLE_CLIENT_ID__ === 'string' ? __REELFOLD_GOOGLE_CLIENT_ID__ : '');
+  const secret = env.REELFOLD_GOOGLE_CLIENT_SECRET || (typeof __REELFOLD_GOOGLE_CLIENT_SECRET__ === 'string' ? __REELFOLD_GOOGLE_CLIENT_SECRET__ : '');
+  if (!id || !CLIENT_ID_RE.test(id)) return null;
+  return { clientId: id, ...(secret && SECRET_RE.test(secret) ? { clientSecret: secret } : {}) };
+}
 
 export interface YtDeps {
   vault: ApiVault;
@@ -25,24 +76,87 @@ export interface YtDeps {
   /** opens the consent page in the system browser */
   openExternal: (url: string) => Promise<void> | void;
   log?: (msg: string) => void;
+  endpoints?: Partial<GoogleEndpoints>;
+  /** Reelfold's client (default: builtinClient()) */
+  builtin?: OAuthClient | null;
+  sleep?: (ms: number) => Promise<void>;
+  /** bytes per PUT (a multiple of 256 KiB; default 8 MiB) */
+  chunkBytes?: number;
+  /** tries per chunk after a network error / 5xx (default 6) */
+  maxRetries?: number;
 }
+
+export type YtPrivacy = 'public' | 'unlisted' | 'private';
 
 export interface YtVideo {
   file: string;
   title: string;
   description: string;
   tags: string[];
-  /** null: public now */
+  /** a time ahead: uploaded private, YouTube publishes it then. null: `privacy` now */
   publishAt: Date | null;
+  privacy?: YtPrivacy;
+  categoryId?: string;
+  /** "Made for kids" (COPPA): she answers it; YouTube needs the answer */
+  madeForKids?: boolean;
+  /** "Altered or synthetic content" */
+  synthetic?: boolean;
+  /** a Short: vertical / square and <= 60 s (marked #Shorts) */
+  short?: boolean;
+  thumbnail?: string | null;
+  playlistId?: string | null;
 }
 
+export interface YtResult {
+  id: string;
+  url: string;
+  /** as YouTube answered (an unaudited API project gets private whatever was asked) */
+  privacy: string;
+  publishAt: string | null;
+  /** asked public / unlisted, YouTube kept it private: the project has not passed the audit */
+  lockedPrivate: boolean;
+  /** the thumbnail / playlist steps that did not work (the video itself is up) */
+  warnings: string[];
+}
+
+export interface YtChannel {
+  id: string;
+  title: string;
+}
+
+export interface YtAccountStatus {
+  account: string;
+  connected: boolean;
+  connectedAt: string | null;
+  channel: YtChannel | null;
+  playlists: boolean;
+}
+
+export interface YtStatus {
+  /** which client signs in: Reelfold's, hers, or none yet */
+  source: 'reelfold' | 'own' | null;
+  hasClient: boolean;
+  /** this build carries Reelfold's client */
+  builtin: boolean;
+  ownClientId: string | null;
+  accounts: YtAccountStatus[];
+}
+
+/** YouTube's video categories (videoCategories.list, region US); 22 = People & Blogs is the default. */
+export const YT_CATEGORIES = ['1', '2', '10', '15', '17', '19', '20', '22', '23', '24', '25', '26', '27', '28', '29'] as const;
+
 const b64url = (b: Buffer) => b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const CHUNK_UNIT = 256 * 1024;
 
 /** YouTube refuses < and > in titles / descriptions; title max 100 chars, description 5000 bytes, tags 500 chars. */
-export function ytMeta(v: Pick<YtVideo, 'title' | 'description' | 'tags' | 'publishAt'>) {
+export function ytMeta(v: Pick<YtVideo, 'title' | 'description' | 'tags' | 'publishAt'> & Partial<Pick<YtVideo, 'privacy' | 'categoryId' | 'madeForKids' | 'synthetic' | 'short'>>) {
   const clean = (s: string) => s.replace(/[<>]/g, '');
-  const title = Array.from(clean(v.title).trim() || 'Untitled').slice(0, 100).join('');
+  let title = Array.from(clean(v.title).trim() || 'Untitled').slice(0, 100).join('');
   let description = clean(v.description);
+  if (v.short && !/#shorts\b/i.test(`${title} ${description}`)) {
+    if (Array.from(title).length + 8 <= 100) title = `${title} #Shorts`;
+    else description = description ? `${description}\n\n#Shorts` : '#Shorts';
+  }
   while (Buffer.byteLength(description, 'utf8') > 5000) description = Array.from(description).slice(0, -1).join('');
   const tags: string[] = [];
   let len = 0;
@@ -52,126 +166,261 @@ export function ytMeta(v: Pick<YtVideo, 'title' | 'description' | 'tags' | 'publ
     tags.push(t);
     len += add;
   }
+  const category = v.categoryId && (YT_CATEGORIES as readonly string[]).includes(v.categoryId) ? v.categoryId : '22';
+  const kids = v.madeForKids ?? false;
+  const extra = v.synthetic === undefined ? {} : { containsSyntheticMedia: v.synthetic };
   return {
-    snippet: { title, description, tags, categoryId: '22' },
+    snippet: { title, description, tags, categoryId: category },
     status: v.publishAt
-      ? { privacyStatus: 'private', publishAt: v.publishAt.toISOString(), selfDeclaredMadeForKids: false }
-      : { privacyStatus: 'public', selfDeclaredMadeForKids: false },
+      ? { privacyStatus: 'private', publishAt: v.publishAt.toISOString(), selfDeclaredMadeForKids: kids, ...extra }
+      : { privacyStatus: v.privacy ?? 'public', selfDeclaredMadeForKids: kids, ...extra },
   };
 }
 
-export class YouTubeApi {
-  private access: { token: string; until: number } | null = null;
+const vaultKey = (account: string) => `youtube/${account}`;
 
-  constructor(private d: YtDeps) {}
+export class YouTubeApi {
+  private access = new Map<string, { token: string; until: number }>();
+  private pending: (() => void) | null = null;
+  private ep: GoogleEndpoints;
+  private builtin: OAuthClient | null;
+
+  constructor(private d: YtDeps) {
+    this.ep = { ...GOOGLE, ...(d.endpoints ?? {}) };
+    this.builtin = d.builtin === undefined ? builtinClient() : d.builtin;
+    this.migrate();
+  }
 
   private get f(): Fetch {
     return this.d.fetch ?? fetch;
   }
 
-  setClient(clientId: string, clientSecret: string) {
-    if (!/^[\w.-]{5,200}\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('client ID: the "….apps.googleusercontent.com" ID of a Desktop-app OAuth client');
-    if (!/^[\x21-\x7e]{8,200}$/.test(clientSecret)) throw new Error('client secret: the secret shown next to that client ID');
-    this.d.vault.set('youtube', { clientId, clientSecret, refreshToken: undefined, connectedAt: undefined });
-    this.access = null;
+  private sleep(ms: number) {
+    return this.d.sleep ? this.d.sleep(ms) : new Promise<void>((r) => setTimeout(r, ms));
   }
 
-  status() {
+  /** before per-account tokens: one token under "youtube" = the "main" account, the client = hers */
+  private migrate() {
+    try {
+      const old = this.d.vault.get('youtube');
+      if (!old.refreshToken) return;
+      this.d.vault.set(vaultKey('main'), { refreshToken: old.refreshToken, scope: old.scope, connectedAt: old.connectedAt });
+      this.d.vault.set('youtube', { refreshToken: undefined, scope: undefined, connectedAt: undefined, source: old.source ?? (old.clientId ? 'own' : undefined) });
+    } catch {
+      /* no keychain: nothing to move */
+    }
+  }
+
+  /** the client that signs in now */
+  client(): OAuthClient | null {
     const s = this.d.vault.get('youtube');
-    return { hasClient: !!(s.clientId && s.clientSecret), connected: !!s.refreshToken, connectedAt: s.connectedAt ?? null };
+    const source = s.source ?? (s.clientId ? 'own' : this.builtin ? 'reelfold' : undefined);
+    if (source === 'own' && s.clientId) return { clientId: s.clientId, ...(s.clientSecret ? { clientSecret: s.clientSecret } : {}) };
+    if (source === 'reelfold' && this.builtin) return this.builtin;
+    return null;
+  }
+
+  private source(): 'reelfold' | 'own' | null {
+    const s = this.d.vault.get('youtube');
+    const src = s.source ?? (s.clientId ? 'own' : this.builtin ? 'reelfold' : null);
+    return src === 'reelfold' && !this.builtin ? null : (src ?? null);
+  }
+
+  /** Her own Google Cloud OAuth client (Desktop app). Tokens from another client stop working: every account
+   * connects again. */
+  setClient(clientId: string, clientSecret?: string) {
+    const id = clientId.trim();
+    const secret = clientSecret?.trim() || undefined;
+    if (!CLIENT_ID_RE.test(id)) throw new Error('client ID: the "….apps.googleusercontent.com" ID of a Desktop-app OAuth client');
+    if (secret !== undefined && !SECRET_RE.test(secret)) throw new Error('client secret: the secret shown next to that client ID');
+    this.d.vault.set('youtube', { source: 'own', clientId: id, clientSecret: secret });
+    this.forgetTokens();
+  }
+
+  /** Sign in with Reelfold's client (only when this build has one). */
+  useBuiltin() {
+    if (!this.builtin) throw new Error('this build has no Reelfold OAuth client: add your own Google Cloud OAuth client');
+    if (this.source() === 'reelfold') return;
+    this.d.vault.set('youtube', { source: 'reelfold' });
+    this.forgetTokens();
+  }
+
+  /** Remove her own client (back to Reelfold's when there is one). */
+  forgetClient() {
+    this.d.vault.set('youtube', { source: this.builtin ? 'reelfold' : undefined, clientId: undefined, clientSecret: undefined });
+    this.forgetTokens();
+  }
+
+  private forgetTokens() {
+    for (const a of this.accountsInVault()) this.d.vault.set(vaultKey(a), null);
+    this.access.clear();
+  }
+
+  private accountsInVault(): string[] {
+    return this.d.vault.ids().filter((k) => k.startsWith('youtube/')).map((k) => k.slice('youtube/'.length));
+  }
+
+  accountStatus(account: string): YtAccountStatus {
+    const s = this.d.vault.get(vaultKey(account));
+    return { account, connected: !!s.refreshToken, connectedAt: s.connectedAt ?? null, channel: s.channel ?? null, playlists: (s.scope ?? '').split(/\s+/).includes(YT_MANAGE) };
+  }
+
+  status(accounts: string[] = []): YtStatus {
+    const s = this.d.vault.get('youtube');
+    const all = [...new Set([...accounts, ...this.accountsInVault()])];
+    return {
+      source: this.source(),
+      hasClient: !!this.client(),
+      builtin: !!this.builtin,
+      ownClientId: s.clientId ?? null,
+      accounts: all.map((a) => this.accountStatus(a)),
+    };
+  }
+
+  /** Stop waiting for a consent she abandoned. */
+  cancelConnect() {
+    this.pending?.();
   }
 
   /** OAuth in the system browser; resolves once Google redirected back to the loopback port (or after 5 minutes). */
-  async connect(timeoutMs = 5 * 60_000): Promise<{ connected: true }> {
-    const s = this.d.vault.get('youtube');
-    if (!s.clientId || !s.clientSecret) throw new Error('add your OAuth client first');
+  async connect(account: string, opts: { playlists?: boolean; timeoutMs?: number } = {}): Promise<YtAccountStatus> {
+    const client = this.client();
+    if (!client) throw new Error('choose how to sign in first: Reelfold’s Google client or your own');
+    this.cancelConnect();
+    const scopes = [...YT_SCOPES, ...(opts.playlists ? [YT_MANAGE] : [])];
     const verifier = b64url(crypto.randomBytes(48));
     const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
     const state = b64url(crypto.randomBytes(16));
+    const timeoutMs = opts.timeoutMs ?? 5 * 60_000;
     const { code, redirect } = await new Promise<{ code: string; redirect: string }>((resolve, reject) => {
+      let settled = false;
+      let port = 0;
+      const page = (ok: boolean) =>
+        `<!doctype html><meta charset="utf-8"><title>Reelfold</title><body style="font:16px system-ui;margin:4em auto;max-width:32em;text-align:center">${
+          ok ? '<h2>Reelfold is connected to YouTube</h2><p>You can close this tab and go back to Reelfold.</p>' : '<h2>Not connected</h2><p>Go back to Reelfold and try again.</p>'
+        }</body>`;
       const server = http.createServer((req, res) => {
         const u = new URL(req.url ?? '/', 'http://127.0.0.1');
         if (u.pathname !== '/') {
           res.writeHead(404).end();
           return;
         }
-        const ok = u.searchParams.get('state') === state && !!u.searchParams.get('code');
-        res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(ok ? '<p style="font:16px system-ui">Reelfold is connected to YouTube. You can close this tab.</p>' : '<p style="font:16px system-ui">Not connected. Go back to Reelfold and try again.</p>');
-        finish(ok ? null : new Error(u.searchParams.get('error') || 'the consent was not completed'), u.searchParams.get('code'));
+        if (u.searchParams.get('state') !== state) {
+          // not our redirect (a stale tab, a forged request): refuse, keep waiting for the real one
+          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' }).end(page(false));
+          finish(new Error('the sign-in answer did not match: try again'), null);
+          return;
+        }
+        const c = u.searchParams.get('code');
+        res.writeHead(c ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(page(!!c));
+        const err = u.searchParams.get('error');
+        finish(c ? null : new Error(err === 'access_denied' ? 'you did not allow access in Google’s page' : err || 'the consent was not completed'), c);
       });
-      const timer = setTimeout(() => finish(new Error('no answer from Google within 5 minutes'), null), timeoutMs);
-      let settled = false;
+      const timer = setTimeout(() => finish(new Error('no answer from Google within 5 minutes: try again'), null), timeoutMs);
       const finish = (err: Error | null, c: string | null) => {
         if (settled) return;
         settled = true;
+        this.pending = null;
         clearTimeout(timer);
         server.close();
         if (err || !c) reject(err ?? new Error('no code'));
-        else resolve({ code: c, redirect: `http://127.0.0.1:${(server.address() as AddressInfo | null)?.port ?? port}` });
+        else resolve({ code: c, redirect: `http://127.0.0.1:${port}` });
       };
-      let port = 0;
+      this.pending = () => finish(new Error('sign-in cancelled'), null);
+      server.on('error', (e) => finish(e, null));
       server.listen(0, '127.0.0.1', () => {
         port = (server.address() as AddressInfo).port;
         const q = new URLSearchParams({
-          client_id: s.clientId!,
+          client_id: client.clientId,
           redirect_uri: `http://127.0.0.1:${port}`,
           response_type: 'code',
-          scope: YT_SCOPE,
+          scope: scopes.join(' '),
           code_challenge: challenge,
           code_challenge_method: 'S256',
           state,
           access_type: 'offline',
-          prompt: 'consent',
+          include_granted_scopes: 'true',
+          prompt: 'consent select_account',
         });
-        void Promise.resolve(this.d.openExternal(`${AUTH}?${q}`)).catch((e: Error) => finish(e, null));
+        void Promise.resolve(this.d.openExternal(`${this.ep.auth}?${q}`)).catch((e: Error) => finish(e, null));
       });
     });
-    const r = await this.f(TOKEN, {
+    const r = await this.f(this.ep.token, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code, client_id: s.clientId, client_secret: s.clientSecret, redirect_uri: redirect, grant_type: 'authorization_code', code_verifier: verifier }),
+      body: new URLSearchParams({
+        code,
+        client_id: client.clientId,
+        ...(client.clientSecret ? { client_secret: client.clientSecret } : {}),
+        redirect_uri: redirect,
+        grant_type: 'authorization_code',
+        code_verifier: verifier,
+      }),
     });
     const j = (await r.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error_description?: string; error?: string };
     if (!r.ok || !j.refresh_token) throw new Error(`Google did not grant access: ${j.error_description || j.error || r.status}`);
-    this.d.vault.set('youtube', { refreshToken: j.refresh_token, scope: j.scope, connectedAt: new Date().toISOString() });
-    if (j.access_token) this.access = { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 };
-    return { connected: true };
-  }
-
-  async disconnect() {
-    const s = this.d.vault.get('youtube');
-    if (s.refreshToken) {
-      await this.f(`${REVOKE}?token=${encodeURIComponent(s.refreshToken)}`, { method: 'POST' }).catch(() => undefined);
+    const granted = (j.scope ?? scopes.join(' ')).split(/\s+/);
+    if (!granted.includes(YT_UPLOAD)) throw new Error('the permission to upload videos was not ticked in Google’s page: connect again and allow it');
+    if (j.access_token) this.access.set(account, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 });
+    let channel: YtChannel | null = null;
+    if (j.access_token && granted.includes(YT_READONLY)) {
+      const c = await this.f(`${this.ep.api}/channels?part=snippet&mine=true`, { headers: { Authorization: `Bearer ${j.access_token}` } }).catch(() => null);
+      const cj = c && c.ok ? ((await c.json().catch(() => ({}))) as { items?: { id: string; snippet?: { title?: string } }[] }) : null;
+      if (cj && !cj.items?.length) throw new Error('this Google account has no YouTube channel yet: create one on youtube.com, then connect again');
+      if (cj?.items?.[0]) channel = { id: cj.items[0].id, title: cj.items[0].snippet?.title ?? cj.items[0].id };
     }
-    this.d.vault.set('youtube', { refreshToken: undefined, scope: undefined, connectedAt: undefined });
-    this.access = null;
+    const rec: ApiSecret = { refreshToken: j.refresh_token, scope: granted.join(' '), connectedAt: new Date().toISOString(), channel: channel ?? undefined };
+    this.d.vault.set(vaultKey(account), rec);
+    this.d.log?.(`[youtube] ${account} connected${channel ? ` (${channel.id})` : ''}`);
+    return this.accountStatus(account);
   }
 
-  private async token(): Promise<string> {
-    if (this.access && this.access.until > Date.now()) return this.access.token;
-    const s = this.d.vault.get('youtube');
-    if (!s.refreshToken || !s.clientId || !s.clientSecret) throw new Error('YouTube is not connected');
-    const r = await this.f(TOKEN, {
+  async disconnect(account: string) {
+    const s = this.d.vault.get(vaultKey(account));
+    if (s.refreshToken) {
+      await this.f(this.ep.revoke, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: s.refreshToken }) }).catch(() => undefined);
+    }
+    this.d.vault.set(vaultKey(account), null);
+    this.access.delete(account);
+  }
+
+  private async token(account: string, fresh = false): Promise<string> {
+    const cached = this.access.get(account);
+    if (!fresh && cached && cached.until > Date.now()) return cached.token;
+    const s = this.d.vault.get(vaultKey(account));
+    const client = this.client();
+    if (!s.refreshToken || !client) throw new Error('YouTube is not connected: sign in with Google in your browser first');
+    const r = await this.f(this.ep.token, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: s.clientId, client_secret: s.clientSecret, refresh_token: s.refreshToken, grant_type: 'refresh_token' }),
+      body: new URLSearchParams({ client_id: client.clientId, ...(client.clientSecret ? { client_secret: client.clientSecret } : {}), refresh_token: s.refreshToken, grant_type: 'refresh_token' }),
     });
     const j = (await r.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: string };
     if (!r.ok || !j.access_token) {
-      if (j.error === 'invalid_grant') this.d.vault.set('youtube', { refreshToken: undefined, connectedAt: undefined });
-      throw new Error(`YouTube sign-in expired or was revoked (${j.error ?? r.status}): connect again`);
+      if (j.error === 'invalid_grant') this.d.vault.set(vaultKey(account), null);
+      throw new Error(`YouTube sign-in expired or was revoked (${j.error ?? r.status}): sign in with Google again`);
     }
-    this.access = { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 };
+    this.access.set(account, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 });
     return j.access_token;
   }
 
-  /** videos.insert (resumable): -> the video's link. */
-  async upload(v: YtVideo): Promise<{ id: string; url: string; privacy: string }> {
+  /** Her playlists (playlists.list, youtube.readonly). */
+  async playlists(account: string): Promise<{ id: string; title: string }[]> {
+    const token = await this.token(account);
+    const r = await this.f(`${this.ep.api}/playlists?part=snippet&mine=true&maxResults=50`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) throw new Error(`YouTube did not list the playlists: ${await errText(r)}`);
+    const j = (await r.json()) as { items?: { id: string; snippet?: { title?: string } }[] };
+    return (j.items ?? []).map((p) => ({ id: p.id, title: p.snippet?.title ?? p.id }));
+  }
+
+  /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */
+  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void): Promise<YtResult> {
     const size = fs.statSync(v.file).size;
+    if (!size) throw new Error('the video file is empty');
     const meta = ytMeta(v);
-    const token = await this.token();
-    const init = await this.f(UPLOAD, {
+    let token = await this.token(account);
+    const init = await this.f(`${this.ep.upload}/videos?uploadType=resumable&part=snippet,status`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -183,24 +432,145 @@ export class YouTubeApi {
     });
     const loc = init.headers.get('location');
     if (!init.ok || !loc) throw new Error(`YouTube refused the upload: ${await errText(init)}`);
-    if (!loc.startsWith('https://www.googleapis.com/')) throw new Error('unexpected upload location');
-    const put = await this.f(loc, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(size), 'Content-Type': 'video/*' },
-      body: Readable.toWeb(fs.createReadStream(v.file)) as unknown as BodyInit,
-      duplex: 'half',
-    } as RequestInit);
-    const j = (await put.json().catch(() => ({}))) as { id?: string; status?: { privacyStatus?: string } };
-    if (!put.ok || !j.id) throw new Error(`YouTube upload failed: ${put.status}`);
-    this.d.log?.(`[youtube] uploaded ${j.id} (${j.status?.privacyStatus ?? meta.status.privacyStatus})`);
-    return { id: j.id, url: `https://youtu.be/${j.id}`, privacy: j.status?.privacyStatus ?? meta.status.privacyStatus };
+    if (new URL(loc).origin !== new URL(this.ep.upload).origin) throw new Error('unexpected upload location');
+
+    const unit = Math.max(1, Math.round((this.d.chunkBytes ?? 32 * CHUNK_UNIT) / CHUNK_UNIT)) * CHUNK_UNIT;
+    const maxRetries = this.d.maxRetries ?? 6;
+    let offset = 0;
+    let tries = 0;
+    let authRetried = false;
+    let done = null as Inserted | null;
+    const fd = fs.openSync(v.file, 'r');
+    try {
+      while (!done) {
+        const end = Math.min(offset + unit, size);
+        const buf = Buffer.alloc(end - offset);
+        fs.readSync(fd, buf, 0, buf.length, offset);
+        let r: Response | null = null;
+        try {
+          r = await this.f(loc, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(buf.length), 'Content-Range': `bytes ${offset}-${end - 1}/${size}` },
+            body: buf,
+          });
+        } catch (e) {
+          this.d.log?.(`[youtube] chunk at ${offset} failed: ${(e as Error).message}`);
+        }
+        if (r && (r.status === 200 || r.status === 201)) {
+          done = (await r.json().catch(() => ({}))) as Inserted;
+          break;
+        }
+        if (r && r.status === 308) {
+          offset = nextOffset(r);
+          tries = 0;
+          onProgress?.(offset, size);
+          continue;
+        }
+        if (r && r.status === 401 && !authRetried) {
+          authRetried = true;
+          token = await this.token(account, true);
+        } else if (r && (r.status === 404 || r.status === 410)) {
+          throw new Error('the upload session expired: press Publish again to start over');
+        } else if (r && !retryable(r.status)) {
+          throw new Error(`YouTube upload failed: ${await errText(r)}`);
+        } else {
+          if (++tries > maxRetries) throw new Error(`YouTube upload failed after ${maxRetries} retries${r ? ` (${r.status})` : ' (network)'}`);
+          await this.sleep(Math.min(64_000, 1000 * 2 ** (tries - 1)) + Math.floor(Math.random() * 250));
+        }
+        // ask the session how much it has, then go on from there
+        const q = await this.f(loc, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Length': '0', 'Content-Range': `bytes */${size}` } }).catch(() => null);
+        if (q && (q.status === 200 || q.status === 201)) {
+          done = (await q.json().catch(() => ({}))) as Inserted;
+        } else if (q && q.status === 308) {
+          offset = nextOffset(q);
+          onProgress?.(offset, size);
+        } else if (q && (q.status === 404 || q.status === 410)) {
+          throw new Error('the upload session expired: press Publish again to start over');
+        }
+        // anything else: the next PUT tries again from the same offset
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (!done?.id) throw new Error('YouTube did not return the new video');
+    onProgress?.(size, size);
+    const id = done.id;
+    const privacy = done.status?.privacyStatus ?? meta.status.privacyStatus;
+    const asked = meta.status.privacyStatus;
+    const warnings: string[] = [];
+    if (v.thumbnail) {
+      const w = await this.setThumbnail(account, id, v.thumbnail);
+      if (w) warnings.push(w);
+    }
+    if (v.playlistId) {
+      const w = await this.addToPlaylist(account, id, v.playlistId);
+      if (w) warnings.push(w);
+    }
+    this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
+    return {
+      id,
+      url: `https://youtu.be/${id}`,
+      privacy,
+      publishAt: done.status?.publishAt ?? ('publishAt' in meta.status ? (meta.status.publishAt as string) : null),
+      // asked public / unlisted and got private; or scheduled and YouTube dropped the time (both: the unaudited rule)
+      lockedPrivate: asked !== 'private' ? privacy === 'private' : !!v.publishAt && !!done.status && !done.status.publishAt,
+      warnings,
+    };
+  }
+
+  /** thumbnails.set: JPEG / PNG up to 2 MB; a channel that is not phone-verified cannot set one. -> a warning or null */
+  async setThumbnail(account: string, videoId: string, file: string): Promise<string | null> {
+    try {
+      const ext = path.extname(file).toLowerCase();
+      const type = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : null;
+      if (!type) return 'thumbnail: only JPEG or PNG covers can be set';
+      const body = fs.readFileSync(file);
+      if (body.length > 2 * 1024 * 1024) return 'thumbnail: the cover is over 2 MB, set it in YouTube Studio';
+      const token = await this.token(account);
+      const r = await this.f(`${this.ep.upload}/thumbnails/set?videoId=${encodeURIComponent(videoId)}&uploadType=media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': type, 'Content-Length': String(body.length) },
+        body,
+      });
+      if (r.ok) return null;
+      const e = await errText(r);
+      return /forbidden|403/.test(e) ? 'thumbnail: YouTube allows custom thumbnails after the channel is verified (youtube.com/verify)' : `thumbnail: ${e}`;
+    } catch (e) {
+      return `thumbnail: ${(e as Error).message}`;
+    }
+  }
+
+  /** playlistItems.insert (needs the playlists permission). -> a warning or null */
+  async addToPlaylist(account: string, videoId: string, playlistId: string): Promise<string | null> {
+    if (!this.accountStatus(account).playlists) return 'playlist: allow Reelfold to manage playlists (connect again with playlists on)';
+    try {
+      const token = await this.token(account);
+      const r = await this.f(`${this.ep.api}/playlistItems?part=snippet`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({ snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }),
+      });
+      return r.ok ? null : `playlist: ${await errText(r)}`;
+    } catch (e) {
+      return `playlist: ${(e as Error).message}`;
+    }
   }
 }
+
+type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string } };
+
+/** 308 Resume Incomplete: "Range: bytes=0-N" -> N+1; no Range: nothing arrived yet. */
+function nextOffset(r: Response): number {
+  const m = /bytes=0-(\d+)/.exec(r.headers.get('range') ?? '');
+  return m ? Number(m[1]) + 1 : 0;
+}
+
+const retryable = (s: number) => s === 408 || s === 429 || s >= 500;
 
 async function errText(r: Response): Promise<string> {
   try {
     const j = (await r.json()) as { error?: { message?: string; errors?: { reason?: string }[] } };
-    return `${r.status} ${j.error?.errors?.[0]?.reason ?? ''} ${j.error?.message ?? ''}`.trim();
+    return `${r.status} ${j.error?.errors?.[0]?.reason ?? ''} ${j.error?.message ?? ''}`.replace(/\s+/g, ' ').trim();
   } catch {
     return String(r.status);
   }

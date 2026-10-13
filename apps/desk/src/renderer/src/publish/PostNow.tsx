@@ -2,11 +2,15 @@
 // her; right: the platform's upload page in the built-in browser (her account's own session). Fill sets the file
 // made for that platform and types title / text / tags, outlines Publish - she presses it. When the page shows the
 // platform's success signal the post becomes "posted" (with its link when the page has one). Opened from the
-// notification with ?go=1, the fill starts by itself.
+// notification with ?go=1, the fill starts by itself. A platform published through its official API (YouTube) never
+// opens in the built-in browser: the right side is its publish form, and Publish / Schedule is her click. Every
+// platform also offers "Upload in your browser" (her default browser, the pieces handed over one by one).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FolderOpen, Loader2, LogIn, RotateCcw, Send, TriangleAlert } from 'lucide-react';
 import type { FillStepMsg, PostFillMsg, PublishStateMsg } from '../../../shared/deskApi';
 import { adapterFor } from '../../../shared/publish/adapterSchema';
+import { apiOnly, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
+import { CAPS } from '../../../shared/edition';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtDate, getLang, t } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
@@ -18,6 +22,8 @@ import { Thumb } from '../v4/kit';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
 import { BrowserPane } from './BrowserPane';
+import { UploadInBrowserSheet } from './BrowserUpload';
+import { YtPublishForm } from './YouTube';
 import { base } from './model';
 import './publish.css';
 
@@ -37,6 +43,10 @@ export function PostNow({ id }: { id: string }) {
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
   const [manual, setManual] = useState<string | null>(null);
   const [autoGo] = useState(() => routeQuery().go === '1');
+  const [inBrowser, setInBrowser] = useState(false);
+  /** sent through the API just now: what YouTube answered stays on the page */
+  const [ytSent, setYtSent] = useState<YtPublishResult | null>(null);
+  const viaApi = !!adapter && apiOnly(adapter.id);
   const zh = getLang() === 'zh-CN';
 
   useEffect(() => {
@@ -80,11 +90,11 @@ export function PostNow({ id }: { id: string }) {
 
   const [started, setStarted] = useState(false);
   useEffect(() => {
-    if (autoGo && !started && post && post.state !== 'posted' && adapter && account && adapter.status !== 'todo') {
+    if (autoGo && !started && post && post.state !== 'posted' && adapter && account && adapter.status !== 'todo' && !viaApi) {
       setStarted(true);
       void fill();
     }
-  }, [autoGo, started, post, adapter, account, fill]);
+  }, [autoGo, started, post, adapter, account, fill, viaApi]);
 
   const openPage = async (page: 'login' | 'upload') => {
     if (!adapter || !account) return;
@@ -143,6 +153,7 @@ export function PostNow({ id }: { id: string }) {
               <b>{platformName(pf)}</b>
               {account && <span className="muted">· {account.name}</span>}
             </span>
+            {adapter && <span className="muted small" data-testid="post-path" data-path={publishPath(adapter.id)}>{t(`pp.${publishPath(adapter.id)}`)}</span>}
             <span className={`muted small ${late > 0 && post.state !== 'posted' ? 'pb-amber' : ''}`}>
               {fmtDate(due, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
               {late > 60_000 && post.state !== 'posted' ? ` · ${t('pl.due.ago', { when: fmtAgo(due.getTime() / 1000) })}` : ''}
@@ -179,7 +190,7 @@ export function PostNow({ id }: { id: string }) {
               </button>
             </div>
           </div>
-        ) : adapter.status === 'todo' || fail?.reason === 'adapter-todo' ? (
+        ) : viaApi ? null : adapter.status === 'todo' || fail?.reason === 'adapter-todo' ? (
           <div className="pl-card warn" data-testid="post-todo">
             <TriangleAlert className="ico" />
             <div className="col" style={{ gap: 8 }}>
@@ -257,7 +268,7 @@ export function PostNow({ id }: { id: string }) {
 
         {phase.k !== 'posted' && adapter && account && (
           <>
-            {choices.length > 0 && (
+            {choices.length > 0 && !viaApi && (
               <>
                 <h4>{t('pl.post.yours')}</h4>
                 <ul className="pl-choices">
@@ -267,7 +278,7 @@ export function PostNow({ id }: { id: string }) {
                 </ul>
               </>
             )}
-            <p className="pb-hint">{zh ? adapter.disclosure.zh : adapter.disclosure.en}</p>
+            {!viaApi && <p className="pb-hint">{zh ? adapter.disclosure.zh : adapter.disclosure.en}</p>}
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {phase.k === 'filled' && phase.r.cover && (
                 <button className="btn sm" onClick={() => void window.desk.showItem((phase as { r: { cover: string } }).r.cover)}>
@@ -285,6 +296,10 @@ export function PostNow({ id }: { id: string }) {
                   {t('pl.post.again')}
                 </button>
               )}
+              <button className="btn sm" onClick={() => setInBrowser(true)} data-testid="post-in-browser">
+                <ExternalLink className="ico" />
+                {t('ub.open')}
+              </button>
               <button className="btn ghost sm" onClick={() => setManual('')} data-testid="post-manual">
                 {t('pl.post.manual')}
               </button>
@@ -301,8 +316,15 @@ export function PostNow({ id }: { id: string }) {
         )}
       </aside>
       <section className="pl-browser">
-        <BrowserPane open={browserOpen} state={bstate} hint={t('pl.post.slot')} />
+        {viaApi ? (
+          (phase.k !== 'posted' || ytSent) && account && CAPS.youtubeApi ? (
+            <YtPublishForm post={post} account={account.account} result={ytSent} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
+          ) : null
+        ) : (
+          <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => setInBrowser(true)} pf={platformName(pf)} />
+        )}
       </section>
+      {inBrowser && <UploadInBrowserSheet postId={post.id} pf={platformName(pf)} onClose={() => setInBrowser(false)} onPosted={(url) => (setInBrowser(false), void markPosted(url))} />}
     </div>
   );
 }

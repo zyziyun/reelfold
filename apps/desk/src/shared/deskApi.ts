@@ -4,7 +4,8 @@ import type { AiRoutes, AuthStatusMsg, KeyName, ProviderId } from './aiRoutes';
 import type { AssetsStatusMsg } from './assets';
 import type { ChannelMsg, ChannelPrefs } from './channels';
 import type { Adapter } from './publish/adapterSchema';
-import type { ApiStatusMsg } from './publish/apiPlatforms';
+import type { ApiStatusMsg, PostPackageMsg, YtPublishReq, YtPublishResult } from './publish/apiPlatforms';
+import type { EmbedBlock } from './publish/embedBlock';
 import type { Confirmation } from './publish/gating';
 import type { EngineInfo } from './types';
 import type { UpdateStateMsg } from './update';
@@ -19,6 +20,8 @@ export interface PublishStateMsg {
   canGoBack: boolean;
   canGoForward: boolean;
   visible: boolean;
+  /** a sign-in provider refused the built-in browser (the page is hidden; explain + the right action) */
+  blocked?: EmbedBlock | null;
 }
 
 export interface FillStepMsg {
@@ -40,7 +43,7 @@ export interface DueMsg {
 
 export type PostFillMsg =
   | { ok: true; postId: string; adapterId: string; account: string; results: FillStepMsg[]; video: string; cover: string | null }
-  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy'; detail?: string; adapterId?: string; account?: string };
+  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api'; detail?: string; adapterId?: string; account?: string };
 
 export interface PostedEntryMsg {
   batchId: string;
@@ -214,12 +217,23 @@ export interface DeskApi {
     fillPost(postId: string, account?: string): Promise<PostFillMsg>;
     /** redacted snapshot of the page open in the built-in browser -> a local file (selector tuning) */
     capture(): Promise<{ file: string; nodes: number }>;
+    /** a post's file made for its platform, cover and copy */
+    postPackage(postId: string): Promise<PostPackageMsg>;
     api: {
       status(): Promise<ApiStatusMsg[]>;
-      setClient(clientId: string, clientSecret: string): Promise<ApiStatusMsg[]>;
-      connect(): Promise<ApiStatusMsg[]>;
-      disconnect(forgetClient?: boolean): Promise<ApiStatusMsg[]>;
+      /** her own Google Cloud OAuth client (Desktop app); the secret Google shows with it, when there is one */
+      setClient(clientId: string, clientSecret?: string): Promise<ApiStatusMsg[]>;
+      /** sign in with Reelfold's OAuth client */
+      useBuiltin(): Promise<ApiStatusMsg[]>;
+      /** OAuth in the system browser for one publishing account; resolves when Google answered */
+      connect(account: string, playlists?: boolean): Promise<ApiStatusMsg[]>;
+      cancel(): Promise<void>;
+      /** an account (or, with forgetClient, her own client and every account) */
+      disconnect(account?: string, forgetClient?: boolean): Promise<ApiStatusMsg[]>;
       setAuto(auto: boolean): Promise<ApiStatusMsg[]>;
+      playlists(account: string): Promise<{ id: string; title: string }[]>;
+      /** her Publish / Schedule click: upload through the YouTube Data API (progress: 'publish:ytProgress') */
+      publish(req: YtPublishReq): Promise<YtPublishResult>;
     };
   };
   assets: {
@@ -237,7 +251,7 @@ export interface DeskApi {
     /** quit, install the downloaded update and relaunch; -> the state (error, in plain words, when it cannot) */
     install(): Promise<UpdateStateMsg>;
   };
-  on(event: 'publish:state' | 'publish:fillStep' | 'engine:status' | 'assets:progress' | 'update:state' | 'history:changed' | 'notify:open' | 'term:data' | 'term:exit' | 'ai:routes' | 'publish:due' | 'publish:posted' | 'publish:channels' | 'support:problem' | 'support:open' | 'import:open', cb: (data: unknown) => void): () => void;
+  on(event: 'publish:state' | 'publish:fillStep' | 'engine:status' | 'assets:progress' | 'update:state' | 'history:changed' | 'notify:open' | 'term:data' | 'term:exit' | 'ai:routes' | 'publish:due' | 'publish:posted' | 'publish:channels' | 'publish:ytProgress' | 'support:problem' | 'support:open' | 'import:open', cb: (data: unknown) => void): () => void;
   /** watch these folders for live job changes ('history:changed' events); -> the folders watched */
   watchHistory(roots: string[]): Promise<string[]>;
   /** Lite (Mac App Store) build: ask once to keep reading dropped files after a relaunch (no-op elsewhere) */

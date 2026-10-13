@@ -1,7 +1,10 @@
 // 发布账号: the creator's own publishing accounts (her 小红书号, 抖音号, YouTube channel ...), one row per account with
 // the login state the built-in browser last saw, default post times, and Sign in / Open upload page - the platform
 // page opens on the right in that account's own session. Replaces the old workspace / client switcher: a solo
-// creator has accounts, not workspaces.
+// creator has accounts, not workspaces. A platform published through its official API (YouTube) signs in with
+// Google in her own browser instead (Google refuses embedded browsers, and her rule is the official API whenever
+// there is one); each platform says which path it uses. A provider's "not secure / unsupported browser" page is
+// replaced by a plain explanation and the next step.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ExternalLink, LogIn, Plus, Trash2 } from 'lucide-react';
 import type { ChannelMsg } from '../../../shared/channels';
@@ -17,6 +20,9 @@ import { PlatformIcon } from './PlatformIcon';
 import { useUi } from './ui';
 import { capturePage } from '../publish/BrowserPane';
 import { placeBrowser } from '../lib/slotBounds';
+import { apiOnly, BROWSER_UPLOAD_URL, publishPath } from '../../../shared/publish/apiPlatforms';
+import { BlockedNotice } from '../publish/Blocked';
+import { YtConnectSheet } from '../publish/YouTube';
 
 export const adapterName = (a: Adapter) => (getLang() === 'zh-CN' ? a.nameZh : a.name);
 
@@ -95,6 +101,7 @@ export function Channels() {
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
   const [editing, setEditing] = useState<ChannelMsg | null>(null);
   const [removing, setRemoving] = useState<ChannelMsg | null>(null);
+  const [ytConnect, setYtConnect] = useState<string | null>(null);
 
   useEffect(() => {
     const off = window.desk.on('publish:state', (s) => setBstate(s as PublishStateMsg));
@@ -106,7 +113,7 @@ export function Channels() {
 
   // ------------------------------------------------ embedded browser placement (same as the publish page)
   const slot = useRef<HTMLDivElement>(null);
-  const overlay = editing !== null || removing !== null;
+  const overlay = editing !== null || removing !== null || ytConnect !== null;
   const browserOpen = !!bstate && !!sel && bstate.adapterId === sel.adapterId && bstate.account === sel.account;
   useLayoutEffect(() => {
     const el = slot.current;
@@ -133,6 +140,12 @@ export function Channels() {
   };
   const open = (c: { adapterId: string; account: string }, page: 'login' | 'upload', fresh = false) =>
     run(async () => {
+      // official API (YouTube): sign in with Google in her browser; the upload page opens in her browser too
+      if (apiOnly(c.adapterId)) {
+        if (page === 'login') setYtConnect(c.account);
+        else await window.desk.openExternal(BROWSER_UPLOAD_URL[c.adapterId] ?? adapters.find((a) => a.id === c.adapterId)!.uploadUrl);
+        return;
+      }
       setSel({ adapterId: c.adapterId, account: c.account });
       await window.desk.publish.open(c.adapterId, c.account, page);
       if (!fresh) await window.desk.publish.navigate(page); // an account opened before keeps its page otherwise
@@ -182,7 +195,12 @@ export function Channels() {
                 <div key={a.id} className="card col" style={{ gap: 6 }} data-testid="channel-platform" data-adapter={a.id}>
                   <div className="row" style={{ gap: 8 }}>
                     <PlatformIcon id={a.packagePlatforms[0]} size={16} title={a.name} />
-                    <b style={{ flex: 1 }}>{adapterName(a)}</b>
+                    <span className="col" style={{ flex: 1, gap: 0 }}>
+                      <b>{adapterName(a)}</b>
+                      <span className="muted small" data-testid="channel-path" data-path={publishPath(a.id)}>
+                        {t(`pp.${publishPath(a.id)}`)}
+                      </span>
+                    </span>
                     <span className="muted small">{t('ch.platformAccounts', { n: mine.length })}</span>
                     <button className="btn ghost sm" onClick={() => void add(a)} data-testid="channel-add" aria-label={mine.length ? t('ch.addAnother') : t('ch.add')} data-tip={mine.length ? t('ch.addAnother') : t('ch.add')}>
                       <Plus className="ico" />
@@ -236,6 +254,14 @@ export function Channels() {
             </div>
             <div className="browser-slot" ref={slot} style={{ flex: 1, minHeight: 520 }} data-testid="channel-slot">
               {!browserOpen && <span>{t('ch.slotHint')}</span>}
+              {browserOpen && bstate?.blocked && sel && (
+                <BlockedNotice
+                  blocked={bstate.blocked}
+                  pf={adapterName(adapters.find((a) => a.id === sel.adapterId)!)}
+                  onBack={() => void window.desk.publish.navigate('login')}
+                  onUploadInBrowser={() => void window.desk.openExternal(adapters.find((a) => a.id === sel.adapterId)!.uploadUrl)}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -252,6 +278,7 @@ export function Channels() {
           }
         />
       )}
+      {ytConnect && <YtConnectSheet account={ytConnect} onClose={() => setYtConnect(null)} />}
       {removing && (
         <RemoveModal
           c={removing}

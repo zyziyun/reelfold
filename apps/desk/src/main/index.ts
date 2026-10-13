@@ -7,7 +7,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, protocol,
 import { ENGINE_BASE, EngineClient } from '../shared/engineClient';
 import { channelKey, listChannels } from '../shared/channels';
 import { partitionFor, validateIpc, type IpcChannel, type IpcPayload } from '../shared/ipc';
-import { hostAllowed, type Adapter } from '../shared/publish/adapterSchema';
+import { adapterFor, hostAllowed, type Adapter } from '../shared/publish/adapterSchema';
 import { resolveInside } from '../shared/publish/gating';
 import { parsePostCopy } from '../shared/publish/postCopy';
 import type { EngineInfo } from '../shared/types';
@@ -24,14 +24,14 @@ import { PublishBrowser } from './publish/browser';
 import { assistedFill } from './publish/fill';
 import { PublishStore } from './publish/store';
 import { ApiVault } from './publish/api/vault';
-import { YouTubeApi } from './publish/api/youtube';
+import { shortsFit, YouTubeApi } from './publish/api/youtube';
 import { CAPTURE_JS, saveCapture, type CaptureResult } from './publish/capture';
 import { probeLogin } from './publish/loginProbe';
 import { fillScheduledPost } from './publish/postFill';
 import { PublishScheduler } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
-import { copyForPost, pickFile } from '../shared/publish/postNow';
-import { API_PLATFORMS, type ApiStatusMsg } from '../shared/publish/apiPlatforms';
+import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
+import { API_PLATFORMS, apiOnly, BROWSER_UPLOAD_URL, type ApiStatusMsg, type PostPackageMsg } from '../shared/publish/apiPlatforms';
 import { PLATFORMS } from '../shared/platforms';
 import type { CalendarPost } from '../shared/v04';
 import { findBundledRuntime, runtimeEnv, type BundledRuntime } from './runtime';
@@ -620,26 +620,60 @@ function notifyDue(due: CalendarPost[]) {
 
 /** Lite: the YouTube API sign-in needs a loopback port (a listening socket the sandboxed build does not have). */
 function noYouTubeApiInLite() {
-  if (!CAPS.youtubeApi) throw new Error('the YouTube API is not available in this edition: post to YouTube from the built-in browser');
+  if (!CAPS.youtubeApi) throw new Error('YouTube sign-in is not available in this edition: use Upload in your browser');
 }
+
+const ytAccounts = () => settings.get().accounts['youtube-studio'] ?? [];
+/** the YouTube account a post goes out with: the first connected one */
+const ytAccountFor = () => ytAccounts().find((a) => youtube.accountStatus(a).connected) ?? null;
 
 function apiStatus(): ApiStatusMsg[] {
   const st = settings.get();
   return API_PLATFORMS.map((a) => {
-    const yt = a.id === 'youtube' ? youtube.status() : { hasClient: false, connected: false, connectedAt: null };
-    return { id: a.id, availability: a.availability, platforms: a.platforms, scopes: a.scopes, ...yt, auto: !!st.publishApi?.[a.id]?.auto && yt.connected, keychain: vault.keychain() };
+    if (a.id !== 'youtube') return { id: a.id, availability: a.availability, platforms: a.platforms, scopes: a.scopes, hasClient: false, connected: false, connectedAt: null, auto: false, keychain: vault.keychain() };
+    const yt = youtube.status(ytAccounts());
+    const on = yt.accounts.filter((x) => x.connected);
+    const connected = on.length > 0;
+    return { id: a.id, availability: a.availability, platforms: a.platforms, scopes: a.scopes, hasClient: yt.hasClient, connected, connectedAt: on[0]?.connectedAt ?? null, auto: !!st.publishApi?.youtube?.auto && connected, keychain: vault.keychain(), yt };
   });
 }
 
-/** Rendered file + copy of a calendar row, for an API upload. */
+/** One calendar row's file made for its platform, cover and copy. */
+async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitles: string[] }> {
+  const cal = await needClient().calendar(undefined, { queue: false });
+  const p = cal.posts.find((x) => x.id === postId);
+  if (!p) throw new Error('this post is gone from the calendar');
+  const doc = await needClient().clips(p.item);
+  const clip = doc.clips.find((c) => c.id === p.clip);
+  const file = clip ? pickFile(clip.files, p.platform) : null;
+  if (!clip || !file) throw new Error('this clip has no rendered video yet');
+  if (!fs.existsSync(file.path)) throw new Error(`the rendered video is missing: ${file.path}`);
+  const adapter = adapterFor(p.platform.split(':')[0], adapters.adapters);
+  const clipTitles = [clip.title, clip.post?.title ?? ''].filter(Boolean);
+  const copy = copyForPost(p, adapter ? adapter.fields.title !== null : true, clipTitles);
+  return {
+    postId,
+    platform: p.platform,
+    video: file.path,
+    cover: clip.cover && fs.existsSync(clip.cover) ? clip.cover : null,
+    title: copy.title || p.title,
+    description: copy.description,
+    tags: copy.tags,
+    w: file.w ?? null,
+    h: file.h ?? null,
+    duration: file.duration ?? p.duration ?? null,
+    uploadUrl: adapter ? (BROWSER_UPLOAD_URL[adapter.id] ?? adapter.uploadUrl) : null,
+    clipTitles,
+  };
+}
+
+/** The scheduled-posting switch (hers, off by default): a calendar row through the YouTube API at its time. */
 async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
   try {
-    const doc = await needClient().clips(p.item);
-    const clip = doc.clips.find((c) => c.id === p.clip);
-    const file = clip ? pickFile(clip.files, p.platform) : null;
-    if (!clip || !file || !fs.existsSync(file.path)) return { ok: false, error: 'the rendered video is missing' };
-    const copy = copyForPost(p, true, [clip.title, clip.post?.title ?? ''].filter(Boolean));
-    const r = await youtube.upload({ file: file.path, title: copy.title, description: copy.description, tags: copy.tags, publishAt });
+    const account = ytAccountFor();
+    if (!account) return { ok: false, error: 'YouTube is not connected' };
+    const pkg = await postPackage(p.id);
+    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') });
     return { ok: true, url: r.url };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
@@ -663,7 +697,7 @@ function startScheduler() {
       win?.webContents.send('publish:posted', { postId: p.id, url });
     },
     api: {
-      wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && youtube.status().connected,
+      wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(),
       publish: apiPublish,
     },
     stateFile: path.join(app.getPath('userData'), 'publish', 'scheduler.json'),
@@ -684,6 +718,8 @@ async function refreshLogins(force = false) {
       list.map(async (account) => {
         const a = adapters.adapters.find((x) => x.id === adapterId);
         if (!a) return;
+        // an official-API platform (YouTube): signed in = its account is connected through the API
+        if (apiOnly(adapterId)) return noteLogin(adapterId, account, adapterId === 'youtube-studio' && youtube.accountStatus(account).connected ? 'in' : 'out');
         const state = await probeLogin(session.fromPartition(partitionFor(adapterId, account)), a);
         if (state) noteLogin(adapterId, account, state);
       }),
@@ -885,7 +921,8 @@ function registerIpc() {
     const ch = { ...(st.channels ?? {}) };
     delete ch[channelKey(p.adapterId, p.account)];
     settings.set({ accounts: acc, channels: ch });
-    // sign out = forget this account's built-in browser session (its own partition only)
+    // sign out = forget this account's built-in browser session (its own partition only) / its API sign-in
+    if (p.signOut && p.adapterId === 'youtube-studio') await youtube.disconnect(p.account).catch(() => undefined);
     if (p.signOut) {
       browser?.forget(p.adapterId, p.account);
       await session.fromPartition(partitionFor(p.adapterId, p.account)).clearStorageData().catch(() => undefined);
@@ -976,22 +1013,90 @@ function registerIpc() {
   handle('publish:apiStatus', async () => apiStatus());
   handle('publish:apiClient', async (p) => {
     noYouTubeApiInLite();
-    youtube.setClient(p.clientId.trim(), p.clientSecret.trim());
-    return apiStatus();
-  });
-  handle('publish:apiConnect', async () => {
-    noYouTubeApiInLite();
-    await youtube.connect();
-    return apiStatus();
-  });
-  handle('publish:apiDisconnect', async (p) => {
-    await youtube.disconnect();
-    if (p.forgetClient) vault.set('youtube', null);
+    youtube.setClient(p.clientId, p.clientSecret);
     settings.set({ publishApi: { ...(settings.get().publishApi ?? {}), youtube: { auto: false } } });
+    await refreshLogins(true);
     return apiStatus();
+  });
+  handle('publish:apiUseBuiltin', async () => {
+    noYouTubeApiInLite();
+    youtube.useBuiltin();
+    await refreshLogins(true);
+    return apiStatus();
+  });
+  handle('publish:apiConnect', async (p) => {
+    noYouTubeApiInLite();
+    if (!ytAccounts().includes(p.account)) throw new Error('add the YouTube account first');
+    await youtube.connect(p.account, { playlists: p.playlists });
+    await refreshLogins(true);
+    win?.webContents.send('publish:channels', { adapterId: 'youtube-studio', account: p.account, state: 'in' });
+    if (win && !win.isDestroyed() && !testSwitch('DESK_HIDE_WINDOW')) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      app.focus({ steal: true }); // she comes back from the browser to the app
+    }
+    return apiStatus();
+  });
+  handle('publish:apiCancel', async () => youtube.cancelConnect());
+  handle('publish:apiDisconnect', async (p) => {
+    if (p.forgetClient) youtube.forgetClient();
+    else if (p.account) await youtube.disconnect(p.account);
+    else for (const a of ytAccounts()) await youtube.disconnect(a);
+    if (!ytAccountFor()) settings.set({ publishApi: { ...(settings.get().publishApi ?? {}), youtube: { auto: false } } });
+    await refreshLogins(true);
+    return apiStatus();
+  });
+  handle('publish:ytPlaylists', async (p) => {
+    noYouTubeApiInLite();
+    return youtube.playlists(p.account);
+  });
+  handle('publish:postPackage', async (p) => {
+    const pkg: PostPackageMsg & { clipTitles?: string[] } = await postPackage(p.postId);
+    delete pkg.clipTitles;
+    return pkg;
+  });
+  handle('publish:ytPublish', async (p) => {
+    noYouTubeApiInLite();
+    if (!ytAccounts().includes(p.account)) throw new Error('unknown YouTube account');
+    if (!youtube.accountStatus(p.account).connected) throw new Error('YouTube is not connected: sign in with Google in your browser first');
+    const pkg = await postPackage(p.postId);
+    let publishAt: Date | null = null;
+    if (p.publishAt) {
+      publishAt = localDate(p.publishAt);
+      if (publishAt.getTime() < Date.now() + 5 * 60_000) throw new Error('pick a time at least a few minutes ahead, or publish now');
+    }
+    if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 60 seconds or less');
+    let last = 0;
+    const r = await youtube.upload(
+      p.account,
+      {
+        file: pkg.video,
+        title: p.title,
+        description: p.description,
+        tags: p.tags,
+        publishAt,
+        privacy: p.privacy,
+        categoryId: p.categoryId,
+        madeForKids: p.madeForKids,
+        synthetic: p.synthetic,
+        short: p.short,
+        thumbnail: p.thumbnail ? pkg.cover : null,
+        playlistId: p.playlistId,
+      },
+      (sent, total) => {
+        if (sent !== total && Date.now() - last < 250) return;
+        last = Date.now();
+        win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
+      },
+    );
+    await needClient().updatePost(p.postId, { state: 'posted', via: 'api', url: r.url });
+    win?.webContents.send('publish:posted', { postId: p.postId, url: r.url });
+    void scheduler?.tick();
+    mainLog(`[youtube] ${p.postId} -> ${r.id} ${r.privacy}${r.warnings.length ? ` (${r.warnings.join('; ')})` : ''}`);
+    return { url: r.url, privacy: r.privacy, publishAt: r.publishAt, lockedPrivate: r.lockedPrivate, warnings: r.warnings };
   });
   handle('publish:apiAuto', async (p) => {
-    if (p.auto && !youtube.status().connected) throw new Error('connect YouTube first');
+    if (p.auto && !ytAccountFor()) throw new Error('connect YouTube first');
     settings.set({ publishApi: { ...(settings.get().publishApi ?? {}), [p.id]: { auto: p.auto } } });
     void scheduler?.tick();
     return apiStatus();

@@ -11,6 +11,10 @@ export interface ApiSecret {
   refreshToken?: string;
   scope?: string;
   connectedAt?: string;
+  /** YouTube: which OAuth client signs in (Reelfold's, built in at build time, or hers) */
+  source?: 'reelfold' | 'own';
+  /** the channel the token belongs to (shown, never a secret) */
+  channel?: { id: string; title: string };
 }
 
 export class ApiVault {
@@ -36,6 +40,11 @@ export class ApiVault {
     } catch {
       return {};
     }
+  }
+
+  /** the stored entries (names only) */
+  ids(): string[] {
+    return Object.keys(this.readAll());
   }
 
   get(id: string): ApiSecret {

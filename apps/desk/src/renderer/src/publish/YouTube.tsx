@@ -1,0 +1,446 @@
+// YouTube through the official Data API: which Google OAuth client signs in (Reelfold's or her own Google Cloud
+// client, with the setup guide), "Sign in with Google in your browser" per YouTube account, and the publish form of
+// one post (title, description, tags, category, visibility, now / at a time, made for kids, altered content, Short,
+// thumbnail, playlist). Uploading starts only from her Publish / Schedule click.
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
+import { CAPS } from '../../../shared/edition';
+import { shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
+import type { CalendarPost } from '../../../shared/v04';
+import { fmtDate, t } from '../i18n';
+import type { MessageKey } from '../i18n';
+import { Sheet } from '../settings/kit';
+import { errText } from '../v4/msg';
+import { useUi } from '../v4/ui';
+import './publish.css';
+
+export const YT_ADAPTER = 'youtube-studio';
+const CATEGORIES = ['22', '24', '27', '28', '26', '1', '10', '20', '23', '17', '19', '15', '25', '29', '2'];
+
+/** The YouTube API status (client + accounts), refreshed when an account's state changes. */
+export function useYt() {
+  const [api, setApi] = useState<ApiStatusMsg | null>(null);
+  const apply = useCallback((all: ApiStatusMsg[]) => setApi(all.find((a) => a.id === 'youtube') ?? null), []);
+  const reload = useCallback(async () => {
+    if (!CAPS.youtubeApi) return;
+    apply(await window.desk.publish.api.status());
+  }, [apply]);
+  useEffect(() => {
+    void reload().catch(() => undefined);
+    const off = window.desk.on('publish:channels', () => void reload().catch(() => undefined));
+    return off;
+  }, [reload]);
+  return { api, yt: api?.yt ?? null, apply, reload };
+}
+
+export const ytAccount = (yt: YtStatusMsg | null, account: string): YtAccountMsg | null => yt?.accounts.find((a) => a.account === account) ?? null;
+
+/** Reelfold's Google app or her own Google Cloud client. */
+export function YtClientChoice({ yt, apply }: { yt: YtStatusMsg; apply: (s: ApiStatusMsg[]) => void }) {
+  const ui = useUi();
+  const [guide, setGuide] = useState(false);
+  const run = async (fn: () => Promise<ApiStatusMsg[]>) => {
+    try {
+      apply(await fn());
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    }
+  };
+  const own = yt.source === 'own';
+  return (
+    <div className="col yt-client" style={{ gap: 6 }} data-testid="yt-client" data-source={yt.source ?? 'none'}>
+      <span className="small muted">{t('yt.how')}</span>
+      {yt.builtin ? (
+        <label className="row yt-radio">
+          <input type="radio" name="yt-client" checked={yt.source === 'reelfold'} onChange={() => void run(() => window.desk.publish.api.useBuiltin())} data-testid="yt-client-reelfold" />
+          <span className="col" style={{ gap: 2 }}>
+            <b>{t('yt.how.reelfold')}</b>
+            <span className="muted small">{t('yt.how.reelfoldHint')}</span>
+          </span>
+        </label>
+      ) : (
+        <span className="muted small" data-testid="yt-no-builtin">
+          {t('yt.how.noBuiltin')}
+        </span>
+      )}
+      <label className="row yt-radio">
+        <input type="radio" name="yt-client" checked={own} onChange={() => (yt.ownClientId ? void run(() => window.desk.publish.api.setClient(yt.ownClientId!)) : setGuide(true))} data-testid="yt-client-own" />
+        <span className="col" style={{ gap: 2 }}>
+          <b>{t('yt.how.own')}</b>
+          <span className="muted small">{own && yt.ownClientId ? t('yt.own.set', { id: yt.ownClientId.replace(/^(.{10}).*(\.apps\.googleusercontent\.com)$/, '$1…$2') }) : t('yt.how.ownHint')}</span>
+        </span>
+      </label>
+      <span className="row" style={{ gap: 6, paddingLeft: 26 }}>
+        <button className="btn sm" onClick={() => setGuide(true)} data-testid="yt-own-add">
+          {yt.ownClientId ? t('yt.own.change') : t('yt.own.add')}
+        </button>
+        {yt.ownClientId && (
+          <button className="btn ghost sm" onClick={() => void run(() => window.desk.publish.api.disconnect(undefined, true))} data-testid="yt-own-remove">
+            {t('yt.own.remove')}
+          </button>
+        )}
+      </span>
+      {guide && <YtGuideSheet onClose={() => setGuide(false)} onSaved={(s) => (apply(s), setGuide(false))} />}
+    </div>
+  );
+}
+
+/** Her own Google Cloud OAuth client: the steps, then the ID (and the secret Google shows with Desktop-app clients). */
+export function YtGuideSheet({ onClose, onSaved }: { onClose: () => void; onSaved: (s: ApiStatusMsg[]) => void }) {
+  const ui = useUi();
+  const [cid, setCid] = useState('');
+  const [secret, setSecret] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ok = /^[\w.-]{5,200}\.apps\.googleusercontent\.com$/.test(cid.trim());
+  const save = async () => {
+    setBusy(true);
+    try {
+      onSaved(await window.desk.publish.api.setClient(cid.trim(), secret.trim() || undefined));
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet
+      title={t('yt.guide.title')}
+      onClose={onClose}
+      testId="yt-guide"
+      footer={
+        <button className="btn primary" disabled={busy || !ok} onClick={() => void save()} data-testid="yt-guide-save">
+          {t('yt.save')}
+        </button>
+      }
+    >
+      <p className="muted small">{t('yt.guide.lead')}</p>
+      <ol className="yt-steps small">
+        {(['yt.guide.s1', 'yt.guide.s2', 'yt.guide.s3', 'yt.guide.s4', 'yt.guide.s5', 'yt.guide.s6'] as const).map((k) => (
+          <li key={k}>{t(k)}</li>
+        ))}
+      </ol>
+      <button className="btn sm" onClick={() => void window.desk.openExternal('https://console.cloud.google.com/apis/credentials')}>
+        <ExternalLink className="ico" />
+        {t('yt.guide.open')}
+      </button>
+      <label className="col small" style={{ gap: 4 }}>
+        {t('yt.clientId')}
+        <input className="input mono" value={cid} onChange={(e) => setCid(e.target.value)} placeholder="1234-abc.apps.googleusercontent.com" data-testid="yt-client-id" autoFocus />
+      </label>
+      <label className="col small" style={{ gap: 4 }}>
+        {t('yt.clientSecret')}
+        <input className="input mono" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} data-testid="yt-client-secret" />
+        <span className="muted">{t('yt.clientSecretHint')}</span>
+      </label>
+      <p className="muted small">{t('yt.guide.note')}</p>
+    </Sheet>
+  );
+}
+
+/** "Sign in with Google in your browser" for one YouTube account: the permissions first, then the system browser. */
+export function YtConnectSheet({ account, onClose, onDone }: { account: string; onClose: () => void; onDone?: (s: ApiStatusMsg[]) => void }) {
+  const ui = useUi();
+  const { api, yt, apply } = useYt();
+  const [waiting, setWaiting] = useState(false);
+  const [playlists, setPlaylists] = useState(false);
+  const close = () => {
+    if (waiting) void window.desk.publish.api.cancel();
+    onClose();
+  };
+  const go = async () => {
+    setWaiting(true);
+    try {
+      const s = await window.desk.publish.api.connect(account, playlists);
+      apply(s);
+      const a = ytAccount(s.find((x) => x.id === 'youtube')?.yt ?? null, account);
+      ui.toast(t('yt.connected', { channel: a?.channel?.title ?? account }));
+      onDone?.(s);
+      onClose();
+    } catch (e) {
+      if (!/cancelled/.test(errText(e))) ui.toast(errText(e), { error: true });
+    } finally {
+      setWaiting(false);
+    }
+  };
+  return (
+    <Sheet
+      title={t('yt.connectTitle')}
+      onClose={close}
+      testId="yt-connect"
+      footer={
+        waiting ? (
+          <span className="row" style={{ gap: 8 }}>
+            <Loader2 className="ico spin" />
+            <span className="muted">{t('yt.waiting')}</span>
+            <button className="btn" onClick={() => void window.desk.publish.api.cancel()} data-testid="yt-connect-cancel">
+              {t('yt.cancel')}
+            </button>
+          </span>
+        ) : (
+          <button className="btn primary" disabled={!yt?.hasClient || !api?.keychain} onClick={() => void go()} data-testid="yt-connect-go">
+            {t('yt.connectGo')}
+          </button>
+        )
+      }
+    >
+      {!CAPS.youtubeApi ? (
+        <p>{t('yt.lite')}</p>
+      ) : !yt ? (
+        <div className="pb-loading" aria-busy="true" />
+      ) : (
+        <>
+          {!yt.hasClient || !yt.builtin ? <YtClientChoice yt={yt} apply={apply} /> : null}
+          <p>{t('yt.scopes')}</p>
+          <label className="row small" style={{ gap: 6 }}>
+            <input type="checkbox" checked={playlists} onChange={(e) => setPlaylists(e.target.checked)} data-testid="yt-connect-playlists" />
+            {t('yt.playlistsScope')}
+          </label>
+          <p className="muted small">{t('yt.revoke')}</p>
+          {!api?.keychain && <p className="pb-amber small">{t('pl.api.noKeychain')}</p>}
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+type Phase = { k: 'form' } | { k: 'uploading'; pct: number } | { k: 'done'; r: YtPublishResult };
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** A post's YouTube form; Publish / Schedule is her click. */
+export function YtPublishForm({ post, account, result, onPosted }: { post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
+  const ui = useUi();
+  const { yt, apply } = useYt();
+  const acct = ytAccount(yt, account);
+  const [pkg, setPkg] = useState<PostPackageMsg | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
+  const [categoryId, setCategoryId] = useState('22');
+  const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('public');
+  const due = useMemo(() => new Date(`${post.at}:00`), [post.at]);
+  const ahead = due.getTime() - Date.now() > 10 * 60_000;
+  const [when, setWhen] = useState<'now' | 'at'>(ahead ? 'at' : 'now');
+  const [at, setAt] = useState(post.at);
+  const [kids, setKids] = useState<boolean | null>(null);
+  const [synthetic, setSynthetic] = useState(false);
+  const [thumb, setThumb] = useState(true);
+  const [short, setShort] = useState(post.platform.startsWith('youtube-shorts'));
+  const [playlist, setPlaylist] = useState('');
+  const [lists, setLists] = useState<{ id: string; title: string }[] | null>(null);
+  const [phase, setPhase] = useState<Phase>({ k: 'form' });
+  const [connect, setConnect] = useState(false);
+
+  useEffect(() => {
+    void window.desk.publish
+      .postPackage(post.id)
+      .then((p) => {
+        setPkg(p);
+        setTitle(p.title);
+        setDescription(p.description);
+        setTags(p.tags.join(', '));
+      })
+      .catch((e) => ui.toast(errText(e), { error: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
+  useEffect(() => {
+    if (!acct?.connected) return;
+    void window.desk.publish.api
+      .playlists(account)
+      .then(setLists)
+      .catch(() => setLists([]));
+  }, [acct?.connected, account]);
+  useEffect(
+    () =>
+      window.desk.on('publish:ytProgress', (d) => {
+        const p = d as { postId: string; sent: number; total: number };
+        if (p.postId === post.id) setPhase({ k: 'uploading', pct: Math.floor((p.sent / Math.max(1, p.total)) * 100) });
+      }),
+    [post.id],
+  );
+
+  const fit = pkg ? shortsFit(pkg) : null;
+  const shortOk = !!fit?.ok;
+  const publish = async () => {
+    if (kids === null || !pkg) return;
+    setPhase({ k: 'uploading', pct: 0 });
+    try {
+      const r = await window.desk.publish.api.publish({
+        postId: post.id,
+        account,
+        title: title.trim(),
+        description,
+        tags: tags.split(/[,，\n]/).map((x) => x.trim()).filter(Boolean),
+        categoryId,
+        privacy,
+        publishAt: when === 'at' ? at : null,
+        madeForKids: kids,
+        synthetic,
+        short: short && shortOk,
+        thumbnail: thumb && !!pkg.cover,
+        playlistId: playlist || null,
+      });
+      setPhase({ k: 'done', r });
+      onPosted(r);
+    } catch (e) {
+      setPhase({ k: 'form' });
+      ui.toast(errText(e), { error: true });
+    }
+  };
+
+  // what YouTube answered (kept by the page: this form may be mounted again while the calendar reloads)
+  const sent = result ?? (phase.k === 'done' ? phase.r : null);
+  if (!CAPS.youtubeApi) return null;
+  if (!acct?.connected && !sent)
+    return (
+      <div className="pl-card" data-testid="ytp-connect">
+        <Upload className="ico" />
+        <div className="col" style={{ gap: 8 }}>
+          <span>{t('ytp.connectFirst')}</span>
+          <button className="btn primary" onClick={() => setConnect(true)} data-testid="ytp-signin">
+            {t('yt.signin')}
+          </button>
+        </div>
+        {connect && <YtConnectSheet account={account} onClose={() => setConnect(false)} />}
+      </div>
+    );
+  if (sent) {
+    const r = sent;
+    return (
+      <div className={`pl-card ${r.lockedPrivate ? 'warn' : 'ok'}`} data-testid="ytp-done" data-privacy={r.privacy} data-locked={r.lockedPrivate}>
+        {r.lockedPrivate ? <TriangleAlert className="ico" /> : <CheckCircle2 className="ico" />}
+        <div className="col" style={{ gap: 6 }}>
+          <b>{r.publishAt && !r.lockedPrivate ? t('ytp.done.scheduled', { when: fmtDate(r.publishAt, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }) : r.privacy === 'public' ? t('ytp.done.now') : t('ytp.done.private', { privacy: t(`ytp.f.${r.privacy}` as MessageKey) })}</b>
+          {r.lockedPrivate && <span className="small">{t('ytp.locked')}</span>}
+          {r.warnings.length > 0 && <span className="muted small">{t('ytp.notes', { list: r.warnings.join(' · ') })}</span>}
+          <button className="pb-link" onClick={() => void window.desk.openExternal(r.url)} data-testid="ytp-url">
+            {r.url} <ExternalLink className="ico" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (!acct) return null;
+  const busy = phase.k === 'uploading';
+  const atDate = new Date(`${at}:00`);
+  const atOk = when === 'now' || atDate.getTime() > Date.now() + 5 * 60_000;
+  return (
+    <div className="yt-form col" data-testid="ytp-form">
+      <div className="col" style={{ gap: 2 }}>
+        <h3>{t('ytp.title')}</h3>
+        <span className="muted small">{t('ytp.lead', { channel: acct.channel?.title ?? account })}</span>
+      </div>
+      <label className="col small">
+        {t('ytp.f.title')}
+        <input className="input" value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} data-testid="ytp-title" />
+        <span className="muted num">{Array.from(title).length} / 100</span>
+      </label>
+      <label className="col small">
+        {t('ytp.f.description')}
+        <textarea className="input" rows={6} value={description} onChange={(e) => setDescription(e.target.value)} data-testid="ytp-description" />
+      </label>
+      <label className="col small">
+        {t('ytp.f.tags')}
+        <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t('ytp.f.tagsHint')} data-testid="ytp-tags" />
+      </label>
+      <div className="yt-grid">
+        <label className="col small">
+          {t('ytp.f.category')}
+          <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} data-testid="ytp-category">
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {t(`ytp.cat.${c}` as MessageKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="col small">
+          {t('ytp.f.privacy')}
+          <select className="input" value={when === 'at' ? 'public' : privacy} disabled={when === 'at'} onChange={(e) => setPrivacy(e.target.value as typeof privacy)} data-testid="ytp-privacy">
+            {(['public', 'unlisted', 'private'] as const).map((p) => (
+              <option key={p} value={p}>
+                {t(`ytp.f.${p}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <fieldset className="col small yt-field">
+        <legend>{t('ytp.f.when')}</legend>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} data-testid="ytp-now" />
+          {t('ytp.f.now')}
+        </label>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="radio" checked={when === 'at'} onChange={() => setWhen('at')} data-testid="ytp-at" />
+          {t('ytp.f.at')}
+          <input className="input" type="datetime-local" value={at} min={localAt(new Date(Date.now() + 10 * 60_000))} disabled={when !== 'at'} onChange={(e) => setAt(e.target.value)} data-testid="ytp-at-time" />
+        </label>
+        {when === 'at' && <span className="muted">{t('ytp.f.atHint')}</span>}
+      </fieldset>
+      <fieldset className="col small yt-field" data-testid="ytp-kids">
+        <legend>{t('ytp.f.kids')}</legend>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="radio" checked={kids === false} onChange={() => setKids(false)} data-testid="ytp-kids-no" />
+          {t('ytp.f.kidsNo')}
+        </label>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="radio" checked={kids === true} onChange={() => setKids(true)} data-testid="ytp-kids-yes" />
+          {t('ytp.f.kidsYes')}
+        </label>
+        {kids === null && <span className="pb-amber">{t('ytp.f.kidsNeed')}</span>}
+      </fieldset>
+      <label className="row small" style={{ gap: 6 }}>
+        <input type="checkbox" checked={synthetic} onChange={(e) => setSynthetic(e.target.checked)} data-testid="ytp-synthetic" />
+        {t('ytp.f.synthetic')}
+      </label>
+      <label className="row small" style={{ gap: 6 }} title={fit && !fit.ok ? t(`ytp.f.short.${fit.why}` as MessageKey) : undefined}>
+        <input type="checkbox" checked={short && shortOk} disabled={!shortOk} onChange={(e) => setShort(e.target.checked)} data-testid="ytp-short" />
+        {t('ytp.f.short')}
+        {fit && !fit.ok && <span className="muted">· {t(`ytp.f.short.${fit.why}` as MessageKey)}</span>}
+      </label>
+      {pkg?.cover && (
+        <label className="row small" style={{ gap: 6 }} title={t('ytp.f.thumbHint')}>
+          <input type="checkbox" checked={thumb} onChange={(e) => setThumb(e.target.checked)} data-testid="ytp-thumb" />
+          {t('ytp.f.thumb')}
+        </label>
+      )}
+      <label className="col small">
+        {t('ytp.f.playlist')}
+        <span className="row" style={{ gap: 6 }}>
+          <select className="input" style={{ flex: 1 }} value={playlist} disabled={!acct.playlists || !lists?.length} onChange={(e) => setPlaylist(e.target.value)} data-testid="ytp-playlist">
+            <option value="">{t('ytp.f.playlistNone')}</option>
+            {(lists ?? []).map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.title}
+              </option>
+            ))}
+          </select>
+          {!acct.playlists && (
+            <button
+              className="btn sm"
+              onClick={() =>
+                void window.desk.publish.api
+                  .connect(account, true)
+                  .then(apply)
+                  .catch((e) => ui.toast(errText(e), { error: true }))
+              }
+              data-testid="ytp-playlist-allow"
+            >
+              {t('ytp.f.playlistAllow')}
+            </button>
+          )}
+        </span>
+      </label>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <button className="btn primary lg" disabled={busy || !pkg || kids === null || !title.trim() || !atOk} onClick={() => void publish()} data-testid="ytp-publish">
+          {busy ? <Loader2 className="ico spin" /> : <Upload className="ico" />}
+          {when === 'at' ? t('ytp.schedule') : t('ytp.publish')}
+        </button>
+        {phase.k === 'uploading' && <span className="muted num" data-testid="ytp-progress">{t('ytp.uploading', { pct: phase.pct })}</span>}
+      </div>
+      <p className="muted small">{t('yt.audit')}</p>
+    </div>
+  );
+}

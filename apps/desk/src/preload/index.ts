@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { DeskApi } from '../shared/deskApi';
 
-const EVENTS = new Set(['publish:state', 'publish:fillStep', 'engine:status', 'assets:progress', 'update:state', 'history:changed', 'notify:open', 'term:data', 'term:exit', 'ai:routes', 'publish:due', 'publish:posted', 'publish:channels', 'support:problem', 'support:open', 'import:open']);
+const EVENTS = new Set(['publish:state', 'publish:fillStep', 'engine:status', 'assets:progress', 'update:state', 'history:changed', 'notify:open', 'term:data', 'term:exit', 'ai:routes', 'publish:due', 'publish:posted', 'publish:channels', 'publish:ytProgress', 'support:problem', 'support:open', 'import:open']);
 
 const call = (channel: string, payload?: unknown) => ipcRenderer.invoke(channel, payload);
 
@@ -75,12 +75,17 @@ const api: DeskApi = {
     due: () => call('publish:due'),
     fillPost: (postId, account) => call('publish:fillPost', account ? { postId, account } : { postId }),
     capture: () => call('publish:capture'),
+    postPackage: (postId) => call('publish:postPackage', { postId }),
     api: {
       status: () => call('publish:apiStatus'),
-      setClient: (clientId, clientSecret) => call('publish:apiClient', { id: 'youtube', clientId, clientSecret }),
-      connect: () => call('publish:apiConnect', { id: 'youtube' }),
-      disconnect: (forgetClient) => call('publish:apiDisconnect', forgetClient ? { id: 'youtube', forgetClient } : { id: 'youtube' }),
+      setClient: (clientId, clientSecret) => call('publish:apiClient', clientSecret ? { id: 'youtube', clientId, clientSecret } : { id: 'youtube', clientId }),
+      useBuiltin: () => call('publish:apiUseBuiltin', { id: 'youtube' }),
+      connect: (account, playlists) => call('publish:apiConnect', playlists ? { id: 'youtube', account, playlists } : { id: 'youtube', account }),
+      cancel: () => call('publish:apiCancel', { id: 'youtube' }),
+      disconnect: (account, forgetClient) => call('publish:apiDisconnect', { id: 'youtube', ...(account ? { account } : {}), ...(forgetClient ? { forgetClient } : {}) }),
       setAuto: (auto) => call('publish:apiAuto', { id: 'youtube', auto }),
+      playlists: (account) => call('publish:ytPlaylists', { account }),
+      publish: (req) => call('publish:ytPublish', req),
     },
   },
   on: (event, cb) => {

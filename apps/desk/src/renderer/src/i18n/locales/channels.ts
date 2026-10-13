@@ -16,7 +16,7 @@ export const channelsEn = {
   'set.clientsManage': 'Clients',
 
   'ch.title': 'Publishing accounts',
-  'ch.subtitle': 'Sign in once inside the app - the built-in browser remembers each account on this computer. The app fills the upload form; you press publish.',
+  'ch.subtitle': 'Each platform says how it is published: through its official API (you sign in in your own browser), or in the built-in browser, which remembers your sign-in on this computer and fills the upload form. You always press publish.',
   'ch.add': 'Add account',
   'ch.addAnother': 'Add another account',
   'ch.login': 'Sign in',
@@ -91,7 +91,7 @@ export const channelsZh: Record<keyof typeof channelsEn, string> = {
   'set.clientsManage': '客户管理',
 
   'ch.title': '发布账号',
-  'ch.subtitle': '在应用里登录一次，内置浏览器会在这台电脑上记住每个账号。应用帮你填好上传表单，发布由你自己点。',
+  'ch.subtitle': '每个平台都标明发布方式：官方 API（在你自己的浏览器里登录），或内置浏览器（在这台电脑上记住登录并帮你填好上传表单）。发布始终由你自己点。',
   'ch.add': '添加账号',
   'ch.addAnother': '再加一个账号',
   'ch.login': '登录',

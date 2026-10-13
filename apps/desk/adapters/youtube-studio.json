@@ -67,11 +67,11 @@
   },
   "session": { "cookies": ["LOGIN_INFO", "SID", "__Secure-3PSID"], "domains": ["youtube.com", "*.youtube.com", "google.com", "*.google.com"] },
   "disclosure": {
-    "zh": "在「详细信息 → 加工或合成的内容（Altered content）」里如实选择「是」（逼真的 AI 生成/修改内容必须披露）；同时选择「是否为儿童打造」。未通过审计的 API 项目上传会被锁成私密——这里走网页手动发布，不受此限。",
-    "en": "Under Details → \"Altered or synthetic content\", answer \"Yes\" when realistic content was made or changed with AI; also set \"Made for kids\". (Unaudited API uploads are forced private - this web flow is not affected.)"
+    "zh": "YouTube 只通过官方 YouTube Data API 发布（Google 不允许在内置浏览器里登录）。发布表单里如实勾选「加工或合成的内容」（逼真的 AI 生成/修改内容必须披露），并选择「是否为儿童打造」。未通过 API 审核的项目上传会被锁成私享。",
+    "en": "YouTube is published only through the official YouTube Data API (Google refuses sign-in in embedded browsers). In the publish form, tick \"Altered or synthetic content\" when realistic content was made or changed with AI, and answer \"Made for kids\". Uploads from a project that has not passed the API audit stay private."
   },
   "notes": [
-    "UNVERIFIED selectors: YouTube Studio is a Polymer app; check ids on the live page.",
+    "Not used for filling: YouTube goes through the official Data API (src/main/publish/api/youtube.ts). The selectors stay for page captures only.",
     "Thumbnail upload needs a verified channel (phone verification); otherwise the cover input is missing and the step is reported not-found.",
     "Tags are appended to the description as #hashtags (the first 3 show above the title)."
   ],

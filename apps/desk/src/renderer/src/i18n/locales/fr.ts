@@ -16,6 +16,7 @@ import { createFr } from './create';
 import { pluginsFr } from './plugins';
 import { publishBoardFr } from './publishBoard';
 import { publishLoopFr } from './publishLoop';
+import { ytApiFr } from './ytApi';
 import { weekPlanFr } from './weekPlan';
 import { goalFr } from './goal';
 import { goalFlowFr } from './goalFlow';
@@ -1707,7 +1708,7 @@ const channelsFr: Record<keyof typeof channelsEn, string> = {
   'set.clientsManage': 'Clients',
 
   'ch.title': 'Comptes de publication',
-  'ch.subtitle': 'Connectez-vous une fois dans l’app : le navigateur intégré mémorise chaque compte sur cet ordinateur. L’app remplit le formulaire de mise en ligne ; c’est vous qui publiez.',
+  'ch.subtitle': 'Chaque plateforme indique comment elle est publiée : via son API officielle (vous vous connectez dans votre propre navigateur), ou dans le navigateur intégré, qui mémorise votre connexion sur cet ordinateur et remplit le formulaire. C’est toujours vous qui publiez.',
   'ch.add': 'Ajouter un compte',
   'ch.addAnother': 'Ajouter un autre compte',
   'ch.login': 'Se connecter',
@@ -1893,4 +1894,4 @@ const releaseFr: Record<keyof typeof releaseEn, string> = {
   'set.developerHint': 'Pour travailler sur Reelfold lui-même. Rien de tout cela n’est nécessaire pour faire des vidéos.',
 };
 
-export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };
+export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...ytApiFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };

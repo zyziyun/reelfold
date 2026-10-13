@@ -1,14 +1,12 @@
 // The publish loop: due posts on a fake clock, the scheduler (one notification per post, overdue on launch, the
 // API path with publishAt / retries / fallback), which file and text a post gets, the success signal, title
-// counting, session-cookie login detection, the text selectors, and YouTube over mocked HTTP.
+// counting, session-cookie login detection, the text selectors, and YouTube's metadata.
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { loadAdapters } from '../../src/main/publish/adapters';
-import { ApiVault } from '../../src/main/publish/api/vault';
-import { YouTubeApi, ytMeta, YT_SCOPE } from '../../src/main/publish/api/youtube';
+import { ytMeta } from '../../src/main/publish/api/youtube';
 import { probeLogin } from '../../src/main/publish/loginProbe';
 import { PublishScheduler } from '../../src/main/publish/scheduler';
 import { saveCapture } from '../../src/main/publish/capture';
@@ -23,8 +21,6 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'vsdesk-loop-'));
 const post = (id: string, at: string, extra: Partial<CalendarPost> = {}): CalendarPost => ({ id, item: 'aaaaaaaaaaaa', clip: 'A', title: '再小的博主，也是博主', cover: null, platform: 'xiaohongshu', at, state: 'ready', ...extra });
 const adapters = loadAdapters([path.resolve(__dirname, '../../adapters')]).adapters;
 const by = Object.fromEntries(adapters.map((a) => [a.id, a]));
-/** a fake crypto: reversible, like safeStorage with a keychain */
-const crypto = { isEncryptionAvailable: () => true, encryptString: (s: string) => Buffer.from(`enc:${s}`), decryptString: (b: Buffer) => b.toString().replace(/^enc:/, '') };
 
 describe('due posts', () => {
   const now = new Date(2026, 9, 7, 20, 5); // Wed 7 Oct 2026, 20:05 local
@@ -229,7 +225,7 @@ describe('page capture file', () => {
   });
 });
 
-describe('YouTube Data API (mocked HTTP)', () => {
+describe('YouTube Data API metadata', () => {
   it('metadata: private + publishAt ahead, public when late; YouTube’s limits', () => {
     const at = new Date('2026-10-07T12:00:00Z');
     expect(ytMeta({ title: 'a<b>', description: 'd', tags: ['#x', 'y'], publishAt: at })).toEqual({
@@ -240,89 +236,7 @@ describe('YouTube Data API (mocked HTTP)', () => {
     expect(ytMeta({ title: 't', description: '', tags: [], publishAt: null }).status.privacyStatus).toBe('public');
   });
 
-  it('connect: system browser consent with PKCE + loopback, the refresh token goes to the keychain; upload: resumable', async () => {
-    const dir = tmp();
-    const vault = new ApiVault(dir, crypto, 'darwin');
-    const seen: { url: string; init?: RequestInit }[] = [];
-    const fetchMock = (async (url: string | URL, init?: RequestInit) => {
-      const u = String(url);
-      seen.push({ url: u, init });
-      if (u === 'https://oauth2.googleapis.com/token') {
-        const body = new URLSearchParams(String(init!.body));
-        if (body.get('grant_type') === 'authorization_code') {
-          expect(body.get('code')).toBe('the-code');
-          expect(body.get('code_verifier')!.length).toBeGreaterThan(40);
-          expect(body.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-          return new Response(JSON.stringify({ access_token: 'at1', refresh_token: 'rt1', expires_in: 3600, scope: YT_SCOPE }), { status: 200 });
-        }
-        return new Response(JSON.stringify({ access_token: 'at2', expires_in: 3600 }), { status: 200 });
-      }
-      if (u.startsWith('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable')) {
-        const meta = JSON.parse(String(init!.body));
-        expect(meta.status.publishAt).toBe('2026-10-07T12:00:00.000Z');
-        expect((init!.headers as Record<string, string>).Authorization).toBe('Bearer at1');
-        return new Response('', { status: 200, headers: { Location: 'https://www.googleapis.com/upload/youtube/v3/videos?upload_id=U1' } });
-      }
-      if (u === 'https://www.googleapis.com/upload/youtube/v3/videos?upload_id=U1') {
-        expect(init!.method).toBe('PUT');
-        return new Response(JSON.stringify({ id: 'vid123', status: { privacyStatus: 'private' } }), { status: 200 });
-      }
-      if (u.startsWith('https://oauth2.googleapis.com/revoke')) return new Response('', { status: 200 });
-      throw new Error(`unexpected ${u}`);
-    }) as typeof fetch;
-    let consent = '';
-    const yt = new YouTubeApi({
-      vault,
-      fetch: fetchMock,
-      // the "browser": Google's consent page redirects back to the loopback port with a code
-      openExternal: (url) => {
-        consent = url;
-        const q = new URL(url).searchParams;
-        setTimeout(() => http.get(`${q.get('redirect_uri')}/?code=the-code&state=${q.get('state')}`, (r) => r.resume()), 20);
-      },
-    });
-    expect(() => yt.setClient('not-a-client', 'x')).toThrow(/client ID/);
-    yt.setClient('1234-abc.apps.googleusercontent.com', 'GOCSPX-secret');
-    expect(yt.status()).toEqual({ hasClient: true, connected: false, connectedAt: null });
-    await yt.connect(5000);
-    const q = new URL(consent).searchParams;
-    expect(new URL(consent).origin).toBe('https://accounts.google.com');
-    expect(q.get('scope')).toBe(YT_SCOPE);
-    expect(q.get('code_challenge_method')).toBe('S256');
-    expect(yt.status().connected).toBe(true);
-    // nothing in plain text on disk
-    const disk = fs.readFileSync(path.join(dir, 'publish-api.json'), 'utf8');
-    expect(JSON.parse(Buffer.from(JSON.parse(disk).youtube, 'base64').toString().replace(/^enc:/, '')).refreshToken).toBe('rt1');
-    expect(disk).not.toContain('rt1');
-
-    const file = path.join(dir, 'v.mp4');
-    fs.writeFileSync(file, 'video bytes');
-    const r = await yt.upload({ file, title: '再小的博主', description: 'd', tags: ['副业'], publishAt: new Date('2026-10-07T12:00:00Z') });
-    expect(r).toEqual({ id: 'vid123', url: 'https://youtu.be/vid123', privacy: 'private' });
-    await yt.disconnect();
-    expect(yt.status().connected).toBe(false);
-    expect(seen.some((s) => s.url.startsWith('https://oauth2.googleapis.com/revoke'))).toBe(true);
-  });
-
-  it('a consent that comes back with an error or a wrong state is refused', async () => {
-    const vault = new ApiVault(tmp(), crypto, 'darwin');
-    const yt = new YouTubeApi({
-      vault,
-      fetch: (async () => new Response('{}')) as typeof fetch,
-      openExternal: (url) => {
-        const q = new URL(url).searchParams;
-        setTimeout(() => http.get(`${q.get('redirect_uri')}/?code=c&state=forged`, (r) => r.resume()), 20);
-      },
-    });
-    yt.setClient('1234-abc.apps.googleusercontent.com', 'GOCSPX-secret');
-    await expect(yt.connect(5000)).rejects.toThrow();
-    expect(yt.status().connected).toBe(false);
-  });
-
-  it('no keychain: nothing is stored', () => {
-    const v = new ApiVault(tmp(), { ...crypto, isEncryptionAvailable: () => false }, 'darwin');
-    expect(() => v.set('youtube', { clientId: 'x' })).toThrow(/keychain/);
-  });
+  // OAuth, the upload, the keychain: tests/unit/youtubeApi.test.ts (a fake Google over real HTTP)
 });
 
 describe('IPC for the loop', () => {

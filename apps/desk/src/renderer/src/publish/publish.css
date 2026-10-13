@@ -305,3 +305,21 @@
 .pl-choices { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .ico.spin { animation: pl-spin 1s linear infinite; }
 @keyframes pl-spin { to { transform: rotate(360deg); } }
+
+/* YouTube through the official API: the publish form, the client choice, Upload in your browser, the blocked notice */
+.yt-form { gap: 12px; padding: 4px 4px 24px; overflow: auto; max-width: 640px; }
+.yt-form h3 { margin: 0; }
+.yt-form label.col { gap: 4px; }
+.yt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.yt-field { border: 0; padding: 0; margin: 0; gap: 6px; }
+.yt-field legend { padding: 0; margin-bottom: 4px; }
+.yt-radio { gap: 8px; align-items: flex-start; }
+.yt-radio input { margin-top: 3px; }
+.yt-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.ub-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ub-step { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ub-step.done .btn { opacity: 0.75; }
+.blk { align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 32px; color: var(--text); }
+.blk h3 { margin: 0; }
+.blk p { margin: 0; max-width: 460px; }
+.blk-ico { width: 32px; height: 32px; color: var(--warn, #b7791f); }

@@ -18,7 +18,13 @@ export const mainOptions = (extra = {}) => ({
   external: ['electron', 'node-pty'],
   sourcemap: true,
   logLevel: 'info',
-  define: { __REELFOLD_EDITION__: JSON.stringify(EDITION) },
+  // Reelfold's Google OAuth client (YouTube): from the release environment only, never committed. Unset = the app
+  // asks for her own client (Settings › Publishing accounts).
+  define: {
+    __REELFOLD_EDITION__: JSON.stringify(EDITION),
+    __REELFOLD_GOOGLE_CLIENT_ID__: JSON.stringify(process.env.REELFOLD_GOOGLE_CLIENT_ID ?? ''),
+    __REELFOLD_GOOGLE_CLIENT_SECRET__: JSON.stringify(process.env.REELFOLD_GOOGLE_CLIENT_SECRET ?? ''),
+  },
   ...extra,
 });
 
