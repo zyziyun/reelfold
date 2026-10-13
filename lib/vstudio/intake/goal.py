@@ -43,7 +43,8 @@ MOVE_KM = 5.0               # ... and so does a move this far (both ends with GP
 LIGHT_GAP_S = 15 * 60       # a light change only splits a story across a pause at least this long
 LIGHT_JUMP = 0.2            # mean brightness 0..1 jumping this much = another light (golden hour -> night)
 MIN_STORY_S = 12.0          # a story with less footage than this (and no photos) is left out of the rule plan
-MAX_VIDEOS = 8
+MAX_VIDEOS = 8              # she named no number: as many as the footage supports, up to this
+ASK_CAP = 20                # she named a number / a range: up to this
 MAX_CLIPS = 400
 MAX_PHOTOS = 800
 SHEET_TILES = 15
@@ -99,15 +100,53 @@ def is_goal(prompt, inputs=()):
     return bool(paths_in(prompt) or any(os.path.isdir(p) for p in inputs or ()) or len(inputs or ()) >= 4)
 
 
+_N = r"(\d+|two|three|four|five|six|seven|eight|nine|ten|[两二三四五六七八九十])"
+_UNIT = r"\s*(?:个|条|支|部|videos?|films?|edits?|cuts?|reels?|shorts?)"
+_MIN_RE = re.compile(r"(?:最少|至少|不少于|起码|at least|no fewer than|minimum(?: of)?|min\.?)\s*" + _N, re.I)
+_MAX_RE = re.compile(r"(?:最多|至多|不超过|不多于|at most|up to|no more than|maximum(?: of)?|max\.?)\s*" + _N, re.I)
+_RANGE_RE = re.compile(_N + r"\s*(?:-|–|—|~|～|到|至|to)\s*" + _N + _UNIT, re.I)
+_NUM_WORD.update(nine=9, ten=10)
+
+
+def _num(w):
+    w = (w or "").lower()
+    n = int(w) if w.isdigit() else _NUM_WORD.get(w)
+    return max(1, min(ASK_CAP, n)) if n else None
+
+
+def wanted_range(prompt):
+    """How many videos she asked for -> {want, min, max} (each None when she did not say). "做 12 条左右，最少 10 条，
+    最多 15 条" -> 12 / 10 / 15; "10-15 videos" -> None / 10 / 15; "做3个视频" -> 3 / 3 / 3 (an exact number);
+    "about 12 videos" -> 12 / 10 / 14."""
+    s = prompt or ""
+    lo = _num((_MIN_RE.search(s) or [None, None])[1])
+    hi = _num((_MAX_RE.search(s) or [None, None])[1])
+    m = _RANGE_RE.search(s)
+    if m:
+        a, b = _num(m.group(1)), _num(m.group(2))
+        if a and b:
+            lo, hi = lo or min(a, b), hi or max(a, b)
+    rest = _MAX_RE.sub(" ", _MIN_RE.sub(" ", _RANGE_RE.sub(" ", s)))
+    want, about = None, False
+    for m in re.finditer(_N + _UNIT, rest, re.I):
+        want = _num(m.group(1))
+        about = bool(re.search(r"左右|上下|about|around|roughly|~|～|大约|大概", rest[max(0, m.start() - 12):m.end() + 4], re.I))
+        break
+    if want and not (lo or hi):
+        lo, hi = (max(1, want - 2), want + 2) if about else (want, want)
+    if lo and hi and lo > hi:
+        lo, hi = hi, lo
+    if want and hi:
+        want = min(want, hi)
+    if want and lo:
+        want = max(want, lo)
+    return dict(want=want, min=lo, max=hi)
+
+
 def wanted(prompt):
     """How many videos she asked for (None: as many as the footage supports, up to MAX_VIDEOS)."""
-    m = re.search(r"(\d+|two|three|four|five|six|seven|eight|[两二三四五六七八九十])\s*(个|条|支|videos?|films?)",
-                  prompt or "", re.I)
-    if not m:
-        return None
-    w = m.group(1).lower()
-    n = int(w) if w.isdigit() else _NUM_WORD.get(w)
-    return max(1, min(MAX_VIDEOS, n)) if n else None
+    r = wanted_range(prompt)
+    return r["want"] or r["max"] or r["min"]
 
 
 # --------------------------------------------------------------------------- survey
@@ -569,8 +608,10 @@ def _inputs_of(v, by_id):
 
 def _finish_video(v, by_id, platforms):
     v["kind"] = v.get("kind") if v.get("kind") in KINDS else "film"
-    v["platforms"] = [p for p in (v.get("platforms") or platforms or DEFAULT_PLATFORMS) if isinstance(p, str)][:8]
-    if v["kind"] == "reel" and "youtube" in v["platforms"]:
+    v["platforms"] = list(dict.fromkeys(p for p in (v.get("platforms") or platforms or DEFAULT_PLATFORMS)
+                                        if isinstance(p, str)))[:8]
+    if v["kind"] == "reel" and "youtube" in v["platforms"] and "youtube-shorts" not in v["platforms"]:
+        # vertical first: YouTube means its Shorts (both named: the 16:9 cut and the Shorts version, as she asked)
         v["platforms"] = ["youtube-shorts" if p == "youtube" else p for p in v["platforms"]]
     secs = sum((by_id.get(s) or {}).get("seconds") or 0 for s in v.get("stories") or [])
     stills = sum((by_id.get(s) or {}).get("photos") or 0 for s in v.get("stories") or [])
@@ -594,7 +635,7 @@ as many good videos as the footage supports, each with its own theme. You get th
 (clips grouped by time and place, with the nearest well-known city and one contact sheet per story - look at every
 sheet) and her request.
 
-Propose videos (at most {max_videos}{exact}). Rules:
+Propose videos ({count}). Rules:
 - Use the footage: every story with something worth showing should end up in a video; a story too thin on its own
   can join a related one (same trip, same place, same light). Never invent footage.
 - kind per video:
@@ -608,7 +649,12 @@ Propose videos (at most {max_videos}{exact}). Rules:
   essay - a mood (autumn, solitude, a city at night): a calm reflective voice-over.
 - Every video is cut from video clips: a story with 0 clips (only photos / panoramas) cannot be a video of its own
   yet - leave it out.
-- Vary the kinds when the footage allows; do not make two videos of the same story with the same kind.
+- Vary the kinds when the footage allows. A rich story may carry two or three videos when each has its own angle,
+  light or subject (one bay: a golden-hour film and a night-skyline film; one landmark: its history and a fast reel)
+  - give each its own title and brief; never two videos with the same angle.
+- When she asked for a number or a range, meet it: if there are fewer strong stories, split rich stories by angle
+  (above) and use the smaller ones; only go below her minimum when the footage truly cannot carry more, and then
+  say why in one short line in {ui_lang} ("short_reason").
 - length_s: what the footage can carry (about half the story's seconds for a film, never more than 0.8 of it), 20-120.
 - title: short, specific, in English; title_zh: the same in Chinese.
 - brief: ONE English sentence for the editor: what is in the shots and the angle (the landmarks you recognise; for
@@ -619,7 +665,7 @@ Propose videos (at most {max_videos}{exact}). Rules:
   editor handles the languages - just list the platforms).
 - goal: one short line in {ui_lang} restating her goal (at most 60 characters).
 
-Return ONE JSON object: {{"goal": "...", "videos": [{{"title": "...", "title_zh": "...", "kind": "history|film|reel|vlog|essay",
+Return ONE JSON object: {{"goal": "...", "short_reason": null, "videos": [{{"title": "...", "title_zh": "...", "kind": "history|film|reel|vlog|essay",
 "stories": ["s1"], "length_s": 60, "brief": "...", "theme": "...", "why": "...", "platforms": ["youtube", ...]}}]}}"""
 
 UI_LANG_NAME = {"en": "English", "zh": "Simplified Chinese", "fr": "French"}
@@ -676,6 +722,26 @@ def rule_videos(story_list, platforms, ui_lang="en", want=None):
     return out
 
 
+def _count_words(rng):
+    """The SYSTEM line on how many videos: her number / range, else as many as the footage supports."""
+    rng = rng if isinstance(rng, dict) else dict(want=rng, min=rng, max=rng)
+    want, lo, hi = rng.get("want"), rng.get("min"), rng.get("max")
+    if not (want or lo or hi):
+        return f"at most {MAX_VIDEOS}"
+    bits = []
+    if want:
+        bits.append(f"about {want}")
+    if lo and hi and lo != hi:
+        bits.append(f"at least {lo}, at most {hi}")
+    elif lo and hi:
+        bits = [f"exactly {lo}"]
+    elif lo:
+        bits.append(f"at least {lo}")
+    elif hi:
+        bits.append(f"at most {hi}")
+    return "she asked for " + "; ".join(bits)
+
+
 def _model_videos(prompt, story_list, platforms, ui_lang, want, provider=None, model=None, call=None, timeout=None,
                   on_event=None):
     from vstudio import llm as LLM
@@ -686,8 +752,7 @@ def _model_videos(prompt, story_list, platforms, ui_lang, want, provider=None, m
         return None, None, info
     _emit(on_event, stage="model", provider=route.provider, model=route.model)
     lang = _ui(ui_lang)
-    system = SYSTEM.format(max_videos=want or MAX_VIDEOS, exact=f"; she asked for {want}" if want else "",
-                           ui_lang=UI_LANG_NAME[lang], platforms=", ".join(platforms))
+    system = SYSTEM.format(count=_count_words(want), ui_lang=UI_LANG_NAME[lang], platforms=", ".join(platforms))
     body = "\n".join([f"Request: {prompt}", "", "Stories:"] + [story_line(s) for s in story_list])
     imgs = [s["sheet"] for s in story_list if s.get("sheet")][:LLM.MAX_IMAGES]
     t0 = time.time()
@@ -711,6 +776,8 @@ def _model_videos(prompt, story_list, platforms, ui_lang, want, provider=None, m
         info.update(fallback=True, reason="the model returned no videos")
         return None, None, info
     info["fallback"] = False
+    if isinstance(js.get("short_reason"), str) and js["short_reason"].strip():
+        info["short_reason"] = js["short_reason"].strip()[:200]
     return vids, (js.get("goal") if isinstance(js.get("goal"), str) else None), info
 
 
@@ -723,7 +790,8 @@ def _clean(raw, by_id, platforms, lang):
         if not st or not any(by_id[s].get("videos") for s in st):
             continue                          # photos alone are not a video yet (the photo story needs a clip)
         kind = v.get("kind") if v.get("kind") in KINDS and v.get("kind") != "photos" else "film"
-        sig = (tuple(sorted(st)), kind)
+        # the same story twice is fine with its own angle (its own title); the same title twice is not
+        sig = (tuple(sorted(st)), kind, re.sub(r"\W+", "", str(v.get("title") or "").lower()))
         if sig in used:
             continue
         used.add(sig)
@@ -753,17 +821,31 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
     _emit(on_event, stage="cluster", files=len(sc["items"]))
     st = stories(sc, sheet_dir=sheet_dir if frames else None)
     by_id = {s["id"]: s for s in st}
-    want = wanted(prompt)
+    rng = wanted_range(prompt)
+    want = rng["want"] or rng["max"] or rng["min"]
+    cap = rng["max"] or rng["want"] or MAX_VIDEOS
     raw, goal_line, info = (None, None, dict(provider="none", fallback=True, reason="no footage"))
     if st:
-        raw, goal_line, info = _model_videos(prompt, st, plats, lang, want, provider, model, call, timeout, on_event)
+        raw, goal_line, info = _model_videos(prompt, st, plats, lang, rng, provider, model, call, timeout, on_event)
     vids = _clean(raw, by_id, plats, lang) if raw else []
     if not vids:
         info["fallback"] = True
         vids = rule_videos(st, plats, lang, want)
-    if want:
-        vids = vids[:want]
-    vids = vids[:MAX_VIDEOS]
+    vids = vids[:cap]
+    floor = rng["min"] or (rng["want"] if rng["want"] and not rng["max"] else None)
+    if floor and len(vids) < floor:
+        # under her minimum: the stories with clips no video uses yet, one video each (biggest first)
+        taken = {sid for v in vids for sid in v.get("stories") or []}
+        titles = {v.get("title") for v in vids}
+        more = [v for v in rule_videos([s for s in st if s["id"] not in taken], plats, lang, floor - len(vids))
+                if v.get("title") not in titles and v.get("kind") != "vlog"]
+        vids += more[:floor - len(vids)]
+    count = dict(asked=rng["want"], min=rng["min"], max=rng["max"], planned=len(vids))
+    if floor and len(vids) < floor:
+        used_now = {sid for v in vids for sid in v.get("stories") or []}
+        count.update(short=True, reason=info.get("short_reason"),
+                     photo_only=sum(1 for s in st if not s["videos"]),
+                     thin=sum(1 for s in st if s["videos"] and s["seconds"] < MIN_STORY_S and s["id"] not in used_now))
     for k, v in enumerate(vids):
         v["id"] = f"v{k + 1}"
         _finish_video(v, by_id, plats)
@@ -778,6 +860,7 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
     info["seconds"] = round(time.time() - t0, 1)
     return dict(kind=KIND, version=VERSION, id=gid, created=time.time(), prompt=prompt, inputs=inputs,
                 goal=(goal_line or GOAL_LINE[lang])[:200], goal_code=None if goal_line else "default", platforms=plats, ui_lang=lang, want=want,
+                count=count,
                 survey=dict(stories=st, totals=totals, unused=unused, notes=sc["notes"][:20]), videos=vids,
                 planner=info)
 

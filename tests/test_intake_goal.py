@@ -75,6 +75,11 @@ def test_goal_requests_are_recognised(card):
     assert not G.is_goal("把这条视频剪成小红书竖屏", [card])                       # one request
     assert not G.is_goal("make several videos about AI")                          # nothing to survey
     assert G.wanted("做3个视频") == 3 and G.wanted("make five videos") == 5 and G.wanted("尽量多做几个") is None
+    # her own words: about 12, at least 10, at most 15 (never cut to the old cap of 8)
+    assert G.wanted_range("做 12 条左右成片，最少 10 条，最多 15 条。按 90–120 秒讲解") == dict(want=12, min=10, max=15)
+    assert G.wanted_range("make 10-15 videos from my card") == dict(want=None, min=10, max=15)
+    assert G.wanted_range("about 12 videos") == dict(want=12, min=10, max=14)
+    assert G.wanted_range("做3个视频") == dict(want=3, min=3, max=3)
 
 
 def test_survey_splits_stories_by_time_place_and_light(card):
@@ -121,7 +126,7 @@ def test_model_plan_is_validated(card):
                  platforms=["youtube"]),
             dict(title="Ghost", kind="film", stories=["s42"]),                       # no such story: left out
             dict(title="Pano", kind="photos", stories=["s4"]),                       # a panorama alone: not a video
-            dict(title="dup", kind="history", stories=["s1"])]))                     # same story + kind: left out
+            dict(title="Space needle at DUSK", kind="history", stories=["s1"])]))    # same story + angle: left out
     doc = G.make_goal("make several videos from my card", [card], call=call, ui_lang="en")
     assert not doc["planner"]["fallback"] and doc["goal"] == "Six DJI shorts"
     assert len(seen["images"]) >= 3 and "s1:" in seen["body"]
@@ -168,3 +173,32 @@ def test_cli_goal(card, tmp_path):
     r = subprocess.run([sys.executable, "-m", "vstudio.intake", "goal", "--prompt", "make several videos", "--json"],
                        capture_output=True, text=True, env=env, timeout=120)
     assert r.returncode == 5 and json.loads(r.stdout)["code"] == "plan-empty"
+
+
+def test_her_range_is_met_or_the_plan_says_why(card):
+    """She asked for at least N: a rich story may carry two videos with their own angle, the stories no video uses
+    are added (biggest first), and a plan still short of her minimum says so (``count.short``) with why."""
+    seen = {}
+
+    def call(system, body, images):
+        seen["system"] = system
+        return dict(provider="test", json=dict(goal="Drone set", videos=[
+            dict(title="Golden hour on the bay", kind="film", stories=["s1"], brief="the light going"),
+            dict(title="The bay after dark", kind="film", stories=["s1"], brief="the lit skyline"),   # own angle: kept
+            dict(title="Jet ski", kind="reel", stories=["s2"], platforms=["youtube", "youtube-shorts", "xiaohongshu"])]))
+    doc = G.make_goal(f"在 {card} 做 4 条左右成片，最少 3 条，最多 5 条", [], call=call, ui_lang="zh")
+    assert "about 4; at least 3, at most 5" in seen["system"]
+    titles = [v["title"] for v in doc["videos"]]
+    assert titles[:3] == ["Golden hour on the bay", "The bay after dark", "Jet ski"]
+    reel = doc["videos"][2]
+    assert reel["platforms"] == ["youtube", "youtube-shorts", "xiaohongshu"]   # both named: both kept, never twice
+    assert len(doc["videos"]) >= 3 and doc["count"]["min"] == 3 and doc["count"]["max"] == 5
+    assert not doc["count"].get("short")
+    # the stories no video uses fill up to her minimum
+    doc = G.make_goal(f"在 {card} 做 3 条成片", [], call=lambda *a: dict(provider="test", json=dict(videos=[
+        dict(title="Only one", kind="film", stories=["s1"])])), ui_lang="zh")
+    assert len(doc["videos"]) == 3 and {s for v in doc["videos"] for s in v["stories"]} >= {"s1", "s2", "s3"}
+    # more than the footage carries: the plan says it is short and why
+    doc = G.make_goal(f"在 {card} 至少做 9 条视频", [], ui_lang="zh")
+    assert doc["count"]["short"] and doc["count"]["min"] == 9 and doc["count"]["planned"] == len(doc["videos"]) < 9
+    assert doc["count"]["photo_only"] >= 1
