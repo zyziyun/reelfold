@@ -2,11 +2,12 @@
 
 Every AI step of video-studio goes through one of three small registries, so each step can run on
 
-- **any API provider** (Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs),
+- **any API provider** (Anthropic, OpenAI, OpenRouter, Gemini, ElevenLabs, DeepSeek, Qwen, Kimi, GLM, Doubao),
 - **self-hosted / local models** (Ollama, LM Studio, vLLM, llama.cpp server, local whisper, a whisper or TTS
   server on your own GPU box), or
 - **no API key**, through a locally installed agent CLI that is already logged in with your own subscription
-  (Claude Code, Codex).
+  (Claude Code, Codex), or any coding agent that speaks the Agent Client Protocol (Gemini CLI, Cursor CLI,
+  GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI; section 2a).
 
 | registry | module | used by |
 |---|---|---|
@@ -70,11 +71,12 @@ one); the batch spec key `proofread.glossary_provider` overrides it.
 |---|---|---|---|---|
 | `anthropic` (alias `claude`) | API | `pip install anthropic`, `ANTHROPIC_API_KEY` | `claude-opus-5-5` | `output_config.format` for a schema, else instruction |
 | `openai` | API | `pip install openai`, `OPENAI_API_KEY` | `gpt-4.1-mini` (plan-segments: `gpt-4.1`) | `response_format` json_object / json_schema |
-| `deepseek` | API | `DEEPSEEK_API_KEY` | `deepseek-chat` | json_object |
-| `qwen` | API | `DASHSCOPE_API_KEY` (DashScope compatible mode) | `qwen-plus` | json_object |
-| `kimi` | API | `MOONSHOT_API_KEY` | `kimi-k2-0905-preview` | json_object |
-| `glm` | API | `ZHIPUAI_API_KEY` | `glm-4.6` | json_object |
 | `openrouter` | API | `OPENROUTER_API_KEY` | `openai/gpt-4.1-mini` | json_object |
+| `deepseek` | API | `DEEPSEEK_API_KEY` | `deepseek-chat` | json_object |
+| `qwen` (alias `dashscope`, `bailian`) | API | `DASHSCOPE_API_KEY` (Bailian / DashScope compatible mode) | `qwen-plus` | json_object |
+| `kimi` (alias `moonshot`) | API | `MOONSHOT_API_KEY` | `kimi-k2-0905-preview` | json_object |
+| `glm` (alias `zhipu`, `zai`) | API | `ZHIPUAI_API_KEY` (a Z.ai key with `region: intl`) | `glm-4.6` | json_object |
+| `doubao` (alias `ark`, `volcengine`, `byteplus`) | API | `ARK_API_KEY` (Volcengine Ark; BytePlus ModelArk with `region: intl`) | `doubao-seed-1-6-250615` | json_object |
 | `gemini` (optional) | API | `pip install google-genai`, `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `gemini-2.5-flash` | `response_mime_type` |
 | `ollama` | local | `ollama serve`; `ollama pull qwen3:8b` | `qwen3:8b` | json_object |
 | `lmstudio` | local | LM Studio > Developer > Start server | (set `model`) | json_schema |
@@ -83,13 +85,31 @@ one); the batch spec key `proofread.glossary_provider` overrides it.
 | `openai-compatible` | any | `base_url` + optional `api_key_env` (or env `VSTUDIO_LLM_BASE_URL`, `VSTUDIO_LLM_API_KEY_ENV`) | (set `model`) | json_object |
 | `claude-code` | subscription CLI | Claude Code installed and logged in (`claude`, then `/login`) | the CLI's default (`model: opus` / `sonnet` to pin) | `--json-schema` for a schema |
 | `codex` | subscription CLI | Codex CLI installed and logged in with ChatGPT (`codex login`) | the CLI's default | `--output-schema` for a schema |
+| `gemini-cli`, `cursor-agent`, `copilot`, `opencode`, `claude-acp`, `codex-acp`, `qwen-code`, `kimi-cli`, `codebuddy`, `iflow` | ACP agent | the agent installed and signed in (section 2a) | the agent's default (`model:` = an id it lists) | instruction + tolerant parse |
 | `none` | - | nothing | - | callers use their rule-based path |
 
-Preset base URLs (override with `base_url:` or env `VSTUDIO_<PRESET>_BASE_URL`, e.g. the international hosts
-`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`, `https://api.moonshot.ai/v1`,
-`https://api.z.ai/api/paas/v4` with `api_key_env: ZAI_API_KEY`): DeepSeek `https://api.deepseek.com/v1`, Qwen
-`https://dashscope.aliyuncs.com/compatible-mode/v1`, Kimi `https://api.moonshot.cn/v1`, GLM
-`https://open.bigmodel.cn/api/paas/v4`, OpenRouter `https://openrouter.ai/api/v1`, Ollama
+Mainland China and international endpoints: Qwen, Kimi, GLM and Doubao have one of each (a key works on the
+endpoint of the site it came from). Pick one with the route option `region: cn | intl`, env
+`VSTUDIO_<PRESET>_REGION`, persona `llm.regions: {qwen: intl}`, or Settings › AI › API keys in the desk (written to
+the routes file as `regions`); default `cn`.
+
+| preset | `cn` (default) | `intl` | get a key |
+|---|---|---|---|
+| `qwen` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | bailian.console.aliyun.com / Model Studio (Alibaba Cloud international) |
+| `kimi` | `https://api.moonshot.cn/v1` | `https://api.moonshot.ai/v1` | platform.moonshot.cn / platform.moonshot.ai |
+| `glm` | `https://open.bigmodel.cn/api/paas/v4` | `https://api.z.ai/api/paas/v4` | open.bigmodel.cn / z.ai |
+| `doubao` | `https://ark.cn-beijing.volces.com/api/v3` | `https://ark.ap-southeast.bytepluses.com/api/v3` | console.volcengine.com/ark / console.byteplus.com/ark |
+| `deepseek` | `https://api.deepseek.com/v1` (one endpoint) | | platform.deepseek.com |
+
+Model lists: with a key set, `python -m vstudio.llm models --provider qwen` asks the endpoint's own `/models`;
+without one it shows a short maintained list (Qwen `qwen-plus`, `qwen3-max`, `qwen-flash`, `qwen-turbo`,
+`qwen3-coder-plus`; Kimi `kimi-k2-0905-preview`, `kimi-k2-turbo-preview`, `kimi-k2-thinking`; GLM `glm-4.6`,
+`glm-4.5`, `glm-4.5-air`, `glm-4.5-flash`; Doubao `doubao-seed-1-6-250615`, `doubao-seed-1-6-flash-250828`,
+`doubao-seed-1-6-thinking-250715`, `doubao-1-5-pro-32k-250115`; DeepSeek `deepseek-chat`, `deepseek-reasoner`).
+An Ark endpoint id (`ep-...`) works as the Doubao model too.
+
+Other preset base URLs (override with `base_url:` or env `VSTUDIO_<PRESET>_BASE_URL`): OpenRouter
+`https://openrouter.ai/api/v1`, Ollama
 `http://localhost:11434/v1`, LM Studio `http://localhost:1234/v1`, vLLM `http://localhost:8000/v1`, llama.cpp
 `http://localhost:8080/v1`. The default models of the presets are examples - providers rename models often; set
 `model:` to what your account / server actually has (`python -m vstudio.llm providers` lists the models a local
@@ -115,6 +135,7 @@ Notes per backend:
   --output-last-message <file> [--model M] [--output-schema F] -` (system + prompt on stdin), with
   `OPENAI_API_KEY` removed from its environment so it uses your ChatGPT login. The flags follow the Codex CLI's
   documented `exec` options; check `codex exec --help` on your machine if the CLI changed.
+- **ACP agents**: see section 2a.
 - Retries: rate limits, overload, 5xx and connection errors are retried twice with backoff; bad requests, auth
   errors, refusals and CLI timeouts are not. A broken JSON reply gets one repair round (the model sees its own
   reply and is asked for valid JSON); after that the caller gets `json=None` and falls back (proofread: glossary /
@@ -184,6 +205,52 @@ tool. Subscription plans come with their own usage limits and terms; before usin
 paid work for clients (an agency pipeline, `deliver` packages, many batch jobs), check the provider's current
 consumer / subscription terms and usage policies, and use an API key (or a self-hosted model) where the terms call
 for it. `python -m vstudio.llm providers` never sends anything through them; `test` sends one tiny prompt.
+
+
+## 2a. Coding agents over the Agent Client Protocol (ACP)
+
+`vstudio.acp` is one client for every agent that speaks [ACP](https://agentclientprotocol.com) (JSON-RPC 2.0 over the
+agent's stdin / stdout): `initialize` -> `session/new` in an empty temp folder with no MCP servers -> the model, if one
+is asked for (`session/set_config_option`, or the older `session/set_model`) -> `session/prompt`; the reply is the
+agent's streamed message. The client offers no file system and no terminal, and refuses every tool permission the
+agent asks for. It runs **your own installed, unmodified program with its own sign-in**: Reelfold never reads a
+credential, and the Anthropic / OpenAI variables the desk or engine may carry are removed from the agent's
+environment (route option `inherit_env: true` keeps them; `cli:` names the program; `acp_args:` replaces the
+arguments that start ACP mode).
+
+| provider | agent | maker | started as | sign in | works in mainland China | install |
+|---|---|---|---|---|---|---|
+| `gemini-cli` | Gemini CLI | Google | `gemini --acp` (older: `--experimental-acp`) | Google account, on first run | no (needs access outside China) | `npm install -g @google/gemini-cli` |
+| `cursor-agent` (alias `cursor`) | Cursor CLI | Cursor | `cursor-agent acp` | `cursor-agent login` | partly (some models are not offered in China) | `curl https://cursor.com/install -fsS \| bash` |
+| `copilot` | GitHub Copilot CLI | GitHub | `copilot --acp` | `copilot login` (GitHub account with Copilot) | partly | `npm install -g @github/copilot` |
+| `opencode` | OpenCode | SST | `opencode acp` | `opencode auth login` (any provider: DeepSeek, Kimi, GLM, Qwen keys work in China) | yes, with a China provider | `npm install -g opencode-ai` |
+| `claude-acp` | Claude Code via its ACP adapter | Anthropic | `claude-agent-acp` (takes your `claude` as `CLAUDE_CODE_EXECUTABLE`) | your Claude Code sign-in | no | `npm install -g @agentclientprotocol/claude-agent-acp` |
+| `codex-acp` | Codex via its ACP adapter | OpenAI | `codex-acp` (takes your `codex` as `CODEX_PATH`) | your Codex sign-in | no | `npm install -g @zed-industries/codex-acp` |
+| `qwen-code` | Qwen Code | Alibaba | `qwen --acp` (older: `--experimental-acp`) | Qwen OAuth (qwen.ai, free daily quota) or a Bailian key, on first run | yes | `npm install -g @qwen-code/qwen-code@latest` |
+| `kimi-cli` | Kimi CLI | Moonshot AI | `kimi acp` | `kimi login` | yes | `uv tool install kimi-cli` |
+| `codebuddy` | CodeBuddy | Tencent | `codebuddy --acp` | CodeBuddy account (codebuddy.cn or codebuddy.ai), on first run | yes | `npm install -g @tencent-ai/codebuddy-code` |
+| `iflow` | iFlow CLI | Alibaba iFlow | `iflow --experimental-acp` | iFlow account, on first run | yes | `npm install -g @iflow-ai/iflow-cli` |
+
+```bash
+python3 -m vstudio.llm auth status --provider qwen-code --json   # installed? signed in? its models (opens a session, no prompt)
+python3 -m vstudio.llm auth login --provider kimi-cli --json     # the command to sign in (the desk runs it in its terminal)
+python3 -m vstudio.llm models --provider qwen-code --json        # the models the agent offers this sign-in
+python3 -m vstudio.llm test --provider qwen-code                 # one tiny JSON round-trip
+```
+
+Routing and fallbacks work as for every other provider, e.g. Claude Code first, then Qwen Code, then a DeepSeek key:
+
+```yaml
+llm:
+  default: {provider: claude-code, fallback: [qwen-code, deepseek]}
+  regions: {qwen: intl}                         # a Qwen key from Alibaba Cloud international
+```
+
+Failures come back as codes the desk words plainly: `not-installed`, `not-logged-in` (the agent's `auth_required`),
+`region-blocked` ("not available in your region", "User location is not supported"), `model-unsupported` (an id the
+agent does not list), `timeout`. An agent counts as a subscription CLI for the desk's Mac App Store build: like
+Claude Code and Codex it is not available there (`VSTUDIO_LLM_NO_CLI=1`). Pictures (`images=`) go in as ACP image
+blocks when the agent says it takes them.
 
 ## 3. Speech recognition (ASR)
 

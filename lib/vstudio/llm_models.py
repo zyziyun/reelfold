@@ -13,9 +13,12 @@ Sources per provider:
                use every API model); the model Codex's own config.toml picks is checked against it - not in it
                (her ``gpt-6-astra`` on a ChatGPT login) -> ``problem`` code ``codex-model-unsupported`` with a fix
   anthropic    the same maintained Claude list (+ the API's own ``/v1/models`` when a key is set and probe=True)
-  openai / deepseek / qwen / kimi / glm / openrouter
-               the provider's ``/models`` when its key is set (probe=True), else a short maintained list / the
-               preset's default
+  openai / openrouter / deepseek / qwen / kimi / glm / doubao
+               the provider's ``/models`` when its key is set (probe=True, at the endpoint of the chosen region),
+               else a short maintained list / the preset's default
+  ACP agents   (gemini-cli, qwen-code, kimi-cli, codebuddy, opencode, ...) the models the agent itself offers this
+               sign-in: an ACP session is opened and closed (``vstudio.acp.probe``, no prompt); without the probe a
+               short maintained list where there is one (else only "the agent's default")
   ollama / lmstudio / vllm / llamacpp
                what the local server lists (``/v1/models``)
 Nothing here costs anything: listing models is free on every provider.
@@ -41,8 +44,17 @@ CLAUDE_MODELS = (
 FAMILY_RANK = ("opus", "sonnet", "haiku", "fable")
 
 OPENAI_MODELS = ("gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini")
-PRESET_MODELS = {"deepseek": ("deepseek-chat", "deepseek-reasoner"), "qwen": ("qwen-plus", "qwen-max", "qwen-turbo"),
-                 "kimi": ("kimi-k2-0905-preview",), "glm": ("glm-4.6",), "openrouter": ("openai/gpt-4.1-mini",)}
+PRESET_MODELS = {
+    "deepseek": ("deepseek-chat", "deepseek-reasoner"),
+    "qwen": ("qwen-plus", "qwen3-max", "qwen-flash", "qwen-turbo", "qwen3-coder-plus"),
+    "kimi": ("kimi-k2-0905-preview", "kimi-k2-turbo-preview", "kimi-k2-thinking"),
+    "glm": ("glm-4.6", "glm-4.5", "glm-4.5-air", "glm-4.5-flash"),
+    "doubao": ("doubao-seed-1-6-250615", "doubao-seed-1-6-flash-250828", "doubao-seed-1-6-thinking-250715",
+               "doubao-1-5-pro-32k-250115"),
+    "openrouter": ("openai/gpt-4.1-mini",),
+}
+# ACP agents before their session answers (the agent's own list replaces it)
+AGENT_MODELS = {"gemini-cli": ("gemini-2.5-pro", "gemini-2.5-flash")}
 
 CODEX_CONFIG = "~/.codex/config.toml"
 
@@ -185,6 +197,17 @@ def models(provider, probe=True):
         out["models"] = [_entry(i) for i in (ids or OPENAI_MODELS)]
         out["source"] = "api" if ids else "list"
         return out
+    if p in llm.acp.AGENTS:
+        out["models"] = [_entry(i) for i in AGENT_MODELS.get(p, ())]
+        if probe:
+            r = llm.acp.probe(p)
+            if r["models"]:
+                out["models"], out["source"] = [dict(m) for m in r["models"]], "agent"
+            out["cli_default"] = r.get("current_model")
+            if r["state"] not in ("logged-in", "not-installed"):
+                out["problem"] = _problem(f"agent-{r['state']}", f"{llm.acp.label(p)}: {r.get('detail') or r['state']}",
+                                          f"{llm.acp.label(p)}：{r.get('detail') or r['state']}", state=r["state"])
+        return out
     preset = llm.PRESETS.get(p)
     if preset and preset["kind"] == "api":
         ids = _live_ids(p) if probe else None
@@ -199,8 +222,11 @@ def models(provider, probe=True):
 
 def all_models(providers=None, probe=True):
     from . import llm
+    from concurrent.futures import ThreadPoolExecutor
     names = providers or [x for x in llm.names() if x not in ("openai-compatible", "none", "gemini", "llamacpp")]
-    return [models(p, probe=probe) for p in names]
+    # side by side: each installed agent opens a session (seconds), Codex reads its catalog, APIs list their models
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(names)))) as ex:
+        return list(ex.map(lambda p: models(p, probe=probe), names))
 
 
 # ------------------------------------------------------------------ her words -> a model

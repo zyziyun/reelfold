@@ -43,6 +43,12 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(PI.classify("claude CLI timed out after 180 s"), "ai-timeout")
         self.assertEqual(PI.classify("ModuleNotFoundError: No module named 'vstudio.llm'"), "engine")
         self.assertEqual(PI.classify("something odd"), "unknown")
+        # ACP agents (vstudio.acp): a region the service does not serve, an agent that is not installed / signed in
+        self.assertEqual(PI.classify("gemini-cli [region-blocked]: Gemini CLI is not available in your region"),
+                         "ai-region")
+        self.assertEqual(PI.classify("Qwen Code is not installed (`qwen` not on PATH): npm install -g x"),
+                         "ai-missing")
+        self.assertEqual(PI.classify("Kimi CLI is not logged in: run `kimi login` in a terminal"), "ai-login")
         self.assertEqual(PI.provider_of(ERR), "claude-code")
         # the engine's all-attempts error (vstudio.llm.AllProvidersFailed): the first attempt's cause wins
         allf = "every AI provider failed - claude-code [auth-expired]: login expired; codex [failed]: bad schema"

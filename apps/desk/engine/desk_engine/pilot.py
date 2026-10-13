@@ -52,9 +52,13 @@ _CODES = (
     ("ai-login", r"\b401\b|auth-expired|not-logged-in|authenticat|not logged in|"
                  r"log ?in (again|required|expired)|session expired|token expired|"
                  r"unauthori[sz]ed|invalid (api )?key|invalid x-api-key|credential"),
+    # the service does not serve her country / region (vstudio.llm failure_code region-blocked): another AI, not a retry
+    ("ai-region", r"region-blocked|not (available|supported) in your (country|region)|location is not supported|"
+                  r"unsupported_country"),
     ("ai-quota", r"\b429\b|rate.?limit|rate-limited|quota|usage limit|credit balance|insufficient_quota|overloaded"),
     ("ai-timeout", r"timed? ?out|timeout"),
-    ("ai-missing", r"(claude|codex)\b.*(not found|no such file|not installed)|command not found"),
+    ("ai-missing", r"(claude|codex)\b.*(not found|no such file|not installed)|command not found|"
+                   r"is not installed \(`[\w.-]+` not on path"),
     ("disk", r"no space left|disk full"),
     ("engine", r"no module named|importerror|modulenotfounderror"),
     # only a real open / read error (never any line that merely says "ffmpeg")

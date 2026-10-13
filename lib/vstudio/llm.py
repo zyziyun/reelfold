@@ -17,8 +17,11 @@ Providers (``provider=``; aliases: claude -> anthropic, chatgpt -> openai, gpt -
                      that model's default: no budget_tokens, no assistant prefill); dict schema -> output_config.format
   openai             openai SDK Chat Completions, OPENAI_API_KEY; default gpt-4.1-mini; JSON mode / json_schema
   openai-compatible  any /v1/chat/completions server: ``base_url`` + ``api_key_env`` (config or VSTUDIO_LLM_BASE_URL /
-                     VSTUDIO_LLM_API_KEY_ENV). Presets with their own name: deepseek, qwen (DashScope compatible mode),
-                     kimi (Moonshot), glm (Zhipu), openrouter, and local servers ollama, lmstudio, vllm, llamacpp
+                     VSTUDIO_LLM_API_KEY_ENV). Presets with their own name: openrouter, deepseek, qwen (DashScope /
+                     Bailian compatible mode), kimi (Moonshot), glm (Zhipu / Z.ai), doubao (Volcengine Ark / BytePlus
+                     ModelArk), and local servers ollama, lmstudio, vllm, llamacpp. qwen / kimi / glm / doubao have a
+                     mainland China and an international endpoint: route option ``region: cn | intl`` (or env
+                     VSTUDIO_<NAME>_REGION, the desk routes file's / persona ``llm.regions``); default cn
   gemini             google-genai (lazy import), GEMINI_API_KEY / GOOGLE_API_KEY; default gemini-2.5-flash (optional)
   claude-code        the user's installed ``claude`` CLI, non-interactive (``claude -p --output-format json``), no
                      tools, temp cwd: runs on the user's own Claude login / subscription. API keys are removed from
@@ -26,6 +29,12 @@ Providers (``provider=``; aliases: claude -> anthropic, chatgpt -> openai, gpt -
                      route sets ``inherit_env: true``
   codex              the user's installed ``codex`` CLI (``codex exec --json``, read-only sandbox, temp cwd): the
                      user's ChatGPT login
+  ACP agents         the coding agents the user installed and signed in to, driven over the Agent Client Protocol
+                     (``vstudio.acp``): gemini-cli, cursor-agent, copilot, opencode, claude-acp / codex-acp (the
+                     makers' adapters around Claude Code / Codex), qwen-code (Alibaba), kimi-cli (Moonshot),
+                     codebuddy (Tencent), iflow. A fresh session in an empty temp folder, every tool permission
+                     refused, the agent's own sign-in; ``model`` is set through the session (an id it does not list is
+                     refused as model-unsupported)
   none               no model: ``complete`` returns an empty result; callers use their rule-based path
 
 Routing (first match wins; ``route(task, provider, model, config)``):
@@ -76,14 +85,15 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-from . import agentlog
+from . import acp, agentlog
 
 _live = threading.local()          # the live transcript's turn of the call running on this thread (agentlog)
 
 TASKS = ("segment_plan", "proofread", "glossary", "copy", "script", "planner", "intake", "output_edit", "test")
 
 DEFAULT_MODELS = {"anthropic": "claude-opus-5-5", "openai": "gpt-4.1-mini", "gemini": "gemini-2.5-flash",
-                  "claude-code": None, "codex": None, "openai-compatible": None, "none": None}
+                  "claude-code": None, "codex": None, "openai-compatible": None, "none": None,
+                  **{a: None for a in acp.IDS}}
 
 # USD per million tokens (input, output). Override per call (prices=) or persona llm.prices.
 PRICES = {
@@ -99,11 +109,20 @@ PRESETS = {
     "deepseek": dict(base_url="https://api.deepseek.com/v1", key_env="DEEPSEEK_API_KEY", model="deepseek-chat",
                      json_mode="json_object", kind="api"),
     "qwen": dict(base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", key_env="DASHSCOPE_API_KEY",
-                 model="qwen-plus", json_mode="json_object", kind="api"),
+                 model="qwen-plus", json_mode="json_object", kind="api",
+                 regions=dict(cn="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                              intl="https://dashscope-intl.aliyuncs.com/compatible-mode/v1")),
     "kimi": dict(base_url="https://api.moonshot.cn/v1", key_env="MOONSHOT_API_KEY", model="kimi-k2-0905-preview",
-                 json_mode="json_object", kind="api"),
+                 json_mode="json_object", kind="api",
+                 regions=dict(cn="https://api.moonshot.cn/v1", intl="https://api.moonshot.ai/v1")),
     "glm": dict(base_url="https://open.bigmodel.cn/api/paas/v4", key_env="ZHIPUAI_API_KEY", model="glm-4.6",
-                json_mode="json_object", kind="api"),
+                json_mode="json_object", kind="api",
+                regions=dict(cn="https://open.bigmodel.cn/api/paas/v4", intl="https://api.z.ai/api/paas/v4")),
+    # Doubao on Volcengine Ark (the same ARK_API_KEY as Seedance video); BytePlus ModelArk outside China
+    "doubao": dict(base_url="https://ark.cn-beijing.volces.com/api/v3", key_env="ARK_API_KEY",
+                   model="doubao-seed-1-6-250615", json_mode="json_object", kind="api",
+                   regions=dict(cn="https://ark.cn-beijing.volces.com/api/v3",
+                                intl="https://ark.ap-southeast.bytepluses.com/api/v3")),
     "openrouter": dict(base_url="https://openrouter.ai/api/v1", key_env="OPENROUTER_API_KEY",
                        model="openai/gpt-4.1-mini", json_mode="json_object", kind="api"),
     "ollama": dict(base_url="http://localhost:11434/v1", key_env=None, model="qwen3:8b", json_mode="json_object",
@@ -119,8 +138,11 @@ BACKENDS = ("anthropic", "openai", "openai-compatible", "gemini", "claude-code",
 ALIASES = {"claude": "anthropic", "claude-api": "anthropic", "chatgpt": "openai", "gpt": "openai",
            "compatible": "openai-compatible", "claude_code": "claude-code", "claude-cli": "claude-code",
            "codex-cli": "codex", "lm-studio": "lmstudio", "llama.cpp": "llamacpp", "llama-cpp": "llamacpp",
-           "dashscope": "qwen", "moonshot": "kimi", "zhipu": "glm", "off": "none", "rule": "none", "rules": "none"}
-LOCAL = {"claude-code", "codex", "none"} | {k for k, v in PRESETS.items() if v["kind"] == "local"}
+           "dashscope": "qwen", "bailian": "qwen", "moonshot": "kimi", "zhipu": "glm", "zai": "glm", "z.ai": "glm",
+           "ark": "doubao", "volcengine": "doubao", "byteplus": "doubao", "off": "none", "rule": "none",
+           "rules": "none", **acp.ALIASES}
+REGIONS = ("cn", "intl")
+LOCAL = {"claude-code", "codex", "none", *acp.IDS} | {k for k, v in PRESETS.items() if v["kind"] == "local"}
 JSON_INSTRUCTION = "Reply with one JSON object only - no prose, no code fences."
 CLI_STRIP_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
 CODEX_STRIP_ENV = ("OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_*", "CODEX_API_KEY")     # "X_*": every X_ variable
@@ -154,14 +176,14 @@ def canonical(name):
     if n in ("", "auto"):
         return None
     n = ALIASES.get(n, n)
-    if n not in BACKENDS and n not in PRESETS:
+    if n not in BACKENDS and n not in PRESETS and n not in acp.AGENTS:
         raise ValueError(f"unknown LLM provider {name!r}: {' | '.join(names())}")
     return n
 
 
 def names():
     """Every provider name ``complete`` accepts (canonical)."""
-    return list(BACKENDS[:3]) + list(PRESETS) + list(BACKENDS[3:])
+    return list(BACKENDS[:3]) + list(PRESETS) + list(BACKENDS[3:6]) + list(acp.IDS) + list(BACKENDS[6:])
 
 
 def backend_of(provider):
@@ -479,11 +501,27 @@ def _openai(system, prompt, model, schema, max_tokens, timeout, opts):
                         base_url=opts.get("base_url"), api_key=os.environ["OPENAI_API_KEY"], official=True)
 
 
+def region_of(provider, opts=None):
+    """cn | intl for a preset with two endpoints: route option ``region``, env VSTUDIO_<NAME>_REGION, the desk routes
+    file's ``regions``, persona ``llm.regions``; default cn (the endpoints these presets always used)."""
+    for v in ((opts or {}).get("region"), os.environ.get(f"VSTUDIO_{provider.upper().replace('-', '_')}_REGION"),
+              (_routes_file().get("regions") or {}).get(provider), (_persona_llm().get("regions") or {}).get(provider)):
+        v = str(v or "").strip().lower()
+        if v in ("international", "global", "overseas"):
+            v = "intl"
+        if v in ("china", "mainland", "zh"):
+            v = "cn"
+        if v in REGIONS:
+            return v
+    return "cn"
+
+
 def compatible_target(provider, opts):
     """(base_url, key env name or None, json_mode, kind) of an openai-compatible provider / preset."""
     pre = PRESETS.get(provider, {})
     base = opts.get("base_url") or os.environ.get(f"VSTUDIO_{provider.upper().replace('-', '_')}_BASE_URL") \
-        or pre.get("base_url") or os.environ.get("VSTUDIO_LLM_BASE_URL")
+        or (pre.get("regions") or {}).get(region_of(provider, opts)) or pre.get("base_url") \
+        or os.environ.get("VSTUDIO_LLM_BASE_URL")
     key_env = opts.get("api_key_env", pre.get("key_env") if pre else os.environ.get("VSTUDIO_LLM_API_KEY_ENV"))
     jm = opts.get("json_mode", pre.get("json_mode", "json_object"))
     kind = pre.get("kind") or ("local" if base and re.match(r"https?://(localhost|127\.|\[::1\])", base) else "api")
@@ -863,6 +901,19 @@ def _codex_run(exe, system, prompt, model, schema, timeout, opts):
     return text or agent, usage, model or "codex-default"
 
 
+def _acp(agent):
+    def run(system, prompt, model, schema, max_tokens, timeout, opts):
+        turn = getattr(_live, "turn", None)
+
+        def on_event(kind, text, data):
+            agentlog.emit(kind, text, turn=turn, provider=agent,
+                          tool=(data or {}).get("kind") if kind == "tool" else None)
+        r = acp.run(agent, system, prompt, model=model, timeout=timeout or 600, images=_images(opts), opts=opts,
+                    on_event=on_event if agentlog.active() else None)
+        return r["text"], r["usage"], r["model"]
+    return run
+
+
 def _none(*a, **k):
     return "", dict(input=0, output=0), None
 
@@ -874,6 +925,8 @@ BACKEND_FNS = {"anthropic": _anthropic, "openai": _openai, "gemini": _gemini, "c
 def _fn(provider):
     if provider in BACKEND_FNS:
         return BACKEND_FNS[provider]
+    if provider in acp.AGENTS:
+        return _acp(provider)
     return _compatible(provider)
 
 
@@ -896,10 +949,13 @@ def _classify(e):
 # ------------------------------------------------------------------ public
 def failure_code(err):
     """Why a provider failed, from its error text: auth-expired | not-logged-in | not-installed | key-missing |
-    rate-limited | timeout | unavailable | model-unsupported (the login cannot use that model) | failed (the desk turns this into "Claude 登录已过期，这次用了 Codex")."""
+    rate-limited | timeout | unavailable | region-blocked (the service does not serve this country / region) |
+    model-unsupported (the login cannot use that model) | failed (the desk turns this into "Claude 登录已过期，这次用了 Codex")."""
     m = str(err or "")
     if re.search(r"not available in this app build", m):
         return "unavailable"
+    if acp.REGION_WORDS.search(m):
+        return "region-blocked"
     if re.search(r"is not available for (your ChatGPT login|this Codex login)", m) or MODEL_REJECTED.search(m):
         return "model-unsupported"
     if re.search(r"not logged in|not authenticated|login required|no credentials|please (log ?in|sign in)", m, re.I):
@@ -965,7 +1021,7 @@ def error_info(err):
                 attempts=a)
 
 
-CLI_PROVIDERS = ("claude-code", "codex")
+CLI_PROVIDERS = ("claude-code", "codex", *acp.IDS)
 # a CLI timeout on a prompt up to this size (system + prompt chars) marks the CLI unresponsive for a while
 # (vstudio.llm_auth); a longer prompt that ran out of time is just a slow request
 UNRESPONSIVE_MAX_CHARS = 20000
@@ -1284,6 +1340,16 @@ def check(provider, opts=None, probe=True):
                                                         os.environ.get("GOOGLE_API_KEY")))) if not ok]
         return dict(provider=p, kind="api", ready=not miss, detail="needs " + ", ".join(miss) if miss else
                     f"key set, default {DEFAULT_MODELS[p]}")
+    if p in acp.AGENTS:
+        spec = acp.AGENTS[p]
+        exe = acp.find(p, o)
+        if not exe:
+            return dict(provider=p, kind="agent", ready=False, detail=f"`{spec['exe'][0]}` not on PATH "
+                        f"({spec['install']['command']})")
+        v = _cli_version(exe) if probe else "found"
+        return dict(provider=p, kind="agent", ready=True,
+                    detail=f"{v or 'installed'} (ACP; uses your own sign-in; `python -m vstudio.llm test --provider "
+                           f"{p}` checks it)")
     if p in ("claude-code", "codex"):
         exe = find_cli("claude" if p == "claude-code" else "codex", o)
         if not exe:

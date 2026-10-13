@@ -2,7 +2,7 @@
 it reads what the CLIs report, whether a key variable is present (never its value), and whether local servers answer.
 
     python -m vstudio.llm auth status [--provider P ...] [--json] [--no-probe] [--deep] [--refresh] [--timeout S]
-    python -m vstudio.llm auth login  --provider claude-code|codex [--json] [--variant device]
+    python -m vstudio.llm auth login  --provider claude-code|codex|<ACP agent> [--json] [--variant device]
     python -m vstudio.llm auth logout --provider claude-code|codex [--json]
 
 ``status`` rows: {provider, kind (subscription-cli | api | local), state, ready, installed, version, account
@@ -23,6 +23,12 @@ reported instantly (``probe.cached``) instead of a probe that an expired ``claud
 ``vstudio.llm.complete`` skips that provider at once (straight to the fallback). ``--refresh`` (the desk's
 "check again", after a login) ignores the cache. Probes time out after ``--timeout`` (default 60 s).
 
+ACP agents (``vstudio.acp``: gemini-cli, qwen-code, kimi-cli, codebuddy, ...): installed? (PATH and the folders
+installers use), ``--version``, and with the probe an ACP session opened and closed (no prompt, nothing spent): it
+says whether the agent is signed in (``auth_required`` -> not-logged-in) and which models it offers. Without the
+probe an installed agent is ``installed`` (ready, sign-in not checked). Their ``login`` is the agent's own sign-in
+command (or the agent itself, which asks on its first run), run in the desk's terminal.
+
 ``login`` / ``logout`` only print the command (absolute CLI path + args) and the variables to remove; the desk runs it
 in a terminal so the browser / code-paste flow happens with the user, not through this engine.
 """
@@ -36,6 +42,7 @@ import subprocess
 import tempfile
 import time
 
+from . import acp
 from . import llm as L
 
 INSTALL = {
@@ -54,11 +61,20 @@ INSTALL = {
     "lmstudio": dict(url="https://lmstudio.ai", command="LM Studio > Developer > Start server"),
     "vllm": dict(url="https://docs.vllm.ai/en/latest/getting_started/quickstart.html", command="vllm serve <model>"),
     "llamacpp": dict(url="https://github.com/ggml-org/llama.cpp", command="llama-server -m model.gguf"),
+    "doubao": dict(url="https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey", command="pip install openai"),
+    **{a: s["install"] for a, s in acp.AGENTS.items()},
+}
+# where to get a key outside mainland China (region intl)
+INSTALL_INTL = {
+    "qwen": dict(url="https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key", command="pip install openai"),
+    "kimi": dict(url="https://platform.moonshot.ai/console/api-keys", command="pip install openai"),
+    "glm": dict(url="https://z.ai/manage-apikey/apikey-list", command="pip install openai"),
+    "doubao": dict(url="https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey", command="pip install openai"),
 }
 CLIS = {"claude-code": dict(exe="claude", strip=L.CLI_STRIP_ENV), "codex": dict(exe="codex", strip=L.CODEX_STRIP_ENV)}
-API = ("anthropic", "openai", "gemini", "deepseek", "qwen", "kimi", "glm", "openrouter")
+API = ("anthropic", "openai", "gemini", "openrouter", "deepseek", "qwen", "kimi", "glm", "doubao")
 LOCALS = ("ollama", "lmstudio", "vllm", "llamacpp")
-ORDER = ("claude-code", "codex") + API + LOCALS
+ORDER = ("claude-code", "codex") + acp.IDS + API + LOCALS
 KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
 PKG = {"anthropic": "anthropic", "gemini": "google.genai"}
 
@@ -67,6 +83,11 @@ MSG = {   # code -> (en, zh); {params} filled from the row
     "auth-expired": ("The login has expired: log in again", "登录已过期，请重新登录"),
     "auth-not-logged-in": ("Not logged in", "未登录"),
     "auth-not-installed": ("{exe} is not installed", "未安装 {exe}"),
+    "agent-installed": ("Installed · sign-in not checked yet", "已安装 · 还没检查登录"),
+    "agent-not-logged-in": ("Not signed in: run {display} and sign in", "未登录：运行 {display} 登录"),
+    "agent-region": ("Not available in your region: {error}", "你所在的地区用不了：{error}"),
+    "agent-not-acp": ("This version does not speak ACP: update it ({command})", "这个版本不支持 ACP，请更新（{command}）"),
+    "agent-login-first-run": ("Run {display}; it asks you to sign in, then type /quit", "运行 {display}，按提示登录，然后输入 /quit 退出"),
     "auth-unavailable": ("Not available in this version of the app (it cannot run {exe})",
                          "这个版本的应用不能使用（无法运行 {exe}）"),
     "auth-api-key-login": ("Logged in with an API key (API billing, not the subscription)",
@@ -246,6 +267,10 @@ def _mtime(p):
 def fingerprint(provider, status_out=None):
     """A hash that changes when the login changes (re-login, other CLI, other account); no secret is read.
     ``status_out``: the ``auth status`` / ``login status`` output when the caller already has it."""
+    if provider in acp.AGENTS:
+        exe = acp.find(provider)
+        return hashlib.sha1(json.dumps([os.path.realpath(exe), _mtime(exe)], default=str).encode()).hexdigest()[:16] \
+            if exe else None
     if provider not in CLIS:
         return None
     exe = L.find_cli(CLIS[provider]["exe"])
@@ -262,7 +287,7 @@ def fingerprint(provider, status_out=None):
 def remember(provider, state, detail=None, fp=None):
     """Record a CLI login state (probe result, or an AI call that failed with an auth error / timed out / succeeded).
     ``fp=""``: store without a fingerprint (computing one runs the CLI, which a hung CLI would drag out)."""
-    if provider not in CLIS:
+    if provider not in CLIS and provider not in acp.AGENTS:
         return
     d = _read_cache()
     if state == "logged-in" and provider not in d:
@@ -291,6 +316,7 @@ def known_state(provider, fp=None):
 
 def known_expired(provider):
     """True when ``provider``'s login is known to be expired / logged out (checked without a probe)."""
+    # ACP agents: never from the cache (signing in from her own terminal is not seen here: the next call just asks)
     if provider not in CLIS or not os.path.exists(cache_path()):
         return False
     e = known_state(provider)
@@ -308,7 +334,7 @@ def known_unresponsive(provider):
     """True when ``provider``'s CLI timed out on a call in the last ``VSTUDIO_LLM_UNRESPONSIVE_TTL`` s (default 10 min)
     and nothing has answered since: ``vstudio.llm.complete`` then goes straight to the fallback instead of waiting
     the whole CLI timeout again (a dead / hung ``claude -p`` cost every plan 120 s before Codex took over)."""
-    if provider not in CLIS or not os.path.exists(cache_path()):
+    if (provider not in CLIS and provider not in acp.AGENTS) or not os.path.exists(cache_path()):
         return False
     # no fingerprint here: it runs `claude auth status`, which a hung CLI drags out too - the short TTL is the guard
     e = _read_cache().get(provider)
@@ -407,11 +433,62 @@ def _cli_msg(state, row, detail):
     return msg("auth-error", error=detail or "unknown")
 
 
+def _login_display(agent):
+    spec = acp.AGENTS[agent]
+    return " ".join([spec["exe"][0], *spec["login"]])
+
+
+def _agent(p, probe=True, timeout=PROBE_TIMEOUT):
+    """An ACP agent's row: installed?, its version, and (probe) signed in + its models from an opened session."""
+    spec = acp.AGENTS[p]
+    row = dict(_base_row(p, "subscription-cli"), acp=True, label=spec["label"], maker=spec["maker"],
+               china=spec["china"], account_hint=spec["account"])
+    exe = acp.find(p)
+    if not exe:
+        return dict(row, state="not-installed", installed=False, message=msg("auth-not-installed", exe=spec["exe"][0]))
+    wraps = spec.get("wraps")
+    row.update(installed=True, exe=exe, version=L._cli_version(exe), can_login=not wraps, can_logout=False)
+    if wraps and not L.find_cli(wraps):
+        return dict(row, state="not-installed", message=msg("auth-not-installed", exe=wraps))
+    if not probe:
+        return dict(row, state="installed", ready=True, verified=False, probe=dict(ran=False),
+                    message=msg("agent-installed"))
+    t0 = time.time()
+    r = acp.probe(p, timeout=min(timeout, 45))
+    row["probe"] = dict(ran=True, state=r["state"], seconds=round(time.time() - t0, 1))
+    row["models"] = [m["id"] for m in r["models"]] or None
+    if r["state"] == "logged-in":
+        info = r.get("agent_info") or {}
+        if info.get("version") and not row["version"]:
+            row["version"] = str(info["version"])
+        return dict(row, state="logged-in", ready=True, verified=True, message=msg("auth-logged-in", dict(
+            plan_s="", email_s=""), plan=None, email=None))
+    detail = r.get("detail")
+    if r["state"] == "not-logged-in":
+        return dict(row, state="not-logged-in", verified=True, detail=detail,
+                    message=msg("agent-not-logged-in", display=_login_display(p)))
+    if r["state"] == "region-blocked":
+        return dict(row, state="error", detail=detail, message=msg("agent-region", error=(detail or "")[:160]),
+                    code="region-blocked")
+    if r["state"] == "timeout":
+        return dict(row, state="error", detail=detail, message=msg("auth-timeout", seconds=min(timeout, 45)),
+                    code="timeout")
+    if detail and "did not start in ACP mode" in detail:
+        return dict(row, state="error", detail=detail, message=msg("agent-not-acp", command=spec["install"]["command"]),
+                    code="not-acp")
+    return dict(row, state="error", detail=detail, message=msg("auth-error", error=(detail or "unknown")[:160]))
+
+
 def _api(p):
     row = _base_row(p, "api")
     if p in L.PRESETS:
         base, key_env, _, _ = L.compatible_target(p, {})
         row["base_url"], pkg = base, "openai"
+        if L.PRESETS[p].get("regions"):
+            row["region"] = L.region_of(p)
+            row["regions"] = list(L.PRESETS[p]["regions"])
+            if row["region"] == "intl" and p in INSTALL_INTL:
+                row["install"] = INSTALL_INTL[p]
     else:
         key_env, pkg = KEY_ENV[p], PKG.get(p, "openai")
     has_key = bool(os.environ.get(key_env)) or (p == "gemini" and bool(os.environ.get("GOOGLE_API_KEY")))
@@ -440,13 +517,21 @@ def _local(p, probe=True):
 def status(providers=None, probe=True, deep=False, refresh=False, timeout=PROBE_TIMEOUT):
     """One row per provider (see module doc). ``probe``: the claude-code round-trip; ``deep``: also codex's;
     ``refresh``: ignore the cached known-expired state; ``timeout``: seconds per probe."""
-    out = []
-    for p in providers or ORDER:
-        p = L.canonical(p) or p
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(p):
         try:
-            if p in CLIS and not L.cli_allowed():         # sandboxed host (VSTUDIO_LLM_NO_CLI=1): nothing is run
+            p = L.canonical(p) or p
+        except ValueError:
+            pass
+        out = []
+        try:
+            if (p in CLIS or p in acp.AGENTS) and not L.cli_allowed():   # sandboxed host: nothing is run
+                exe = CLIS[p]["exe"] if p in CLIS else acp.AGENTS[p]["exe"][0]
                 out.append(dict(_base_row(p, "subscription-cli"), state="unavailable", installed=False,
-                                message=msg("auth-unavailable", exe=CLIS[p]["exe"])))
+                                message=msg("auth-unavailable", exe=exe)))
+            elif p in acp.AGENTS:
+                out.append(_agent(p, probe=probe, timeout=timeout))
             elif p == "claude-code":
                 out.append(_claude_code(probe=probe, timeout=timeout, refresh=refresh))
             elif p == "codex":
@@ -457,12 +542,19 @@ def status(providers=None, probe=True, deep=False, refresh=False, timeout=PROBE_
                 out.append(_local(p, probe=probe))
         except Exception as e:  # noqa: BLE001 - one broken provider must not hide the others
             out.append(dict(_base_row(p, "unknown"), message=msg("auth-error", error=str(e)[:200])))
-    return out
+        return out
+
+    # side by side: the claude-code round-trip and each agent's session take seconds; the rows keep their order
+    names_ = list(providers or ORDER)
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(names_)))) as ex:
+        return [r for rows in ex.map(one, names_) for r in rows]
 
 
 def command(provider, action="login", variant=None):
     """{provider, action, command [abs exe, args], display, env_unset, variants} - nothing is run."""
     p = L.canonical(provider)
+    if p in acp.AGENTS:
+        return _agent_command(p, action)
     if p not in CLIS:
         return dict(ok=False, provider=provider, action=action,
                     message=msg("login-unsupported", provider=provider))
@@ -498,6 +590,24 @@ def command(provider, action="login", variant=None):
                 variants=[dict(v, display=" ".join([CLIS[p]["exe"], *v["args"]])) for v in variants],
                 note=None if args else "type /login in the session, then /exit",
                 message=msg("login-command" if action == "login" else "logout-command", display=display))
+
+
+def _agent_command(p, action):
+    spec = acp.AGENTS[p]
+    if not L.cli_allowed():
+        return dict(ok=False, provider=p, action=action, message=msg("auth-unavailable", exe=spec["exe"][0]))
+    if action != "login" or spec.get("wraps"):
+        return dict(ok=False, provider=p, action=action, message=msg("login-unsupported", provider=spec["label"]))
+    exe = acp.find(p)
+    if not exe:
+        return dict(ok=False, provider=p, action=action, install=spec["install"],
+                    message=msg("auth-not-installed", exe=spec["exe"][0]))
+    display = _login_display(p)
+    first_run = not spec["login"]
+    return dict(ok=True, provider=p, action=action, command=[*L.cli_argv(exe), *spec["login"]], display=display,
+                env_unset=list(acp.STRIP_ENV), interactive=True, variants=[],
+                note="sign in when it asks, then /quit" if first_run else None,
+                message=msg("agent-login-first-run" if first_run else "login-command", display=display))
 
 
 def main(argv):
