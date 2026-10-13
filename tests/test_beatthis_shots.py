@@ -212,3 +212,14 @@ def test_reel_scorer_reads_the_shots_decode(cut_clip, cache):
     st, v = sc.pick_window(r, 3.0)
     assert 0 <= st <= 18 and v > 0
     assert json.load(open(next((cache / "sc").glob("scores_*.json"))))["secs"] == r["secs"]
+
+
+def test_aesthetic_model_joins_the_moment_score_when_present(cut_clip, cache, monkeypatch):
+    from vstudio import aesthetic
+    base = {(m["shot"], m["moment"]): m["score"] for m in shots.moments(shots.analyze(cut_clip, backend="adaptive"))}
+    monkeypatch.setattr(shots, "_aesthetic_ok", lambda: True)
+    monkeypatch.setattr(aesthetic, "score", lambda imgs: [7.0] * len(imgs))
+    a = shots.analyze(cut_clip, backend="adaptive")
+    for m in shots.moments(a):
+        assert m["aesthetic"] == 7.0 and m["score"] == round(0.85 * base[(m["shot"], m["moment"])] + 0.15, 3)
+    assert a["best"][0]["score"] == max(m["score"] for m in shots.moments(a))

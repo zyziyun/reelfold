@@ -15,8 +15,8 @@ package): frame-to-frame HSV change over its rolling average, cut at >= 3x and >
 Moments: a shot longer than ~10 s (a drone take, a walk) is split where the view has drifted to something new (colour
 histogram vs the moment's first frame) or every 12 s, so a 2-minute flight becomes a handful of choosable moments.
 Scores (0-1) per moment: sharpness (Laplacian variance), steadiness (gyro-like: high-frequency jitter of the camera
-path from phase correlation, whip pans penalised), exposure (mid-grey, few clipped pixels, stable). There is no
-aesthetic model in the engine yet; when one lands it slots into ``_score``.
+path from phase correlation, whip pans penalised), exposure (mid-grey, few clipped pixels, stable), and - when the
+cover engine's optional LAION aesthetic model is downloaded (``vstudio.aesthetic``) - 15 % aesthetics.
 Decode: frames at <= 30 fps, 320 px on the long side, decoded on the GPU with VideoToolbox + scale_vt for 4K HEVC
 when that ffmpeg has it (software decode otherwise); thumbnails every 0.5 s are kept (JPEG) for the sheets.
 """
@@ -296,13 +296,46 @@ def _best_window(q, a, b, fps, length=BEST_LEN):
     return a + j, a + j + L - 1
 
 
+def _aesthetic_ok():
+    try:
+        from . import aesthetic
+        return aesthetic.available()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _add_aesthetic(shots, allm, S, thumb_dir):
+    """LAION aesthetic v2 (vstudio.aesthetic, the cover engine's optional model) on each moment's best thumbnail:
+    ``aesthetic`` 1-10 on the moment, and 15 % of its score (score = 0.85 x technical + 0.15 x (aes - 4) / 3)."""
+    import cv2
+    from . import aesthetic
+    ms = [(s["i"], m) for s in shots for m in s["moments"]]
+    th = np.asarray(S["thumbs"])
+    imgs = [cv2.imread(os.path.join(thumb_dir, f"t{int(np.argmin(np.abs(th - m['t']))):05d}.jpg")) for _, m in ms]
+    try:
+        sc = iter(aesthetic.score([im for im in imgs if im is not None]))
+    except Exception:  # noqa: BLE001 - a broken model: technical scores only
+        return
+    flat = {}
+    for (si, m), im in zip(ms, imgs):
+        if im is None:
+            continue
+        a = next(sc)
+        m["aesthetic"] = round(a, 2)
+        m["score"] = round(0.85 * m["score"] + 0.15 * float(np.clip((a - 4.0) / 3.0, 0, 1)), 3)
+        flat[(si, m["i"])] = m["score"]
+    for m in allm:
+        m["score"] = flat.get((m["shot"], m["moment"]), m["score"])
+
+
 # ------------------------------------------------------------------ public
 def analyze(src, backend="auto", cache=True, echo=None):
     """Shots + moments + scores of one clip (module doc). Cached in <cache>/shots/<key>.json (+ thumbnails)."""
     import time
     from . import media
     from . import transnet
-    key = _key(src, backend if backend != "auto" else f"auto-{int(transnet.available())}")
+    aes = _aesthetic_ok()
+    key = _key(src, (backend if backend != "auto" else f"auto-{int(transnet.available())}") + f"-a{int(aes)}")
     root = _cache_root()
     jp = os.path.join(root, f"{key}.json")
     if cache and os.path.exists(jp):
@@ -344,6 +377,8 @@ def analyze(src, backend="auto", cache=True, echo=None):
             moms.append(m)
             allm.append(dict(shot=si + 1, moment=mi + 1, start=m["best"][0], end=m["best"][1], score=m["score"]))
         shots.append(dict(i=si + 1, start=round(a / fps, 2), end=round((b + 1) / fps, 2), moments=moms))
+    if aes:
+        _add_aesthetic(shots, allm, S, thumb_dir)
     best = sorted(allm, key=lambda m: -m["score"])[:3]
     # per-second inputs of the vlog reel scorer (vlog/scripts/funvlog/score.py), same definitions: 160-px grey,
     # Laplacian variance, mean grey, mean |diff| vs 0.25 s earlier, sampled 4x a second
