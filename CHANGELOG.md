@@ -19,6 +19,21 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
   can be the AI of a job or a fallback (Claude Code → Qwen Code → a DeepSeek key). New API key: Doubao (Volcengine
   Ark, the same key as Seedance). Qwen, Kimi, GLM and Doubao keys pick their mainland China or international
   endpoint. "Not available in your region" is said plainly and the fallback answers.
+- **Export for editing software**: any clip (or every clip of a project) goes to Premiere Pro / DaVinci Resolve
+  (FCP7 XML), 剪映 / CapCut (a draft that shows on the app's home screen) or OpenTimelineIO, pointing at the clip's
+  own media (or a copy of it next to the timeline): every cut, the speed, the sound level and the music bed come
+  along, captions as a text track (剪映 / CapCut) or an SRT beside the XML; what an editor cannot be told (overlays,
+  title band, transitions) is listed in a README. Media moved later: `output nle-relink` points the timeline at it.
+  The clip's Export card has "Export for editing software…". Ported from OpenFilm (MIT).
+- **Your hand edits survive the AI**: what you change yourself in the clip editor (caption text and style, effects
+  and where they sit, the title, the cover, trim, speed) is kept when the AI edits the clip, when you ask the whole
+  project something and when the video is made again (Redo the visuals, a re-run): the AI is told about them and
+  leaves them unless you point at or name that part, and each has "Reset to AI version" in the clip's history.
+- **The look check for HTML-made scenes**: explainer scenes (also after Redo the visuals), launch-kit films and any
+  HyperFrames project are drawn twice at sampled times in two shuffled orders and compared (a picture that changes is
+  not seek-safe), and checked for fonts that did not load, text cut off or in the caption band, and sounds that are
+  missing; a scene that fails is redrawn by the AI with the findings, and `python -m vstudio.look DIR` (or
+  `vstudio.firstpass --hf DIR`) gives the findings with a contact sheet. After OpenFilm's `look`.
 - **The editor brain**: each project says how it is cut and why ("Cut as Calm travel film: drone footage, no
   talking, evening light"), from the footage and your words, and you can change it. A shot plan shows what each
   shot gets (hold, cut or dissolve, slow motion only where it stays smooth, follow the subject for vertical) with the
