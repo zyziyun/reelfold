@@ -10,6 +10,14 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **A length per platform**: each platform's version of a video now has its own length, from that platform's habits
+  for the kind of video (one editable file per platform in `references/platforms/`): a long cut with chapters for
+  YouTube and Bilibili (minutes, when the footage carries it), a short cut for Shorts, TikTok, Xiaohongshu,
+  Instagram and LinkedIn. Both cuts are made from the same project, each drafted and rendered for its own length.
+  The "Several videos" plan card shows and edits the length per platform and how much the footage can carry
+  ("about 4 min possible"). Settings › Publishing › Video length sets your own shortest and longest per platform.
+  An AI script much shorter than its target is extended (verified facts only, up to two rounds) and says so when it
+  stays short; a beat-cut reel is never under 20 s.
 - **Pick the AI for each request**: the composer (Home, the Studio, "Several videos") has an AI chip next to the
   platforms. It shows your default ("Claude Code · Opus 5.5"); pick another ready AI and model for this request
   only. The project keeps it, and every AI step of that project uses it, falling back along your fallback order.

@@ -190,7 +190,14 @@ def script_format_ok(path):
 
 
 def target_minutes(params, request=""):
-    """How long the episode should be: "N 分钟" / "N minutes" in the request, else short (1.5) / long (7)."""
+    """How long the episode should be: the item's ``length_s`` (a platform cut), "N 分钟" / "N minutes" in the request,
+    else short (1.5) / long (7)."""
+    try:
+        own = float((params or {}).get("length_s") or 0)
+    except (TypeError, ValueError):
+        own = 0.0
+    if own >= 10:
+        return max(0.2, min(30.0, own / 60.0))
     m = re.search(r"(\d+(?:\.\d+)?)\s*(?:[-–~到至]\s*(\d+(?:\.\d+)?))?\s*(?:分钟|min)", request or "")
     if m:
         lo = float(m.group(1))
@@ -289,13 +296,16 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
         + ("Narrate in Chinese (中文讲解): the indented block is Chinese, English terms stay English, numbers as digits; "
            "no ZH: line." if zh_voice else
            "Narrate in English with a ZH: subtitle line per scene (the Chinese version shows the Chinese subtitles; "
-           "no Chinese voice is used)." if zh else "Narrate in English with a ZH: subtitle line per scene."))
+           "no Chinese voice is used)." if zh else "Narrate in English with a ZH: subtitle line per scene.")
+        + (" " + _cut_note(ctx.params) if _cut_note(ctx.params) else ""))
     rec = None
     try:
         rec = DR.generic(ctx, cp, path, template=template, instruction=want, complete=complete)
     except Exception:  # noqa: BLE001  (no model / a reply that failed: the rules below still write a script)
         rec = None
     if rec and script_format_ok(path):
+        if not instruction:                      # much shorter than its target: the AI extends it (verified facts)
+            rec = _top_up(ctx, cp, path, template, rec, minutes, complete)
         return _with_voice_note(fact_check(ctx, path, rec, complete), note, ctx.lang())
     texts = []
     for v in ctx.inputs.values():
@@ -309,6 +319,50 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
         f.write(notes_to_script("\n\n".join(texts), "zh" if zh else "en", minutes,
                                 str(ctx.params.get("title") or "")))
     return dict(by="rules", instruction=None, review=DR.outline_review(path, None))
+
+
+def _cut_note(params):
+    from vstudio import platform_habits as H
+    return H.cut_note(params)
+
+
+def _top_up(ctx, cp, path, template, rec, minutes, complete=None):
+    """An AI script more than 15 % under its target length is extended by the AI (vstudio.topup: up to two rounds,
+    more scenes, verified facts only - fact_check runs after); the record carries ``length`` and the review says it."""
+    from vstudio import topup as TU
+    from .. import drafts as DR
+    with open(path, encoding="utf-8") as f:
+        first = f.read()
+
+    def measure(text):
+        tmp = path + ".measure"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        try:
+            return spoken_minutes(tmp)[0] * 60.0
+        finally:
+            os.remove(tmp)
+
+    def redraft(cur, est, k):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(cur)
+        try:
+            DR.generic(ctx, cp, path, template=template, instruction=TU.ask(est, minutes * 60.0), complete=complete)
+        except Exception:  # noqa: BLE001  (a failed extension keeps the draft we have)
+            return None
+        with open(path, encoding="utf-8") as f:
+            new = f.read()
+        return new if script_format_ok_text(new) and new != cur else None
+    best, length = TU.extend(first, minutes * 60.0, measure, redraft)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(best)
+    if length:
+        rec["length"] = length
+        line = TU.note(length, ctx.lang())
+        rv = rec.get("review") if isinstance(rec.get("review"), dict) else None
+        if line and rv is not None:
+            rv["lines"] = [dict(code="draft.line", params=dict(label=line))] + list(rv.get("lines") or [])
+    return rec
 
 
 def fact_check(ctx, path, rec, complete=None):

@@ -19,8 +19,15 @@ def _edit(env):
 
 def render(env):
     path, cfg = _edit(env)
-    argv = [env.fmt("{python}"), os.path.join(env.workflow_dir, "scripts", "build_vlog.py"), path]
     plats = env.params.get("platforms") or []
+    res = _render_once(env, path, cfg, plats)
+    if cfg.get("style") == "fun":                 # a beat short never ships under its minimum: one re-cut, longer
+        res = _reel_minimum(env, path, res, plats)
+    return res
+
+
+def _render_once(env, path, cfg, plats):
+    argv = [env.fmt("{python}"), os.path.join(env.workflow_dir, "scripts", "build_vlog.py"), path]
     if plats:
         argv += ["--platform", plats[0]]
     if cfg.get("style") == "fun":
@@ -42,6 +49,113 @@ def render(env):
     if os.path.exists(shots) and os.path.getmtime(shots) >= os.path.getmtime(master) - 5:
         res["shots"] = shots                          # the crossfades, for the export's subject reframe
     return res
+
+
+def reel_min_s(platforms):
+    """The shortest a beat short may be: REEL_MIN_S (20 s, vstudio.platform_habits), lowered only where a platform's
+    hard maximum is shorter than that."""
+    from vstudio import platform as P
+    from vstudio import platform_habits as H
+    lo = H.REEL_MIN_S
+    for p in platforms or []:
+        hard = (P.PLATFORMS.get(P.canonical(str(p).split(":")[0])) or {}).get("length") or {}
+        if hard.get("max"):
+            lo = min(lo, float(hard["max"]))
+    return lo
+
+
+def _reel_minimum(env, path, res, plats):
+    """A rendered reel shorter than its minimum is re-cut once with more moments / longer holds (``pad_shots``) and
+    rendered again; the result records it (``recut``). Still short after that: ``short`` says so (never silent)."""
+    want = reel_min_s(plats)
+    try:
+        got = _duration(res["master"])
+    except Exception:  # noqa: BLE001  (no probe: nothing to measure)
+        return res
+    if got >= want - 0.5:
+        return res
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    period = 60.0 / FUN_BPM
+    rep = os.path.splitext(res["master"])[0] + ".report.json"
+    try:
+        with open(rep, encoding="utf-8") as f:
+            period = float(json.load(f).get("period") or period)
+    except (OSError, ValueError, TypeError):
+        pass
+    base = os.path.realpath(os.path.dirname(os.path.abspath(path)))
+    durs = {}
+    for k, p in _clip_paths(cfg, base).items():
+        try:
+            durs[k] = _duration(p)
+        except Exception:  # noqa: BLE001
+            continue
+    need = int(-(-(want - got) // period)) + 2
+    cfg["shots"] = pad_shots(cfg.get("shots") or [], need, {k: dict(dur=d) for k, d in durs.items()})
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    res2 = _render_once(env, path, cfg, plats)
+    try:
+        final = _duration(res2["master"])
+    except Exception:  # noqa: BLE001
+        final = None
+    res2["recut"] = dict(first_s=round(got, 1), final_s=round(final, 1) if final else None, min_s=want,
+                         added_beats=need)
+    if final is not None and final < want - 0.5:
+        res2["short"] = dict(seconds=round(final, 1), min_s=want)
+    return res2
+
+
+def pad_shots(shots, need_beats, by_id):
+    """``need_beats`` more beats for a reel's body: first more moments - a clip's next best moment
+    (``by_id[clip]["moments"]``, vstudio.shots) or a fresh window of it at least 2 s from the ones used - added after
+    the last shot, 2 beats each; when the clips have no fresh window left, the shots hold longer (1 -> 2, 2 -> 4).
+    ``by_id``: {clip id: {dur, moments?}}."""
+    out = [dict(s) for s in shots]
+    left = int(need_beats)
+    used = {}
+    for s in out:
+        used.setdefault(s.get("clip"), []).append(float(s.get("start") or 0))
+
+    def fresh(cid):
+        d = float(by_id[cid].get("dur") or 0)
+        taken = used.setdefault(cid, [])
+        far = lambda t: all(abs(t - u) >= 2.0 for u in taken)  # noqa: E731
+        ms = sorted(by_id[cid].get("moments") or [], key=lambda m: -float(m.get("score") or 0))
+        for m in ms:
+            t = float((m.get("best") or [m.get("start") or 0])[0])
+            if t < d - 1.2 and far(t):
+                return round(t, 2)
+        t = 0.5
+        while t < d - 1.2:
+            if far(t):
+                return round(t, 2)
+            t += 1.0
+        return None
+    ids = [k for k in by_id if float(by_id[k].get("dur") or 0) > 1.7]
+    added = True
+    while left > 0 and added:
+        added = False
+        for cid in ids:
+            if left <= 0:
+                break
+            st = fresh(cid)
+            if st is None:
+                continue
+            used[cid].append(st)
+            out.append(dict(clip=cid, start=st, beats=2))
+            left -= 2
+            added = True
+    while left > 0 and any(int(s.get("beats") or 2) < 4 for s in out):
+        for s in out:
+            if left <= 0:
+                break
+            b = int(s.get("beats") or 2)
+            if b < 4:
+                s["beats"] = 2 if b == 1 else 4
+                left -= s["beats"] - b
+    return out
 
 
 # --------------------------------------------------------------------------- the music pick
@@ -645,6 +759,20 @@ def edit_unfinished(path):
         return False
 
 
+def _cut_note(params):
+    from vstudio import platform_habits as H
+    return H.cut_note(params)
+
+
+def length_target(params, request, default):
+    """The item's own ``length_s`` (a platform cut: vstudio.intake.plan.split_by_cut) else the request's words."""
+    try:
+        n = float((params or {}).get("length_s") or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    return n if n >= 3 else target_seconds(request, default)
+
+
 def target_seconds(text, default):
     """'a 75-second vlog' / '2-minute' / '45 秒' -> seconds, else ``default``."""
     t = str(text or "")
@@ -705,7 +833,9 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         return None
     fun = cfg.get("style") == "fun"
     request = ctx.request()
-    target = target_seconds(request, 30 if fun else 60)
+    target = length_target(ctx.params, request, 30 if fun else 60)
+    if fun:                                     # a beat short: never under its minimum (20 s where allowed)
+        target = max(target, reel_min_s(ctx.params.get("platforms") or [cfg.get("platform") or ""]))
     text, images, facts = footage.context(list(clips.values()), os.path.join(base, "draft_sheets"),
                                           ids=list(clips), echo=None)
     by_id = {f["id"]: f for f in facts}
@@ -759,6 +889,7 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
     body = "\n\n".join(x for x in [
         f"Request: {request or '(none)'}",
         f"Platform canvas: {plat or 'unknown'}",
+        _cut_note(ctx.params),
         f"On-screen words in: {'Chinese' if words == 'zh' else 'English'}",
         rules,
         "Clips (id: facts; the contact sheet of each clip is attached, tiles labelled with clip seconds). "
@@ -809,6 +940,9 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         picks = BST.annotate(picks, doc, clips, fun)
     if fun and picks:
         picks = fit_beats(picks, fun_body_beats(target, bpm))
+        short = fun_body_beats(target, bpm) - sum(int(x.get("beats") or 2) for x in picks)
+        if short > 1:                           # the model gave too few beats for the length: more moments / holds
+            picks = pad_shots(picks, short, by_id)
     rules = not picks
     if rules:                                   # no model (or nothing usable): spread the length over the clips
         picks = brain_picks or rules_windows(by_id, list(clips), target * (1 if fun else calm_speed(cfg)), fun)

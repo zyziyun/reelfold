@@ -13,6 +13,7 @@ import re
 import subprocess
 
 from vstudio import factguard as FG
+from vstudio import topup as TU
 
 from .. import drafts as DR
 from .. import manifests as M
@@ -68,9 +69,36 @@ def _frame(src, t, out):
     return os.path.exists(out)
 
 
-def _target(request):
-    from .vlog import target_seconds
-    return target_seconds(request, 75)
+def _target(request, params=None):
+    from .vlog import length_target
+    return length_target(params, request, 75)
+
+
+ZH_CPS = 4.3                 # 中文 narration characters per second (the GUIDE's own rate)
+EN_WPS = 2.6                 # English words per second
+
+
+def spec_seconds(text, narrate="en"):
+    """Seconds of narration a spec's SCRIPT cues make (``narrate`` "zh": the 中文 of each cue, else the English)."""
+    v = _spec_value(text, "SCRIPT")
+    if not isinstance(v, (list, tuple)):
+        return 0.0
+    en, zh = [], []
+    for unit in v:
+        try:
+            for e, z in unit[1]:
+                en.append(str(e))
+                zh.append(str(z))
+        except (TypeError, ValueError, IndexError):
+            continue
+    if narrate == "zh":
+        return sum(len(re.findall(r"[\u4e00-\u9fff]", z)) for z in zh) / ZH_CPS
+    return sum(len(re.findall(r"[A-Za-z0-9']+", e)) for e in en) / EN_WPS
+
+
+def _cut_note(params):
+    from vstudio import platform_habits as H
+    return H.cut_note(params)
 
 
 def _wants_music(request):
@@ -115,7 +143,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     ids = [os.path.splitext(os.path.basename(p))[0] for p in vids]
     ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids) if vids else ("", [], [])
     by_id = {f["id"]: f for f in facts}
-    target = _target(request)
+    target = _target(request, ctx.params)
     plats = list(ctx.params.get("platforms") or [])
     lang_zh = narration_is_chinese(request, (ctx.data or {}).get("name"), ctx.params.get("title"),
                                    ctx.params.get("language"), ctx.item, plats)
@@ -158,6 +186,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         ("Footage (clip id: facts; one contact sheet per clip is attached, tiles labelled with the clip's "
          f"seconds). {footage.MOMENTS_NOTE}\n{ftext}") if ftext else "",
         guide,
+        _cut_note(ctx.params),
         f"Current spec (change only what the instruction asks):\n{cur}" if cur else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
         f"Template (structure only):\n{tpl}" if tpl else "",
@@ -183,6 +212,28 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
             r, js, text = r2, dict(js, **js2), js2["content"]
     if not isinstance(text, str) or not DR.data_module_ok(text) or "SYNTHETIC" in text[:600]:
         return None
+    length = None
+    if vp.get("narrate") in ("zh", "en") and not instruction:
+        # an AI script much shorter than its target (120 -> 80 s) is extended (up to two rounds), never shipped
+        # silently short; the fact guard below checks what was added
+        extra = {}
+
+        def redraft(cur_text, est, k):
+            r3 = complete("planner", SYSTEM, body + f"\n\nYour current spec:\n{cur_text}\n\n" +
+                          TU.ask(est, target), schema=True, max_tokens=16000, timeout=limit, cli_timeout=limit,
+                          retries=1, effort="medium")
+            j3 = r3.get("json") if isinstance(r3, dict) and isinstance(r3.get("json"), dict) else {}
+            c3 = j3.get("content")
+            if isinstance(c3, str) and DR.data_module_ok(c3) and "SYNTHETIC" not in c3[:600]:
+                extra[c3] = j3
+                return c3
+            return None
+        new, length = TU.extend(text, target, lambda t: spec_seconds(t, vp["narrate"]), redraft)
+        if new is not text and new in extra:
+            frames = list(js.get("frames") or []) + list(extra[new].get("frames") or [])
+            js = dict(js, **extra[new])
+            js["frames"] = frames
+            text = new
     cut, made = 0, []
     for fr in _frames_asked(js, text):
         cid = _clip_id(fr.get("clip"), by_id)
@@ -226,13 +277,16 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         summ = f"{summ} {note}".strip()
     if facts_note:                           # what the fact check softened / dropped, and where facts.md is
         summ = f"{summ} {facts_note}".strip()
+    len_note = TU.note(length, ctx.lang())
+    if len_note:                             # extended, or still short: said, never silent
+        summ = f"{summ} {len_note}.".strip()
     rv = DR.outline_review(path, None)
     if summ:
         rv["summary"] = dict(code="draft.generic", params=dict(text=summ))
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
                 language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"),
-                brain=len(steered), facts=fact_rec)
+                brain=len(steered), facts=fact_rec, length=length)
 
 
 _AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")
