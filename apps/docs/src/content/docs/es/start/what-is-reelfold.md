@@ -1,9 +1,9 @@
 ---
 title: Qué es Reelfold
-description: "Reelfold (千剪) es el taller de código abierto para creadores y docentes: crea, edita y publica videos para cada plataforma, cientos a la vez, en tu Mac. Así funciona."
+description: "Reelfold (千剪) es el taller de código abierto para creadores: una frase convierte tu material en una serie de videos listos para publicar en cada plataforma, en inglés y en chino, en tu Mac."
 ---
 
-Reelfold (千剪) es el taller de código abierto para creadores y docentes: una sola app para crear videos, editar tu propio material y publicar en cada plataforma. Describes lo que quieres con tus propias palabras y empiezas con lo que tengas: una grabación, una clase grabada, una carpeta o una tarjeta SD, un video terminado que quieras seguir editando, o solo notas y un tema. Reelfold planifica los videos, hace cientos de una vez en tu propio Mac (en piloto automático, de pocos en pocos, con modelos locales si quieres), revisa cada archivo y solo te muestra lo que necesita tu atención. Cada plataforma recibe su propia exportación, portada, título, descripción y etiquetas, primero YouTube, TikTok, Instagram, X y LinkedIn, luego Xiaohongshu, Douyin, Bilibili y WeChat Channels, y el calendario de publicación ordena la semana.
+Reelfold (千剪) es el taller de código abierto para creadores y docentes: una frase convierte tu material en una serie de videos listos para publicar en cada plataforma, en inglés y en chino. Código abierto, gratis y todo en tu Mac. Describes lo que quieres con tus propias palabras y empiezas con lo que tengas: una carpeta o una tarjeta SD, una grabación, una clase grabada, un video terminado que quieras seguir editando, o solo notas y un tema. Reelfold planifica los videos (pide «unos 12» y planifica una serie de ese tamaño, cada uno con su enfoque), los hace en piloto automático en tu propio Mac, de pocos en pocos, hace las portadas, revisa cada archivo y solo te muestra lo que necesita tu atención. Cada plataforma recibe su versión: su duración, su idioma, sus subtítulos, su portada, su título y sus etiquetas. Primero YouTube, TikTok, Instagram, X y LinkedIn, luego Xiaohongshu, Douyin, Bilibili y WeChat Channels; el calendario de publicación ordena la semana.
 
 Es gratis, tiene licencia MIT y es de código abierto. El código está en [github.com/zyziyun/reelfold](https://github.com/zyziyun/reelfold).
 
@@ -23,7 +23,7 @@ Las dos versiones usan el mismo motor, así que una receta que funciona en una t
 |---|---|---|
 | Qué es | Una app de escritorio (`apps/desk`, Electron) | El motor como skill para [Claude Code](https://claude.com/claude-code) (la raíz del repositorio) |
 | Cómo le hablas | Una frase en **Home** y después un chat en cada proyecto y cada clip | Con lenguaje natural, a Claude, en tu terminal |
-| Ideal para | Lotes en piloto automático, cientos de videos en una sola lista, publicación asistida | Trabajar dentro de una carpeta, automatizar con scripts, ediciones puntuales |
+| Ideal para | Lotes en piloto automático, cientos de videos en una sola lista, publicación desde un calendario | Trabajar dentro de una carpeta, automatizar con scripts, ediciones puntuales |
 | Plataforma | macOS en Apple Silicon (Windows x64 en versión preliminar) | Donde funcionen Claude Code, Python 3.10+ y ffmpeg |
 | Instalación | [Instala la app para Mac](/docs/es/start/install-mac/) | [Instala el skill](/docs/es/start/install-skill/) |
 
@@ -35,7 +35,7 @@ En el skill, `SKILL.md` dirige cada petición a un workflow (`workflows/<name>/W
 2. **Planifica.** Reelfold analiza el material y hace un plan: qué workflow, cuántos clips, qué plataformas, cuánto tardará y cuánto puede costar.
 3. **Produce.** Las ediciones se hacen en tu Mac. Con **Autopilot** (el modo por defecto), la IA toma las decisiones de cada día (muletillas dudosas, arranque, portada, música) y anota cada una con su motivo, para que puedas cambiarla después. Con **Ask me first**, confirmas el plan y revisas un clip piloto antes de producir el resto. Puedes seguirlo en la [página de ejecución en vivo](/docs/es/app/live-run/).
 4. **Revisa.** Cada archivo pasa controles automáticos (palabras perdidas, fotogramas congelados, volumen, duración). Solo llegan a tu **Inbox** los bloqueos reales y los clips marcados. Cualquier clip terminado se puede cambiar con tus palabras.
-5. **Publica.** La publicación es asistida. La app para Mac abre la página de subida de cada plataforma en su navegador integrado y rellena el archivo y el texto. Tú pulsas publicar. Reelfold nunca publica por su cuenta.
+5. **Publica.** YouTube va por su API oficial (Data API): inicias sesión con Google en tu propio navegador, y Publicar o Programar sube el video, la portada y el texto. Para las demás plataformas, la app para Mac abre la página de subida en su navegador integrado y rellena el archivo y el texto, y tú pulsas publicar. No se publica nada hasta que pulsas Publicar o Programar (o activas tú la publicación automática de los videos programados).
 
 Más sobre cada paso: [Home](/docs/es/app/home/), [Autopilot y Ask me first](/docs/es/app/autopilot/), [Lotes y revisión](/docs/es/concepts/batch-review/), [Publicación](/docs/es/concepts/publishing/).
 
@@ -49,9 +49,9 @@ Más sobre cada paso: [Home](/docs/es/app/home/), [Autopilot y Ask me first](/do
 
 ## Qué se ejecuta en tu Mac
 
-La transcripción, los cortes, los efectos, el renderizado y los controles de calidad se ejecutan en local. La IA la pones tú: tu Claude Code o Codex CLI con sesión iniciada (sin clave de API), una clave de API (Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs) o un modelo local (Ollama, LM Studio, vLLM, llama.cpp, whisper local).
+La transcripción, los cortes, los efectos, el renderizado y los controles de calidad se ejecutan en local, igual que las voces gratis: Kokoro para inglés y Qwen3-TTS para chino (Apple Silicon). La IA la pones tú: tu Claude Code o Codex CLI con sesión iniciada (sin clave de API), otro agente de código por ACP (Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI), una clave de API (Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini, ElevenLabs; Qwen, Kimi, GLM y Doubao con su punto de acceso de China continental o internacional) o un modelo local (Ollama, LM Studio, vLLM, llama.cpp, whisper local). La IA y el modelo se eligen por petición, por proyecto o en el chat (`/model`).
 
-Cuando se usa un modelo de IA, solo recibe texto (transcripción, subtítulos y títulos), nunca tu video ni tu audio. En una prueba interna, una clase de 72 minutos se convirtió en 24 clips para 4 plataformas (96 archivos) por 0,73 USD en costo de API, unos 0,03 USD por clip. Consulta [Proveedores de IA](/docs/es/concepts/ai-providers/) y [Privacidad](/docs/es/concepts/privacy/).
+Cuando se usa un modelo de IA, recibe texto (transcripción, subtítulos y títulos) y, en algunos pasos, hojas de fotogramas fijos; nunca tus archivos de video ni de audio. En una prueba interna, una clase de 72 minutos se convirtió en 24 clips para 4 plataformas (96 archivos) por 0,73 USD en costo de API, unos 0,03 USD por clip. Consulta [Proveedores de IA](/docs/es/concepts/ai-providers/) y [Privacidad](/docs/es/concepts/privacy/).
 
 ## Antes video-studio y Daycut
 

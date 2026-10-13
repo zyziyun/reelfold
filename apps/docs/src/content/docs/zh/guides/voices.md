@@ -1,6 +1,6 @@
 ---
 title: 配音
-description: 千剪怎样选配音（你在 persona 里设的、有密钥时的 OpenAI，或 Apple 芯片上免费离线的 Kokoro），中文讲解里的英文术语怎么读，以及生僻词的小技巧。
+description: 千剪怎样选配音（你在 persona 里设的、有密钥时的 OpenAI，或 Apple 芯片上免费离线的声音：英文用 Kokoro，中文用 Qwen3-TTS），中文讲解里的英文术语怎么读，以及生僻词的小技巧。
 ---
 
 讲解视频、课程视频和 AI 短剧都需要配音。千剪会选一个这台电脑真正能用的声音，不会因为付费配音没有密钥就停下。
@@ -11,19 +11,38 @@ description: 千剪怎样选配音（你在 persona 里设的、有密钥时的 
 
 1. **你在 persona 里设的声音**（`persona.local.yaml` 里的 `tts.engine`，比如你自己的克隆声音）。
 2. **OpenAI**（`gpt-4o-mini-tts`），只在设置 › AI 里有 OpenAI 密钥时才用。每分钟配音约 0.015 美元。
-3. **免费配音**：Kokoro，在这台 Mac 上离线运行（Apple 芯片）。中文讲解用 `zf_xiaobei`；英文用 `af_heart`，也可以换成 `am_michael` 或 `bf_emma`。
+3. **免费配音**，在这台 Mac 上离线运行（Apple 芯片）。英文用 Kokoro（`af_heart`，也可以换成 `am_michael` 或 `bf_emma`）。中文在你下载 Qwen3-TTS 之后用它（见下）。
 
 自动驾驶时，设成 OpenAI 却没有密钥的项目会改用免费配音，并在 [AI 做的选择](/docs/zh/app/autopilot/#ai-做的选择)里写明。选了**先问我**时会问你：**用免费配音**，还是**添加 OpenAI 密钥**。连免费配音也没有时，就请你添加密钥。
 
 ## 下载免费配音
 
-免费配音只需下载一次，大约 330 MB。第一次有视频要用它时会开始下载，也可以在设置 › 高级 › **下载内容**里手动下载。下载完成之前，配音这一步会提示「这台电脑上还没有下载免费配音。」，并给出**下载免费配音**；下载完点**再试一次**。
+免费的英文配音（Kokoro）只需下载一次，大约 330 MB。第一次有视频要用它时会开始下载，也可以在设置 › 高级 › **下载内容**里手动下载。下载完成之前，配音这一步会提示「这台电脑上还没有下载免费配音。」，并给出**下载免费配音**；下载完点**再试一次**。
 
-它离线可用，Mac App Store 版也能用。Intel Mac 和 Windows 没有免费配音，那里的配音需要 OpenAI 密钥（或你在 persona 里设的其他声音）。
+免费配音离线可用，Mac App Store 版也能用。Intel Mac 和 Windows 没有免费配音，那里的配音需要 OpenAI 密钥（或你在 persona 里设的其他声音）。
+
+## 免费的中文配音
+
+中文版由 Qwen3-TTS（Apache-2.0）配音。它是可选的一次性下载，约 3 GB，在设置 › **配音** › **中文配音**里。声调准确，英文术语也读得自然。那里有五个声音可选，下载前都可以先试听：
+
+| 声音 | 听感 |
+|---|---|
+| Serena | 温柔沉稳（默认） |
+| Vivian | 明亮年轻 |
+| 傅叔 | 成熟低沉的男声 |
+| Dylan | 男声，北京口音 |
+| Eric | 男声，四川口音 |
+
+下载之后，所有中文版都由它配音。在那之前：
+
+- 中文版用**英文旁白 + 中文字幕**。你要中文版时，计划卡片会说明这一点，并给出**下载中文配音**；下载完成之后写的版本会用中文配音。
+- 旧的内置普通话声音（Kokoro，`zf_xiaobei`）听起来比较机械，默认关闭。想在下载 Qwen3-TTS 之前先用它，在设置 › 配音里打开**在那之前先用内置的中文声音**。有了 Qwen3-TTS 之后，总是用 Qwen3-TTS。
+
+添加了 OpenAI 密钥时，旁白会改用 OpenAI 的声音，中文也一样。
 
 ## 中文讲解里的英文术语
 
-中文课程里到处是英文术语：MCP、API、Tool Calling、USB-C。免费的中文配音会把中文读成中文，把每一段英文读成英文：
+中文课程里到处是英文术语：MCP、API、Tool Calling、USB-C。Qwen3-TTS 自己就能读好它们，不需要词典。如果你打开了旧的内置普通话声音（Kokoro），它会把中文读成中文，把每一段英文读成英文：
 
 - **全大写的缩写**按字母读：「MCP」读作 M-C-P。
 - **认识的单词**按单词读：「Tool Calling」「server」。
@@ -53,10 +72,11 @@ description: 千剪怎样选配音（你在 persona 里设的、有密钥时的 
 ```yaml
 # persona.local.yaml
 tts:
-  engine: kokoro        # 或 openai、clone、edge、openai-compatible、elevenlabs
+  engine: kokoro        # 或 qwen、openai、clone、edge、openai-compatible、elevenlabs
+  zh_local: true        # 可选：下载 Qwen3-TTS 之前先用 Kokoro 的普通话声音
 ```
 
-`tts_engine: auto`（默认）和应用的顺序一样。你自己的克隆声音（`tts.clone`，Apple 芯片上的 Qwen3-TTS）也能在中文里读英文术语。引擎细节见 [声音](/docs/zh/reference/engine/sound/)。
+`tts_engine: auto`（默认）和应用的顺序一样；免费配音遇到中文句子时，装好了 Qwen3-TTS 就交给它。你自己的克隆声音（`tts.clone`，Apple 芯片上的 Qwen3-TTS）也能在中文里读英文术语。引擎细节见 [声音](/docs/zh/reference/engine/sound/)。
 
 ## 相关页面
 

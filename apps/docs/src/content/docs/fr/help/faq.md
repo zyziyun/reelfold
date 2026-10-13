@@ -13,18 +13,19 @@ Oui. L’app Mac (Apple Silicon) est sur [GitHub Releases](https://github.com/zy
 
 ## Est-ce qu’il publie à ma place ?
 
-Non. La publication est assistée : l’app ouvre la page de mise en ligne de la plateforme dans son navigateur intégré, y place la vidéo et saisit le titre, le texte et les hashtags. Vous vérifiez, puis vous cliquez vous-même sur publier. L’app ne clique jamais sur publier. Seule exception : une plateforme dont vous connectez vous-même l’API officielle de publication (YouTube aujourd’hui). Voir [Publication](/docs/fr/concepts/publishing/).
+Seulement si vous le lui demandez. YouTube passe par son API officielle (Data API) : vous vous connectez avec Google dans votre propre navigateur, et Publier ou Programmer met en ligne la vidéo, la couverture et le texte (une publication programmée part en privé et YouTube la publie à l’heure prévue). Pour les autres plateformes, la publication est assistée : l’app ouvre la page de mise en ligne dans son navigateur intégré, y place la vidéo et saisit le titre, le texte et les hashtags ; vous vérifiez, puis vous cliquez vous-même sur publier. Les vidéos programmées ne partent seules que si vous activez « Publier automatiquement les vidéos programmées ». Voir [Publication](/docs/fr/concepts/publishing/).
 
 ## Qu’est-ce qui quitte mon Mac ?
 
-Votre vidéo et votre audio restent sur votre Mac : la transcription et le rendu tournent en local. Seul ce dont une étape d’IA a besoin part chez le fournisseur que vous avez choisi : du texte uniquement, comme la transcription, les sous-titres et les titres. Avec un modèle local, rien ne sort. Deux exceptions, que vous activez vous-même : le moteur de transcription OpenAI envoie l’audio, et la narration OpenAI envoie le texte du script (la voix gratuite Kokoro tourne sur votre Mac). Voir [Confidentialité](/docs/fr/concepts/privacy/).
+Votre vidéo et votre audio restent sur votre Mac : la transcription et le rendu tournent en local. Seul ce dont une étape d’IA a besoin part chez le fournisseur que vous avez choisi : du texte, comme la transcription, les sous-titres et les titres, et pour certaines étapes des planches d’images fixes. Avec un modèle local, rien ne sort. Deux exceptions, que vous activez vous-même : le moteur de transcription OpenAI envoie l’audio, et la narration OpenAI envoie le texte du script (les voix gratuites Kokoro et Qwen3-TTS tournent sur votre Mac). Voir [Confidentialité](/docs/fr/concepts/privacy/).
 
 ## De quelle IA ai-je besoin ?
 
 De l’une de celles-ci, tâche par tâche :
 
 - Votre **Claude Code** ou **Codex** CLI déjà connecté (sans clé d’API).
-- Une **clé d’API** : Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs.
+- Un autre **agent de code** installé et connecté, piloté via ACP : Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI.
+- Une **clé d’API** : Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini, ElevenLabs. Les clés Qwen, Kimi, GLM et Doubao utilisent leur point d’accès Chine continentale ou international.
 - Un **modèle local** : Ollama, LM Studio, vLLM, llama.cpp, whisper en local.
 
 Sans aucune IA, la planification des segments se rabat sur un planificateur à base de règles. Voir [Fournisseurs d’IA](/docs/fr/concepts/ai-providers/).
@@ -42,7 +43,9 @@ Ce sont de bons outils, avec une autre vocation. Opus Clip est un service en lig
 - **Un enregistrement, toutes les plateformes.** Format, sous-titres, volume sonore, couverture et texte adaptés à chacune des 20 plateformes.
 - **Votre propre IA**, ou aucune.
 - **Open source** (MIT) : vous pouvez lire le code, le modifier et l’étendre.
-- **Une publication assistée** qui vous laisse le dernier clic.
+- **L’anglais et le chinois depuis une même source.** Les versions YouTube et TikTok en anglais, Xiaohongshu et Bilibili en chinois.
+- **Compatible avec votre logiciel de montage.** Chaque clip s’exporte vers Premiere Pro, DaVinci Resolve, CapCut ou OpenTimelineIO.
+- **Une publication que vous gardez en main :** YouTube par son API officielle, les pages de mise en ligne remplies pour les autres, rien ne part sans votre clic sur Publier ou Programmer.
 
 ## Quelles langues sont prises en charge ?
 

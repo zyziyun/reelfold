@@ -13,18 +13,19 @@ Yes. The Mac app (Apple Silicon) is on [GitHub Releases](https://github.com/zyzi
 
 ## Does it post for me?
 
-No. Publishing is assisted: the app opens the platform's own upload page in its built-in browser, sets the video and types the title, text and tags. You check it and press publish yourself. The app never clicks publish. The one exception is a platform whose official posting API you connect yourself (YouTube today). See [Publishing](/docs/concepts/publishing/).
+Only when you tell it to. YouTube goes through its official Data API: you sign in with Google in your own browser, and Publish or Schedule uploads the video, cover and copy (a scheduled post goes up private and YouTube publishes it at its time). For every other platform publishing is assisted: the app opens the platform's own upload page in its built-in browser, sets the video and types the title, text and tags, and you check it and press publish yourself. Scheduled posts go out on their own only if you turn on automatic posting. See [Publishing](/docs/concepts/publishing/).
 
 ## What leaves my Mac?
 
-Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles. With a local model, nothing leaves at all. Two exceptions you opt into: the OpenAI transcription backend sends audio, and OpenAI narration sends the script text (the free Kokoro voice runs on your Mac). The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
+Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles, and for some steps contact sheets of still frames. With a local model, nothing leaves at all. Two exceptions you opt into: the OpenAI transcription backend sends audio, and OpenAI narration sends the script text (the free Kokoro and Qwen3-TTS voices run on your Mac). The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
 
 ## Which AI do I need?
 
 Any of these, per task:
 
 - Your own logged-in **Claude Code** or **Codex** CLI (no API key).
-- An **API key**: Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs.
+- Another **coding agent** you installed and signed in to, driven over ACP: Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI.
+- An **API key**: Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini, ElevenLabs. Qwen, Kimi, GLM and Doubao keys use their mainland China or international endpoint.
 - A **local model**: Ollama, LM Studio, vLLM, llama.cpp, local whisper.
 
 Without any AI, planning, post copy and simple edits fall back to rules. Drawing an explainer's scenes needs a model. See [AI providers](/docs/concepts/ai-providers/).
@@ -42,7 +43,9 @@ They are good tools with a different focus. Opus Clip is a hosted service for fi
 - **One recording, every platform.** Per-platform canvas, captions, loudness, cover and copy for 20 platforms.
 - **Bring your own AI**, including none.
 - **Open source** (MIT), so you can read, change and extend it.
-- **Assisted publishing** that leaves the final click to you.
+- **English and Chinese from one source.** YouTube and TikTok versions in English, Xiaohongshu and Bilibili in Chinese.
+- **Works with your editor.** Any clip exports to Premiere Pro, DaVinci Resolve, CapCut / 剪映 or OpenTimelineIO.
+- **Publishing you control:** YouTube through its official API, upload pages filled in for the rest, nothing posted until you press Publish or Schedule.
 
 ## Which languages does it support?
 

@@ -1,6 +1,6 @@
 ---
 title: All projects
-description: Find, filter and act on hundreds of videos in Reelfold's All projects list, with keyboard shortcuts and bulk Approve, Schedule, Try again, Archive and Change with AI.
+description: Find, filter and act on hundreds of videos in Reelfold's All projects list, with keyboard shortcuts and bulk Approve, Schedule, Try again, Archive, Delete and Change with AI.
 ---
 
 All projects is every video you made on this Mac in one list, with the selected video's page beside it. It is built for a few videos a week and for a few hundred at once: search, filters, keyboard moves and bulk actions keep it quick.
@@ -25,7 +25,7 @@ A project with several clips shows them under its name; a project's question sit
 
 - **Search videos and projects** matches titles, project names and requests.
 - **Filters**: **Platform**, **Project** and **Date** (**Today**, **Last 7 days**). **Clear filters** puts everything back.
-- **Archived** shows what you archived, with **Restore**.
+- **Archived** shows what you archived, with **Restore** and **Delete…**.
 
 ## Keyboard
 
@@ -53,15 +53,25 @@ With videos picked, a bar shows only the actions that do something for them, eac
 - **Try again**: runs the failed or stopped step again for each; finished steps are kept.
 - **Change with AI…**: say one change ("tighter", "bigger captions", "a calmer cover"). Each project's chat gets the request for exactly the picked videos and shows the changes for you to apply.
 - **Archive** (⌫, or the row menu): hides them from the list. Nothing is deleted. A couple of hundred videos archive in about a second.
+- **Delete…**: opens the delete dialog for all of them (see [Delete](#delete)).
 
 ## Row actions
 
 **⋯** or right-click on a row:
 
 - **Archive** (with Undo) and **Restore**.
-- **Delete…**: a request that never became a project is deleted; a project goes to the Trash after you confirm. Your recordings are never deleted, and a project that keeps your footage inside its folder can only be archived.
+- **Delete…**: for any project, batch, import or single video, archived or not (see [Delete](#delete)).
 - **Rename**, **Show in Finder**.
 - **Stop** a running project (Try again picks it up where it was) and **Try again** a stopped one.
+
+## Delete
+
+**Delete…** works on anything in the list: a project, a batch, an import, one video, or a request that never became a project. The dialog names what goes (what Reelfold made: how many files, how big, in which folder) and what stays. **Your recordings and footage are never deleted**, nor are your other files in the folder.
+
+- **Move to Trash** (the default): you can **Undo** right after, or put it back from the Trash later.
+- **Delete permanently…**: a second, red step. The files are removed from disk now; they don't go to the Trash and can't be put back. Tick "I understand these files are gone for good", then **Delete permanently**.
+
+Picking every video of a project deletes the project as a whole. A running project must be stopped first. A folder with nothing Reelfold made in it is not deleted; archive it instead.
 
 ## The video's page
 

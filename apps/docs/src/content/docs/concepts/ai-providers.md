@@ -1,9 +1,9 @@
 ---
 title: AI providers
-description: Bring your own AI to Reelfold, from your Claude Code or Codex login, an API key, or a local model. Route each task, set fallbacks and see what each step costs.
+description: Bring your own AI to Reelfold, from your Claude Code or Codex login, a coding agent you signed in to, an API key, or a local model. Pick the AI per request or project, route each task, set fallbacks and see what each step costs.
 ---
 
-Reelfold doesn't come with its own AI. It uses one you already have: your logged-in Claude Code or Codex CLI, an API key from a provider you choose, or a model running on your own machine. You can pick a different one for each task.
+Reelfold doesn't come with its own AI. It uses one you already have: your logged-in Claude Code or Codex CLI, another coding agent you installed and signed in to, an API key from a provider you choose, or a model running on your own machine. You set a default, and you can pick a different AI for one request, one project or one task.
 
 ## Why it matters
 
@@ -23,17 +23,35 @@ You stay in control of cost, quality and where your text goes. A subscription yo
 
 Speech recognition and voice are separate: transcription runs locally by default (whisper on Apple Silicon), and narration can use the free local voice, your cloned voice, or a hosted one (see [Voices](/docs/guides/voices/)). Most text steps also work with no model at all, through a rule-based path. Drawing an explainer's scenes is the exception: it needs a model, and without one the project waits in Needs you instead of making a text-only video.
 
-## Three ways to connect
+## Ways to connect
 
 | Way | Providers | Notes |
 |---|---|---|
 | CLI login, no API key | Claude Code, Codex | Uses the plan you are logged into. Runs with no tools, in an empty temporary folder; nothing is written to your project |
-| API key | Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini; ElevenLabs for voice | Keys are referenced by environment variable name, never written into config files |
+| Coding agent (ACP), no API key | Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Claude Code and Codex through their ACP adapters, Qwen Code (Alibaba), Kimi CLI (Moonshot), CodeBuddy (Tencent), iFlow CLI | Any agent you installed and signed in to yourself, driven over the Agent Client Protocol. Reelfold runs your own program with its own sign-in, in an empty folder, with every tool refused, and never sees your account |
+| API key | Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini; ElevenLabs for voice | Keys are referenced by environment variable name, never written into config files. Qwen, Kimi, GLM and Doubao keys use their mainland China or international endpoint |
 | Local | Ollama, LM Studio, vLLM, llama.cpp; local whisper; your own whisper or TTS server | Nothing leaves your machine |
+
+### In mainland China
+
+Qwen Code, Kimi CLI and CodeBuddy work in mainland China; Settings › AI › **Coding agents** marks each agent **Works in China**, **Partly in China** or **Needs access outside China**. For API keys, pick the **Endpoint** of Qwen (Alibaba Cloud Bailian), Kimi (Moonshot), GLM (Zhipu) and Doubao (Volcengine Ark, the same key as Seedance): **Mainland China** or **International**, matching where the key was made. DeepSeek has one endpoint for everyone. When a provider answers "not available in your region", Reelfold says so plainly and the next AI in your fallback order answers.
 
 :::note[Subscription CLIs are for your own use]
 Claude Code and Codex logins come with their own usage limits and terms. Before using one to produce paid client work at volume, check the provider's current terms, and use an API key or a local model where they call for it.
 :::
+
+## Pick the AI for a request, a project or a group
+
+Settings › AI holds your **default**. You can change it for less than everything:
+
+- **One request.** The composer (Home, the Studio, "Several videos") has an AI chip next to the platforms. It shows your default (for example "Claude Code · Opus 5.5"); pick another ready AI and model for this request only. The project keeps it, and every AI step of that project uses it, falling back along your fallback order.
+- **One project.** Switch a project's AI on its run page, its page or its clip chat. It applies from the project's next AI step; a running step is never interrupted, and the switch goes into the decisions log. Lists show a project's own AI.
+- **`/model` in a project's chat** switches that project only and says so in the thread. **Make this my default** makes it your default for new requests.
+- **A goal group** ("Several videos") switches all its videos not made yet, or one of them; running ones switch from their next AI step.
+
+## Models
+
+Settings › AI picks the **Model** of each provider: for Claude Code, Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1 or the CLI default; for Codex, the models your login can use; for a coding agent, the agent's own model list; for an API key, the provider's list. A job can still have its own model, and the AI chip shows and switches it. In a clip's chat, `/model` shows what runs with a picker, and `/model 5.5` or `/model sonnet` switches. Slash commands are never sent to the model.
 
 ## Routing and fallbacks
 
@@ -58,7 +76,7 @@ API calls are costed per token and reported with each step. Subscription CLIs an
 
 ## In the Mac app
 
-Settings › **AI** shows the AI that is working and when it was checked, with **Switch AI…**. From there you sign in to Claude Code or Codex (your browser opens), **Test** a provider, add **API keys** (kept in the system keychain), find **Models on this computer**, **Change order** of the backups, and set **Different AI for specific jobs**. A changed key needs an engine restart; the page offers it. The [Mac App Store edition](/docs/help/editions/) offers API keys and local models only.
+Settings › **AI** shows your default AI, whether it is working and when it was checked, with **Switch AI…**. From there you sign in to Claude Code or Codex (your browser opens), **Test** a provider, pick each provider's **Model**, add **API keys** (kept in the system keychain), find **Models on this computer**, **Change order** of the backups, and set **Advanced: a different AI for specific jobs**. **Coding agents** shows which agents are installed and signed in, whether each works in China, a one-click test, sign-in, the agent's own model list, and the install command of the others; any of them can be the AI of a job or a fallback (for example Claude Code, then Qwen Code, then a DeepSeek key). A changed key needs an engine restart; the page offers it. The [Mac App Store edition](/docs/help/editions/) offers API keys and local models only.
 
 ## Troubleshooting
 
@@ -68,7 +86,8 @@ Settings › **AI** shows the AI that is working and when it was checked, with *
 | "The model didn't answer this time" / "Claude Code didn't answer" | A model is connected but did not reply in time, or failed | **Try again** (it gets more time); check the login; add a backup in **Change order** |
 | "… login expired, so … was used this time" | The first provider's login expired; a backup answered | Sign in again in Settings › AI |
 | "… hit its usage limit" | Your plan's limit was reached; a backup answered | Wait for the limit to reset, or route heavy jobs to an API key or local model |
-| Every Codex call fails right away | The Codex model set for the route isn't available to your account | Clear the model, or pick one your account supports |
+| Every Codex call fails right away | The Codex model set for the route isn't available to your account | Settings › AI flags it with a one-click fix; or clear the model, or pick one your account supports |
+| "… isn't available in your region" | The provider refuses your region | Pick an AI that works where you are (Qwen Code, Kimi, DeepSeek …) or set the key's **Endpoint** |
 | "The visuals need an AI model" | An explainer's scenes can't be drawn without a model | Connect one, then **Try again** |
 
 More: [Troubleshooting](/docs/help/troubleshooting/#ai-providers).

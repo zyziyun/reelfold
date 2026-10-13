@@ -13,18 +13,19 @@ Sí. La app para Mac (Apple Silicon) está en [GitHub Releases](https://github.c
 
 ## ¿Publica por mí?
 
-No. La publicación es asistida: la app abre la página de subida de la plataforma en su navegador integrado, coloca el video y escribe el título, el texto y las etiquetas. Tú lo revisas y pulsas publicar. La app nunca hace clic en publicar. La única excepción es una plataforma cuya API oficial de publicación conectas tú (hoy, YouTube). Consulta [Publicación](/docs/es/concepts/publishing/).
+Solo cuando tú lo dices. YouTube va por su API oficial (Data API): inicias sesión con Google en tu propio navegador, y Publicar o Programar sube el video, la portada y el texto (una publicación programada sube en privado y YouTube la publica a su hora). En las demás plataformas la publicación es asistida: la app abre la página de subida en su navegador integrado, coloca el video y escribe el título, el texto y las etiquetas; tú lo revisas y pulsas publicar. Los videos programados solo salen solos si activas la publicación automática. Consulta [Publicación](/docs/es/concepts/publishing/).
 
 ## ¿Qué sale de mi Mac?
 
-Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: solo texto, como la transcripción, los subtítulos y los títulos. Con un modelo local, no sale nada. Hay dos excepciones que activas tú: el motor de transcripción de OpenAI envía el audio y la narración de OpenAI envía el texto del guion (la voz gratuita Kokoro funciona en tu Mac). Consulta [Privacidad](/docs/es/concepts/privacy/).
+Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: texto, como la transcripción, los subtítulos y los títulos, y en algunos pasos hojas de fotogramas fijos. Con un modelo local, no sale nada. Hay dos excepciones que activas tú: el motor de transcripción de OpenAI envía el audio y la narración de OpenAI envía el texto del guion (las voces gratis Kokoro y Qwen3-TTS funcionan en tu Mac). Consulta [Privacidad](/docs/es/concepts/privacy/).
 
 ## ¿Qué IA necesito?
 
 Cualquiera de estas, para cada tarea:
 
 - Tu propio **Claude Code** o **Codex** CLI con sesión iniciada (sin clave de API).
-- Una **clave de API**: Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, OpenRouter, Gemini, ElevenLabs.
+- Otro **agente de código** instalado y con sesión iniciada, por ACP: Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI.
+- Una **clave de API**: Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini, ElevenLabs. Las claves de Qwen, Kimi, GLM y Doubao usan su punto de acceso de China continental o internacional.
 - Un **modelo local**: Ollama, LM Studio, vLLM, llama.cpp, whisper local.
 
 Sin ninguna IA, la planificación de fragmentos recurre a un planificador basado en reglas. Consulta [Proveedores de IA](/docs/es/concepts/ai-providers/).
@@ -42,7 +43,9 @@ Son buenas herramientas con otro enfoque. Opus Clip es un servicio en la nube pa
 - **Una grabación, todas las plataformas.** Lienzo, subtítulos, volumen, portada y texto adaptados a cada una de las 20 plataformas.
 - **Usa tu propia IA**, o ninguna.
 - **Código abierto** (MIT): puedes leerlo, cambiarlo y ampliarlo.
-- **Publicación asistida** que te deja el último clic a ti.
+- **Inglés y chino desde una misma fuente.** Las versiones de YouTube y TikTok en inglés, Xiaohongshu y Bilibili en chino.
+- **Funciona con tu editor.** Cualquier clip se exporta a Premiere Pro, DaVinci Resolve, CapCut u OpenTimelineIO.
+- **Publicación bajo tu control:** YouTube por su API oficial, las páginas de subida rellenadas para el resto, y nada sale hasta que pulsas Publicar o Programar.
 
 ## ¿Qué idiomas admite?
 

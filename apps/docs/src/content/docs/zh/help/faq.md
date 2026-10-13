@@ -13,18 +13,19 @@ description: 关于千剪的价格和开源协议、Windows 支持、哪些数�
 
 ## 它会替我发帖吗？
 
-不会。发布是辅助式的：应用在内置浏览器里打开平台自己的上传页，放好视频，填好标题、正文和标签。你检查之后自己点发布。应用从不点发布按钮。唯一的例外是你自己接入了官方发布 API 的平台（目前是 YouTube）。见[发布](/docs/zh/concepts/publishing/)。
+只在你让它发的时候。YouTube 走官方 Data API：你在自己的浏览器里用 Google 登录，按下发布或排期，就上传视频、封面和文案（排期的视频先以私享上传，到点由 YouTube 公开）。其他平台都是辅助发布：应用在内置浏览器里打开平台自己的上传页，放好视频，填好标题、正文和标签，你检查之后自己点发布。排好的视频只有在你打开「自动发布排好的视频」后才会到点自己发。见[发布](/docs/zh/concepts/publishing/)。
 
 ## 哪些东西会离开我的电脑？
 
-视频和音频都留在你的 Mac 上，转写和渲染都在本地。只有 AI 步骤需要的内容会发给你选的 AI 服务：逐字稿、字幕和标题这类文字。用本地模型的话，什么都不会发出去。两个需要你主动开启的例外：OpenAI 转写会上传音频，OpenAI 配音会上传脚本文字（免费的 Kokoro 配音在你的 Mac 上运行）。应用还可以分享匿名使用次数，但只有你打开才会发送（[具体发送什么](/docs/zh/concepts/usage-counts/)）。见[隐私](/docs/zh/concepts/privacy/)。
+视频和音频都留在你的 Mac 上，转写和渲染都在本地。只有 AI 步骤需要的内容会发给你选的 AI 服务：逐字稿、字幕和标题这类文字，有些步骤还有静帧拼图。用本地模型的话，什么都不会发出去。两个需要你主动开启的例外：OpenAI 转写会上传音频，OpenAI 配音会上传脚本文字（免费的 Kokoro 和 Qwen3-TTS 配音在你的 Mac 上运行）。应用还可以分享匿名使用次数，但只有你打开才会发送（[具体发送什么](/docs/zh/concepts/usage-counts/)）。见[隐私](/docs/zh/concepts/privacy/)。
 
 ## 需要什么 AI？
 
 以下任意一种，每项工作可以分别指定：
 
 - 你自己已登录的 **Claude Code** 或 **Codex** CLI（不用 API key）。
-- **API key**：Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、OpenRouter、Gemini、ElevenLabs。
+- 你装好并登录的其他 **编程助手**，通过 ACP 接入：Gemini CLI、Cursor CLI、GitHub Copilot CLI、OpenCode、Qwen Code、Kimi CLI、CodeBuddy、iFlow CLI。
+- **API key**：Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、豆包、OpenRouter、Gemini、ElevenLabs。通义千问、Kimi、GLM、豆包可选国内或国际接入点。
 - **本地模型**：Ollama、LM Studio、vLLM、llama.cpp、本地 whisper。
 
 完全不配 AI 的话，规划、发布文案和简单修改会退回规则方案；画讲解视频的场景必须有模型。见[AI 服务](/docs/zh/concepts/ai-providers/)。
@@ -42,7 +43,9 @@ description: 关于千剪的价格和开源协议、Windows 支持、哪些数�
 - **一条素材，所有平台。** 20 个平台各自的画布、字幕、响度、封面和文案。
 - **自带 AI**，也可以不用 AI。
 - **开源**（MIT），可以读、改、扩展。
-- **辅助发布**，最后那一下由你来点。
+- **一份素材，中英两种语言。** YouTube、TikTok 出英文版，小红书、B站出中文版。
+- **能接你的剪辑软件。** 任何片段都能导出到 Premiere Pro、DaVinci Resolve、剪映 / CapCut 或 OpenTimelineIO。
+- **发布由你掌控：** YouTube 走官方接口，其他平台替你填好上传页，你不按发布或排期就不会发出去。
 
 ## 支持哪些语言？
 
