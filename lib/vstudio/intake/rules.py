@@ -408,6 +408,8 @@ def _resolve(r, sc, intent, present, clause):
         return _extract_recipe(present) or r
     if r == "longform-to-short" and "call" in present and not ("lecture" in present or "screen-recording" in present):
         return "call-clips"
+    if r == "explainer" and present & {"footage", "photo"} and not present & {"doc", "slides", "notes", "script"}:
+        return "photo-story"        # "a history explainer from these drone shots": narrated over her own footage
     if r == "explainer" and not (present & {"doc", "slides", "notes", "script"}) and "讲解" not in text:
         return r
     if r == "longform-course" and not (present & RECORDING_ROLES) and (present & {"doc", "slides", "notes", "script"}):

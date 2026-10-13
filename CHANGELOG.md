@@ -10,6 +10,12 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **The editor brain**: each project says how it is cut and why ("Cut as Calm travel film: drone footage, no
+  talking, evening light"), from the footage and your words, and you can change it. A shot plan shows what each
+  shot gets (hold, cut or dissolve, slow motion only where it stays smooth, follow the subject for vertical) with the
+  reason, and you can change any shot. "Could be generated" cards suggest AI shots where they would help (a missing
+  establishing shot, a dark or shaky moment with no other take, a bridge, a cover background) with a price; nothing
+  is generated or spent until you approve.
 - **Choose the AI model**: Settings › AI picks the model of each provider (Claude Code: Opus 5.5, Sonnet 5.5,
   Haiku 5.5, Fable 5.1 or the CLI default; Codex: the models your login can use; API keys: the provider's list), a
   job can still have its own, and the AI chip shows and switches it. In the clip chat, `/model` shows what runs with

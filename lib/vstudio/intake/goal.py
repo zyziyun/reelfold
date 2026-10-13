@@ -50,8 +50,12 @@ SHEET_TILES = 15
 KINDS = ("history", "film", "reel", "vlog", "essay", "photos")
 # the recipe each kind is made with (the AI planner of each video's own request decides; without a model the video is
 # planned for this recipe by the rules - footage films are vlogs, narrated pieces photo stories)
-RECIPE = {"history": "photo-story", "film": "vlog", "reel": "vlog", "vlog": "vlog", "essay": "photo-story",
-          "photos": "photo-story"}
+def _recipes():
+    from vstudio.brain import presets as BP
+    return {k: BP.for_goal_kind(k)["recipe"] for k in KINDS}
+
+
+RECIPE = _recipes()          # history / essay / photos: photo-story; film / reel / vlog: vlog (vstudio.brain.presets)
 CN_PLATFORMS = ("xiaohongshu", "bilibili", "douyin", "wechat-channels", "kuaishou", "weibo", "zhihu")
 PLATFORM_WORD = {"youtube": "YouTube", "youtube-shorts": "YouTube Shorts", "tiktok": "TikTok",
                  "instagram": "Instagram", "facebook": "Facebook", "x": "X", "xiaohongshu": "Xiaohongshu",

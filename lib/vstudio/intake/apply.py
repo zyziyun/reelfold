@@ -113,6 +113,12 @@ def apply_plan(plan, out_dir=None, run=False, dry_run=False, echo=None, on_event
                 warn.append(f"{p['id']}: {d} already holds a project (kept as is)")
             else:
                 raise ApplyError(f"{p['id']} ({p['recipe']}): {e}") from e
+        if p.get("template") and not (pr.data.get("brain") or {}).get("template"):
+            t = p["template"]                       # the plan's editing template (vstudio.brain): she can change it
+            pr.data["brain"] = dict(pr.data.get("brain") or {}, template=dict(
+                id=t["id"], by=t.get("by") or "rules", reason=t.get("reason"), confidence=t.get("confidence"),
+                at=time.strftime("%Y-%m-%dT%H:%M:%S")))
+            pr.save()
         if autopilot:
             from vstudio.project import autopilot as APL
             APL.configure(pr, on=True, lang=plan.get("ui_lang"))

@@ -927,6 +927,28 @@ def enrich(p, analysis, ctx, auto=()):
     return p
 
 
+def attach_template(p, analysis, prompt, intent=None):
+    """The editing template of a sub-project (``vstudio.brain.template``): ``p["template"]`` = {id, label, label_zh,
+    by, confidence, reason {en, zh}, alternatives} for the plan card's 「Made as … · Change」. A vlog without a style
+    gets the template's (her English words too: "fast cuts on the beat" -> fun); every other param is the plan's."""
+    try:
+        from vstudio.brain import template as BT
+        d = BT.for_plan_project(p, analysis, prompt, intent)
+    except Exception:  # noqa: BLE001  (the brain never blocks a plan)
+        d = None
+    if not d:
+        p.pop("template", None)
+        return p
+    p["template"] = dict(id=d["template"], label=d["label"], label_zh=d["label_zh"], by=d["by"],
+                         confidence=d["confidence"], reason=d["reason"],
+                         alternatives=[dict(id=a["id"], recipe=a["recipe"], label=a["label"], label_zh=a["label_zh"])
+                                       for a in d["alternatives"]])
+    if p["recipe"] == "vlog" and "style" not in p["params"] and d["params"].get("style"):
+        p["params"]["style"] = d["params"]["style"]
+        p.setdefault("param_sources", {})["style"] = "template"
+    return p
+
+
 def _plat_zh(ps):
     out = []
     for x in ps or []:
@@ -1325,6 +1347,7 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
                             platforms=MSG.join(intent["unsupported_platforms"], ui_lang)))
     auto_ids = list(auto or [])
     for p in projects:
+        attach_template(p, analysis, prompt, intent)
         enrich(p, analysis, ctx, auto_ids)
     plan = dict(version=PLAN_VERSION, kind="vstudio.intake.plan", id=_plan_id(prompt), created=time.strftime(
         "%Y-%m-%dT%H:%M:%S"), prompt=prompt, revisions=[], client=ctx.get("client"),
@@ -1488,6 +1511,7 @@ def revise(plan, instruction, provider=None, model=None, call=None, client=None,
         plan["risks"] = [str(r) for r in js.get("risks") or [] if r] or plan.get("risks") or []
     for p in projects:
         resolve_focus(p, analysis, intent_now, warn)
+        attach_template(p, analysis, plan["prompt"] + "\n" + instruction, intent_now)
         enrich(p, analysis, ctx, plan.get("run", {}).get("auto") or [])
     kept = {p["id"] for p in projects}
     plan["questions"] = [q for q in plan.get("questions") or [] if not q.get("project") or q["project"] in kept]

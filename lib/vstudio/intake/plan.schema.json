@@ -95,6 +95,7 @@
             }
           },
           "estimate": {"type": "object"},
+          "template": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}, "by": {"enum": ["rules", "her", "ai"]}, "reason": {"type": "object"}, "alternatives": {"type": "array"}}},
           "outputs": {"type": "object"}
         }
       }
