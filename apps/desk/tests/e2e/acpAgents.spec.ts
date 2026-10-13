@@ -41,7 +41,8 @@ test.beforeAll(async () => {
         row('codex', 'not-installed'),
         agent('gemini-cli', 'error', 'no', { code: 'region-blocked', message: { code: 'agent-region', message: 'Not available in your region: User location is not supported', message_zh: '你所在的地区用不了：User location is not supported' } }),
         agent('cursor-agent', 'not-installed', 'partly'),
-        agent('copilot', 'not-installed', 'partly'),
+        // installed but too old to speak ACP: one calm line + how to update, never the raw error
+        agent('copilot', 'error', 'partly', { code: 'not-acp', issue: 'update', detail: 'GitHub Copilot CLI did not start in ACP mode: ✘ unknown flag: --acp', message: { code: 'agent-not-acp', message: 'Update GitHub Copilot CLI to use it here', message_zh: '更新 GitHub Copilot CLI 后就能在这里用' } }),
         agent('opencode', 'not-installed', 'yes'),
         agent('claude-acp', 'not-installed', 'no'),
         agent('codex-acp', 'not-installed', 'no'),
@@ -108,10 +109,21 @@ test('detection: installed agents as rows, the absent ones folded with their ins
   await expect(group).toBeVisible();
   await expect(card('qwen-code').getByTestId('provider-pill')).toHaveAttribute('data-state', 'logged-in', { timeout: 15000 });
   await expect(card('qwen-code').getByTestId('china-qwen-code')).toHaveText('Works in China');
-  await expect(card('kimi-cli').getByTestId('provider-pill')).toHaveText('Not logged in');
+  await expect(card('kimi-cli').getByTestId('provider-pill')).toHaveText('Needs sign-in');
+  await expect(card('kimi-cli').getByTestId('agent-msg-kimi-cli')).toHaveText('Sign in to Kimi CLI to use it here');
   await expect(card('kimi-cli').getByTestId('login-kimi-cli')).toBeVisible();
+  await expect(card('kimi-cli').getByTestId('agent-test-kimi-cli')).toHaveCount(0); // nothing to test until signed in
   await expect(card('gemini-cli').getByTestId('provider-pill')).toHaveText('Not available in your region');
-  await expect(card('gemini-cli').getByTestId('agent-msg-gemini-cli')).toContainText('User location is not supported');
+  await expect(card('gemini-cli').getByTestId('agent-msg-gemini-cli')).toHaveText('Gemini CLI isn’t available in your region');
+  // too old for ACP: a calm line and how to update; the agent's own words only as a tooltip
+  await expect(card('copilot').getByTestId('provider-pill')).toHaveText('Needs an update');
+  await expect(card('copilot').getByTestId('agent-msg-copilot')).toHaveText('Update GitHub Copilot CLI to use it here');
+  await expect(card('copilot').getByTestId('agent-msg-copilot')).toHaveAttribute('title', /unknown flag/);
+  await expect(card('copilot').getByTestId('update-copilot')).toBeVisible();
+  await expect(card('copilot').getByText(/unknown flag/)).toHaveCount(0);
+  // the row keeps its text readable beside the controls (no one-word column)
+  const w = await card('copilot').locator('.s2-rtext').evaluate((el) => el.getBoundingClientRect().width);
+  expect(w).toBeGreaterThan(200);
   // not installed: folded until asked for, then each with its install command
   await expect(card('codebuddy')).toHaveCount(0);
   await page.getByTestId('agents-more').click();
@@ -120,18 +132,22 @@ test('detection: installed agents as rows, the absent ones folded with their ins
   await expect(card('copilot').getByTestId('china-copilot')).toHaveText('Partly in China');
   await page.getByTestId('agents-more').click();
   await expect(card('codebuddy')).toHaveCount(0);
-  // the switcher offers installed agents only
+  // the switcher offers what works here only, and "Set up more…"
   await page.getByTestId('ai-switch').click();
   await expect(page.getByTestId('switch-qwen-code')).toBeVisible();
   await expect(page.getByTestId('switch-codebuddy')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('switch-kimi-cli')).toHaveCount(0); // not signed in
+  await expect(page.getByTestId('switch-copilot')).toHaveCount(0); // needs an update
+  await expect(page.getByText(/not ready/)).toHaveCount(0);
+  await page.getByTestId('switch-setup-more').click();
+  await expect(page).toHaveURL(/#\/settings\/ai\/more$/);
+  await expect(card('codebuddy')).toBeVisible(); // the ones she can install, unfolded
+  await hash('#/settings/ai');
 });
 
 test('the one-click test call says whether it works, in plain words', async () => {
   await card('qwen-code').getByTestId('agent-test-qwen-code').click();
   await expect(page.getByText('Works · qwen3-coder-plus · 4.2 s')).toBeVisible();
-  await card('kimi-cli').getByTestId('agent-test-kimi-cli').click();
-  await expect(page.getByText(/Did not work: Kimi CLI is not logged in/)).toBeVisible();
 });
 
 test('an agent’s model, Qwen’s international endpoint and the fallback chain reach the engine’s routes file', async () => {

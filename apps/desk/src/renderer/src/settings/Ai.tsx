@@ -3,7 +3,8 @@
 // this Mac). Sign-in runs in the sign-in sheet (the terminal is folded under "Show details").
 import { useEffect, useState, type ReactNode } from 'react';
 import { Bot, ChevronLeft, ChevronRight, Copy, Cpu, KeyRound, MoreHorizontal, Sparkles, TerminalSquare } from 'lucide-react';
-import { availableProviders, effective, hasRegions, offerable, pill, PROVIDERS, providerName, type AuthRow, type ProviderId, type Region } from '../../../shared/aiRoutes';
+import { agentIssue, availableProviders, effective, hasRegions, issuePill, offerable, pill, PROVIDERS, providerName, usable, type AgentIssue, type AuthRow, type ProviderId, type Region } from '../../../shared/aiRoutes';
+import type { ModelProblem } from '../../../shared/aiModels';
 import { LiteAiNote } from '../components/Lite';
 import type { AiTestMsg, SecretsStatusMsg } from '../../../shared/deskApi';
 import { AI_TASK_IDS } from '../../../shared/aiRoutes';
@@ -36,14 +37,14 @@ function Icon({ p, big }: { p: string; big?: boolean }) {
   );
 }
 
-function StatePill({ row, working }: { row: AuthRow | undefined; working?: boolean }) {
-  const p = pill(row);
+function StatePill({ row, working, issue }: { row: AuthRow | undefined; working?: boolean; issue?: AgentIssue | null }) {
+  const p = issue ? issuePill(issue) : pill(row);
   const tone = p.tone === 'ok' ? 'ok' : p.tone === 'bad' ? 'error' : p.tone === 'warn' ? 'warn' : 'off';
   const plan = row?.state === 'logged-in' && row.account?.plan ? row.account.plan.charAt(0).toUpperCase() + row.account.plan.slice(1) : null;
   return (
     <span className={`s2-pill ${tone}`} data-testid="provider-pill" data-state={row?.state ?? 'checking'}>
       <Dot tone={tone} />
-      {working && row?.ready ? t('s2.ai.working') : plan ? t('aiacc.st.loggedInPlan', { plan }) : tk(p.key)}
+      {working && row?.ready && !issue ? t('s2.ai.working') : plan ? t('aiacc.st.loggedInPlan', { plan }) : tk(p.key)}
     </span>
   );
 }
@@ -56,7 +57,8 @@ export function AiSection({ sub }: SettingsCtx) {
   const [sheet, setSheet] = useState<'order' | 'keys' | 'local' | null>(null);
   const [tests, setTests] = useState<Record<string, AiTestMsg | 'running'>>({});
   const restart = useRestart();
-  const focus = sub && sub !== 'jobs' ? sub : undefined;
+  const focus = sub && sub !== 'jobs' && sub !== 'more' ? sub : undefined;
+  const more = sub === 'more';
   useEffect(() => {
     void refreshStatus({ refresh: true });
     void loadModels({ refresh: true });
@@ -65,12 +67,22 @@ export function AiSection({ sub }: SettingsCtx) {
     if (p) setLogin({ provider: p, action: 'login' });
   }, []);
   useEffect(() => {
+    // "Set up more…": the other accounts and the agents she can install, in view
+    if (more) requestAnimationFrame(() => document.querySelector('[data-testid="ai-others"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  }, [more]);
+  useEffect(() => {
     if (!focus) return;
     const kind = PROVIDERS[focus as ProviderId]?.kind;
     if (kind === 'api') setSheet('keys');
     else if (kind === 'local') setSheet('local');
   }, [focus]);
 
+  const problemOf = (p: ProviderId): ModelProblem | null => models?.providers.find((x) => x.provider === p)?.problem ?? null;
+  /** the CLI's own default model is one her login cannot use, and none is picked here (Codex: gpt-6-astra) */
+  const badDefault = (p: ProviderId) => {
+    const pr = problemOf(p);
+    return Boolean(pr && !pr.code.startsWith('agent-') && !routes?.routes.models?.[p]);
+  };
   const row = (p: ProviderId) => rowOf(status, p) ?? (status ? (status.error ? { ...missingRow(p), state: 'error' } : missingRow(p)) : undefined);
   const def = (routes?.routes.default.provider ?? null) as ProviderId | 'none' | null;
   const cur = def && def !== 'none' ? def : null;
@@ -124,7 +136,11 @@ export function AiSection({ sub }: SettingsCtx) {
           {cur && !items.some((m) => m.id === cur) && <option value={cur}>{cur}</option>}
           {items.map((m) => (
             <option key={m.id ?? ''} value={m.id ?? ''}>
-              {m.id === null && mrow?.cli_default ? t('mdl.cliDefaultIs', { model: mrow.cli_default }) : m.label.replace(/^✓ /, '')}
+              {m.id === null && mrow?.problem && !mrow.problem.code.startsWith('agent-')
+                ? t('mdl.fixModel', { provider: providerName(p) })
+                : m.id === null && mrow?.cli_default
+                  ? t('mdl.cliDefaultIs', { model: mrow.cli_default })
+                  : m.label.replace(/^✓ /, '')}
             </option>
           ))}
         </select>
@@ -135,7 +151,7 @@ export function AiSection({ sub }: SettingsCtx) {
    * while no Codex model is picked here (a picked one is passed as --model and wins). */
   const ModelProblem = ({ p }: { p: ProviderId }) => {
     const mrow = models?.providers.find((x) => x.provider === p);
-    if (!mrow?.problem || routes?.routes.models?.[p]) return null;
+    if (!mrow?.problem || routes?.routes.models?.[p] || mrow.problem.code.startsWith('agent-')) return null;
     const pr = mrow.problem;
     const suggest = typeof pr.params?.suggest === 'string' ? pr.params.suggest : null;
     return (
@@ -213,13 +229,16 @@ export function AiSection({ sub }: SettingsCtx) {
           <button
             className="btn"
             onClick={(e) =>
-              ui.menu(
-                e,
-                [...PROVIDER_IDS]
-                  .sort((a, b) => Number(!!rowOf(status, b)?.ready) - Number(!!rowOf(status, a)?.ready))
-                  .filter((p) => p !== cur && offerable(p, rowOf(status, p)))
-                  .map((p) => ({ label: `${providerName(p)}${rowOf(status, p)?.ready ? '' : ` (${t('aiacc.notReady')})`}`, run: () => void switchProvider('default', p), testId: `switch-${p}` })),
-              )
+              ui.menu(e, [
+                // only what works here now; a CLI whose own model her login cannot use says so (and goes to the fix)
+                ...PROVIDER_IDS.filter((p) => p !== cur && offerable(p, rowOf(status, p)) && usable(rowOf(status, p), problemOf(p))).map((p) =>
+                  badDefault(p)
+                    ? { label: t('mdl.fixModel', { provider: providerName(p) }), run: () => void (location.hash = `#/settings/ai/${p}`), testId: `switch-${p}` }
+                    : { label: providerName(p), run: () => void switchProvider('default', p), testId: `switch-${p}` },
+                ),
+                { label: '', sep: true, run: () => undefined },
+                { label: t('aiacc.setupMore'), run: () => void (location.hash = '#/settings/ai/more'), testId: 'switch-setup-more' },
+              ])
             }
             data-testid="ai-switch"
           >
@@ -266,6 +285,7 @@ export function AiSection({ sub }: SettingsCtx) {
       </a>
       <Group
         title={t('s2.ai.others')}
+        testId="ai-others"
         action={
           <button className="s2-link" onClick={() => void refreshStatus({ refresh: true })} disabled={checking} data-testid="ai-refresh">
             {checking ? t('s2.ai.checking') : t('s2.ai.check')}
@@ -275,7 +295,7 @@ export function AiSection({ sub }: SettingsCtx) {
         {CLI.filter((p) => p !== cur).map((p) => {
           const r = row(p);
           return (
-            <div key={p} className={`s2-row ${focus === p ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p}>
+            <div key={p} className={`s2-row s2-prow ${focus === p ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p}>
               <Icon p={p} />
               <div className="s2-rtext">
                 <div className="s2-rlabel">{providerName(p)}</div>
@@ -328,15 +348,18 @@ export function AiSection({ sub }: SettingsCtx) {
           ids={AGENTS.filter((p) => p !== cur)}
           row={row}
           focus={focus}
+          expand={more}
+          problemOf={problemOf}
+          onSignIn={(p) => setLogin({ provider: p, action: 'login' })}
           tests={tests}
           onTest={(p) => void runTest(p)}
           renderControls={(p) => (
             <>
               <ModelSelect p={p} />
               <SignIn p={p} />
-              <More p={p} />
             </>
           )}
+          renderMore={(p) => <More p={p} />}
           renderProblem={(p) => <ModelProblem p={p} />}
         />
       )}
@@ -435,24 +458,32 @@ function AgentsGroup({
   ids,
   row,
   focus,
+  expand,
+  problemOf,
+  onSignIn,
   tests,
   onTest,
   renderControls,
+  renderMore,
   renderProblem,
 }: {
   ids: ProviderId[];
   row: (p: ProviderId) => AuthRow | undefined;
   focus?: string;
+  expand?: boolean;
+  problemOf: (p: ProviderId) => ModelProblem | null;
+  onSignIn: (p: ProviderId) => void;
   tests: Record<string, AiTestMsg | 'running'>;
   onTest: (p: ProviderId) => void;
   renderControls: (p: ProviderId) => ReactNode;
+  renderMore: (p: ProviderId) => ReactNode;
   renderProblem: (p: ProviderId) => ReactNode;
 }) {
   const ui = useUi();
   const [open, setOpen] = useState(false);
   const installed = ids.filter((p) => row(p) && row(p)!.state !== 'not-installed');
   const absent = ids.filter((p) => !installed.includes(p));
-  const shown = open || focus ? [...installed, ...absent] : installed;
+  const shown = open || focus || expand ? [...installed, ...absent] : installed;
   return (
     <Group
       title={t('agents.group')}
@@ -473,8 +504,13 @@ function AgentsGroup({
         const r = row(p);
         const tr = tests[p];
         const absentRow = !r || r.state === 'not-installed';
+        // installed but not usable yet (too old for ACP, not signed in, ...): one calm line + its action, the agent's
+        // own words only as a tooltip
+        const pr = problemOf(p);
+        const issue = absentRow ? null : agentIssue(r, pr);
+        const detail = r?.detail ?? (typeof pr?.params?.detail === 'string' ? pr.params.detail : undefined);
         return (
-          <div key={p} className={`s2-row ${focus === p ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p} data-state={r?.state ?? 'checking'}>
+          <div key={p} className={`s2-row s2-prow ${focus === p ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p} data-state={r?.state ?? 'checking'}>
             <Icon p={p} />
             <div className="s2-rtext">
               <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -490,14 +526,14 @@ function AgentsGroup({
                   {r.install.command}
                 </code>
               )}
-              {r?.message && !absentRow && r.state !== 'logged-in' && r.state !== 'installed' && (
-                <div className="s2-rhint warn" data-testid={`agent-msg-${p}`}>
-                  {getLang() === 'zh-CN' ? (r.message.message_zh ?? r.message.message) : r.message.message}
+              {issue && (
+                <div className="s2-rhint s2-issue" title={detail ?? undefined} data-testid={`agent-msg-${p}`} data-issue={issue}>
+                  {tk(`agents.issue.${issue}`, { name: providerName(p) })}
                 </div>
               )}
             </div>
             <div className="s2-rctl">
-              <StatePill row={r} />
+              <StatePill row={r} issue={issue} />
               {absentRow ? (
                 r?.install && (
                   <>
@@ -515,16 +551,47 @@ function AgentsGroup({
                     </button>
                   </>
                 )
+              ) : issue ? (
+                <>
+                  {issue === 'sign-in' && r?.can_login !== false && (
+                    <button className="btn" onClick={() => onSignIn(p)} data-testid={`login-${p}`}>
+                      {t('s2.ai.signIn')}
+                    </button>
+                  )}
+                  {issue === 'update' && r?.install && (
+                    <>
+                      <button
+                        className="btn ghost icon"
+                        aria-label={t('agents.copy')}
+                        data-tip={r.install.command}
+                        onClick={() => void navigator.clipboard?.writeText(r.install!.command).then(() => ui.toast(t('agents.copied', { cmd: r.install!.command })))}
+                        data-testid={`copy-update-${p}`}
+                      >
+                        <Copy className="ico" />
+                      </button>
+                      <button className="btn" onClick={() => void window.desk.openExternal(r.install!.url)} data-testid={`update-${p}`}>
+                        {t('agents.act.update')}
+                      </button>
+                    </>
+                  )}
+                  {(issue === 'timeout' || issue === 'error') && (
+                    <button className="btn" onClick={() => void refreshStatus({ refresh: true, providers: [p] })} data-testid={`recheck-${p}`}>
+                      {t('agents.act.retry')}
+                    </button>
+                  )}
+                  {renderMore(p)}
+                </>
               ) : (
                 <>
                   <button className="btn" onClick={() => onTest(p)} disabled={tr === 'running'} data-testid={`agent-test-${p}`}>
                     {tr === 'running' ? t('aiacc.testing') : t('s2.ai.test')}
                   </button>
                   {renderControls(p)}
+                  {renderMore(p)}
                 </>
               )}
             </div>
-            {!absentRow && renderProblem(p)}
+            {!absentRow && !issue && renderProblem(p)}
           </div>
         );
       })}

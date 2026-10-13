@@ -3,7 +3,10 @@
 // pill, IPC validation, and the copy for every agent in every language.
 import { describe, expect, it } from 'vitest';
 import {
+  agentIssue,
   CLI_PROVIDER_IDS,
+  issuePill,
+  usable,
   fallbackNotice,
   hasRegions,
   isAcp,
@@ -86,5 +89,27 @@ describe('plain words', () => {
       expect(m['fail.reason.ai-region']).toContain('{provider}');
     }
     expect((LOCALES['zh-CN'].messages as Record<string, string>)['agents.china.yes']).toBe('国内可直接用');
+  });
+});
+
+describe('an installed agent that cannot be used yet', () => {
+  const r = (state: string, extra: Record<string, unknown> = {}) => ({ provider: 'copilot', kind: 'subscription-cli' as const, state: state as never, ready: state === 'installed' || state === 'logged-in', acp: true, ...extra });
+  it('is one calm word, from its status row or else from its model listing', () => {
+    expect(agentIssue(r('error', { code: 'not-acp' }))).toBe('update');
+    expect(agentIssue(r('not-logged-in'))).toBe('sign-in');
+    expect(agentIssue(r('error', { code: 'region-blocked' }))).toBe('region');
+    expect(agentIssue(r('logged-in'))).toBeNull();
+    expect(agentIssue(r('not-installed'))).toBeNull();
+    // status without the probe says "installed"; the model listing opened a session and found the trouble
+    expect(agentIssue(r('installed'), { code: 'agent-update', params: { issue: 'update' } })).toBe('update');
+    expect(agentIssue(r('installed'), { code: 'agent-error', params: { state: 'error', detail: '✘ unknown flag: --acp' } })).toBe('update');
+    expect(agentIssue(r('installed'), { code: 'agent-not-logged-in', params: { state: 'not-logged-in' } })).toBe('sign-in');
+    // a Codex model problem is not an agent issue
+    expect(agentIssue({ provider: 'codex', kind: 'subscription-cli', state: 'logged-in', ready: true }, { code: 'codex-model-unsupported' })).toBeNull();
+  });
+  it('is not offered by a picker, and its pill is never the red error', () => {
+    expect(usable(r('installed'), { code: 'agent-sign-in', params: { issue: 'sign-in' } })).toBe(false);
+    expect(usable(r('installed'))).toBe(true);
+    for (const k of ['sign-in', 'update', 'region', 'timeout', 'error'] as const) expect(issuePill(k).tone).not.toBe('bad');
   });
 });

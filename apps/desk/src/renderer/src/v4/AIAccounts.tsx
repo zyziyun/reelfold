@@ -10,6 +10,7 @@ import {
   pill,
   PROVIDERS,
   providerName,
+  usable,
   type AiRoutes,
   type AiTask,
   type AuthRow,
@@ -135,9 +136,11 @@ export function RouteRow({
     fb.splice(to, 0, x);
     onChange({ ...cur, fallback: fb });
   };
-  const { status } = useAi();
-  // an ACP agent that is not installed here is not offered (ten of them, most absent)
-  const offered = PROVIDER_IDS.filter((p) => offerable(p, rowOf(status, p), cur.provider) || cur.fallback.includes(p));
+  const { status, models } = useAi();
+  // only what works here now (ready, nothing in the way), plus what this route already names; the rest is set up in
+  // Settings › AI ("Set up more…")
+  const works = (p: ProviderId) => !status || usable(rowOf(status, p), models?.providers.find((x) => x.provider === p)?.problem);
+  const offered = PROVIDER_IDS.filter((p) => (offerable(p, rowOf(status, p), cur.provider) && (p === cur.provider || works(p))) || cur.fallback.includes(p));
   const addable = offered.filter((p) => p !== cur.provider && !cur.fallback.includes(p));
   return (
     <div className="row" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }} data-testid={testId}>
@@ -148,7 +151,8 @@ export function RouteRow({
         value={choice ? choice.provider : '__default'}
         onChange={(e) => {
           const v = e.target.value;
-          if (v === '__default') onChange(null);
+          if (v === '__setup') location.hash = '#/settings/ai/more';
+          else if (v === '__default') onChange(null);
           else onChange({ provider: v as ProviderId | 'none', model: null, fallback: cur.fallback.filter((x) => x !== v) });
         }}
         aria-label={title}
@@ -160,6 +164,7 @@ export function RouteRow({
             {label(p)}
           </option>
         ))}
+        <option value="__setup">{t('aiacc.setupMore')}</option>
       </select>
       {(!isTask || choice) && cur.provider !== 'none' && (() => {
         // the job's own model; '' = the provider's model (Settings › AI), else its default

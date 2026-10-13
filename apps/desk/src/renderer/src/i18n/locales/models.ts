@@ -29,6 +29,8 @@ export const modelsEn = {
   'aiacc.fb.model': '{from} can’t use that model with your login, so {to} answered this time.',
   'ce.off.why.model': '{provider} can’t use the model “{model}” with your login. Pick another one with /model or in Settings › AI.',
   'lp.model': 'Model: {model}',
+  'mdl.fixModel': '{provider} — fix model',
+  'aiacc.setupMore': 'Set up more…',
 };
 
 export const modelsZh: Record<keyof typeof modelsEn, string> = {
@@ -59,6 +61,8 @@ export const modelsZh: Record<keyof typeof modelsEn, string> = {
   'aiacc.fb.model': '{from} 的登录用不了那个模型，这次由 {to} 回答。',
   'ce.off.why.model': '{provider} 的登录用不了模型「{model}」。用 /model 或在 设置 › AI 里换一个。',
   'lp.model': '模型：{model}',
+  'mdl.fixModel': '{provider} — 修复模型',
+  'aiacc.setupMore': '设置更多…',
 };
 
 export const modelsFr: Record<keyof typeof modelsEn, string> = {
@@ -89,4 +93,6 @@ export const modelsFr: Record<keyof typeof modelsEn, string> = {
   'aiacc.fb.model': '{from} ne peut pas utiliser ce modèle avec votre connexion, donc {to} a répondu cette fois.',
   'ce.off.why.model': '{provider} ne peut pas utiliser le modèle « {model} » avec votre connexion. Choisissez-en un autre avec /model ou dans Réglages › IA.',
   'lp.model': 'Modèle : {model}',
+  'mdl.fixModel': '{provider} — corriger le modèle',
+  'aiacc.setupMore': 'En configurer d’autres…',
 };

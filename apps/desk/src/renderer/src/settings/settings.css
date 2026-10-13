@@ -178,3 +178,10 @@
 .s2-china { font-size: 12px; line-height: 18px; padding: 0 7px; border-radius: 9px; white-space: nowrap; color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent); }
 .s2-china.yes { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .s2-china.partly { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+
+/* provider rows (Settings › AI): the name and description keep a readable width; the controls wrap under them on a
+   narrow window instead of squeezing the text into a one-word column */
+.s2-row.s2-prow { flex-wrap: wrap; row-gap: 10px; }
+.s2-prow > .s2-rtext { flex: 1 1 240px; min-width: 220px; }
+.s2-prow > .s2-rctl { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; row-gap: 8px; }
+.s2-rhint.s2-issue { color: var(--text-muted); }

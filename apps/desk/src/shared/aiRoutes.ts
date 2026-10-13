@@ -371,6 +371,8 @@ export interface AuthRow {
   regions?: Region[];
   /** why a check failed, as a code: region-blocked | timeout | not-acp */
   code?: string;
+  /** an installed agent that cannot be used yet, in one word (vstudio.acp.issue) */
+  issue?: AgentIssue;
 }
 
 export interface AuthStatusMsg {
@@ -383,6 +385,51 @@ export interface AuthStatusMsg {
 }
 
 /** Pill tone + message key for a status row. */
+/** What stands between an installed coding agent and using it here (vstudio.acp.issue): it is too old to speak ACP,
+ * not signed in, blocked in her region, did not answer, or does not start. From its status row, else from its model
+ * listing (which opens a session even when the status skipped the probe). Shown as one calm line with its action. */
+export type AgentIssue = 'sign-in' | 'update' | 'region' | 'timeout' | 'error';
+const ISSUES: AgentIssue[] = ['sign-in', 'update', 'region', 'timeout', 'error'];
+
+export function agentIssue(row: AuthRow | undefined, problem?: { code?: string; params?: Record<string, unknown> } | null): AgentIssue | null {
+  if (!row || row.state === 'not-installed' || row.state === 'unavailable' || !(row.acp || isAcp(row.provider))) return null;
+  if (row.issue && ISSUES.includes(row.issue)) return row.issue;
+  if (row.code === 'not-acp') return 'update';
+  if (row.code === 'region-blocked') return 'region';
+  if (row.code === 'timeout') return 'timeout';
+  if (row.state === 'not-logged-in' || row.state === 'expired') return 'sign-in';
+  if (row.state === 'error') return 'error';
+  const pi = problem?.params?.issue;
+  if (typeof pi === 'string' && (ISSUES as string[]).includes(pi)) return pi as AgentIssue;
+  if (problem?.code?.startsWith('agent-')) {
+    const st = String(problem.params?.state ?? problem.code.slice(6));
+    const detail = String(problem.params?.detail ?? '');
+    if (st === 'not-logged-in') return 'sign-in';
+    if (st === 'region-blocked') return 'region';
+    if (st === 'timeout') return 'timeout';
+    return /ACP mode|unknown (flag|option)/i.test(detail) ? 'update' : 'error';
+  }
+  return null;
+}
+
+/** Ready and nothing in the way: what a picker offers. */
+export function usable(row: AuthRow | undefined, problem?: { code?: string; params?: Record<string, unknown> } | null): boolean {
+  return Boolean(row?.ready) && !agentIssue(row, problem);
+}
+
+/** The pill for an agent with an issue: calm (never the red error tone). */
+export function issuePill(issue: AgentIssue): { tone: 'warn' | 'off'; key: string } {
+  return issue === 'sign-in'
+    ? { tone: 'warn', key: 'agents.st.signIn' }
+    : issue === 'update'
+      ? { tone: 'warn', key: 'agents.st.notAcp' }
+      : issue === 'region'
+        ? { tone: 'off', key: 'agents.st.region' }
+        : issue === 'timeout'
+          ? { tone: 'off', key: 'agents.st.waiting' }
+          : { tone: 'off', key: 'agents.st.cantStart' };
+}
+
 export function pill(row: AuthRow | undefined): { tone: 'ok' | 'warn' | 'bad' | 'off'; key: string } {
   switch (row?.state) {
     case 'logged-in':

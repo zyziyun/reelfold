@@ -223,6 +223,12 @@ test('Settings › AI: the model of the AI in use, and Codex’s config model he
   const problem = page.getByTestId('model-problem-codex');
   await expect(problem).toContainText('gpt-6-astra', { timeout: 60000 });
   await expect(problem).toContainText('config.toml');
+  // the unusable CLI default is never offered by name: "Codex — fix model"
+  await expect(page.getByTestId('model-select-codex').locator('option[value=""]')).toHaveText('Codex — fix model');
+  await page.getByTestId('ai-switch').click();
+  await expect(page.getByTestId('switch-codex')).toHaveText('Codex — fix model');
+  await expect(page.getByTestId('switch-setup-more')).toBeVisible();
+  await page.keyboard.press('Escape');
   await problem.getByTestId('model-fix-codex').click();
   await expect(problem).toHaveCount(0);
   await expect(page.getByTestId('model-select-codex')).toHaveValue('gpt-6-luna');

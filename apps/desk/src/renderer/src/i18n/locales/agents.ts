@@ -52,6 +52,16 @@ export const agentsEn = {
   'aiacc.fb.region': '{from} isn’t available in your region, so {to} was used this time',
   'fail.reason.ai-region': '{provider} isn’t available in your region. Pick an AI that works where you are in Settings › AI (Qwen Code, Kimi, DeepSeek…).',
   'inbox.failed.ai-region': 'The AI isn’t available in your region — the first clip stopped',
+  'agents.issue.sign-in': 'Sign in to {name} to use it here',
+  'agents.issue.update': 'Update {name} to use it here',
+  'agents.issue.region': '{name} isn’t available in your region',
+  'agents.issue.timeout': '{name} didn’t answer. Check again in a moment.',
+  'agents.issue.error': '{name} couldn’t start here. Try it in a terminal first.',
+  'agents.act.update': 'How to update',
+  'agents.act.retry': 'Check again',
+  'agents.st.signIn': 'Needs sign-in',
+  'agents.st.waiting': 'No answer',
+  'agents.st.cantStart': 'Can’t start',
 };
 
 export const agentsZh: Record<keyof typeof agentsEn, string> = {
@@ -104,6 +114,16 @@ export const agentsZh: Record<keyof typeof agentsEn, string> = {
   'aiacc.fb.region': '{from} 在你所在的地区用不了，这次用了 {to}',
   'fail.reason.ai-region': '{provider} 在你所在的地区用不了。请在 设置 › AI 里换一个能用的（Qwen Code、Kimi、DeepSeek 等）。',
   'inbox.failed.ai-region': 'AI 在你所在的地区用不了，试看那条停下了',
+  'agents.issue.sign-in': '登录 {name} 后就能在这里用',
+  'agents.issue.update': '更新 {name} 后就能在这里用',
+  'agents.issue.region': '你所在的地区用不了 {name}',
+  'agents.issue.timeout': '{name} 没有响应，稍后再检查一次。',
+  'agents.issue.error': '{name} 在这里启动不了，先在终端里试试。',
+  'agents.act.update': '怎么更新',
+  'agents.act.retry': '再检查一次',
+  'agents.st.signIn': '需要登录',
+  'agents.st.waiting': '没有响应',
+  'agents.st.cantStart': '启动不了',
 };
 
 export const agentsFr: Record<keyof typeof agentsEn, string> = {
@@ -156,4 +176,14 @@ export const agentsFr: Record<keyof typeof agentsEn, string> = {
   'aiacc.fb.region': '{from} n’est pas disponible dans votre région, {to} a donc été utilisé cette fois',
   'fail.reason.ai-region': '{provider} n’est pas disponible dans votre région. Choisissez une IA qui fonctionne chez vous dans Réglages › IA (Qwen Code, Kimi, DeepSeek…).',
   'inbox.failed.ai-region': 'L’IA n’est pas disponible dans votre région : le premier clip s’est arrêté',
+  'agents.issue.sign-in': 'Connectez-vous à {name} pour l’utiliser ici',
+  'agents.issue.update': 'Mettez à jour {name} pour l’utiliser ici',
+  'agents.issue.region': '{name} n’est pas disponible dans votre région',
+  'agents.issue.timeout': '{name} n’a pas répondu. Vérifiez à nouveau dans un instant.',
+  'agents.issue.error': '{name} ne démarre pas ici. Essayez-le d’abord dans un terminal.',
+  'agents.act.update': 'Comment mettre à jour',
+  'agents.act.retry': 'Vérifier à nouveau',
+  'agents.st.signIn': 'Connexion requise',
+  'agents.st.waiting': 'Pas de réponse',
+  'agents.st.cantStart': 'Ne démarre pas',
 };
