@@ -24,6 +24,10 @@ def test_every_platform_is_ordered_and_grouped():
     for n in P.ORDER:
         assert P.profile(n).extra.get("group") == P.group_of(n), n
         assert P.publishing(n)["auto_post"] is False
+    # official API first: YouTube never goes through the built-in browser (references/PUBLISHING.md)
+    assert P.publishing("youtube-shorts:vertical")["mode"] == "api"
+    assert P.publishing("xiaohongshu")["mode"] == "assisted"
+    assert P.publishing("kwai")["mode"] == "manual"
 
 
 def test_new_profiles_boxes_and_limits():

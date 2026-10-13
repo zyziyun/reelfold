@@ -18,7 +18,7 @@ and post-copy limits (title / text / hashtags / link handling) for
     P.ordered(["douyin", "x", "kwai"], connected=["douyin"]) -> ["x", "douyin", "kwai"]   (display order, below)
     P.youtube_format(9 / 16, 75) -> "shorts";  P.check_format(p, aspect, seconds) -> warnings
     P.link_policy(p)     -> {"clickable": False, ...}   (check_text warns about links that won't work)
-    P.publishing(name)   -> {"mode": "assisted", "upload_url": ..., "api": {...}}   (see references/PUBLISHING.md)
+    P.publishing(name)   -> {"mode": "api" | "assisted" | "manual", "upload_url": ..., "api": ...}   (references/PUBLISHING.md)
     P.lang_for("youtube-shorts") -> "en"   (YouTube is ALWAYS English; Chinese platforms "zh")  P.split_by_lang([...])
 
 Order: every list of platforms shown to a person (pickers, publish page, accounts, calendar, website) uses
@@ -648,15 +648,17 @@ def split_by_lang(names):
         out.setdefault(lang_for(n, "en"), []).append(n)
     return {k: out[k] for k in ("en", "zh") if k in out}
 
-# How a post reaches each platform. Default everywhere: ASSISTED publishing - the desk opens the platform's own
-# upload page in its built-in browser (one persistent login per account), sets the file and types the copy; the
-# creator presses publish. ``api`` = the official posting API and what it takes; an API uploader is only ever used
+# How a post reaches each platform. Official API first: YouTube (``mode="api"``) goes only through the YouTube Data
+# API (OAuth in the system browser; Google refuses sign-in in embedded browsers), and ``upload_url`` is where "Upload
+# in your browser" opens. Everywhere else: ASSISTED publishing - the desk opens the platform's own upload page in its
+# built-in browser (one persistent login per account), sets the file and types the copy; the creator presses publish. ``api`` = the official posting API and what it takes; an API uploader is only ever used
 # behind explicit config (``uploader:`` in the series / project) AND a confirm code, and never posts on its own.
 # Details + sources: references/PUBLISHING.md.
 PUBLISHING = {
-    "youtube": dict(upload_url="https://www.youtube.com/upload", api="YouTube Data API v3 videos.insert (OAuth; "
-                    "unaudited projects are locked to private)"),
-    "youtube-shorts": dict(upload_url="https://www.youtube.com/upload", api="same as youtube (vertical, <= 3 min)"),
+    "youtube": dict(mode="api", upload_url="https://studio.youtube.com/", api="YouTube Data API v3 videos.insert "
+                    "(OAuth in the system browser; unaudited projects are locked to private)"),
+    "youtube-shorts": dict(mode="api", upload_url="https://studio.youtube.com/", api="same as youtube (vertical, "
+                           "<= 3 min; the desk marks #Shorts at <= 60 s)"),
     "tiktok": dict(upload_url="https://www.tiktok.com/tiktokstudio/upload", api="Content Posting API (unaudited: "
                    "SELF_ONLY, private account)"),
     "instagram": dict(upload_url="https://www.instagram.com/", api="Content Publishing API (Professional account, "
@@ -929,11 +931,11 @@ def link_policy(p: "Profile"):
 
 
 def publishing(name):
-    """{"mode": "assisted", "upload_url", "api", "auto_post": False}: assisted fill is the default; ``api`` names the
-    official API (opt-in per platform, behind a confirm code); nothing ever auto-posts."""
+    """{"mode": "api" | "assisted" | "manual", "upload_url", "api", "auto_post": False}: "api" = the official API is
+    the only path (YouTube); assisted fill elsewhere; ``api`` names the official API; nothing ever auto-posts."""
     n = canonical(str(name).split(":")[0])
     d = dict(PUBLISHING.get(n) or {})
-    return dict(mode="assisted" if d.get("upload_url") else "manual", upload_url=d.get("upload_url"),
+    return dict(mode=d.get("mode") or ("assisted" if d.get("upload_url") else "manual"), upload_url=d.get("upload_url"),
                 api=d.get("api"), auto_post=False, note=d.get("note"))
 
 
