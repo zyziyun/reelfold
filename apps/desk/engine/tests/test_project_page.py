@@ -28,8 +28,10 @@ def footage(d, n=3, secs=4):
     out = []
     for i in range(n):
         p = os.path.join(d, f"DJI_000{i}_D.MP4")
+        # testsrc, not testsrc2: its colour cycle is a colour flash every ~4 s, which the flicker QC refuses once
+        # the colour match moves each shot toward the reference
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-                        f"testsrc2=size=320x180:rate=30:duration={secs}", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
+                        f"testsrc=size=320x180:rate=30:duration={secs}", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
                         "-pix_fmt", "yuv420p", p], check=True)
         out.append(p)
     return out

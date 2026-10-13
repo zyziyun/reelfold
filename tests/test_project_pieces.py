@@ -37,7 +37,7 @@ def clips(tmp_path_factory):
     for i in range(3):
         p = str(d / f"DJI_000{i}_D.MP4")
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-                        "testsrc2=size=320x180:rate=30:duration=4", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
+                        "testsrc=size=320x180:rate=30:duration=4", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
                         "-pix_fmt", "yuv420p", p], check=True)
         out.append(p)
     return out
@@ -95,7 +95,7 @@ def test_a_running_stage_shows_only_this_runs_files(tmp_path, clips):
     pdir = make(tmp_path, clips)
     assert Project(pdir).run(autopilot=True)["exit_code"] == 0
     segdir = os.path.join(pdir, "items", "main", "work", "clips")
-    segs = sorted(os.listdir(segdir))
+    segs = sorted(f for f in os.listdir(segdir) if f.endswith(".mp4"))   # not the colour match LUTs folder
     # the render runs again: its row says running since now; one segment is rewritten, the others are last run's
     st = Store(os.path.join(pdir, "state"))
     try:

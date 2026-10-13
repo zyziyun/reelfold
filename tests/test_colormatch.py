@@ -97,7 +97,8 @@ def test_cube_round_trip_and_lut3d_matches_numpy(tmp_path):
 
 def test_lut3d_filter_quotes_paths_for_the_filtergraph():
     f = CM.lut3d_filter("/tmp/a b,c/x.cube")
-    assert f == "lut3d=file='/tmp/a b,c/x.cube':interp=tetrahedral"
+    want = os.path.abspath("/tmp/a b,c/x.cube").replace("\\", "/").replace(":", "\\:")  # D\:/tmp/... on Windows
+    assert f == f"lut3d=file='{want}':interp=tetrahedral"
     if os.name != "nt":
         assert CM.lut3d_filter("/tmp/C:/x.cube").startswith("lut3d=file='/tmp/C\\:/x.cube'")
     with pytest.raises(ValueError):

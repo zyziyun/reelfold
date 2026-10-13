@@ -44,7 +44,7 @@ def clips(tmp_path_factory):
     for i in range(3):
         p = str(d / f"DJI_000{i}_D.MP4")
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-                        "testsrc2=size=320x180:rate=30:duration=4", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
+                        "testsrc=size=320x180:rate=30:duration=4", "-vf", f"hue=h={i * 40}", "-c:v", "libx264",
                         "-pix_fmt", "yuv420p", p], check=True)
         out.append(p)
     return out
