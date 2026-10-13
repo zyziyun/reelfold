@@ -40,7 +40,8 @@ body{width:1200px;height:630px;overflow:hidden;background:#F4F0E8;color:#1C1A17;
 .eyebrow{position:absolute;left:72px;top:150px;width:540px;font:500 13px/1.4 Inter,'PingFang SC';letter-spacing:.1em;text-transform:uppercase;color:#6B6359}
 h1{position:absolute;left:68px;top:188px;margin:0;width:540px;font:400 ${lang === 'en' ? 76 : 64}px/1 IS,serif;letter-spacing:-.025em}
 h1 em{font-style:italic}
-.zh h1{font:600 84px/1.18 NS,'Songti SC',serif;letter-spacing:.02em}
+.zh h1{font:600 ${[...c.hero.h1a].length > 8 ? 64 : 84}px/1.18 NS,'Songti SC',serif;letter-spacing:.02em}
+.zh h1 .ph{display:inline-block}
 .zh h1 em{font-style:normal;color:#0A7266}
 .fine{position:absolute;left:72px;bottom:58px;font:400 18px/1.4 Inter,'PingFang SC';color:#4F4943}
 .fine b{color:#0A7266;font-weight:600}
@@ -49,7 +50,7 @@ h1 em{font-style:italic}
 </style></head><body class="${zhl ? 'zh' : ''}">
 <div class="logo">${symbol.replace(/<svg /, '<svg aria-hidden="true" ')}${zhl ? '千剪' : 'Reelfold'}</div>
 <div class="eyebrow">${c.hero.eyebrow}</div>
-<h1>${c.hero.h1a}<br><em>${c.hero.h1b}</em></h1>
+<h1>${zhl ? c.hero.h1a.split(/(?<=、)/).map((p) => `<span class="ph">${p}</span>`).join('') : c.hero.h1a}<br><em>${c.hero.h1b}</em></h1>
 <div class="fine"><b>MIT</b> · github.com/zyziyun/reelfold</div>
 <div class="print"><img src="${shot}"></div>
 </body></html>`;

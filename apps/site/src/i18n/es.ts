@@ -4,10 +4,10 @@ import type { Dict } from './en';
 
 export const es: Dict = {
   meta: {
-    title: 'Reelfold: estudio open source para creadores, edición con IA',
+    title: 'Reelfold: app de IA de código abierto para crear, editar y publicar',
     description:
-      'Taller de código abierto para creadores: editor de video con IA que convierte tu material en videos para YouTube, TikTok, Instagram y más, y los programa.',
-    ogAlt: 'Reelfold, el taller de código abierto para creadores. Tu material, editado para cada plataforma y programado. Gratis, para Mac con Apple Silicon.',
+      'Taller pro de código abierto para creadores y docentes: videos desde notas, edición de tu material y publicación en todas partes. Cientos de videos de una vez.',
+    ogAlt: 'Reelfold, el taller de código abierto para creadores. Crea, edita y publica videos para cada plataforma en una sola app. Gratis, para Mac con Apple Silicon.',
   },
   nav: {
     skip: 'Ir al contenido',
@@ -34,9 +34,9 @@ export const es: Dict = {
   },
   hero: {
     eyebrow: 'El taller de código abierto para creadores',
-    h1a: 'Tu propio material,',
-    h1b: 'editado para cada plataforma.',
-    sub: 'Reelfold es el taller gratuito y de código abierto para creadores. Suelta lo que grabaste y di lo que quieres. Edita una versión para YouTube, TikTok, Instagram, X y LinkedIn, luego Xiaohongshu, Douyin, Bilibili y WeChat Channels, y la coloca en un calendario de publicación. Muchos videos a la vez, en piloto automático, en tu Mac, con modelos locales si lo prefieres. Parte de tu material real, no de un prompt.',
+    h1a: 'Crea, edita y publica.',
+    h1b: 'Cada plataforma, una sola app.',
+    sub: 'Reelfold es el taller profesional, gratuito y de código abierto para creadores y docentes. Empieza con tu material, una clase grabada, una carpeta o una tarjeta SD, o solo con notas y un tema, y di lo que quieres. Prepara las versiones para YouTube, TikTok, Instagram, X y LinkedIn, luego Xiaohongshu, Douyin, Bilibili y WeChat Channels, y las coloca en un calendario de publicación. Cientos, incluso miles, de videos de una vez, en piloto automático, en tu Mac, con modelos locales si lo prefieres.',
     fig: 'En marcha. Claude Code planifica y corta una charla en shorts; pide un cambio mientras trabaja.',
     figAlt: 'Una charla cortándose en shorts verticales en piloto automático: la barra de pasos en Render, clip 6 de 6, las decisiones de la IA con las razones de Claude Code, cinco fotogramas de clips terminados y el chat donde Claude Code propone subtítulos más grandes para cinco clips.',
   },
@@ -60,11 +60,11 @@ export const es: Dict = {
   },
   who: {
     k: 'Para quién',
-    t: 'Creadores que graban lo suyo y publican en todas partes.',
+    t: 'Creadores y docentes que publican en todas partes.',
     items: [
-      { slug: 'course-slicing', t: 'Cursos y clases', b: 'Convierte una clase grabada en una serie de lecciones cortas, con el código y las diapositivas legibles.', more: 'Cortar un curso' },
+      { slug: 'course-slicing', t: 'Cursos y clases', b: 'Convierte una clase grabada en episodios y shorts con el código y las diapositivas legibles, o haz un video de curso directamente desde tus notas.', more: 'Cortar un curso' },
       { slug: 'podcast-clips', t: 'Podcasts y entrevistas', b: 'Saca de una conversación larga las respuestas que se sostienen solas, con subtítulos y caras resueltos.', more: 'Clips de podcast' },
-      { slug: 'studios', t: 'Estudios con lotes de clientes', b: 'Aplica el mismo tratamiento a muchas grabaciones y entrega una carpeta por plataforma.', more: 'Trabajo por lotes' },
+      { slug: 'studios', t: 'Estudios con lotes de clientes', b: 'Aplica el mismo tratamiento a cientos de grabaciones y luego revísalas y actúa sobre todas a la vez en Todos los proyectos.', more: 'Trabajo por lotes' },
     ],
   },
   batch: {
@@ -87,9 +87,9 @@ export const es: Dict = {
   makes: {
     k: 'Qué hace',
     t: 'Todo tu flujo, no un solo clip.',
-    l: 'Parte de lo que grabaste y llega hasta el calendario. Esto es lo que hace hoy en tu Mac.',
+    l: 'Parte de un tema o de lo que grabaste y llega hasta el calendario. Esto es lo que hace hoy en tu Mac.',
     items: [
-      { t: 'Varios videos de una tarjeta', b: 'Indica una carpeta o una tarjeta SD y pide varios videos. Agrupa el material en historias, propone un tema para cada una y las hace de pocas en pocas.' },
+      { t: 'Cientos de videos de una vez', b: 'Indica una carpeta, una tarjeta SD o un semestre de clases y pide muchos videos. Agrupa el material en historias, propone un tema para cada una y las hace en piloto automático, de pocas en pocas.' },
       { t: 'Sigue editando un video terminado', b: 'Importa un video hecho en cualquier sitio, con o sin su material. Cambia el texto, los cortes, los subtítulos, la música, la portada o el formato, y crea nuevas versiones por plataforma.' },
       { t: 'El vertical sigue al sujeto', b: 'El material horizontal para TikTok, Reels o Xiaohongshu se recorta plano a plano alrededor de las personas y el movimiento, con una cámara suave.' },
       { t: 'Textos y calendario por plataforma', b: 'Un título, un texto y hashtags dentro de los límites de cada plataforma, en un calendario semanal. Reelfold rellena cada página de subida; tú pulsas publicar.' },
@@ -135,8 +135,8 @@ export const es: Dict = {
     k: 'Preguntas',
     t: 'Preguntas, respuestas claras.',
     items: [
-      { q: '¿Qué es Reelfold?', a: 'El taller de código abierto para creadores. Toma el material que grabaste, lo edita en videos para cada plataforma donde publicas y los coloca en un calendario de publicación. Funciona en tu Mac, gratis con licencia MIT.' },
-      { q: '¿Es un generador de video con IA?', a: 'No. Un generador de video con IA crea una película a partir de un prompt. Reelfold parte de tu propio material y lleva el resto de tu flujo: montaje, subtítulos, portadas, versiones por plataforma, textos y calendario de publicación. Puede sugerir un plano generado donde falta uno, y no gasta nada sin tu aprobación.' },
+      { q: '¿Qué es Reelfold?', a: 'El taller profesional de código abierto para creadores y docentes: una sola app para crear videos, editar tu propio material y publicar. Hace videos a partir de notas o un tema, edita lo que grabaste en versiones para cada plataforma donde publicas, procesa cientos de videos de una vez y los coloca en un calendario de publicación. Funciona en tu Mac, gratis con licencia MIT.' },
+      { q: '¿También puede hacer videos desde cero?', a: 'Sí. Dale notas, una página de Notion exportada o solo un tema, y hace un video explicativo de curso, un short con IA o un video de lanzamiento, con narración y animación. Antes de cualquier generación con IA de pago te muestra el plan y el costo, y espera tu aprobación. También edita tu propio material y lo publica, en la misma app.' },
       { q: '¿De verdad es gratis?', a: 'Sí. Reelfold tiene licencia MIT y es gratis. El único costo es la IA que conectes: la clase de 124 minutos de arriba costó 0,29 US$. Con una suscripción que ya tengas, o con un modelo local, no hay factura extra.' },
       { q: '¿Puedo editar videos con Claude Code?', a: 'Sí. Reelfold puede usar tu suscripción de Claude Code como IA: planifica los cortes, escribe subtítulos y textos, y el panel en directo muestra cada paso. El mismo motor también se instala como skill de Claude Code, para pedir una edición desde la terminal.' },
       { q: '¿Qué necesito?', a: 'Un Mac con Apple Silicon y una IA para planificar y escribir: una suscripción de Claude Code o Codex, una clave de API o un modelo local. La narración puede usar la voz gratis en tu Mac. Hay una versión preliminar para Windows, sin firmar; allí la narración necesita una clave de OpenAI.' },
@@ -147,9 +147,9 @@ export const es: Dict = {
       { q: '¿Tengo que etiquetar el contenido hecho con IA?', a: 'Muchas plataformas piden indicar el contenido editado o generado con IA. La lista de publicación de Reelfold te lo recuerda en cada una.' },
     ],
   },
-  final: { t: 'Trae tu material. Llévate la semana.' },
+  final: { t: 'Trae una idea o tu material. Llévate la semana.' },
   footer: {
-    tag: 'El taller de código abierto para creadores: tu material, editado para cada plataforma y programado. Gratis.',
+    tag: 'El taller de código abierto para creadores: crea, edita y publica videos para cada plataforma en una sola app. Gratis.',
     product: 'Producto',
     useCases: 'Usos',
     compare: 'Comparar',

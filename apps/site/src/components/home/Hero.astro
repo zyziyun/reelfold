@@ -7,10 +7,12 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = t(lang);
 const zh = lang === 'zh';
+// 中文 headline phrases stay whole; a line may break only after 、 (so a long first line wraps cleanly on phones)
+const phrases = (s: string) => s.match(/[^、]+、?/g) ?? [s];
 ---
 <div class="wrap hero">
   <p class="eyebrow">{c.hero.eyebrow}</p>
-  <h1>{zh ? <><span class="ph">{c.hero.h1a}</span><br /><em class="ph">{c.hero.h1b}</em></> : <>{c.hero.h1a}<br /><em>{c.hero.h1b}</em></>}</h1>
+  <h1>{zh ? <>{phrases(c.hero.h1a).map((p) => <span class="ph">{p}</span>)}<br /><em class="ph">{c.hero.h1b}</em></> : <>{c.hero.h1a}<br /><em>{c.hero.h1b}</em></>}</h1>
   <p class="sub">{c.hero.sub}</p>
   <Ctas {lang} />
   <Print class="herofig" src={img('making', lang)} alt={c.hero.figAlt}
