@@ -1036,6 +1036,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
           {tab === 'trim' && <TrimPanel doc={view} time={time} sel={sel} edit={edit} onClearSel={() => (setSel(null), pl.current?.setSelection(null))} />}
           {tab === 'effects' && <EffectsPanel doc={odoc} defs={effects} time={time} sel={sel} fxSel={fxSel} setFxSel={setFxSel} edit={edit} firstWord={firstWord} />}
           <Edits doc={odoc} onUndoTo={(k) => void undo(doc.steps.length - k)} />
+          <HandEdits doc={odoc} edit={edit} />
         </div>
       </section>
   ) : null;
@@ -1595,6 +1596,30 @@ function ParamFields({
           </label>
         );
       })}
+    </div>
+  );
+}
+
+/** Her hand edits the AI keeps (engine overrides): each back to the AI version (or removed, when she added it). */
+function HandEdits({ doc, edit }: { doc: OutputDoc; edit: (ops: EditOp[], undoToast?: boolean) => Promise<boolean> }) {
+  const list = doc.overrides ?? [];
+  if (!list.length) return null;
+  return (
+    <div className="field4" data-testid="hand-edits">
+      <span className="lbl">{t('ov.title')}</span>
+      <span className="faint" style={{ fontSize: 12 }}>
+        {t('ov.lead')}
+      </span>
+      <div className="oplist">
+        {list.map((o) => (
+          <div key={o.key} className="li" data-testid="hand-edit">
+            <span className="sp clamp1">{o.label ? emsg(o.label) : o.key}</span>
+            <button className="btn ghost sm" onClick={() => void edit([{ op: 'override_reset', key: o.key }], true)} data-testid="hand-edit-reset">
+              {o.added ? t('ov.remove') : t('ov.reset')}
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { textLang, wordsText } from '../../lib/transcript';
 import { media } from '../kit';
 import { effectLabel, humanizeParam } from '../msg';
 import { FrameAt } from './Frame';
+import { NleDialog } from '../NleDialog';
 
 export interface CardEnv {
   doc: ChatDoc;
@@ -637,6 +638,8 @@ export function ExportCard({ env, run, onStart, onStop, onCancel }: { env: CardE
   };
   const left = run && running ? Math.max(0, run.targets.length - k) : 0;
   const wmOn = wmPick ?? watermarkOnFor(wm, [...on]);
+  // "Export for editing software…": Premiere / Resolve, CapCut, OTIO, 剪映 (engine output nle)
+  const [nle, setNle] = useState(false);
   return (
     <Card
       kind="export"
@@ -697,6 +700,12 @@ export function ExportCard({ env, run, onStart, onStop, onCancel }: { env: CardE
         ))}
       </div>}
       {!run && anyH && vertical && <span className="muted" style={{ fontSize: 12 }}>{t('ce.exp.band')}</span>}
+      {!run && doc.engine === 'real' && (
+        <button className="link" style={{ alignSelf: 'flex-start', fontSize: 12.5 }} onClick={() => setNle(true)} data-testid="export-nle">
+          {t('nle.open')}
+        </button>
+      )}
+      {nle && <NleDialog item={doc.item} clip={doc.id} onClose={() => setNle(false)} />}
       {!run && wm && (wm.configured ? (
         <label className="row" style={{ gap: 8, fontSize: 12.5, cursor: 'pointer' }} data-testid="export-wm" data-on={wmOn ? '1' : '0'}>
           <input type="checkbox" checked={wmOn} onChange={(e) => setWmPick(e.target.checked)} data-testid="export-wm-toggle" />

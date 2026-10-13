@@ -93,6 +93,8 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            GET /api/project-ask/<job> {state, stages, notices, elapsed, result};
                                            POST /api/project-ask/<job>/stop (kills the engine + model CLI);
                                            POST /api/outputs/<item>/regenerate {items} (needs_rerender action)
+  POST /api/outputs/<item>[/<clip>]/nle     {format xmeml|jianying|capcut|otio, media link|copy, to_app} the edit
+                                           for editing software (engine output nle): one clip, or every clip
   GET  /api/outputs/<item>/<clip>/strip    timeline filmstrip sprite + audio peaks (timeline.py, cached);
                                            POST|GET .../transcribe 「听一遍」 -> output-transcribe events
   GET  /api/effects                        effects catalogue (zh labels, params, preview kind)
@@ -620,8 +622,12 @@ class Api:
                 return self.project_ask.get(parts[1])
             if len(parts) == 3 and parts[2] == "stop" and method == "POST":
                 return self.project_ask.stop(parts[1])
-        if parts[:1] == ["outputs"] and len(parts) == 3 and method == "POST" and parts[2] in ("project-ask", "regenerate"):
+        if parts[:1] == ["outputs"] and len(parts) == 3 and method == "POST" and parts[2] in ("project-ask", "regenerate",
+                                                                                              "nle"):
             need(ID_RE.match(parts[1]), "bad item id")
+            if parts[2] == "nle":
+                return self.outputs.nle_all(parts[1], b.get("format"), media=b.get("media") or "link",
+                                            to_app=b.get("to_app"))
             if parts[2] == "regenerate":
                 return self.project_ask.regenerate(parts[1], b.get("items"))
             return self.project_ask.start(parts[1], b.get("prompt"), clips=b.get("clips"), context=b.get("context"))
@@ -658,6 +664,9 @@ class Api:
                     return self.outputs.export_stop(b.get("job"))
                 if verb == "revert":
                     return self.outputs.revert(parts[1], clip, b.get("step"))
+                if verb == "nle":
+                    return self.outputs.nle(parts[1], clip, b.get("format"), media=b.get("media") or "link",
+                                            to_app=b.get("to_app"))
                 if verb == "chat":
                     if b.get("turn") is not None:
                         return self.outputs.chat_update(parts[1], clip, b.get("turn"), b.get("set"))

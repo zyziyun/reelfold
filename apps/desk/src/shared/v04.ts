@@ -173,7 +173,37 @@ export type EditOp =
   | { op: 'export_add'; target: string; layout?: 'auto' | 'band'; lang?: string }
   | { op: 'shot_swap'; shot: number; source?: string; t?: number; restore?: boolean }
   | { op: 'export_remove'; target: string }
-  | { op: 'reset' };
+  | { op: 'reset' }
+  /** one of her hand edits back to the AI version (OUTPUT_EDIT.md 6a) */
+  | { op: 'override_reset'; key: string };
+
+/** A hand edit the AI keeps (caption text / style, an effect, the title, cover, trim ...): `key` for override_reset. */
+export interface Override {
+  key: string;
+  label?: EngineMsg | null;
+  at?: string | null;
+  /** she created it: "reset" removes it */
+  added?: boolean;
+}
+
+/** Editing software a clip / project goes to (engine output nle): Premiere / Resolve XML, 剪映, CapCut, OTIO. */
+export type NleFormat = 'xmeml' | 'jianying' | 'capcut' | 'otio';
+
+export interface NleResult {
+  ok: boolean;
+  format: NleFormat;
+  dir: string;
+  /** the timeline file (xml / otio) or the draft folder */
+  main?: string;
+  files?: string[];
+  notes?: string[];
+  cues?: number;
+  clips?: number;
+  in_app?: boolean;
+  /** a whole project: one result per clip */
+  outputs?: NleResult[];
+  failed?: { output: string; error: string }[];
+}
 
 export interface Step {
   id: string;
@@ -247,6 +277,8 @@ export interface OutputDoc {
   /** a finished video imported for second-pass editing: its footage and matched shots */
   imported?: ImportedDoc | null;
   steps: Step[];
+  /** her hand edits the AI keeps (each can go back to the AI version) */
+  overrides?: Override[];
   undo: number;
   redo: number;
   renders: { target: string; quality?: string; file: string; fresh?: boolean; simulated?: boolean; key?: string | number | null; at?: string | null }[];

@@ -45,7 +45,7 @@ import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { Goal, GoalEditOp } from './goal';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, BrainDoc, BrainState, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, BrainDoc, BrainState, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import type { ImportCheck, ImportInfo, ImportJob, ImportTakes } from './imports';
 import { CreateClient } from './create';
@@ -480,6 +480,14 @@ export class EngineClient {
   /** final renders in the background; progress arrives as output-render events */
   exportOutput(item: string, clip: string, targets: string[], watermark?: boolean) {
     return this.req<ExportJob>('POST', `/api/outputs/${bid(item)}/${clipId(clip)}/export`, watermark === undefined ? { targets } : { targets, watermark });
+  }
+  /** the clip's edit for editing software (Premiere / Resolve XML, 剪映 / CapCut draft, OTIO): engine output nle */
+  exportNle(item: string, clip: string, format: NleFormat, opts: { media?: 'link' | 'copy'; to_app?: boolean } = {}) {
+    return this.req<NleResult>('POST', `/api/outputs/${bid(item)}/${clipId(clip)}/nle`, { format, ...opts });
+  }
+  /** every clip of a project, each its own timeline, in one folder */
+  exportNleAll(item: string, format: NleFormat, opts: { media?: 'link' | 'copy'; to_app?: boolean } = {}) {
+    return this.req<NleResult>('POST', `/api/outputs/${bid(item)}/nle`, { format, ...opts });
   }
   /** Settings › Watermark: the engine's watermark settings + previews over sample 9:16 / 16:9 frames */
   watermark(previews = true) {

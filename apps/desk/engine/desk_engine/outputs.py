@@ -33,7 +33,8 @@ from .common import BadRequest, need, read_json, write_json
 
 OPS = ("trim", "cut", "cut_remove", "speed", "loudness", "captions", "caption_text", "caption_style", "caption_add", "theme",
        "caption_remove", "caption_placement", "title", "effect_add", "effect_update", "effect_remove", "cover",
-       "export_add", "export_remove", "reset", "shot_swap")
+       "export_add", "export_remove", "reset", "shot_swap", "override_reset")
+NLE_FORMATS = ("xmeml", "jianying", "capcut", "otio")
 TARGET_RE = re.compile(r"^([a-z][a-z-]{0,30}(:[a-z]{3,12})?|\d{1,2}:\d{1,2})$")
 
 
@@ -454,6 +455,9 @@ def validate_ops(ops):
             need(isinstance(o["sig"], str) and re.match(r"^[0-9a-f]{6,40}$", o["sig"]), "sig: the words signature")
         if o.get("why") is not None:
             need(isinstance(o["why"], str) and len(o["why"]) <= 200, "why: text")
+        if o["op"] == "override_reset":
+            need(isinstance(o.get("key"), str) and re.match(r"^[a-z_]{1,24}(:[\w.-]{1,80})?$", o["key"]),
+                 "key: one of her hand edits (overrides[].key)")
         out.append(dict(o))
     return out
 
@@ -1102,6 +1106,9 @@ class Outputs:
                              reverted=bool(s_.get("reverted")), revert_of=s_.get("revert_of"))
                         for s_ in hist.get("steps") or []]
         out["chat"] = [_public_turn(t) for t in eng.get("chat") or [] if isinstance(t, dict)]
+        # her hand edits the AI keeps (engine overrides): each with "Reset to AI version" (op override_reset)
+        out["overrides"] = [dict(key=x.get("key"), label=x.get("label"), at=x.get("at"), added=bool(x.get("added")))
+                            for x in eng.get("overrides") or [] if isinstance(x, dict) and x.get("key")]
         out["undo"], out["redo"] = hist.get("undo", len(out["steps"])), hist.get("redo", 0)
         out["renders"] = eng.get("renders") or []
         out["caps"] = eng.get("caps") or {}
@@ -1215,6 +1222,37 @@ class Outputs:
         return dict(ok=True, step=r.get("step"), pickup=r.get("pickup"), doc=self.show(item_id, clip_id))
 
     # ---------------------------------------------------------- edit / undo / redo / render
+    # ---------------------------------------------------------- the edit for editing software (engine nle.py)
+    def _nle_args(self, fmt, media, to_app):
+        need(fmt in NLE_FORMATS, f"format: {' | '.join(NLE_FORMATS)}")
+        need(media in ("link", "copy"), "media: link | copy")
+        need(to_app in (None, True, False), "to_app: true / false")
+        return ["--format", fmt, "--media", media] + (["--to-app"] if to_app else [])
+
+    def nle(self, item_id, clip_id, fmt, media="link", to_app=False):
+        """One clip's edit as a Premiere / Resolve XML, a 剪映 / CapCut draft or an OTIO timeline (engine ``output nle``)
+        -> {ok, format, dir, main, files, notes, cues, clips, in_app}. Only the engine can: its cuts, speed, levels and
+        captions are the edit document's."""
+        args = self._nle_args(fmt, media, to_app)
+        e, c = self._clip(item_id, clip_id)
+        oid = self._output_id(e, c)
+        if not oid:
+            raise EngineMessage(_m("nle-needs-engine", "this clip cannot go to editing software yet (open it in the "
+                                   "editor once, then try again)", "这条还不能导出到剪辑软件（先在编辑器里打开一次再试）"))
+        self._adopt_on_first_edit(e)
+        return self._cli(["nle", "--project", e["dir"], "--output", oid] + args, timeout=900)
+
+    def nle_all(self, item_id, fmt, media="link", to_app=False):
+        """Every clip of a project, each its own timeline, in one folder -> {ok, format, dir, outputs, failed}."""
+        args = self._nle_args(fmt, media, to_app)
+        e = self._entry(item_id)
+        need(e["kind"] in ("project", "work"), "only a project or a work folder")
+        if not self._engine_list(e):
+            raise EngineMessage(_m("nle-needs-engine", "nothing here can go to editing software yet",
+                                   "这里还没有可以导出到剪辑软件的成片"))
+        self._adopt_on_first_edit(e)
+        return self._cli(["nle", "--project", e["dir"], "--all"] + args, timeout=1800)
+
     def _adopt_on_first_edit(self, e):
         """「转成项目」 happens transparently: a plain work folder gets its record on the first edit."""
         if e["kind"] == "work" and not os.path.exists(WK.record_path(e["dir"])):

@@ -2,7 +2,7 @@
 // versions, caption) -> tabs 成片 / (审片 / 交付) / 修改记录 / 素材和文件 -> details folded. Right: 「让 AI 改」.
 // Plain work folders show their in-progress clips and refresh live (fs watch + a 5 s timer while running).
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArchiveRestore, ArrowLeft, CalendarPlus, Copy, FolderOpen, Maximize2, Play, Share2, Undo2, Wand2 } from 'lucide-react';
+import { ArchiveRestore, ArrowLeft, CalendarPlus, Clapperboard, Copy, FolderOpen, Maximize2, Play, Share2, Undo2, Wand2 } from 'lucide-react';
 import type { HistoryDetail } from '../../../shared/v02';
 import type { Clip, ClipsDoc, InboxItem, OutputDoc } from '../../../shared/v04';
 import { basePlatform, orderPlatforms, platformInfo } from '../../../shared/platforms';
@@ -27,6 +27,7 @@ import { Elapsed, Empty, More, SkGrid, StatusPill, Thumb } from './kit';
 import { FailureActions, failureReason } from './Failure';
 import { PlayerOverlay } from './Player';
 import { ShareButton, ShareDialog } from './ShareDialog';
+import { NleDialog } from './NleDialog';
 import { emsg, errText } from './msg';
 import { useUi, type Ui } from './ui';
 
@@ -93,6 +94,8 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
   const [playing, setPlaying] = useState<{ clip: Clip; aspect?: string } | null>(null);
   const [aspects, setAspects] = useState<Record<string, string>>({});
   const [shareClip, setShareClip] = useState<string | null>(null);
+  // "Export for editing software…": one clip (its menu) or every clip (Deliver)
+  const [nle, setNle] = useState<{ clip: string | null } | null>(null);
   const [n, setN] = useState(0);
   const reload = useCallback(() => setN((x) => x + 1), []);
 
@@ -144,6 +147,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
       { label: t('c.reveal'), icon: <FolderOpen className="ico" />, run: () => c.files[0] && window.desk.showItem(c.files[0].path) },
       { label: t('clip.schedule'), icon: <CalendarPlus className="ico" />, run: () => schedule([c]) },
       { label: t('share.menu'), icon: <Share2 className="ico" />, run: () => setShareClip(c.id), testId: 'menu-share' },
+      { label: t('nle.open'), icon: <Clapperboard className="ico" />, run: () => setNle({ clip: c.id }), testId: 'menu-nle' },
     ]);
   const copyPost = async (c: Clip) => {
     if (!c.post) return;
@@ -401,6 +405,12 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
                 {t('project.tab.deliver')}
               </a>
               {done.length > 0 && <ShareButton item={id} testId="deliver-share" />}
+              {done.length > 0 && (
+                <button className="btn ghost" onClick={() => setNle({ clip: null })} data-testid="deliver-nle">
+                  <Clapperboard className="ico" />
+                  {t('nle.open')}
+                </button>
+              )}
             </div>
           )}
           {tab === 'history' && <HistoryTab id={id} clips={clips} onChanged={reload} />}
@@ -409,6 +419,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
       </div>
       </WithProjectChat>
       {shareClip && <ShareDialog item={id} only={[shareClip]} onClose={() => setShareClip(null)} />}
+      {nle && <NleDialog item={id} clip={nle.clip} count={done.length} onClose={() => setNle(null)} />}
       {playing && (
         <PlayerOverlay
           files={playing.clip.files}
