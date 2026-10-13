@@ -8,7 +8,26 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-13
+
 ### Added
+- **No more flicker, a quieter, more premium look**: subtitles crossfade, no flash/whip/light-leak transitions, even
+  frame cadence at any speed, matched exposure between clips, no sharpening shimmer; a flicker QC fails a render that
+  strobes. Footage films default to a cinema theme (full-bleed picture, one serif + one sans, soft shadows, small
+  spaced place labels, restrained grade).
+- **One language per platform**: YouTube is always English (titles, captions, narration, post copy); Xiaohongshu,
+  Bilibili and other Chinese platforms get Chinese; a request for both makes an English and a Chinese version.
+- **A natural free Chinese voice**: Qwen3-TTS (Apache-2.0, offline on Apple silicon, 3 GB optional download in
+  Settings › Voice) with five voices; the old Kokoro Chinese voice is opt-in.
+- **Cover engine 2.0**: the best frame (aesthetics, sharpness, subject), subject cutout (BiRefNet), upscale
+  (Real-ESRGAN), the title placed clear of faces, the subject and each platform's UI, monolingual per platform,
+  three YouTube A/B variants and a small-size readability check; photo stories use it too.
+- **Beats and shots**: Beat This! finds beats and bars (cuts land on bars), TransNet V2 finds shots, and planners
+  pick each shot's best moment; fun-reel scoring is about 11× faster.
+- **Smooth jump cuts and real slow motion**: RIFE bridges same-framing jump cuts in talking heads ("smooth the jump
+  cuts" / "平滑跳剪") and makes clean slow motion for drone reveals and speed ramps.
+- **Launch films with a story**: varied layouts (full, close-up, split, type beats, chapters), a launch arc with a
+  brand card, a beat-cut reel, 3D UI, fly-through cards and quiet sound effects.
 
 - **More AI agents, including ones that work in mainland China**: Reelfold now drives any coding agent you installed
   and signed in to over the Agent Client Protocol (ACP): Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode,
