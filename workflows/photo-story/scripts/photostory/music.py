@@ -27,6 +27,7 @@ import os
 import pickle
 
 from vstudio import beats as vbeats
+from vstudio.subs import tidy_punct
 
 from .transitions import TRD
 
@@ -286,7 +287,7 @@ class MusicTimeline:
                 part = (e - a) / len(chunks)
                 for k, (en, zh) in enumerate(chunks):
                     st = a + k * part + min(0.6, 0.15 * part) + (mine[0]["trd"] if k == 0 else 0) * 0.5
-                    self.subs.append(dict(en=en, zh=zh, start=st, end=a + (k + 1) * part - min(0.5, 0.12 * part),
+                    self.subs.append(dict(en=tidy_punct(en), zh=tidy_punct(zh), start=st, end=a + (k + 1) * part - min(0.5, 0.12 * part),
                                           sec=sec, style="title" if style == "title" else "subs"))
 
     def section_at(self, gt):

@@ -205,6 +205,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     if doc:                                  # the plan's joins / label places (her changes always), still plain data
         text, steered = BST.photo_fix(text, doc, by_id)
     text = enforce_voice(text, vp, lang_zh, music_mode)
+    text = label_language(text, lang_zh, complete)
     if bgm:
         text = enforce_bgm(text, work, bgm)
     if vp.get("narrate") == "en":
@@ -296,6 +297,84 @@ def enforce_voice(text, vp, lang_zh, music_mode=False):
     tts_cfg["language"] = vp.get("narrate") or "en"
     text = _set_global(text, "TTS", tts_cfg)
     return _set_global(text, "SUB_LEAD", vp.get("sub_lead") or ("zh" if lang_zh else "en"))
+
+
+_LABEL_SEP = re.compile(r"\s*[·•/／|｜]\s*")
+
+
+def _label_literals(text):
+    """[(node, value)] for every ``label=`` / ``tri_label=`` string literal in a spec module."""
+    import ast
+    out = []
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return out
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg in ("label", "tri_label") and isinstance(kw.value, ast.Constant) and \
+                        isinstance(kw.value.value, str):
+                    out.append((kw.value, kw.value.value))
+    return out
+
+
+def _replace_nodes(text, repl):
+    """``text`` with the source of each AST node in ``repl`` ([(node, new literal source)]) replaced - nothing else
+    changes."""
+    lines = text.split("\n")
+    starts, k = [], 0
+    for ln in lines:
+        starts.append(k)
+        k += len(ln.encode("utf-8")) + 1
+    raw = text.encode("utf-8")
+    spans = sorted(((starts[n.lineno - 1] + n.col_offset, starts[n.end_lineno - 1] + n.end_col_offset, src)
+                    for n, src in repl), reverse=True)
+    for a, b, src in spans:
+        raw = raw[:a] + src.encode("utf-8") + raw[b:]
+    return raw.decode("utf-8")
+
+
+def label_language(text, lang_zh, complete=None):
+    """Picture labels in this version's language, whatever the model wrote: a label with no part in it ("Space
+    Needle" on a Chinese version, "太空针塔" on YouTube) is asked of the routed AI once and written "English · 中文"
+    (the renderer shows the version's part; photostory ctx.shown). No AI answer -> unchanged (the renderer then hides
+    such a label rather than showing the other language)."""
+    lits = _label_literals(text)
+    need = []
+    for node, v in lits:
+        parts = [x for x in _LABEL_SEP.split(v) if x.strip()]
+        has_zh = any(re.search(r"[\u3400-\u9fff]", x) for x in parts)
+        has_en = any(re.search(r"[A-Za-z]", x) and not re.search(r"[\u3400-\u9fff]", x) for x in parts)
+        if (lang_zh and not has_zh) or (not lang_zh and not has_en):
+            need.append((node, v))
+    if not need:
+        return text
+    if complete is None:
+        from vstudio import llm
+        complete = llm.complete
+    want = "Simplified Chinese" if lang_zh else "English"
+    names = list(dict.fromkeys(v for _, v in need))
+    try:
+        r = complete("planner", "You translate short on-screen place labels of a documentary video. Reply with JSON "
+                     "only: {\"labels\": {\"<label>\": \"<translation>\"}}. Use the established name of a real place "
+                     "(太空针塔 for Space Needle); 1-6 words / 2-10 characters; no quotes, no emoji.",
+                     f"Translate each label into {want}:\n" + "\n".join(names), schema=True, max_tokens=800,
+                     timeout=120, cli_timeout=120, retries=1, effort="low")
+    except Exception:  # noqa: BLE001 - a label left as is is hidden at render time, never a failed draft
+        return text
+    got = ((r or {}).get("json") or {}).get("labels") if isinstance(r, dict) else None
+    if not isinstance(got, dict):
+        return text
+    repl = []
+    for node, v in need:
+        tr = str(got.get(v) or "").strip()
+        ok = tr and (bool(re.search(r"[\u3400-\u9fff]", tr)) if lang_zh else bool(re.search(r"[A-Za-z]", tr) and
+                                                                                   not re.search(r"[\u3400-\u9fff]", tr)))
+        if ok:
+            pair = f"{v} · {tr}" if lang_zh else f"{tr} · {v}"
+            repl.append((node, repr(pair)))
+    return _replace_nodes(text, repl) if repl else text
 
 
 def _spec_value(text, name):

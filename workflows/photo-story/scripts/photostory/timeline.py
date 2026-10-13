@@ -10,6 +10,7 @@ import os
 import re
 
 from vstudio import audio, media
+from vstudio.subs import tidy_punct
 
 from .transitions import TRD
 
@@ -72,7 +73,7 @@ class Timeline:
             for k, (en, zh) in enumerate(chunks):
                 st = t + ch[k]["start"]
                 en_t = t + (ch[k + 1]["start"] if k + 1 < len(ch) else min(ch[k]["end"] + 0.45, slot - 0.05))
-                self.subs.append(dict(en=en, zh=zh, start=st, end=en_t, sec=sec))
+                self.subs.append(dict(en=tidy_punct(en), zh=tidy_punct(zh), start=st, end=en_t, sec=sec))
             wsum = sum(s[1] for s in shotlist)
             a = t
             for src, w, mo, opt in shotlist:

@@ -109,6 +109,25 @@ def parse_highlight(text):
     return [(s, h) for s, h in out if s]
 
 
+_PUNCT_RUN = re.compile(r"([，。、！？；：,!?;:])(?:\s*(?:\*\*|【|】)?\s*[，。、,;；:：])+")
+
+
+def tidy_punct(text):
+    """Doubled punctuation a drafted line or a join of two lines can leave ("一片，，松开手", "，。", ",,") -> one
+    mark: the stronger one wins (。！？ over ，、；：), highlight markup between them is kept. Ellipses (……, ...) and
+    ?! / ！？ pairs are left alone."""
+    if not text:
+        return text
+
+    def one(m):
+        run = m.group(0)
+        marks = [c for c in run if c in "，。、！？；：,!?;:"]
+        keep = next((c for c in marks if c in "。！？!?"), marks[0])
+        mk = "".join(x for x in re.findall(r"\*\*|【|】", run))
+        return keep + mk
+    return _PUNCT_RUN.sub(one, str(text))
+
+
 def strip_markup(text):
     """Text with 【】 / ** markers removed."""
     return "".join(s for s, _ in parse_highlight(text))

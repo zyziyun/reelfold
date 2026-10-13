@@ -250,6 +250,15 @@ class Ctx:
         # an "eq=..." string (older specs) becomes its LGPL look-alike: the desk's bundled ffmpeg has no eq
         self.VEQ_FILTER = FF.lgpl_graph(g("VEQ_FILTER", None) or FF.grade(contrast=1.22, brightness=-0.07,
                                                                           saturation=1.3))
+        # shot-to-shot colour match + a film look, one LUT per shot (vstudio.colormatch; photostory/grade.py). Spec
+        # COLOR_MATCH (0-1, the pull toward the film's reference shot; 0 = off), COLOR_REF (a clip id to match to;
+        # default the medoid shot), GRADE_LOOK (a vstudio.colormatch look, None = none) + GRADE_LOOK_STRENGTH; persona
+        # style.grade_look. Cinema: match 0.6 + "cinema-neutral" at 35 %; the classic look: neither.
+        sty = (P.get("style") or {}) if isinstance(P.get("style"), dict) else {}
+        self.COLOR_MATCH = float(g("COLOR_MATCH", 0.6 if self.cinema else 0.0) or 0.0)
+        self.COLOR_REF = g("COLOR_REF", None)
+        self.GRADE_LOOK = g("GRADE_LOOK", sty.get("grade_look", "cinema-neutral" if self.cinema else None))
+        self.GRADE_LOOK_STRENGTH = float(g("GRADE_LOOK_STRENGTH", sty.get("grade_look_strength", 0.35)))
         self.FOCUS = dict(g("FOCUS", {}) or {})
         self.ROUTE = dict(g("ROUTE", {}) or {})
         self.TIMELINE = dict(g("TIMELINE", {}) or {})
@@ -281,19 +290,47 @@ class Ctx:
         return en, zh
 
     def shown(self, text):
-        """A bilingual on-picture text ("Pyramid · 金字塔构图") as shown: its English parts only on an English-only
-        platform (SUBS "en", YouTube), unchanged elsewhere or when no English part is left."""
+        """A bilingual on-picture text ("Pyramid · 金字塔构图") as shown in this version's language: its Chinese parts
+        on a Chinese version (SUBS "zh"), its English parts on an English-only one (SUBS "en", YouTube), unchanged
+        when both show. A text with no part in the version's language is translated from LABELS_ZH / LABELS_EN (spec
+        dicts) or the place gazetteer (vstudio.places), else not shown at all ("" + a note): labels follow the
+        version's language (an English "Space Needle" on the Chinese version read as unfinished, 2026-10-12)."""
         t = str(text or "")
         import re as _re
+        parts = [x for x in _re.split(r"\s*[·•/／|｜]\s*", t) if x.strip()]
         if self.SUBS == "zh":                      # a Chinese version: the Chinese parts of a bilingual label
-            zh = [x for x in _re.split(r"\s*[·•/／|｜]\s*", t) if _re.search(r"[\u3400-\u9fff]", x)]
-            return " · ".join(zh) if zh else text
+            zh = [x for x in parts if _re.search(r"[\u3400-\u9fff]", x)]
+            if zh:
+                return " · ".join(zh)
+            return self._translated(t, "zh")
         if self.SUBS != "en" or not any("\u3400" <= ch <= "\u9fff" for ch in t):
             return text
-        parts = [_re.sub(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+", " ", x).strip()
-                 for x in _re.split(r"\s*[·•/／|｜]\s*", t)]
+        parts = [_re.sub(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+", " ", x).strip() for x in parts]
         en = " · ".join(_re.sub(r"\s+", " ", x) for x in parts if _re.search(r"[A-Za-z0-9]", x))
-        return en or text
+        return en or self._translated(t, "en")
+
+    def _translated(self, text, lang):
+        """``text`` (a label with no part in ``lang``) in ``lang``: the spec's LABELS_<LANG> dict, the gazetteer's
+        city names, else "" (and a note, once per text)."""
+        table = dict(getattr(self.spec, "LABELS_ZH" if lang == "zh" else "LABELS_EN", {}) or {})
+        key = text.strip()
+        if key in table:
+            return str(table[key])
+        try:
+            from vstudio import places
+            for en, zh, *_ in places.CITIES:
+                if lang == "zh" and key.lower() == en.lower():
+                    return zh
+                if lang == "en" and key == zh:
+                    return en
+        except Exception:  # noqa: BLE001 - the gazetteer is a nicety
+            pass
+        seen = self.__dict__.setdefault("_untranslated", set())
+        if key and key not in seen:
+            seen.add(key)
+            print(f"note: label {key!r} has no {'Chinese' if lang == 'zh' else 'English'} part: not shown on this "
+                  f"version (write it as \"English · 中文\" or add LABELS_{lang.upper()})", flush=True)
+        return ""
 
     def path(self, p):
         if p is None:
