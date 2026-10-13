@@ -87,6 +87,18 @@ def _blocker(d):
     return ev.get("blocker") if ev else None
 
 
+def _goal_code(line):
+    """"default" when the goal line is the rule planner's stock line (in any language): the UI shows it in its own
+    language at render time (a goal planned in Chinese kept its Chinese line after she switched the UI to English)."""
+    if not line:
+        return None
+    try:
+        from vstudio.intake.goal import GOAL_LINE
+    except Exception:  # noqa: BLE001  (an engine without goal mode)
+        return None
+    return "default" if line in GOAL_LINE.values() else None
+
+
 def project_state(d):
     """A project folder -> (made | running | you | failed | stopped, detail). Read-only, cheap (no history scan)."""
     from . import pilot
@@ -265,7 +277,7 @@ class Goals:
             self.approve(gid)
 
     def _take_plan(self, g, doc):
-        g["goal"] = doc.get("goal")
+        g["goal"], g["goal_code"] = doc.get("goal"), doc.get("goal_code")
         g["planner"] = {k: (doc.get("planner") or {}).get(k) for k in ("provider", "model", "fallback", "reason")}
         sv = doc.get("survey") or {}
         g["survey"] = dict(totals=sv.get("totals"), notes=sv.get("notes"), unused=sv.get("unused"),
@@ -595,6 +607,7 @@ class Goals:
                                                 "finished", "planned_out", "merged_into", "cleared")}
                          for v in g.get("videos") or []]
         out["counts"] = counts
+        out["goal_code"] = g.get("goal_code") or _goal_code(g.get("goal"))
         return out
 
     def list(self, now=None):

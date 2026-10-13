@@ -773,7 +773,7 @@ def make_goal(prompt, inputs, platforms=None, ui_lang=None, provider=None, model
                   panoramas=totals["panoramas"])
     info["seconds"] = round(time.time() - t0, 1)
     return dict(kind=KIND, version=VERSION, id=gid, created=time.time(), prompt=prompt, inputs=inputs,
-                goal=(goal_line or GOAL_LINE[lang])[:200], platforms=plats, ui_lang=lang, want=want,
+                goal=(goal_line or GOAL_LINE[lang])[:200], goal_code=None if goal_line else "default", platforms=plats, ui_lang=lang, want=want,
                 survey=dict(stories=st, totals=totals, unused=unused, notes=sc["notes"][:20]), videos=vids,
                 planner=info)
 

@@ -99,6 +99,8 @@ export interface Goal {
   step?: string | null;
   /** the goal in one line (the AI's words, in the UI language) */
   goal?: string | null;
+  /** "default": the rule planner's stock line - shown in the UI's language, not as stored */
+  goal_code?: 'default' | null;
   survey?: {
     totals?: { videos: number; photos: number; panoramas: number; seconds: number; days: string[] } | null;
     /** what no video uses: stories left out, and the photos / panoramas (videos are cut from clips) */

@@ -14,9 +14,9 @@ export function goalActive(g: Pick<Goal, 'state'>): boolean {
   return g.state === 'surveying' || g.state === 'planned' || g.state === 'running';
 }
 
-/** The goal's title: the AI's one line, else her request. */
-export function goalTitle(g: Pick<Goal, 'goal' | 'prompt'>): string {
-  const s = (g.goal || g.prompt || '').trim();
+/** The goal's title: the AI's one line (the rule planner's stock line in the UI's language), else her request. */
+export function goalTitle(g: Pick<Goal, 'goal' | 'prompt' | 'goal_code'>): string {
+  const s = (g.goal_code === 'default' ? t('goal.defaultLine') : g.goal || g.prompt || '').trim();
   return s.length > 80 ? `${s.slice(0, 79)}…` : s;
 }
 

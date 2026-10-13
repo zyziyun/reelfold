@@ -35,6 +35,12 @@ describe('the group', () => {
     expect(goalActive(g)).toBe(true);
     expect(goalTitle(g)).toBe('As many videos as the footage supports');
     expect(goalTitle({ goal: null, prompt: 'x'.repeat(100) })).toHaveLength(80);
+    // the rule planner's stock line follows the UI language, whatever language it was planned in
+    const stock = { goal: '用这些素材尽量多做几个视频，每个主题不同', goal_code: 'default' as const, prompt: 'x' };
+    expect(goalTitle(stock)).toBe('As many videos as the footage supports, each with its own theme');
+    setLang('zh-CN');
+    expect(goalTitle(stock)).toBe('用这些素材尽量多做几个视频，每个主题不同');
+    setLang('en');
   });
 
   it('before the videos exist: what the survey reads, then the plan waiting for her', () => {

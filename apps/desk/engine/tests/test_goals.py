@@ -137,6 +137,17 @@ class PlanToGroup(Base):
         with self.assertRaises(BadRequest):
             G.edit(gid, [{"op": "drop", "video": "v1"}])       # being made: the plan is fixed
 
+    def test_stock_goal_line_is_marked_for_the_ui_language(self):
+        """The rule planner's stock line was shown in the language it was planned in after the UI language changed:
+        the view marks it so the UI renders it in its own language; the AI's own line is shown as written."""
+        from vstudio.intake.goal import GOAL_LINE
+        G = self.goals(dict(plan_doc(), goal=GOAL_LINE["zh"]))
+        gid = G.start("make several videos", ["/Volumes/card"], None, "zh", "ask")["id"]
+        self.assertEqual(self.wait(G, gid, "planned")["goal_code"], "default")
+        G = self.goals()
+        gid = G.start("make several videos", ["/Volumes/card"], None, "en", "ask")["id"]
+        self.assertIsNone(self.wait(G, gid, "planned")["goal_code"])
+
     def test_autopilot_approves_and_limits_videos_in_flight(self):
         G = self.goals(plan_doc(5))
         gid = G.start("make several videos", ["/Volumes/card"], None, "en", "autopilot")["id"]
