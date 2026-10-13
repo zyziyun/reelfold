@@ -10,7 +10,8 @@
 </p>
 
 <p align="center"><b>The open-source workbench for creators.</b><br>
-Your own footage, edited into videos for every platform and scheduled, on your Mac. Free, MIT.<br>
+Create, edit and publish videos for every platform in one app, on your Mac. Built for creators and course makers,
+hundreds of videos at a time. Free, MIT.<br>
 千剪：开源自媒体工作者工作台。</p>
 
 <p align="center">
@@ -20,14 +21,17 @@ Your own footage, edited into videos for every platform and scheduled, on your M
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Starts from your footage.** Drop in what you shot (a talk, a lecture, an SD card of travel clips) or a finished
-  video you want to keep editing, and say what you want in plain words. Reelfold doesn't generate a film from a
-  prompt; it runs the work that comes after the camera.
-- **Many videos at once, on autopilot.** It plans the videos, groups a folder into stories, and edits them in
-  parallel on your own Mac, with local models if you like. Every file is checked; you look only at what was flagged.
-- **Every platform in its own shape, on a calendar.** YouTube, TikTok, Instagram, X and LinkedIn first, then
-  Xiaohongshu, Douyin, Bilibili and WeChat Channels: 20 platforms, each with its own size, captions, loudness, cover
-  and copy. Plan the week on the publishing calendar; Reelfold fills in each upload page and you press publish.
+- **Create from notes or a topic.** Hand it lecture notes, an exported Notion page or just a topic and get a course
+  explainer, an AI short or a launch film, narrated and animated. Any paid AI generation waits for your OK.
+- **Edit your own footage.** Drop in what you shot (a talk, a recorded class, an SD card of travel clips) or a
+  finished video you want to keep editing, and say what you want in plain words. Lectures become episodes and shorts
+  with code and slides kept readable.
+- **Hundreds of videos in one run.** A pro workbench, not a one-clip editor: it plans the videos, groups a folder into
+  stories and works through them on autopilot on your own Mac, with local models if you like. Every file is checked;
+  you look only at what was flagged, and act on hundreds of projects at once in All projects.
+- **Publish to every platform from a calendar.** YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu,
+  Douyin, Bilibili and WeChat Channels: 20 platforms, each with its own size, captions, loudness, cover and copy.
+  Plan the week on the publishing calendar; Reelfold fills in each upload page and you press publish.
 
 ![Talking head · lecture slices · photo story · beat-cut vlog · podcast with masked faces · explainer](docs/demos/strip.jpg)
 

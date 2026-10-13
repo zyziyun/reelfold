@@ -10,7 +10,8 @@
 </p>
 
 <p align="center"><b>El taller de código abierto para creadores.</b><br>
-Tu propio material, editado en vídeos para cada plataforma y programado, en tu Mac. Gratis, MIT.</p>
+Crea, edita y publica vídeos para cada plataforma en una sola app, en tu Mac. Pensado para creadores y docentes,
+cientos de vídeos a la vez. Gratis, MIT.</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/es/">Documentación</a> ·
@@ -19,12 +20,17 @@ Tu propio material, editado en vídeos para cada plataforma y programado, en tu 
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Parte de tu material.** Suelta lo que grabaste (una charla, una clase, una tarjeta SD de un viaje) o un vídeo
-  terminado que quieras seguir editando, y di lo que quieres con tus palabras. Reelfold no genera una película a
-  partir de un prompt; hace el trabajo que viene después de la cámara.
-- **Muchos vídeos a la vez, en piloto automático.** Planifica los vídeos, agrupa una carpeta en historias y los edita
-  en paralelo en tu propio Mac, con modelos locales si quieres. Cada archivo se comprueba; tú solo miras lo marcado.
-- **Cada plataforma con su formato, en un calendario.** Primero YouTube, TikTok, Instagram, X y LinkedIn, luego
+- **Crea a partir de notas o un tema.** Dale apuntes de clase, una página de Notion exportada o solo un tema, y obtén
+  un vídeo explicativo, un short con IA o un vídeo de lanzamiento, con narración y animación. Toda generación con IA
+  de pago espera tu aprobación.
+- **Edita tu propio material.** Suelta lo que grabaste (una charla, una clase grabada, una tarjeta SD de un viaje) o
+  un vídeo terminado que quieras seguir editando, y di lo que quieres con tus palabras. Una clase se convierte en
+  episodios y shorts, con el código y las diapositivas legibles.
+- **Cientos de vídeos de una vez.** Un taller profesional, no un editor de un clip a la vez: planifica los vídeos,
+  agrupa una carpeta en historias y los hace en piloto automático en tu propio Mac, con modelos locales si quieres.
+  Cada archivo se comprueba; tú solo miras lo marcado, y actúas sobre cientos de proyectos a la vez en Todos los
+  proyectos.
+- **Publica en todas partes desde un calendario.** Primero YouTube, TikTok, Instagram, X y LinkedIn, luego
   Xiaohongshu, Douyin, Bilibili y WeChat Channels: 20 plataformas, cada una con su tamaño, subtítulos, volumen, portada
   y texto. Planifica la semana en el calendario de publicación; Reelfold rellena cada página de subida y tú publicas.
 

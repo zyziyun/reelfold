@@ -10,7 +10,8 @@
 </p>
 
 <p align="center"><b>L’atelier open source des créateurs.</b><br>
-Vos propres rushes, montés en vidéos pour chaque plateforme et planifiés, sur votre Mac. Gratuit, MIT.</p>
+Créer, monter et publier vos vidéos pour chaque plateforme, dans une seule app, sur votre Mac. Pensé pour les
+créateurs et les formateurs, des centaines de vidéos à la fois. Gratuit, MIT.</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/fr/">Documentation</a> ·
@@ -19,16 +20,20 @@ Vos propres rushes, montés en vidéos pour chaque plateforme et planifiés, sur
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Tout part de vos rushes.** Déposez ce que vous avez filmé (une intervention, un cours, une carte SD de voyage) ou
-  une vidéo finie à reprendre, et dites ce que vous voulez avec vos mots. Reelfold ne génère pas un film à partir
-  d’un prompt ; il fait le travail qui vient après la caméra.
-- **Plusieurs vidéos à la fois, en pilote automatique.** Il planifie les vidéos, regroupe un dossier en histoires et
-  les monte en parallèle sur votre propre Mac, avec des modèles locaux si vous voulez. Chaque fichier est vérifié ;
-  vous ne regardez que ce qui est signalé.
-- **Chaque plateforme dans son format, dans un calendrier.** YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis
-  Xiaohongshu, Douyin, Bilibili et WeChat Channels : 20 plateformes, chacune avec sa taille, ses sous-titres, son
-  volume sonore, sa couverture et son texte. Planifiez la semaine dans le calendrier ; Reelfold remplit chaque page
-  de mise en ligne et c’est vous qui publiez.
+- **Créer à partir de notes ou d’un sujet.** Donnez-lui des notes de cours, une page Notion exportée ou juste un
+  sujet, et obtenez une vidéo explicative, un short IA ou un film de lancement, narrés et animés. Toute génération IA
+  payante attend votre accord.
+- **Monter vos propres rushes.** Déposez ce que vous avez filmé (une intervention, un cours enregistré, une carte SD de
+  voyage) ou une vidéo finie à reprendre, et dites ce que vous voulez avec vos mots. Un cours devient des épisodes et
+  des shorts, avec un code et des slides lisibles.
+- **Des centaines de vidéos d’un coup.** Un atelier pro, pas un éditeur d’un clip à la fois : il planifie les vidéos,
+  regroupe un dossier en histoires et les réalise en pilote automatique sur votre propre Mac, avec des modèles locaux
+  si vous voulez. Chaque fichier est vérifié ; vous ne regardez que ce qui est signalé, et agissez sur des centaines
+  de projets à la fois dans Tous les projets.
+- **Publier partout depuis un calendrier.** YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis Xiaohongshu,
+  Douyin, Bilibili et WeChat Channels : 20 plateformes, chacune avec sa taille, ses sous-titres, son volume sonore, sa
+  couverture et son texte. Planifiez la semaine dans le calendrier ; Reelfold remplit chaque page de mise en ligne et
+  c’est vous qui publiez.
 
 ![Face caméra · extraits de cours · récit photo · vlog rythmé · podcast masqué · vidéo explicative](docs/demos/strip.jpg)
 
