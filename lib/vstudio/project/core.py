@@ -46,6 +46,17 @@ FILE_KINDS = ("video", "audio", "photos", "file", "script", "folder")
 NEVER_AUTO = ("budget-approval", "consent")
 
 
+def _plain(v):
+    """numpy scalars / arrays (an answer computed from frame analysis) -> plain Python, so project.yaml always saves."""
+    if isinstance(v, dict):
+        return {k: _plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_plain(x) for x in v]
+    if type(v).__module__ == "numpy":
+        return v.tolist() if hasattr(v, "tolist") else v.item()
+    return v
+
+
 class ProjectError(ValueError):
     pass
 
@@ -191,7 +202,7 @@ class Project:
     def save(self):
         tmp = self.yaml_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            yaml.safe_dump(self.data, f, allow_unicode=True, sort_keys=False)
+            yaml.safe_dump(_plain(self.data), f, allow_unicode=True, sort_keys=False)
         oscompat.replace(tmp, self.yaml_path)
 
     def reload(self):

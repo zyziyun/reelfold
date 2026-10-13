@@ -166,3 +166,10 @@ def test_a_slow_still_never_sinks_the_spec_draft(monkeypatch, tmp_path):
         raise subprocess.TimeoutExpired(a[0], 300)
     monkeypatch.setattr(PS.subprocess, "run", slow)
     assert PS._frame("clip.mp4", 4.2, str(tmp_path / "f.jpg")) is False
+
+
+def test_project_yaml_saves_numpy_values():
+    import numpy as np
+    from vstudio.project.core import _plain
+    v = _plain({"a": [np.float64(0.0778), {"b": np.int64(3)}], "c": np.array([1.5])})
+    assert v == {"a": [0.0778, {"b": 3}], "c": [1.5]} and type(v["a"][0]) is float
