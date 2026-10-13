@@ -16,6 +16,7 @@ from vstudio.project.adapters import vlog as V
 
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_CACHE0 = os.environ.get("VSTUDIO_CACHE") or os.path.expanduser("~/.cache/video-studio")
 
 
 @pytest.fixture(autouse=True)
@@ -364,3 +365,63 @@ def test_photo_story_post_in_each_platforms_language():
     assert PE.post_for(Spec, zh, "youtube-shorts")["title"] == "When the Leaves Let Go"
     assert PE.post_for(Spec, zh, "xiaohongshu") is zh and PE.post_for(object, zh, "tiktok") is zh
     assert PE.post_for(object, zh, "youtube")["title"] == ""       # YouTube: never the Chinese post
+
+
+def test_photo_story_music_mode_with_the_built_in_bed_renders(tmp_path, clips):
+    """Goal mode's history videos stuck at render with "MODE music needs BGM; got None": the bed was made in work/
+    but the spec's BGM was whatever the model wrote (None), and a music-mode piece without a music word got no bed
+    at all. The spec now always names the bed in music mode, and it renders."""
+    from vstudio.project.adapters import photostory as PS
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    ctx = DR.Ctx(str(proj), "main", dict(_inputs=dict(clips=list(clips)), _item_dir=str(tmp_path / "item"),
+                                         mode="music", platforms=["youtube"]), "photo-story")
+    ctx.request_text = "a 6-second history piece of the waterfront, no voice"
+    stem = os.path.splitext(os.path.basename(clips[0]))[0]
+    spec = (f'TITLE_EN = "Waterfront"\nMEDIA = dict(images=["frames", "../inputs"], videos="{os.path.dirname(clips[0])}")\n'
+            f'BGM = None\nMUSIC = dict(length=6.0)\nSCRIPT = [(0, [("The piers.", "码头。")], [("v{stem}", 1, "still", '
+            f'dict(off=1.0))])]\n')
+    path = str(tmp_path / "item" / "work" / "spec.py")
+    rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=lambda *a, **k: dict(
+        json=dict(content=spec, summary="ok"), provider="claude-code", model="t"))
+    text = open(path).read()
+    assert rec and rec["bgm"].startswith("music_") and f"BGM = {rec['bgm']!r}" in text and "MODE = 'music'" in text
+    assert os.path.isfile(tmp_path / "item" / "work" / rec["bgm"])
+    out = tmp_path / "item" / "out" / "story.mp4"
+    if not os.path.isfile(os.path.join(_CACHE0, "fonts", "NotoSansSC-Bold.otf")):
+        pytest.skip("fonts not installed (./install.sh)")
+    env = dict(os.environ, VSTUDIO_CACHE=_CACHE0)          # the installed fonts (the fixture's cache has none)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "workflows/photo-story/scripts/photostory/render.py"), path,
+                        "--out", str(out), "--platform", "youtube", "--mode", "music"], capture_output=True, text=True,
+                       timeout=600, env=env)
+    assert r.returncode == 0, r.stderr[-2000:] + r.stdout[-2000:]
+    assert "needs BGM" not in r.stderr and out.is_file() and out.stat().st_size > 1000
+    # a spec that names an existing file of hers keeps it
+    keep = PS.enforce_bgm('BGM = "mine.mp3"\n', str(tmp_path), "music_calm.wav")
+    assert "music_calm" in keep
+    (tmp_path / "mine.mp3").write_bytes(b"x")
+    assert PS.enforce_bgm('BGM = "mine.mp3"\n', str(tmp_path), "music_calm.wav") == 'BGM = "mine.mp3"\n'
+
+
+def test_vlog_paths_resolve_for_a_project_under_a_symlinked_folder(tmp_path, clips):
+    """A goal-mode fun reel under /tmp (-> /private/tmp) wrote clip paths relative to the unresolved folder; the OS
+    resolves ``..`` from the physical folder, so ffmpeg climbed out of the wrong parent. Paths are now made from and
+    joined to the resolved folder on both sides."""
+    from vstudio.oscompat import real_relpath
+    real = tmp_path / "deep" / "real"
+    real.mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    for style in ("fun", "calm"):
+        work = link / f"proj-{style}" / "items" / "main" / "work"
+        work.mkdir(parents=True)
+        path = str(work / "edit.json")
+        subprocess.run([sys.executable, os.path.join(ROOT, "workflows/vlog/scripts/probe.py"), *clips, "--init", path,
+                        "--style", style], check=True, capture_output=True)
+        cfg = json.load(open(path))
+        for rel in cfg["clips"].values():               # what ffmpeg opens: the lexical folder + the relative path
+            assert os.path.isfile(os.path.join(str(work), cfg.get("src_dir") or ".", rel)), rel
+        assert all(os.path.isfile(p) for p in V._clip_paths(cfg, os.path.realpath(str(work))).values())
+    # the reverse: footage under the symlinked folder, the project outside it
+    rel = real_relpath(str(link / "proj-fun" / "items" / "main" / "work" / "edit.json"), str(tmp_path / "elsewhere"))
+    assert os.path.isfile(os.path.normpath(os.path.join(os.path.realpath(str(tmp_path / "elsewhere")), rel)))
