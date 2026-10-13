@@ -4,11 +4,15 @@ always stopped at "write spec.py" (the generic drafter does not write Python).
 
 The spec is a data module the renderer imports: the draft is accepted only when it is plain data
 (drafts.data_module_ok). Stills the model asks for (a cover, a still shot) are cut from her clips into work/frames/;
-a built-in music bed (vstudio.music, MIT) is laid under the voice when the request wants music.
+a built-in music bed (vstudio.music, MIT) is laid under the voice when the request wants music. A told piece (history,
+explainer; never a music-mode mood piece) is fact-checked (vstudio.factguard): unverifiable rankings softened or
+dropped in its cue literals only, facts.md written for her review, the counts in the draft record (``facts``).
 """
 import os
 import re
 import subprocess
+
+from vstudio import factguard as FG
 
 from .. import drafts as DR
 from .. import manifests as M
@@ -208,6 +212,9 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     text = label_language(text, lang_zh, complete)
     if bgm:
         text = enforce_bgm(text, work, bgm)
+    fact_rec, facts_note = None, ""
+    if not music_mode and FG.is_told(request):   # a told piece: its claims checked before the voice is made
+        text, fact_rec, facts_note = FG.run(ctx, "spec", text, work, complete)
     if vp.get("narrate") == "en":
         text = add_respellings(text, complete)
     os.makedirs(work, exist_ok=True)
@@ -217,13 +224,15 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     note = N.note_text(vp.get("note"), ctx.lang())
     if note:                                 # why this Chinese version speaks English, and how to change it
         summ = f"{summ} {note}".strip()
+    if facts_note:                           # what the fact check softened / dropped, and where facts.md is
+        summ = f"{summ} {facts_note}".strip()
     rv = DR.outline_review(path, None)
     if summ:
         rv["summary"] = dict(code="draft.generic", params=dict(text=summ))
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
                 language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"),
-                brain=len(steered))
+                brain=len(steered), facts=fact_rec)
 
 
 _AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")

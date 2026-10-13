@@ -296,7 +296,7 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
     except Exception:  # noqa: BLE001  (no model / a reply that failed: the rules below still write a script)
         rec = None
     if rec and script_format_ok(path):
-        return _with_voice_note(rec, note, ctx.lang())
+        return _with_voice_note(fact_check(ctx, path, rec, complete), note, ctx.lang())
     texts = []
     for v in ctx.inputs.values():
         for p in (v if isinstance(v, list) else [v]):
@@ -309,6 +309,38 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
         f.write(notes_to_script("\n\n".join(texts), "zh" if zh else "en", minutes,
                                 str(ctx.params.get("title") or "")))
     return dict(by="rules", instruction=None, review=DR.outline_review(path, None))
+
+
+def fact_check(ctx, path, rec, complete=None):
+    """The AI's script fact-checked (vstudio.factguard: unverifiable rankings / dates softened in each Line's
+    narration and its ZH: line; facts.md for her review) -> the record with ``facts`` and a plain-words review line.
+    Her own notes turned into a script by the rules are hers: never checked. A check that fails leaves the script."""
+    from vstudio import factguard as FG
+    from .. import drafts as DR
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        new, frec, fnote = FG.run(ctx, "script", text, os.path.dirname(path), complete)
+    except Exception as e:  # noqa: BLE001  (the check never costs her the draft)
+        rec["facts"] = dict(error=f"{type(e).__name__}: {e}"[:200])
+        return rec
+    if new != text and script_format_ok_text(new):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new)
+        old = rec.get("review") if isinstance(rec.get("review"), dict) else {}
+        rv = DR.outline_review(path, None)
+        if old.get("summary"):
+            rv["summary"] = old["summary"]
+        rec["review"] = rv
+    rv = rec.get("review") if isinstance(rec.get("review"), dict) else None
+    if rv is not None and fnote:
+        rv["lines"] = [dict(code="draft.line", params=dict(label=fnote))] + list(rv.get("lines") or [])
+    rec["facts"] = frec
+    return rec
+
+
+def script_format_ok_text(text):
+    return bool(LINE_RE.search(text) and NARR_RE.search(text + "\n"))
 
 
 def explainer_voice(params, zh):
