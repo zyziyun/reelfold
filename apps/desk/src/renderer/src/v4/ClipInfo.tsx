@@ -184,17 +184,22 @@ function useClipSettings(item: string, onDone?: (what: string, doc: AutopilotDoc
   const [pending, setPending] = useState<string | null>(null);
   const evt = useRef(0);
   const seen = useRef(0);
+  // reloads in order; ``after``: only a reload that started once the remake call returned can end it (a reload sent
+  // before the run started - an event's, while the call was on its way - still says "nothing running")
+  const req = useRef(0);
+  const after = useRef(0);
   useEffect(() => {
     if (!client) return;
     let alive = true;
     const at = evt.current;
+    const no = ++req.current;
     client
       .autopilot(item)
       .then((d) => {
         if (!alive) return;
         setDoc(d);
         // finished: a reload after the engine said something happened (the run ended), with nothing running
-        if (!d.running && !d.queued && at > seen.current) {
+        if (!d.running && !d.queued && at > seen.current && no > after.current) {
           seen.current = at;
           setPending((p) => {
             if (p) onDone?.(p, d);
@@ -224,14 +229,17 @@ function useClipSettings(item: string, onDone?: (what: string, doc: AutopilotDoc
       return false;
     }
     setPending(what);
+    after.current = Number.MAX_SAFE_INTEGER;
     try {
       await client.autopilotRemake(item, sub, todo);
+      after.current = req.current;
       // the run is started (or in line) when the call returns: the next reload that finds nothing running ends it -
       // also a remake that failed at once (no model: the visuals are not drawn), before any later event came
       seen.current = evt.current - 1;
       setN((x) => x + 1);
       return true;
     } catch (e) {
+      after.current = 0;
       setPending(null);
       ui.toast(errText(e), { error: true });
       return false;
