@@ -209,9 +209,11 @@ test('a running card opens its live run page in the Studio', async () => {
 });
 
 test('one list in the sidebar: it opens on what needs her while something does; All is every video', async () => {
+  // the badge is what needs her (the Inbox): with one it opens on Needs you, without on everything
+  const needs = (await page.getByTestId('inbox-badge').count()) > 0;
   await page.getByTestId('nav-projects').click();
   await expect(page.getByTestId('studio')).toBeVisible();
-  await expect(page.getByTestId('studio-f-you')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId(needs ? 'studio-f-you' : 'studio-f-all')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('nav-projects')).toHaveAttribute('aria-current', 'page');
   await page.getByTestId('studio-f-all').click();
   await expect(page.getByTestId('studio-f-all')).toHaveAttribute('aria-selected', 'true');

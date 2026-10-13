@@ -162,7 +162,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
       }
       // the link she followed (the list may already have moved the address on to its first video)
       const to = e instanceof HashChangeEvent && e.newURL ? new URL(e.newURL).hash : location.hash;
-      const f = (routeQuery(to).f ?? routeQuery().f) as ListFilter | undefined;
+      const f = (/^#\/inbox\b/.test(to) ? 'you' : (routeQuery(to).f ?? routeQuery().f)) as ListFilter | undefined;
       if (f && LIST_FILTERS.includes(f)) setFilterS(f);
     };
     on();

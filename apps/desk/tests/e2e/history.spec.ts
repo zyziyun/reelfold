@@ -111,7 +111,9 @@ test('进行中: an external run shows live on Home, 出错 when its heartbeat s
   const lane = page.getByTestId('live-lane');
   await expect(lane).toContainText('clip B', { timeout: 15000 }); // fs watch -> refresh, no polling
   await expect(lane.getByTestId('live-state')).toHaveText(/进行中|In progress/);
-  await expect(page.getByTestId('running-badge')).toHaveText('1');
+  // one badge on the list item: what needs her, else what runs
+  if (await page.getByTestId('inbox-badge').count()) await expect(page.getByTestId('running-badge')).toHaveCount(0);
+  else await expect(page.getByTestId('running-badge')).toHaveText('1');
   heartbeat({ pid: 999999, heartbeat: Date.now() / 1000 - 3600 }); // the external process died an hour ago
   await expect(lane.getByTestId('live-row')).toHaveCount(0, { timeout: 15000 });
   await expect(page.getByTestId('running-badge')).toHaveCount(0);

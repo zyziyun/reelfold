@@ -228,7 +228,8 @@ test('Settings: every section', async () => {
 });
 
 test('Create', async () => {
-  await clickEverything('#/create', 40);
+  // #/create is Home now (its Start from row; Home has its own test): the Create page proper is the planner
+  await clickEverything('#/create/new', 40);
   expectClean('Create');
 });
 
