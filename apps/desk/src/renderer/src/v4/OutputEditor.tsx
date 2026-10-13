@@ -29,6 +29,8 @@ import { useBox, usePane } from '../lib/panes';
 import { Splitter } from './Splitter';
 import { ChatPanel, type ChatApi } from './chat/ChatPanel';
 import { Empty, media, Sk } from './kit';
+import { CoverPoster, posterLook } from './CoverPoster';
+import { editedFiles } from '../lib/versions';
 import { LowerPane } from './LowerPane';
 import { effectLabel, emsg, errText, humanizeParam, setEffectLabels } from './msg';
 import { ClipTitle } from './ClipTitle';
@@ -247,6 +249,26 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
       }
     },
     [client, id, clip, reload, ui],
+  );
+  // a cover picked: the player shows it at once (paused at its start, the poster), before the edit is saved
+  const [coverPick, setCoverPick] = useState<{ t: number; text?: string | null; style?: string | null } | null>(null);
+  useEffect(() => setCoverPick(null), [clip]);
+  // ... until the clip's doc has it
+  const savedCoverT = (doc as unknown as OutputDoc | null)?.cover_edit?.t;
+  useEffect(() => {
+    if (coverPick && savedCoverT != null && Math.abs(savedCoverT - coverPick.t) < 0.01) setCoverPick(null);
+  }, [coverPick, savedCoverT]);
+  const editV = useCallback(
+    (ops: EditOp[], undoToast = false) => {
+      const c = ops.find((o) => o.op === 'cover') as { t?: number; text?: string; style?: string } | undefined;
+      if (c && typeof c.t === 'number') {
+        setCoverPick({ t: c.t, text: c.text, style: c.style });
+        pl.current?.pause();
+        pl.current?.seek(0);
+      }
+      return edit(ops, undoToast).then((ok) => (!ok && c && setCoverPick(null), ok));
+    },
+    [edit],
   );
   const undo = useCallback(
     async (steps = 1, redo = false) => {
@@ -779,9 +801,20 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   // original and previews every cut by skipping it; otherwise the newest render leads
   const sourceTimes = lowerTab === 'transcript' || pending || pinCuts.length > 0 || (!!before && !sameTimeline);
   const useFresh = fresh.length > 0 && (!sourceTimes || renderedAfter);
-  const files: ClipFile[] = useFresh
-    ? [...fresh.map((r) => ({ path: r.file, v: r.key ?? r.at, aspect: r.target === 'primary' ? (doc.files[0]?.aspect ?? '3:4') : r.target, label: t('editor.editedVersion') })), ...doc.files.map((f) => ({ ...f, label: t('c.original') }))]
-    : doc.files;
+  const files: ClipFile[] = useFresh ? editedFiles(doc.renders, doc.files) : doc.files;
+  // paused at its start the player shows the cover: the one she just picked (its frame and title), the render's own
+  // once the clip is rendered with it, else the clip's cover - never a black first frame
+  const coverEdit = odoc?.cover_edit;
+  const freshCover = doc.renders.find((r) => r.target === 'primary' && r.quality === 'final' && r.fresh && !r.simulated && r.cover);
+  const poster = posterLook({
+    pick: coverPick ?? (coverEdit?.t != null ? { t: coverEdit.t, text: coverEdit.text ?? odoc?.title, style: coverEdit.style } : null),
+    rendered: coverPick ? null : (freshCover?.cover ?? null),
+    renderedV: freshCover?.key ?? freshCover?.at,
+    cover: odoc?.cover ?? null,
+    coverV: odoc?.cover_v,
+    file: doc.files[0]?.path ?? null,
+    duration: doc.duration,
+  });
   const playerCuts = useFresh
     ? []
     : [...view.cuts, ...(pending ? keepToCuts(keep, doc.duration).filter((c) => !view.cuts.some((v) => Math.abs(v.start - c.start) < 0.01 && Math.abs(v.end - c.end) < 0.01)) : []), ...pinCuts.map(([a, b]) => ({ start: a, end: b }))];
@@ -817,6 +850,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         onSelection={setSel}
         compare={compare}
         badge={holdC ? t('ce.original') : renderedCmp ? (renderedAfter ? t('ce.after') : t('fs.ai.rendering')) : before && !sameTimeline ? t('ce.before') : null}
+        poster={poster ? <CoverPoster look={poster} /> : null}
         testId="editor-player"
       />
       {pickup && (
@@ -1130,7 +1164,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             <div className="ci cs-media">
               <div className="ci-sec">
                 <span className="ci-lbl">{t('st.coverHint')}</span>
-                <ClipCovers doc={odoc} strip={strip} time={time} edit={edit} />
+                <ClipCovers doc={odoc} strip={strip} time={time} edit={editV} />
               </div>
               <div className="ci-sec">
                 <span className="ci-lbl">{t('ci.captions')}</span>
@@ -1321,7 +1355,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               {t('ci.show')}
             </button>
           )}
-          {!split.collapsed && info && <ClipInfoPanel doc={odoc} strip={strip} time={time} edit={edit} sched={sched} item={id} clip={clip} onRemade={reload} />}
+          {!split.collapsed && info && <ClipInfoPanel doc={odoc} strip={strip} time={time} edit={editV} sched={sched} item={id} clip={clip} onRemade={reload} />}
           {!split.collapsed && info && (
             <Splitter
               orient="row"

@@ -314,6 +314,13 @@ textarea.inp { height: auto; padding: 8px 12px; resize: vertical; line-height: 1
 /* the frame stays the video's own box (captions / safe areas sit on it); the video takes all the room the controls
  * leave, at its own shape (--ar from the player) */
 :root .pl.pl:fullscreen .stage .frame video, :root .pl.pl.full .stage .frame video { width: min(calc(100vw - 2 * var(--s3)), calc((100vh - 128px) * var(--ar, 1.7778))); height: auto; min-height: 0; max-width: none; max-height: calc(100vh - 128px); border-radius: 0; object-fit: contain; }
+/* paused at its start: the cover over the video (CoverPoster.tsx), never a black first frame; the title as the cover
+   will have it, sized to the frame */
+.pl .pposter { position: absolute; inset: 0; z-index: 1; overflow: hidden; background: #000; pointer-events: none; container-type: size; line-height: normal; }
+.pl .pposter > img, .pl .pposter > video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pl .pposter .pp-tt { position: absolute; left: 6%; right: 6%; top: 7%; padding: 2.4cqh 3cqw; border-radius: 1.6cqh; background: rgba(255, 255, 255, 0.92); color: #111; font-weight: 800; font-size: clamp(12px, 7cqh, 64px); line-height: 1.25; text-align: center; white-space: pre-line; }
+.pl .pposter .pp-tt.plain { background: none; color: #fff; text-shadow: 0 1px 4px #000; }
+.pl .pposter .pp-tt.band { left: 0; right: 0; top: 0; border-radius: 0; background: var(--danger); color: #fff; }
 .pl .vol { display: inline-flex; align-items: center; gap: 4px; }
 .pl .vol input[type='range'] { width: 72px; accent-color: var(--accent); }
 .pl .safe { position: absolute; border: 1px dashed rgba(255, 214, 10, 0.75); pointer-events: none; }

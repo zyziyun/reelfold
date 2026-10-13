@@ -281,7 +281,7 @@ export interface OutputDoc {
   overrides?: Override[];
   undo: number;
   redo: number;
-  renders: { target: string; quality?: string; file: string; fresh?: boolean; simulated?: boolean; key?: string | number | null; at?: string | null }[];
+  renders: { target: string; quality?: string; file: string; fresh?: boolean; simulated?: boolean; key?: string | number | null; at?: string | null; cover?: string | null }[];
   warnings: EngineMsg[];
   safe_box?: number[] | null;
   caption_box?: number[] | null;
