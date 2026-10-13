@@ -270,6 +270,9 @@ def test_planner_splits_youtube_from_chinese_platforms():
     assert qs[0]["project"] == 2 and ps[0]["param_sources"]["platforms"] == "language"
     one, _ = PL.split_by_language([_proj("vlog", ["xiaohongshu", "bilibili"])])
     assert len(one) == 1                                        # no YouTube: nothing to split
+    # a long title is cut, never its language (the desk tells the versions apart by it)
+    long, _ = PL.split_by_language([_proj("vlog", ["youtube", "xiaohongshu"], "Golden hour over the whole of Elliott Bay")])
+    assert [p["name"] for p in long] == ["Golden hour over the whole of (English)", "Golden hour over the whole of Ellio (中文)"]
 
 
 def test_planner_prompt_and_voice_note(monkeypatch):

@@ -750,7 +750,8 @@ def split_by_language(projects, questions=None):
             q = copy.deepcopy(p)
             q["params"]["platforms"] = groups[lang]
             q.setdefault("param_sources", {})["platforms"] = "language"
-            q["name"] = (base + (" (English)" if lang == "en" else " (中文)"))[:40]
+            tag = " (English)" if lang == "en" else " (中文)"
+            q["name"] = base[:40 - len(tag)].rstrip() + tag          # a long title is cut, never its language
             q["language"] = lang
             out.append(q)
     for i, q in enumerate(out):
