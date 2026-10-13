@@ -109,12 +109,12 @@ function api<T>(p: string, body?: unknown): Promise<T> {
   ) as Promise<T>;
 }
 
-test('Home is where the app lands: Home · Inbox · All projects · Publish, Settings and the engine at the bottom', async () => {
+test('Home is where the app lands: Home · Create · Inbox · All projects · Publish, Settings and the engine at the bottom', async () => {
   await hash('#/');
   await expect(page.getByTestId('home')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
   const order = await page.locator('nav.side a.nav').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(order).toEqual(['nav-home', 'nav-inbox', 'nav-projects', 'nav-publish', 'nav-settings']);
+  expect(order).toEqual(['nav-home', 'nav-create', 'nav-inbox', 'nav-projects', 'nav-publish', 'nav-settings']);
   await expect(page.getByTestId('engine-status')).toContainText('Ready on this computer');
   // the Inbox's count is the one Home says
   await expect(page.getByTestId('inbox-badge')).toHaveText(/^[1-9]$/, { timeout: 60000 });
