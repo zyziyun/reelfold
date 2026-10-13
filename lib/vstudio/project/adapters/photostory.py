@@ -821,7 +821,14 @@ def voice_payload(env, cp, ai=True):
     ctx = dict(lang=lang, engine=engine, platforms=plats, title=str(p.get("title") or ""), request=request[:800])
     ui = ((d.get("autopilot") or {}) if isinstance(d.get("autopilot"), dict) else {}).get("lang") or \
         ("zh" if lang == "zh" else "en")
-    if mine:
+    if mine and not any(v["speaker"] == mine["speaker"] for v in cands):
+        # her voice cannot speak here (not installed in the app / another language): the closest one, said so
+        c = VC.cast(lang, engine, platforms=plats, title=ctx["title"], request=request, script=_script_text(spec, lang),
+                    ui=ui, complete=False)
+        c["reason"] = (f"你选的 {mine['speaker']} 这里没有安装，用最接近的 {c['speaker']}" if ui == "zh" else
+                       f"your voice {mine['speaker']} is not installed here; {c['speaker']} is the closest")
+        mine = None
+    elif mine:
         c = dict(mine, reason=mine.get("reason") or ("你选的配音" if ui == "zh" else "your choice"), by="you")
     elif cur and cur.get("by") in VC.CAST_BY and cur["engine"] == engine and any(
             v["speaker"] == cur["speaker"] for v in cands):

@@ -234,3 +234,18 @@ def test_a_step_cast_for_english_renders_the_chinese_version_in_a_cast_chinese_v
     st = doc.state()
     v = R.plan(rec, doc, st, R.targets_of(rec, st)[0], "preview")["audio"]["vo"][0]
     assert v["lang"] == "zh" and v["lines"][0][2] == "今天去迪士尼" and v["voice"]["speaker"] == "vivian"
+
+
+def test_an_old_step_with_a_voice_not_installed_renders_with_an_installed_one(tmp_path, clip, _iso, monkeypatch):
+    monkeypatch.setenv("VSTUDIO_TTS_MODELS_MANAGED", "1")
+    w, oid = work(tmp_path, clip)
+    O.edit(w, oid, [dict(op="export_add", target="youtube")])
+    O.edit(w, oid, [dict(op="voiceover", mode="intro", lines=[dict(start=0.0, text="Off to Disney", text_zh="去迪士尼")],
+                         voices=dict(en=dict(engine="kokoro", speaker="af_bella", by="rules")))])
+    rec, doc = O._load(w, oid)
+    st = doc.state()
+    yt = next(tg for tg in R.targets_of(rec, st) if tg["target"] != "primary")
+    v = R.plan(rec, doc, st, yt, "preview")["audio"]["vo"][0]
+    assert v["lang"] == "en" and v["voice"]["speaker"] == "af_heart" and "not installed" in v["voice"]["reason"]
+    named = VO.cast_voices(rec, ["en"], named="bm_george")["en"]
+    assert named["speaker"] in ("am_michael", "af_heart") and "bm_george is not installed" in named["reason"]

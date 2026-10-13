@@ -221,8 +221,9 @@ def plan(rec, doc, st, tg, quality, watermark=None):
         vlang = (VO.version_langs(rec, st, OUT.cached_words(doc) or [])[0] if tg["target"] == "primary" else None) \
             or target_lang(tg) or "en"
         vos = [x for x in (VO.spec_for(v, vlang, tl) for v in st["voiceovers"]) if x]
+        from vstudio import voicecast as VC
         for x in vos:                              # a language the step cast no voice for: cast now (rules)
-            if x["source"] == "tts" and not (x.get("voice") or {}).get("speaker"):
+            if x["source"] == "tts" and not VC.usable(x.get("voice")):    # none for it, or not installed here
                 x["voice"] = VO.cast_voices(rec, [x["lang"]])[x["lang"]]
         if vos:
             audio["vo"] = vos

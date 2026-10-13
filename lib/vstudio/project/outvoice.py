@@ -154,6 +154,12 @@ def cast_voices(rec, langs, ask=None, named=None):
             eng = VC.narration_engine(lang)
         except Exception:  # noqa: BLE001  (no voice engine here: the render says so)
             eng = None
+        if mine and lang in (VC.find(mine["speaker"]) or {}).get("native", []) and not VC.usable(mine):
+            c = VC.cast(lang, eng, kind=kind, complete=False) if eng else None
+            if c:                                  # her voice is not installed here: the closest one, said so
+                c["reason"] = f"your voice {mine['speaker']} is not installed here; {c['speaker']} is the closest"
+                out[lang] = VC.record(c)
+                continue
         if mine and lang in (VC.find(mine["speaker"]) or {}).get("native", []):
             out[lang] = VC.record(dict(mine, style=mine.get("style") or VC.style_for(kind, lang)
                                        if mine["engine"] == "qwen" else None, reason="your voice", by="you"))

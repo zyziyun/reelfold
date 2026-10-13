@@ -134,14 +134,25 @@ def _kokoro_dir():
 
 
 def available(v):
-    """The voice can speak on this computer: a Kokoro voice of a local model folder (the desk app's download has only
-    some) must be in its voices/; otherwise the engine fetches it."""
+    """The voice can speak on this computer. Kokoro: in the app (``VSTUDIO_TTS_MODELS_MANAGED``) only the voices its
+    tts-kokoro download installs (``bundled``; the folder it points at may be a shared Hugging Face snapshot with more
+    voices than the app installed), and only when the file is there; a local Kokoro folder: the voices in its
+    voices/; otherwise (a dev engine fetching from the hub) any."""
     if v["engine"] != "kokoro":
         return True
+    managed = bool(os.environ.get("VSTUDIO_TTS_MODELS_MANAGED"))
+    if managed and not v.get("bundled"):
+        return False
     d = _kokoro_dir()
     if not d or not os.path.isdir(os.path.join(d, "voices")):
         return True
     return os.path.isfile(os.path.join(d, "voices", f"{v['speaker']}.safetensors"))
+
+
+def usable(voice):
+    """A recorded voice ({engine, speaker}) can still speak here (its speaker in the catalog and available)."""
+    e = find((voice or {}).get("speaker"), (voice or {}).get("engine")) if voice else None
+    return bool(e and available(e))
 
 
 def candidates(engine, lang):
@@ -278,6 +289,9 @@ def rule_cast(lang, engine, kind=None, platforms=None, instruction=None, current
     if not why:
         what = k if k != "default" else "general"
         why = f"{what} video: {', '.join(pick['tone'][:3])} {pick['gender']} voice"
+    best = next((v for v in (find(i) for i in order) if v and v["engine"] == engine), None)
+    if best and best["id"] != pick["id"] and not available(best) and not (w["speaker"] or w["gender"] or w["tones"]):
+        why += f" ({best['speaker']} would fit best but is not installed here; {pick['speaker']} is the closest one)"
     return dict(engine=pick["engine"], speaker=pick["speaker"], style=style, reason=why, by="rules", kind=kind)
 
 

@@ -278,3 +278,33 @@ def test_the_recipe_has_the_voice_step_before_tts():
     old = M.fmt_args(tts_stage["run"]["argv"], dict(python="py", workflow_dir="w", item_dir="i", tts_engine="auto",
                                                      voice="qwen"))
     assert "--speaker" not in old and old[old.index("--voice") + 1] == "qwen"      # voice: qwen reads as before
+
+
+def test_in_the_app_only_installed_kokoro_voices_are_cast_and_the_reason_says_so(tmp_path, monkeypatch):
+    """Her app's tts-kokoro root is a shared Hugging Face snapshot with every voice in it, but the app installs four:
+    the cast never picks af_bella / bm_george there, and says the best fit is not installed."""
+    (tmp_path / "voices").mkdir()
+    for s in ("af_heart", "am_michael", "bf_emma", "af_bella", "bm_george", "zf_xiaobei"):
+        (tmp_path / "voices" / f"{s}.safetensors").write_bytes(b"")
+    monkeypatch.setattr(VC, "_kokoro_dir", lambda: str(tmp_path))
+    monkeypatch.setenv("VSTUDIO_TTS_MODELS_MANAGED", "1")
+    assert {v["speaker"] for v in VC.candidates("kokoro", "en")} == {"af_heart", "am_michael", "bf_emma"}
+    c = VC.rule_cast("en", "kokoro", "vlog")
+    assert c["speaker"] == "af_heart" and "af_bella would fit best but is not installed" in c["reason"]
+    c = VC.rule_cast("en", "kokoro", "history")
+    assert c["speaker"] == "am_michael" and "bm_george" in c["reason"]
+    assert VC.rule_cast("en", "kokoro", "course")["reason"].endswith("voice")          # the best one is installed
+    c = VC.cast("en", "kokoro", "vlog", complete=fake(dict(speaker="af_bella", reason="x")))      # not a candidate
+    assert c["speaker"] == "af_heart" and c["by"] == "rules"
+    assert not VC.usable(dict(engine="kokoro", speaker="af_bella")) and VC.usable(dict(engine="kokoro", speaker="af_heart"))
+    monkeypatch.delenv("VSTUDIO_TTS_MODELS_MANAGED")                # a dev engine: the folder decides
+    assert "af_bella" in {v["speaker"] for v in VC.candidates("kokoro", "en")}
+
+
+def test_photostory_her_voice_not_installed_falls_back_with_the_reason(tmp_path, monkeypatch):
+    monkeypatch.setattr(VC, "narration_engine", lambda lang, engine="auto": "kokoro")
+    monkeypatch.setenv("VSTUDIO_TTS_MODELS_MANAGED", "1")
+    env = env_for(tmp_path, voice="bm_george")
+    (tmp_path / "proj" / "items" / "needle" / "work" / "spec.py").write_text(SPEC.replace('language="zh"', 'language="en"'))
+    pay = PS.voice_payload(env, {})
+    assert pay["default"]["speaker"] == "am_michael" and "bm_george is not installed" in pay["default"]["reason"]
