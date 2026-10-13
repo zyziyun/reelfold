@@ -272,7 +272,7 @@ def main():
     ap.add_argument("--platform", help="platform[:orientation] canvas when the config has no res (see vstudio.platform)")
     a, rest = ap.parse_known_args()
 
-    base = os.path.dirname(os.path.abspath(a.config))
+    base = os.path.realpath(os.path.dirname(os.path.abspath(a.config)))     # as probe.py made its paths
     with open(a.config) as f:
         cfg = json.load(f)
     if cfg.get("style", "calm") == "fun":

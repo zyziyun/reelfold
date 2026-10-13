@@ -152,6 +152,21 @@ def relpath(path, start=os.curdir):
     return rel.replace(os.sep, "/") if os.sep != "/" else rel
 
 
+def real_relpath(path, start):
+    """``relpath`` of ``path`` from ``start`` with both folders resolved (``os.path.realpath``): a ``..`` is resolved by
+    the OS from the physical folder, so a path made relative to a folder under a symlink (``/tmp`` -> ``/private/tmp``)
+    climbed out of the wrong parent. The file name itself is kept (a link stays a link). Pair it with a base resolved
+    the same way (``real_dir``) when the relative path is joined back."""
+    path = os.path.abspath(os.path.expanduser(path))
+    return relpath(os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path)),
+                   os.path.realpath(start))
+
+
+def real_dir(path):
+    """The resolved folder of ``path`` (a config file): the base its relative paths are joined to."""
+    return os.path.realpath(os.path.dirname(os.path.abspath(os.path.expanduser(path))))
+
+
 def replace(src, dst, wait=5.0):
     """``os.replace`` for a file other threads / processes read, or a folder just written. Windows refuses to replace a
     file someone has open without FILE_SHARE_DELETE - every Python ``open()`` - or to rename a folder while a file in it

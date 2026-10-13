@@ -15,7 +15,7 @@ import argparse, json, os, re
 from collections import Counter
 
 from vstudio import media
-from vstudio.oscompat import relpath as _relpath
+from vstudio.oscompat import real_dir, real_relpath as _relpath
 
 HDR_NAMES = {"arib-std-b67": "HLG", "smpte2084": "PQ"}
 
@@ -82,13 +82,13 @@ def main():
     if a.max_res and max(w, h) > a.max_res:
         s = a.max_res / max(w, h)
         w, h = int(round(w * s / 2) * 2), int(round(h * s / 2) * 2)
-    base = os.path.dirname(os.path.abspath(a.init))
+    base = real_dir(a.init)        # resolved: a project under a symlinked folder (/tmp) gets paths the OS can follow
     used = set()
-    clips = {short_id(i["path"], used): _relpath(os.path.abspath(i["path"]), base) for i in infos}
+    clips = {short_id(i["path"], used): _relpath(i["path"], base) for i in infos}
     if a.style == "fun":
         cfg = {
             "style": "fun", "platform": a.platform or "xiaohongshu:full", "src_dir": ".",
-            "music": _relpath(os.path.abspath(a.music), base) if a.music else "MUSIC.mp3",
+            "music": _relpath(a.music, base) if a.music else "MUSIC.mp3",
             "title": {"text": "TITLE", "sub": ""}, "end_card": {"text": "SEE YOU", "sub": ""},
             "clips": clips, "out": "fun_vlog.mp4",
             # no start/dur: windows are auto-picked; add "place", "day", "speech": "auto", "ramp", ...

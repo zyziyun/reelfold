@@ -391,7 +391,7 @@ def main(argv=None):
                          "frame on a blurred fill / centre crop (default: edit.json reframe_fallback, else center)")
     a = ap.parse_args(argv)
 
-    base = os.path.dirname(os.path.abspath(a.config))
+    base = os.path.realpath(os.path.dirname(os.path.abspath(a.config)))     # as probe.py made its paths
     with open(a.config) as f:
         cfg = json.load(f)
     if a.no_asr:

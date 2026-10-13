@@ -607,7 +607,7 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
             cfg = json.load(f)
     except (OSError, ValueError):
         return None
-    base = os.path.dirname(os.path.abspath(path))
+    base = os.path.realpath(os.path.dirname(os.path.abspath(path)))   # the clips are relative to the resolved folder
     clips = _clip_paths(cfg, base)
     if not clips:
         return None

@@ -212,7 +212,7 @@ def main():
     if a.config:
         with open(a.config) as f:
             cfg = json.load(f)
-        cdir = os.path.dirname(os.path.abspath(a.config))
+        cdir = os.path.realpath(os.path.dirname(os.path.abspath(a.config)))
         fix = lambda p: p if os.path.isabs(p) else os.path.join(cdir, p)
         for p in cfg["pieces"]:
             p["img"] = fix(p["img"])
