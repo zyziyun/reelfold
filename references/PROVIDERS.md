@@ -53,7 +53,13 @@ Precedence (first match wins):
 1. an explicit provider / model (`--provider ollama`, spec `proofread.provider: kimi`, `complete(provider=...)`);
    `auto` means "not given"
 2. env `VSTUDIO_LLM_<TASK>_PROVIDER` / `VSTUDIO_LLM_<TASK>_MODEL` (e.g. `VSTUDIO_LLM_PROOFREAD_PROVIDER=ollama`;
-   `VSTUDIO_LLM_<TASK>_FALLBACK=codex,ollama` gives it a fallback chain)
+   `VSTUDIO_LLM_<TASK>_FALLBACK=codex,ollama` gives it a fallback chain). 1 and 2 are a step's own override
+2b. the project's AI: `ai: {provider, model}` in the `project.yaml` of env `VSTUDIO_PROJECT_DIR` (every
+   `python -m vstudio.project ... --dir P` sets it; re-read on every call, so a switch mid-run applies from the next
+   AI step), else env `VSTUDIO_LLM_PROJECT_AI` (JSON, a request not yet a project). It covers every task; its
+   fallback is the global order (the default provider, then its fallback) without itself; no model -> the routes
+   file's `models.<provider>`. Show / switch: `python -m vstudio.project model --dir P [--provider X [--model M] |
+   --clear]` (recorded in `state/autopilot.jsonl` as `event: ai`)
 3. the desk's routes file `tasks.<task>` (env `VSTUDIO_LLM_ROUTES_FILE`, JSON `{default, tasks}`, re-read on every
    call), then the client's `llm.tasks.<task>`, then the persona's `llm.tasks.<task>`
 4. env `VSTUDIO_LLM_PROVIDER` / `VSTUDIO_LLM_MODEL` (+ `VSTUDIO_LLM_FALLBACK`)

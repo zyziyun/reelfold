@@ -40,6 +40,12 @@ Providers (``provider=``; aliases: claude -> anthropic, chatgpt -> openai, gpt -
 Routing (first match wins; ``route(task, provider, model, config)``):
   1. explicit ``provider=`` / ``model=`` arguments ("auto" / None = not given)
   2. env VSTUDIO_LLM_<TASK>_PROVIDER / VSTUDIO_LLM_<TASK>_MODEL        (e.g. VSTUDIO_LLM_PROOFREAD_PROVIDER=ollama)
+     - 1 and 2 are a step's own override ("try this step again with Codex")
+  P. the project's AI (``project_ai()``): ``ai: {provider, model}`` in the project.yaml of env VSTUDIO_PROJECT_DIR
+     (re-read on every call: switched mid-run, the next AI step uses it), else env VSTUDIO_LLM_PROJECT_AI (JSON
+     {provider, model}: a request not yet a project). It applies to every task; its fallback is the global order
+     (the default provider, then its ``fallback``) without the project's provider; no model -> the desk's model for that
+     provider (routes file ``models``)
   3. ``config["llm"]["tasks"][task]`` (a client config), then persona ``llm.tasks.<task>``
   4. env VSTUDIO_LLM_PROVIDER / VSTUDIO_LLM_MODEL
   5. ``config["llm"]["default"]``, then persona ``llm.default``
@@ -247,6 +253,63 @@ def _env_list(name):
     return [x.strip() for x in v.split(",") if x.strip()] if v else None
 
 
+def _clean_ai(v):
+    """{provider, model} from a project / request -> a clean dict or None (an unknown provider counts as none)."""
+    if isinstance(v, str):
+        v = {"provider": v}
+    if not isinstance(v, dict) or not v.get("provider"):
+        return None
+    try:
+        p = canonical(v.get("provider"))
+    except ValueError:
+        return None
+    if not p:
+        return None
+    m = v.get("model")
+    return {"provider": p, "model": str(m) if isinstance(m, str) and m.strip() else None}
+
+
+def project_ai():
+    """The AI the current project / request runs on, or None: ``ai`` in ``$VSTUDIO_PROJECT_DIR/project.yaml``
+    (read on every call: a switch mid-run applies from the next AI step), else env VSTUDIO_LLM_PROJECT_AI (JSON
+    {provider, model}: the composer's choice for a request that is not a project yet)."""
+    d = os.environ.get("VSTUDIO_PROJECT_DIR")
+    if d:
+        f = os.path.join(d, "project.yaml")
+        try:
+            import yaml
+            with open(f, encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+            got = _clean_ai(data.get("ai")) if isinstance(data, dict) else None
+            if got:
+                return got
+        except (OSError, ValueError, ImportError):
+            pass
+        except Exception:  # noqa: BLE001  (a project.yaml mid-write / broken: no project AI this call)
+            pass
+    raw = os.environ.get("VSTUDIO_LLM_PROJECT_AI")
+    if raw:
+        try:
+            return _clean_ai(json.loads(raw))
+        except ValueError:
+            return _clean_ai(raw.strip())
+    return None
+
+
+def _global_fallback(cfg, per, desk):
+    """The global fallback order for a project's AI: the default provider, then the default route's ``fallback``
+    (desk file, client config, persona; env VSTUDIO_LLM_PROVIDER / VSTUDIO_LLM_FALLBACK first)."""
+    if os.environ.get("VSTUDIO_LLM_PROVIDER"):
+        return [os.environ["VSTUDIO_LLM_PROVIDER"], *(_env_list("VSTUDIO_LLM_FALLBACK") or [])]
+    for src in (desk.get("default"), cfg.get("default"), per.get("default")):
+        e = _entry(src)
+        if e and e.get("provider"):
+            head = [] if e["provider"] == "none" else [{"provider": e["provider"], "model": e["model"]}
+                                                       if e.get("model") else e["provider"]]
+            return head + list(e.get("fallback") or [])
+    return []
+
+
 def route(task="default", provider=None, model=None, config=None):
     """Which provider / model / options ``task`` uses (see module doc for the precedence)."""
     task = str(task or "default")
@@ -261,9 +324,23 @@ def route(task="default", provider=None, model=None, config=None):
             if e and canonical(e.get("provider")) == p:      # same provider configured: keep its model / options
                 opts = {k: v for k, v in e.items() if k not in ("provider",)}
                 break
+        pai = project_ai()
+        if pai and pai["provider"] == p and pai["model"]:   # the project's own model for its provider
+            opts["model"] = pai["model"]
         mdl = model or opts.pop("model", None)
         opts.pop("model", None)
         return Route(p, mdl, opts, "argument")
+    pai = None if os.environ.get(f"VSTUDIO_LLM_{T}_PROVIDER") else project_ai()
+    if pai:
+        def _fb_name(x):
+            try:
+                return canonical(x.get("provider") if isinstance(x, dict) else x)
+            except ValueError:
+                return None
+        fb = [x for x in _global_fallback(cfg, per, desk) if _fb_name(x) and _fb_name(x) != pai["provider"]]
+        pm = (desk.get("models") or {}) if isinstance(desk.get("models"), dict) else {}
+        opts = {"fallback": fb} if fb else {}
+        return Route(pai["provider"], model or pai["model"] or pm.get(pai["provider"]) or None, opts, "project ai")
     cands = [(os.environ.get(f"VSTUDIO_LLM_{T}_PROVIDER") and
               {"provider": os.environ[f"VSTUDIO_LLM_{T}_PROVIDER"], "model": os.environ.get(f"VSTUDIO_LLM_{T}_MODEL"),
                "fallback": _env_list(f"VSTUDIO_LLM_{T}_FALLBACK")},

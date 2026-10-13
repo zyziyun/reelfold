@@ -22,10 +22,13 @@ project.yaml:
     answers: {filler: {a: {value: {...}, digest: ..., at: ...}}, budget: {"*": {...}}}
     overrides: {a: {cleanup_reply: "确认 3,5"}}                     # params derived from answers, per job
     spec: {qc: {...}, budget: {...}, concurrency: {...}, asr: {...}}   # extra vstudio.batch spec sections
+    ai: {provider: kimi, model: kimi-k2}   # the project's AI: every AI step uses it (vstudio.llm.project_ai);
+                                           # absent = the app's default. `model --dir P` shows / switches it
 """
 import copy
 import json
 import os
+import re
 import time
 
 import yaml
@@ -190,9 +193,18 @@ class Project:
         self.manifest = M.get(self.data["recipe"])
 
     # ------------------------------------------------------------- file
+    def _disk_ai(self):
+        try:
+            with open(self.yaml_path, encoding="utf-8") as f:
+                d = yaml.safe_load(f) or {}
+            return d.get("ai") if isinstance(d, dict) else None
+        except (OSError, yaml.YAMLError):
+            return None
+
     def _read(self):
         with open(self.yaml_path, encoding="utf-8") as f:
             d = yaml.safe_load(f) or {}
+        self._ai_read = d.get("ai")
         for k in ("params", "inputs", "answers", "overrides", "spec", "variants"):
             d[k] = d.get(k) or {}
         d["items"] = d.get("items") or []
@@ -200,6 +212,15 @@ class Project:
         return d
 
     def save(self):
+        # the project's AI (``ai``) is switched by the app while a run goes on: a run saving the copy it read earlier
+        # keeps what is on disk now unless this copy changed it itself (``set_ai``)
+        if self.data.get("ai") == getattr(self, "_ai_read", None):
+            disk = self._disk_ai()
+            if disk:
+                self.data["ai"] = disk
+            else:
+                self.data.pop("ai", None)
+        self._ai_read = self.data.get("ai")
         tmp = self.yaml_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             yaml.safe_dump(_plain(self.data), f, allow_unicode=True, sort_keys=False)
@@ -209,6 +230,34 @@ class Project:
         self.data = self._read()
         self.manifest = M.get(self.data["recipe"])
         return self
+
+    def set_ai(self, provider=None, model=None, by="you", note=None):
+        """The project's AI: ``ai: {provider, model}`` in project.yaml (every AI step of the project uses it, from
+        the next step on: ``vstudio.llm.project_ai``); provider None clears it (the app's default again). Recorded
+        in the decisions log (state/autopilot.jsonl ``event: ai``). -> {provider, model} or None."""
+        from vstudio import llm
+        before = self._disk_ai()
+        new = None
+        if provider:
+            p = llm.canonical(provider)
+            if not p:
+                raise ProjectError("ai: a provider name")
+            m = str(model).strip() if model else None
+            if m and not re.match(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$", m):
+                raise ProjectError(f"ai: bad model id {model!r}")
+            new = {"provider": p, **({"model": m} if m else {})}
+        self.reload()
+        if new:
+            self.data["ai"] = new
+        else:
+            self.data.pop("ai", None)
+        self._ai_read = object()                    # changed here: save writes it
+        self.save()
+        if before != new:
+            from . import autopilot as AP
+            AP.log(self, dict(event="ai", by=by, provider=(new or {}).get("provider"), model=(new or {}).get("model"),
+                              before=before, **({"note": note} if note else {})))
+        return new
 
     # ------------------------------------------------------------- creation
     @classmethod

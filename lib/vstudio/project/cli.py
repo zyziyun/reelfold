@@ -14,6 +14,9 @@ references/PROJECTS.md.
                                                       judge + rules and recorded; only blockers wait (autopilot.py)
   autopilot --dir P [--on | --off] [--spend-cap N] [--judge | --no-judge] [--lang L]   switch it (no run)
   decisions --dir P [--history] [--json]              autopilot: what it decided, by whom, why
+  model --dir P [--provider X [--model M] | --clear] [--by you|chat|group] [--json]   the project's AI (project.yaml
+                                                      ``ai``): every AI step uses it, a running one from its next
+                                                      AI step; a switch goes into the decisions log
   reopen --dir P --id X [--item I]                    autopilot: take a decision back (the next run asks you)
   checkpoint --dir P [--id X] [--item I | --items a,b] [--answer JSON | --answer-file F | --default] [--run]
                                                       list pending payloads / record an answer
@@ -240,6 +243,20 @@ def cmd_autopilot(a):
     s = AP.configure(p, on=True if a.on else False if a.off else None, spend_cap=a.spend_cap,
                      judge=False if a.no_judge else True if a.judge else None, lang=a.lang)
     _out(a, dict(ok=True, autopilot=s), f"autopilot {'on' if s['on'] else 'off'}")
+    return 0
+
+
+def cmd_model(a):
+    from vstudio import llm
+    from .core import Project
+    p = Project(_dir(a))
+    if a.clear or a.provider:
+        p.set_ai(None if a.clear else a.provider, a.model, by=a.by or "you")
+    cur = p._disk_ai()
+    with _project_env(p.dir):
+        r = llm.route("intake")
+    _out(a, dict(ok=True, ai=cur or None, resolved=dict(provider=r.provider, model=r.model, source=r.source)),
+         f"{(cur or {}).get('provider') or 'default'}{' · ' + cur['model'] if (cur or {}).get('model') else ''}")
     return 0
 
 
@@ -733,6 +750,11 @@ def build_parser():
     p.add_argument("--judge", action="store_true")
     p.add_argument("--no-judge", action="store_true")
     p.add_argument("--lang", choices=["en", "zh", "fr"])
+    p = add("model", cmd_model, "the project's AI: show / switch it (every AI step from the next one on)")
+    p.add_argument("--provider")
+    p.add_argument("--model")
+    p.add_argument("--clear", action="store_true")
+    p.add_argument("--by", choices=["you", "chat", "group"])
     p = add("reopen", cmd_reopen, "autopilot: take one decision back - the checkpoint waits for you on the next run")
     p.add_argument("--id", required=True)
     p.add_argument("--item", default="*")
@@ -912,8 +934,41 @@ def build_parser():
     return ap
 
 
+class _project_env:
+    """VSTUDIO_PROJECT_DIR = the project this command works on, for the command and every child it starts: each AI
+    step reads the project's AI from it (vstudio.llm.project_ai). Restored afterwards (in-process callers)."""
+    def __init__(self, d):
+        self.d = d
+
+    def __enter__(self):
+        self.old = os.environ.get("VSTUDIO_PROJECT_DIR")
+        if self.d and os.path.isfile(os.path.join(self.d, "project.yaml")):
+            os.environ["VSTUDIO_PROJECT_DIR"] = os.path.abspath(self.d)
+        return self
+
+    def __exit__(self, *exc):
+        if self.old is None:
+            os.environ.pop("VSTUDIO_PROJECT_DIR", None)
+        else:
+            os.environ["VSTUDIO_PROJECT_DIR"] = self.old
+        return False
+
+
+def _arg_project(a):
+    for k in ("dir", "project"):
+        v = getattr(a, k, None)
+        if isinstance(v, str) and v:
+            return os.path.abspath(os.path.expanduser(v))
+    return None
+
+
 def main(argv=None):
     a = build_parser().parse_args(argv)
+    with _project_env(_arg_project(a)):
+        return _main(a)
+
+
+def _main(a):
     from vstudio.batch.run import BatchBusy
     from .core import ProjectError
     from .home import SeriesError
