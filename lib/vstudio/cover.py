@@ -113,14 +113,15 @@ W_FRAME = dict(sharp=1.0, exposure=1.2, subject=0.8, face=1.5, aesthetic=1.6)
 
 
 def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landmarker=None, aesthetic="auto",
-                 avoid=None, log=print):
+                 avoid=None, log=print, times=None):
     """Rank frames of `video` for a cover. Returns [{"t", "frame", "score", "parts", "image" (BGR)}] best first,
     picks at least min_gap seconds apart.
 
     Cues (``W_FRAME`` weights): sharpness, exposure, subject saliency (``frame_quality``), the face expression
     (smile, eyes open, centred - ``score_blend``; only when the video has faces: then a frame without one ranks
     low), and the LAION aesthetic v2 score (``vstudio.aesthetic``, Apache-2.0) on the best few, when its model is
-    downloaded (``aesthetic``: "auto" | True | False). ``avoid``: [[t0, t1], ...] spans to skip (crossfades)."""
+    downloaded (``aesthetic``: "auto" | True | False). ``avoid``: [[t0, t1], ...] spans to skip (crossfades).
+    ``times``: score only these seconds (each one seeked - a long 4K clip is not decoded end to end)."""
     import cv2
     from . import face as F
     lm = landmarker
@@ -134,7 +135,24 @@ def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landma
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     rows, i = [], 0
     spans = [(float(a) - 0.3, float(b) + 0.3) for a, b in (avoid or [])]
-    while True:
+
+    def add(img, t, idx):
+        h, w = img.shape[:2]; s = analysis_width / w
+        small = cv2.resize(img, (analysis_width, int(h * s)))
+        parts = frame_quality(small)
+        f = F.main_face(F.detect(lm, small)) if lm is not None else None
+        parts["face"] = (score_blend(f["blend"], f["pts"][:, 0].mean() / analysis_width) + 1.0
+                         if f is not None and f.get("blend") else None)
+        rows.append(dict(t=t, frame=idx, parts=parts, small=small))
+    for t in sorted({round(float(x), 3) for x in times or [] if float(x) >= 0}):
+        if any(a <= t <= b for a, b in spans):
+            continue
+        idx = int(round(t * fps))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ok, img = cap.read()
+        if ok:
+            add(img, t, idx)
+    while times is None:
         t = i / fps
         want = i % step == 0 and not any(a <= t <= b for a, b in spans)
         if not want:                                 # grab only: no colour conversion for the frames we skip
@@ -145,14 +163,7 @@ def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landma
         ok, img = cap.read()
         if not ok:
             break
-        if want:
-            h, w = img.shape[:2]; s = analysis_width / w
-            small = cv2.resize(img, (analysis_width, int(h * s)))
-            parts = frame_quality(small)
-            f = F.main_face(F.detect(lm, small)) if lm is not None else None
-            parts["face"] = (score_blend(f["blend"], f["pts"][:, 0].mean() / analysis_width) + 1.0
-                             if f is not None and f.get("blend") else None)
-            rows.append(dict(t=t, frame=i, parts=parts, small=small))
+        add(img, t, i)
         i += 1
     if landmarker is None and lm is not None:   # ours: close it now (one GC'd on a worker thread deadlocks mediapipe)
         lm.close()
@@ -190,6 +201,53 @@ def score_frames(video, top_n=6, step=5, min_gap=2.0, analysis_width=540, landma
         p["image"] = img if ok else None
     cap.release()
     return picks
+
+
+def score_images(paths, analysis_width=540, aesthetic="auto", log=print):
+    """``score_frames`` for stills (photos, frames already cut): the same cues and weights, so stills and clip frames
+    rank on one scale. -> [{"path", "score", "parts"}] best first (unreadable files are left out)."""
+    import cv2
+    from . import face as F
+    try:
+        lm = F.landmarker(1)
+    except Exception:  # noqa: BLE001  (no face model: the other cues still rank)
+        lm = None
+    rows = []
+    try:
+        for p in paths:
+            img = cv2.imread(str(p))
+            if img is None:
+                continue
+            h, w = img.shape[:2]
+            small = cv2.resize(img, (analysis_width, int(h * analysis_width / w)))
+            parts = frame_quality(small)
+            f = F.main_face(F.detect(lm, small)) if lm is not None else None
+            parts["face"] = (score_blend(f["blend"], f["pts"][:, 0].mean() / analysis_width) + 1.0
+                             if f is not None and f.get("blend") else None)
+            rows.append(dict(path=str(p), parts=parts, small=small))
+    finally:
+        if lm is not None:
+            lm.close()
+    has_face = any(r["parts"]["face"] is not None for r in rows)
+    for r in rows:
+        q = r["parts"]
+        fc = (q["face"] if q["face"] is not None else -1.0) if has_face else 0.0
+        r["score"] = (W_FRAME["sharp"] * q["sharp"] + W_FRAME["exposure"] * q["exposure"]
+                      + W_FRAME["subject"] * q["subject"] + W_FRAME["face"] * fc)
+    if rows and (aesthetic is True or aesthetic == "auto"):
+        try:
+            from . import aesthetic as A
+            if A.available():
+                for r, a in zip(rows, A.score([r["small"] for r in rows])):
+                    r["parts"]["aesthetic"] = round(a, 3)
+                    r["score"] += W_FRAME["aesthetic"] * (a - 5.0)
+            elif aesthetic is True:
+                log("score_images: aesthetic model not downloaded (asset group cover-aesthetic)")
+        except Exception as e:  # noqa: BLE001
+            log(f"score_images: aesthetic score skipped ({str(e)[:120]})")
+    rows.sort(key=lambda r: -r["score"])
+    return [dict(path=r["path"], score=round(r["score"], 4),
+                 parts={k: (round(v, 4) if isinstance(v, float) else v) for k, v in r["parts"].items()}) for r in rows]
 
 
 def contact_sheet(frames, labels=None, cols=6, tile_w=240, bg=(0, 0, 0), bgr=False):

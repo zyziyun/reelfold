@@ -93,6 +93,85 @@ def title_parts(text, lang):
     return title, kicker
 
 
+# Words that say how a video was shot or what kind it is, not what it is about: a cover title made of them
+# ("航拍西雅图", "Seattle Drone Footage") is weak next to one naming the subject ("埃利奥特湾作业岸线").
+GENERIC_ZH = ("航拍", "无人机", "风景", "美景", "大片", "记录", "日常", "旅行", "旅拍", "随拍", "合集", "打卡",
+              "一日游", "城市", "视频", "分享", "vlog", "Vlog", "VLOG", "4K", "4k", "空镜", "延时", "随笔", "短片",
+              "混剪", "合辑")
+GENERIC_EN = {"drone", "aerial", "aerials", "footage", "vlog", "travel", "views", "view", "scenery", "cinematic",
+              "4k", "trip", "beautiful", "video", "film", "b-roll", "broll", "essay", "montage", "compilation",
+              "from", "above", "the", "of", "a", "in"}
+
+
+def specificity(title, lang):
+    """How much a cover title names its subject (higher is better): the share of it that is generic wording
+    (``GENERIC_ZH`` / ``GENERIC_EN``) counts against it, a number (a year, a height) for it, and a length a
+    phone can read (zh 3-12 characters, en 2-5 words) is preferred."""
+    t = str(title or "").strip()
+    if not t:
+        return -9.0
+    if not re.search(r"[A-Za-z㐀-鿿]", t):            # "2026" alone says nothing
+        return -1.0
+    if lang == "zh":
+        core = re.sub(r"\s+", "", t)
+        gen = 0
+        for g in sorted(GENERIC_ZH, key=len, reverse=True):
+            if g in core:
+                gen += len(g) * core.count(g)
+                core_ = core.replace(g, "")
+                core = core_ if core_ else core
+        n = len(re.sub(r"\s+", "", t))
+        share = min(1.0, gen / max(1, n))
+        size = -0.4 if n < 3 else (-0.08 * (n - 12) if n > 12 else 0.0)
+    else:
+        words = re.findall(r"[A-Za-z0-9'’&-]+", t)
+        n = len(words)
+        stop = {"the", "of", "a", "in", "from", "above"}
+        content = [w for w in words if w.lower() not in stop] or words
+        share = sum(w.lower() in GENERIC_EN for w in content) / max(1, len(content))
+        size = -0.3 if n < 2 else (-0.1 * (n - 5) if n > 5 else 0.0)
+    num = 0.15 if re.search(r"\d", t) else 0.0
+    return round(1.0 - 1.5 * share + size + num, 4)
+
+
+def pick_text(candidates, lang):
+    """The cover text in ``lang`` from a few candidates (the cover text she gave, the video's title, the post
+    title, ...), "title | kicker": each made monolingual (``mono_text``), the most specific title wins
+    (``specificity``; the earlier candidates keep a small lead - the first is the one written for the cover,
+    then the video's title). Its own
+    kicker stays; with none, the next candidate that adds words becomes the kicker."""
+    rows = []
+    for k, c in enumerate(candidates):
+        m = mono_text(c, lang)
+        if not m.strip():
+            continue
+        title, kicker = title_parts(m, lang)
+        if title:
+            rows.append((specificity(title, lang) + max(0.0, 0.1 - 0.05 * k), k, title, kicker))
+    if not rows:
+        return ""
+    best = max(rows, key=lambda r: (r[0], -r[1]))
+    _, _, title, kicker = best
+    if kicker and specificity(kicker, lang) > specificity(title, lang) + 0.3 and len(kicker) <= max(len(title), 1) * 2.5:
+        title, kicker = kicker, title                  # "秋日随笔 · 放手 | 当整条街一起变红": the subject leads
+    if not kicker:
+        norm = lambda x: re.sub(r"[\s·•:：,，|｜-]+", "", x.lower())
+        units = (lambda x: set(norm(x))) if lang == "zh" else (lambda x: set(re.findall(r"[a-z0-9']+", x.lower())))
+        for _, _, t, kk in sorted(rows, key=lambda r: r[1]):
+            for alt in (t, kk):
+                u = units(alt or "")
+                if not u or specificity(alt, lang) < 0.6 or len(u & units(title)) >= 0.5 * len(u):
+                    continue                           # generic, or mostly the title again
+                kicker = alt
+                break
+            if kicker:
+                break
+        if kicker and specificity(kicker, lang) > specificity(title, lang) + 0.3 and \
+                len(kicker) <= max(len(title), 1) * 2.5:
+            title, kicker = kicker, title
+    return title + (" | " + kicker if kicker else "")
+
+
 # ---------------------------------------------------------------- platform geometry
 def spec_for(platform):
     """{name, key, size, safe (x0,y0,x1,y1), keepouts [(x0,y0,x1,y1) px], lang, max_bytes}."""
@@ -138,7 +217,7 @@ def analyse(img, matte_engine="auto", log=None):
             lm.close()
     except Exception as e:  # noqa: BLE001
         say(f"cover: face detection skipped ({str(e)[:80]})")
-    alpha, engine, box = None, None, None
+    alpha, engine, box, top = None, None, None, None
     try:
         from . import matte as M
         _, alpha, engine = M.matte(bgr, matte_engine, log=say)
@@ -147,11 +226,25 @@ def analyse(img, matte_engine="auto", log=None):
         if 0.002 < area < 0.7:
             ys, xs = np.nonzero(m)
             box = (xs.min() / im.width, ys.min() / im.height, (xs.max() + 1) / im.width, (ys.max() + 1) / im.height)
+            top = subject_top(m)
         else:
             alpha = None if area <= 0.002 else alpha
     except Exception as e:  # noqa: BLE001  (no matte engine: saliency + faces still place the text)
         say(f"cover: subject matte skipped ({str(e)[:100]})")
-    return dict(img=im, sal=sal, faces=faces, alpha=alpha, matte=engine, subject_box=box)
+    return dict(img=im, sal=sal, faces=faces, alpha=alpha, matte=engine, subject_box=box, subject_top=top)
+
+
+def subject_top(mask):
+    """The subject's tip (a spire, a mast, a head): (x0, x1, y_top, height) as fractions of the frame - the columns
+    the matte fills in its top 6 %. A matte loses thin tips (the Space Needle's antenna), so ``occupancy`` keeps
+    the space above this band clear as well."""
+    ys, xs = np.nonzero(mask)
+    if not len(ys):
+        return None
+    H, W = mask.shape
+    y0, y1 = int(ys.min()), int(ys.max())
+    band = xs[ys <= y0 + max(2, int((y1 - y0) * 0.06))]
+    return (float(band.min()) / W, float(band.max() + 1) / W, y0 / H, (y1 - y0 + 1) / H)
 
 
 def occupancy(an, crop, size):
@@ -169,6 +262,18 @@ def occupancy(an, crop, size):
         a = an["alpha"][int(y0):int(y1), int(x0):int(x1)]
         a = cv2.resize(a.astype(np.float32), (W, H), interpolation=cv2.INTER_AREA)
         occ = np.maximum(occ, cv2.dilate(a, np.ones((max(3, W // 60),) * 2, np.uint8)))
+    tip = an.get("subject_top")
+    if tip:                                            # the subject's tip and the air just above it
+        tx0, tx1, ty, sh_ = tip
+        cx0, cx1 = (tx0 * iw - x0) / (x1 - x0) * W, (tx1 * iw - x0) / (x1 - x0) * W
+        cy = (ty * ih - y0) / (y1 - y0) * H
+        sub_h = sh_ * ih / (y1 - y0) * H
+        px = max(W * 0.03, (cx1 - cx0) * 0.6)
+        up = max(H * 0.07, sub_h * 0.18)
+        r0, r1 = max(0, int(cy - up)), max(0, int(cy + max(H * 0.02, sub_h * 0.06)))
+        c0, c1 = max(0, int(cx0 - px)), max(0, int(cx1 + px))
+        if r1 > r0 and c1 > c0:
+            occ[r0:r1, c0:c1] = 1.0
     for fx0, fy0, fx1, fy1 in an["faces"]:
         bx0, by0 = (fx0 * iw - x0) / (x1 - x0) * W, (fy0 * ih - y0) / (y1 - y0) * H
         bx1, by1 = (fx1 * iw - x0) / (x1 - x0) * W, (fy1 * ih - y0) / (y1 - y0) * H
@@ -208,6 +313,27 @@ def crop_box(an, aspect, zoom=1.0):
     return (int(x0), int(y0), int(x0 + cw), int(y0 + ch))
 
 
+def third_boxes(an, box):
+    """A narrow subject (a tower, a mast, one person) in a crop with room to slide: the same crop with the subject
+    on the left / right third, so the title gets the other two thirds instead of squeezing beside a centred one."""
+    sb = an["subject_box"]
+    if not sb:
+        return []
+    iw, _ = an["img"].size
+    x0, y0, x1, y1 = box
+    cw = x1 - x0
+    sw = (sb[2] - sb[0]) * iw
+    if cw >= iw * 0.98 or sw > cw * 0.3:
+        return []
+    cx = (sb[0] + sb[2]) / 2 * iw
+    out = []
+    for f in (2 / 3, 1 / 3):
+        nx = int(min(max(0.0, cx - cw * f), iw - cw))
+        if abs(nx - x0) > cw * 0.08 and sb[0] * iw >= nx and sb[2] * iw <= nx + cw:
+            out.append((nx, y0, nx + cw, y1))
+    return out
+
+
 # ---------------------------------------------------------------- type
 def _font_roles(lang, variant):
     """(title role, kicker role): the theme's tokens (font_title / font_strong, the typography kit's display roles
@@ -243,6 +369,7 @@ def _font(role, size):
 
 
 _NO_START = set("，。、；：？！）》」』”’,.;:?!)")
+_AFTER_NUMBER = set("年月日号届岁米度位个座条次周%")
 
 
 def _zh_words(text):
@@ -269,6 +396,9 @@ def _wrap(text, f, maxw, lang, max_lines=2):
     best = None
 
     def ok_break(i):
+        prev = toks[i - 1].strip()
+        if prev and prev[-1].isdigit() and toks[i].strip()[:1] in _AFTER_NUMBER:   # 1962 年 stays one unit
+            return False
         if not cjk:
             return True
         a, b = len("".join(toks[:i])), len("".join(toks[i:]))
@@ -489,30 +619,37 @@ def render_variant(an, sp, title, kicker, variant, log=None):
     zoom = {"scene": 1.0, "subject": 1.45, "text": 1.0}[variant]
     if variant == "subject" and not (an["subject_box"] or an["faces"]):
         zoom = 1.25
-    box = crop_box(an, W / H, zoom)
-    src = an["img"].crop(box)
-    src, how = upscale_to(src, (W, H), log=log)
-    canvas = src.resize((W, H), Image.LANCZOS)
-    occ = occupancy(an, box, (W, H))
-    if variant == "text":
-        canvas = _grade_down(canvas)
-        occ = np.where(occ >= 0.9, occ, occ * 0.35)        # a graded backdrop: type may take the space, not the subject
     sx0, sy0, sx1, sy1 = sp["safe"]
     margin = int(min(W, H) * 0.06)
     safe = (max(sx0, margin), max(sy0, margin), min(sx1, W - margin), min(sy1, H - margin))
     box_w = int((safe[2] - safe[0]) * ((0.8 if variant == "text" else 0.62) if W > H else 0.92))
+    base = crop_box(an, W / H, zoom)
     best = None
-    for k in (1.0, 0.8, 0.64):                         # every spot hits the subject: smaller type before overlap
-        Lk = layout_text(title, kicker, sp["lang"], (W, H), variant, int(box_w * k))
-        Lk = dict(Lk, w=min(Lk["w"], int(box_w * k)))
-        pk = place(occ, Lk, safe, sp["keepouts"])
-        if pk and (best is None or pk[0] + 0.05 * (1 - k) < best[0][0]):
-            best = (pk, Lk)
-        if best and best[0][0] < 1.4:
+    for bi, box in enumerate([base] + third_boxes(an, base)):
+        occ = occupancy(an, box, (W, H))
+        if variant == "text":
+            occ = np.where(occ >= 0.9, occ, occ * 0.35)    # a graded backdrop: type may take the space, not the subject
+        for k in (1.0, 0.8, 0.64, 0.5, 0.4):           # every spot hits the subject: smaller type before overlap
+            Lk = layout_text(title, kicker, sp["lang"], (W, H), variant, int(box_w * k))
+            Lk = dict(Lk, w=min(Lk["w"], int(box_w * k)))
+            pk = place(occ, Lk, safe, sp["keepouts"])
+            if not pk:
+                continue
+            total = pk[0] + 0.8 * (1 - k) + (0.08 if bi else 0.0)   # smaller type / an off-centre crop only
+            if best is None or total < best[2]:                       # for a much cleaner spot
+                best = (pk, Lk, total, box)
+            if best[2] < 0.35:
+                break
+        if best and best[2] < 0.35:
             break
     if best is None:
         return None
-    (cost, x, y, align), L = best
+    (cost, x, y, align), L, _, box = best
+    src = an["img"].crop(box)
+    src, how = upscale_to(src, (W, H), log=log)
+    canvas = src.resize((W, H), Image.LANCZOS)
+    if variant == "text":
+        canvas = _grade_down(canvas)
     depth = None
     if variant == "subject" and an["alpha"] is not None:
         import cv2

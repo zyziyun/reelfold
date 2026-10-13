@@ -517,8 +517,8 @@ def designed_covers(frame, text, a, t, retouched):
              if str(x).strip()]
     langs = {P.lang_for(p, "en") for p in plats} or {"zh" if _has_cjk(text) else "en"}
     title = a.params.get("title") or ""
-    texts = {"zh": CE.mono_text(text, "zh") or CE.mono_text(title, "zh"),
-             "en": CE.mono_text(text, "en") or CE.mono_text(title, "en")}
+    texts = {"zh": CE.pick_text([text, title], "zh"),       # her text; the video's title when hers is generic
+             "en": CE.pick_text([text, title], "en")}
     gen_lang = "zh" if "zh" in langs and texts["zh"] else "en"
     tag = sha1_json([text, retouched, sorted(plats)])[:8]
     out_dir = os.path.dirname(a.answer_path(f"covers_{int(t * 1000)}_{tag}/x"))
