@@ -46,7 +46,7 @@ _CODES = (
                     r"ffmpeg lacks filter|lacks filter\(s\)|unknown bitstream filter|"
                     r"referenced from:\s*\S*/ff(mpeg|probe)\b|ff(mpeg|probe): (command )?not found"),
     # the free voice before its one-time download (vstudio.tts.VoiceNotDownloaded): the desk offers the download
-    ("tool-voice", r"free voice is not downloaded"),
+    ("tool-voice", r"free (chinese )?voice is not downloaded"),
     # a paid service without its key ("No OpenAI key: OPENAI_API_KEY is not set ..."): named, never "log in again"
     ("ai-key-missing", r"\bno [a-z][\w .-]{1,30}? key: [a-z0-9_]+_api_key is not set|\b[a-z0-9]+_api_key is not set"),
     ("ai-login", r"\b401\b|auth-expired|not-logged-in|authenticat|not logged in|"
@@ -86,7 +86,7 @@ def tool_fix(code, text):
         bundled = "reelfold.app" in t or "/runtime/ffmpeg" in t or "vstudio_ff" in t
         return dict(tool="ffmpeg", fix="reinstall-app" if bundled else "install-ffmpeg")
     if code == "tool-voice":
-        return dict(tool="voice", fix="download-voice")
+        return dict(tool="voice", fix="download-zh-voice" if "chinese voice" in t else "download-voice")
     if code == "ai-key-missing":
         try:
             from vstudio import proctail

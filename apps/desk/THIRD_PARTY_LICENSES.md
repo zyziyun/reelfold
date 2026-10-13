@@ -308,6 +308,7 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | matte-birefnet | all | BiRefNet-lite, MIT (ZhengPeng7/BiRefNet; ONNX export by onnx-community, MIT). Cover subject cutout. | huggingface.co |
 | upscale-esrgan | darwin-arm64 | Real-ESRGAN realesr-general-x4v3 weights, BSD-3-Clause (xinntao). Upscales small cover crops (MLX). | github.com |
 | cover-aesthetic | all | LAION aesthetic predictor v2, Apache-2.0 (christophschuhmann/improved-aesthetic-predictor) on OpenAI CLIP ViT-L/14, MIT (q4f16 ONNX by Xenova). Ranks cover frames. | huggingface.co |
+| tts-qwen-zh | darwin-arm64 | Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer, Apache-2.0 (Alibaba Qwen; 8-bit MLX conversion by mlx-community). | huggingface.co |
 | chromium-darwin-arm64 | darwin-arm64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-darwin-x64 | darwin-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-win32-x64 | win32-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
@@ -318,6 +319,9 @@ segmenter) — Apache-2.0, Google. Beat This! final0 checkpoint (beat / downbeat
 torch) — MIT. TransNet V2 weights (shot boundaries, Tomáš Souček, read without TensorFlow) — MIT. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
 CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
 silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community).
+Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer (the free Chinese voice, Apple silicon; an optional
+download from Settings › Voice) — Apache-2.0, Alibaba Qwen team (8-bit MLX conversion: mlx-community); its text
+tokenizer is read by the engine's own `vstudio.qwen_bpe` (MIT), so transformers / tokenizers are not shipped.
 chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
 HyperFrames) — BSD-3-Clause and third-party licences, the full text in LICENSE.headless_shell inside the download.
 

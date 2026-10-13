@@ -127,6 +127,12 @@ class FreeVoiceNotDownloaded(unittest.TestCase):
         self.assertEqual(PI.classify(self.TEXT), "tool-voice")
         self.assertEqual(PI.tool_fix("tool-voice", self.TEXT), dict(tool="voice", fix="download-voice"))
 
+    def test_chinese_voice_offers_its_own_download(self):
+        text = ("RuntimeError: tts.py exit 1: The free Chinese voice is not downloaded yet: download it in Settings > "
+                "Voice, then try again.")
+        self.assertEqual(PI.classify(text), "tool-voice")
+        self.assertEqual(PI.tool_fix("tool-voice", text), dict(tool="voice", fix="download-zh-voice"))
+
     def test_failure_document(self):
         d = tempfile.mkdtemp()
         with open(os.path.join(d, PI.LOG), "w") as f:

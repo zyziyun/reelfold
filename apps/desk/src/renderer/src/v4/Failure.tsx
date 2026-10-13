@@ -10,7 +10,7 @@ import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { go } from '../lib/router';
 import { errText } from './msg';
-import { ensureFreeVoice } from '../lib/freeVoice';
+import { CHINESE_VOICE_GROUP, ensureFreeVoice } from '../lib/freeVoice';
 import { openReport } from '../support/Support';
 import { useUi } from './ui';
 
@@ -73,6 +73,8 @@ export function FailureActions({ item, failure, primary = true, onDone, only = f
   const [busy, setBusy] = useState(false);
   const ai = AI.has(failure.code);
   const other = otherProvider(failure);
+  // the free Chinese voice (tts-qwen-zh) is its own download
+  const zhVoice = failure.params?.fix === 'download-zh-voice';
   const retry = async (provider?: string) => {
     if (!client) return;
     setBusy(true);
@@ -117,13 +119,13 @@ export function FailureActions({ item, failure, primary = true, onDone, only = f
         <button
           className="btn"
           onClick={() =>
-            void ensureFreeVoice()
+            void ensureFreeVoice(undefined, zhVoice ? CHINESE_VOICE_GROUP : undefined)
               .then((st) => ui.toast(t(st === 'installed' ? 'fail.voiceReady' : 'fail.voiceDownloading')))
               .catch((e) => ui.toast(errText(e), { error: true }))
           }
           data-testid="fail-download-voice"
         >
-          {t('fail.downloadVoice')}
+          {t(zhVoice ? 'fail.downloadZhVoice' : 'fail.downloadVoice')}
         </button>
       )}
       {!only && failure.code === 'ai-needs-model' && settings}

@@ -45,6 +45,8 @@ export interface Settings {
   openAtLogin?: boolean;
   /** official posting APIs she connected: post scheduled rows of that platform through the API at their time */
   publishApi?: Partial<Record<'youtube' | 'tiktok' | 'x' | 'instagram', { auto: boolean }>>;
+  /** Settings > Voice: the free Chinese voice's speaker (shared/voices.ts ZH_VOICES; unset = serena) */
+  zhVoice?: string;
   /** Help: send redacted crash reports automatically (default off; only with a crash-report endpoint) */
   crashReportsAuto?: boolean;
 }

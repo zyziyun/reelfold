@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AI_TASK_IDS, KEY_NAMES, PROVIDER_IDS } from './aiRoutes';
 import { recIpcSchemas } from './recIpc';
 import { supportIpcSchemas } from './supportIpc';
+import { ZH_VOICES } from './voices';
 
 const batchId = z.string().regex(/^[0-9a-f]{12}$/);
 /** batch job ids, and work-folder clip ids (file stems like A_换圈子: letters / digits of any script, . _ -) */
@@ -76,6 +77,7 @@ export const ipcSchemas = {
     studio: z.boolean().optional(),
     usagePings: z.enum(['on', 'off']).optional(),
     openAtLogin: z.boolean().optional(),
+    zhVoice: z.enum(ZH_VOICES).optional(),
   }),
   // opt-in anonymous usage counts (main/usage.ts): small integers only, never text
   'usage:status': z.undefined(),

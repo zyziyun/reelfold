@@ -182,6 +182,9 @@ segmenter) — Apache-2.0, Google. Beat This! final0 checkpoint (beat / downbeat
 torch) — MIT. TransNet V2 weights (shot boundaries, Tomáš Souček, read without TensorFlow) — MIT. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
 CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
 silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community).
+Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer (the free Chinese voice, Apple silicon; an optional
+download from Settings › Voice) — Apache-2.0, Alibaba Qwen team (8-bit MLX conversion: mlx-community); its text
+tokenizer is read by the engine's own \`vstudio.qwen_bpe\` (MIT), so transformers / tokenizers are not shipped.
 chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
 HyperFrames) — BSD-3-Clause and third-party licences, the full text in LICENSE.headless_shell inside the download.
 

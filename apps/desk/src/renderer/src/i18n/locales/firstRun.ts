@@ -34,6 +34,7 @@ export const firstRunEn = {
   'assets.group.matte-birefnet': 'Cover subject cutout (BiRefNet)',
   'assets.group.upscale-esrgan': 'Cover upscaler (Real-ESRGAN)',
   'assets.group.cover-aesthetic': 'Cover frame picker (aesthetic score)',
+  'assets.group.tts-qwen-zh': 'Chinese voice (Qwen3-TTS, offline)',
   // ---------------------------------------------------------------- the sample
   'sample.try': 'Try with a sample',
   'sample.tryTitle': 'No footage handy? Try a sample first',
@@ -97,6 +98,7 @@ export const firstRunZh: Record<keyof typeof firstRunEn, string> = {
   'assets.group.matte-birefnet': '封面主体抠图（BiRefNet）',
   'assets.group.upscale-esrgan': '封面高清放大（Real-ESRGAN）',
   'assets.group.cover-aesthetic': '封面选帧（美感评分）',
+  'assets.group.tts-qwen-zh': '中文配音（Qwen3-TTS，离线）',
   'sample.try': '用示例试试',
   'sample.tryTitle': '手边没素材？先用示例试一遍',
   'sample.trySub': 'Reelfold 自带一段 2 分钟的讲解录音。点一下就规划一个真实批次：去气口、加字幕、每个平台一条竖屏——本机大约 3 分钟。',
@@ -157,6 +159,7 @@ export const firstRunFr: Record<keyof typeof firstRunEn, string> = {
   'assets.group.matte-birefnet': 'Détourage du sujet des couvertures (BiRefNet)',
   'assets.group.upscale-esrgan': 'Agrandissement des couvertures (Real-ESRGAN)',
   'assets.group.cover-aesthetic': 'Choix de l’image de couverture (score esthétique)',
+  'assets.group.tts-qwen-zh': 'Voix chinoise (Qwen3-TTS, hors ligne)',
   'sample.try': 'Essayer avec un exemple',
   'sample.tryTitle': 'Pas de vidéo sous la main ? Essayez d’abord un exemple',
   'sample.trySub': 'Une leçon commentée de 2 minutes fournie avec Reelfold. Un clic planifie un vrai lot : pauses coupées, sous-titres, une vidéo verticale par plateforme — environ 3 minutes sur cet ordinateur.',

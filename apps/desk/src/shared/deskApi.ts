@@ -86,6 +86,8 @@ export interface SettingsMsg {
   usagePings?: 'on' | 'off';
   openAtLogin?: boolean;
   publishApi?: Partial<Record<'youtube' | 'tiktok' | 'x' | 'instagram', { auto: boolean }>>;
+  /** Settings > Voice: the free Chinese voice's speaker (shared/voices.ts) */
+  zhVoice?: string;
 }
 
 export interface UsageStatusMsg {
@@ -159,7 +161,7 @@ export interface DeskApi {
   openLogs(): Promise<void>;
   copyText(text: string): Promise<void>;
   getSettings(): Promise<SettingsMsg>;
-  setSettings(patch: Partial<Pick<SettingsMsg, 'enginePath' | 'python' | 'lang' | 'theme' | 'accent' | 'defaultPlatforms' | 'cleanupDays' | 'agencyMode' | 'askAiEdits' | 'autopilot' | 'createPage' | 'createLocalGen' | 'studio' | 'usagePings' | 'openAtLogin'>>): Promise<SettingsMsg>;
+  setSettings(patch: Partial<Pick<SettingsMsg, 'enginePath' | 'python' | 'lang' | 'theme' | 'accent' | 'defaultPlatforms' | 'cleanupDays' | 'agencyMode' | 'askAiEdits' | 'autopilot' | 'createPage' | 'createLocalGen' | 'studio' | 'usagePings' | 'openAtLogin' | 'zhVoice'>>): Promise<SettingsMsg>;
   openFiles(kind: 'video' | 'any'): Promise<string[]>;
   /** absolute path of a file dropped on the window (Electron webUtils; '' when unavailable) */
   pathForFile(file: File): string;

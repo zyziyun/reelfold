@@ -9,6 +9,7 @@ import type { IpcChannel, IpcPayload } from '../shared/ipc';
 import { cleanupPathOk } from './cleanupPolicy';
 import { routesFilePath } from './aiAccounts';
 import { SecretStore } from './secrets';
+import { ttsPrefsOf } from '../shared/voices';
 import type { Settings, SettingsStore } from './settings';
 
 type Handle = <C extends IpcChannel>(channel: C, fn: (p: IpcPayload<C>) => unknown) => void;
@@ -43,7 +44,28 @@ export function v02EngineEnv(userData: string, s: Settings): Record<string, stri
   // the creator's AI routes (Settings -> AI accounts & models); read by the engine on every call, so edits apply
   // without a restart. Absent file = the persona's routes.
   env.VSTUDIO_LLM_ROUTES_FILE = routesFilePath(userData);
+  // her voice choices (Settings > Voice), read by the engine on every take
+  env.VSTUDIO_TTS_PREFS = writeTtsPrefs(userData, s);
   return env;
+}
+
+/** Where the engine reads her voice choices (vstudio.tts.prefs). */
+export function ttsPrefsPath(userData: string): string {
+  return path.join(userData, 'tts-prefs.json');
+}
+
+/** Write the engine's voice prefs file from the settings (atomic); returns its path. A read-only profile keeps the
+ * old file (the engine falls back to its defaults when there is none). */
+export function writeTtsPrefs(userData: string, s: Pick<Settings, 'zhVoice'>): string {
+  const f = ttsPrefsPath(userData);
+  try {
+    const tmp = `${f}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(ttsPrefsOf(s)));
+    fs.renameSync(tmp, f);
+  } catch {
+    /* read-only profile */
+  }
+  return f;
 }
 
 const MAX_PERSONA = 256 * 1024;

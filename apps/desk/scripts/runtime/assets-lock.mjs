@@ -19,6 +19,9 @@ const PINS = {
   // (zf_xiaobei = vstudio.tts.ZH_VOICE, af_heart = DEFAULT_VOICE) and two more English ones
   kokoro: { repo: 'mlx-community/Kokoro-82M-bf16', rev: 'a71e4d38b236d968966a2002c4c895dbd12b1c3c',
     voices: ['zf_xiaobei', 'af_heart', 'am_michael', 'bf_emma'] },
+  // the free Chinese voice (Apple silicon, mlx-audio): Qwen3-TTS 1.7B CustomVoice, 8-bit MLX - native Mandarin
+  // speakers (serena = vstudio.tts.ZH_VOICE["qwen"], vivian, uncle_fu, dylan, eric); ux/zh-voice has the A/B
+  qwenTts: { repo: 'mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit', rev: '41d3337e8b7f2843a75841595fc14e4b9a7a4b96' },
   // the headless browser for HTML covers / slides and HyperFrames: chrome-headless-shell from Chrome for Testing, not a
   // Chromium.app snapshot - a bare executable with no app bundle, so macOS never sees an app that could ask for
   // notifications. The version is the one HyperFrames manages itself (CHROME_VERSION in the hyperframes CLI), so its
@@ -172,6 +175,19 @@ groups.push({
     ...(await hf(PINS.clipL14, '.', ['onnx/vision_model_q4f16.onnx'])).map((f) => ({ ...f, dest: './vision_model.onnx' })),
     await file(raw(PINS.aesthetic.repo, PINS.aesthetic.sha, 'sac%2Blogos%2Bava1-l14-linearMSE.pth'), './sac+logos+ava1-l14-linearMSE.pth'),
   ],
+});
+log('qwen3-tts');
+// optional: the Chinese voice (about 3 GB), from Settings > Voice or the voice step's "Download the Chinese voice"
+groups.push({
+  id: 'tts-qwen-zh',
+  required: false,
+  targets: ['darwin-arm64'],
+  root: 'models/qwen3-tts-1.7b-customvoice-8bit',
+  env: { VSTUDIO_QWEN_TTS_MODEL: '' },
+  licence: 'Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer, Apache-2.0 (Alibaba Qwen; 8-bit MLX conversion by mlx-community).',
+  files: await hf(PINS.qwenTts, '.', ['config.json', 'generation_config.json', 'preprocessor_config.json', 'tokenizer_config.json',
+    'vocab.json', 'merges.txt', 'model.safetensors', 'model.safetensors.index.json', 'speech_tokenizer/config.json',
+    'speech_tokenizer/configuration.json', 'speech_tokenizer/preprocessor_config.json', 'speech_tokenizer/model.safetensors']),
 });
 const CFT = 'https://storage.googleapis.com/chrome-for-testing-public';
 for (const [target, plat] of Object.entries(PINS.headlessShell.platforms)) {

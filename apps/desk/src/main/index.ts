@@ -44,7 +44,7 @@ import { UsageReporter, usageAllowedByEnv } from './usage';
 import { APP_NAME, applyIdentity } from './identity';
 import { SecretStore } from './secrets';
 import { checkForUpdates, initUpdater, installUpdate, updateState } from './updater';
-import { registerCleanupIpc, registerV02Ipc, v02EngineEnv } from './v02';
+import { registerCleanupIpc, registerV02Ipc, v02EngineEnv, writeTtsPrefs } from './v02';
 import { trashProjects } from './trash';
 import { devOnly, setPackaged, tempOnly, testSwitch } from './testHooks';
 import { openFeedback, recordProblem, registerSupportIpc } from './support';
@@ -834,6 +834,7 @@ function registerIpc() {
     if (p.python && !fs.existsSync(p.python)) throw new Error('python not found');
     const before = settings.get();
     const next = settings.set(p);
+    if (p.zhVoice !== undefined) writeTtsPrefs(app.getPath('userData'), next); // the next take uses it, no restart
     if (next.lang !== before.lang) menu();
     if (p.usagePings !== undefined && p.usagePings !== before.usagePings) usage?.consentChanged(p.usagePings === 'on');
     if (p.openAtLogin !== undefined && p.openAtLogin !== before.openAtLogin) {

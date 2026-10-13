@@ -9,8 +9,10 @@
 // patch_mlx_whisper.py), no "itms-services" in urllib.parse. scripts/appstore/appstore_lint.py checks the result.
 // The free offline voice (Apple silicon): Kokoro-82M via mlx-audio + misaki, without espeak-ng (GPL) or num2words
 // (LGPL) - patch_kokoro.py; its weights are a first-run download (packaging/assets.json tts-kokoro), and verify
-// synthesises a Chinese sentence with English terms and an English sentence with them (--skip=voice: not).
-// Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio,verify,voice]
+// synthesises a Chinese sentence with English terms and an English sentence with them (--skip=voice: not). The free
+// Chinese voice (Qwen3-TTS through mlx-audio, no extra packages: vstudio.qwen_synth / qwen_bpe) is the tts-qwen-zh
+// download; verify says a Chinese line with it too (--skip=voice-zh: not).
+// Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio,verify,voice,voice-zh]
 // The pip step runs the target's own interpreter, so build on a host of the target's OS/arch (CI matrix does).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -272,6 +274,28 @@ async function verifyVoice(env) {
     'for text, voice in (("你好，欢迎来到这门课：MCP 和 Tool Calling。", "zf_xiaobei"), ("Welcome back. In 2024 we shipped 3 features.", "af_heart")):',
     '    w = wave.open(tts.synth(text, engine="kokoro", voice=voice)); s = w.getnframes() / w.getframerate()',
     '    assert 1.0 < s < 15.0, (voice, s); print("voice ok", voice, round(s, 2), "s")',
+  ].join('\n')], { env: venv });
+  if (!skip.has('voice-zh')) await verifyChineseVoice(env);
+}
+
+// The free Chinese voice end to end: the tts-qwen-zh group (about 3 GB, cached here) + the bundled runtime, which has
+// neither transformers nor tokenizers nor scipy (vstudio.qwen_synth loads only what the model uses) -> a Chinese take
+// with English terms through vstudio.tts as the app picks it (zh_engine("kokoro") -> qwen), offline. --skip=voice-zh.
+async function verifyChineseVoice(env) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'packaging', 'assets.json'), 'utf8'));
+  const g = manifest.groups.find((x) => x.id === 'tts-qwen-zh');
+  if (!g) throw new Error('packaging/assets.json has no tts-qwen-zh group (node scripts/runtime/assets-lock.mjs)');
+  const dir = path.join(CACHE, 'assets', 'tts-qwen-zh', g.files[0].sha256.slice(0, 12));
+  for (const f of g.files) await download(f.url, path.join(dir, f.dest.replace(/^\.\//, '')), f.sha256);
+  const venv = { ...env, PYTHONUTF8: '1', VSTUDIO_QWEN_TTS_MODEL: dir, VSTUDIO_TTS_MODELS_MANAGED: '1', HF_HUB_OFFLINE: '1',
+    HF_HOME: path.join(CACHE, 'hf-empty'), VSTUDIO_CACHE: path.join(CACHE, 'vstudio-cache-voice-zh') };
+  rmrf(venv.VSTUDIO_CACHE);
+  run(pyExe(), ['-c', [
+    'import importlib.util as u, wave; from vstudio import tts',
+    'assert not any(u.find_spec(m) for m in ("transformers", "tokenizers", "scipy")), "runtime grew a dependency"',
+    'assert tts.qwen_ready() and tts.zh_engine("kokoro") == "qwen", tts.providers(probe=False)',
+    'w = wave.open(tts.synth("大家好，今天聊聊怎么用 MCP 把大模型连到你自己的工具上。", engine="qwen", voice=tts.zh_voice("qwen")))',
+    's = w.getnframes() / w.getframerate(); assert 2.0 < s < 15.0, s; print("chinese voice ok", round(s, 2), "s")',
   ].join('\n')], { env: venv });
 }
 

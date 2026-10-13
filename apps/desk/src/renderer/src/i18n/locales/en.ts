@@ -26,6 +26,7 @@ import { layoutEn } from './layout';
 import { runEn } from './runview';
 import { settingsV2En } from './settingsV2';
 import { watermarkEn } from './watermark';
+import { voiceEn } from './voice';
 import { archiveEn } from './archive';
 import { legacyEn } from '../legacy/en';
 import { aiaccEn } from './aiacc';
@@ -617,5 +618,5 @@ export const v04En = {
   'editor.zoomFit': 'Fit',
 };
 
-export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn };
+export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...voiceEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn };
 export type MessageKey = keyof typeof en;

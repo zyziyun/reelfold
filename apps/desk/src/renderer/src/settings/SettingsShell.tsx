@@ -2,7 +2,7 @@
 // General / AI / Publishing / Advanced with status dots, the version at the bottom), each section a short page of
 // macOS-style rows. Every control applies at once; nothing has a Save button.
 import { useCallback, useEffect, useState } from 'react';
-import { Clapperboard, ChevronLeft, Send, Settings2, Sparkles, Stamp, Wrench } from 'lucide-react';
+import { AudioLines, Clapperboard, ChevronLeft, Send, Settings2, Sparkles, Stamp, Wrench } from 'lucide-react';
 import { useCreateEnabled } from '../create';
 import { VideoGenSection } from '../create/settings/VideoGenSection';
 import type { SettingsMsg } from '../../../shared/deskApi';
@@ -14,6 +14,7 @@ import { AiSection } from './Ai';
 import { GeneralSection } from './General';
 import { Dot } from './kit';
 import { PublishingSection } from './Publishing';
+import { VoiceSection } from './Voice';
 import { WatermarkSection } from './Watermark';
 import { registerSettingsSection, useSettingsSections, type SettingsCtx, type SettingsSection } from './registry';
 import { useAccountsDot, useAdvancedDot, useAiDot } from './status';
@@ -24,6 +25,8 @@ registerSettingsSection({ id: 'general', order: 10, label: () => t('s2.nav.gener
 registerSettingsSection({ id: 'ai', order: 20, label: () => t('s2.nav.ai'), icon: Sparkles, render: (c) => <AiSection key={c.sub ?? ''} {...c} />, useDot: useAiDot, testId: 'snav-ai' });
 // Create page (Labs): Settings › Video generation, only while the Create page is on
 registerSettingsSection({ id: 'video', order: 25, label: () => t('create.set.title'), icon: Clapperboard, render: (c) => <VideoGenSection onSettings={c.onChange} />, useVisible: useCreateEnabled, testId: 'snav-video' });
+// the free voices (Chinese: Qwen3-TTS speakers, English: Kokoro) - downloads + samples
+registerSettingsSection({ id: 'voice', order: 26, label: () => t('vo.nav'), icon: AudioLines, render: (c) => <VoiceSection {...c} />, testId: 'snav-voice' });
 // your handle / logo on every export (engine: vstudio.watermark)
 registerSettingsSection({ id: 'watermark', order: 27, label: () => t('wm.nav'), icon: Stamp, render: () => <WatermarkSection />, testId: 'snav-watermark' });
 registerSettingsSection({ id: 'accounts', order: 30, label: () => t('s2.nav.accounts'), icon: Send, render: (c) => <PublishingSection {...c} />, useDot: useAccountsDot, testId: 'snav-accounts' });
