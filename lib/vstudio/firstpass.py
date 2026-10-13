@@ -45,8 +45,8 @@ def load_cues(path_or_cues):
     if not path_or_cues:
         return []
     if isinstance(path_or_cues, (list, tuple)):
-        return [dict(start=float(c.get("start", 0)), end=float(c.get("end", 0)), text=str(c.get("text", "")))
-                for c in path_or_cues]
+        return [dict(start=float(c.get("start", 0)), end=float(c.get("end", 0)), text=str(c.get("text", "")),
+                     alt=str(c.get("alt") or "")) for c in path_or_cues]
     p = os.fspath(path_or_cues)
     if p.lower().endswith(".srt"):
         from vstudio import subs
@@ -166,6 +166,46 @@ def check_captions(cues, fmt=None, locale=None):
         hits = [t for t in texts if SERIES_RE.search(t)]
         out.append(_item("series-captions", not hits, "字幕里没有 01/04、PART n 这类系列角标",
                          "no series labels in the captions", value=hits[:3] or None))
+    return out
+
+
+_CJK = re.compile(r"[\u3400-\u9fff]")
+_WORD = re.compile(r"(?<![A-Za-z])[a-z]{2,}(?![A-Za-z])")   # a lowercase word: names / acronyms (AWS, Claude) don't count
+
+
+def _script(text):
+    """"zh" (CJK), "en" (lowercase Latin words, no CJK) or None (numbers, names, empty) for one line."""
+    t = _strip_markup(text)
+    return "zh" if _CJK.search(t) else "en" if _WORD.search(t) else None
+
+
+def check_caption_lang(cues, prof, title=None, text=None):
+    """Captions in the platform's language (references/AESTHETICS.md P9: YouTube / Shorts English, 小红书 / B站 / 抖音
+    Chinese; vstudio.platform.lang_for). A cue counts for the language its text or alt line is in (export keeps that
+    line); lines of only numbers / names count for none. The majority of the worded cues must have a line in the
+    platform's language: red on a fixed-language platform (YouTube), warn elsewhere. The title / post copy in another
+    language than the platform's is a warning."""
+    from vstudio import platform as PL
+    want = PL.lang_for(prof.name)
+    if not want:
+        return []
+    name = {"en": ("英文", "English"), "zh": ("中文", "Chinese")}[want]
+    out = []
+    worded = [c for c in cues or [] if _script(c.get("text")) or _script(c.get("alt"))]
+    if worded:
+        hit = sum(1 for c in worded if want in (_script(c.get("text")), _script(c.get("alt"))))
+        out.append(_item("caption-lang", hit * 2 >= len(worded),
+                         f"字幕是{name[0]}（{prof.name} 只用{name[0]}字幕：{hit}/{len(worded)} 条有{name[0]}）",
+                         f"captions are {name[1]} ({prof.name} takes {name[1]} captions: {hit}/{len(worded)} cues)",
+                         severity="red" if PL.lang_fixed(prof.name) else "warn", value=f"{hit}/{len(worded)}",
+                         fix_zh=f"给这个平台单独一条{name[0]}字幕轨：vstudio.export --cues {want}=cues.{want}.json"))
+    for id_, s, zh, en in (("title-lang", title, "标题", "title"), ("post-lang", text, "文案", "post copy")):
+        got = _script(s) if id_ == "title-lang" else (None if not s else
+                                                        "zh" if len(_CJK.findall(s)) * 3 >= len(_WORD.findall(s))
+                                                        else "en")
+        if got and got != want:
+            out.append(_item(id_, False, f"{zh}是{name[0]}（{prof.name}）", f"{en} is {name[1]} ({prof.name})",
+                             severity="warn", fix_zh=f"post.json 写一份{name[0]}的 {want} 块"))
     return out
 
 
@@ -313,6 +353,7 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     items += check_cover(cover, info, f)
     t, txt = load_post(post)
     items += check_post(title or t, txt, prof, f)
+    items += check_caption_lang(load_cues(cues), prof, title or t, txt)
     items += check_style(f, hook_seconds)
     if look is None and hf and os.environ.get("VSTUDIO_LOOK", "1") != "0" and os.path.isdir(hf):
         from vstudio import look as LK

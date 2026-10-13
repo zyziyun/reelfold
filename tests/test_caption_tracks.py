@@ -1,7 +1,7 @@
 """Per-language captions at export (references/AESTHETICS.md P9: one subtitle language per platform): ``--cues
 lang=path`` tracks and the platform picking its own, the CLI parsing (lang=path vs a bare or Windows path), the
 caption files (<stem>.<lang>.srt) of the upload-capable platforms with --start timing, ``--captions sidecar`` (a
-clean YouTube video, still burned on 小红书). Synthetic media only."""
+clean YouTube video, still burned on 小红书) and the first-pass caption-language check. Synthetic media only."""
 import json
 import os
 import shutil
@@ -12,6 +12,7 @@ import pytest
 from PIL import Image
 
 from vstudio import export as X
+from vstudio import firstpass as FP
 from vstudio import platform as P
 from vstudio.subs import Cue, srt_read
 
@@ -165,3 +166,21 @@ def test_sidecar_timing_follows_start_and_dur_and_burn_writes_none(tmp_path):
     os.makedirs(b)
     e = X.export_one(master, P.profile("youtube"), b, cues=cues, captions="burn", start=0.8, dur=1.0)
     assert "sidecars" not in e and not [f for f in os.listdir(b) if f.endswith(".srt")]
+
+
+# ------------------------------------------------------------------------------------------- firstpass
+def test_firstpass_caption_language():
+    yt, xhs = P.profile("youtube"), P.profile("xiaohongshu")
+    zh = [dict(text="金色落在水面"), dict(text="让光慢慢走 AWS"), dict(text="2026")]
+    en = [dict(text="Gold on the water"), dict(text="Claude Code")]
+    bad = FP.check_caption_lang(zh, yt)
+    assert bad[0]["id"] == "caption-lang" and bad[0]["ok"] is False and bad[0]["severity"] == "red"
+    assert FP.check_caption_lang(en, yt)[0]["ok"] is True
+    warn = FP.check_caption_lang(en, xhs)[0]                                   # not a fixed-language platform
+    assert warn["ok"] is False and warn["severity"] == "warn"
+    assert FP.check_caption_lang([dict(text="金色", alt="Gold on the water")], yt)[0]["ok"] is True   # alt line
+    assert FP.check_caption_lang([dict(text="2026"), dict(text="AWS")], yt) == []    # names / numbers: no verdict
+    t = FP.check_caption_lang(en, yt, title="水面的金色", text="安静的傍晚，金色落在水面上。")
+    assert {i["id"] for i in t if i["ok"] is False} == {"title-lang", "post-lang"}
+    assert not [i for i in FP.check_caption_lang(en, yt, "Gold on the water", "A quiet evening on the lake.")
+                if i["ok"] is False]
