@@ -45,6 +45,7 @@ overlay
 pad
 palettegen
 scale
+scale_vt
 select
 setpts
 setsar

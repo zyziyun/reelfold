@@ -148,7 +148,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         f"Request: {request or '(none)'}",
         f"This project: {(ctx.data or {}).get('name') or ''} {ctx.params.get('title') or ''}".strip(),
         ("Footage (clip id: facts; one contact sheet per clip is attached, tiles labelled with the clip's "
-         f"seconds):\n{ftext}") if ftext else "",
+         f"seconds). {footage.MOMENTS_NOTE}\n{ftext}") if ftext else "",
         guide,
         f"Current spec (change only what the instruction asks):\n{cur}" if cur else "",
         f"Instruction from the creator: {instruction}" if instruction else "",

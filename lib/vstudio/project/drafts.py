@@ -383,6 +383,7 @@ def generic(ctx, cp, path, template=None, instruction=None, complete=None, templ
     doc = _read(os.path.join(M.ROOT, a["doc"]), DOC_CHARS) if a.get("doc") else ""
     lang = ctx.lang()
     ftext, imgs = footage_eyes(ctx)
+    from vstudio import footage
     body = "\n\n".join(x for x in [
         f"Request: {ctx.request() or '(none)'}",
         f"Write: {os.path.basename(path)} ({a.get('format') or 'text'}) for the step "
@@ -390,7 +391,7 @@ def generic(ctx, cp, path, template=None, instruction=None, complete=None, templ
         f"Materials:\n{_materials_text(ctx)}" if ctx.inputs else "",
         ("Footage (id = the file name without extension; one contact sheet per clip is attached, its tiles "
          "labelled with the clip's seconds - pick clips and in-points from what you SEE; never write GPS "
-         f"coordinates into any text):\n{ftext}") if ftext else "",
+         f"coordinates into any text). {footage.MOMENTS_NOTE}\n{ftext}") if ftext else "",
         f"Current file (change only what the instruction asks):\n{cur}" if cur and instruction else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
         f"Template (structure only):\n{tpl}" if tpl else "",

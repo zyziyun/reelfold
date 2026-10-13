@@ -656,7 +656,8 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         f"Platform canvas: {plat or 'unknown'}",
         f"On-screen words in: {'Chinese' if words == 'zh' else 'English'}",
         rules,
-        "Clips (id: facts; the contact sheet of each clip is attached, tiles labelled with clip seconds):\n" + text,
+        "Clips (id: facts; the contact sheet of each clip is attached, tiles labelled with clip seconds). "
+        + footage.MOMENTS_NOTE + "\n" + text,
         f"Current edit (change only what the instruction asks):\n{cur}" if cur else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
         f"Reply as: {shape}",
@@ -761,8 +762,8 @@ def calm_speed(cfg):
 
 
 def rules_windows(by_id, order, target, fun):
-    """Without a model: windows from the middle of each clip (past the take-off, before the tail), the length spread
-    over the clips in shooting order. Fun: one shot per clip, its window left to build_fun's own pick."""
+    """Without a model: windows from the middle of each clip (past the take-off, before the tail) - or centred on its
+    best moments when the facts carry vstudio.shots ``moments`` - the length spread over the clips in shooting order. Fun: one shot per clip, its window left to build_fun's own pick."""
     ids = [k for k in order if k in by_id]
     if fun:
         return [dict(clip=k) for k in ids]
@@ -775,5 +776,10 @@ def rules_windows(by_id, order, target, fun):
         lap = j // len(ids)                     # a second pass over a clip takes a later window
         du = max(1.0, min(per, d * 0.6))
         st = min(max(0.0, d * (0.2 + 0.35 * lap)), max(0.0, d - du - 0.1))
+        ms = sorted(by_id[k].get("moments") or [], key=lambda m: -m["score"])
+        if ms:                                  # vstudio.shots: centre on the lap-th best moment's best window
+            m = ms[lap % len(ms)]
+            mid = (m["best"][0] + m["best"][1]) / 2
+            st = min(max(0.0, m["start"], mid - du / 2), max(0.0, d - du - 0.1))
         out.append(dict(clip=k, start=round(st, 2), dur=round(min(du, d - st - 0.1), 2)))
     return out

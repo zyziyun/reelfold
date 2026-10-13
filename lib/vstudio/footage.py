@@ -6,7 +6,12 @@ model that can look at images picks real windows ("the deer at 0-6 s") instead o
     f = footage.facts("DJI_0081.MP4")       # {file, dur, w, h, orientation, recorded "2026-06-11 20:45", time_of_day,
                                             #  gps [{t, lat, lon, alt}], city {en, zh}} (gps only from a DJI .SRT)
     footage.sheet("DJI_0081.MP4", "work/draft_sheets/0081.jpg")   # -> path (cached by the clip's size + mtime)
-    text, images = footage.context(["a.MP4", "b.MP4"], "work/draft_sheets", ids=["a", "b"])
+    text, images, facts = footage.context(["a.MP4", "b.MP4"], "work/draft_sheets", ids=["a", "b"])
+
+``context`` uses ``vstudio.shots`` for the sheets: one tile per shot / moment (its best second, labelled with the
+moment's span, best window and a quality score) and a facts line listing the moments, so the planner starts windows
+inside a moment's best range instead of at a clip's first seconds. ``shots=False`` (or a failed analysis) falls back
+to the fixed-interval ``sheet``.
 
 Coordinates are for the model's eyes only (to tell which pier or which hillside a clip shows): drafters tell it never
 to write them into on-screen text or post copy.
@@ -26,6 +31,11 @@ _LAT = re.compile(r"\[latitude\s*:\s*(-?\d+(?:\.\d+)?)\]")
 _LON = re.compile(r"\[lon(?:gi|gt)?tude\s*:\s*(-?\d+(?:\.\d+)?)\]")
 _ALT = re.compile(r"rel_alt\s*:\s*(-?\d+(?:\.\d+)?)")
 MAX_SRT = 16 * 1024 * 1024
+# appended to a planner's footage header (vlog, photo story, generic drafts)
+MOMENTS_NOTE = ("Each sheet has one tile per shot / moment (vstudio.shots): its id (S2 = shot 2, S2.3 = its third "
+                "moment), the second shown, its span, its best window and a quality score 0-1 (sharp, steady, well "
+                "exposed); the facts line lists them too. Start a window inside a moment's best window unless the "
+                "story needs another second, and never run a window across a shot cut or onto a flash frame.")
 
 
 def is_video(path):
@@ -175,9 +185,9 @@ def line(fid, f):
     return "; ".join(bits)
 
 
-def context(paths, sheet_dir, ids=None, max_clips=24, echo=None):
+def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True):
     """Clips -> (text: one facts line per clip, images: one contact sheet per clip, [facts]). Sheets that fail are
-    left out (the facts line stays)."""
+    left out (the facts line stays). With ``shots`` each facts dict also carries ``moments`` (vstudio.shots)."""
     vids = [p for p in paths if is_video(p)][:max_clips]
     ids = list(ids or [os.path.splitext(os.path.basename(p))[0] for p in vids])
     lines, images, all_facts = [], [], []
@@ -189,6 +199,17 @@ def context(paths, sheet_dir, ids=None, max_clips=24, echo=None):
         except Exception as e:  # noqa: BLE001
             return k, None, None, str(e)
         img = os.path.join(sheet_dir, f"{ids[k]}.jpg")
+        if shots:
+            try:
+                from . import shots as S
+                a = S.analyze(p, echo=echo)
+                f = dict(f, moments=[dict(id=m["id"], start=m["start"], end=m["end"], best=m["best"],
+                                          score=m["score"]) for m in S.moments(a)],
+                         shots_line=S.line(a), flashes=a.get("flashes") or [])
+                return k, f, S.sheet(p, img, a), None
+            except Exception as e:  # noqa: BLE001 - the whole-clip sheet below
+                if echo:
+                    echo(f"footage: shots of {os.path.basename(p)} failed ({e}); whole-clip sheet")
         try:
             img = sheet(p, img)
         except Exception as e:  # noqa: BLE001
@@ -202,7 +223,8 @@ def context(paths, sheet_dir, ids=None, max_clips=24, echo=None):
                 echo(f"footage: {os.path.basename(vids[k])}: {err}")
             continue
         all_facts.append(dict(f, id=ids[k], path=vids[k]))
-        lines.append(line(ids[k], f) + (f"; contact sheet: {os.path.basename(img)}" if img else ""))
+        lines.append(line(ids[k], f) + (f"; {f['shots_line']}" if f.get("shots_line") else "")
+                     + (f"; contact sheet: {os.path.basename(img)}" if img else ""))
         if img:
             images.append(img)
     return "\n".join(lines), images, all_facts
