@@ -288,7 +288,8 @@ def _unit(cfg, fid, lang):
     cap = f.get("caption")
     return dict(id=fid, shots=shot_ids(f), caption=C.text(cap, lang),
                 all_captions=[C.plain(str(v)) for v in (cap.values() if isinstance(cap, dict) else [cap]) if v], kicker=C.text(f.get("kicker"), lang),
-                seconds=float(f["seconds"]) if f.get("seconds") else None, chapter=C.text(f.get("chapter"), lang),
+                seconds=float(f["seconds"]) if f.get("seconds") else None,
+                chapter=C.text(f.get("chapter"), lang) if film_opts(cfg).get("chapters") is not False else "",
                 layout=f.get("layout") if f.get("layout") in FOOTAGE else None, chips=chips(cfg, f.get("chips"), lang),
                 vo=C.text(f.get("vo"), lang) if (cfg.get("voiceover") or {}).get("enabled") else "")
 

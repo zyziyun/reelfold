@@ -901,7 +901,7 @@ def _set_cfg(cfg, **film):
              film=dict(blocks=["waterfall", "lift", "reel"], text=0.3, **film), brand=dict(backdrop="cream"),
              type=dict(titles="heavy"), demo=dict(title_card=False)),
         dict(id="short", shots=["f1", "f3"], renders=["en:9:16"], demo=dict(min_seconds=12, max_seconds=22),
-             film=dict(blocks=["hook"], cold_open=False, hook=dict(en="Hundreds of videos. One run.",
+             film=dict(blocks=["hook"], cold_open=False, chapters=False, hook=dict(en="Hundreds of videos. One run.",
                                                                    zh="几百条视频，一次跑完。")))]
     c["make"] = ["films"]
     return c
@@ -943,6 +943,7 @@ def test_blocks_open_the_film_and_text_counts_after_the_wordmark(cfg, shots):
     pz = S.plan(C.film_cfg(c, "hero"), shots, "demo", "zh", "9:16")
     assert pz["scenes"][2]["words"] == ["做", "剪", "发"]
     ps = S.plan(C.film_cfg(c, "short"), shots, "demo", "en", "9:16")
+    assert "chapter" not in [s["layout"] for s in ps["scenes"]]                 # a short has no chapter cards
     assert [s["layout"] for s in ps["scenes"]][0] == "hook" and ps["scenes"][0]["text"] == "Hundreds of videos. One run."
     assert 12 <= ps["duration"] <= 22
     assert any("Hundreds of videos" in q["text"] for q in S.caption_cues(ps))
