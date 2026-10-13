@@ -123,10 +123,16 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    **In a project (the app / `vstudio.project`)** the `music` checkpoint picks the track: the
    three best fits for the request and the style from the local license-free library
    (`python -m vstudio.music list`: your tracks in `~/Music/Reelfold` / persona `music.dirs`, a
-   `*_KevinMacLeod.mp3` from `fetch_music.sh` included, then the built-in beds Reelfold generates,
-   MIT) + "no music". Autopilot takes the best fit (a decision she can change); Ask me first offers
-   the list. A built-in is generated to the master's length; a CC BY track's credit goes into every
-   platform's post copy. No network fetch: put catalog tracks in the music folder first.
+   `*_KevinMacLeod.mp3` from `fetch_music.sh` included, then the ~50-track CC0 library downloaded on
+   first run - `python -m vstudio.music library`, CLI: `python -m vstudio.assets fetch music-library` -
+   then the built-in beds Reelfold generates, MIT) + "no music". The fit weighs her words (mood, style:
+   piano / acoustic / cinematic / electronic / lo-fi / documentary / 中国风 / corporate), the edit's pace
+   (shot lengths -> energy and tempo) and her favourites / bans (Settings › Music); videos of one group (a
+   goal, one request's projects: project.yaml `group`) never share a track until the library runs out, and
+   her last 6 videos' tracks go down. A fun reel's beat track is picked the same way (steady tempo only;
+   its tempo sets the beat budget) and its `music` checkpoint offers other beat tracks (a change re-cuts the
+   reel). Autopilot takes the best fit (a decision she can change); Ask me first offers the list. A
+   built-in is generated to the master's length; a CC BY track's credit goes into every platform's post copy.
 
    **Vertical platforms + post copy (in a project).** A landscape master going to 9:16 / 3:4 is reframed with
    `--mode follow` (`vstudio.reframe` subject mode: the camera follows what stands out in each shot, holds on

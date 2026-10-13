@@ -449,6 +449,329 @@
    ]
   },
   {
+   "id": "music-library",
+   "required": true,
+   "root": "music/library-v1",
+   "env": {
+    "VSTUDIO_MUSIC_LIBRARY": ""
+   },
+   "licence": "Music library: CC0 1.0 / public domain tracks (FreePD.com: Kevin MacLeod, Bryan Teoh, Komiku; Musopen: Chopin). Free to use in published videos, no credit needed (THIRD_PARTY_NOTICES.md).",
+   "files": [
+    {
+     "url": "https://web.archive.org/web/20200313034548id_/https://freepd.com/music/Piano%20Magic%20Motive.mp3",
+     "dest": "piano-magic-motive.mp3",
+     "sha256": "2ccf89173ff9a8bd057d200c5b9e81728556dbb06ac5f64546c262f0e438698b",
+     "size": 1561359
+    },
+    {
+     "url": "https://web.archive.org/web/20190404143329id_/https://freepd.com/music/Infinite%20Wonder.mp3",
+     "dest": "infinite-wonder.mp3",
+     "sha256": "490f745de87525dd6da563da266c8823804a3f787573ff317b4788d6d5566e54",
+     "size": 7606774
+    },
+    {
+     "url": "https://web.archive.org/web/20200520185007id_/https://freepd.com/music/Mana%20Two%20-%20Part%201.mp3",
+     "dest": "mana-two-part-1.mp3",
+     "sha256": "41047f29ea1679a0139947bde8864c7b38b3e97744285583efba5079a88f5a34",
+     "size": 9497023
+    },
+    {
+     "url": "https://web.archive.org/web/20190404004747id_/https://freepd.com/music/Painting%20Room.mp3",
+     "dest": "painting-room.mp3",
+     "sha256": "ddfb9a5aa5420f1894902b290b7afc421ae644f6b5f4d4d9e24e5d464d95b1d1",
+     "size": 3395954
+    },
+    {
+     "url": "https://web.archive.org/web/20190403204257id_/https://freepd.com/music/Connecting%20Rainbows.mp3",
+     "dest": "connecting-rainbows.mp3",
+     "sha256": "85f77462ba2ff846ed5bfa911a267f8a8ea0b2c579b58278a2bcef1e26efb81a",
+     "size": 4646578
+    },
+    {
+     "url": "https://web.archive.org/web/20190403181231id_/https://freepd.com/music/Champ%20de%20tournesol.mp3",
+     "dest": "champ-de-tournesol.mp3",
+     "sha256": "999bd6b98ffd4a74d6ad1ea1c068886c7e37f76210c202ab79ed52ce2d768fc8",
+     "size": 4878533
+    },
+    {
+     "url": "https://web.archive.org/web/20190403093218id_/https://freepd.com/music/La%20Citadelle.mp3",
+     "dest": "la-citadelle.mp3",
+     "sha256": "20e8c0245d5205af455d0b32c05e2a5402a35ab165c0d4ee3cd3b177d34446f6",
+     "size": 6637096
+    },
+    {
+     "url": "https://web.archive.org/web/20190403071933id_/https://freepd.com/music/Patience%20Party.mp3",
+     "dest": "patience-party.mp3",
+     "sha256": "9fdd4b8b672e04c57c81263a005882ac73d4ae5e43efe0258ff51784fffd9ae9",
+     "size": 9726872
+    },
+    {
+     "url": "https://web.archive.org/web/20190404011027id_/https://freepd.com/music/Wisdom%20in%20the%20Sun.mp3",
+     "dest": "wisdom-in-the-sun.mp3",
+     "sha256": "07ac4ab1f6d54893615d48aeee8bb3f2e5c1f2d16c6385973c97b28ef83c7ee0",
+     "size": 4953366
+    },
+    {
+     "url": "https://web.archive.org/web/20201106060027id_/https://freepd.com/music/Trip%20Up%20North.mp3",
+     "dest": "trip-up-north.mp3",
+     "sha256": "63236bb0ea47287aca97c98aeeeb8a0364fc83d341a50f375831a5fe31be89b1",
+     "size": 3358764
+    },
+    {
+     "url": "https://web.archive.org/web/20190404013549id_/https://freepd.com/music/Pickled%20Pink.mp3",
+     "dest": "pickled-pink.mp3",
+     "sha256": "3eacbde6e5322792cec71bc4942c4f7bff86f6b33e1836a1520db198c475b904",
+     "size": 7164179
+    },
+    {
+     "url": "https://web.archive.org/web/20201201231835id_/https://freepd.com/music/Go%20On%20Without%20Me.mp3",
+     "dest": "go-on-without-me.mp3",
+     "sha256": "5101fa0a410cff668fc036f021b12c2175f3bc695c61dd04088a340b9f62373f",
+     "size": 3903234
+    },
+    {
+     "url": "https://web.archive.org/web/20250106221710id_/https://freepd.com/music/Fresh%20Focus.mp3",
+     "dest": "fresh-focus.mp3",
+     "sha256": "87d70572729712abfb6d444b7de4cc7b0104eafca1f0fcfec1798fd824325c3c",
+     "size": 4966317
+    },
+    {
+     "url": "https://web.archive.org/web/20250106221730id_/https://freepd.com/music/Natural%20Vibes.mp3",
+     "dest": "natural-vibes.mp3",
+     "sha256": "12ac1554aa7d48a40a4c906ca1b89e81138093556f8c0f457f53040479226ad8",
+     "size": 5166937
+    },
+    {
+     "url": "https://web.archive.org/web/20190403193231id_/https://freepd.com/music/City%20Sunshine.mp3",
+     "dest": "city-sunshine.mp3",
+     "sha256": "e05c1bd683174cff77d492b7ac77262ff4617f99f69d82564b66831cf48352d6",
+     "size": 7402093
+    },
+    {
+     "url": "https://web.archive.org/web/20201031111228id_/https://freepd.com/music/From%20Page%20to%20Practice.mp3",
+     "dest": "from-page-to-practice.mp3",
+     "sha256": "dd20cb51c948a14e45d71b9a03b9d6afc48a4b7fd7b5020da623fbd86390b519",
+     "size": 2733479
+    },
+    {
+     "url": "https://web.archive.org/web/20201031121814id_/https://freepd.com/music/Inventing%20Flight.mp3",
+     "dest": "inventing-flight.mp3",
+     "sha256": "916e736efa3caed4ea8534e727670dbac41af0fb44f00fa667aebaab9b2b6407",
+     "size": 2840034
+    },
+    {
+     "url": "https://web.archive.org/web/20200518220244id_/https://freepd.com/music/Adding%20the%20Sun.mp3",
+     "dest": "adding-the-sun.mp3",
+     "sha256": "00180cd2ffd21eb397449e9a96081502f16e4e7c82cc9a98570e6ea7256594ed",
+     "size": 2951782
+    },
+    {
+     "url": "https://web.archive.org/web/20190403161555id_/https://freepd.com/music/Backbeat.mp3",
+     "dest": "backbeat.mp3",
+     "sha256": "576aa0268ab27ce486f9238df3845ce104c3e05bad015ea08048ba79e88ac79a",
+     "size": 1922353
+    },
+    {
+     "url": "https://web.archive.org/web/20190403162834id_/https://freepd.com/music/Arpent.mp3",
+     "dest": "arpent.mp3",
+     "sha256": "ef06d8b524c196a31954dfb1f3261e7d37459e43f4afd9df31ee2965c6094a56",
+     "size": 6486643
+    },
+    {
+     "url": "https://web.archive.org/web/20190403154057id_/https://freepd.com/music/Beat%20One.mp3",
+     "dest": "beat-one.mp3",
+     "sha256": "930dd4c6c88a2abb153f52e56a7c74bd041008f5afa4835602469dba3676aed8",
+     "size": 5835821
+    },
+    {
+     "url": "https://web.archive.org/web/20190403191346id_/https://freepd.com/music/Goodnightmare.mp3",
+     "dest": "goodnightmare.mp3",
+     "sha256": "b3793f15317a70bbbd857fa4a77872a42bcdc27445f25bce397bb7a442f91b9c",
+     "size": 7684215
+    },
+    {
+     "url": "https://web.archive.org/web/20190403144058id_/https://freepd.com/music/Meditating%20Beat.mp3",
+     "dest": "meditating-beat.mp3",
+     "sha256": "e498c2015a413e6cba5ab8dbef2a60cdebf7c4d4a97f9edd84851752ff49d3b6",
+     "size": 6291368
+    },
+    {
+     "url": "https://web.archive.org/web/20190403143644id_/https://freepd.com/music/Funky%20Energy%20Loop.mp3",
+     "dest": "funky-energy-loop.mp3",
+     "sha256": "b7990b4287cc345b2f42af743c96e26e126b2b03adfad661961a28640fb94c55",
+     "size": 8102178
+    },
+    {
+     "url": "https://web.archive.org/web/20190403202354id_/https://freepd.com/music/Fake%20It%20Til%20You%20Fake%20It.mp3",
+     "dest": "fake-it-til-you-fake-it.mp3",
+     "sha256": "12f4697e38c7fd9ec2f1f3f672eca4d23c5cea3f468caec3bdfbfa18d7f9439c",
+     "size": 6949533
+    },
+    {
+     "url": "https://web.archive.org/web/20200402155346id_/https://freepd.com/music/Study%20and%20Relax.mp3",
+     "dest": "study-and-relax.mp3",
+     "sha256": "9cba2a3c2d1c9d364220db1691f618a0f25b8d9cf6f2a857fe389ef614fd18a4",
+     "size": 9070686
+    },
+    {
+     "url": "https://web.archive.org/web/20190404041836id_/https://freepd.com/music/Bass%20Meant%20Jazz.mp3",
+     "dest": "bass-meant-jazz.mp3",
+     "sha256": "c876b42602e23df4e46b1c4a686e4e155d32852ea852b77a2e76fdc0c5e71745",
+     "size": 4479938
+    },
+    {
+     "url": "https://web.archive.org/web/20190403143336id_/https://freepd.com/music/Driving%20Concern.mp3",
+     "dest": "driving-concern.mp3",
+     "sha256": "35407f04ab4e982883a62b5bf559cace11404d979e3ebe59e404aef4e988832f",
+     "size": 8018584
+    },
+    {
+     "url": "https://web.archive.org/web/20200518205035id_/https://freepd.com/music/Ancient%20Rite.mp3",
+     "dest": "ancient-rite.mp3",
+     "sha256": "3a0f9d6fc09c4d0605bfd07577600245fdd6c91394dc4037b5112c94a6d93756",
+     "size": 4663306
+    },
+    {
+     "url": "https://web.archive.org/web/20211109012711id_/https://freepd.com/music/Think%20About%20It.mp3",
+     "dest": "think-about-it.mp3",
+     "sha256": "aa39a8b1e51221155332f42a5a915fde237a72fc10229e8aafda64df1855604f",
+     "size": 2403087
+    },
+    {
+     "url": "https://web.archive.org/web/20190404002848id_/https://freepd.com/music/The%20Britons.mp3",
+     "dest": "the-britons.mp3",
+     "sha256": "00e766ef7a2635b1e7c116bfff794cb3485c17730ec26c114a9b3fb21d7a837d",
+     "size": 12271315
+    },
+    {
+     "url": "https://web.archive.org/web/20200313034014id_/https://freepd.com/music/Shenzhen%20Nightlife.mp3",
+     "dest": "shenzhen-nightlife.mp3",
+     "sha256": "d341e5b295429e71ff78c96862f5dd6bd2aa06bab81cb66e9080bb583d764f96",
+     "size": 10659995
+    },
+    {
+     "url": "https://web.archive.org/web/20190403124915id_/https://freepd.com/music/Coy%20Koi.mp3",
+     "dest": "coy-koi.mp3",
+     "sha256": "ed50d1b44c1a517c35dc170b9fac33bce7364ee045b7cf67a84d195ccb9b1a28",
+     "size": 1540208
+    },
+    {
+     "url": "https://web.archive.org/web/20190403145350id_/https://freepd.com/music/Midnight%20in%20the%20Green%20House.mp3",
+     "dest": "midnight-in-the-green-house.mp3",
+     "sha256": "2a13476ce634cb8ec8fa553f212980e8f25e612c717bbd5133d73700d979571c",
+     "size": 8486578
+    },
+    {
+     "url": "https://web.archive.org/web/20190403202406id_/https://freepd.com/music/Infinite%20Peace.mp3",
+     "dest": "infinite-peace.mp3",
+     "sha256": "542c11bcc82828c3e494b40b07319ed75be457f66f2673dcba4e3643979b1f9f",
+     "size": 2436321
+    },
+    {
+     "url": "https://web.archive.org/web/20200520030816id_/https://freepd.com/music/New%20Hero%20in%20Town.mp3",
+     "dest": "new-hero-in-town.mp3",
+     "sha256": "a9741a04989484ce01c0614dda5215dfd572540eca0089d00e4b2002dba8fb52",
+     "size": 2399032
+    },
+    {
+     "url": "https://web.archive.org/web/20200526083000id_/https://freepd.com/music/Night%20Vigil.mp3",
+     "dest": "night-vigil.mp3",
+     "sha256": "315009fda5154a093570b9f49c1d98202ab5ba4906078713380d130710ada442",
+     "size": 11667276
+    },
+    {
+     "url": "https://web.archive.org/web/20201201232124id_/https://freepd.com/music/Honor%20Bound.mp3",
+     "dest": "honor-bound.mp3",
+     "sha256": "d9d592d5bc2b1bb7e69aededa2364b7f5cf108daa58099bd320755bcc1861ebc",
+     "size": 3413629
+    },
+    {
+     "url": "https://web.archive.org/web/20200526161330id_/https://freepd.com/music/Royal%20Coupling.mp3",
+     "dest": "royal-coupling.mp3",
+     "sha256": "893735fa4e3b0f275a642f5660d3c42402c9ba7bc4d3b2ff9df5c35a2616bbbb",
+     "size": 5497154
+    },
+    {
+     "url": "https://web.archive.org/web/20190403195554id_/https://freepd.com/music/Joey's%20Song.mp3",
+     "dest": "joey-s-song.mp3",
+     "sha256": "575b5756451cbbdce49cb72134cddffd575d629bb2f6784875c9e5b706e40c97",
+     "size": 8285229
+    },
+    {
+     "url": "https://web.archive.org/web/20190404000037id_/https://freepd.com/music/Icicles%20Melting.mp3",
+     "dest": "icicles-melting.mp3",
+     "sha256": "88e18af61d663b2b0e3b8f3acdcdaf93654be852a54b214cdc21991eddc54bf3",
+     "size": 7127166
+    },
+    {
+     "url": "https://web.archive.org/web/20190403230757id_/https://freepd.com/music/Painful%20Disorientation.mp3",
+     "dest": "painful-disorientation.mp3",
+     "sha256": "0dc444acd1e8c0ccdf7ab40ca9e7b2048eb86253af981dee4a2f502a9acb4acc",
+     "size": 3717799
+    },
+    {
+     "url": "https://web.archive.org/web/20200518201141id_/https://freepd.com/music/Energizing.mp3",
+     "dest": "energizing.mp3",
+     "sha256": "6b6f002c9721debbdb4a870fd7a084ec920761a064ca0333ad603e6348a538a4",
+     "size": 3040798
+    },
+    {
+     "url": "https://web.archive.org/web/20200523053444id_/https://freepd.com/music/Screen%20Saver.mp3",
+     "dest": "screen-saver.mp3",
+     "sha256": "b37bded5c858af6220ed513fdd0d6bba476d71c3a2aacc9746433f51354d33f7",
+     "size": 7417751
+    },
+    {
+     "url": "https://web.archive.org/web/20200523083045id_/https://freepd.com/music/Gothamlicious.mp3",
+     "dest": "gothamlicious.mp3",
+     "sha256": "93a6849905d680e6c4dd5574b22cb5e28016a851426003f4fe8c497be2c45703",
+     "size": 2057350
+    },
+    {
+     "url": "https://web.archive.org/web/20190403200041id_/https://freepd.com/music/Funshine.mp3",
+     "dest": "funshine.mp3",
+     "sha256": "b98b226927367a977377fe4f75d1cf59e4366ca2f444c2c7d23d13e7f506f532",
+     "size": 6756665
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/Nocturne%20Op.%209%20no.%202%20in%20E%20flat%20major.mp3",
+     "dest": "chopin-nocturne-op-9-no-2.mp3",
+     "sha256": "d6a289cd51123f0033fb6e4014277495340c6d3afa3a4e42e7cd89bcf634d917",
+     "size": 5354496
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/Prelude%20Op.%2028%20no.%2015.mp3",
+     "dest": "chopin-prelude-op-28-no-15-raindrop.mp3",
+     "sha256": "25500f881fd4c9e1de5bd82f1c79a9e8b7b8f8ae574296db2c407ba706b0731e",
+     "size": 5668200
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/Prelude%20Op.%2028%20no.%2013.mp3",
+     "dest": "chopin-prelude-op-28-no-13.mp3",
+     "sha256": "87bff25cd09155960075b44579dc9e7ce04284240733ce87944c0a90b0c27ff1",
+     "size": 3191640
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/NocturneOp.72No.1InEMinor.mp3",
+     "dest": "chopin-nocturne-op-72-no-1-in-e-minor.mp3",
+     "sha256": "435dcb0d8445c7a373e05f1ac3b53c838b5f6de55a6538af6322d1f020a45e94",
+     "size": 4678144
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/Waltz%20Op.%2064%20no.%202%20in%20C%20sharp%20minor.mp3",
+     "dest": "chopin-waltz-op-64-no-2.mp3",
+     "sha256": "201b20fc6bd5efe0b3e0cc890c2add5666df416433f1721e4a85ab41aafdc347",
+     "size": 5126656
+    },
+    {
+     "url": "https://archive.org/download/musopen-chopin/Waltz%20no.%2019%20-%20op.%20posth%3A%20A%20minor.mp3",
+     "dest": "chopin-waltz-in-a-minor-op-posth.mp3",
+     "sha256": "70af68639f3b11b00414332f93d397b8c56b55890b8c8d7d0631d94457a54f08",
+     "size": 2830823
+    }
+   ]
+  },
+  {
    "id": "chromium-darwin-arm64",
    "required": false,
    "targets": [

@@ -227,6 +227,19 @@ groups.push({
   licence: 'RIFE 4.25 (Practical-RIFE, hzwer) weights, MIT (MLX conversion by mlx-community).',
   files: await hf(PINS.rife, '.', ['config.json', 'model.safetensors']),
 });
+log('music library');
+// required: the CC0 music library every video's music is picked from (vstudio.music; ~290 MB). The track list, each
+// file's pinned URL (the original, archived), size and sha256 live in the engine's music_library.json (built and
+// licence-checked by curation; vstudio.music.validate_library) - copied here, not re-downloaded.
+const musicLib = JSON.parse(fs.readFileSync(path.join(ROOT, '..', '..', 'lib', 'vstudio', 'music_library.json'), 'utf8'));
+groups.push({
+  id: 'music-library',
+  required: true,
+  root: `music/library-v${musicLib.version}`,
+  env: { VSTUDIO_MUSIC_LIBRARY: '' },
+  licence: 'Music library: CC0 1.0 / public domain tracks (FreePD.com: Kevin MacLeod, Bryan Teoh, Komiku; Musopen: Chopin). Free to use in published videos, no credit needed (THIRD_PARTY_NOTICES.md).',
+  files: musicLib.tracks.map((t) => ({ url: t.url, dest: t.file, sha256: t.sha256, size: t.size })),
+});
 const CFT = 'https://storage.googleapis.com/chrome-for-testing-public';
 for (const [target, plat] of Object.entries(PINS.headlessShell.platforms)) {
   const { version } = PINS.headlessShell;

@@ -417,6 +417,8 @@ def test_apply_mixed_creates_series_and_projects(tmp_path, tiny):
     assert ex.data["recipe"] == "explainer" and len(ex.data["items"]) == 3
     assert os.path.exists(os.path.join(res["dir"], "intake.json"))
     assert all("--pilot" in c["run"] for c in res["projects"])
+    # one request's projects are a group: their videos do not share a music track (vstudio.music)
+    assert {Project(c["dir"]).data.get("group") for c in res["projects"]} == {plan["id"]}
 
 
 def test_apply_focus_rows_become_ranged_items(tmp_path, tiny):
@@ -427,7 +429,9 @@ def test_apply_focus_rows_become_ranged_items(tmp_path, tiny):
     assert pr.data["recipe"] == "talkinghead" and pr.data["params"]["layout"] == "band"
     assert pr.data["params"]["captions"] is True
     assert all(i["params"]["range"][0] >= 450 and i["inputs"]["video"].endswith("_final.mp4") for i in pr.data["items"])
-    assert res["series"] is None
+    assert res["series"] is None and not pr.data.get("group")
+    res = AP.apply_plan(plan, str(tmp_path / "out2"), group="abc123")      # a goal's video: the goal is its group
+    assert Project(res["projects"][0]["dir"]).data["group"] == "abc123"
 
 
 def test_apply_rejects_invalid_plan(tmp_path):  # noqa: D103

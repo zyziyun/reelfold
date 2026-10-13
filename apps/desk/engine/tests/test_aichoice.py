@@ -178,8 +178,8 @@ class GoalAi(unittest.TestCase):
         class Intake(FakeIntake):
             runner = None
 
-            def start(self, prompt, inputs, platforms=None, lang=None, mode=None, recipe=None, ai=None):
-                r = super().start(prompt, inputs, platforms, lang, mode, recipe)
+            def start(self, prompt, inputs, platforms=None, lang=None, mode=None, recipe=None, ai=None, group=None):
+                r = super().start(prompt, inputs, platforms, lang, mode, recipe, group)
                 self.jobs[r["id"]]["ai"] = ai
                 return r
 

@@ -74,9 +74,11 @@ def _create_kwargs(p, plan):
     return kw
 
 
-def apply_plan(plan, out_dir=None, run=False, dry_run=False, echo=None, on_event=None, autopilot=False):
+def apply_plan(plan, out_dir=None, run=False, dry_run=False, echo=None, on_event=None, autopilot=False, group=None):
     """``autopilot``: each project is created on autopilot (project.yaml ``autopilot.on``): its run has no pilot stop
-    and answers every checkpoint itself (vstudio.project.autopilot); the ``run`` commands say ``--autopilot``."""
+    and answers every checkpoint itself (vstudio.project.autopilot); the ``run`` commands say ``--autopilot``.
+    ``group``: the group the projects belong to (a goal's id; project.yaml ``group``: its videos do not share a music
+    track, vstudio.music) - a plan of several projects is a group of its own when none is given."""
     errs = PL.validate(plan)
     if errs:
         raise ApplyError("plan invalid: " + "; ".join(errs[:8]))
@@ -104,6 +106,7 @@ def apply_plan(plan, out_dir=None, run=False, dry_run=False, echo=None, on_event
         except H.SeriesError:
             pass                                       # re-apply of the same plan: the series exists
         series = sid
+    grp = group or (plan.get("id") if len(plans) > 1 else None)
     for p, d, kw in plans:
         try:
             pr = Project.create(d, series=series, exist_ok=False, **kw)
@@ -113,6 +116,9 @@ def apply_plan(plan, out_dir=None, run=False, dry_run=False, echo=None, on_event
                 warn.append(f"{p['id']}: {d} already holds a project (kept as is)")
             else:
                 raise ApplyError(f"{p['id']} ({p['recipe']}): {e}") from e
+        if grp and not pr.data.get("group"):
+            pr.data["group"] = str(grp)[:80]
+            pr.save()
         if p.get("template") and not (pr.data.get("brain") or {}).get("template"):
             t = p["template"]                       # the plan's editing template (vstudio.brain): she can change it
             pr.data["brain"] = dict(pr.data.get("brain") or {}, template=dict(

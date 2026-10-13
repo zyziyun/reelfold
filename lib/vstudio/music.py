@@ -1,4 +1,5 @@
-"""Background music library: built-in beds generated from code (no third-party rights at all) + your own folders.
+"""Background music library: the downloaded library of real CC0 tracks, built-in beds generated from code (no
+third-party rights at all) + your own folders.
 
     from vstudio import music
     music.moods()                                   # ['calm', 'warm', 'bright', 'tech', 'story']
@@ -7,7 +8,12 @@
     path = music.resolve("~/Music/Reelfold/x.mp3")  # a file passes through
     music.tracks()                                  # built-ins + files in your music folders (with mood / license)
 
+    music.rank("卡点 快节奏", style="fun", need_beat=True, group="g1")   # fit + no repeats in the group / lately
+    music.choose(..., project=pdir, item="main", group="g1")    # rank + record the pick (the diversity ledger)
+
     python -m vstudio.music list [--mood calm]
+    python -m vstudio.music library [--json]          # the CC0 library: installed?, licence, BPM, energy
+    python -m vstudio.music prefs --favourite lib:arpent | --ban lib:coy-koi | --clear lib:coy-koi
     python -m vstudio.music make --mood warm --duration 60 -o bed.wav [--seed 2]
     python -m vstudio.music pick "轻松一点的背景音乐" --duration 60 [-o bed.wav]
 
@@ -17,6 +23,15 @@ under a voice, not foreground music. For real songs put files you have the right
 ``~/Music/Reelfold`` or persona ``music.dirs`` / env ``VSTUDIO_MUSIC_DIRS`` (os.pathsep-separated). A sidecar
 ``<file>.json`` {mood, license, source, title} labels a track; otherwise the mood is guessed from the file name.
 Mixing and ducking under the voice: ``audio.mix_bed`` (output edit effect ``music-bed``, polish ``--music``).
+
+The library (``music_library.json``, next to this file): ~50 real tracks, CC0 only (FreePD.com, Musopen), each with
+its licence evidence, sha256, Beat This! BPM / downbeats, an energy curve and a loop span. The files are a first-run
+download (desk: assets group ``music-library`` -> env ``VSTUDIO_MUSIC_LIBRARY``; CLI: ``python -m vstudio.assets
+fetch music-library`` -> <cache>/models/music-library). ``validate_library`` refuses a licence that is not free for
+bundling + published videos (NC / ND / platform-only licences). Picks are recorded in ``$VSTUDIO_HOME/
+music_history.jsonl`` (one line per pick: track, project, item, group): ``rank`` keeps a track out of the other videos
+of the same group (a goal / one request's batch) until the library is exhausted and pushes down the tracks of her last
+``RECENT_N`` videos. Favourites / bans: ``$VSTUDIO_HOME/music.json`` (Settings › Music).
 """
 import argparse
 import hashlib
@@ -317,10 +332,135 @@ def _sidecar(path):
     return {}
 
 
+# ------------------------------------------------------------------ the CC0 library (a first-run download)
+LIBRARY_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_library.json")
+LIBRARY_ENV = "VSTUDIO_MUSIC_LIBRARY"
+# licences a bundled track may have: re-hosted / downloaded by the app (MIT) and used in her published videos with no
+# per-video fee. CC BY only with its credit (``credit`` puts it in the post copy).
+FREE_LICENCES = ("CC0-1.0", "PDM-1.0", "CC-BY-3.0", "CC-BY-4.0")
+NEEDS_CREDIT = ("CC-BY-3.0", "CC-BY-4.0")
+# never in the library: NonCommercial / NoDerivatives, licences that forbid redistribution in another product, and
+# sources whose tracks are registered with Content ID (a CC0 copy still gets claimed)
+FORBIDDEN = ("-nc", "-nd", "noncommercial", "noderiv", "youtube audio library", "pixabay", "mixkit", "uppbeat",
+             "envato", "audiojungle", "epidemic", "artlist")
+FORBIDDEN_ARTISTS = ("rafael krux", "orchestralis")      # also sold on Envato, registered with Content ID
+LICENCE_TEXT = {"CC0-1.0": "CC0 1.0 (public domain)", "PDM-1.0": "Public Domain Mark 1.0",
+                "CC-BY-3.0": "CC BY 3.0", "CC-BY-4.0": "CC BY 4.0"}
+LICENCE_URL = {"CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
+               "PDM-1.0": "https://creativecommons.org/publicdomain/mark/1.0/",
+               "CC-BY-3.0": "https://creativecommons.org/licenses/by/3.0/",
+               "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/"}
+# the energy a built-in bed has (0..1), for the energy fit
+BUILTIN_ENERGY = {"calm": 0.25, "warm": 0.45, "bright": 0.72, "tech": 0.65, "story": 0.3}
+_LIB = {}
+
+
+def library_doc():
+    """The library manifest (cached by mtime): {kind, version, tracks: [...]}"""
+    try:
+        mt = os.path.getmtime(LIBRARY_JSON)
+    except OSError:
+        return dict(tracks=[])
+    if _LIB.get("mt") != mt:
+        with open(LIBRARY_JSON, encoding="utf-8") as f:
+            _LIB.update(mt=mt, doc=json.load(f))
+    return _LIB["doc"]
+
+
+def library_dir():
+    """Where the library's files are: env VSTUDIO_MUSIC_LIBRARY (the desk's asset folder) > <cache>/models/music-library
+    (``python -m vstudio.assets fetch music-library``). None when neither exists."""
+    env = os.environ.get(LIBRARY_ENV)
+    if env and os.path.isdir(env):
+        return env
+    from .config import cache_dirs
+    for d in cache_dirs("models", "music-library"):
+        if os.path.isdir(d):
+            return d
+    return None
+
+
+def validate_library(doc=None):
+    """Licence + shape checks of the manifest -> a list of problems ([] = fine)."""
+    import re
+    doc = library_doc() if doc is None else doc
+    errs, seen = [], set()
+    need = ("id", "title", "artist", "licence", "licence_url", "source_url", "licence_evidence", "url", "file",
+            "sha256", "size", "duration", "mood", "style", "tags", "energy", "energy_curve")
+    for t in doc.get("tracks") or []:
+        tid = t.get("id")
+        miss = [k for k in need if t.get(k) in (None, "", [])]
+        if miss:
+            errs.append(f"{tid}: missing {', '.join(miss)}")
+        if tid in seen:
+            errs.append(f"{tid}: duplicate id")
+        seen.add(tid)
+        lic = str(t.get("licence") or "")
+        blob = " ".join(str(t.get(k) or "") for k in ("licence", "licence_url", "source", "source_url", "url")).lower()
+        if lic not in FREE_LICENCES:
+            errs.append(f"{tid}: licence {lic!r} is not one of {', '.join(FREE_LICENCES)}")
+        if lic in LICENCE_URL and str(t.get("licence_url") or "").rstrip("/") != LICENCE_URL[lic].rstrip("/"):
+            errs.append(f"{tid}: licence_url {t.get('licence_url')!r} is not the {lic} deed")
+        if any(x in blob for x in FORBIDDEN):
+            errs.append(f"{tid}: a forbidden licence / source ({blob[:80]})")
+        if str(t.get("artist") or "").lower() in FORBIDDEN_ARTISTS:
+            errs.append(f"{tid}: {t.get('artist')} (Content ID claims on the same tracks elsewhere)")
+        if lic in NEEDS_CREDIT and not (t.get("artist") and t.get("title")):
+            errs.append(f"{tid}: {lic} needs a title and an artist for its credit")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(t.get("sha256") or "")):
+            errs.append(f"{tid}: sha256")
+        if not str(t.get("url") or "").startswith("https://"):
+            errs.append(f"{tid}: url must be https")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*\.(mp3|ogg|flac|wav|m4a)", str(t.get("file") or "")):
+            errs.append(f"{tid}: file name {t.get('file')!r}")
+        if t.get("mood") not in STYLES:
+            errs.append(f"{tid}: mood {t.get('mood')!r}")
+        if t.get("bpm") is not None and not 50 <= float(t["bpm"]) <= 200:
+            errs.append(f"{tid}: bpm {t['bpm']}")
+    return errs
+
+
+def _lib_track(t, d):
+    lic = t["licence"]
+    out = dict(id=f"lib:{t['id']}", title=t["title"], artist=t.get("artist"), mood=t["mood"], style=t.get("style"),
+               tags=list(t.get("tags") or []), source="library", path=os.path.join(d, t["file"]) if d else None,
+               license=LICENCE_TEXT.get(lic, lic), licence=lic, origin=t.get("source_url"),
+               licence_evidence=t.get("licence_evidence"), bpm=t.get("bpm"), steady=bool(t.get("steady")),
+               grid_bpm=t.get("bpm_detected") or t.get("bpm"),
+               energy=t.get("energy"), duration=t.get("duration"), loop=t.get("loop"))
+    if lic in NEEDS_CREDIT:
+        out["attribution"] = (f'Music: "{t["title"]}" by {t["artist"]} ({t.get("source_url")}), licensed under '
+                              f'{LICENCE_TEXT[lic]} ({LICENCE_URL[lic]})')
+    out["credit"] = credit(out)
+    return out
+
+
+def library(installed=None):
+    """The library's tracks (``installed``: True = only the ones on disk, False = only the missing ones, None = all,
+    each with ``installed``)."""
+    d = library_dir()
+    out = []
+    for t in library_doc().get("tracks") or []:
+        x = _lib_track(t, d)
+        x["installed"] = bool(x["path"] and os.path.isfile(x["path"]) and os.path.getsize(x["path"]) == t.get("size"))
+        if installed is None or x["installed"] == installed:
+            out.append(x)
+    return out
+
+
+def library_track(tid):
+    """'lib:<id>' / '<id>' -> the manifest entry or None."""
+    k = str(tid or "").split(":", 1)[-1]
+    return next((t for t in library_doc().get("tracks") or [] if t["id"] == k), None)
+
+
 def tracks(mood=None):
-    """Built-in moods + files in your music folders: [{id, title, mood, source builtin|file, path?, license}]."""
+    """Built-in moods + the installed CC0 library + files in your music folders:
+    [{id, title, mood, source builtin|library|file, path?, license, credit}]."""
     out = [dict(id=f"builtin:{m}", title=s["en"], title_zh=s["zh"], mood=m, source="builtin", bpm=s["bpm"],
+                steady=True, energy=BUILTIN_ENERGY.get(m), tags=[], style="builtin",
                 license="generated by Reelfold (MIT), free for any use") for m, s in STYLES.items()]
+    out += library(installed=True)
     for d in dirs():
         for root, _, files in os.walk(d):
             for fn in sorted(files):
@@ -382,10 +522,174 @@ def wants_none(text):
     return any(k in t for k in NO_MUSIC)
 
 
-def rank(text="", style=None, n=None):
-    """The library ranked for a request: ``text`` (her words, the title), ``style`` (a vlog style: calm / fun) ->
-    tracks, best first, each with ``score`` and ``why`` (the words that matched). Your own files of a fitting mood
-    come before the built-in of that mood."""
+# words that ask for a kind of track (its style / tags): (words, tags)
+TAG_WORDS = [
+    (("钢琴", "piano", "古典", "classical"), ("piano",)),
+    (("吉他", "民谣", "原声", "acoustic", "folk", "guitar", "ukulele", "尤克里里"), ("acoustic",)),
+    (("史诗", "大片", "燃", "壮丽", "震撼", "epic", "cinematic", "trailer", "heroic", "电影感"), ("cinematic", "epic")),
+    (("电子", "electronic", "edm", "synth", "beat", "节拍", "动感"), ("electronic",)),
+    (("lofi", "lo-fi", "chill", "jazz", "爵士", "慵懒", "咖啡"), ("lofi", "jazz")),
+    (("纪录", "历史", "documentary", "history", "historic", "ancient", "古迹", "博物馆"), ("documentary", "history")),
+    (("中国风", "国风", "古风", "古筝", "二胡", "guzheng", "erhu", "chinese", "东方", "江南"), ("chinese", "asian")),
+    (("科技", "产品", "发布", "promo", "corporate", "startup", "tech", "app", "saas", "商务"), ("corporate",)),
+    (("流行", "pop", "indie", "阳光", "夏", "summer", "sunny"), ("pop",)),
+    (("ambient", "氛围", "冥想", "meditation", "放空", "空灵"), ("ambient",)),
+]
+FAST_WORDS = ("卡点", "快节奏", "快剪", "燃", "动感", "节奏感", "fast", "energetic", "hype", "upbeat", "action", "运动",
+              "冲浪", "摩托", "jet ski", "滑雪")
+SLOW_WORDS = ("舒缓", "慢", "安静", "治愈", "放松", "slow", "calm", "gentle", "peaceful", "relax", "高级", "质感")
+GRID_BPM = (70.0, 160.0)      # the beat tempi a reel can be cut to
+RECENT_N = 6                  # her last N videos' tracks are pushed down (not excluded)
+GROUP_PENALTY = 100.0         # another video of the same group already has it: only when nothing else is left
+HISTORY = "music_history.jsonl"
+PREFS = "music.json"
+
+
+def _home():
+    return os.path.abspath(os.path.expanduser(os.environ.get("VSTUDIO_HOME") or "~/.config/vstudio"))
+
+
+def prefs():
+    """Her favourites / bans: {favourites: [track id], banned: [track id]} ($VSTUDIO_HOME/music.json)."""
+    try:
+        with open(os.path.join(_home(), PREFS), encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    return dict(favourites=[str(x) for x in d.get("favourites") or []], banned=[str(x) for x in d.get("banned") or []])
+
+
+def set_pref(track_id, favourite=None, banned=None):
+    """Favourite / ban a track (None = leave as is) -> the prefs. A ban drops a favourite and vice versa."""
+    tid = str(track_id or "").strip()
+    if not tid or len(tid) > 4096:
+        raise ValueError("track id")
+    d = prefs()
+    for key, on in (("favourites", favourite), ("banned", banned)):
+        if on is None:
+            continue
+        lst = [x for x in d[key] if x != tid]
+        if on:
+            lst.append(tid)
+            other = "banned" if key == "favourites" else "favourites"
+            d[other] = [x for x in d[other] if x != tid]
+        d[key] = lst
+    os.makedirs(_home(), exist_ok=True)
+    tmp = os.path.join(_home(), PREFS + ".part")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=1)
+    os.replace(tmp, os.path.join(_home(), PREFS))
+    return d
+
+
+def history(limit=None):
+    """The picks, oldest first, the latest per (project, item) only: [{at, track, title, project, item, group}]."""
+    rows = []
+    try:
+        with open(os.path.join(_home(), HISTORY), encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(r, dict) and r.get("track"):
+                    rows.append(r)
+    except OSError:
+        return []
+    last = {}
+    for r in rows:
+        k = (r.get("project") or "", r.get("item") or "") if r.get("project") else (id(r),)
+        last.pop(k, None)
+        last[k] = r
+    out = list(last.values())
+    return out[-limit:] if limit else out
+
+
+def pick_of(project, item):
+    """The track this video was given last (None when it has none yet)."""
+    me = (os.path.abspath(project) if project else None, item)
+    for r in reversed(history()):
+        if (r.get("project"), r.get("item")) == me and r.get("track") != "none":
+            return r["track"]
+    return None
+
+
+def record(track, project=None, item=None, group=None, title=None):
+    """Note a pick (a later pick of the same project + item replaces it)."""
+    if not track:
+        return
+    import time
+    os.makedirs(_home(), exist_ok=True)
+    pdir = os.path.abspath(project) if project else None
+    prev = next((r for r in reversed(history()) if pdir and (r.get("project"), r.get("item")) == (pdir, item)), None)
+    row = dict(at=round(time.time(), 3), track=str(track), title=title, project=pdir, item=item, group=group)
+    if prev:
+        row["since"] = _first(prev)               # when this video first got a track (its place in the queue)
+    with open(os.path.join(_home(), HISTORY), "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _first(r):
+    return float(r.get("since") or r.get("at") or 0)
+
+
+def _avoid(project, item, group, recent):
+    """-> ({track: why} of the same group, {track: rank 0 = newest} of her last ``recent`` videos), this video's own
+    pick left out and, once it has one, only the picks made before its first one (first come, first served: asking
+    again - her answer, a resumed run - gives the same ranking)."""
+    me = (os.path.abspath(project) if project else None, item)
+    rows = history()
+    mine = [r for r in rows if me[0] and (r.get("project"), r.get("item")) == me]
+    cut = _first(mine[-1]) if mine else None
+    rows = [r for r in rows if not (me[0] and (r.get("project"), r.get("item")) == me)
+            and (cut is None or _first(r) < cut)]
+    same = {}
+    if group:
+        for r in rows:
+            if r.get("group") == group:
+                same[r["track"]] = r.get("title") or r["track"]
+    seen, newest = [], {}
+    for r in reversed(rows):
+        key = (r.get("project"), r.get("item"))
+        if key in seen:
+            continue
+        seen.append(key)
+        newest.setdefault(r["track"], len(seen) - 1)
+        if len(seen) >= recent:
+            break
+    return same, newest
+
+
+def target_energy(text="", style=None, shot_s=None):
+    """0..1: how lively the music should be for these words / this style / these shot lengths (None: no opinion)."""
+    t = str(text or "").lower()
+    votes = []
+    if style == "fun" or any(k in t for k in FAST_WORDS):
+        votes.append(0.8)
+    if style == "calm" or any(k in t for k in SLOW_WORDS):
+        votes.append(0.3)
+    if shot_s:
+        votes.append(float(np.clip(1.0 - (float(shot_s) - 1.0) / 7.0, 0.15, 0.9)))
+    return round(float(np.mean(votes)), 2) if votes else None
+
+
+def target_bpm(shot_s=None):
+    """The tempo a cut every ~2 beats of ``shot_s`` s asks for (85..135), None without shot lengths."""
+    if not shot_s:
+        return None
+    return float(np.clip(120.0 / float(shot_s), 85.0, 135.0))
+
+
+def rank(text="", style=None, n=None, *, shot_s=None, need_beat=False, min_duration=None, project=None, item=None,
+         group=None, recent=RECENT_N, no_credit=False):
+    """The library ranked for a request: ``text`` (her words, the title), ``style`` (a vlog style: calm / fun),
+    ``shot_s`` (the edit's mean shot length: energy + tempo), ``need_beat`` (a beat-cut reel: tracks with a steady
+    pulse only), ``min_duration`` (s: shorter real tracks go down; a built-in is made to any length), ``group`` /
+    ``project`` / ``item`` (diversity: a track another video of the group has is last unless nothing else is left; her
+    last ``recent`` videos' tracks go down) -> tracks, best first, each with ``score`` and ``why`` (the words that
+    matched) and ``fit`` (what else counted). Your own files of a fitting mood come first, then the CC0 library, then
+    the built-in beds; favourites go up, banned tracks are left out (and, ``no_credit``, the ones whose licence asks
+    for a credit where nothing would print it)."""
     t = str(text or "").lower()
     score, why = {m: 0.0 for m in STYLES}, {m: [] for m in STYLES}
     for m, kws in KEYWORDS.items():
@@ -401,12 +705,127 @@ def rank(text="", style=None, n=None):
                 why[m].append(hit[0])
     for m, x in (STYLE_PRIOR.get(style or "") or {}).items():
         score[m] += x
+    tags_hit = []
+    for words, tags in TAG_WORDS:
+        hit = [k for k in words if k in t]
+        if hit:
+            tags_hit.append((hit[0], set(tags)))
+    e_want = target_energy(text, style, shot_s)
+    bpm_want = target_bpm(shot_s) if need_beat or shot_s else None
+    pf = prefs()
+    fav, ban = set(pf["favourites"]), set(pf["banned"])
+    same, recent_rank = _avoid(project, item, group, recent)
     out = []
-    for tr in tracks():
-        s = score.get(tr["mood"], 0.0) + (0.5 if tr["source"] == "file" else 0.0)
-        out.append(dict(tr, score=round(s, 2), why=list(dict.fromkeys(why.get(tr["mood"]) or []))))
-    out.sort(key=lambda x: (-x["score"], 0 if x["source"] == "file" else 1, moods().index(x["mood"])))
+    pool = tracks()
+    allowed = [x for x in pool if x["id"] not in ban and x.get("path", "") not in ban] or pool
+    if no_credit:
+        allowed = [x for x in allowed if not x.get("credit")] or [x for x in pool if x["source"] == "builtin"]
+    by_id = {x["id"]: x for x in pool}
+    used_bpm = [float(by_id[k]["bpm"]) for k in same if k in by_id and by_id[k].get("bpm")]
+    used_style = {by_id[k].get("style") for k in same if k in by_id} - {None, "builtin"}
+    for tr in allowed:
+        s = score.get(tr["mood"], 0.0) + {"file": 0.5, "library": 0.3}.get(tr["source"], 0.0)
+        w = list(dict.fromkeys(why.get(tr["mood"]) or []))
+        fit = []
+        tset = set(tr.get("tags") or []) | {tr.get("style") or ""}
+        for word, tags in tags_hit:
+            if tset & tags:
+                s += 2.0
+                w.append(word)
+        en = tr.get("energy") if tr.get("energy") is not None else BUILTIN_ENERGY.get(tr["mood"])
+        if e_want is not None and en is not None:
+            d = abs(float(en) - e_want)
+            s += 1.5 * (1.0 - 2.0 * d)
+            fit.append(f"energy {float(en):.2f} for {e_want:.2f}")
+        bpm = tr.get("bpm")
+        if need_beat:
+            # the beat a cut follows is the one the tracker finds (a double-time 192 is no 96 for the reel)
+            grid = float(tr.get("grid_bpm") or bpm or 0)
+            if not (bpm and tr.get("steady")) or not GRID_BPM[0] <= grid <= GRID_BPM[1]:
+                s -= 20.0
+                fit.append("no steady beat to cut on")
+            elif bpm_want:
+                s += 1.0 - min(2.0, abs(grid - bpm_want) / 25.0)
+                fit.append(f"{grid:.0f} BPM for cuts every ~{120.0 / bpm_want:.1f} s" if shot_s else
+                           f"{grid:.0f} BPM")
+            else:
+                s += 0.5
+                fit.append(f"{grid:.0f} BPM, steady")
+        if min_duration and tr["source"] != "builtin" and tr.get("duration") and \
+                float(tr["duration"]) < float(min_duration) and not tr.get("loop"):
+            s -= 3.0
+            fit.append(f"only {float(tr['duration']):.0f} s")
+        if tr["id"] in fav or tr.get("path") in fav:
+            s += 1.5
+            fit.append("a favourite")
+        if tr["id"] in same:
+            s -= GROUP_PENALTY
+            fit.append("another video of this group has it")
+        else:
+            if tr["id"] in recent_rank:
+                k = recent_rank[tr["id"]]
+                s -= 4.0 * (1.0 - k / max(1, recent))
+                fit.append("one of your recent videos has it")
+            # the group's videos differ in tempo and kind of music too
+            if bpm and any(abs(float(bpm) - u) < 6.0 for u in used_bpm):
+                s -= 1.0
+                fit.append("a tempo another video of this group has")
+            if tr.get("style") in used_style:
+                s -= 0.5
+        out.append(dict(tr, score=round(s, 2), why=list(dict.fromkeys(w)), fit=fit))
+    out.sort(key=lambda x: (-x["score"], {"file": 0, "library": 1}.get(x["source"], 2), moods().index(x["mood"]),
+                            x["id"]))
     return out[:n] if n else out
+
+
+def choose(text="", style=None, n=None, project=None, item=None, group=None, record_pick=True, **kw):
+    """``rank`` + note the best one as this video's pick (under a lock, so videos of a group made at the same time
+    do not take the same track) -> the ranked list (its first is the pick)."""
+    from . import oscompat
+    os.makedirs(_home(), exist_ok=True)
+    with open(os.path.join(_home(), HISTORY + ".lock"), "a") as lk:
+        oscompat.lock(lk)
+        try:
+            ranked = rank(text, style, n, project=project, item=item, group=group, **kw)
+            if record_pick and ranked:
+                record(ranked[0]["id"], project=project, item=item, group=group, title=ranked[0].get("title"))
+        finally:
+            oscompat.unlock(lk)
+    return ranked
+
+
+def reason(t):
+    """One plain line: why this track (her words, the fit, the licence)."""
+    words = ", ".join(f"“{w}”" for w in (t.get("why") or [])[:3])
+    bits = [f"matches {words}" if words else None] + [x for x in (t.get("fit") or [])
+                                                      if "group" not in x and "recent" not in x][:2]
+    who = f" — {t['artist']}" if t.get("artist") else ""
+    lic = "" if t["source"] == "builtin" else f" ({t.get('license')})"
+    return f"{t['title']}{who}: " + ("; ".join(b for b in bits if b) or f"a {t['mood']} track") + lic
+
+
+def group_of(project_dir):
+    """The group a project belongs to (a goal's videos / one request's batch: project.yaml ``group``) or None."""
+    try:
+        import yaml
+        with open(os.path.join(project_dir, "project.yaml"), encoding="utf-8") as f:
+            d = yaml.safe_load(f) or {}
+        g = d.get("group")
+        return str(g) if g else None
+    except (OSError, ValueError, ImportError):
+        return None
+
+
+def path_of(track):
+    """A ranked / picked track -> a playable file (a built-in made to 60 s for listening)."""
+    tid = str((track or {}).get("track") or (track or {}).get("id") or "")
+    if (track or {}).get("path") and os.path.exists(track["path"]):
+        return track["path"]
+    if tid.startswith("builtin:") or (track or {}).get("source") == "builtin":
+        return make((track or {}).get("mood") or tid.split(":", 1)[-1], 60.0)
+    if tid.startswith("lib:"):
+        return resolve(tid)
+    return None
 
 
 def _key(mood, duration, seed):
@@ -531,6 +950,15 @@ def beat_grid(spec):
         s = s.split(":", 1)[1]
     if s in STYLES:
         return 60.0 / STYLES[s]["bpm"], 0.0
+    if s.startswith("lib:"):
+        t = library_track(s)
+        if t and t.get("steady") and t.get("bpm_detected") and t.get("downbeats"):
+            period = 60.0 / float(t["bpm_detected"])
+            return round(period, 5), round(float(t["downbeats"][0]) % period, 4)
+        try:
+            s = resolve(s)
+        except ValueError:
+            return None
     p = os.path.expanduser(s)
     if os.path.exists(p):
         try:
@@ -551,9 +979,17 @@ def resolve(spec, duration=60.0, seed=0, text=None):
         s = s.split(":", 1)[1]
     if s in STYLES:
         return make(s, duration, seed=seed)
+    if s.startswith("lib:"):
+        t = next((x for x in library() if x["id"] == s), None)
+        if not t:
+            raise ValueError(f"no library track {s!r}")
+        if not t["installed"]:
+            raise ValueError(f"the music library is not downloaded yet ({t['title']}): Settings › Downloads, or "
+                             "python -m vstudio.assets fetch music-library")
+        return t["path"]
     if s:
         for t in tracks():
-            if t["source"] == "file" and (t["title"] == s or os.path.basename(t["path"]) == s):
+            if t["source"] in ("file", "library") and (t["title"] == s or os.path.basename(t["path"]) == s):
                 return t["path"]
         raise ValueError(f"no music file, mood or library track called {spec!r} (moods: {', '.join(moods())})")
     m = mood_of(text or "")
@@ -575,6 +1011,12 @@ def main(argv=None):
     b.add_argument("--duration", type=float, default=60.0)
     b.add_argument("--seed", type=int, default=0)
     b.add_argument("-o", "--out", required=True)
+    lb = sub.add_parser("library")
+    lb.add_argument("--json", action="store_true")
+    pr = sub.add_parser("prefs")
+    pr.add_argument("--favourite")
+    pr.add_argument("--ban")
+    pr.add_argument("--clear")
     c = sub.add_parser("pick")
     c.add_argument("text")
     c.add_argument("--duration", type=float, default=60.0)
@@ -589,6 +1031,26 @@ def main(argv=None):
                 print(f"{t['mood']:>7}  {t['source']:<7}  {t['title']}  ({t['license']})")
             if not dirs():
                 print("  (no music folders yet: put licensed tracks in ~/Music/Reelfold or set persona music.dirs)")
+    elif x.cmd == "library":
+        rows = library()
+        if x.json:
+            print(json.dumps(dict(dir=library_dir(), tracks=rows, prefs=prefs(), problems=validate_library()),
+                             ensure_ascii=False, indent=1))
+        else:
+            for t in rows:
+                mark = "+" if t["installed"] else "-"
+                print(f"{mark} {t['mood']:>6} {t['style'] or '':<11} {str(t['bpm'] or ''):>6} "
+                      f"{t['title']} - {t['artist']} ({t['license']})")
+            print(f"{sum(t['installed'] for t in rows)}/{len(rows)} installed in {library_dir() or '(not downloaded)'}")
+    elif x.cmd == "prefs":
+        d = prefs()
+        if x.favourite:
+            d = set_pref(x.favourite, favourite=True)
+        if x.ban:
+            d = set_pref(x.ban, banned=True)
+        if x.clear:
+            d = set_pref(x.clear, favourite=False, banned=False)
+        print(json.dumps(d, indent=1))
     elif x.cmd == "make":
         print(make(x.mood, x.duration, x.out, x.seed))
     else:

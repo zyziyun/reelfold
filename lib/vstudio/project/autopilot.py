@@ -181,7 +181,8 @@ def rules(cp, pay, spend_cap=0.0):
         return _rule("music-fit" if track else "music-none", pay.get("default_reason") or (
             "the best fit in the music library" if track else "no music"), default, pick=k,
             title=o.get("title") if track else None, mood=o.get("mood"), license=o.get("license"),
-            n=len([x for x in opts if x.get("kind") == "track"]))
+            track=o.get("track") if track else None, artist=o.get("artist") if track else None,
+            bpm=o.get("bpm") if track else None, n=len([x for x in opts if x.get("kind") == "track"]))
     if kind in ("reframe-pick", "copy-pick"):
         # the framing of landscape footage on vertical canvases (follow the subject) / the post copy (the AI's when
         # one answered, else written from the facts): one she can Change (the Inbox / the clip page offer the other)

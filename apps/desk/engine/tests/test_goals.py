@@ -38,9 +38,10 @@ class FakeIntake:
     def __init__(self):
         self.jobs, self.calls = {}, []
 
-    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, recipe=None):
+    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, recipe=None, group=None):
         rid = f"{len(self.jobs) + 1:012x}"
-        self.jobs[rid] = dict(id=rid, state="running", prompt=prompt, inputs=inputs, mode=mode, recipe=recipe)
+        self.jobs[rid] = dict(id=rid, state="running", prompt=prompt, inputs=inputs, mode=mode, recipe=recipe,
+                              group=group)
         self.calls.append(("start", rid, prompt))
         return dict(id=rid)
 
@@ -159,6 +160,8 @@ class PlanToGroup(Base):
         self.assertEqual([c[2] for c in self.intake.calls if c[0] == "start"], [f"Make video {k + 1}" for k in range(3)])
         # the survey's plan came from a model: each video's own planner picks its recipe
         self.assertEqual({j.get("recipe") for j in self.intake.jobs.values()}, {None})
+        # every video's request carries the goal: its projects are one group (no two share a music track)
+        self.assertEqual({j.get("group") for j in self.intake.jobs.values()}, {gid})
         # one video's request becomes a project: still in flight, so nothing new starts
         rid = v["videos"][0]["intake"]
         d1 = self.proj("p1")

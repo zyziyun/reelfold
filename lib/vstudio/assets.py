@@ -4,6 +4,7 @@
     python -m vstudio.assets list
     python -m vstudio.assets fetch cover            # matte-birefnet + upscale-esrgan + cover-aesthetic
     python -m vstudio.assets fetch matte-birefnet
+    python -m vstudio.assets fetch music-library    # the CC0 music library (vstudio.music, ~290 MB)
 
 Licences: BiRefNet MIT (ZhengPeng7; ONNX by onnx-community, MIT) - Real-ESRGAN BSD-3-Clause (xinntao) - LAION
 aesthetic predictor v2 Apache-2.0 (christophschuhmann) on OpenAI CLIP ViT-L/14, MIT (ONNX q4f16 by Xenova).
@@ -40,6 +41,27 @@ GROUPS = {
                     dest="sac+logos+ava1-l14-linearMSE.pth", size=3714759,
                     sha256="21dd590f3ccdc646f0d53120778b296013b096a035a2718c9cb0d511bff0f1e0")]),
 }
+
+
+def _music_group():
+    """The CC0 music library (vstudio/music_library.json): every track pinned by sha256 to its original (archived)
+    URL. CC0 / public domain only - see THIRD_PARTY_NOTICES.md."""
+    import json
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "music_library.json"), encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return dict(dir="music-library", env="VSTUDIO_MUSIC_LIBRARY",
+                licence="Music library: CC0 1.0 / public domain tracks (FreePD.com: Kevin MacLeod, Bryan Teoh, Komiku; "
+                        "Musopen: Chopin). Free to use in published videos, no credit needed.",
+                files=[dict(url=t["url"], dest=t["file"], size=t["size"], sha256=t["sha256"])
+                       for t in doc.get("tracks") or []])
+
+
+if _music_group():
+    GROUPS["music-library"] = _music_group()
 ALIASES = {"cover": ["matte-birefnet", "upscale-esrgan", "cover-aesthetic"]}
 
 

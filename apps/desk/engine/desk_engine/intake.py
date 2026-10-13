@@ -130,7 +130,7 @@ class Intake:
 
     JOB_KEYS = ("id", "state", "step", "prompt", "inputs", "error", "error_code", "error_provider", "started",
                 "seconds", "platforms", "lang", "mode", "sample_name", "applied", "discarded", "failed_apply",
-                "failed_revise", "name", "needs", "ignore_needs", "archived_at", "stopped_by", "ai")
+                "failed_revise", "name", "needs", "ignore_needs", "archived_at", "stopped_by", "ai", "group")
 
     def _job_path(self, pid):
         return os.path.join(self.dir, f"{pid}.job.json")
@@ -409,27 +409,30 @@ class Intake:
         return dict(ok=True, id=pid)
 
     # ---------------------------------------------------------- plan / revise
-    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, sample_name=None, recipe=None, ai=None):
+    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, sample_name=None, recipe=None, ai=None,
+              group=None):
         """``platforms``: the composer's platform chip (used when the request names none); ``lang``: the UI's
         language, the one the card's questions are written in. ``mode``: autopilot | ask (a project from Home, see
         the module doc; None: a plan card of its own, e.g. the week plan's); ``sample_name``: the built-in sample's
         projects are named so (labelled and deletable). ``recipe``: the request's intent is fixed (the recorder's
         「做成口播」, Home's talking-head start): planned by the rules for that recipe, no model call. ``ai``: the
         composer's AI for this request ({provider, model}; None = the app's default): its planning uses it and every
-        project it becomes keeps it (``aichoice``)."""
+        project it becomes keeps it (``aichoice``). ``group``: the goal the request is a video of (its projects carry
+        it: a goal's videos get different music)."""
         from .aichoice import clean
         ai = clean(ai)
         lang = ui_lang(lang)
         need(recipe is None or (isinstance(recipe, str) and re.match(r"^[a-z][a-z0-9-]{1,40}$", recipe)), "recipe: id")
         need(mode in (None, "autopilot", "ask"), "mode: autopilot | ask")
         need(sample_name is None or (isinstance(sample_name, str) and 0 < len(sample_name) <= 80), "sample_name")
+        need(group is None or (isinstance(group, str) and re.match(r"^[A-Za-z0-9_-]{1,64}$", group)), "group: an id")
         need(platforms is None or (isinstance(platforms, list) and len(platforms) <= 20 and
                                    all(isinstance(p, str) and re.match(r"^[a-z][a-z-]{0,30}(:[a-z]{3,12})?$", p)
                                        for p in platforms)), "platforms: platform ids")
         pid = hashlib.sha1(f"{prompt}\0{inputs}\0{time.time()}".encode()).hexdigest()[:12]
         self._set(pid, id=pid, state="running", step="analyze", prompt=prompt, inputs=inputs, plan=None, error=None,
                   started=time.time(), op_started=time.time(), seconds=None, platforms=platforms or None,
-                  progress=None, lang=lang, mode=mode, sample_name=sample_name, recipe=recipe, ai=ai)
+                  progress=None, lang=lang, mode=mode, sample_name=sample_name, recipe=recipe, ai=ai, group=group)
         if mode and self.bus:
             self.bus.publish("batches")
         threading.Thread(target=self._plan, args=(pid, prompt, inputs), daemon=True).start()
@@ -671,8 +674,10 @@ class Intake:
         return dict(ok=True, projects=projects, series=plan.get("series"))
 
     def _engine_apply(self, pid, plan, out_root, run, autopilot=False):
+        grp = (self.jobs.get(pid) or {}).get("group")
         doc = self.runner.sibling("vstudio.intake").json(["apply", "--plan", self._path(pid), "--out", out_root,
-                                                          "--json", *(["--autopilot"] if autopilot else [])],
+                                                          "--json", *(["--autopilot"] if autopilot else []),
+                                                          *(["--group", grp] if grp else [])],
                                                          timeout=900)
         projects = [dict(dir=p.get("dir"), name=p.get("name"), recipe=p.get("recipe"))
                     for p in doc.get("projects") or [] if isinstance(p, dict)]

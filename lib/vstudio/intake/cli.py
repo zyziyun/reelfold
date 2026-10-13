@@ -117,7 +117,8 @@ def cmd_revise(a):
 
 def cmd_apply(a):
     try:
-        res = AP.apply_plan(_load(a.plan), a.out, run=a.run, dry_run=a.dry_run, echo=_echo(a), autopilot=a.autopilot)
+        res = AP.apply_plan(_load(a.plan), a.out, run=a.run, dry_run=a.dry_run, echo=_echo(a), autopilot=a.autopilot,
+                            group=a.group)
     except (AP.ApplyError, ValueError) as e:
         _out(a, dict(ok=False, error=str(e)), f"error: {e}")
         return 5
@@ -229,6 +230,7 @@ def build_parser():
     p.add_argument("--run", action="store_true", help="start each project's pilot run right away")
     p.add_argument("--autopilot", action="store_true",
                    help="create the projects on autopilot: no pilot, the engine decides every checkpoint itself")
+    p.add_argument("--group", help="the group the projects belong to (a goal's id): its videos get different music")
     p.add_argument("--dry-run", action="store_true")
 
     p = add("goal", cmd_goal, "a goal-style request (several videos from a folder / card) -> survey + a plan of videos")

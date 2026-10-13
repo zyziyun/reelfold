@@ -169,8 +169,8 @@ checkpoints:
     blocks: [music]
     labels: {zh: "选配乐", en: "Pick the music"}
     help:
-      zh: 从免版权曲库（你的 ~/Music/Reelfold 或内置配乐）里按你的描述和风格挑了最合适的三首，或不配乐
-      en: The three best fits for your words and the style from the license-free library (your ~/Music/Reelfold or the built-in beds), or no music
+      zh: 从免版权曲库（你的 ~/Music/Reelfold、CC0 曲库或内置配乐）里按你的描述、风格和节奏挑了最合适的三首（同一组视频不重复），或不配乐；卡点视频换曲会按新曲重新卡点
+      en: The three best fits for your words, the style and the pace from the license-free library (your ~/Music/Reelfold, the CC0 library or the built-in beds; never a track another video of the same group has), or no music; a beat reel is re-cut to a new track
     payload: vstudio.project.adapters.vlog:music_payload
     apply: vstudio.project.adapters.vlog:music_apply
     answer:
@@ -247,5 +247,5 @@ agent:
   edit_files: ["{item_dir}/work/edit.json"]
 gaps:
   - Window / shot selection from the contact sheets is agent / human work (no automatic picker).
-  - The music is picked from the local license-free library only (your music folders + the built-in beds); a CC-BY catalog track (fetch_music.sh) is used once it sits in ~/Music/Reelfold. Calm cuts are fixed before the music (no beat alignment); the fun style cuts to the edit's own music. The scrapbook cover (make_cover.py) needs Chrome and is replaced here by a frame + text cover.
+  - The music is picked from the local license-free library only (your music folders, the CC0 library downloaded on first run, the built-in beds); a CC-BY catalog track (fetch_music.sh) is used once it sits in ~/Music/Reelfold. Calm cuts are fixed before the music (no beat alignment); the fun style cuts to the edit's own music. The scrapbook cover (make_cover.py) needs Chrome and is replaced here by a frame + text cover.
 capabilities: [grade, transitions, beat-cuts, sfx, pops, music, cover, export, reframe, post-copy]

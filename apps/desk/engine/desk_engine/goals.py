@@ -545,7 +545,7 @@ class Goals:
         fixed = v.get("recipe") if (g.get("planner") or {}).get("fallback") else None
         try:
             r = self.intake.start(v["request"], list(v.get("inputs") or []), v.get("platforms"), g.get("lang"),
-                                  "autopilot", **({"recipe": fixed} if fixed else {}),
+                                  "autopilot", **({"recipe": fixed} if fixed else {}), group=g["id"],
                                   **({"ai": v.get("ai") or g.get("ai")} if (v.get("ai") or g.get("ai")) else {}))
         except Exception as e:  # noqa: BLE001
             self._failed(g, v, getattr(e, "code", None) or "intake", now, str(e))

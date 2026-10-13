@@ -252,12 +252,21 @@ def music_bed(ctx, work, request, target, music_mode):
     if not (music_mode or _wants_music(request)):
         return None
     from vstudio import music as MU
-    ranked = MU.rank(request, style="calm")
-    mood = next((t["mood"] for t in ranked if t["source"] == "builtin"), "calm")
-    made = MU.make(mood, round(target + 20, 1))
-    name = f"music_{mood}{os.path.splitext(made)[1]}"
+    pdir = getattr(ctx, "project_dir", None)
+    # the library's best fit (her own tracks, the CC0 library, a built-in bed), not the track another video of the
+    # same group has (a goal's history films each get their own) - noted for her recent videos' diversity; no CC BY
+    # track (nothing here prints its credit)
+    ranked = MU.choose(request, style="calm", need_beat=bool(music_mode), min_duration=target, no_credit=True,
+                       project=pdir, item=getattr(ctx, "item", None), group=MU.group_of(pdir) if pdir else None)
+    top = ranked[0] if ranked else dict(source="builtin", mood="calm", id="builtin:calm")
     import shutil
     os.makedirs(work, exist_ok=True)
+    if top["source"] == "builtin":
+        made = MU.make(top["mood"], round(target + 20, 1))
+        name = f"music_{top['mood']}{os.path.splitext(made)[1]}"
+    else:
+        made = top["path"]
+        name = f"music_{os.path.splitext(os.path.basename(made))[0][:60]}{os.path.splitext(made)[1]}"
     shutil.copyfile(made, os.path.join(work, name))
     return name
 

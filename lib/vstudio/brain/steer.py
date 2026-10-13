@@ -17,7 +17,7 @@ import ast
 import json
 import os
 
-BEAT_S = 60.0 / 108          # the fun reel's built-in bed (vlog.FUN_BPM)
+BEAT_S = 60.0 / 108          # the fun reel's default tempo (vlog.FUN_BPM); its picked track's beat is passed in
 RAMP = "fast-slow-fast"       # the one speed ramp of a beat short (funvlog.frames.RAMPS)
 HARD = ("cut", "beat-cut", "match-cut", "morph", "morph-fallback")
 JOIN_PS = {"dissolve": "fade", "cut": "cut", "beat-cut": "cut", "match-cut": "cut"}
