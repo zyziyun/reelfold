@@ -11,6 +11,10 @@ product:
   site: https://acme.example
   one_liner: {en: "Notes that file themselves", zh: "自己归档的笔记"}
   description: {en: "Write anything; Acme Notes tags, links and files it for you, on your device."}
+  # film.arc: launch only: the brand card's kicker, the reel's line and the badges (brand + end card)
+  tagline: {en: "The notes app that files itself", zh: "自己归档的笔记应用"}
+  promise: {en: "Write once → find anything, on your device.", zh: "写一次 → 随处找到，都在你的设备上。"}
+  badges: {en: [Free, Open source, MIT], zh: [免费, 开源, MIT]}
 
 brand:
   theme: editorial                         # vstudio.theme preset: editorial | mono | soft | night
@@ -71,7 +75,12 @@ film: {variety: balanced, text: 0.4, captions: auto}   # the film's rhythm: no t
                                            # lively; text = at most this share of the runtime has words on screen;
                                            # captions auto | type (type beats only) | lower (lower thirds) | none.
                                            # A feature may pin layout: full | macro | split | float, or open a section
-                                           # with chapter: {en: ..., zh: ...} (a chapter card)
+                                           # with chapter: {en: ..., zh: ...} (a chapter card) and chips: [..] |
+                                           # platforms (pills fanning out under the chapter title).
+                                           # arc: launch = tell the positioning: cold open, brand card (tagline,
+                                           # wordmark, badges), a reel of every feature cut on the beat, chapters
+                                           # (titles slam in), UI in perspective, zoom-throughs into cards, quiet
+                                           # foley (motion.sfx: false = off), end card with the badges
 type: {scale: 1.0}                         # type size (0.7-1.3); weight: 400-700 (default Inter 560, Noto Sans SC 500)
 make: [demo, loop, clips]                  # which videos (a promo only: [demo])
 demo: {min_seconds: 30, max_seconds: 60}   # + shots: [ids] (default all), renders: ["en:16:9", "zh:9:16", ...],

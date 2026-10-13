@@ -43,7 +43,8 @@ DEFAULTS = {
     # the film language (story.rhythm): variety calm | balanced | lively (how often detail cuts and split screens
     # come), text = most of the runtime with words on screen, captions auto (type beats + lower thirds) | type |
     # lower | none. type: scale (x the type sizes), weight (CSS 400-700; default Inter 560 / Noto Sans SC 500)
-    "film": {"variety": "balanced", "text": 0.4, "captions": "auto"},
+    # arc plain | launch (cold open, brand card, a reel of everything, chapters, end card with badges)
+    "film": {"variety": "balanced", "text": 0.4, "captions": "auto", "arc": "plain"},
     "type": {"scale": 1.0, "weight": None},
     "make": ["demo", "loop", "clips"],   # which videos: demo (the launch video), loop (README GIF), clips (per feature)
 }
@@ -69,6 +70,15 @@ def text(v, lang="en", fallback=True):
                 if v.get(k):
                     return str(v[k])
     return ""
+
+
+def texts(v, lang="en"):
+    """A list field -> its strings for ``lang``: a list of text fields, or ``{en: [...], zh: [...]}``."""
+    if isinstance(v, dict):
+        v = v.get(lang) or v.get("en") or next((x for x in v.values() if x), [])
+    if isinstance(v, str):
+        v = [v]
+    return [t for t in (text(x, lang) for x in (v or [])) if t]
 
 
 def plain(s):
@@ -277,6 +287,8 @@ def validate(cfg, check_files=True):
     fo = cfg.get("film") or {}
     if fo.get("variety", "balanced") not in ("calm", "balanced", "lively"):
         e.append(f"film.variety: one of calm, balanced, lively (got {fo.get('variety')!r})")
+    if fo.get("arc", "plain") not in ("plain", "launch"):
+        e.append(f"film.arc: plain or launch (got {fo.get('arc')!r})")
     if fo.get("captions", "auto") not in ("auto", "type", "lower", "none"):
         e.append(f"film.captions: one of auto, type, lower, none (got {fo.get('captions')!r})")
     try:

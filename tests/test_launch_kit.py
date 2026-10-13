@@ -831,3 +831,63 @@ def test_ai_draft_naming_a_missing_changelog_drops_it(tmp_path):
     (tmp_path / "CHANGELOG.md").write_text("## [1.0]\n- x\n", encoding="utf-8")
     p.write_text("release: {changelog: CHANGELOG.md}\n", encoding="utf-8")
     assert LK.drop_missing_release(str(p)) is False
+
+
+def _arc_film(cfg):
+    c = _long_film(cfg, arc="launch", text=0.5)
+    c["product"] = dict(cfg["product"], tagline=dict(en="The notes app that files itself", zh="自己归档的笔记"),
+                        promise=dict(en="Write once, find anything.", zh="写一次，随处找到。"),
+                        badges=dict(en=["Free", "Open source"], zh=["免费", "开源"]))
+    c["features"][6] = dict(c["features"][6], chips="platforms")
+    c["motion"] = dict(cfg["motion"], transition="mix")
+    return c
+
+
+def test_launch_arc_brand_card_reel_and_chapter_chips(cfg, shots):
+    c = _arc_film(cfg)
+    for asp in S.LAYOUTS:
+        for lang in ("en", "zh"):
+            p = S.plan(c, shots, "demo", lang, asp)
+            sc = p["scenes"]
+            lays = [s["layout"] for s in sc]
+            assert p["arc"] == "launch" and S.adjacent_ok(sc), lays
+            assert lays[0] == "brand" and lays[1] == "reel" and lays[-1] == "end", lays
+            assert sc[0]["kicker"] and sc[0]["badges"] == (["免费", "开源"] if lang == "zh" else ["Free", "Open source"])
+            reel = sc[1]
+            assert 2 <= len(reel["panes"]) <= S.REEL_MAX and reel["text"]
+            period, phase = p["beat"]
+            for k, p0 in enumerate(reel["panes"]):           # every cut after the first lands on a beat
+                assert p0["box"] == list(p["layout"]["reel"]["view"]) and p0["play"] > 0
+                if k:
+                    t = reel["start"] + p0["at"]
+                    assert abs(((t - phase) / period) - round((t - phase) / period)) < 0.02
+            chap = next(s for s in sc if s["layout"] == "chapter")
+            red = "小红书" if lang == "zh" else "RedNote"            # the config's platforms, international first
+            assert set(chap["chips"]) == {"YouTube Shorts", "TikTok", "X", "LinkedIn", red} and chap["chips"][-1] == red
+    assert S.plan(_long_film(cfg), shots, "demo", "en", "16:9")["arc"] == "plain"
+
+
+def test_launch_arc_builds_slam_tilt_log_camera_and_foley(cfg, shots, tmp_path):
+    c = _arc_film(cfg)
+    p = S.plan(c, shots, "demo", "en", "16:9")
+    proj = str(tmp_path / "arc")
+    CO.build(c, p, proj, quiet=True)
+    html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
+    assert 'class="badge"' in html and 'class="chip"' in html and 'class="playhead"' in html
+    assert 'ease: "back.out(2.2)"' in html                          # the headline slam
+    assert "rotationY" in html and "transformPerspective" in html     # real UI in perspective
+    assert "const lkCam" in html and 'lkCam("#s' in html             # log-space camera moves
+    assert "scale: 2.9" in html                                      # the zoom-through into a card
+    assert os.path.exists(os.path.join(proj, "assets", "audio", "sfx.wav")) and 'id="sfx"' in html
+    cues = json.load(open(os.path.join(proj, "cues.json"), encoding="utf-8"))["cues"]
+    assert any("The notes app that files itself" in q["text"] for q in cues)
+    assert any("RedNote" in q["text"] for q in cues)
+    plain = S.plan(_long_film(cfg), shots, "demo", "en", "16:9")
+    CO.build(_long_film(cfg), plain, str(tmp_path / "plain"), quiet=True)
+    ph = open(os.path.join(str(tmp_path / "plain"), "index.html"), encoding="utf-8").read()
+    assert "rotationY" not in ph and 'id="sfx"' not in ph and "scale: 2.9" not in ph
+
+
+def test_film_arc_is_validated(cfg):
+    bad = dict(cfg, film=dict(cfg["film"], arc="epic"))
+    assert any("film.arc" in e for e in C.validate(bad, check_files=False))

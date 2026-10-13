@@ -68,6 +68,15 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    footage sits on a flat light field (`brand.backdrop`: studio = light, default; deep; paper - never black; a dark
    recording is lifted a little). Hand-overs follow the layouts: a hard cut into a detail, cut / push / rise between
    footage, a zoom-through out of a type beat, a blur dissolve into a card - each centred on a beat.
+   `film.arc: launch` tells the product's positioning as a launch film (studied from OpenFilm's promo; see
+   `lib/vstudio/launch/story.py`): a cold open on the product, a **brand card** (`product.tagline` as the kicker, the
+   wordmark slammed in letter by letter with a spring, `product.badges` snapping in), a **reel** (one window, a hard
+   cut on every beat through a moment of each feature, a filmstrip running under a fixed playhead, `product.promise`
+   above it), then the chapters (`chapter:` per act; the title slams in; `chips: [...] | platforms` fan out under it),
+   floating windows that swing in from a 3D angle and split panes angled like an open book, the camera eased in log
+   space (a push reads even, the target never swims), a zoom-through from footage into each card, quiet code-made
+   foley (swish per moving transition, tick per badge / chip / reel cut; `motion.sfx: false` = off), and an end card
+   with the badges.
    Chinese is broken after its punctuation and subset to the characters on screen (Noto Sans SC Medium from
    ./install.sh; without it Regular with a hairline stroke),
    and an end card that animates the mark (`brand.mark`), the name, the call to action and the site. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.

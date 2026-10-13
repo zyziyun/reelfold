@@ -17,12 +17,22 @@ has a ``layout``:
   type     kinetic type only: one short line set large on a soft gradient field, between shot sequences
   chapter  a chapter card: the opening (product name + version) and features that carry ``chapter:``
   end      logo, call to action, site
+  brand    (arc: launch) the name card: the positioning line as a kicker, the wordmark slammed in letter by letter,
+           badges (free / open source / MIT / Mac) snapping in under it
+  reel     (arc: launch) a montage: one window, a hard cut on every beat through a moment of each feature, a filmstrip
+           of them running under a fixed playhead (the promise line above it)
 ``rhythm`` picks them per film: features are grouped into short sequences; a sequence opens on a type beat (its first
 feature's line), the lead feature gets an establishing shot and a detail cut, the rest rotate through float / split /
 full. No two adjacent scenes share a layout, and text is on screen for at most ``film.text`` (0.4) of the runtime:
-lower thirds, then type beats are dropped (from the end) until it is. Consecutive scenes overlap by ``XF`` seconds
-(the transition); with a music bed every transition is centred on a beat (beat_sync). A loop ends on a crossfade back
-into frame 0.
+lower thirds, then type beats are dropped (from the end) until it is.
+
+``film.arc: launch`` tells the positioning as a story (learnt from launch films such as OpenFilm's): a cold open on
+the product, the brand card, a fast reel of everything it does (cuts ~1 beat), then the chapters (``chapter:`` on a
+feature; a chapter's ``chips`` fan out around its title, e.g. every platform), slower single takes inside them, and
+an end card with the badges. ``plain`` (default) is the film without the brand card and the reel.
+
+Consecutive scenes overlap by ``XF`` seconds (the transition); with a music bed every transition is centred on a beat
+(beat_sync). A loop ends on a crossfade back into frame 0.
 """
 from . import config as C
 from . import timing as TM
@@ -33,7 +43,9 @@ HOLD = 1.5                    # minimum time the camera stays on an action
 MERGE = 0.6                   # actions closer than this share one camera move
 LT_IN, LT_HOLD = 0.3, 2.6     # a lower third arrives this long after its scene lands and stays up this long
 FOOTAGE = ("full", "macro", "split", "float")
-CARDS = ("chapter", "type", "end")
+CARDS = ("chapter", "type", "end", "brand")
+REEL = "reel"
+ARCS = ("plain", "launch")
 VARIETY = ("calm", "balanced", "lively")
 CAPTIONS = ("auto", "type", "lower", "none")
 
@@ -46,21 +58,29 @@ LAYOUTS = {
                  split=((96, 110, 846, 790), (978, 110, 846, 790)), labels="below", lt_px=38, lt_lines=1, label_px=30,
                  type_px=(96, 64), type_lines=2, type_w=1400, chapter_px=150, eyebrow_px=24, oneliner_px=44,
                  radius=18, zooms=dict(full=(1.1, 1.45), float=(1.5, 2.4), split=(1.05, 1.6)),
-                 win=(160, 56, 1600, 840), zoom=(1.5, 2.4), base_zoom=1.0, punch=1.9),
+                 win=(160, 56, 1600, 840), zoom=(1.5, 2.4), base_zoom=1.0, punch=1.9,
+                 reel=dict(view=(400, 150, 1120, 700), strip=(880, 92), title_y=78, title_px=34),
+                 kicker_px=36, badge_px=30, chip_px=32),
     "1:1": dict(text=(84, 84, 996, 984), full=(0, 0, 1080, 1080), float=(60, 56, 960, 780),
                 split=((40, 140, 1000, 410), (40, 604, 1000, 410)), labels="above", lt_px=36, lt_lines=2, label_px=28,
                 type_px=(80, 54), type_lines=3, type_w=860, chapter_px=124, eyebrow_px=22, oneliner_px=40,
                 radius=16, zooms=dict(full=(1.05, 1.4), float=(1.5, 2.6), split=(1.0, 1.5)),
-                win=(60, 56, 960, 780), zoom=(1.5, 2.6), base_zoom=1.0, punch=2.0),
+                win=(60, 56, 960, 780), zoom=(1.5, 2.6), base_zoom=1.0, punch=2.0,
+                reel=dict(view=(140, 200, 800, 500), strip=(750, 84), title_y=116, title_px=30),
+                kicker_px=32, badge_px=26, chip_px=30),
     "9:16": dict(text=(96, 300, 900, 1420), full=(0, 0, 1080, 1920), float=(40, 360, 1000, 880),
                  split=((40, 356, 1000, 520), (40, 962, 1000, 520)), labels="above", lt_px=44, lt_lines=2, label_px=32,
                  type_px=(92, 60), type_lines=3, type_w=800, chapter_px=140, eyebrow_px=26, oneliner_px=46,
                  radius=22, zooms=dict(full=(1.0, 1.3), float=(1.5, 2.6), split=(1.0, 1.5)),
-                 win=(40, 360, 1000, 880), zoom=(1.5, 2.6), base_zoom=1.0, punch=2.0),
+                 win=(40, 360, 1000, 880), zoom=(1.5, 2.6), base_zoom=1.0, punch=2.0,
+                 reel=dict(view=(40, 560, 1000, 625), strip=(1230, 112), title_y=420, title_px=40),
+                 kicker_px=40, badge_px=34, chip_px=38),
 }
 # screen time (s, before the overlap) and its floor per layout
-SECONDS = dict(full=3.0, macro=2.2, split=3.8, float=3.6, chapter=2.2, type=2.0, end=3.2)
-FLOOR = dict(full=2.0, macro=1.6, split=3.0, float=3.0, chapter=1.8, type=1.5, end=2.4)
+SECONDS = dict(full=3.0, macro=2.2, split=3.8, float=3.6, chapter=2.2, type=2.0, end=3.2, brand=3.0)
+FLOOR = dict(full=2.0, macro=1.6, split=3.0, float=3.0, chapter=1.8, type=1.5, end=2.4, brand=2.4, reel=2.0)
+REEL_MAX = 7                  # moments in the reel
+REEL_CUT = 0.75               # about this long per moment (s), rounded to whole beats of the music bed
 ROTATION = {"calm": ("float", "full"), "balanced": ("float", "split", "full"), "lively": ("split", "full", "float")}
 PHRASE = {"calm": (3,), "balanced": (3, 2), "lively": (2,)}
 
@@ -87,7 +107,7 @@ def media_window(feat, shot):
 
 
 def film_opts(cfg):
-    f = dict(variety="balanced", text=0.4, captions="auto")
+    f = dict(variety="balanced", text=0.4, captions="auto", arc="plain")
     f.update({k: v for k, v in (cfg.get("film") or {}).items() if v is not None})
     return f
 
@@ -257,8 +277,26 @@ def _unit(cfg, fid, lang):
     return dict(id=fid, shots=shot_ids(f), caption=C.text(cap, lang),
                 all_captions=[C.plain(str(v)) for v in (cap.values() if isinstance(cap, dict) else [cap]) if v], kicker=C.text(f.get("kicker"), lang),
                 seconds=float(f["seconds"]) if f.get("seconds") else None, chapter=C.text(f.get("chapter"), lang),
-                layout=f.get("layout") if f.get("layout") in FOOTAGE else None,
+                layout=f.get("layout") if f.get("layout") in FOOTAGE else None, chips=chips(cfg, f.get("chips"), lang),
                 vo=C.text(f.get("vo"), lang) if (cfg.get("voiceover") or {}).get("enabled") else "")
+
+
+def chips(cfg, v, lang):
+    """A chapter's chips -> [str]: a list (per language or not), or ``platforms`` = the config's platforms by their
+    names (international first; the Chinese name on a Chinese film)."""
+    if v == "platforms":
+        from vstudio import platform as P
+        out = []
+        for name in P.ordered([P.canonical(x.split(":")[0]) for x in cfg.get("platforms") or []]):
+            lab = P.PLATFORMS.get(name, {}).get("label") or name
+            lab = lab.split(" (")[0]
+            if any("\u4e00" <= c <= "\u9fff" for c in lab) and " " in lab:   # "小红书 RedNote"
+                zh, en = lab.split(" ", 1)
+                lab = zh if lang == "zh" else en
+            if lab not in out:
+                out.append(lab)
+        return out
+    return C.texts(v, lang)
 
 
 def _words(text, lang):
@@ -270,9 +308,24 @@ def _type_seconds(text, lang):
     return round(clamp(1.3 + 0.12 * _words(text, lang), 1.7, 2.8), 2)
 
 
-def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True):
+def reel_slot(grid):
+    """Seconds per moment of the reel: whole beats of the bed (about REEL_CUT), else REEL_CUT."""
+    if not grid:
+        return REEL_CUT
+    return round(grid[0] * max(1, round(REEL_CUT / grid[0])), 3)
+
+
+def reel_units(units, n=REEL_MAX):
+    """The features the reel shows: all of them, or ``n`` spread evenly over the film."""
+    if len(units) <= n:
+        return list(units)
+    return [units[round(i * (len(units) - 1) / (n - 1))] for i in range(n)]
+
+
+def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True, slot=REEL_CUT):
     """The film's shot list -> [scene skeleton {kind, layout, dur, min, text, ...}] (no media yet).
-    ``drop``: text the planner took out to stay under film.text: ("lower", id) / ("type", id)."""
+    ``drop``: text the planner took out to stay under film.text: ("lower", id) / ("type", id) / ("reel", "reel").
+    ``slot``: seconds per moment of the reel (arc: launch)."""
     fo = film_opts(cfg)
     caps, variety = fo["captions"], fo["variety"] if fo["variety"] in VARIETY else "balanced"
     xf = xf_of(cfg)
@@ -325,20 +378,35 @@ def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True):
 
     # demo
     d = cfg["demo"]
+    arc = fo.get("arc") == "launch"
     name = product["name"]
     version = str(product.get("version") or "")
     opener = dict(kind="chapter", layout="chapter", id="opening", title=name,
                   eyebrow=C.text(product.get("name_zh"), lang) if lang == "zh" else "",
                   version=version.lstrip("vV"), sub="", screen=SECONDS["chapter"])
+    if arc:                                               # the brand card: positioning kicker, wordmark, badges
+        opener = dict(kind="brand", layout="brand", id="opening", title=name, version=version.lstrip("vV"),
+                      eyebrow=C.text(product.get("name_zh"), lang) if lang == "zh" else "",
+                      kicker=C.text(product.get("tagline"), lang), badges=C.texts(product.get("badges"), lang),
+                      screen=SECONDS["brand"])
     names = [x.lower() for x in (name, C.text(product.get("name_zh"), "zh")) if x]
-    if opening and units and any(n in c.lower() for n in names for c in units[0]["all_captions"]):
+    named = units and any(n in c.lower() for n in names for c in units[0]["all_captions"])
+    if opening and units and (named or (arc and not d.get("title_card", True))):
         u = units.pop(0)                                  # her first line is the product's name: a cold open, then it
         feat("full", [u], T(u, 3.0) * 0.8, panes=[dict(fid=u["id"], sid=u["shots"][0], k=0, first=True)])
         add(**opener)
-    elif opening and d.get("title_card", True):
-        opener["sub"] = C.text(product.get("one_liner"), lang)
-        opener["screen"] = float(d.get("title_seconds") or SECONDS["chapter"]) - xf
+    elif opening and (d.get("title_card", True) or arc):
+        if not arc:
+            opener["sub"] = C.text(product.get("one_liner"), lang)
+        opener["screen"] = float(d.get("title_seconds") or SECONDS[opener["layout"]]) - xf
         add(**opener)
+    if arc and units:                                     # the reel: everything it does, a cut on every beat
+        ru = reel_units(units)
+        promise = C.text(product.get("promise"), lang)
+        add(kind="reel", layout=REEL, id="reel", units=[u["id"] for u in ru], slot=slot, screen=slot * len(ru),
+            text=promise if promise and caps != "none" and ("reel", "reel") not in drop else "",
+            panes=[dict(fid=u["id"], sid=u["shots"][-1], k=0) for u in ru])
+        out[-1]["min"] = out[-1]["dur"]
     # sequences: a chapter: feature starts a new one; otherwise PHRASE sizes in turn
     seqs, cur, sizes = [], [], PHRASE[variety]
     for u in units:
@@ -359,7 +427,7 @@ def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True):
         if hero["chapter"]:
             nchap += 1
             add(kind="chapter", layout="chapter", id=hero["id"], title=hero["chapter"], eyebrow=f"{nchap:02d}", sub="",
-                screen=SECONDS["chapter"])
+                chips=hero["chips"], screen=SECONDS["chapter"] + (0.6 if hero["chips"] else 0.0))
         elif prev() not in CARDS and type_ok(hero) and out:
             add(kind="type", layout="type", id=hero["id"], text=hero["caption"],
                 screen=_type_seconds(hero["caption"], lang))
@@ -376,7 +444,8 @@ def rhythm(cfg, units, lang, cut, drop=frozenset(), opening=True):
             est = hero["layout"] or ("float" if after_card and lower_ok(hero) else "full")
             if est == prev():
                 est = "float" if est == "full" else "full"
-            text = hero["caption"] if est == "float" and lower_ok(hero) and out[-1].get("id") != hero["id"] else ""
+            said = out[-1].get("id") == hero["id"] and out[-1]["layout"] != "chapter"    # a chapter names the act only
+            text = hero["caption"] if est == "float" and lower_ok(hero) and not said else ""
             if variety != "calm" and est != "macro":
                 feat(est, [hero], max(FLOOR[est], T(hero) * 0.56), text=text)
                 feat("macro", [hero], max(FLOOR["macro"], T(hero) * 0.44),
@@ -488,7 +557,7 @@ def text_spans(scenes, xf):
     out, n = [], len(scenes)
     for i, s in enumerate(scenes):
         a, b = s["start"], s["start"] + s["dur"]
-        if s["layout"] in CARDS:
+        if s["layout"] in CARDS or (s["layout"] == REEL and s.get("text")):
             out.append((a + (xf / 2 if i else 0.0), b - (xf / 2 if i < n - 1 else 0.0)))
         elif s.get("text") or s.get("labels"):
             t0 = a + (xf * 0.55 if i else 0.0) + LT_IN
@@ -580,6 +649,9 @@ def _place(cfg, scenes, layout, shots, xf, aspect):
     take of the scene before it from where the cut leaves it."""
     still = (cfg.get("motion") or {}).get("camera") == "still"
     for i, s in enumerate(scenes):
+        if s["layout"] == REEL:
+            _place_reel(cfg, s, layout, shots, xf)
+            continue
         if s["layout"] not in FOOTAGE:
             continue
         boxes = pane_boxes(layout, s)
@@ -620,6 +692,34 @@ def _place(cfg, scenes, layout, shots, xf, aspect):
             p.pop("_off", None)
 
 
+def reel_cuts(scene, xf):
+    """Scene-relative start of each moment of a reel: the first is up from the start (under the transition in), the
+    rest on the slot grid from the middle of that transition (on the beats when the scene starts on one)."""
+    return [0.0] + [round(xf / 2 + k * scene["slot"], 3) for k in range(1, len(scene["panes"]))]
+
+
+def _place_reel(cfg, s, layout, shots, xf):
+    """Media + camera for each moment of a reel: the stretch of the take that ends on its result, framed a little
+    in on where the screen changes and creeping in."""
+    box = layout["reel"]["view"]
+    cuts = reel_cuts(s, xf) + [s["dur"]]
+    for k, p in enumerate(s["panes"]):
+        play = round(cuts[k + 1] - cuts[k], 3)
+        media, shot = _pane_media(cfg, shots, p, play, "end")
+        base = TM.fit(media.pop("segs0"), play)
+        segs = TM.window(base, 0.0, play)
+        media["segs"] = segs
+        media["end"] = base[-1][1] if base else media["until"]
+        m0 = segs[0][0] if segs else media["end"]
+        m1 = segs[-1][1] if segs else media["end"]
+        cx, cy, _, _ = macro_target(shot, m0, m1)
+        cx, cy = 0.5 + (cx - 0.5) * 0.6, 0.5 + (cy - 0.5) * 0.6        # toward the action, the UI still reads whole
+        p.update(media=media, shot=shot["id"], box=list(box), at=cuts[k], play=play,
+                 thumb=round((m0 + m1) / 2, 3) if shot["kind"] == "video" else 0.0,
+                 cam=[dict(t=0.0, d=0.0, ease="none", **cam_pose(box, shot, cx, cy, 1.12)),
+                      dict(t=0.0, d=play, ease="none", **cam_pose(box, shot, cx, cy, 1.2))])
+
+
 def plan(cfg, shots, cut, lang, aspect, feature=None):
     """cut: demo | loop | clip (clip needs ``feature``)."""
     if aspect not in LAYOUTS:
@@ -644,8 +744,9 @@ def plan(cfg, shots, cut, lang, aspect, feature=None):
     grid = beat_grid(cfg, cut)
     cap = float(film_opts(cfg)["text"])
     drop = set()
+    slot = reel_slot(grid)
     while True:
-        scenes = rhythm(cfg, units, lang, cut, frozenset(drop))
+        scenes = rhythm(cfg, units, lang, cut, frozenset(drop), slot=slot)
         if cut == "demo":
             total = _fit_demo(cfg, scenes, xf, grid)
         elif cut == "loop":
@@ -675,6 +776,7 @@ def plan(cfg, shots, cut, lang, aspect, feature=None):
         cands = [("lower", u) for s in reversed(scenes) if s["layout"] in FOOTAGE and (s.get("text") or s.get("labels"))
                  for u in reversed(s["units"])]
         cands += [("type", s["id"]) for s in reversed(scenes) if s["layout"] == "type"]
+        cands += [("reel", "reel") for s in scenes if s["layout"] == REEL and s.get("text")]
         cands = [c for c in cands if c not in drop]
         if not cands:
             break
@@ -686,6 +788,7 @@ def plan(cfg, shots, cut, lang, aspect, feature=None):
     return dict(cut=cut, lang=lang, aspect=aspect, W=W, H=H, duration=total, layout=layout, scenes=scenes,
                 feature=feature, xf=xf, loop=cut == "loop", transition="crossfade" if cut == "loop" else tr,
                 beat=list(grid) if grid else None, dropped=sorted(list(x) for x in drop),
+                arc=film_opts(cfg)["arc"] if cut == "demo" else "plain",
                 text_share=round(text_share(scenes, xf, total), 3))
 
 
@@ -694,7 +797,14 @@ def caption_cues(p):
     titles and lower thirds, in order."""
     out = []
     for s in p["scenes"]:
-        txt = s.get("text") if s["layout"] != "chapter" else s.get("title")
+        txt = s.get("text") if s["layout"] not in ("chapter", "brand") else s.get("title")
+        if s["layout"] == "brand" and s.get("kicker"):
+            txt = f'{s["kicker"]} / {txt}'
+        if s.get("chips"):
+            txt = f'{txt} / {" · ".join(s["chips"])}'
+        if s["layout"] == "brand" and s.get("badges"):
+            txt = f'{txt} / {" · ".join(s["badges"])}'
+
         txt = txt or " / ".join(x for x in s.get("labels") or [] if x)
         if s["layout"] in ("end",) or not txt:
             continue
