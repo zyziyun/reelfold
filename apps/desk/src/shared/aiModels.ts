@@ -153,7 +153,7 @@ export function withModel(routes: AiRoutes, task: AiTask | 'default', provider: 
   const models = { ...(routes.models ?? {}) };
   if (model) models[provider] = model;
   else delete models[provider];
-  const next: AiRoutes = { default: { ...routes.default }, tasks: { ...routes.tasks }, models };
+  const next: AiRoutes = { ...routes, default: { ...routes.default }, tasks: { ...routes.tasks }, models };
   const pick = (c: RouteChoice): RouteChoice => ({ ...c, provider, model: null, fallback: c.fallback.filter((x) => x !== provider) });
   if (task !== 'default' && next.tasks[task]) next.tasks[task] = pick(next.tasks[task]!);
   else next.default = pick(next.default);
@@ -166,7 +166,7 @@ export function withProviderModel(routes: AiRoutes, provider: ProviderId, model:
   if (model) models[provider] = model;
   else delete models[provider];
   const def = routes.default.provider === provider ? { ...routes.default, model: null } : routes.default;
-  return { default: def, tasks: { ...routes.tasks }, models };
+  return { ...routes, default: def, tasks: { ...routes.tasks }, models };
 }
 
 /** Is `p` a provider whose models can be picked here (not "none")? */

@@ -10,6 +10,15 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **More AI agents, including ones that work in mainland China**: Reelfold now drives any coding agent you installed
+  and signed in to over the Agent Client Protocol (ACP): Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode,
+  Claude Code / Codex through their ACP adapters, and Qwen Code (Alibaba), Kimi CLI (Moonshot), CodeBuddy (Tencent)
+  and iFlow CLI. It runs your own program with its own sign-in, in an empty folder, with every tool refused, and never
+  sees your account. Settings › AI › Coding agents shows which are installed and signed in, whether each works in
+  China, a one-click test, sign-in, the agent's own model list, and the install command of the others; any of them
+  can be the AI of a job or a fallback (Claude Code → Qwen Code → a DeepSeek key). New API key: Doubao (Volcengine
+  Ark, the same key as Seedance). Qwen, Kimi, GLM and Doubao keys pick their mainland China or international
+  endpoint. "Not available in your region" is said plainly and the fallback answers.
 - **The editor brain**: each project says how it is cut and why ("Cut as Calm travel film: drone footage, no
   talking, evening light"), from the footage and your words, and you can change it. A shot plan shows what each
   shot gets (hold, cut or dissolve, slow motion only where it stays smooth, follow the subject for vertical) with the

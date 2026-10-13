@@ -14,7 +14,7 @@ import { CHINESE_VOICE_GROUP, ensureFreeVoice } from '../lib/freeVoice';
 import { openReport } from '../support/Support';
 import { useUi } from './ui';
 
-const AI = new Set(['ai-login', 'ai-quota', 'ai-timeout', 'ai-missing', 'ai-needs-model']);
+const AI = new Set(['ai-login', 'ai-quota', 'ai-timeout', 'ai-missing', 'ai-region', 'ai-needs-model']);
 
 const TOOL_NAMES: Record<string, string> = { node: 'Node.js', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', npx: 'Node.js (npx)' };
 
@@ -102,7 +102,7 @@ export function FailureActions({ item, failure, primary = true, onDone, only = f
     </button>
   );
   // one button: the step that fixes it (a model to connect, a key to add), else Sign in / Try again
-  if (only && failure.code === 'ai-needs-model') return settings;
+  if (only && (failure.code === 'ai-needs-model' || failure.code === 'ai-region')) return settings;
   if (only && failure.code === 'ai-key-missing') return addKey;
   return (
     <>

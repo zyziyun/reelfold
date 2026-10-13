@@ -207,7 +207,7 @@ function AiStep({ onKeys, onReady }: { onKeys: () => void; onReady: (ready: bool
                 {tk(pl.key)}
               </span>
               {st !== 'logged-in' && st !== 'not-installed' && row?.can_login !== false && row && (
-                <button className="btn sm" onClick={() => setLogin({ provider: p as 'claude-code' | 'codex', action: 'login' })} data-testid={`fr-login-${p}`}>
+                <button className="btn sm" onClick={() => setLogin({ provider: p, action: 'login' })} data-testid={`fr-login-${p}`}>
                   {st === 'expired' ? t('aiacc.relogin') : t('aiacc.login')}
                 </button>
               )}

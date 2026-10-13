@@ -1,6 +1,6 @@
 // The API the preload exposes as window.desk.
 import type { ModelsMsg } from './aiModels';
-import type { AiRoutes, AuthStatusMsg, KeyName } from './aiRoutes';
+import type { AiRoutes, AuthStatusMsg, KeyName, ProviderId } from './aiRoutes';
 import type { AssetsStatusMsg } from './assets';
 import type { ChannelMsg, ChannelPrefs } from './channels';
 import type { Adapter } from './publish/adapterSchema';
@@ -245,7 +245,7 @@ export interface DeskApi {
     status(opts?: { refresh?: boolean; probe?: boolean; providers?: string[] }): Promise<AuthStatusMsg>;
     test(provider: string): Promise<AiTestMsg>;
     /** run the CLI's login / logout command (from the engine) in the in-app terminal */
-    terminal(req: { provider: 'claude-code' | 'codex'; action: 'login' | 'logout'; variant?: 'console' | 'sso' | 'device'; cols: number; rows: number }): Promise<TermStartMsg>;
+    terminal(req: { provider: ProviderId; action: 'login' | 'logout'; variant?: 'console' | 'sso' | 'device'; cols: number; rows: number }): Promise<TermStartMsg>;
     input(id: string, data: string): Promise<void>;
     resize(id: string, cols: number, rows: number): Promise<void>;
     kill(id: string): Promise<void>;

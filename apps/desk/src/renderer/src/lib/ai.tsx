@@ -1,7 +1,7 @@
 // Shared AI accounts state for the renderer: the routes (which provider each task uses) and the last provider
 // status, kept in one small store so the settings page, the 让 AI 改 chip and the composer chip agree.
 import { useEffect, useSyncExternalStore } from 'react';
-import { effective, type AiRoutes, type AiTask, type AuthRow, type AuthStatusMsg, type ProviderId, type RouteChoice } from '../../../shared/aiRoutes';
+import { effective, type AiRoutes, type AiTask, type AuthRow, type AuthStatusMsg, type ProviderId, type Region, type RouteChoice } from '../../../shared/aiRoutes';
 import type { AiRoutesMsg } from '../../../shared/deskApi';
 import { modelsOf, withModel, withProviderModel, type ModelInfo, type ModelsMsg } from '../../../shared/aiModels';
 
@@ -60,7 +60,7 @@ export async function saveRoutes(r: AiRoutes | null) {
 export async function switchProvider(task: AiTask | 'default', provider: ProviderId | 'none' | null) {
   const cur = state.routes?.routes;
   if (!cur) return;
-  const next: AiRoutes = { default: { ...cur.default }, tasks: { ...cur.tasks }, ...(cur.models ? { models: cur.models } : {}) };
+  const next: AiRoutes = { ...cur, default: { ...cur.default }, tasks: { ...cur.tasks } };
   if (task === 'default') {
     if (!provider) return;
     next.default = { ...next.default, provider, model: provider === cur.default.provider ? cur.default.model : null, fallback: cur.default.fallback.filter((x) => x !== provider) };
@@ -107,6 +107,19 @@ export async function setProviderModel(provider: ProviderId, model: string | nul
   const cur = state.routes?.routes;
   if (!cur) return;
   await saveRoutes(withProviderModel(cur, provider, model));
+}
+
+/** The endpoint (mainland China / international) of a provider that has both: every job that uses it. */
+export async function setRegion(provider: ProviderId, region: Region) {
+  const cur = state.routes?.routes;
+  if (!cur) return;
+  const regions = { ...(cur.regions ?? {}) };
+  if (region === 'cn') delete regions[provider];
+  else regions[provider] = region;
+  const next: AiRoutes = { ...cur };
+  if (Object.keys(regions).length) next.regions = regions;
+  else delete next.regions;
+  await saveRoutes(next);
 }
 
 export function useAi() {

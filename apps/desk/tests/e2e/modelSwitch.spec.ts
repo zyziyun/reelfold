@@ -69,6 +69,11 @@ if _bin:
         _llm.find_cli = lambda name, opts=None: os.path.join(_bin, name) if name in ("claude", "codex") else _find(name, opts)
     except Exception:
         pass
+    try:
+        from vstudio import acp as _acp
+        _acp.find = lambda agent, opts=None: None   # the ACP agents installed on this Mac never answer here
+    except Exception:
+        pass
 `;
 
 const calls = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) : []);

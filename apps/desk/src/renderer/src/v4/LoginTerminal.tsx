@@ -5,13 +5,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { providerName } from '../../../shared/aiRoutes';
+import { providerName, type ProviderId } from '../../../shared/aiRoutes';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Sparkles, TerminalSquare } from 'lucide-react';
 import { t } from '../i18n';
 import { refreshStatus } from '../lib/ai';
 
 export interface LoginReq {
-  provider: 'claude-code' | 'codex';
+  provider: ProviderId;
   action: 'login' | 'logout';
   variant?: 'console' | 'sso' | 'device';
 }

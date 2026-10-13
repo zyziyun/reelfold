@@ -1,7 +1,7 @@
 // IPC contract between the renderer (via preload) and the main process. Every invoke payload is validated in
 // main with these schemas before anything happens; unknown channels are rejected by construction.
 import { z } from 'zod';
-import { AI_TASK_IDS, KEY_NAMES, PROVIDER_IDS } from './aiRoutes';
+import { AI_TASK_IDS, CLI_PROVIDER_IDS, KEY_NAMES, PROVIDER_IDS } from './aiRoutes';
 import { recIpcSchemas } from './recIpc';
 import { supportIpcSchemas } from './supportIpc';
 import { ZH_VOICES } from './voices';
@@ -41,6 +41,7 @@ const aiRoutes = z.strictObject({
   default: routeChoice,
   tasks: z.strictObject(Object.fromEntries(AI_TASK_IDS.map((k) => [k, routeChoice.optional()])) as Record<(typeof AI_TASK_IDS)[number], z.ZodOptional<typeof routeChoice>>),
   models: z.partialRecord(provider, z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/)).optional(),
+  regions: z.partialRecord(provider, z.enum(['cn', 'intl'])).optional(),
 });
 const usageInt = z.number().int().min(0).max(100_000);
 const termId = z.string().regex(/^[0-9a-f]{12}$/);
@@ -172,10 +173,10 @@ export const ipcSchemas = {
   // the Studio's row menu: Delete project folders (main asks, then moves them to the Trash; main/trash.ts)
   'history:trash': z.strictObject({ dirs: z.array(absPath).min(1).max(200) }),
   // AI accounts & models: status, CLI login terminal (command from the engine), routes
-  'ai:status': z.strictObject({ refresh: z.boolean().optional(), probe: z.boolean().optional(), providers: z.array(provider).max(12).optional() }),
+  'ai:status': z.strictObject({ refresh: z.boolean().optional(), probe: z.boolean().optional(), providers: z.array(provider).max(40).optional() }),
   'ai:test': z.strictObject({ provider }),
   'ai:terminal': z.strictObject({
-    provider: z.enum(['claude-code', 'codex']),
+    provider: z.enum(CLI_PROVIDER_IDS),
     action: z.enum(['login', 'logout']),
     variant: z.enum(['console', 'sso', 'device']).optional(),
     cols: termSize,
@@ -187,7 +188,7 @@ export const ipcSchemas = {
   'ai:routes': z.undefined(),
   'ai:setRoutes': z.strictObject({ routes: aiRoutes.nullable() }),
   /** the models each provider can use (python -m vstudio.llm models --json; cached unless refresh) */
-  'ai:models': z.strictObject({ refresh: z.boolean().optional(), providers: z.array(provider).max(12).optional() }),
+  'ai:models': z.strictObject({ refresh: z.boolean().optional(), providers: z.array(provider).max(40).optional() }),
   // v0.4: a system notification when a run finishes or needs the creator (shown only while the window is not focused)
   // route: an app hash, with its query (the Studio's #/studio/<project>/<clip>?item=<question>)
   'notify:show': z.strictObject({ title: z.string().min(1).max(120), body: z.string().max(300), route: z.string().regex(/^#\/[A-Za-z0-9/_.%?=&-]{0,300}$/).optional() }),

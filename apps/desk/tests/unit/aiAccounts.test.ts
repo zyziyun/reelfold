@@ -84,8 +84,9 @@ describe('login terminal', () => {
     expect(Object.keys(stripEnv(env, ['OPENAI_*', 'CODEX_API_KEY'])).sort()).toEqual(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'HOME', 'PATH']);
   });
 
-  it('IPC: only claude-code / codex, only login / logout; the page cannot pass a command', () => {
+  it('IPC: only the CLIs she signs in to (Claude Code, Codex, ACP agents), only login / logout; the page cannot pass a command', () => {
     expect(validateIpc('ai:terminal', { provider: 'codex', action: 'login', cols: 80, rows: 24 })).toBeTruthy();
+    expect(validateIpc('ai:terminal', { provider: 'qwen-code', action: 'login', cols: 80, rows: 24 })).toBeTruthy();
     expect(() => validateIpc('ai:terminal', { provider: 'deepseek', action: 'login', cols: 80, rows: 24 })).toThrow();
     expect(() => validateIpc('ai:terminal', { provider: 'codex', action: 'login', cols: 80, rows: 24, command: ['/bin/sh'] })).toThrow();
     expect(() => validateIpc('term:input', { id: 'not-an-id', data: 'x' })).toThrow();

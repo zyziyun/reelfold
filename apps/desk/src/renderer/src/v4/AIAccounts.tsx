@@ -6,6 +6,7 @@ import {
   AI_TASK_IDS,
   availableProviders,
   effective,
+  offerable,
   pill,
   PROVIDERS,
   providerName,
@@ -134,7 +135,10 @@ export function RouteRow({
     fb.splice(to, 0, x);
     onChange({ ...cur, fallback: fb });
   };
-  const addable = PROVIDER_IDS.filter((p) => p !== cur.provider && !cur.fallback.includes(p));
+  const { status } = useAi();
+  // an ACP agent that is not installed here is not offered (ten of them, most absent)
+  const offered = PROVIDER_IDS.filter((p) => offerable(p, rowOf(status, p), cur.provider) || cur.fallback.includes(p));
+  const addable = offered.filter((p) => p !== cur.provider && !cur.fallback.includes(p));
   return (
     <div className="row" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }} data-testid={testId}>
       <span style={{ width: 150, paddingTop: 5 }}>{title}</span>
@@ -151,7 +155,7 @@ export function RouteRow({
         data-testid={`${testId}-provider`}
       >
         {isTask && <option value="__default">{`${t('aiacc.followDefault')} (${label(inherited!.provider)})`}</option>}
-        {[...PROVIDER_IDS, 'none' as const].map((p) => (
+        {[...offered, 'none' as const].map((p) => (
           <option key={p} value={p}>
             {label(p)}
           </option>

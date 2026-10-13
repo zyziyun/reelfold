@@ -1,7 +1,7 @@
 // What Settings says first: the one thing that most needs her (engine down > demo mode > AI not working > missing
 // downloads > a signed-out publishing account), with one action. Also the sub-nav status dots.
 import { useEffect } from 'react';
-import { pill, providerName } from '../../../shared/aiRoutes';
+import { pill, PROVIDERS, providerName, type ProviderId } from '../../../shared/aiRoutes';
 import { useAssets } from '../components/assets';
 import { t, tk } from '../i18n';
 import { platformName } from '../lib/platformName';
@@ -32,7 +32,7 @@ function useAiStatus() {
 }
 
 /** AI sign-in asked from elsewhere in Settings (the status line): the AI section opens its sheet. */
-export let pendingSignIn: 'claude-code' | 'codex' | null = null;
+export let pendingSignIn: ProviderId | null = null;
 export function takePendingSignIn() {
   const p = pendingSignIn;
   pendingSignIn = null;
@@ -55,7 +55,8 @@ export function useStatus(): Status {
   const row = def ? rowOf(status, def) : undefined;
   if (status && def && row && !row.ready) {
     const name = providerName(def);
-    const cli = def === 'claude-code' || def === 'codex';
+    // a CLI she signs in to (Claude Code, Codex, an ACP agent): the sheet opens on its sign-in
+    const cli = PROVIDERS[def as ProviderId]?.kind === 'subscription-cli' && row.state !== 'not-installed' && row.can_login !== false;
     return {
       tone: 'warn',
       title: t('s2.st.ai', { name }),
@@ -63,7 +64,7 @@ export function useStatus(): Status {
       action: {
         label: cli ? t('s2.st.aiFix', { name }) : t('s2.st.aiNoneFix'),
         run: () => {
-          if (cli) pendingSignIn = def;
+          if (cli) pendingSignIn = def as ProviderId;
           location.hash = '#/settings/ai';
         },
       },

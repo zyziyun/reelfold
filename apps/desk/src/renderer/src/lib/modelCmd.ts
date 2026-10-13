@@ -1,9 +1,9 @@
 // `/model` (the clip chat and Home's composer): what runs now, and her words -> a switch ("5.5" -> Opus 5.5, "sonnet"
 // -> the newest Sonnet, "gpt-6-luna" -> Codex on that model, "default" -> the CLI's own). Never sent to a model.
-import { availableProviders, effective, providerName, type AiTask, type ProviderId } from '../../../shared/aiRoutes';
+import { availableProviders, effective, offerable, providerName, type AiTask, type ProviderId } from '../../../shared/aiRoutes';
 import { effectiveModel, modelLabel, resolveModel } from '../../../shared/aiModels';
 import { t } from '../i18n';
-import { aiState, catalogOf, loadModels, pickModel, routesNow } from './ai';
+import { aiState, catalogOf, loadModels, pickModel, rowOf, routesNow } from './ai';
 
 /** "Claude Code · Opus 5.5" (or "· CLI default") for a job. */
 export function currentLine(task: AiTask | 'default'): { provider: string; model: string | null; name: string } | null {
@@ -30,7 +30,8 @@ export async function switchByWords(words: string, task: AiTask | 'default'): Pr
   await loadModels();
   const cur = (task === 'default' ? routes.default : effective(routes, task)).provider;
   // her current provider first, then the others this build can use (a Codex model name switches to Codex)
-  const order = [cur, ...availableProviders().filter((p) => p !== cur)].filter((p): p is ProviderId => p !== 'none');
+  const status = aiState().status;
+  const order = [cur, ...availableProviders().filter((p) => p !== cur && offerable(p, rowOf(status, p)))].filter((p): p is ProviderId => p !== 'none');
   for (const p of order) {
     const hit = resolveModel(words, catalogOf(p));
     if (!hit || (hit === 'default' && p !== cur)) continue;

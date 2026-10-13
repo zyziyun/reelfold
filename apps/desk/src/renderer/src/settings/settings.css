@@ -174,4 +174,7 @@
 .wm-drop.over { border-color: var(--accent); background: var(--accent-soft); }
 .wm-pfs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 380px; }
 .wm-pf { border: 1px solid var(--border-strong); background: transparent; color: var(--text-muted); border-radius: 14px; height: 30px; padding: 0 12px; font: inherit; font-size: 13.5px; cursor: pointer; text-decoration: line-through; }
-.wm-pf.on { background: var(--accent-soft); color: var(--text); border-color: transparent; text-decoration: none; }
+.wm-pf.on { background: var(--accent-soft); color: var(--text); border-color: transparent; text-decoration: none; }/* Settings › AI: works in mainland China? (agents, API keys) */
+.s2-china { font-size: 12px; line-height: 18px; padding: 0 7px; border-radius: 9px; white-space: nowrap; color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent); }
+.s2-china.yes { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.s2-china.partly { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }

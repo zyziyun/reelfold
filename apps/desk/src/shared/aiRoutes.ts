@@ -6,13 +6,25 @@ import { CAPS, type EditionCaps } from './edition';
 export const PROVIDER_IDS = [
   'claude-code',
   'codex',
+  // coding agents over the Agent Client Protocol (vstudio.acp): international first, the ones made in China after
+  'gemini-cli',
+  'cursor-agent',
+  'copilot',
+  'opencode',
+  'claude-acp',
+  'codex-acp',
+  'qwen-code',
+  'kimi-cli',
+  'codebuddy',
+  'iflow',
   'anthropic',
   'openai',
+  'openrouter',
   'deepseek',
   'qwen',
   'kimi',
   'glm',
-  'openrouter',
+  'doubao',
   'ollama',
   'lmstudio',
   'vllm',
@@ -20,20 +32,66 @@ export const PROVIDER_IDS = [
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export type ProviderKind = 'subscription-cli' | 'api' | 'local';
 
-export const PROVIDERS: Record<ProviderId, { kind: ProviderKind; name: string; secret?: KeyName }> = {
-  'claude-code': { kind: 'subscription-cli', name: 'Claude Code' },
-  codex: { kind: 'subscription-cli', name: 'Codex' },
-  anthropic: { kind: 'api', name: 'Anthropic API', secret: 'anthropic' },
-  openai: { kind: 'api', name: 'OpenAI API', secret: 'openai' },
-  deepseek: { kind: 'api', name: 'DeepSeek', secret: 'deepseek' },
-  qwen: { kind: 'api', name: 'Qwen', secret: 'qwen' },
-  kimi: { kind: 'api', name: 'Kimi', secret: 'kimi' },
-  glm: { kind: 'api', name: 'GLM', secret: 'glm' },
-  openrouter: { kind: 'api', name: 'OpenRouter', secret: 'openrouter' },
+/** Works from mainland China without a VPN: yes · partly (some models / regions) · no. */
+export type ChinaUse = 'yes' | 'partly' | 'no';
+
+export interface ProviderInfo {
+  kind: ProviderKind;
+  name: string;
+  secret?: KeyName;
+  /** a coding agent driven over ACP (the user's own installed program and sign-in) */
+  acp?: true;
+  maker?: string;
+  china?: ChinaUse;
+}
+
+export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
+  'claude-code': { kind: 'subscription-cli', name: 'Claude Code', maker: 'Anthropic', china: 'no' },
+  codex: { kind: 'subscription-cli', name: 'Codex', maker: 'OpenAI', china: 'no' },
+  'gemini-cli': { kind: 'subscription-cli', name: 'Gemini CLI', acp: true, maker: 'Google', china: 'no' },
+  'cursor-agent': { kind: 'subscription-cli', name: 'Cursor CLI', acp: true, maker: 'Cursor', china: 'partly' },
+  copilot: { kind: 'subscription-cli', name: 'GitHub Copilot CLI', acp: true, maker: 'GitHub', china: 'partly' },
+  opencode: { kind: 'subscription-cli', name: 'OpenCode', acp: true, maker: 'SST', china: 'yes' },
+  'claude-acp': { kind: 'subscription-cli', name: 'Claude Code (ACP)', acp: true, maker: 'Anthropic', china: 'no' },
+  'codex-acp': { kind: 'subscription-cli', name: 'Codex (ACP)', acp: true, maker: 'OpenAI', china: 'no' },
+  'qwen-code': { kind: 'subscription-cli', name: 'Qwen Code', acp: true, maker: 'Alibaba', china: 'yes' },
+  'kimi-cli': { kind: 'subscription-cli', name: 'Kimi CLI', acp: true, maker: 'Moonshot AI', china: 'yes' },
+  codebuddy: { kind: 'subscription-cli', name: 'CodeBuddy', acp: true, maker: 'Tencent', china: 'yes' },
+  iflow: { kind: 'subscription-cli', name: 'iFlow CLI', acp: true, maker: 'Alibaba iFlow', china: 'yes' },
+  anthropic: { kind: 'api', name: 'Anthropic API', secret: 'anthropic', china: 'no' },
+  openai: { kind: 'api', name: 'OpenAI API', secret: 'openai', china: 'no' },
+  openrouter: { kind: 'api', name: 'OpenRouter', secret: 'openrouter', china: 'partly' },
+  deepseek: { kind: 'api', name: 'DeepSeek', secret: 'deepseek', china: 'yes' },
+  qwen: { kind: 'api', name: 'Qwen', secret: 'qwen', china: 'yes' },
+  kimi: { kind: 'api', name: 'Kimi', secret: 'kimi', china: 'yes' },
+  glm: { kind: 'api', name: 'GLM', secret: 'glm', china: 'yes' },
+  doubao: { kind: 'api', name: 'Doubao', secret: 'ark', china: 'yes' },
   ollama: { kind: 'local', name: 'Ollama' },
   lmstudio: { kind: 'local', name: 'LM Studio' },
   vllm: { kind: 'local', name: 'vLLM' },
 };
+
+/** The providers she signs in to with a CLI of her own (Claude Code, Codex, the ACP agents): the only ones the login
+ * terminal runs. */
+export const CLI_PROVIDER_IDS = PROVIDER_IDS.filter((p) => PROVIDERS[p].kind === 'subscription-cli') as [ProviderId, ...ProviderId[]];
+
+/** A coding agent driven over ACP (Gemini CLI, Qwen Code, Kimi CLI, CodeBuddy, ...). */
+export function isAcp(p: string | null | undefined): boolean {
+  return Boolean(p && PROVIDERS[p as ProviderId]?.acp);
+}
+
+/** Worth offering in a picker: anything but an ACP agent not known to be installed here (ten of them, most absent;
+ * before the status is checked none is offered); the current choice always. */
+export function offerable(p: ProviderId, row: { state?: string } | null | undefined, current?: string | null): boolean {
+  return p === current || !isAcp(p) || (!!row && row.state !== 'not-installed');
+}
+
+/** API providers with a mainland China and an international endpoint (vstudio.llm PRESETS regions). */
+export const REGION_PROVIDERS = ['qwen', 'kimi', 'glm', 'doubao'] as const;
+export type Region = 'cn' | 'intl';
+export function hasRegions(p: string): boolean {
+  return (REGION_PROVIDERS as readonly string[]).includes(p);
+}
 
 /** The providers this build can use: the Lite (Mac App Store) build has no subscription CLIs (it is sandboxed and
  * cannot run the claude / codex she installed): API keys and local model servers only. */
@@ -95,6 +153,8 @@ export interface AiRoutes {
   tasks: Partial<Record<AiTask, RouteChoice>>;
   /** the model each provider runs on for every job (a job's own `model` wins); absent = the CLI's / provider's default */
   models?: Partial<Record<ProviderId, string>>;
+  /** mainland China or international endpoint of a provider that has both (absent = cn) */
+  regions?: Partial<Record<ProviderId, Region>>;
 }
 
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,119}$/;
@@ -102,6 +162,13 @@ function cleanModels(m: unknown): Partial<Record<ProviderId, string>> {
   const out: Partial<Record<ProviderId, string>> = {};
   if (!m || typeof m !== 'object') return out;
   for (const [k, v] of Object.entries(m as Record<string, unknown>)) if (isProvider(k) && typeof v === 'string' && MODEL_ID.test(v)) out[k] = v;
+  return out;
+}
+
+function cleanRegions(m: unknown): Partial<Record<ProviderId, Region>> {
+  const out: Partial<Record<ProviderId, Region>> = {};
+  if (!m || typeof m !== 'object') return out;
+  for (const [k, v] of Object.entries(m as Record<string, unknown>)) if (isProvider(k) && hasRegions(k) && (v === 'cn' || v === 'intl')) out[k] = v;
   return out;
 }
 
@@ -182,7 +249,8 @@ export function normalizeRoutes(r: unknown): AiRoutes {
     if (c) tasks[k] = c;
   }
   const models = cleanModels(o.models);
-  return Object.keys(models).length ? { default: def, tasks, models } : { default: def, tasks };
+  const regions = cleanRegions(o.regions);
+  return { default: def, tasks, ...(Object.keys(models).length ? { models } : {}), ...(Object.keys(regions).length ? { regions } : {}) };
 }
 
 type EngineEntry = { provider: string; model?: string; fallback?: (string | { provider: string; model: string })[] };
@@ -190,7 +258,7 @@ type EngineEntry = { provider: string; model?: string; fallback?: (string | { pr
  * engine ranks the persona's llm.tasks above any default: an omitted task would silently use the persona's route.
  * Each entry carries its model (the job's own, else the provider's) and each fallback its provider's model, so a
  * fallback Codex runs on the model picked for Codex (never on whatever its config.toml says). */
-export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<string, EngineEntry> } {
+export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<string, EngineEntry>; regions?: Partial<Record<ProviderId, Region>> } {
   const pm = r.models ?? {};
   const entry = (c: RouteChoice): EngineEntry => {
     const model = c.model || (c.provider !== 'none' ? pm[c.provider] : undefined);
@@ -201,7 +269,9 @@ export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<s
   for (const k of AI_TASK_IDS) tasks[AI_TASKS[k]] = entry(effective(r, k));
   // tasks the desk has no control for (scripts, the batch planner) follow the default too
   for (const extra of ['script', 'planner']) tasks[extra] = entry(r.default);
-  return { default: entry(r.default), tasks };
+  // the endpoint of each provider that has two (the engine reads `regions` on every call)
+  const regions = cleanRegions(r.regions);
+  return { default: entry(r.default), tasks, ...(Object.keys(regions).length ? { regions } : {}) };
 }
 
 /** Engine fallback record (vstudio.llm complete -> output ai / intake planner). */
@@ -217,7 +287,7 @@ export interface FallbackInfo {
   seconds?: number | null;
 }
 
-export type FallbackKey = 'aiacc.fb.expired' | 'aiacc.fb.notLoggedIn' | 'aiacc.fb.notInstalled' | 'aiacc.fb.failed' | 'aiacc.fb.timeout' | 'aiacc.fb.skipped' | 'aiacc.fb.limited' | 'aiacc.fb.model';
+export type FallbackKey = 'aiacc.fb.region' | 'aiacc.fb.expired' | 'aiacc.fb.notLoggedIn' | 'aiacc.fb.notInstalled' | 'aiacc.fb.failed' | 'aiacc.fb.timeout' | 'aiacc.fb.skipped' | 'aiacc.fb.limited' | 'aiacc.fb.model';
 
 /** The notice for a run that did not use the chosen provider, or null. key + vars for t(). */
 export function fallbackNotice(fb: FallbackInfo | null | undefined): { key: FallbackKey; from: string; to: string; provider: string; login: boolean; seconds?: number } | null {
@@ -235,6 +305,8 @@ export function fallbackNotice(fb: FallbackInfo | null | undefined): { key: Fall
             ? 'aiacc.fb.limited'
             : fb.code === 'model-unsupported'
               ? 'aiacc.fb.model'
+            : fb.code === 'region-blocked'
+              ? 'aiacc.fb.region'
             : fb.code === 'timeout' && fb.cached
               ? 'aiacc.fb.skipped'
               : fb.code === 'timeout' && limit
@@ -252,6 +324,7 @@ export function providerName(p: string | null | undefined): string {
 
 // ---------------------------------------------------------------- status rows (python -m vstudio.llm auth status)
 export type AuthState =
+  | 'installed'
   | 'logged-in'
   | 'expired'
   | 'not-logged-in'
@@ -288,6 +361,16 @@ export interface AuthRow {
   install?: { url: string; command: string } | null;
   message?: EngineMsgLite | null;
   detail?: string | null;
+  /** ACP agents (vstudio.llm_auth): it is one, who makes it, whether it works in mainland China, which account */
+  acp?: boolean;
+  maker?: string;
+  china?: ChinaUse;
+  account_hint?: string;
+  /** a provider with two endpoints: the one in use, and both */
+  region?: Region;
+  regions?: Region[];
+  /** why a check failed, as a code: region-blocked | timeout | not-acp */
+  code?: string;
 }
 
 export interface AuthStatusMsg {
@@ -304,6 +387,8 @@ export function pill(row: AuthRow | undefined): { tone: 'ok' | 'warn' | 'bad' | 
   switch (row?.state) {
     case 'logged-in':
       return { tone: 'ok', key: 'aiacc.st.loggedIn' };
+    case 'installed':
+      return { tone: 'ok', key: 'agents.st.installed' };
     case 'expired':
       return { tone: 'bad', key: 'aiacc.st.expired' };
     case 'not-logged-in':
@@ -325,7 +410,7 @@ export function pill(row: AuthRow | undefined): { tone: 'ok' | 'warn' | 'bad' | 
     case undefined:
       return { tone: 'off', key: 'aiacc.st.checking' };
     default:
-      return { tone: 'bad', key: 'aiacc.st.error' };
+      return row?.code === 'region-blocked' ? { tone: 'bad', key: 'agents.st.region' } : row?.code === 'not-acp' ? { tone: 'warn', key: 'agents.st.notAcp' } : { tone: 'bad', key: 'aiacc.st.error' };
   }
 }
 

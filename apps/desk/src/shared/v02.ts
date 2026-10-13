@@ -482,6 +482,7 @@ export type FailureCode =
   | 'ai-quota'
   | 'ai-timeout'
   | 'ai-missing'
+  | 'ai-region'
   | 'engine'
   | 'intake'
   | 'disk'

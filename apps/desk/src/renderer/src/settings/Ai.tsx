@@ -1,14 +1,14 @@
 // Settings › AI (ux/settings-redesign A2): the AI in use (status, Switch AI…, ⋯), the fallback order in one
 // sentence, "different AI for specific jobs" as a second page, other accounts (subscriptions, API keys, models on
 // this Mac). Sign-in runs in the sign-in sheet (the terminal is folded under "Show details").
-import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Cpu, KeyRound, MoreHorizontal, Sparkles, TerminalSquare } from 'lucide-react';
-import { availableProviders, effective, pill, PROVIDERS, providerName, type AuthRow, type ProviderId } from '../../../shared/aiRoutes';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Bot, ChevronLeft, ChevronRight, Copy, Cpu, KeyRound, MoreHorizontal, Sparkles, TerminalSquare } from 'lucide-react';
+import { availableProviders, effective, hasRegions, offerable, pill, PROVIDERS, providerName, type AuthRow, type ProviderId, type Region } from '../../../shared/aiRoutes';
 import { LiteAiNote } from '../components/Lite';
 import type { AiTestMsg, SecretsStatusMsg } from '../../../shared/deskApi';
 import { AI_TASK_IDS } from '../../../shared/aiRoutes';
 import { fmtAgo, getLang, has, t, tk } from '../i18n';
-import { catalogOf, loadModels, pickModel, refreshStatus, rowOf, saveRoutes, setProviderModel, switchProvider, useAi } from '../lib/ai';
+import { catalogOf, loadModels, pickModel, refreshStatus, rowOf, saveRoutes, setProviderModel, setRegion, switchProvider, useAi } from '../lib/ai';
 import { modelItems } from '../v4/AiChip';
 import { missingRow, RouteRow, RoutesEditor } from '../v4/AIAccounts';
 import { LoginTerminal, type LoginReq } from '../v4/LoginTerminal';
@@ -21,7 +21,9 @@ import { takePendingSignIn } from './status';
 const clean = (e: unknown) => (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 // what this build can use (the Lite / Mac App Store build has no subscription CLIs)
 const PROVIDER_IDS = availableProviders();
-const CLI = PROVIDER_IDS.filter((p) => PROVIDERS[p].kind === 'subscription-cli');
+const CLI = PROVIDER_IDS.filter((p) => PROVIDERS[p].kind === 'subscription-cli' && !PROVIDERS[p].acp);
+// coding agents over ACP (Gemini CLI, Qwen Code, Kimi CLI, CodeBuddy, ...): international first, then made in China
+const AGENTS = PROVIDER_IDS.filter((p) => PROVIDERS[p].acp);
 const API = PROVIDER_IDS.filter((p) => PROVIDERS[p].kind === 'api');
 const LOCAL = PROVIDER_IDS.filter((p) => PROVIDERS[p].kind === 'local');
 
@@ -29,7 +31,7 @@ function Icon({ p, big }: { p: string; big?: boolean }) {
   const kind = PROVIDERS[p as ProviderId]?.kind;
   return (
     <span className={`s2-pico ${p} ${big ? 'big' : ''}`}>
-      {p === 'claude-code' ? <Sparkles className="ico" /> : p === 'codex' ? <TerminalSquare className="ico" /> : kind === 'local' ? <Cpu className="ico" /> : <KeyRound className="ico" />}
+      {p === 'claude-code' ? <Sparkles className="ico" /> : p === 'codex' ? <TerminalSquare className="ico" /> : PROVIDERS[p as ProviderId]?.acp ? <Bot className="ico" /> : kind === 'local' ? <Cpu className="ico" /> : <KeyRound className="ico" />}
     </span>
   );
 }
@@ -81,7 +83,7 @@ export function AiSection({ sub }: SettingsCtx) {
   const menuFor = (p: ProviderId): MenuItem[] => {
     const r = row(p);
     const cli = PROVIDERS[p].kind === 'subscription-cli';
-    const cp = p as 'claude-code' | 'codex';
+    const cp = p;
     const items: MenuItem[] = [];
     if (cli && r?.can_login !== false && r?.state !== 'not-installed') items.push({ label: t(r?.state === 'logged-in' || r?.state === 'expired' ? 's2.ai.signInAgain' : 's2.ai.signIn'), run: () => setLogin({ provider: cp, action: 'login' }), testId: `menu-login-${p}` });
     if (cli && p === 'claude-code') {
@@ -156,7 +158,7 @@ export function AiSection({ sub }: SettingsCtx) {
     const r = row(p);
     if (PROVIDERS[p].kind !== 'subscription-cli' || r?.ready || r?.can_login === false || r?.state === 'not-installed' || !r) return null;
     return (
-      <button className={`btn ${primary ? 'primary' : ''}`} onClick={() => setLogin({ provider: p as 'claude-code' | 'codex', action: 'login' })} data-testid={`login-${p}`}>
+      <button className={`btn ${primary ? 'primary' : ''}`} onClick={() => setLogin({ provider: p, action: 'login' })} data-testid={`login-${p}`}>
         {r.state === 'expired' ? t('s2.ai.signInAgain') : t('s2.ai.signIn')}
       </button>
     );
@@ -215,7 +217,7 @@ export function AiSection({ sub }: SettingsCtx) {
                 e,
                 [...PROVIDER_IDS]
                   .sort((a, b) => Number(!!rowOf(status, b)?.ready) - Number(!!rowOf(status, a)?.ready))
-                  .filter((p) => p !== cur)
+                  .filter((p) => p !== cur && offerable(p, rowOf(status, p)))
                   .map((p) => ({ label: `${providerName(p)}${rowOf(status, p)?.ready ? '' : ` (${t('aiacc.notReady')})`}`, run: () => void switchProvider('default', p), testId: `switch-${p}` })),
               )
             }
@@ -321,6 +323,24 @@ export function AiSection({ sub }: SettingsCtx) {
         </div>
       </Group>
 
+      {AGENTS.length > 0 && (
+        <AgentsGroup
+          ids={AGENTS.filter((p) => p !== cur)}
+          row={row}
+          focus={focus}
+          tests={tests}
+          onTest={(p) => void runTest(p)}
+          renderControls={(p) => (
+            <>
+              <ModelSelect p={p} />
+              <SignIn p={p} />
+              <More p={p} />
+            </>
+          )}
+          renderProblem={(p) => <ModelProblem p={p} />}
+        />
+      )}
+
       {sheet === 'order' && routes && (
         <Sheet title={t('s2.ai.orderTitle', { name: cur ? providerName(cur) : t('aiacc.none') })} onClose={() => setSheet(null)} wide testId="ai-order-sheet" footer={<button className="btn primary" onClick={() => setSheet(null)}>{t('s2.done')}</button>}>
           <p className="s2-rhint">{t('s2.ai.orderBody')}</p>
@@ -339,7 +359,21 @@ export function AiSection({ sub }: SettingsCtx) {
           <p className="s2-rhint">{keys?.backend === 'keychain' ? t('s2.ai.keySheetBody') : t('keys.noKeychain')}</p>
           <div className="s2-card">
             {API.map((p) => (
-              <KeyRow key={p} p={p} row={row(p)} keys={keys} focused={focus === p} onKeys={(k) => (setKeys(k), markRestart('key'), void refreshStatus({ refresh: true, probe: false, providers: [p] }))} />
+              <KeyRow
+                key={p}
+                p={p}
+                row={row(p)}
+                keys={keys}
+                focused={focus === p}
+                region={routes?.routes.regions?.[p] ?? 'cn'}
+                onRegion={(r) =>
+                  void setRegion(p, r)
+                    .then(() => refreshStatus({ refresh: true, probe: false, providers: [p] }))
+                    .then(() => ui.toast(t('agents.region.saved', { name: providerName(p), region: t(r === 'cn' ? 'agents.region.cn' : 'agents.region.intl') })))
+                    .catch((err) => ui.toast(clean(err), { error: true }))
+                }
+                onKeys={(k) => (setKeys(k), markRestart('key'), void refreshStatus({ refresh: true, probe: false, providers: [p] }))}
+              />
             ))}
           </div>
         </Sheet>
@@ -384,7 +418,137 @@ export function AiSection({ sub }: SettingsCtx) {
   );
 }
 
-function KeyRow({ p, row, keys, focused, onKeys }: { p: ProviderId; row: AuthRow | undefined; keys: SecretsStatusMsg | null; focused: boolean; onKeys: (k: SecretsStatusMsg) => void }) {
+/** Works in mainland China? A small tag beside a provider's name. */
+function ChinaTag({ p }: { p: ProviderId }) {
+  const c = PROVIDERS[p].china;
+  if (!c) return null;
+  return (
+    <span className={`s2-china ${c}`} data-testid={`china-${p}`} data-china={c}>
+      {t(c === 'yes' ? 'agents.china.yes' : c === 'partly' ? 'agents.china.partly' : 'agents.china.no')}
+    </span>
+  );
+}
+
+/** Settings › AI › Coding agents: the installed ones as rows (model, test, sign in, ⋯); the others folded, each with
+ * its maker, whether it works in China, how it signs in, and its install command. */
+function AgentsGroup({
+  ids,
+  row,
+  focus,
+  tests,
+  onTest,
+  renderControls,
+  renderProblem,
+}: {
+  ids: ProviderId[];
+  row: (p: ProviderId) => AuthRow | undefined;
+  focus?: string;
+  tests: Record<string, AiTestMsg | 'running'>;
+  onTest: (p: ProviderId) => void;
+  renderControls: (p: ProviderId) => ReactNode;
+  renderProblem: (p: ProviderId) => ReactNode;
+}) {
+  const ui = useUi();
+  const [open, setOpen] = useState(false);
+  const installed = ids.filter((p) => row(p) && row(p)!.state !== 'not-installed');
+  const absent = ids.filter((p) => !installed.includes(p));
+  const shown = open || focus ? [...installed, ...absent] : installed;
+  return (
+    <Group
+      title={t('agents.group')}
+      testId="ai-agents"
+      action={
+        absent.length > 0 && (
+          <button className="s2-link" onClick={() => setOpen(!open)} data-testid="agents-more">
+            {open ? t('agents.less') : t('agents.more', { n: absent.length })}
+          </button>
+        )
+      }
+    >
+      <div className="s2-row s2-rhint" style={{ display: 'block' }}>
+        {t('agents.groupHint')}
+        {installed.length === 0 && !open && <div style={{ marginTop: 6 }}>{t('agents.none')}</div>}
+      </div>
+      {shown.map((p) => {
+        const r = row(p);
+        const tr = tests[p];
+        const absentRow = !r || r.state === 'not-installed';
+        return (
+          <div key={p} className={`s2-row ${focus === p ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p} data-state={r?.state ?? 'checking'}>
+            <Icon p={p} />
+            <div className="s2-rtext">
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <span className="s2-rlabel">{providerName(p)}</span>
+                <ChinaTag p={p} />
+              </div>
+              <div className="s2-rhint">
+                {PROVIDERS[p].maker ? `${t('agents.by', { maker: PROVIDERS[p].maker! })} · ` : ''}
+                {tk(`agents.acct.${p}`)}
+              </div>
+              {absentRow && r?.install && (
+                <code className="s2-rhint" style={{ userSelect: 'all' }} data-testid={`install-cmd-${p}`}>
+                  {r.install.command}
+                </code>
+              )}
+              {r?.message && !absentRow && r.state !== 'logged-in' && r.state !== 'installed' && (
+                <div className="s2-rhint warn" data-testid={`agent-msg-${p}`}>
+                  {getLang() === 'zh-CN' ? (r.message.message_zh ?? r.message.message) : r.message.message}
+                </div>
+              )}
+            </div>
+            <div className="s2-rctl">
+              <StatePill row={r} />
+              {absentRow ? (
+                r?.install && (
+                  <>
+                    <button
+                      className="btn ghost icon"
+                      aria-label={t('agents.copy')}
+                      data-tip={t('agents.copy')}
+                      onClick={() => void navigator.clipboard?.writeText(r.install!.command).then(() => ui.toast(t('agents.copied', { cmd: r.install!.command })))}
+                      data-testid={`copy-install-${p}`}
+                    >
+                      <Copy className="ico" />
+                    </button>
+                    <button className="s2-link" onClick={() => void window.desk.openExternal(r.install!.url)} data-testid={`install-${p}`}>
+                      {t('agents.install')}
+                    </button>
+                  </>
+                )
+              ) : (
+                <>
+                  <button className="btn" onClick={() => onTest(p)} disabled={tr === 'running'} data-testid={`agent-test-${p}`}>
+                    {tr === 'running' ? t('aiacc.testing') : t('s2.ai.test')}
+                  </button>
+                  {renderControls(p)}
+                </>
+              )}
+            </div>
+            {!absentRow && renderProblem(p)}
+          </div>
+        );
+      })}
+    </Group>
+  );
+}
+
+function KeyRow({
+  p,
+  row,
+  keys,
+  focused,
+  region,
+  onRegion,
+  onKeys,
+}: {
+  p: ProviderId;
+  row: AuthRow | undefined;
+  keys: SecretsStatusMsg | null;
+  focused: boolean;
+  region: Region;
+  onRegion: (r: Region) => void;
+  onKeys: (k: SecretsStatusMsg) => void;
+}) {
   const [key, setKey] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const secret = PROVIDERS[p].secret;
@@ -393,13 +557,33 @@ function KeyRow({ p, row, keys, focused, onKeys }: { p: ProviderId; row: AuthRow
   return (
     <div className={`s2-row ${focused ? 'focus' : ''}`} data-testid={`provider-${p}`} data-provider-card={p}>
       <div className="s2-rtext">
-        <div className="row" style={{ gap: 10 }}>
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
           <span className="s2-rlabel">{PROVIDERS[p].name}</span>
+          <ChinaTag p={p} />
           <StatePill row={row} />
         </div>
+        {has(`agents.key.${p}`) && <div className="s2-rhint">{tk(`agents.key.${p}`)}</div>}
         {err && <div className="s2-rhint warn">{err}</div>}
       </div>
       <div className="s2-rctl">
+        {hasRegions(p) && (
+          <select
+            className="input"
+            style={{ width: 'auto' }}
+            value={region}
+            onChange={(e) => onRegion(e.target.value as Region)}
+            aria-label={`${PROVIDERS[p].name} · ${t('agents.region.label')}`}
+            data-testid={`region-${p}`}
+          >
+            <option value="cn">{t('agents.region.cn')}</option>
+            <option value="intl">{t('agents.region.intl')}</option>
+          </select>
+        )}
+        {row?.install && (
+          <button className="s2-link" onClick={() => void window.desk.openExternal(row.install!.url)} data-testid={`get-key-${p}`}>
+            {t('agents.getKey')}
+          </button>
+        )}
         <input
           className="input s2-key"
           type="password"

@@ -2,7 +2,7 @@
 // ("Claude Code login expired, so Codex was used this time · Log in"). Switching is explicit and saved.
 import type { MouseEvent } from 'react';
 import { ChevronDown, Cpu } from 'lucide-react';
-import { availableProviders, effective, fallbackNotice, pill, PROVIDERS, providerName, type AiTask, type FallbackInfo, type ProviderId } from '../../../shared/aiRoutes';
+import { availableProviders, effective, offerable, fallbackNotice, pill, PROVIDERS, providerName, type AiTask, type FallbackInfo, type ProviderId } from '../../../shared/aiRoutes';
 import { t, tk } from '../i18n';
 import { catalogOf, loadModels, pickModel, refreshStatus, rowOf, switchProvider, useAi } from '../lib/ai';
 import { effectiveModel, modelLabel, type ModelInfo } from '../../../shared/aiModels';
@@ -33,7 +33,8 @@ export function ProviderChip({ task, testId }: { task: AiTask; testId?: string }
     const items: MenuItem[] = availableProviders().filter((p) => {
       const row = rowOf(status, p);
       // offer what can work here: the current choice, ready providers, and the subscription CLIs (they can log in)
-      return p === cur.provider || !row || row.ready || PROVIDERS[p].kind === 'subscription-cli';
+      // (an ACP agent only once it is installed here: ten of them, most absent)
+      return offerable(p, row, cur.provider) && (p === cur.provider || !row || row.ready || PROVIDERS[p].kind === 'subscription-cli');
     }).map((p) => {
       const row = rowOf(status, p);
       const st = row ? tk(pill(row).key) : '';
