@@ -378,7 +378,7 @@ def test_photo_story_music_mode_with_the_built_in_bed_renders(tmp_path, clips):
                                          mode="music", platforms=["youtube"]), "photo-story")
     ctx.request_text = "a 6-second history piece of the waterfront, no voice"
     stem = os.path.splitext(os.path.basename(clips[0]))[0]
-    spec = (f'TITLE_EN = "Waterfront"\nMEDIA = dict(images=["frames", "../inputs"], videos="{os.path.dirname(clips[0])}")\n'
+    spec = (f'TITLE_EN = "Waterfront"\nMEDIA = dict(images=["frames", "../inputs"], videos={os.path.dirname(clips[0])!r})\n'
             f'BGM = None\nMUSIC = dict(length=6.0)\nSCRIPT = [(0, [("The piers.", "码头。")], [("v{stem}", 1, "still", '
             f'dict(off=1.0))])]\n')
     path = str(tmp_path / "item" / "work" / "spec.py")
@@ -419,7 +419,9 @@ def test_vlog_paths_resolve_for_a_project_under_a_symlinked_folder(tmp_path, cli
         subprocess.run([sys.executable, os.path.join(ROOT, "workflows/vlog/scripts/probe.py"), *clips, "--init", path,
                         "--style", style], check=True, capture_output=True)
         cfg = json.load(open(path))
-        for rel in cfg["clips"].values():               # what ffmpeg opens: the lexical folder + the relative path
+        # what ffmpeg opens: the lexical folder + the relative path, its ``..`` resolved by the OS from the physical
+        # folder (POSIX; Windows folds ``..`` lexically, so there only the resolved base below is a path to the file)
+        for rel in cfg["clips"].values() if os.name != "nt" else ():
             assert os.path.isfile(os.path.join(str(work), cfg.get("src_dir") or ".", rel)), rel
         assert all(os.path.isfile(p) for p in V._clip_paths(cfg, os.path.realpath(str(work))).values())
     # the reverse: footage under the symlinked folder, the project outside it
