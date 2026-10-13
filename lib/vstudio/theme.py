@@ -7,6 +7,8 @@ card / quote / stamp / pop / progress styles, motion) that every themed overlay 
     with TH.use("night"):                 # an explicit theme for a block of drawing (output edit `theme` op)
         ...
     TH.resolve("editorial", recipe={"theme": "mono"})   # explicit beats recipe
+    TH.type_scale(1080, 1920, "cinema")   # title / subtitle / label / caption px, tracking, line height, chars/line
+    TH.pair_font("display")               # the theme pair's title face (kit face, else its Noto stand-in)
 
 Resolution order (first that is set wins); every layer is a preset name or a dict
 ``{"theme": name, <token>: value, ...}`` (tokens override the preset's, e.g. ``{"theme": "editorial",
@@ -33,7 +35,7 @@ import os
 
 DEFAULT = "editorial"
 
-# Fonts: roles of vstudio.config.FONTS (OFL only: Noto Sans SC / Noto Serif SC).
+# Fonts: roles of vstudio.config.FONTS (OFL only: Noto Sans SC / Noto Serif SC; the kit faces via PAIRS below).
 _BASE = dict(
     label="", label_zh="", desc_zh="",
     # colour
@@ -363,13 +365,97 @@ def css_vars(T=None):
     return ":root{" + "".join(out) + "}"
 
 
+# ---------------------------------------------------------------- typography kit (opt-in)
+# The font pair per theme, as vstudio.config.FONTS roles: ``display`` (Chinese titles), ``display_latin`` (English
+# titles), ``text`` (subtitles, labels, captions), ``quote``. The existing font_* tokens keep driving every current
+# overlay; new blocks read the pair (``pair_font``) so a theme can use the kit faces without restyling old renders.
+# cinema = serif display + one sans (AESTHETICS P5); soft = the humanist 霞鹜文楷; xhs-pop = 得意黑 headlines.
+PAIRS = {
+    "cinema": dict(display="cjk-serif", display_latin="serif-display", text="cjk", quote="cjk-serif"),
+    "editorial": dict(display="cjk-serif-bold", display_latin="serif-display", text="cjk", quote="cjk-serif-bold"),
+    "mono": dict(display="cjk-bold", display_latin="cjk-bold", text="cjk", quote="cjk-bold"),
+    "soft": dict(display="zh-humanist", display_latin="serif-display", text="cjk", quote="zh-humanist"),
+    "night": dict(display="cjk-serif-bold", display_latin="serif-display", text="cjk", quote="cjk-serif"),
+    "xhs-pop": dict(display="display-zh", display_latin="cjk-bold", text="cjk", quote="cjk-bold"),
+    "classic": dict(display="cjk-bold", display_latin="cjk-bold", text="cjk-bold", quote="cjk-bold"),
+}
+# a kit face that is not installed (CLI without ./install.sh, the desk before its first-run download) -> the face it
+# stands in for; config.font already warned once
+FONT_FALLBACK = {"display-zh": "cjk-bold", "zh-humanist": "cjk-serif", "serif-display": "serif",
+                 "display-latin": "serif"}
+
+# Sizes as a share of the canvas SHORT side (1080 for both 1080x1920 and 1920x1080), so one scale serves vertical and
+# horizontal. caption sits inside the platform caption range (vstudio.platform _VERT_CAPTION / _HORZ_CAPTION 44-72 px
+# at 1080); label is the small tracked line (STYLE_RULES S4 / P5). tracking in em, line_height a multiple of the size.
+_SCALE = dict(
+    title=dict(size=0.074, tracking=0.02, line_height=1.2),
+    subtitle=dict(size=0.044, tracking=0.02, line_height=1.35),
+    label=dict(size=0.026, tracking=None, line_height=1.2),       # tracking = the theme's label_track
+    caption=dict(size=0.054, tracking=0.0, line_height=1.3),
+)
+# words on screen (research note #4 / textlint): a title line holds at most 12 CJK characters or 6 English words
+TITLE_MAX_ZH, TITLE_MAX_WORDS_EN = 12, 6
+# readable caption line caps whatever the canvas width (a 4K horizontal canvas would otherwise allow 40+ characters)
+CAPTION_CAP_ZH, CAPTION_CAP_EN = 22, 42
+
+
+def type_scale(w, h, theme=None):
+    """Type-scale tokens for a canvas: {canvas, unit, theme, fonts, title, subtitle, label, caption}; each role is
+    {size (px), tracking (em), line_height, max_chars_zh, max_chars_en} (+ max_words_en for the title). Sizes follow the
+    short side; max chars per line come from the usable width (78 % of the canvas width: the platform safe boxes leave
+    about that) and the size, capped by the readability limits above. The cinema theme sets titles smaller and more
+    widely spaced (P5: restrained type, generous tracking). ``theme``: a name / layer for ``resolve``, a resolved dict,
+    or None (the current theme). Pure numbers: nothing is drawn and no font is opened."""
+    T = theme if isinstance(theme, dict) and "name" in theme else resolve(theme)
+    name = T["name"]
+    S = float(min(w, h))
+    avail = 0.78 * float(w)
+    cinema = name == "cinema"
+    out = dict(canvas=[int(w), int(h)], unit=int(S), theme=name, fonts=dict(PAIRS.get(name) or PAIRS[DEFAULT]))
+    for role, d in _SCALE.items():
+        k = d["size"] * (0.86 if cinema and role in ("title", "subtitle") else 1.0)
+        size = max(10, int(round(S * k)))
+        tr = d["tracking"]
+        if tr is None:
+            tr = float(T.get("label_track", 0.12))
+        elif cinema and role in ("title", "subtitle"):
+            tr = 0.08 if role == "title" else 0.04
+        zh = max(4, int(avail // (size * (1 + tr))))
+        en = max(8, int(avail // (size * 0.5)))           # an average latin glyph is about half an em
+        if role == "caption":
+            zh, en = min(zh, CAPTION_CAP_ZH), min(en, CAPTION_CAP_EN)
+        elif role == "title":
+            zh, en = min(zh, TITLE_MAX_ZH), min(en, 7 * TITLE_MAX_WORDS_EN)
+        out[role] = dict(size=size, tracking=round(tr, 3), line_height=d["line_height"], max_chars_zh=zh,
+                         max_chars_en=en)
+    out["title"]["max_words_en"] = TITLE_MAX_WORDS_EN
+    return out
+
+
+def pair_font(slot, theme=None):
+    """Font file for a slot of the theme's pair (``display`` / ``display_latin`` / ``text`` / ``quote``): the kit face
+    when installed, else the face it stands in for (FONT_FALLBACK, warned once by config.font). Raises MissingAsset
+    only when the fallback is missing too."""
+    from .config import MissingAsset, font
+    T = theme if isinstance(theme, dict) and "name" in theme else resolve(theme)
+    role = (PAIRS.get(T["name"]) or PAIRS[DEFAULT])[slot]
+    try:
+        return font(role)
+    except MissingAsset:
+        if role not in FONT_FALLBACK:
+            raise
+        return font(FONT_FALLBACK[role])
+
+
 def describe(T=None):
     T = T or current()
     return dict(name=T["name"], label=T["label"], label_zh=T["label_zh"], desc_zh=T["desc_zh"], source=T.get("source"),
-                paper=T["paper"], ink=T["ink"], accent=T["accent"], emphasis=T["emphasis"])
+                paper=T["paper"], ink=T["ink"], accent=T["accent"], emphasis=T["emphasis"],
+                fonts=dict(PAIRS.get(T["name"]) or PAIRS[DEFAULT]))
 
 
 def catalogue():
     return [dict(id=k, label=PRESETS[k]["label"], label_zh=PRESETS[k]["label_zh"], desc_zh=PRESETS[k]["desc_zh"],
-                 paper=PRESETS[k]["paper"], ink=PRESETS[k]["ink"], accent=PRESETS[k]["accent"])
+                 paper=PRESETS[k]["paper"], ink=PRESETS[k]["ink"], accent=PRESETS[k]["accent"],
+                 fonts=dict(PAIRS.get(k) or PAIRS[DEFAULT]))
             for k in names(all_=True)]

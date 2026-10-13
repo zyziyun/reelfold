@@ -6,6 +6,7 @@ speed defaults and brand colours) resolves through here.
     from vstudio.config import font, model, persona
     font("cjk-bold")          -> path to Noto Sans SC Bold (downloaded by install.sh)
     font("cjk-serif")         -> Noto Serif SC (titles in 文艺 / photo-story modes)
+    font("display-zh")        -> Smiley Sans 得意黑 ($VSTUDIO_FONT_DISPLAY_ZH first; MissingAsset -> caller falls back)
     model("face_landmarker")  -> path to MediaPipe face_landmarker.task
     persona()["speed"]["body"]
 """
@@ -33,6 +34,19 @@ FONTS = {
     "serif-italic": ["STIXTwoText-Italic.ttf"],
     "mono": ["JetBrainsMono-Regular.ttf"],
     "mono-bold": ["JetBrainsMono-Bold.ttf"],
+    # the typography kit (theme.type_scale pairs; AESTHETICS P5 stays the default look, these are opt-in faces):
+    # Smiley Sans 得意黑 for modern Chinese headlines, LXGW WenKai 霞鹜文楷 for quotes / photo stories, Instrument
+    # Serif for English display titles. display-latin and serif-display are one face under two names (a theme pair
+    # names the role it means, not the file).
+    "display-zh": ["SmileySans-Oblique.otf", "SmileySans-Oblique.ttf"],
+    "zh-humanist": ["LXGWWenKai-Regular.ttf"],
+    "display-latin": ["InstrumentSerif-Regular.ttf"],
+    "serif-display": ["InstrumentSerif-Regular.ttf"],
+}
+# role -> env var the desk sets when the font lives outside FONT_DIR (Smiley Sans is unpacked from its release zip
+# into its own asset folder, packaging/assets.json font-smiley). Checked before FONT_DIR.
+FONT_ENV = {
+    "display-zh": "VSTUDIO_FONT_DISPLAY_ZH",
 }
 MODELS = {
     "face_landmarker": "face_landmarker.task",       # MediaPipe, Apache-2.0
@@ -121,6 +135,9 @@ def font(role: str) -> str:
         p = _custom_font(role, custom)
         if p:
             return p
+    env = os.environ.get(FONT_ENV[role]) if role in FONT_ENV else None
+    if env and os.path.isfile(env):
+        return env
     for name in FONTS.get(role, [role]):
         p = os.path.join(FONT_DIR, name)
         if os.path.exists(p):
