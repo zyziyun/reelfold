@@ -124,14 +124,29 @@ export function CaptionLooks({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
 const VERSIONS = ['9:16', '16:9', '3:4'] as const; // international first
 const ASPECT_TARGET: Record<string, string> = { '3:4': 'xiaohongshu:vertical', '9:16': 'douyin:vertical', '16:9': 'youtube:horizontal' };
 
+/** The shapes each platform takes: a clip made for some platforms offers only their shapes as versions. */
+const PLATFORM_SHAPES: Record<string, string[]> = {
+  youtube: ['16:9'], 'youtube-shorts': ['9:16'], tiktok: ['9:16'], douyin: ['9:16'], instagram: ['9:16'], kuaishou: ['9:16'],
+  'wechat-channels': ['9:16'], xiaohongshu: ['3:4', '9:16'], bilibili: ['16:9'], x: ['16:9'], facebook: ['16:9'], linkedin: ['16:9'],
+};
+
+export function versionsFor(targets: string[] | null | undefined): readonly string[] {
+  const ts = (targets ?? []).map((x) => x.split(':')[0]);
+  if (!ts.length || ts.some((x) => !PLATFORM_SHAPES[x])) return VERSIONS;
+  const want = new Set(ts.flatMap((x) => PLATFORM_SHAPES[x]));
+  return VERSIONS.filter((v) => want.has(v));
+}
+
 export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
   const orig = new Set(doc.files.map((f) => f.aspect));
+  // the shapes of the platforms it is made for (a goal video's English cut: YouTube's 16:9), plus what it already has
+  const shapes = versionsFor(doc.targets);
   // the engine keeps an export by its platform target (3:4 -> xiaohongshu:vertical): the chip is on either way
   const added = new Set(doc.exports.flatMap((e) => [e.target, ...Object.entries(ASPECT_TARGET).filter(([, x]) => x === e.target).map(([a]) => a)]));
   const flat = doc.mode === 'flattened';
   return (
     <div className="ci-chips" data-testid="ci-versions">
-      {VERSIONS.map((v) => {
+      {VERSIONS.filter((v) => shapes.includes(v) || orig.has(v) || doc.exports.some((e) => e.target === v || e.target === ASPECT_TARGET[v])).map((v) => {
         const own = orig.has(v);
         const on = own || added.has(v);
         return (
@@ -428,7 +443,9 @@ export function RenderPill({ s, onRetry }: { s: RenderState; onRetry?: () => voi
 // ---------------------------------------------------------------- copy + when
 /** A clip's calendar rows, its platforms and the next free slot - shared by the post section and the Studio's
  * 「排期发布」 in the page header (one load of the calendar). */
-export function useClipSchedule(item: string, clip: string) {
+/** ``targets``: the platforms the clip is made for (its project's own, e.g. YouTube for a goal video's English cut):
+ * only those are on by default - never every account she has (the English cut is not scheduled to 小红书). */
+export function useClipSchedule(item: string, clip: string, targets?: string[] | null) {
   const ui = useUi();
   const { subscribe } = useEngine();
   const { data, actions, client, reload } = usePublishData();
@@ -441,7 +458,13 @@ export function useClipSchedule(item: string, clip: string) {
   const today = iso(new Date());
   const groups = useMemo(() => groupPosts(mine, accounts.connected), [mine, accounts.connected]);
   const g = groups.find((x) => x.day >= today && x.status !== 'posted') ?? groups[groups.length - 1] ?? null;
-  const [off, setOff] = useState<string[]>([]);
+  const [offS, setOff] = useState<string[] | null>(null);
+  const tkey = (targets ?? []).join();
+  const off = useMemo(() => {
+    if (offS) return offS;
+    const want = new Set((targets ?? []).map(channelOf));
+    return want.size ? accounts.connected.filter((pf) => !want.has(channelOf(pf))) : [];
+  }, [offS, tkey, accounts.connected]); // eslint-disable-line react-hooks/exhaustive-deps
   const pfs = useMemo(() => accounts.connected.filter((pf) => !off.includes(pf)), [accounts.connected, off]);
   const day = useMemo(() => nextFreeDay(posts, new Date(), pfs.map((pf) => accounts.timeOf(pf))), [posts, pfs, accounts]);
   const rows: Row[] = useMemo(() => (g ? sortIds(g.on.map((p) => base(p.platform))).map((pf) => ({ pf, post: g.on.find((p) => base(p.platform) === pf)! })) : []), [g]);
@@ -462,6 +485,12 @@ export function useClipSchedule(item: string, clip: string) {
   return { item, clip, loaded: !!data, g, rows, accounts, actions, off, setOff, pfs, when, scheduledWhen: g ? fmtWhen(g.day, g.time) : '', scheduleNow, tab: rows.some((r) => r.pf === tab) ? tab : firstTab(rows), setTab, shorten, reload };
 }
 export type ClipScheduleState = ReturnType<typeof useClipSchedule>;
+
+/** The account a platform id posts through ("youtube-shorts:vertical" -> "youtube"). */
+export function channelOf(p: string): string {
+  const b = p.split(':')[0];
+  return b === 'youtube-shorts' ? 'youtube' : b;
+}
 
 /** The clip's post: unscheduled -> its platforms + "Schedule · <next free slot>"; scheduled -> when, where, and the
  * copy per platform (the publish drawer's component, same rows). */
@@ -487,7 +516,7 @@ export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState;
           {accounts.connected.map((pf) => {
             const on = !off.includes(pf);
             return (
-              <button key={pf} className={`ci-chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setOff((o) => (on ? [...o, pf] : o.filter((x) => x !== pf)))} data-testid="ci-pf" data-pf={pf}>
+              <button key={pf} className={`ci-chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setOff(on ? [...off, pf] : off.filter((x) => x !== pf))} data-testid="ci-pf" data-pf={pf}>
                 <PlatformIcon id={pf} size={13} />
                 {platformName(pf)}
               </button>

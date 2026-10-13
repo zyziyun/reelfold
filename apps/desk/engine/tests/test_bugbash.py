@@ -286,6 +286,20 @@ class LaunchVideoInbox(unittest.TestCase):
         self.assertEqual(items[0]["options"][0]["label"]["code"], "inbox.opt.cutWord")
 
 
+class ClipTargets(unittest.TestCase):
+    """A goal video's English cut is for YouTube, its Chinese cut for 小红书 / B站: the clip page's schedule offers the
+    project's own platforms (``targets``), never every account she has."""
+
+    def test_targets_are_the_project_s_platforms(self):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as f:
+            f.write("params:\n  platforms: [xiaohongshu:vertical, bilibili]\nitems:\n- id: a-zh\n  params: {}\n"
+                    "- id: b\n  params: {platforms: [youtube-shorts]}\n")
+        self.assertEqual(OU._targets(d, "a-zh"), ["xiaohongshu", "bilibili"])
+        self.assertEqual(OU._targets(d, "b/final"), ["youtube-shorts"])
+        self.assertEqual(OU._targets(tempfile.mkdtemp(), "x"), [])
+
+
 class AutopilotStepsAreNotHers(unittest.TestCase):
     """Her goal on autopilot: a project parked at its layout check while its run still renders showed "Take a look"
     in Needs you (an empty page, nothing to look at) - the run answers that check itself when it ends."""

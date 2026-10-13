@@ -423,7 +423,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   const flushCuts = useCallback(() => committer.flush(), [committer]);
   // every saved change re-renders the clip in the background (what goes out is what she sees)
   const auto = useAutoRender(id, clip, odoc, flushCuts);
-  const sched = useClipSchedule(id, clip);
+  const sched = useClipSchedule(id, clip, odoc?.targets);
   // the rendered "after" of a look: render the clip as it is now (once; an unchanged clip is a cache hit)
   const wantsRender = !holdC && preview.compare && !!preview.before && !!preview.rendered && !!doc && !doc.renders.some((r) => r.fresh && !r.simulated);
   const renderRef = useRef<() => void>(() => undefined);

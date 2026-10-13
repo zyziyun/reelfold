@@ -46,6 +46,9 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
     what happens next ("Planning took too long — trying again (1 of 1)"). An app restart or update mid-goal plans
     the interrupted video again without using up its retry.
   - "Drop this video" asks first.
+  - Each language cut is offered for its own platforms: the English cut's schedule turns on YouTube only (the
+    Chinese cut 小红书 / B站), and its versions are those platforms' shapes. Platforms named in the request win over
+    the composer's platform chip.
 - **Music-only films no longer fail on their first run**: a skipped step (no voice) now keeps its place, so the
   render waits for the story and the layout check instead of starting with no music.
 - A stopped request no longer shows "Plan ready — your go". A video that stopped before it was made says where and

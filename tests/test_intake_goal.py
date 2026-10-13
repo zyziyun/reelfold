@@ -202,3 +202,13 @@ def test_her_range_is_met_or_the_plan_says_why(card):
     doc = G.make_goal(f"在 {card} 至少做 9 条视频", [], ui_lang="zh")
     assert doc["count"]["short"] and doc["count"]["min"] == 9 and doc["count"]["planned"] == len(doc["videos"]) < 9
     assert doc["count"]["photo_only"] >= 1
+
+
+def test_the_platforms_she_names_win_over_the_composer_chip(card):
+    """Her words name YouTube, 小红书 and B站: the composer's platform chip (TikTok, Instagram, X ...) never adds to
+    them - each video, and so each language cut, is made for what she named."""
+    doc = G.make_goal(f"做多个视频 {card}，发 YouTube、小红书和 B站", [], ui_lang="zh",
+                      platforms=["youtube", "youtube-shorts", "tiktok", "instagram", "x", "xiaohongshu", "douyin"])
+    assert doc["platforms"] == ["youtube", "xiaohongshu", "bilibili"]
+    assert all(v["platforms"] == ["youtube", "xiaohongshu", "bilibili"] or v["kind"] == "reel" for v in doc["videos"])
+    assert not any("tiktok" in v["platforms"] for v in doc["videos"])

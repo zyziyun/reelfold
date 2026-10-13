@@ -38,6 +38,25 @@ NLE_FORMATS = ("xmeml", "jianying", "capcut", "otio")
 TARGET_RE = re.compile(r"^([a-z][a-z-]{0,30}(:[a-z]{3,12})?|\d{1,2}:\d{1,2})$")
 
 
+
+def _targets(d, clip_id):
+    """The platforms a project's video is made for (project.yaml ``params.platforms``, its item's own when it has
+    them): its schedule offers these, never every account she has - the English cut of a goal video is for YouTube,
+    its Chinese cut for 小红书 / B站."""
+    import yaml
+    try:
+        with open(os.path.join(d, "project.yaml"), encoding="utf-8") as f:
+            pj = yaml.safe_load(f) or {}
+    except (OSError, ValueError, yaml.YAMLError):
+        return []
+    plats = (pj.get("params") or {}).get("platforms") or []
+    for it in pj.get("items") or []:
+        if isinstance(it, dict) and it.get("id") and str(clip_id).split("/")[0] == it["id"]:
+            plats = ((it.get("params") or {}).get("platforms")) or plats
+    if isinstance(plats, str):
+        plats = [plats]
+    return list(dict.fromkeys(str(p).split(":")[0] for p in plats if isinstance(p, str) and p))
+
 class EngineMessage(BadRequest):
     """An engine refusal with its code (exit 5 + {ok: false, code, params, message, message_zh})."""
 
@@ -1182,6 +1201,7 @@ class Outputs:
                                         group=rec.get("group") or sess.get("group"), created=rec.get("created"),
                                         studio=sess.get("studio", True) is not False)
         doc.setdefault("pickups", [])
+        doc["targets"] = _targets(e["dir"], clip_id) if e["kind"] == "project" else []
         paths = [f["path"] for f in doc.get("files") or []] + [doc.get("cover")] + \
             [r.get("file") for r in doc.get("renders") or []]
         self.history.allow_media([p for p in paths if p])

@@ -113,22 +113,25 @@ test('cover, captions, schedule and copy on the clip editor; the clip re-renders
   await info.getByTestId('ci-look-box').click();
   await expect(info.getByTestId('ci-look-box')).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 });
 
-  // schedule: her platforms are on, one click at the next free slot (international first)
+  // schedule: the platforms the clip is made for are on (this project: 小红书), her other accounts are offered off -
+  // one click at the next free slot (international first in the list)
   const sched = info.getByTestId('ci-schedule');
   await expect(sched).toHaveAttribute('data-state', 'unscheduled');
   await expect(sched.getByTestId('ci-pf').first()).toHaveAttribute('data-pf', 'youtube');
+  await expect(sched.getByTestId('ci-pf').first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(sched.locator('[data-testid=ci-pf][data-pf=xiaohongshu]')).toHaveAttribute('aria-pressed', 'true');
   await click(sched.getByTestId('ci-schedule-btn'));
   await expect(sched).toHaveAttribute('data-state', 'scheduled', { timeout: 15000 });
   const cal = await api<{ posts: { item: string; clip: string; platform: string }[] }>('/api/calendar');
-  expect(cal.posts.filter((p) => p.item === id && p.clip === 'talk').map((p) => p.platform.split(':')[0]).sort()).toEqual(['tiktok', 'xiaohongshu', 'youtube']);
+  expect(cal.posts.filter((p) => p.item === id && p.clip === 'talk').map((p) => p.platform.split(':')[0]).sort()).toEqual(['xiaohongshu']);
 
   // the copy per platform: the publish drawer's component on the same rows
-  await expect(sched.getByTestId('pb-ctab').first()).toHaveAttribute('data-pf', 'youtube');
+  await expect(sched.getByTestId('pb-ctab').first()).toHaveAttribute('data-pf', 'xiaohongshu');
   const cap = sched.getByTestId('pb-caption');
   await click(cap);
   await cap.fill('One recording, a week of posts. #creator');
   await expect
-    .poll(async () => (await api<{ posts: { item: string; clip: string; platform: string; caption: string }[] }>('/api/calendar')).posts.find((p) => p.item === id && p.platform.startsWith('youtube'))?.caption, { timeout: 15000 })
+    .poll(async () => (await api<{ posts: { item: string; clip: string; platform: string; caption: string }[] }>('/api/calendar')).posts.find((p) => p.item === id && p.platform.startsWith('xiaohongshu'))?.caption, { timeout: 15000 })
     .toBe('One recording, a week of posts. #creator');
   // the title, in the header of the same screen: one click, type, Enter - every platform's title follows
   await click(page.getByTestId('editor-title-edit'));
@@ -137,7 +140,7 @@ test('cover, captions, schedule and copy on the clip editor; the clip re-renders
   await expect(page.getByTestId('editor-title')).toHaveText('One recording, a week of posts');
   await expect
     .poll(async () => (await api<{ posts: { item: string; clip: string; title: string }[] }>('/api/calendar')).posts.filter((p) => p.item === id && p.clip === 'talk').map((p) => p.title), { timeout: 15000 })
-    .toEqual(['One recording, a week of posts', 'One recording, a week of posts', 'One recording, a week of posts']);
+    .toEqual(['One recording, a week of posts']);
   await shot('B3-scheduled-copy');
   // title + copy + cover + schedule: 4 clicks on one screen (the review measured 14+ over 4 screens before)
   expect(clicks).toBe(4);

@@ -274,6 +274,8 @@ export interface OutputDoc {
   title_band: { text: string; sub?: string } | null;
   cover_edit: { t?: number; text?: string; style?: string } | null;
   exports: { target: string; layout?: string; lang?: string | null }[];
+  /** the platforms the clip is made for (its project's own): what its schedule offers on by default */
+  targets?: string[];
   /** a finished video imported for second-pass editing: its footage and matched shots */
   imported?: ImportedDoc | null;
   steps: Step[];
