@@ -3,8 +3,9 @@
 // the render runs, the contact sheets, the cover options, the master - in recipe order, updating by itself while it
 // runs. Each tile plays on hover and opens big on a click, with "Ask AI about this" (the project chat, her words
 // started) and Pause while it runs. Generic over recipes: the engine's Project.pieces (stage `wip` + `preview`).
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, FolderOpen, Pause, Sparkles, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, FolderOpen, Pause, Sparkles, X } from 'lucide-react';
 import type { Piece } from '../../../shared/v04';
 import { t } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
@@ -12,7 +13,8 @@ import { pieceLabel } from '../lib/pieces';
 import { media, Thumb } from './kit';
 import { Player } from './Player';
 import { errText } from './msg';
-import { useUi } from './ui';
+import { isTyping, useUi } from './ui';
+import { screenOwner } from '../lib/fullscreen';
 import './workpieces.css';
 
 const isVideo = (p: Piece) => p.kind === 'video' || p.kind === 'videos';
@@ -26,7 +28,7 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   const { client, subscribe } = useEngine();
   const ui = useUi();
   const { data, reload } = useLoad((c) => c.pieces(item).catch(() => null), [item]);
-  const [big, setBig] = useState<Piece | null>(null);
+  const [big, setBig] = useState<string | null>(null); // the open piece's path
   const [pausing, setPausing] = useState(false);
   const pieces = useMemo(() => data?.pieces ?? [], [data]);
   const live = running || pieces.some((p) => p.state === 'running');
@@ -55,7 +57,8 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   if (!pieces.length && !running) return null;
   const newest = pieces.reduce<Piece | null>((a, p) => (p.state === 'running' && (!a || p.mtime > a.mtime) ? p : a), null);
   // the open piece as the run has it now (a contact sheet written again shows its new version), in the same viewer
-  const shown = big ? (pieces.find((p) => p.path === big.path) ?? big) : null;
+  const at = big ? pieces.findIndex((p) => p.path === big) : -1;
+  const shown = at >= 0 ? pieces[at] : null;
   return (
     <>
       <details className="wp" open={open} data-testid="work-pieces" data-n={pieces.length} data-live={live ? '1' : '0'}>
@@ -89,7 +92,7 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
                 {mine.map((p) => {
                   const label = pieceLabel(p);
                   return (
-                    <button key={p.path} className={`wp-tile ${p.state}`} onClick={() => setBig(p)} title={label} data-testid="work-piece" data-stage={p.stage} data-kind={p.kind} data-state={p.state}>
+                    <button key={p.path} className={`wp-tile ${p.state}`} onClick={() => setBig(p.path)} title={label} data-testid="work-piece" data-stage={p.stage} data-kind={p.kind} data-state={p.state}>
                       <Thumb src={isVideo(p) ? null : p.path} video={isVideo(p) ? p.path : null} v={p.mtime} ratio="16/9" />
                       <span className="wp-l clamp1" data-testid="work-piece-label">
                         {p === newest && <i className="dot run" aria-label={t('wp.making')} />}
@@ -108,6 +111,8 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
       {shown && (
         <PieceView
           p={shown}
+          pos={{ n: at + 1, of: pieces.length }}
+          onStep={(d) => setBig(pieces[(at + d + pieces.length) % pieces.length].path)}
           onClose={() => setBig(null)}
           onAsk={() => {
             askProjectChat(item, t('wp.askPrompt', { label: pieceLabel(shown) }));
@@ -119,21 +124,61 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   );
 }
 
-function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk: () => void }) {
+/** A piece big: over the whole window (on <body>, so no page around it can clip it or sit over it), dimmed behind.
+ * The box is never taller than the window - the media takes what is left after its title, controls and actions
+ * (scaled to fit, its shape kept), so "Ask AI about this" always shows (2026-10-13, 0.2.8: a 16:9 "Picture 3" on a
+ * running project had its action bar cut in half). Esc or a click outside closes it, ← → step through the pieces. */
+function PieceView({ p, pos, onStep, onClose, onAsk }: { p: Piece; pos: { n: number; of: number }; onStep: (d: 1 | -1) => void; onClose: () => void; onAsk: () => void }) {
   const label = pieceLabel(p);
   const image = !isVideo(p);
+  const view = useRef<HTMLDivElement | null>(null);
   // shown once its image is in (or failed): the box sizes to the image, so laid out before it its actions sit at the
   // top and jump down under her pointer when it loads
-  const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState<string | null>(null); // the path whose image is in
+  const ready = loaded === p.path;
+  // a video's own shape: the box is as wide as the video can be shown at the height left for it
+  const [shape, setShape] = useState<{ path: string; ar: number } | null>(null);
+  const ar = shape?.path === p.path ? shape.ar : null;
   useEffect(() => {
-    if (!image) return; // the player's overlay owns its keys (Esc closes)
-    const on = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', on);
-    return () => window.removeEventListener('keydown', on);
-  }, [image, onClose]);
+    if (image) return;
+    const v = view.current?.querySelector('video');
+    if (!v) return;
+    const path = p.path;
+    const on = () => void (v.videoWidth && v.videoHeight && setShape({ path, ar: v.videoWidth / v.videoHeight }));
+    on();
+    v.addEventListener('loadedmetadata', on);
+    return () => v.removeEventListener('loadedmetadata', on);
+  }, [image, p.path]);
+  useEffect(() => {
+    // before the player's own keys (← → are its frame steps): here they step through the pieces; Shift ← → still
+    // seek, and in full screen the player has every key
+    const on = (e: KeyboardEvent) => {
+      if (screenOwner() || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('.scrim, .ctx')) return;
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (pos.of > 1) onStep(e.key === 'ArrowRight' ? 1 : -1);
+      } else if (image && e.key === 'Escape') onClose(); // a video: the player's Esc closes (it knows full screen)
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, [image, onClose, onStep, pos.of]);
   const bar = (
     <div className="wp-bar" data-testid="piece-actions">
       {image && <b className="clamp1">{label}</b>}
+      {pos.of > 1 && (
+        <span className="wp-step">
+          <button className="btn ghost icon sm" onClick={() => onStep(-1)} aria-label={t('wp.prev')} data-tip={`${t('wp.prev')} · ←`} data-testid="piece-prev">
+            <ChevronLeft className="ico" />
+          </button>
+          <span className="muted tnum" data-testid="piece-pos">
+            {t('wp.pos', { n: pos.n, of: pos.of })}
+          </span>
+          <button className="btn ghost icon sm" onClick={() => onStep(1)} aria-label={t('wp.next')} data-tip={`${t('wp.next')} · →`} data-testid="piece-next">
+            <ChevronRight className="ico" />
+          </button>
+        </span>
+      )}
       <span className="sp" />
       <button className="btn sm primary" onClick={onAsk} data-testid="piece-ask">
         <Sparkles className="ico" />
@@ -145,22 +190,31 @@ function PieceView({ p, onClose, onAsk }: { p: Piece; onClose: () => void; onAsk
       </button>
     </div>
   );
-  if (isVideo(p))
-    return (
-      // the player as the app's big player (keys, Esc closes), the piece's actions under it
-      <div className="pl-overlay wp-vidview" onMouseDown={(e) => e.target === e.currentTarget && onClose()} data-testid="piece-view">
-        <Player files={[{ path: p.path, aspect: '16:9' }]} title={label} onClose={onClose} autoPlay keys extra={bar} />
-      </div>
-    );
-  return (
-    <div className="pl-overlay wp-imgview" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-label={label} data-testid="piece-view">
-      <div className="wp-imgbox" data-ready={ready ? '1' : '0'}>
-        <img src={media(p.path, p.mtime)} alt={label} onLoad={() => setReady(true)} onError={() => setReady(true)} />
-        {bar}
-        <button className="btn ghost icon wp-x" onClick={onClose} aria-label={t('wp.close')} data-testid="piece-close">
-          <X className="ico" />
-        </button>
-      </div>
-    </div>
+  return createPortal(
+    <div
+      ref={view}
+      className={`pl-overlay wp-view ${image ? 'wp-imgview' : 'wp-vidview'}`}
+      style={ar ? ({ '--ar': ar } as CSSProperties) : undefined}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      data-testid="piece-view"
+      data-path={p.path}
+    >
+      {image ? (
+        <div className="wp-imgbox" data-ready={ready ? '1' : '0'} data-testid="piece-box">
+          <img key={p.path} src={media(p.path, p.mtime)} alt={label} onLoad={() => setLoaded(p.path)} onError={() => setLoaded(p.path)} />
+          {bar}
+          <button className="btn ghost icon wp-x" onClick={onClose} aria-label={t('wp.close')} data-testid="piece-close">
+            <X className="ico" />
+          </button>
+        </div>
+      ) : (
+        // the app's big player (its keys, Esc closes, full screen), the piece's actions under it
+        <Player key={p.path} files={[{ path: p.path, aspect: '16:9' }]} title={label} onClose={onClose} autoPlay keys extra={bar} testId="piece-box" />
+      )}
+    </div>,
+    document.body,
   );
 }

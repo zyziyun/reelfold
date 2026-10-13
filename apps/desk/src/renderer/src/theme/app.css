@@ -296,6 +296,12 @@ textarea.inp { height: auto; padding: 8px 12px; resize: vertical; line-height: 1
 .pl .stage video { max-width: 100%; max-height: 100%; display: block; }
 .pl .frame { position: relative; display: inline-block; max-height: 100%; line-height: 0; }
 .pl .frame video { max-height: min(72vh, 900px); }
+/* a player in a window-sized box (the big player over the page, the piece viewer, the focused review): its stage is what
+   is left after its title, scrubber and controls, the video fitted inside it with its shape kept - never cropped, and
+   the controls and what sits under them never pushed out of the window */
+.pl-overlay > .pl:not(.full) { height: 100%; }
+.pl-overlay > .pl:not(.full) .stage, .rv .stage .pl:not(.full) .stage { container-type: size; }
+.pl-overlay > .pl:not(.full) .frame video, .rv .stage .pl:not(.full) .frame video { width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); height: auto; max-width: 100cqw; max-height: 100cqh; object-fit: contain; }
 /* system full screen (and the in-window fallback): the video letterboxed / pillarboxed on black, light controls.
  * :root .pl.pl outranks every page's own player layout (the editor column, the Studio's 380 px player, the chat). */
 :root .pl.pl:fullscreen, :root .pl.pl.full { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; border-radius: 0; border: 0; padding: var(--s1) var(--s3) var(--s2); background: #000; color: #EDE9E4; box-shadow: none; gap: 8px; display: flex; flex-direction: column;
