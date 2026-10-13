@@ -28,8 +28,9 @@ def footage(folder, secs):
     for i in range(3):
         p = os.path.join(folder, f"DJI_000{i}_D.MP4")
         if not os.path.exists(p):
+            # testsrc, not testsrc2: testsrc2's colour cycle is a colour flash every ~4 s (the flicker QC refuses it)
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
-                            f"testsrc2=size=480x270:rate=30:duration={secs}", "-vf", f"hue=h={i * 40}", "-c:v",
+                            f"testsrc=size=480x270:rate=30:duration={secs}", "-vf", f"hue=h={i * 40}", "-c:v",
                             "libx264", "-pix_fmt", "yuv420p", p], check=True)
         out.append(p)
     return out
