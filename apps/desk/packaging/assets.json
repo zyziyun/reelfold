@@ -387,6 +387,32 @@
    ]
   },
   {
+   "id": "rife-mlx",
+   "required": true,
+   "targets": [
+    "darwin-arm64"
+   ],
+   "root": "models/rife-4.25-mlx",
+   "env": {
+    "VSTUDIO_RIFE_MODEL": ""
+   },
+   "licence": "RIFE 4.25 (Practical-RIFE, hzwer) weights, MIT (MLX conversion by mlx-community).",
+   "files": [
+    {
+     "url": "https://huggingface.co/mlx-community/RIFE-4.25/resolve/6b650eaa5664aab280119511fe944861491aa15e/config.json",
+     "dest": "./config.json",
+     "sha256": "ea2ed44511141528db10b78461073ec2106a64bd7439849b01b56cd83296fa2e",
+     "size": 403
+    },
+    {
+     "url": "https://huggingface.co/mlx-community/RIFE-4.25/resolve/6b650eaa5664aab280119511fe944861491aa15e/model.safetensors",
+     "dest": "./model.safetensors",
+     "sha256": "40bd5bdc9b41d22ad2fad79da325dcd68988a90d8b8e8fb7b67ed5eedebccf5f",
+     "size": 22674262
+    }
+   ]
+  },
+  {
    "id": "chromium-darwin-arm64",
    "required": false,
    "targets": [

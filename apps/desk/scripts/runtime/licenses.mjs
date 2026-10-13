@@ -185,6 +185,8 @@ silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (ML
 Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer (the free Chinese voice, Apple silicon; an optional
 download from Settings › Voice) — Apache-2.0, Alibaba Qwen team (8-bit MLX conversion: mlx-community); its text
 tokenizer is read by the engine's own \`vstudio.qwen_bpe\` (MIT), so transformers / tokenizers are not shipped.
+RIFE 4.25 frame interpolation weights (smooth jump cuts and slow motion, Apple silicon) — MIT, hzwer / Practical-RIFE
+(MLX conversion: mlx-community); the network code is the engine's own MLX port (\`vstudio.rife\`, MIT).
 chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
 HyperFrames) — BSD-3-Clause and third-party licences, the full text in LICENSE.headless_shell inside the download.
 

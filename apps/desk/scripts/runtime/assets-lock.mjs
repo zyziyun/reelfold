@@ -22,6 +22,9 @@ const PINS = {
   // the free Chinese voice (Apple silicon, mlx-audio): Qwen3-TTS 1.7B CustomVoice, 8-bit MLX - native Mandarin
   // speakers (serena = vstudio.tts.ZH_VOICE["qwen"], vivian, uncle_fu, dylan, eric); ux/zh-voice has the A/B
   qwenTts: { repo: 'mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit', rev: '41d3337e8b7f2843a75841595fc14e4b9a7a4b96' },
+  // frame interpolation (Apple silicon, MLX - no torch): RIFE 4.25 for morph-cut bridges and smooth slow motion
+  // (vstudio.rife / vstudio.morphcut); the same pins as vstudio.rife.FILES
+  rife: { repo: 'mlx-community/RIFE-4.25', rev: '6b650eaa5664aab280119511fe944861491aa15e' },
   // the headless browser for HTML covers / slides and HyperFrames: chrome-headless-shell from Chrome for Testing, not a
   // Chromium.app snapshot - a bare executable with no app bundle, so macOS never sees an app that could ask for
   // notifications. The version is the one HyperFrames manages itself (CHROME_VERSION in the hyperframes CLI), so its
@@ -188,6 +191,17 @@ groups.push({
   files: await hf(PINS.qwenTts, '.', ['config.json', 'generation_config.json', 'preprocessor_config.json', 'tokenizer_config.json',
     'vocab.json', 'merges.txt', 'model.safetensors', 'model.safetensors.index.json', 'speech_tokenizer/config.json',
     'speech_tokenizer/configuration.json', 'speech_tokenizer/preprocessor_config.json', 'speech_tokenizer/model.safetensors']),
+});
+log('rife');
+// required on Apple silicon: 23 MB, and talking heads smooth their jump cuts by default (formats smooth_cuts)
+groups.push({
+  id: 'rife-mlx',
+  required: true,
+  targets: ['darwin-arm64'],
+  root: 'models/rife-4.25-mlx',
+  env: { VSTUDIO_RIFE_MODEL: '' },
+  licence: 'RIFE 4.25 (Practical-RIFE, hzwer) weights, MIT (MLX conversion by mlx-community).',
+  files: await hf(PINS.rife, '.', ['config.json', 'model.safetensors']),
 });
 const CFT = 'https://storage.googleapis.com/chrome-for-testing-public';
 for (const [target, plat] of Object.entries(PINS.headlessShell.platforms)) {

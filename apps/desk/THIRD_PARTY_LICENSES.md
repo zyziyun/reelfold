@@ -309,6 +309,7 @@ Fetched from the upstream URLs pinned in `packaging/assets.json` into the app da
 | upscale-esrgan | darwin-arm64 | Real-ESRGAN realesr-general-x4v3 weights, BSD-3-Clause (xinntao). Upscales small cover crops (MLX). | github.com |
 | cover-aesthetic | all | LAION aesthetic predictor v2, Apache-2.0 (christophschuhmann/improved-aesthetic-predictor) on OpenAI CLIP ViT-L/14, MIT (q4f16 ONNX by Xenova). Ranks cover frames. | huggingface.co |
 | tts-qwen-zh | darwin-arm64 | Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer, Apache-2.0 (Alibaba Qwen; 8-bit MLX conversion by mlx-community). | huggingface.co |
+| rife-mlx | darwin-arm64 | RIFE 4.25 (Practical-RIFE, hzwer) weights, MIT (MLX conversion by mlx-community). | huggingface.co |
 | chromium-darwin-arm64 | darwin-arm64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-darwin-x64 | darwin-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
 | chromium-win32-x64 | win32-x64 | chrome-headless-shell (Chromium), BSD-3-Clause and third-party licences (LICENSE.headless_shell in the download). Used for HTML covers/slides and HyperFrames. | storage.googleapis.com |
@@ -322,6 +323,8 @@ silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (ML
 Qwen3-TTS-12Hz-1.7B-CustomVoice weights and speech tokenizer (the free Chinese voice, Apple silicon; an optional
 download from Settings › Voice) — Apache-2.0, Alibaba Qwen team (8-bit MLX conversion: mlx-community); its text
 tokenizer is read by the engine's own `vstudio.qwen_bpe` (MIT), so transformers / tokenizers are not shipped.
+RIFE 4.25 frame interpolation weights (smooth jump cuts and slow motion, Apple silicon) — MIT, hzwer / Practical-RIFE
+(MLX conversion: mlx-community); the network code is the engine's own MLX port (`vstudio.rife`, MIT).
 chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
 HyperFrames) — BSD-3-Clause and third-party licences, the full text in LICENSE.headless_shell inside the download.
 
