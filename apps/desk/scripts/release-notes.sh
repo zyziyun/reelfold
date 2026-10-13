@@ -15,7 +15,7 @@ ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
 REPO_URL="https://github.com/zyziyun/reelfold"
 # One line under every release: what Reelfold is (hand-written notes in apps/desk/release-notes/ carry their own).
-ABOUT="_Reelfold (千剪) is the open-source workbench for creators: your own footage, edited into videos for every platform (YouTube, TikTok, Instagram, X and LinkedIn, then Xiaohongshu, Douyin, Bilibili and WeChat Channels) and scheduled, on your Mac. Free, MIT._"
+ABOUT="_Reelfold (千剪) is the open-source workbench for creators and course makers: create, edit and publish videos for every platform in one app (YouTube, TikTok, Instagram, X and LinkedIn, then Xiaohongshu, Douyin, Bilibili and WeChat Channels), hundreds at a time, on your Mac. Free, MIT._"
 
 if [ -f "apps/desk/release-notes/$TAG.md" ]; then
   cat "apps/desk/release-notes/$TAG.md"

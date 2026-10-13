@@ -184,7 +184,7 @@ module.exports = {
     icon: 'packaging/resources/icons',
     category: 'AudioVideo',
     executableName: 'reelfold',
-    synopsis: 'One recording, folded out into every cut for every platform',
+    synopsis: 'Create, edit and publish videos for every platform in one app',
   },
   appx: {
     // Microsoft Store (MSIX). Values come from Partner Center; the Store re-signs the package.

@@ -3,7 +3,7 @@
   "productName": "Reelfold",
   "version": "0.2.7",
   "private": true,
-  "description": "Reelfold (千剪): one recording, folded out into every cut for every platform. Desktop app on the open-source Reelfold engine.",
+  "description": "Reelfold (千剪): the open-source workbench for creators and course makers. Create, edit and publish videos for every platform in one app.",
   "main": "out/main/index.cjs",
   "type": "module",
   "scripts": {
