@@ -45,7 +45,7 @@ import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { Goal, GoalEditOp } from './goal';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, BrainDoc, BrainState, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import type { ImportCheck, ImportInfo, ImportJob, ImportTakes } from './imports';
 import { CreateClient } from './create';
@@ -576,6 +576,25 @@ export class EngineClient {
   /** plan a waiting request without what it asked for (her Notion pages ...) */
   goOnIntake(id: string) {
     return this.req<{ id: string }>('POST', `/api/intake/${pid(id)}/go-on`, {});
+  }
+  /** the editor brain of a project: its template + why, the per-shot plan, "Could be generated" proposals */
+  brain(item: string) {
+    return this.req<BrainState>('GET', `/api/brain/${bid(item)}`);
+  }
+  brainRefresh(item: string) {
+    return this.req<{ ok: boolean; started: boolean }>('POST', `/api/brain/${bid(item)}/refresh`, {});
+  }
+  /** her template for the project (one of the same recipe's) */
+  brainTemplate(item: string, id: string) {
+    return this.req<{ ok: boolean; doc: BrainDoc }>('POST', `/api/brain/${bid(item)}/template`, { id });
+  }
+  /** change one shot's treatment (or reset it to the engine's) */
+  brainShot(item: string, id: string, set: Record<string, string | boolean> | null) {
+    return this.req<{ ok: boolean; doc: BrainDoc }>('POST', `/api/brain/${bid(item)}/shot`, set ? { id, set } : { id, reset: true });
+  }
+  /** her answer on a generation proposal; approve carries its confirm code (this price). Nothing is spent here. */
+  brainGen(item: string, id: string, action: 'approve' | 'skip' | 'undo', code?: string) {
+    return this.req<{ ok: boolean; doc: BrainDoc }>('POST', `/api/brain/${bid(item)}/gen`, { id, action, code });
   }
   /** what the autopilot decided for a project, and whether it is on */
   autopilot(item: string) {

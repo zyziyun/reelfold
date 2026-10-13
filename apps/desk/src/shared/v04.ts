@@ -416,6 +416,8 @@ export interface IntakeProject {
   checkpoints: { id: string; kind: string; label: string; needs_you: boolean }[];
   estimate: { machine_min?: number; wall_min?: number; api_usd?: number; credits?: number | null };
   outputs?: { platforms?: string[]; videos?: number };
+  /** the editing template the engine picked (vstudio.brain): shown as "Cut as … · why"; changed on the project page */
+  template?: { id: string; label: string; label_zh: string; by: 'rules' | 'her' | 'ai'; confidence?: number; reason: BrainText; alternatives?: { id: string; recipe: string; label: string; label_zh: string }[] };
 }
 
 export interface IntakePlan {
@@ -565,6 +567,83 @@ export interface AutopilotDecision {
   asked?: boolean;
   /** taste calls (filler-confirm, hook-pick): the options, each ``checked`` as the engine decided */
   options?: InboxOption[];
+}
+
+/** The editor brain (``python -m vstudio.brain``): a reason in the two languages the engine writes */
+export interface BrainText {
+  en: string;
+  zh: string;
+}
+export interface BrainWhy extends BrainText {
+  code: string;
+  params?: Record<string, unknown>;
+}
+export interface BrainTemplate {
+  template: string;
+  recipe: string;
+  label: string;
+  label_zh: string;
+  /** rules: the materials; her: her words or her choice; ai: the routed AI on a close call */
+  by: 'rules' | 'her' | 'ai';
+  confidence: number;
+  reason: BrainText;
+  alternatives: { id: string; recipe: string; label: string; label_zh: string; blurb: string }[];
+}
+export interface BrainShot {
+  id: string;
+  clip: string;
+  file?: string;
+  start: number;
+  end: number;
+  thumb?: string | null;
+  score?: number;
+  skip: boolean;
+  use?: [number, number];
+  hold_s?: number;
+  speed?: 'normal' | 'slowmo' | 'ramp';
+  speed_x?: number;
+  reframe?: string;
+  transition?: { kind: string; s: number };
+  text?: { ok: boolean; where: string | null };
+  punch_in?: string;
+  stabilize?: boolean;
+  why: BrainWhy[];
+  /** each decision's candidates with their fit, best first */
+  choices?: Record<string, [string, number][]>;
+  ambiguous?: string[];
+  by: 'rules' | 'her' | 'ai';
+}
+export interface BrainProposal {
+  id: string;
+  kind: 'establishing' | 'short' | 'cover' | 'bridge' | 'weak' | 'broll';
+  title: BrainText;
+  why: BrainText;
+  mode: string;
+  prompt: string;
+  source?: { clip?: string; t?: number; thumb?: string | null; shot?: string } | null;
+  seconds: number;
+  provider: string;
+  model: string;
+  estimate: { cny: number | null; unknown?: boolean; verified?: boolean; label?: string | null };
+  status: 'proposed' | 'approved' | 'skipped';
+  /** the confirm code an Approve carries (this proposal at this price) */
+  code: string;
+  stale?: boolean;
+}
+export interface BrainDoc {
+  template: BrainTemplate | null;
+  plan: { template: string; shots: BrainShot[]; summary: Record<string, unknown> & { used: number; shots: number; seconds: number } } | null;
+  proposals: BrainProposal[];
+  cost: { n: number; cny: number; unknown: number };
+  stage: 'planned' | 'cut' | 'review';
+}
+/** GET /api/brain/<item> */
+export interface BrainState {
+  item: string;
+  supported: boolean;
+  state?: 'ready' | 'computing' | 'failed';
+  doc?: BrainDoc | null;
+  error?: string;
 }
 
 /** GET /api/autopilot/<item> */

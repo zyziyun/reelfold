@@ -15,6 +15,7 @@ import { failureReason } from './Failure';
 import { emsg, errText } from './msg';
 import { IS_LITE } from '../../../shared/edition';
 import { useUi } from './ui';
+import { said } from './BrainPanel';
 import { AnsweredBy, FallbackNote } from './AiChip';
 import { openReport } from '../support/Support';
 import { orderPlatforms } from '../../../shared/platforms';
@@ -250,6 +251,13 @@ export function PlanCard({ job, jobId, onRevise, onRetry, onReset, onStarted, on
       <p className="lead" lang={sum.lang} data-testid="plan-summary">
         {sum.own ? planSentence(plan, platformName) : plan.summary_zh}
       </p>
+      {plan.projects.map((p) =>
+        p.template ? (
+          <p key={`tpl-${p.id}`} className="muted small" style={{ marginTop: -4 }} data-testid="plan-template">
+            {t('brain.madeAs')} <b>{getLang() === 'zh-CN' ? p.template.label_zh : p.template.label}</b> · {said(p.template.reason)}
+          </p>
+        ) : null,
+      )}
       {noAi && !plan.planner?.failure && (
         <p className="muted small" style={{ marginTop: -4 }} data-testid="plan-no-ai">
           {t('plan.noAi')}

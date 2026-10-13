@@ -106,6 +106,9 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            archived ones); POST /api/intake/archive | restore | delete {ids[]}
                                            (the Studio's row menu: delete = a request that never became a project
                                            is gone for good; her files are never touched)
+  GET  /api/brain/<item>; POST .../refresh; POST .../template {id}; POST .../shot {id, set | reset};
+       POST .../gen {id, action approve | skip | undo, code?}  the editor brain: template + why, the per-shot plan,
+       "Could be generated" proposals (never spends)   (brain.py)
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
        POST .../change {checkpoint, item, answer}; POST .../remake {item, do {checkpoint: choice | null}}
        (a finished clip's vertical framing / post copy made again, older projects too)   (autopilot.py)
@@ -512,6 +515,8 @@ class Api:
         self.inbox.outputs = self.outputs
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
         self.project_ask.autopilot = self.autopilot
+        from .brain import Brain                    # the editor brain: template, per-shot plan, generation proposals
+        self.brain = Brain(self.history, runner if real else None, bus)
         self.outputs.autopilot = self.autopilot        # the clip chat's "follow the subject" / "rewrite the copy"
         from .imports import Imports                # finished videos made elsewhere -> second-pass editing
         self.imports = Imports(engine.data_dir, self.history, self.outputs, self.strips, bus, runner if real else None)
@@ -731,6 +736,18 @@ class Api:
                 return self.autopilot.change(parts[1], b.get("checkpoint"), b.get("item"), b.get("answer"))
             if parts[2:] == ["remake"] and method == "POST":
                 return self.autopilot.remake(parts[1], b.get("item"), b.get("do"))
+        if parts[:1] == ["brain"] and len(parts) >= 2:
+            need(ID_RE.match(parts[1]), "bad item id")
+            if len(parts) == 2 and method == "GET":
+                return self.brain.get(parts[1])
+            if parts[2:] == ["refresh"] and method == "POST":
+                return self.brain.refresh(parts[1])
+            if parts[2:] == ["template"] and method == "POST":
+                return self.brain.template(parts[1], b.get("id"))
+            if parts[2:] == ["shot"] and method == "POST":
+                return self.brain.shot(parts[1], b.get("id"), b.get("set"), reset=b.get("reset") is True)
+            if parts[2:] == ["gen"] and method == "POST":
+                return self.brain.gen(parts[1], b.get("id"), b.get("action"), b.get("code"))
         if parts == ["sample"] and method == "GET":
             return self.sample.info()
         if parts == ["sample", "remove"] and method == "POST":

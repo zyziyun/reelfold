@@ -16,6 +16,7 @@ import { go, href, type ProjectTab } from '../lib/router';
 import { clipStatus, itemStatus, STATUS_KEY } from '../lib/status';
 import { WithProjectChat } from './ProjectChat';
 import { WorkPieces } from './WorkPieces';
+import { BrainPanel } from './BrainPanel';
 import { ClipVisualsRedo } from './ClipInfo';
 import { inboxSub, inboxTitle } from './Inbox';
 import { authorHelp } from '../lib/inboxView';
@@ -384,6 +385,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
                   <div className="tags">{sel.post.tags.map((x) => `#${x}`).join(' ')}</div>
                 </div>
               )}
+              {item?.kind === 'project' && <BrainPanel item={id} />}
               {item?.kind === 'project' && (
                 <section className="proj-pieces">
                   <WorkPieces item={id} running={s === 'run'} open={s === 'run' || !done.length} onPaused={reloadHist} />

@@ -1,5 +1,6 @@
 // English (source of truth and fallback). Product copy: short, friendly, no engine jargon.
 import { draftsEn } from './drafts';
+import { brainEn } from './brain';
 import { updateEn } from './update';
 import { usageEn } from './usage';
 import { shareEn } from './share';
@@ -618,5 +619,5 @@ export const v04En = {
   'editor.zoomFit': 'Fit',
 };
 
-export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...voiceEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn };
+export const en = { ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...voiceEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn, ...brainEn };
 export type MessageKey = keyof typeof en;

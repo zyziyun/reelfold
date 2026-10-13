@@ -1,0 +1,35 @@
+/* "How it's cut" (BrainPanel): one quiet section - the template line, its reason, the shot strip (folded), the
+   "Could be generated" cards. Mockup A in ux/editor-brain/mockups.html. */
+.brain { display: flex; flex-direction: column; gap: 8px; margin: 18px 0 6px; min-width: 0; }
+.brain-hd { display: flex; align-items: center; gap: 8px; min-height: 32px; flex-wrap: wrap; }
+.brain-chip { font-weight: 600; padding: 3px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.brain-hd .tag { font-size: 12px; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; }
+.brain-busy { font-size: 12.5px; }
+.brain-why { margin: 0; font-size: 13px; max-width: 72ch; }
+.brain-menu { position: relative; }
+.brain-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; min-width: 260px; padding: 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgb(0 0 0 / 0.3); }
+.brain-alt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.brain-alt:hover, .brain-alt:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.brain-alt .muted { font-size: 12.5px; }
+.brain-shots .chev { transition: transform 0.15s; }
+.brain-shots[open] .chev { transform: rotate(90deg); }
+.brain-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+.brain-tile { display: flex; flex-direction: column; gap: 3px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.brain-tile .th { border-radius: 6px; overflow: hidden; }
+.brain-tile.out { opacity: 0.45; }
+.brain-tile.on .th, .brain-tile:hover .th { outline: 2px solid var(--accent); outline-offset: 1px; }
+.brain-l { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brain-whybox { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; }
+.brain-whybox ul { margin: 6px 0 8px; padding-left: 18px; }
+.brain-whybox .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.brain-fit { font-size: 12px; }
+.brain-gen { margin-top: 8px; }
+.brain-gen > .row { display: flex; align-items: center; gap: 6px; }
+.brain-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin-top: 8px; }
+.brain-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; min-width: 0; }
+.brain-card .th { border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
+.brain-card.approved { border-style: solid; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.brain-card.skipped { opacity: 0.55; }
+.brain-card .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.brain-meta { font-size: 12px; }
+.brain-ph { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: 6px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-muted); margin-bottom: 4px; }
