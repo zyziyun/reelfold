@@ -646,6 +646,9 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
                  f"{target:.0f} s. Order the windows so the light and the motion flow (wide -> closer, golden -> "
                  "blue hour; a move continues the direction of the one before); neighbouring windows should be "
                  "similar in brightness so no cut jumps in exposure.")
+    brain_line, brain_picks = ("", []) if fun else brain_plan(ctx, clips)
+    if brain_line:
+        rules += "\n" + brain_line
     cur = ""
     if instruction and DR.state(path, None, cp, ctx.recipe) in ("drafted", "hers"):
         cur = json.dumps({k: cfg.get(k) for k in ("segments", "shots", "title", "end_card") if k in cfg},
@@ -704,7 +707,7 @@ def draft_edit(ctx, cp, path, template=None, instruction=None, complete=None):
         picks = fit_beats(picks, fun_body_beats(target))
     rules = not picks
     if rules:                                   # no model (or nothing usable): spread the length over the clips
-        picks = rules_windows(by_id, list(clips), target * (1 if fun else calm_speed(cfg)), fun)
+        picks = brain_picks or rules_windows(by_id, list(clips), target * (1 if fun else calm_speed(cfg)), fun)
         js = dict(title=dict(text=str(ctx.params.get("title") or ctx.data.get("name") or "").strip()[:40], sub=""))
     out = {k: v for k, v in cfg.items() if k != "starter"}
     mood = None
@@ -759,6 +762,33 @@ def calm_speed(cfg):
     except Exception:  # noqa: BLE001
         vp = {}
     return float(cfg.get("default_speed", cfg.get("deer_speed", vp.get("speed_subject", 1.0))))
+
+
+def brain_plan(ctx, clips):
+    """The editor brain's shot plan for this calm film (``vstudio.brain``: the same plan the project page shows) ->
+    (a line for the drafter's prompt, windows for the no-model draft). ("", []) when it cannot be made."""
+    try:
+        from vstudio.brain import store as BS
+        from vstudio.project.core import Project
+        doc = BS.show(Project(ctx.project_dir), light=True)
+    except Exception:  # noqa: BLE001  (no shot analysis here: the drafter works from the sheets as before)
+        return "", []
+    by_real = {os.path.realpath(p): k for k, p in clips.items()}
+    rows = [r for r in ((doc.get("plan") or {}).get("shots") or []) if not r.get("skip")
+            and os.path.realpath(r["clip"]) in by_real]
+    if not rows:
+        return "", []
+    picks, bits = [], []
+    for r in rows:
+        cid = by_real[os.path.realpath(r["clip"])]
+        a, b = r["use"]
+        picks.append(dict(clip=cid, start=round(a, 2), dur=round(max(1.0, b - a), 2)))
+        why = next((w["en"] for w in r["why"] if w["code"] not in ("hold", "open")), "")
+        bits.append(f"{cid} {a:.1f}-{b:.1f}s ({r['transition']['kind']}"
+                    f"{', slow motion' if r['speed'] == 'slowmo' else ''}{': ' + why if why else ''})")
+    t = doc.get("template") or {}
+    return (f"Editor's shot plan ({t.get('label') or 'calm film'}, from the shot analysis - follow it unless the "
+            f"sheets show a better moment): " + "; ".join(bits[:24]), picks)
 
 
 def rules_windows(by_id, order, target, fun):

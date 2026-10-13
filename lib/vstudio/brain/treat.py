@@ -80,7 +80,10 @@ def _q(t, med):
     if t.get("sharp") is None or t.get("steady") is None or t.get("bright") is None or med is None:
         return float(t.get("score") or 0.5)
     rel = 1.0 - min(1.0, abs(float(t["bright"]) - med) / 0.25)
-    return round(0.40 * float(t["sharp"]) + 0.35 * float(t["steady"]) + 0.25 * rel, 3)
+    q = 0.40 * float(t["sharp"]) + 0.35 * float(t["steady"]) + 0.25 * rel
+    if t.get("aesthetic") is not None:        # LAION aesthetic 1-10 when the engine has the model (as in shots)
+        q = 0.85 * q + 0.15 * max(0.0, min(1.0, (float(t["aesthetic"]) - 4.0) / 3.0))
+    return round(q, 3)
 
 
 def _usable(t, med=None):

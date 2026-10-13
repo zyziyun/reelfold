@@ -6,7 +6,8 @@
                                                   #   subject_frac, subject_xy, speech, src_fps, w, h, thumb, recorded,
                                                   #   lab}]
 
-Source of the moments: ``vstudio.shots`` (TransNet V2 / adaptive cuts, per-moment sharpness, steadiness, exposure)
+Source of the moments: ``vstudio.shots`` (TransNet V2 / adaptive cuts, per-moment sharpness, steadiness, exposure,
+aesthetics when the LAION model is downloaded)
 when the engine has it; otherwise one tile per clip from five sampled frames (sharpness, brightness, frame-to-frame
 change; steadiness unknown = 0.6) so the planner still works, more cautiously. Faces (MediaPipe, when installed)
 and the subject (``vstudio.saliency``) are read from the tile's best second. ``words``: {clip path: [{start, end}]}
@@ -58,8 +59,9 @@ def _read(path):
 _SAL = {}
 
 
-def look(img):
-    """A frame -> {faces, face_area, subject_frac, subject_xy, bright, lab}: who / what is in it, where."""
+def look(img, deep=True):
+    """A frame -> {faces, face_area, subject_frac, subject_xy, subject_spread, bright, lab}: who / what is in it,
+    where. ``deep=False``: brightness and colour only (no face / saliency models)."""
     import cv2
     out = dict(faces=None, face_area=None, subject_frac=None, subject_xy=None, subject_spread=None, bright=None,
                lab=None)
@@ -69,6 +71,8 @@ def look(img):
     out["bright"] = round(float(g.mean()) / 255.0, 3)
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
     out["lab"] = [round(float(x), 1) for x in lab.mean(axis=0)]
+    if not deep:
+        return out
     try:
         from vstudio.intake import inventory as I
         areas = I._face_areas(img)
@@ -139,7 +143,7 @@ def for_clip(src, words=None, faces=True):
         for m in S.moments(a):
             ss = [x for x in secs if m["start"] <= x["t"] < m["end"]] or secs[:1]
             rows.append(dict({k: m.get(k) for k in ("id", "start", "end", "best", "t", "score", "sharp", "steady",
-                                                     "exposure", "jitter_px", "pan_px_s")},
+                                                     "exposure", "jitter_px", "pan_px_s", "aesthetic")},
                              motion=round(float(np.mean([x["motion"] for x in ss])), 2) if ss else None))
         thumb_of = lambda t: S.thumb(a, t)  # noqa: E731
     else:
@@ -154,7 +158,7 @@ def for_clip(src, words=None, faces=True):
     for r in rows:
         th = thumb_of(r["t"]) if thumb_of else None
         img = _read(th) if th else _grab(src, r["t"])
-        lk = look(img) if faces else dict(look(None))
+        lk = look(img, deep=faces)
         out.append(dict(r, clip=os.path.abspath(src), file=os.path.basename(src), src_fps=round(float(info.get("fps") or 0), 2),
                         w=w, h=h, recorded=f.get("recorded"), time_of_day=f.get("time_of_day"), aerial=bool(f.get("gps")),
                         city=(f.get("city") or {}).get("en"), thumb=th, speech=_speech((words or {}).get(src), r["start"], r["end"]),

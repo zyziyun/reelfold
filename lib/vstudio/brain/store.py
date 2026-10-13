@@ -108,14 +108,34 @@ def _save_her(project, b):
     project.save()
 
 
-def _signals(project, paths, refresh=False):
+def _light_analysis(paths):
+    """The footage facts alone (length, shape, the DJI log) as an analysis: no listening, no faces - enough to pick
+    a template inside a footage recipe."""
+    from vstudio import footage, places
+    files = []
+    for k, p in enumerate(paths):
+        if footage.is_video(p):
+            f = footage.facts(p)
+            files.append(dict(id=f"f{k + 1}", path=p, kind="video", duration=f.get("dur"), speech=None,
+                              orientation=f.get("orientation")))
+            if places.srt_for(p):
+                files.append(dict(id=f"t{k + 1}", path=places.srt_for(p), kind="text", shape="telemetry"))
+        elif p.lower().endswith((".jpg", ".jpeg", ".png", ".heic", ".webp")):
+            files.append(dict(id=f"f{k + 1}", path=p, kind="image"))
+    return dict(files=files)
+
+
+def _signals(project, paths, refresh=False, light=False):
     d = _dir(project)
     sp = os.path.join(d, "signals.json")
     cached = None if refresh else _read(sp)
-    if cached and cached.get("paths") == paths:
+    if cached and cached.get("paths") == paths and (light or not cached.get("light")):
         return cached["signals"], cached.get("analysis_files") or []
-    from vstudio.intake import inventory as I
-    analysis = I.analyze(paths, asr="sample")
+    if light:
+        analysis = _light_analysis(paths)
+    else:
+        from vstudio.intake import inventory as I
+        analysis = I.analyze(paths, asr="sample")
     facts = {}
     try:
         from vstudio import footage
@@ -126,7 +146,7 @@ def _signals(project, paths, refresh=False):
         pass
     s = T.signals(analysis, project.data.get("prompt") or "", footage_facts=facts)
     files = [{k: f.get(k) for k in ("id", "path", "kind", "duration", "speech", "talking_head")} for f in analysis["files"]]
-    _write(sp, dict(paths=paths, signals=s, analysis_files=files, at=time.strftime("%Y-%m-%dT%H:%M:%S")))
+    _write(sp, dict(paths=paths, signals=s, analysis_files=files, light=light, at=time.strftime("%Y-%m-%dT%H:%M:%S")))
     return s, files
 
 
@@ -190,10 +210,11 @@ def template_of(project, s):
     return d
 
 
-def show(project, refresh=False, shots=True, judge=None, echo=None):
-    """The brain doc of a project (module doc). ``shots=False``: the template only (no decoding)."""
+def show(project, refresh=False, shots=True, judge=None, echo=None, light=False):
+    """The brain doc of a project (module doc). ``shots=False``: the template only (no decoding). ``light``: signals
+    from the footage facts only (a footage recipe's draft step: no listening pass)."""
     paths = media_of(project)
-    s, _files = _signals(project, paths, refresh)
+    s, _files = _signals(project, paths, refresh, light)
     tpl = template_of(project, s)
     if tpl:
         tpl = dict(tpl, alternatives=[a for a in tpl.get("alternatives") or [] if a["recipe"] == project.data["recipe"]])

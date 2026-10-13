@@ -319,7 +319,7 @@ def project(tmp_path, monkeypatch):
         f["path"] = c
     ts = [_tile(1, clip=clips[0].rsplit("/", 1)[1][:-4]), _tile(2, clip="x", score=0.2, bright=0.1)]
     ts[0]["clip"], ts[1]["clip"] = clips[0], clips[1]
-    monkeypatch.setattr(ST, "_signals", lambda project, paths, refresh=False: (T.signals(an, project.data["prompt"]), []))
+    monkeypatch.setattr(ST, "_signals", lambda project, paths, refresh=False, light=False: (T.signals(an, project.data["prompt"]), []))
     monkeypatch.setattr(ST, "_tiles", lambda project, paths, refresh=False, echo=None: ts)
     return pr
 
@@ -385,3 +385,26 @@ def test_cli_presets_and_shot_validation(project, capsys):
     assert cli.main(["presets", "--json"]) == 0
     assert "travel-calm" in capsys.readouterr().out
     assert cli.main(["shot", "--dir", project.dir, "--id", "C1.S1", "--set", "speed=warp", "--json"]) == 2
+
+
+def test_calm_vlog_drafter_reads_the_shot_plan(tmp_path, monkeypatch):
+    from vstudio.project.adapters import vlog as V
+    a, b = tmp_path / "a.mp4", tmp_path / "b.mp4"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    doc = dict(template=dict(label="Calm travel film"), plan=dict(shots=[
+        dict(id="C1.S1", clip=str(a), skip=False, use=[3.0, 13.0], speed="normal", transition=dict(kind="open"),
+             why=[dict(code="open", en="opens the film")]),
+        dict(id="C2.S1", clip=str(b), skip=True, why=[]),
+        dict(id="C2.S2", clip=str(b), skip=False, use=[20.0, 25.0], speed="slowmo", transition=dict(kind="dissolve"),
+             why=[dict(code="dissolve", en="the light changes")])]))
+    monkeypatch.setattr(ST, "show", lambda project, light=False: doc)
+    monkeypatch.setattr("vstudio.project.core.Project", lambda d: object())
+
+    class Ctx:
+        project_dir = str(tmp_path)
+    line, picks = V.brain_plan(Ctx(), {"c1": str(a), "c2": str(b)})
+    assert picks == [dict(clip="c1", start=3.0, dur=10.0), dict(clip="c2", start=20.0, dur=5.0)]
+    assert "c2 20.0-25.0s (dissolve, slow motion: the light changes)" in line and "Calm travel film" in line
+    monkeypatch.setattr(ST, "show", lambda project, light=False: (_ for _ in ()).throw(RuntimeError("no shots")))
+    assert V.brain_plan(Ctx(), {"c1": str(a)}) == ("", [])
