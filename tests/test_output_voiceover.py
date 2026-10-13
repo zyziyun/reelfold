@@ -204,3 +204,33 @@ def test_the_ai_proposal_is_applied_as_proposed(tmp_path, clip, _iso, monkeypatc
     r = O.ai(w, oid, "全程加个配音")
     assert not r["proposed"] and r["dropped"][0]["error"]["code"] == "needs-model"
     assert r["dropped"][0]["op"]["mode"] == "full"
+
+
+def test_an_xhs_file_without_platform_metadata_is_chinese_even_over_whisper_music():
+    music = [dict(w="Music", t=2.76 + i, te=3.7 + i, p=0.2) for i in range(6)]
+    assert VO.speech_words(music + [dict(w="[Applause]", t=9, te=10)]) == []
+    rec = dict(id="final/disney_vlog_xhs.mp4", platform=None, profile=None)
+    assert VO.name_platform(rec) == "xiaohongshu"
+    assert VO.version_langs(rec, dict(exports=[]), music) == ["zh"]           # not "en" from "Music Music"
+    assert VO.name_platform(dict(id="final/trip_youtube.mp4")) == "youtube"
+    assert VO.name_platform(dict(id="final/clip.mp4")) is None
+    assert VO.version_langs(dict(id="final/clip.mp4"), dict(exports=[]), music) == ["en"]
+
+
+def test_a_step_cast_for_english_renders_the_chinese_version_in_a_cast_chinese_voice(tmp_path, clip, _iso):
+    """Her 04-disney-vlog step: voices only {en} on the 小红书 file - the re-render casts the zh voice (no new edit)."""
+    w = tmp_path / "work"
+    (w / "final").mkdir(parents=True)
+    f = w / "final" / "disney_vlog_xhs.mp4"
+    shutil.copy(clip["video"], f)
+    from vstudio.project import works
+    works.adopt(str(w))
+    _TRUTH[str(f)] = clip["truth"]
+    oid = "final/disney_vlog_xhs.mp4"
+    O.edit(str(w), oid, [dict(op="voiceover", mode="intro", lines=[dict(start=0.0, text="Off to Disney",
+                                                                       text_zh="今天去迪士尼")],
+                              voices=dict(en=dict(engine="kokoro", speaker="af_bella", by="rules")))])
+    rec, doc = O._load(str(w), oid)
+    st = doc.state()
+    v = R.plan(rec, doc, st, R.targets_of(rec, st)[0], "preview")["audio"]["vo"][0]
+    assert v["lang"] == "zh" and v["lines"][0][2] == "今天去迪士尼" and v["voice"]["speaker"] == "vivian"

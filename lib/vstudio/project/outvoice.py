@@ -53,16 +53,43 @@ def seconds_for(text, speed=1.0):
 
 
 # --------------------------------------------------------------------------- languages of the versions
+# the platform a finished file is for, from its name (older vlogs: final/disney_vlog_xhs.mp4 has no metadata)
+NAME_PLATFORMS = ((r"xhs|xiaohongshu|redbook|rednote|小红书", "xiaohongshu"), (r"douyin|抖音", "douyin"),
+                  (r"bilibili|bili|b站", "bilibili"), (r"kuaishou|快手", "kuaishou"), (r"wechat|channels|视频号", "wechat-channels"),
+                  (r"youtube|shorts|(?<![a-z])yt(?![a-z])", "youtube"), (r"tiktok", "tiktok"),
+                  (r"instagram|reels|(?<![a-z])ig(?![a-z])", "instagram"))
+# what whisper writes over a music-only clip ("Music", "[Applause]", "♪"): not speech
+NOT_SPEECH = re.compile(r"^[\[\(（【♪♫\s]*(music|musique|applause|laughter|silence|音乐|掌声|笑声|字幕.*|♪|♫|…|\.+)?[\]\)）】♪♫\s.!！]*$",
+                        re.I)
+
+
+def speech_words(words):
+    """The words someone really says: whisper's hallucinations over music ("Music", "♪") left out."""
+    return [w for w in words or [] if not NOT_SPEECH.match(str(w.get("w") or "").strip())]
+
+
+def name_platform(rec):
+    """The platform an output's file name says it is for (``disney_vlog_xhs.mp4`` -> xiaohongshu), or None."""
+    name = os.path.basename(str(rec.get("id") or rec.get("file") or "")).lower()
+    for rx, pf in NAME_PLATFORMS:
+        if re.search(rf"(?<![a-z])(?:{rx})(?![a-z])", name):
+            return pf
+    return None
+
+
 def version_langs(rec, st, words=None):
-    """The languages the output's versions show: its own (the platform it was made for, else the post copy's
-    language, else the speech's), then every export's. -> ["zh", "en"] (first = the output's own)."""
+    """The languages the output's versions show: its own (the platform it was made for - its record, else its file
+    name - else the post copy's language, else the language of the real speech in it, else the canvas's usual
+    platform), then every export's. -> ["zh", "en"] (first = the output's own)."""
     from vstudio import platform as P
     own = None
-    if rec.get("platform"):
-        own = P.lang_for(str(rec["platform"]).split(":")[0], None)
+    pf = str(rec.get("platform") or "").split(":")[0] or name_platform(rec)
+    if pf:
+        own = P.lang_for(pf, None)
     own = own or rec.get("lang_hint")
-    if not own and words:
-        own = "zh" if is_zh(" ".join(w.get("w", "") for w in words[:80])) else "en"
+    said = speech_words(words)
+    if not own and len(said) >= 3:
+        own = "zh" if is_zh(" ".join(w.get("w", "") for w in said[:80])) else "en"
     if not own and rec.get("profile") is not None:
         own = P.lang_for(rec["profile"].key, "en")
     out = [own or "en"]
@@ -286,7 +313,7 @@ def normalize(doc, st, op, tl, dur, warns):
     end = O._src_time(op["end"], "end", op, tl, dur) if op.get("end") is not None else round(t1, 3)
     if end - start < 0.5:
         raise _err("bad-time", "a voice-over needs at least 0.5s", "旁白至少 0.5 秒", start=start, end=end)
-    W = O.words(doc, required=False) if doc.rec["info"]["has_audio"] else []
+    W = speech_words(O.words(doc, required=False)) if doc.rec["info"]["has_audio"] else []
     langs = version_langs(doc.rec, st, W)
     n = dict(op="voiceover", mode=mode, source=source, start=start, end=end,
              duck_db=float(min(0.0, max(-30.0, float(op.get("duck_db", DUCK_DB))))),
@@ -332,7 +359,9 @@ def normalize(doc, st, op, tl, dur, warns):
         n["voices"] = {lg: {k: v[k] for k in ("engine", "speaker", "style", "reason", "by") if v.get(k)}
                        for lg, v in given.items()}
     elif source == "tts":
-        n["voices"] = cast_voices(doc.rec, [lg for lg in langs if any(line_text(x, lg) for x in placed)] or
+        written = [lg for lg in ("zh", "en") if any(line_text(x, lg) for x in placed)]
+        n["voices"] = cast_voices(doc.rec, [lg for lg in langs if lg in written] +
+                                  [lg for lg in written if lg not in langs] or
                                   [("zh" if is_zh(placed[0].get("text") or placed[0].get("text_zh")) else "en")],
                                   ask=op.get("ask"), named=op.get("voice"))
     if mode == "intro" and W and _overlap(placed[0]["start"], placed[-1]["end"], speech_spans(W)) > 0.3:
