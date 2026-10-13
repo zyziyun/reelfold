@@ -221,3 +221,114 @@ def test_cli_pins_match_the_app_manifest():
         assert sorted((f["sha256"], f["size"]) for f in app["files"]) == sorted((f["sha256"], f["size"]) for f in g["files"])
         assert list(app["env"]) == [g["env"]]
         assert not any(w in app["licence"] for w in ("GPL", "non-commercial", "CC BY-NC"))
+
+
+# ------------------------------------------------------------------ specific titles, the subject's tip, 1962 年
+def test_pick_text_prefers_the_title_that_names_the_subject():
+    from vstudio import cover_engine as CE
+    assert CE.specificity("航拍西雅图", "zh") < CE.specificity("埃利奥特湾作业岸线", "zh")
+    assert CE.specificity("Seattle Drone Footage", "en") < CE.specificity("Elliott Bay", "en")
+    # a generic cover text loses to the video's title; a specific one (written for the cover) is kept
+    assert CE.pick_text(["航拍西雅图", "西雅图埃利奥特湾作业岸线 · Elliott Bay"], "zh") == "西雅图埃利奥特湾作业岸线"
+    assert CE.pick_text(["埃利奥特湾 | 西雅图作业岸线 · Elliott Bay Waterfront", "西雅图埃利奥特湾作业岸线"],
+                        "zh") == "埃利奥特湾 | 西雅图作业岸线"
+    assert CE.pick_text(["1962 世博之夜 | Seattle Center", "为1962而建"], "en") == "Seattle Center"
+    assert CE.pick_text(["Seattle Drone Footage", "Elliott Bay Waterfront History"], "en") == \
+        "Elliott Bay Waterfront History"
+    assert CE.pick_text(["红叶"], "en") == ""
+
+
+@pytest.mark.skipif(not _has_fonts(), reason="fonts from install.sh")
+def test_wrap_keeps_a_year_with_its_unit():
+    from vstudio import cover_engine as CE
+    from vstudio.draw import load_font
+    f = load_font("cjk-bold", 100)
+    for lines in (CE._wrap("1962 年世博会", f, 2000, "zh"), CE._wrap("1962年世博会", f, 2000, "zh")):
+        assert not lines or not any(ln.strip().startswith("年") for ln in lines)
+
+
+def test_occupancy_keeps_the_air_above_the_subject_tip_clear():
+    """A thin spire the matte loses (the Space Needle's antenna): the space just above the matte's top is a
+    keep-out too, so a title never sits on the tip."""
+    from vstudio import cover_engine as CE
+    W, H = 960, 540
+    alpha = np.zeros((H, W), np.float32)
+    alpha[200:520, 600:640] = 1.0                                         # a tower from y=200 down
+    an = dict(img=Image.new("RGB", (W, H)), sal=np.zeros((270, 480), np.float32), faces=[], alpha=alpha,
+              subject_box=(600 / W, 200 / H, 640 / W, 520 / H), subject_top=CE.subject_top(alpha > 0.5))
+    tx0, tx1, ty, sh = an["subject_top"]
+    assert abs(tx0 - 600 / W) < 1e-3 and abs(ty - 200 / H) < 1e-3 and sh > 0.5
+    occ = CE.occupancy(an, (0, 0, W, H), (W, H))
+    assert occ[170, 620] == 1.0                                           # above the tip: kept clear
+    assert occ[60, 620] < 0.5 and occ[170, 300] < 0.5                     # the sky well above / aside stays free
+
+
+def test_score_frames_at_given_times(tmp_path):
+    v = str(tmp_path / "v.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=10:duration=4",
+                    "-f", "lavfi", "-i", "color=c=black:size=640x360:rate=10:duration=2", "-filter_complex",
+                    "[0:v][1:v]concat=n=2:v=1[o]", "-map", "[o]", "-pix_fmt", "yuv420p", v], check=True)
+    from vstudio.cover import score_frames, score_images
+    picks = score_frames(v, top_n=3, min_gap=0.1, times=[1.0, 2.5, 5.0], aesthetic=False, log=lambda m: None)
+    assert sorted(round(p["t"], 1) for p in picks) == [1.0, 2.5, 5.0]
+    assert picks[-1]["t"] == 5.0 and all(p["image"] is not None for p in picks)   # the black frame ranks last
+    a, b = str(tmp_path / "a.jpg"), str(tmp_path / "b.jpg")
+    _scene(a, 640, 360)
+    Image.new("RGB", (640, 360), (4, 4, 4)).save(b)
+    rows = score_images([b, a, str(tmp_path / "missing.jpg")], aesthetic=False, log=lambda m: None)
+    assert [os.path.basename(r["path"]) for r in rows] == ["a.jpg", "b.jpg"]
+
+
+def test_photo_story_cover_uses_the_cover_engine(tmp_path, monkeypatch):
+    """photo-story's cover stage: the best still / clip frame of the story, one language per platform (YouTube
+    English with its A/B trio, Xiaohongshu Chinese), the specific title; persona style.cover keeps the old looks."""
+    import sys
+    sys.path.insert(0, os.path.join(ROOT, "workflows", "photo-story", "scripts"))
+    from photostory import cover as PCV
+    monkeypatch.setattr("vstudio.config.persona", lambda: {"style": {}})
+    assert PCV.cover_style() == "designed"
+    monkeypatch.setattr("vstudio.config.persona", lambda: {"style": {"cover": "scrapbook"}})
+    assert PCV.cover_style() == "scrapbook"
+    monkeypatch.setattr("vstudio.config.persona", lambda: {"style": {"cover": "cinema"}})
+    assert PCV.cover_style() == "cinema"
+    monkeypatch.setattr("vstudio.config.persona", lambda: {"style": {}})
+    work = tmp_path / "work"
+    (work / "frames").mkdir(parents=True)
+    _scene(str(work / "frames" / "hero.jpg"))
+    Image.new("RGB", (1920, 1080), (5, 5, 5)).save(work / "frames" / "dark.jpg")
+    v = str(tmp_path / "clip.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x303030:size=640x360:rate=10:"
+                    "duration=6", "-pix_fmt", "yuv420p", v], check=True)
+    os.symlink(v, work / "frames" / "clip.mp4")
+    (work / "spec.py").write_text(
+        'TITLE_ZH = "西雅图埃利奥特湾作业岸线"\nTITLE_EN = "Elliott Bay Waterfront History"\n'
+        'MEDIA = dict(images=["frames"], videos="frames")\n'
+        'SCRIPT = [(0, [("a", "甲")], [("vclip", 1, "still", dict(off=1.0))])]\n'
+        'COVER = dict(title="航拍西雅图", subtitle="Elliott Bay", hero=dict(src="hero"))\n'
+        'POST = dict(title="西雅图埃利奥特湾：一条仍在作业的海岸线")\n')
+    from photostory.ctx import Ctx, load_spec
+    spec = load_spec(str(work / "spec.py"))
+    C = Ctx(spec)
+    assert PCV.cover_texts(spec, C) == {"zh": "西雅图埃利奥特湾作业岸线 | 一条仍在作业的海岸线", "en": "Elliott Bay"}
+    stills, clips = PCV.frame_candidates(spec, C)
+    assert stills[0][0].endswith("hero.jpg") and stills[0][1] > 0 and list(clips.values()) == [[1.5, 3.0, 4.5]]
+    frame, rec = PCV.pick_frame(spec, C, log=lambda m: None)
+    assert rec["best"]["src"].endswith("hero.jpg") and os.path.exists(frame)
+    assert PCV.pick_frame(spec, C, log=lambda m: None)[0] == frame      # cached: every platform reuses the pick
+    for plat, size, lang in (("youtube", (1280, 720), "en"), ("xiaohongshu", (1080, 1440), "zh")):
+        spec.PLATFORM = plat
+        C = Ctx(spec)
+        out = str(tmp_path / "out" / plat / "cover.png")
+        from vstudio import platform as P
+        W, H = P.cover_size(C.prof)
+        PCV.designed_cover(spec, C, {}, W, H, out, log=lambda m: None)
+        assert Image.open(out).size == size
+        rec = json.load(open(str(tmp_path / "out" / plat / "cover.covers.json"), encoding="utf-8"))
+        assert rec["lang"] == lang and CE_has_cjk(rec["title"]) == (lang == "zh")
+        abs_ = sorted(f for f in os.listdir(tmp_path / "out" / plat) if ".ab" in f)
+        assert (abs_ == ["cover.ab.md", "cover.ab1.jpg", "cover.ab2.jpg", "cover.ab3.jpg"]) == (plat == "youtube")
+
+
+def CE_has_cjk(s):
+    from vstudio import cover_engine as CE
+    return CE.has_cjk(s)

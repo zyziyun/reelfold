@@ -53,9 +53,17 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
    1620x2160 and heavy shots (tilt, loupe, ink) are slower, so start long renders in the background.
 6. **Cover + side outputs.**
    ```bash
-   python3 .../cover.py work/spec.py         # COVER dict -> out/cover.png
+   python3 .../cover.py work/spec.py         # cover engine 2.0 -> out/cover.png (+ YouTube A/B: cover.ab1-3.jpg, cover.ab.md)
    python3 .../export.py work/spec.py        # subtitles.srt, transcript.md, voice.mp3 (-16 LUFS), post.md
    ```
+   The cover is designed per platform by `vstudio.cover_engine`: the best frame of the story (the COVER hero, every
+   still in the image folders and the clip windows the SCRIPT shows, ranked by `cover.score_frames` /
+   `score_images` with the LAION aesthetic score; the hero gets a small lead), one language (YouTube / Shorts English,
+   小红书 / B站 Chinese), the most specific title of `COVER` / `COVER_EN`, `TITLE_*` and the post title (a generic
+   "航拍西雅图" loses to the title naming the subject), placed clear of the subject and its tip, checked at thumbnail
+   size, and on YouTube the A/B trio for Test & Compare. The pick is cached in `work/cache/cover/`. persona
+   `style.cover: cinema` keeps the centred serif cover; `style.cover: scrapbook` the paper / polaroid collage that
+   `COVER` (hero, polaroids, tagline) lays out.
 
 ## Voice and language per version
 - **YouTube / YouTube Shorts is always English** (`vstudio.platform.lang_for`): rendered for `PLATFORM = "youtube"`
@@ -158,7 +166,7 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `CLIP_DUCK`, `AMBIENT_DUCK`, `CLIP_LUFS`, `AMBIENT_LUFS` | clip-audio levels / ducking (see Video clip audio) |
 | `CLEANUP` | 气口 / filler cleanup profile for every `audio="keep"` clip (default off; see Video clip audio) |
 | `CANVAS` | `"3:4"` 1080x1440 · `"3:4-hd"` 1620x2160 · `"9:16"` 1080x1920 · `"16:9"` 1920x1080 · `"WxH"` |
-| `LOOK` | `"cinema"` (default; persona `style.look`): full-bleed picture, no running header, the title once over the opening shot, refined type (Noto Serif SC + Noto Sans SC Regular, soft shadows, no boxes), every transition a 0.8 s dissolve or a cut, captions crossfade, full-bleed cover. `"classic"`: the header / chapter band / boxed labels / scrapbook cover design |
+| `LOOK` | `"cinema"` (default; persona `style.look`): full-bleed picture, no running header, the title once over the opening shot, refined type (Noto Serif SC + Noto Sans SC Regular, soft shadows, no boxes), every transition a 0.8 s dissolve or a cut, captions crossfade. `"classic"`: the header / chapter band / boxed labels design (the cover follows persona `style.cover`, see step 6) |
 | `QC` | `dict(flicker="fail" | "warn" | "off")`: `vstudio.flicker` on the full render (default fail) |
 | `LAYOUT` | `header`, `sub` (fraction of H or px), `overlay_subs`. Portrait default: header 13.9 %, picture box, sub band 16.7 %. Landscape default: header 15 % and subtitles overlaid on the picture over a gradient |
 | `PALETTE` | `accent ground paper ink mark route sub_en sub_zh` (hex or RGB) |

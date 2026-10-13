@@ -187,7 +187,7 @@ outputs:
   collect: vstudio.project.adapters.common:collect_files
   files: ["{item_dir}/out/story.mp4", "{item_dir}/out/cover.png", "{item_dir}/out/subtitles.srt", "{item_dir}/out/post.md",
           "{item_dir}/out/voice.mp3", "{item_dir}/out/*/story.mp4", "{item_dir}/out/*/cover.png",
-          "{item_dir}/out/*/post.md"]
+          "{item_dir}/out/*/post.md", "{item_dir}/out/cover.ab*", "{item_dir}/out/*/cover.ab*"]
 agent:
   workflow_md: workflows/photo-story/WORKFLOW.md
   notes: The spec is Python (work/spec.py); paths inside are relative to work/ (inputs are linked in ../inputs). Refresh after editing.

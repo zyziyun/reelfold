@@ -517,7 +517,10 @@ def more_platforms(env):
         env.run([py, os.path.join(scripts, "export.py"), spec, "--out", d, "--platform", p, "--mode", mode,
                  "--no-voice"], log=f"export-{slug}.log")
         rec.update(cover=cov, post=os.path.join(d, "post.md"))
-        files += [cov, rec["post"]]
+        ab = sorted(os.path.join(d, f) for f in os.listdir(d) if f.startswith("cover.ab") and f.endswith(".jpg"))
+        if ab:                                       # YouTube: the A/B trio for Test & Compare (cover.ab.md says how)
+            rec["cover_ab"] = ab
+        files += [cov, rec["post"]] + ab
         out.append(rec)
     from ..build import file_sha
     return dict(files=[f for f in files if os.path.exists(f)], platforms=out,

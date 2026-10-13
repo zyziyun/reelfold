@@ -62,6 +62,8 @@ style:
   footage_theme: cinema    # vlog / photo-story (drone, travel, history over aerials): no cards, serif + sans, soft
                            # shadows (references/AESTHETICS.md P1-P9); any theme id here, e.g. editorial
   look: cinema             # photo-story LOOK: cinema (full-bleed, no header) | classic (header + chapter band)
+  # cover: designed        # designed (default: cover engine 2.0, per platform) | cinema (centred serif title) |
+                           # bold (heavy stroked title) | scrapbook (photo-story's paper + polaroid collage)
   theme: editorial         # editorial | mono | soft | night | xhs-pop (classic = the old red look); see
                            # references/STYLE_RULES.md. Tokens can be tinted here, e.g. accent: "#3E5C76"
                            # Per client: client.yaml theme; per recipe: the project's theme param; per output:

@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Cover image: dark title zone (kicker, title, EN subtitle, tagline with a red-pen-circled keyword),
+"""The story's cover, per platform. Default (persona ``style.cover`` unset / "designed"): cover engine 2.0
+(``vstudio.cover_engine``) on the best frame of the story - every still and clip window the spec uses, ranked by
+``vstudio.cover.score_frames`` / ``score_images`` (sharp, exposed, clear subject, LAION aesthetic) - with one
+language per platform (YouTube English; 小红书 / B站 Chinese), the most specific title of COVER / TITLE_* / POST
+(``cover_engine.pick_text``), the small-size legibility check, and on YouTube the A/B trio (<out>.ab1-3.jpg +
+<out>.ab.md). persona ``style.cover: cinema`` keeps the centred serif cover; ``style.cover: scrapbook`` (polaroid /
+collage) keeps the old paper collage below.
+
+    python3 cover.py spec.py [--out cover.png] [--platform youtube]
+
+The scrapbook collage: dark title zone (kicker, title, EN subtitle, tagline with a red-pen-circled keyword),
 a hero polaroid showing an A|B split (draft|final, before|after), and a row of taped polaroids
 (optional caption + red circle) on paper. Everything comes from spec COVER; size = spec canvas.
-
-    python3 cover.py spec.py [--out cover.png]
 
 COVER = dict(kicker=, title=, subtitle=, tagline=(before, keyword, after),
              hero=dict(a=img, b=img, labels=(la, lb), c=(x,y), z=1.0)  or hero=dict(src=img),
@@ -13,7 +21,10 @@ import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().par
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import argparse
+import hashlib
+import json
 import os
+import shutil
 
 import cv2
 import numpy as np
@@ -82,9 +93,206 @@ def main():
     else:
         W, H = tuple(cfg.get("size", (C.W, C.H)))
     out = a.out or C.path(cfg.get("out", "cover.png"))
-    if C.cinema and cfg.get("style") != "scrapbook":
+    style = cover_style()
+    if style == "designed":
+        print("cover:", designed_cover(spec, C, cfg, W, H, out))
+    elif style == "cinema":
         print("cover:", cinema_cover(C, cfg, W, H, out))
-        return
+    else:
+        print("cover:", scrapbook_cover(C, cfg, W, H, out))
+
+
+def cover_style():
+    """persona ``style.cover``: "scrapbook" / "polaroid" / "collage" -> the paper collage; "cinema" -> the centred
+    serif cover; anything else (unset, "designed") -> cover engine 2.0."""
+    try:
+        from vstudio.config import persona
+        st = (persona() or {}).get("style")
+        v = str((st.get("cover") if isinstance(st, dict) else "") or "").lower()
+    except Exception:  # noqa: BLE001
+        v = ""
+    if v in ("scrapbook", "polaroid", "polaroids", "collage"):
+        return "scrapbook"
+    return "cinema" if v in ("cinema", "centred", "centered") else "designed"
+
+
+# ---------------------------------------------------------------- cover engine 2.0
+HERO_PRIOR = 0.25      # the still the spec names as COVER hero: written for the cover, a small lead in the ranking
+CLIP_SAMPLES = (0.5, 2.0, 3.5)   # seconds into each clip shot the story uses
+
+
+def _cover_text(cfg):
+    t = str((cfg or {}).get("title") or "").strip()
+    sub = str((cfg or {}).get("subtitle") or "").strip()
+    return t + (" | " + sub if sub and t else sub)
+
+
+def cover_texts(spec, C):
+    """{"zh", "en"}: per language the most specific of the cover text and the story's titles (a generic cover
+    title like "航拍西雅图" loses to the title naming the subject)."""
+    from vstudio import cover_engine as CE
+    g = lambda k: dict(getattr(spec, k, {}) or {})
+    zh = CE.pick_text([_cover_text(g("COVER")), C.TITLE_ZH, g("POST_ZH").get("title"), g("POST").get("title")], "zh")
+    en = CE.pick_text([_cover_text(g("COVER_EN")), _cover_text(g("COVER")), C.TITLE_EN, g("POST_EN").get("title")],
+                      "en")
+    return {"zh": zh, "en": en}
+
+
+def _shots(spec):
+    for unit in getattr(spec, "SCRIPT", []) or []:
+        try:
+            shots = unit[2]
+        except (TypeError, IndexError, KeyError):
+            continue
+        for sh in shots or []:
+            if isinstance(sh, (list, tuple)) and sh and isinstance(sh[0], str):
+                yield sh[0], (sh[3] if len(sh) > 3 and isinstance(sh[3], dict) else {})
+
+
+def frame_candidates(spec, C):
+    """-> (stills [(path, prior)], clips {video path: [seconds]}): the COVER stills (hero first), every still in the
+    spec's image folders and every clip window the SCRIPT shows."""
+    from photostory.shots import parse_src
+    stills, seen = [], set()
+
+    def add_still(name, prior=0.0):
+        try:
+            p = C._readable(C.find_image(name))
+        except Exception:  # noqa: BLE001  (a missing still is not a cover candidate)
+            return
+        if p not in seen:
+            seen.add(p)
+            stills.append((p, prior))
+    for key in ("COVER", "COVER_EN"):
+        cfg = dict(getattr(spec, key, {}) or {})
+        hero = cfg.get("hero") or {}
+        for k in ("src", "b", "a"):
+            if hero.get(k):
+                add_still(hero[k], HERO_PRIOR)
+        for pz in cfg.get("polaroids") or []:
+            if pz.get("src"):
+                add_still(pz["src"])
+    clips = {}
+    for src, opts in _shots(spec):
+        try:
+            kind, arg = parse_src(C, src)
+        except Exception:  # noqa: BLE001
+            continue
+        if kind == "video":
+            v = C.find_video(arg)
+            off = float(opts.get("off", 0) or 0)
+            if v:
+                clips.setdefault(v, []).extend(off + d for d in CLIP_SAMPLES)
+        elif kind == "img":
+            add_still(arg)
+    for d in C.img_dirs:
+        if os.path.isdir(d):
+            for f in sorted(os.listdir(d)):
+                if os.path.splitext(f)[1] in C.img_ext and not f.startswith("."):
+                    add_still(os.path.join(d, f))
+    return stills[:60], {v: sorted(set(round(t, 2) for t in ts)) for v, ts in clips.items()}
+
+
+def pick_frame(spec, C, log=print):
+    """The best cover frame of the story -> (path, pick record). Cached in <cache>/cover/ by the candidates."""
+    stills, clips = frame_candidates(spec, C)
+    key = hashlib.sha1(json.dumps([[p, pr, os.path.getmtime(p)] for p, pr in stills]
+                                  + [[v, ts, os.path.getmtime(v)] for v, ts in sorted(clips.items())]).encode()
+                       ).hexdigest()[:12]
+    d = os.path.join(C.cache_dir, "cover")
+    rec_p, frame_p = os.path.join(d, f"pick.{key}.json"), os.path.join(d, f"frame.{key}.jpg")
+    if os.path.exists(rec_p) and os.path.exists(frame_p):
+        return frame_p, json.load(open(rec_p, encoding="utf-8"))
+    os.makedirs(d, exist_ok=True)
+    from vstudio import cover as VC
+    rows = []
+    if stills:
+        prior = dict(stills)
+        for r in VC.score_images([p for p, _ in stills], log=log):
+            rows.append(dict(kind="still", src=r["path"], score=round(r["score"] + prior.get(r["path"], 0.0), 4),
+                             parts=r["parts"]))
+    images = {}
+    for v, ts in clips.items():
+        try:
+            picks = VC.score_frames(v, top_n=len(ts), min_gap=0.4, times=ts, log=log)
+        except Exception as e:  # noqa: BLE001  (an unreadable clip: the stills still rank)
+            log(f"cover: {os.path.basename(v)} not scored ({str(e)[:80]})")
+            continue
+        for p in picks:
+            rid = f"{v}@{p['t']:.2f}"
+            images[rid] = p.get("image")
+            rows.append(dict(kind="clip", src=v, t=p["t"], score=p["score"], parts=p["parts"]))
+    if not rows:
+        raise SystemExit("cover: no still or clip frame to make a cover from (COVER hero / SCRIPT shots)")
+    rows.sort(key=lambda r: -r["score"])
+    best = rows[0]
+    if best["kind"] == "still":
+        from PIL import ImageOps
+        ImageOps.exif_transpose(Image.open(best["src"])).convert("RGB").save(frame_p, quality=95)
+    else:
+        img = images.get(f"{best['src']}@{best['t']:.2f}")
+        if img is None:
+            raise SystemExit(f"cover: could not read {best['src']} at {best['t']} s")
+        cv2.imwrite(frame_p, img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    rec = dict(best=best, ranked=rows[:12])
+    with open(rec_p, "w", encoding="utf-8") as f:
+        json.dump(rec, f, ensure_ascii=False, indent=1)
+    log(f"cover: frame {os.path.basename(best['src'])}" + (f" @ {best['t']:.1f}s" if best.get("t") is not None else "")
+        + f" (score {best['score']}, of {len(rows)})")
+    return frame_p, rec
+
+
+def designed_cover(spec, C, cfg, W, H, out, log=print):
+    """Cover engine 2.0 for this platform -> out (+ on YouTube <stem>.ab1-3.jpg and <stem>.ab.md)."""
+    from vstudio import cover_engine as CE
+    frame, _ = pick_frame(spec, C, log=log)
+    texts = cover_texts(spec, C)
+    if C.prof is not None and not cfg.get("size"):
+        sp = CE.spec_for(C.prof.key)
+    else:
+        m = int(min(W, H) * 0.06)
+        lang = "en" if C.SUBS == "en" else ("zh" if texts["zh"] else "en")
+        sp = dict(name="generic", key="generic", size=(W, H), safe=(m, m, W - m, H - m), keepouts=[], lang=lang,
+                  max_bytes=None)
+    if not texts.get(sp["lang"]):                # an English-only story on a Chinese platform: its own language
+        texts[sp["lang"]] = texts["en"] or texts["zh"]
+    out_dir = os.path.dirname(os.path.abspath(out))
+    stem = os.path.splitext(os.path.basename(out))[0]
+    work = os.path.join(C.cache_dir, "cover", "render")
+    if os.path.isdir(work):
+        shutil.rmtree(work)
+    res = CE.make_covers(frame, texts, [sp], work, stem=stem, log=log)
+    r = res[sp["key"]]
+    os.makedirs(out_dir, exist_ok=True)
+    img = Image.open(r["file"]).convert("RGB")
+    if os.path.splitext(out)[1].lower() in (".jpg", ".jpeg"):
+        img.save(out, quality=92)
+    else:
+        img.save(out)
+    for old in [f for f in os.listdir(out_dir) if f.startswith(stem + ".ab")]:
+        os.remove(os.path.join(out_dir, old))
+    variants = []
+    for k, v in enumerate(r.get("variants") or []):
+        dst = os.path.join(out_dir, f"{stem}.ab{k + 1}.jpg")
+        shutil.copyfile(v["file"], dst)
+        variants.append(dict(v, file=dst))
+    if len(variants) >= 2:
+        with open(os.path.join(out_dir, f"{stem}.ab.md"), "w", encoding="utf-8") as f:
+            f.write(CE.ab_note({"youtube": dict(variants=variants)}))
+    leg = r.get("legibility") or {}
+    sizes = ", ".join(f"{x['size']} h{x['height']:.3f} c{x['contrast']}" for x in leg.get("sizes") or [])
+    log(f"cover: {sp['key']} {sp['lang']} \"{r.get('title', '')}\"" + (f" / {r['kicker']}" if r.get("kicker") else "")
+        + f" - {r.get('variant')}, " + ("legible" if r.get("ok") else "FAILS the small-size check") + f" ({sizes})"
+        + (f"; A/B {len(variants)}" if variants else ""))
+    with open(os.path.join(out_dir, f"{stem}.covers.json"), "w", encoding="utf-8") as f:
+        json.dump(dict({k: v for k, v in r.items() if k != "file"}, platform=sp["key"], frame=frame, texts=texts,
+                       variants=[{k: v for k, v in x.items() if k != "legibility"} for x in variants]),
+                  f, ensure_ascii=False, indent=1)
+    return out
+
+
+def scrapbook_cover(C, cfg, W, H, out):
+    """The old paper collage (persona style.cover: scrapbook)."""
     k = min(W / 1620, H / 2160)
     q = lambda v: int(round(v * k))
     GOLD, RED = C.GOLD, C.pal["mark"]
@@ -179,13 +387,13 @@ def main():
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     cv.save(out)
-    print("cover:", out)
+    return out
 
 
 def cinema_cover(C, cfg, W, H, out):
     """LOOK cinema (references/AESTHETICS.md P8): the hero still full-bleed (cropped to the cover's aspect around its
     focus), the title in the serif over a soft gradient, a hairline and a small spaced line - no polaroids, no tape,
-    no red circle. COVER style="scrapbook" keeps the collage."""
+    no red circle. persona style.cover: cinema."""
     import tempfile
     from vstudio.batch.edits import _text_cover
     hero = cfg.get("hero") or {}
