@@ -6,7 +6,7 @@
     beats, downbeats = beatthis.track_file("music.mp3")
 
 The official checkpoint (CPJKU/beat_this, MIT code + weights) is a PyTorch zip; it is read here with a restricted
-unpickler (only tensors, storages and OrderedDict - nothing else can load) and the network runs in numpy, or in MLX on
+unpickler (``vstudio.ptload``: only tensors, storages and plain containers can load) and the network runs in numpy, or in MLX on
 Apple silicon when it is installed (the same maths; ~5x faster). Same pre- and post-processing as the reference
 ``Audio2Beats(dbn=False)``: 22.05 kHz log-mel (128 bands, 50 fps), 1500-frame chunks with 6-frame borders, peaks of the
 logits within +-70 ms above 0, adjacent peaks merged, every downbeat moved onto its nearest beat. madmom's DBN (its
@@ -17,9 +17,6 @@ by the desk, ``install.sh`` for the CLI; sha256 pinned in apps/desk/packaging/as
 """
 import math
 import os
-import pickle
-import zipfile
-from collections import OrderedDict
 
 import numpy as np
 
@@ -58,60 +55,11 @@ def available():
 
 
 # ------------------------------------------------------------------ checkpoint (torch zip, no torch)
-_DT = {"FloatStorage": np.float32, "HalfStorage": np.float16, "DoubleStorage": np.float64,
-       "LongStorage": np.int64, "IntStorage": np.int32, "BFloat16Storage": None}
-
-
-class _Storage:
-    def __init__(self, dtype, key):
-        self.dtype, self.key = dtype, key
-
-
-def _rebuild_tensor_v2(storage, offset, size, stride, *_):
-    arr = storage.data
-    n = int(np.prod(size)) if len(size) else 1
-    if not len(size):
-        return arr[offset].copy()
-    st = [s * arr.itemsize for s in stride]
-    return np.lib.stride_tricks.as_strided(arr[offset:], shape=tuple(size), strides=st)[...].copy() if n else \
-        np.zeros(size, arr.dtype)
-
-
-class _Unpickler(pickle.Unpickler):
-    ALLOWED = {("collections", "OrderedDict"): OrderedDict, ("torch._utils", "_rebuild_tensor_v2"): _rebuild_tensor_v2}
-
-    def __init__(self, fh, zf, prefix):
-        super().__init__(fh)
-        self.zf, self.prefix, self.cache = zf, prefix, {}
-
-    def find_class(self, module, name):
-        if (module, name) in self.ALLOWED:
-            return self.ALLOWED[(module, name)]
-        if module == "torch" and name in _DT and _DT[name] is not None:
-            return name
-        raise pickle.UnpicklingError(f"checkpoint refers to {module}.{name}: not a plain weights file")
-
-    def persistent_load(self, pid):
-        typ, kind, key = pid[0], pid[1], pid[2]
-        if typ != "storage" or kind not in _DT:
-            raise pickle.UnpicklingError(f"unexpected storage {pid!r}")
-        if key not in self.cache:
-            raw = self.zf.read(f"{self.prefix}/data/{key}")
-            s = _Storage(_DT[kind], key)
-            s.data = np.frombuffer(raw, dtype=np.dtype(_DT[kind]).newbyteorder("<"))
-            self.cache[key] = s
-        return self.cache[key]
-
-
 def load_checkpoint(path):
-    """A PyTorch (Lightning) checkpoint -> dict with numpy arrays, without importing torch."""
-    with zipfile.ZipFile(path) as zf:
-        pk = [n for n in zf.namelist() if n.endswith("/data.pkl")]
-        if len(pk) != 1:
-            raise ValueError(f"{os.path.basename(path)} is not a PyTorch zip checkpoint")
-        prefix = pk[0][:-len("/data.pkl")]
-        import io
-        return _Unpickler(io.BytesIO(zf.read(pk[0])), zf, prefix).load()
+    """A PyTorch (Lightning) checkpoint -> dict with numpy arrays, without torch (``vstudio.ptload``'s restricted
+    unpickler: tensors, storages and plain containers only)."""
+    from .ptload import load_state_dict
+    return load_state_dict(path)
 
 
 # ------------------------------------------------------------------ log-mel spectrogram (torchaudio-equivalent)
