@@ -59,14 +59,17 @@ if a[:2] == ["login", "status"]:
     print("Logged in using ChatGPT"); sys.exit(0)
 sys.exit(1)
 `;
-// the app puts its own bin folders first on PATH: the stand-ins are pinned in the engine's vstudio.llm instead
-const HOOK_PY = `import os
+// the app puts its own bin folders first on PATH: the stand-ins are pinned in the engine's vstudio.llm instead, and
+// run by this Python (Windows has no shebangs: an extensionless script cannot be exec'd there)
+const HOOK_PY = `import os, sys
 _bin = os.environ.get("MODEL_FAKE_BIN")
 if _bin:
     try:
         from vstudio import llm as _llm
-        _find = _llm.find_cli
-        _llm.find_cli = lambda name, opts=None: os.path.join(_bin, name) if name in ("claude", "codex") else _find(name, opts)
+        _find, _argv = _llm.find_cli, _llm.cli_argv
+        _fakes = {n: os.path.join(_bin, n) for n in ("claude", "codex")}
+        _llm.find_cli = lambda name, opts=None: _fakes[name] if name in _fakes else _find(name, opts)
+        _llm.cli_argv = lambda exe, windows=None: [sys.executable, exe] if exe in _fakes.values() else _argv(exe, windows)
     except Exception:
         pass
     try:
