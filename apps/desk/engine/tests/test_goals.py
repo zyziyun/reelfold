@@ -100,7 +100,9 @@ class Base(unittest.TestCase):
 
     def wait(self, G, gid, state):
         for _ in range(200):
-            if G.view(gid)["state"] == state:
+            v = G.view(gid)
+            # running: also the first videos started (approve sets the state, then its first tick starts them)
+            if v["state"] == state and (state != "running" or any(x.get("intake") for x in v["videos"])):
                 return G.view(gid)
             time.sleep(0.02)
         self.fail(f"goal never reached {state}: {G.view(gid)['state']} {G.view(gid).get('error')}")
