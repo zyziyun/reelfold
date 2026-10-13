@@ -9,6 +9,7 @@
 //   - her files are never written
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,7 +34,7 @@ const engineEnv = {
   VSTUDIO_LLM_PROVIDER: 'none',
   ...Object.fromEntries(['SEGMENT_PLAN', 'PROOFREAD', 'GLOSSARY', 'COPY', 'SCRIPT', 'PLANNER', 'INTAKE', 'OUTPUT_EDIT', 'TRANSLATE'].map((t) => [`VSTUDIO_LLM_${t}_PROVIDER`, 'none'])),
 };
-const sha = (f: string) => execFileSync('shasum', [f], { encoding: 'utf8' }).split(' ')[0];
+const sha = (f: string) => crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex');
 let before: Record<string, string> = {};
 
 test.describe.configure({ mode: 'serial' });
