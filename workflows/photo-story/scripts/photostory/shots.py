@@ -146,10 +146,28 @@ def prep_video(C, sh, name):
     return out
 
 
+def graded(C, clip, cube):
+    """The prepared clip with its shot LUT (photostory/grade.py: colour match + look) baked in by ffmpeg's lut3d,
+    cached next to it under the LUT's content name."""
+    stem = os.path.splitext(os.path.basename(cube))[0]
+    out = os.path.splitext(clip)[0] + f"_g{stem}.mp4"
+    if not os.path.exists(out):
+        from vstudio import colormatch as CM
+        tmp = out[:-4] + ".tmp.mp4"
+        subprocess.run([vmedia.ffmpeg_bin(), "-v", "error", "-y", "-i", os.path.abspath(clip),
+                        "-vf", CM.lut3d_filter(cube), "-an", "-c:v", "libx264", "-crf", "12",
+                        "-preset", "fast", "-pix_fmt", "yuv420p", os.path.abspath(tmp)], check=True)
+        os.replace(tmp, out)
+    return out
+
+
 class VideoShot:
     def __init__(self, C, sh, name):
         self.C = C
-        self.cap = cv2.VideoCapture(prep_video(C, sh, name))
+        clip = prep_video(C, sh, name)
+        if sh.get("_lut"):
+            clip = graded(C, clip, sh["_lut"])
+        self.cap = cv2.VideoCapture(clip)
         self.idx, self.last = -1, np.zeros((C.BOX_H, C.BOX_W, 3), np.float32)
 
     def frame(self, lt):
@@ -176,6 +194,9 @@ class ImageShot:
         if s < 1:
             im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
         self.img = np.asarray(im)
+        if sh.get("_lut_table") is not None:          # the film look (photostory/grade.py), as on the video shots
+            from vstudio import colormatch as CM
+            self.img = np.clip(CM.apply(sh["_lut_table"], self.img) + 0.5, 0, 255).astype(np.uint8)
         self.sk = pencil(self.img) if "sketch" in sh.get("fx", ()) else None
 
     def frame(self, lt):

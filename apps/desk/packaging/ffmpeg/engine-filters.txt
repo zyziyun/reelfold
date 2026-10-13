@@ -37,6 +37,7 @@ gblur
 highpass
 highshelf
 loudnorm
+lut3d
 lutrgb
 lutyuv
 minterpolate

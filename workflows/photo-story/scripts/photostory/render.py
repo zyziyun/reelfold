@@ -48,10 +48,21 @@ def prepare(spec_path, platform=None, mode=None):
     C = Ctx(spec)
     if C.MODE == "music":
         from photostory.music import MusicTimeline
-        return C, MusicTimeline(C), True
+        T = MusicTimeline(C)
+        finish(C, T)
+        return C, T, True
     timing, has_audio = load_timing(C)
     T = Timeline(C, timing)
+    finish(C, T)
     return C, T, has_audio
+
+
+def finish(C, T):
+    """Per-shot decisions that need the shots' pictures: a dissolve that would ghost two framings of one subject
+    becomes a cut (photostory/dissolves.py), and each shot's colour LUT (photostory/grade.py)."""
+    from photostory import dissolves, grade
+    dissolves.plan(C, T)
+    grade.plan(C, T)
 
 
 def main():
@@ -90,8 +101,8 @@ def main():
     for s in T.subs:
         s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(C, s["en"], s["zh"])
     for sh in T.shots:
-        if "label" in sh and not sh["src"].startswith("split:"):
-            sh["_lab"] = make_label(C, sh["label"])
+        if "label" in sh and not sh["src"].startswith("split:") and C.shown(sh["label"]):
+            sh["_lab"] = make_label(C, sh["label"])       # a label with nothing in this version's language: none
         sh["_video"] = parse_src(C, sh["src"])[0] == "video"
     backdrop = sub_backdrop(C) if C.overlay_subs else None
     chap_len = float(getattr(C.spec, "CHAPTER_CARD", 2.2) or 0)

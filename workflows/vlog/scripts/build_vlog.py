@@ -191,6 +191,11 @@ def _render_rife(i, cfg, seg, src, base, speed, fps, dst, eff):
     return dst
 
 
+def _lut_filter(path):
+    from vstudio import colormatch as CM
+    return CM.lut3d_filter(path)
+
+
 def render_seg(args):
     i, cfg, seg, segdir, dry = args
     src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
@@ -203,6 +208,7 @@ def render_seg(args):
     eb = seg.get("bright", 0.0) + seg.get("_match", 0.0)
     eff = seg["dur"] / speed
     base = (stab_prefix(cfg, seg) + hdr_chain(cfg, src) + fit_chain(cfg) + "," + grade_chain(cfg, eb)
+            + ("," + _lut_filter(seg["_lut"]) if seg.get("_lut") else "")
             + ("," + DEFLICKER if cfg.get("deflicker", True) else ""))
     out_fps = cfg.get("fps", 30)
     dst = os.path.join(segdir, f"seg_{i:02d}.mp4")
@@ -275,6 +281,37 @@ def match_exposure(cfg, strength=None, cap=0.06):
         off = 0.0 if v is None else max(-cap, min(cap, (med - v) * k))
         seg["_match"] = round(off, 3)
         out.append((seg["clip"], v, seg["_match"]))
+    return out
+
+
+def match_colour(cfg, segdir, strength=None):
+    """Even out white balance / tint jumps at the cuts (vstudio.colormatch): each segment's colour statistics (5
+    frames of its span) move ``strength`` (config "color_match", default 0.6; 0 = off) toward the film's reference
+    segment (config "color_ref": a clip name, else the medoid), plus an optional film look (config "grade_look",
+    default none in a vlog: her grade stays hers) - one LUT per segment, applied by render_seg (lut3d).
+    Sets seg["_lut"]; returns [(clip, step before)] for the log."""
+    from vstudio import colormatch as CM
+    k = float(cfg.get("color_match", 0.6) if strength is None else strength)
+    lk = CM.look_name(cfg.get("grade_look"))
+    segs = cfg["segments"]
+    if (k <= 0 or len(segs) < 2) and lk is None:
+        return []
+    st = {}
+    if k > 0 and len(segs) > 1:
+        for i, seg in enumerate(segs):
+            src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
+            st[i] = CM.stats(CM.sample(src, float(seg["start"]), float(seg["dur"]),
+                                       vf=hdr_chain(cfg, src).rstrip(",") or None))
+    names = {i: seg["clip"] for i, seg in enumerate(segs)}
+    prefer = next((i for i, n in names.items() if n == cfg.get("color_ref")), None)
+    ref = CM.reference(st, prefer) if st else None
+    out = []
+    for i, seg in enumerate(segs):
+        table = CM.shot_lut(st.get(i), st.get(ref) if ref is not None else None, lk, strength=k)
+        if not CM.is_identity(table):
+            seg["_lut"] = CM.write_cube(table, os.path.join(segdir, "luts"))
+        if i and i in st and i - 1 in st:
+            out.append((seg["clip"], round(CM.chroma_jump(st[i - 1], st[i]), 1)))
     return out
 
 
@@ -378,6 +415,10 @@ def render(cfg, out, segdir, prof, a):
         for clip, v, off in match_exposure(cfg):
             if off:
                 print(f"[exposure] {clip}: luma {v:.2f} -> brightness {off:+.3f}", flush=True)
+        steps = match_colour(cfg, segdir)
+        if steps:
+            print(f"[colour] matched toward the reference shot; colour steps at the cuts before: max "
+                  f"{max(s for _, s in steps):.1f}", flush=True)
     tasks = [(i, cfg, s, segdir, a.dry_run) for i, s in enumerate(cfg["segments"])]
     with ThreadPoolExecutor(max_workers=a.workers or cfg.get("workers", 3)) as ex:
         results = list(ex.map(render_seg, tasks))
