@@ -10,8 +10,8 @@
 </p>
 
 <p align="center"><b>L’atelier open source des créateurs.</b><br>
-Créer, monter et publier vos vidéos pour chaque plateforme, dans une seule app, sur votre Mac. Pensé pour les
-créateurs et les formateurs, des centaines de vidéos à la fois. Gratuit, MIT.</p>
+Une phrase transforme vos rushes en une série de vidéos prêtes à publier pour chaque plateforme, en anglais et en
+chinois. Open source, gratuit, et tout sur votre Mac.</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/fr/">Documentation</a> ·
@@ -20,20 +20,29 @@ créateurs et les formateurs, des centaines de vidéos à la fois. Gratuit, MIT.
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Créer à partir de notes ou d’un sujet.** Donnez-lui des notes de cours, une page Notion exportée ou juste un
-  sujet, et obtenez une vidéo explicative, un short IA ou un film de lancement, narrés et animés. Toute génération IA
-  payante attend votre accord.
-- **Monter vos propres rushes.** Déposez ce que vous avez filmé (une intervention, un cours enregistré, une carte SD de
-  voyage) ou une vidéo finie à reprendre, et dites ce que vous voulez avec vos mots. Un cours devient des épisodes et
-  des shorts, avec un code et des slides lisibles.
-- **Des centaines de vidéos d’un coup.** Un atelier pro, pas un éditeur d’un clip à la fois : il planifie les vidéos,
-  regroupe un dossier en histoires et les réalise en pilote automatique sur votre propre Mac, avec des modèles locaux
-  si vous voulez. Chaque fichier est vérifié ; vous ne regardez que ce qui est signalé, et agissez sur des centaines
-  de projets à la fois dans Tous les projets.
-- **Publier partout depuis un calendrier.** YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis Xiaohongshu,
-  Douyin, Bilibili et WeChat Channels : 20 plateformes, chacune avec sa taille, ses sous-titres, son volume sonore, sa
-  couverture et son texte. Planifiez la semaine dans le calendrier ; Reelfold remplit chaque page de mise en ligne et
-  c’est vous qui publiez.
+- **Toute une série en une phrase.** Indiquez un dossier ou une carte SD et demandez « une douzaine de vidéos, chacune
+  avec son thème ». Il regroupe les rushes en histoires, prévoit la série demandée (de 10 à 20 vidéos, par exemple)
+  et la réalise en pilote automatique. Des centaines de montages d’un coup ; chaque décision est notée avec sa raison.
+- **À chaque plateforme son montage et sa langue.** YouTube, TikTok, Instagram, X et LinkedIn d’abord, puis
+  Xiaohongshu, Douyin, Bilibili et WeChat Channels : 20 plateformes, chacune avec sa taille, sa durée (une version
+  longue avec chapitres pour YouTube, des versions courtes pour Shorts et TikTok), ses sous-titres, son volume, sa
+  couverture et son texte. L’anglais pour YouTube et TikTok, le chinois pour Xiaohongshu et Bilibili.
+- **Vos vrais rushes, montés avec soin.** Un modèle par type de vidéo, des coupes sur le temps (Beat This!), la
+  détection des plans, un étalonnage plan par plan, des jump cuts lissés et des ralentis nets (RIFE), un recadrage
+  vertical qui suit le sujet, et une bibliothèque intégrée de 52 musiques CC0. La génération IA ne comble que les
+  manques, après votre accord sur le prix.
+- **Couvertures et contrôles.** Les couvertures choisissent une image nette, détourent le sujet, l’agrandissent et
+  gardent le titre loin des visages et des boutons, avec trois options A/B pour YouTube. Chaque fichier est vérifié
+  (scintillement, cadrage, volume, langue des sous-titres, texte à l’écran) ; vous ne regardez que ce qui est signalé.
+- **Reprendre, d’où qu’elle vienne.** Importez une vidéo finie pour la retravailler, gardez vos retouches quand l’IA
+  refait le rendu, enregistrez-vous avec le prompteur, ajoutez votre filigrane, et envoyez un clip vers Premiere Pro,
+  DaVinci Resolve, CapCut ou OpenTimelineIO.
+- **Publier depuis un calendrier.** YouTube est mis en ligne et programmé par son API officielle (Data API) ; pour les
+  autres plateformes, Reelfold remplit la page de mise en ligne et c’est vous qui publiez.
+- **Local, privé, gratuit, votre IA.** Le rendu, la transcription et les voix gratuites (Kokoro en anglais, Qwen3-TTS
+  en chinois) tournent sur votre Mac. Claude Code, Codex, des agents de code ACP (Gemini CLI, Qwen Code, Kimi CLI…),
+  des clés d’API, y compris de fournisseurs disponibles en Chine continentale, ou un modèle local ; l’IA et le modèle
+  se choisissent par demande, ou avec `/model` dans la discussion. Licence MIT.
 
 ![Face caméra · extraits de cours · récit photo · vlog rythmé · podcast masqué · vidéo explicative](docs/demos/strip.jpg)
 
@@ -52,7 +61,8 @@ git clone https://github.com/zyziyun/reelfold ~/.claude/skills/video-studio
 cp ~/.claude/skills/video-studio/persona.example.yaml ~/.claude/skills/video-studio/persona.local.yaml
 ```
 
-L'IA tourne avec ce que vous avez déjà : votre connexion Claude Code ou Codex, votre propre clé d'API, ou un modèle local.
+L'IA tourne avec ce que vous avez déjà : votre connexion Claude Code ou Codex, un autre agent de code ACP, votre propre
+clé d'API, ou un modèle local.
 
 **Documentation → [reelfold.com/docs/fr](https://reelfold.com/docs/fr/)**
 

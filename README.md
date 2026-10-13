@@ -10,9 +10,9 @@
 </p>
 
 <p align="center"><b>The open-source workbench for creators.</b><br>
-Create, edit and publish videos for every platform in one app, on your Mac. Built for creators and course makers,
-hundreds of videos at a time. Free, MIT.<br>
-千剪：开源自媒体工作者工作台。</p>
+One sentence turns your footage into a batch of ready-to-post videos for every platform, in English and Chinese.
+Open source, free, and all on your Mac.<br>
+千剪：一句话，把你的素材批量剪成多平台、中英双语、可直接发布的成片，开源免费，全在本地。</p>
 
 <p align="center">
   <a href="https://reelfold.com/docs/">Docs</a> ·
@@ -21,17 +21,31 @@ hundreds of videos at a time. Free, MIT.<br>
   <a href="LICENSE">MIT</a>
 </p>
 
-- **Create from notes or a topic.** Hand it lecture notes, an exported Notion page or just a topic and get a course
-  explainer, an AI short or a launch film, narrated and animated. Any paid AI generation waits for your OK.
-- **Edit your own footage.** Drop in what you shot (a talk, a recorded class, an SD card of travel clips) or a
-  finished video you want to keep editing, and say what you want in plain words. Lectures become episodes and shorts
-  with code and slides kept readable.
-- **Hundreds of videos in one run.** A pro workbench, not a one-clip editor: it plans the videos, groups a folder into
-  stories and works through them on autopilot on your own Mac, with local models if you like. Every file is checked;
-  you look only at what was flagged, and act on hundreds of projects at once in All projects.
-- **Publish to every platform from a calendar.** YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu,
-  Douyin, Bilibili and WeChat Channels: 20 platforms, each with its own size, captions, loudness, cover and copy.
-  Plan the week on the publishing calendar; Reelfold fills in each upload page and you press publish.
+Footage in, edit, covers, a version per platform and language, publish: one workbench for self-media and course
+creators, at batch scale.
+
+- **A whole set from one sentence.** Point it at a folder or an SD card and ask for "12 or so videos, each with its
+  own theme". It groups the footage into stories, plans the set you asked for (say 10 to 20 videos) and makes them a few at a time on
+  autopilot. Hundreds of edits in one run; every decision is logged with its reason and can be changed.
+- **Every platform, its own cut and language.** YouTube, TikTok, Instagram, X and LinkedIn first, then Xiaohongshu,
+  Douyin, Bilibili and WeChat Channels: 20 platforms, each with its own size, length (a long cut with chapters for
+  YouTube, short cuts for Shorts and TikTok), captions, loudness, cover and copy. YouTube and TikTok get English,
+  Xiaohongshu and Bilibili get Chinese.
+- **Your real footage, edited with craft.** A template per kind of video, cuts on the beat (Beat This!), shot
+  detection, colour matched per shot, smooth jump cuts and clean slow motion (RIFE), subject-following vertical crops,
+  and a built-in library of 52 CC0 music tracks. AI generation only fills gaps, after you approve the price.
+- **Covers and checks.** Covers pick a sharp frame, cut out the subject, upscale it and keep the title clear of faces
+  and app buttons, with three YouTube A/B options. Every file is checked for flicker, framing, loudness, caption
+  language and on-screen text; explainer narration is fact-checked. You look only at what was flagged.
+- **Keep editing, anywhere.** Import a finished video to edit it again, keep your hand edits when the AI re-renders,
+  record yourself with the teleprompter, add your watermark, and send any clip to Premiere Pro, DaVinci Resolve,
+  CapCut / 剪映 or OpenTimelineIO.
+- **Publish from a calendar.** YouTube uploads and schedules through its official Data API; for the other platforms
+  Reelfold fills in the upload page and you press publish. Nothing posts until you say so.
+- **Local, private, free, your AI.** Rendering, transcription and the free voices (Kokoro for English, Qwen3-TTS for
+  Chinese) run on your Mac. Bring your own AI: Claude Code, Codex, ACP coding agents (Gemini CLI, Qwen Code, Kimi
+  CLI ...), API keys including providers that work in mainland China, or a local model; pick the AI and model per
+  request, or `/model` in the chat. MIT licensed.
 
 ![Talking head · lecture slices · photo story · beat-cut vlog · podcast with masked faces · explainer](docs/demos/strip.jpg)
 
@@ -50,7 +64,8 @@ git clone https://github.com/zyziyun/reelfold ~/.claude/skills/video-studio
 cp ~/.claude/skills/video-studio/persona.example.yaml ~/.claude/skills/video-studio/persona.local.yaml
 ```
 
-AI runs on what you already have: your Claude Code or Codex login, your own API key, or a local model.
+AI runs on what you already have: your Claude Code or Codex login, another ACP coding agent, your own API key, or a
+local model.
 
 **Docs → [reelfold.com/docs](https://reelfold.com/docs/)**
 
@@ -58,7 +73,7 @@ AI runs on what you already have: your Claude Code or Codex login, your own API 
 
 | You want | Say something like |
 |---|---|
-| Several videos from one card | "Make several videos from my DJI card, each with its own theme, for YouTube and Instagram" |
+| Several videos from one card | "Make about 12 videos from my DJI card, each with its own theme, for YouTube and Xiaohongshu" |
 | Keep editing a finished video | "Here is last week's video: tighten the opening, new cover, and make a vertical version for TikTok" |
 | A tight talking-head short | "Cut the pauses, filler words and repeats, speed it up 1.1×, add captions and a progress bar, export for TikTok and Shorts" |
 | A lecture as vertical clips | "Slice this 70-minute lecture into 3 vertical episodes, one idea each, zoom into the code, with covers and post copy" |
