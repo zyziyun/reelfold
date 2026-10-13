@@ -112,6 +112,8 @@ e2e:
   lib/vstudio/reframe.py: [vlogFraming.spec.ts]
   lib/vstudio/platform.py: [publish.spec.ts, vlogFraming.spec.ts]
   lib/vstudio/tts.py: [voiceKey.spec.ts, explainerVisuals.spec.ts]
+  lib/vstudio/voicecast.py: [voiceKey.spec.ts, clipInfo.spec.ts, inboxReal.spec.ts]
+  lib/vstudio/voices.json: [voiceKey.spec.ts, clipInfo.spec.ts]
   lib/vstudio/messages.py: [i18nStrict.spec.ts, inboxReal.spec.ts]
 
 # Globs whose automatic trace is skipped (it would reach nearly every spec); only their `e2e:` entries run.
