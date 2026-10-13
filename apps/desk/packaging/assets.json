@@ -5,7 +5,7 @@
    "id": "core",
    "required": true,
    "root": "vstudio-cache",
-   "licence": "Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe).",
+   "licence": "Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).",
    "files": [
     {
      "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf",
@@ -72,6 +72,24 @@
      "dest": "models/selfie_multiclass_256x256.tflite",
      "sha256": "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0",
      "size": 16371837
+    },
+    {
+     "url": "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt",
+     "dest": "models/beat_this/final0.ckpt",
+     "sha256": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
+     "size": 81058141
+    },
+    {
+     "url": "https://media.githubusercontent.com/media/soCzech/TransNetV2/85cef72af9a916bdfd7cc94a670c9cdfbf12d1ed/inference/transnetv2-weights/variables/variables.index",
+     "dest": "models/transnetv2/variables.index",
+     "sha256": "8b99e28b4ad11372d9a1ad9703298c2e370df14859da4245fdbe818e92dd403f",
+     "size": 5526
+    },
+    {
+     "url": "https://media.githubusercontent.com/media/soCzech/TransNetV2/85cef72af9a916bdfd7cc94a670c9cdfbf12d1ed/inference/transnetv2-weights/variables/variables.data-00000-of-00001",
+     "dest": "models/transnetv2/variables.data-00000-of-00001",
+     "sha256": "b8c9dc3eb807583e6215cabee9ca61737b3eb1bceff68418b43bf71459669367",
+     "size": 30516656
     }
    ]
   },

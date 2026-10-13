@@ -79,16 +79,26 @@ const models = [
   [`${MP}/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite`, 'selfie_multiclass_256x256.tflite'],
 ];
 
+// beat / downbeat tracker (vstudio.beatthis) and shot boundaries (vstudio.transnet): read without torch / TensorFlow
+const BEAT_THIS = 'https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt';
+const TRANSNET = 'https://media.githubusercontent.com/media/soCzech/TransNetV2/85cef72af9a916bdfd7cc94a670c9cdfbf12d1ed/inference/transnetv2-weights/variables';
+const engineModels = [
+  [BEAT_THIS, 'models/beat_this/final0.ckpt'],
+  [`${TRANSNET}/variables.index`, 'models/transnetv2/variables.index'],
+  [`${TRANSNET}/variables.data-00000-of-00001`, 'models/transnetv2/variables.data-00000-of-00001'],
+];
+
 const groups = [];
 log('fonts + models');
 groups.push({
   id: 'core',
   required: true,
   root: 'vstudio-cache',
-  licence: 'Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe).',
+  licence: 'Fonts: SIL OFL 1.1 (Noto CJK, STIX Two, JetBrains Mono). Models: Apache-2.0 (Google MediaPipe); MIT (Beat This! final0, CPJKU; TransNet V2, Soucek).',
   files: [
     ...(await Promise.all(fonts.map(([r, s, p, n]) => file(raw(r, s, p), `fonts/${n}`)))),
     ...(await Promise.all(models.map(([u, n]) => file(u, `models/${n}`)))),
+    ...(await Promise.all(engineModels.map(([u, d]) => file(u, d)))),
   ],
 });
 log('whisper');

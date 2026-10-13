@@ -178,7 +178,8 @@ ${assetRows.join('\n')}
 
 Fonts: Noto Sans SC / Noto Serif SC (notofonts/noto-cjk), STIX Two Text (google/fonts), JetBrains Mono — all SIL Open
 Font License 1.1 (https://openfontlicense.org). MediaPipe models (face landmarker, selfie segmenter, selfie multiclass
-segmenter) — Apache-2.0, Google. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
+segmenter) — Apache-2.0, Google. Beat This! final0 checkpoint (beat / downbeat tracker, CPJKU / JKU Linz, read without
+torch) — MIT. TransNet V2 weights (shot boundaries, Tomáš Souček, read without TensorFlow) — MIT. Whisper large-v3-turbo weights — MIT, OpenAI (MLX conversion: mlx-community;
 CTranslate2 conversion: dropbox-dash / Mobius Labs). Kokoro-82M v1.0 weights and voices (the free offline voice, Apple
 silicon; downloaded the first time a video needs it) — Apache-2.0, hexgrad (MLX conversion: mlx-community).
 chrome-headless-shell (Chrome for Testing build of Chromium, the headless browser for HTML covers / slides and
