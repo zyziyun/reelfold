@@ -66,6 +66,25 @@ def test_in_the_app_only_once_downloaded(here, monkeypatch, tmp_path):
     assert tts.qwen_ready() and tts.zh_voice_engine() == "qwen"
 
 
+def test_settings_switch_for_the_builtin_chinese_voice(here, monkeypatch, tmp_path):
+    """Settings > Voice "use the built-in Chinese voice until then" (prefs zh_local): Kokoro's Mandarin narrates a
+    Chinese version only while Qwen3-TTS is not downloaded; once it is, Qwen3-TTS always wins (it IS the better
+    voice). Off (the default): English narration + Chinese subtitles, and the plan card offers the download."""
+    monkeypatch.setenv(tts.MANAGED_ENV, "1")
+    prefs = tmp_path / "tts-prefs.json"
+    monkeypatch.setenv(tts.PREFS_ENV, str(prefs))
+    prefs.write_text(json.dumps(dict(zh_voice="serena", zh_local=False)))
+    assert not tts.zh_local_opt_in() and tts.zh_voice_engine() is None
+    assert narration.voice_plan("zh")["narrate"] == "en"
+    prefs.write_text(json.dumps(dict(zh_voice="serena", zh_local=True)))         # read on every take: no restart
+    assert tts.zh_local_opt_in() and tts.zh_voice_engine() == "kokoro"
+    assert narration.voice_plan("zh")["narrate"] == "zh"
+    model = tmp_path / "qwen"
+    model.mkdir()
+    monkeypatch.setenv(tts.QWEN_MODEL_ENV, str(model))                           # downloaded: Qwen3-TTS, not Kokoro
+    assert tts.zh_voice_engine() == "qwen" and tts.zh_voice("qwen") == "serena"
+
+
 def test_switched_off_or_no_apple_silicon(monkeypatch):
     monkeypatch.setattr(tts, "available_engine", lambda name="auto": "kokoro")
     monkeypatch.setenv(tts.QWEN_OFF_ENV, "off")

@@ -159,6 +159,7 @@ formats: {}                # recurring formats (python -m vstudio.formats list):
 #     copy: {provider: deepseek}
 # asr: {backend: auto}                          # mlx | faster | openai | openai-compatible (+ base_url, model)
 # tts: {engine: auto, server: {base_url: "http://localhost:8880/v1", model: kokoro, voice: af_heart}}
-# tts: {zh_local: true}   # "local Chinese voice": the built-in Chinese voice sounds robotic, so a Chinese version is
-#                         # narrated in English with Chinese subtitles unless a better voice is set up (an OpenAI key,
-#                         # your cloned voice tts.clone, a TTS server). true = use the built-in one anyway.
+# tts: {zh_local: true}   # Kokoro's Mandarin voice sounds robotic: a Chinese version is narrated by the free Chinese
+#                         # voice (Qwen3-TTS) once it is downloaded, or a better voice you set up (an OpenAI key, your
+#                         # cloned voice tts.clone, a TTS server); else in English with Chinese subtitles. true = use
+#                         # Kokoro's Mandarin until Qwen3-TTS is here (the app: Settings > Voice switch).

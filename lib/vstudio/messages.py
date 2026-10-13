@@ -36,6 +36,11 @@ CATALOG = {
                                 "没能从这些素材和描述里拼出可执行的项目"),
     "intake.risk.unused-inputs": ("Not used in any project: {files}. Say which project they belong to if you want them in",
                                   "这些素材没有用在任何项目里：{files}。要用的话告诉我放进哪个项目"),
+    "intake.risk.zh-voice": ("The free Chinese voice is not on this computer yet, so the Chinese version uses English "
+                             "narration with Chinese subtitles. Download it (about 3 GB, Apple silicon) before the "
+                             "story is drafted for natural Chinese narration, or add an OpenAI key or your own voice",
+                             "免费的中文配音还没下载到这台电脑，所以中文版先用英文旁白 + 中文字幕。在写稿前下载它（约 3 GB，"
+                             "Apple 芯片），就能有自然的中文旁白；也可以添加 OpenAI 密钥，或用自己的声音"),
     "intake.question.mask-faces": ("Whose faces should be hidden? (default: every guest but you)",
                                    "要遮哪几位的脸？（默认：除你以外的所有嘉宾）"),
     "intake.question.narration": ("Narration (AI voice reads your copy) or music only?",
@@ -121,6 +126,10 @@ FR = {
     "intake.risk.burned-longform": "{file} a des sous-titres incrustés : les extraits verticaux ajoutent une "
                                    "nouvelle couche ; vérifiez après le choix des extraits",
     "intake.risk.no-video": "{recipe} : aucune vidéo trouvée",
+    "intake.risk.zh-voice": ("La voix chinoise gratuite n'est pas encore sur cet ordinateur : la version chinoise est "
+                             "narrée en anglais avec des sous-titres chinois. Téléchargez-la (environ 3 Go, Apple "
+                             "silicon) avant la rédaction pour une narration chinoise naturelle, ou ajoutez une clé "
+                             "OpenAI ou votre propre voix"),
     "intake.risk.no-photos": "{recipe} : aucune photo ni vidéo trouvée",
     "intake.risk.aigc-credits": "La vidéo IA se paie en crédits : elle s'arrête au point de contrôle du budget "
                                 "pour votre accord avant de générer",

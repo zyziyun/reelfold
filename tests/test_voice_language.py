@@ -282,7 +282,9 @@ def test_planner_prompt_and_voice_note(monkeypatch):
     PL._call_model("a history film", {}, dict(tts_engine="auto"), {},
                    call=lambda s, b: seen.update(system=s) or dict(json={}, model="m"))
     assert seen["system"].rstrip().endswith(PL.zh_voice_line({}))
-    assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "en")[0].startswith("The free Chinese voice")
+    risk = PL.voice_risks([_proj("photo-story", ["xiaohongshu"])], "en")[0]
+    assert risk["code"] == "intake.risk.zh-voice" and risk["message"].startswith("The free Chinese voice")
+    assert "约 3 GB" in risk["message_zh"]                       # the desk offers the download next to it
     assert PL.voice_risks([_proj("photo-story", ["xiaohongshu"], mode="music")], "en") == []
     assert PL.voice_risks([_proj("photo-story", ["youtube"])], "en") == []
 

@@ -38,8 +38,9 @@ shadow - no boxes, no white quote cards, no thick strokes, no emoji, no saturate
 
 **P6. Few words on screen.** A beautiful-footage film gets music and 2-5 refined on-screen lines (or place / time
 captions), not a voice-over. History pieces narrate in English (YouTube) with Chinese on-screen subtitles for
-Xiaohongshu / Bilibili; the built-in Chinese voice is opt-in (it sounds robotic), a better voice (OpenAI key, her own
-voice) is used when she has one.
+Xiaohongshu / Bilibili unless a natural Chinese voice is here: the free Qwen3-TTS voice once downloaded (Settings >
+Voice; the plan card offers the download), an OpenAI key, her own voice. Kokoro's robotic Mandarin is opt-in only
+(Settings > Voice switch, persona `tts.zh_local`) and never used once Qwen3-TTS is downloaded.
 
 **P7. Title and end.** The film's title sits once over the opening shot, centred, in the serif, a short hairline
 and the other language small and spaced under it (an English film shows English only); it fades in over 0.9 s

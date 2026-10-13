@@ -73,8 +73,9 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
 - A mood / scenery piece (an autumn essay, golden hour) has **no voice-over** by default: `MODE = "music"` with a few
   refined on-screen lines, unless the request asks for narration.
 - A told piece (history, explainer) is narrated. Its Chinese version is narrated in Chinese only when a good Chinese
-  voice is set up (an OpenAI key, your cloned voice, a TTS server): the built-in Chinese voice (Kokoro) sounds
-  robotic and is opt-in (persona `tts.zh_local: true`). Otherwise the English is narrated and the 中文 subtitles lead:
+  voice is set up (the free Qwen3-TTS voice once downloaded, an OpenAI key, your cloned voice, a TTS server): the
+  built-in Kokoro Mandarin sounds robotic and is opt-in (Settings > Voice switch, persona `tts.zh_local: true`),
+  only while Qwen3-TTS is not downloaded. Otherwise the English is narrated and the 中文 subtitles lead:
   `TTS = dict(language="en")` + `SUB_LEAD = "zh"`. tts.py applies the same rule to an older spec that still says
   `language="zh"` (unless you name a Chinese voice, `--voice zf_xiaobei`).
 - The local English voice reads curated names from phonemes (`vstudio.kokoro_lexicon`: Elliott, Elvis, Puget,

@@ -101,7 +101,7 @@ SERVICE = {"openai": "OpenAI", "elevenlabs": "ElevenLabs"}
 KOKORO_MODEL_ENV = "VSTUDIO_KOKORO_MODEL"      # a local Kokoro folder (the desk app's download)
 QWEN_MODEL_ENV = "VSTUDIO_QWEN_TTS_MODEL"      # a local Qwen3-TTS folder (the desk app's download, tts-qwen-zh)
 QWEN_OFF_ENV = "VSTUDIO_QWEN_TTS"            # "off": the free Chinese voice is never used (tests; a creator's choice)
-PREFS_ENV = "VSTUDIO_TTS_PREFS"               # the app's voice choices (Settings > Voice): {"zh_voice": "..."}
+PREFS_ENV = "VSTUDIO_TTS_PREFS"               # the app's voice choices (Settings > Voice): {"zh_voice", "zh_local"}
 MANAGED_ENV = "VSTUDIO_TTS_MODELS_MANAGED"     # the app downloads voice models; the engine never fetches them
 
 
@@ -291,9 +291,11 @@ def default_voice(engine="auto"):
 
 # ---------------------------------------------------------------------------------------- Chinese narration policy
 # A Chinese version is narrated in Chinese by a natural voice: the free Chinese voice (Qwen3-TTS, once it is on this
-# computer), OpenAI with its key, the creator's cloned voice, a voice she set in her persona, a TTS server. Kokoro's
-# Mandarin (zf_*) sounds robotic: only when asked for (persona tts.zh_local: true and no Chinese voice here). Without
-# any of them, English narration with Chinese subtitles leading (or no voice at all for a mood / scenery piece).
+# computer - it IS the better voice, so a downloaded Qwen3-TTS narrates by default), OpenAI with its key, the
+# creator's cloned voice, a voice she set in her persona, a TTS server. Kokoro's Mandarin (zf_*) sounds robotic: only
+# when she switched it on (Settings > Voice, persona tts.zh_local: true) and Qwen3-TTS is not here. Without any of
+# them, English narration with Chinese subtitles leading (or no voice at all for a mood / scenery piece), and the plan
+# card offers the Chinese voice's download (intake.plan.voice_risks).
 ZH_LOCAL_ENV = "VSTUDIO_ZH_LOCAL_VOICE"
 ZH_LOCAL_NOTE = {
     "en": "The free Chinese voice is not on this computer yet, so the Chinese version uses English narration with "
@@ -308,8 +310,11 @@ def _truthy(v):
 
 
 def zh_local_opt_in():
-    """She asked for the built-in Chinese voice anyway: env VSTUDIO_ZH_LOCAL_VOICE=1, persona ``tts.zh_local: true``
+    """She asked for Kokoro's Mandarin voice anyway (used only while the free Chinese voice is not downloaded): the
+    switch in Settings > Voice (``prefs()["zh_local"]``), env VSTUDIO_ZH_LOCAL_VOICE=1, persona ``tts.zh_local: true``
     or ``voice.zh_local: true``."""
+    if _truthy(prefs().get("zh_local")):
+        return True
     if _truthy(os.environ.get(ZH_LOCAL_ENV, "")):
         return True
     if _truthy(_tts_cfg().get("zh_local")):
