@@ -38,7 +38,9 @@ def test_rate_and_frames():
     assert N.norm_format("Premiere") == "xmeml" and N.norm_format("剪映") == "jianying"
     with pytest.raises(N.NleError):
         N.norm_format("imovie")
-    assert N.url_path(N.path_url("/a b/c#d.mp4")) == "/a b/c#d.mp4"
+    assert N.url_path(N.path_url("/a b/c#d.mp4")) == os.path.abspath("/a b/c#d.mp4")
+    assert N.url_path("file:///C:/a%20b/c.mp4") == N.url_path("file://C:/a%20b/c.mp4")  # the older OTIO form
+    assert N.path_url("/a b/c.mp4", host="").startswith("file:///")
     assert N.srt([dict(text="hi", start=1.5, end=2.25)]) == "1\n00:00:01,500 --> 00:00:02,250\nhi\n\n"
 
 

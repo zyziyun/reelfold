@@ -195,18 +195,25 @@ def xml_escape(text):
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", t.replace("'", "&apos;"))
 
 
-def path_url(path):
-    """``file://localhost/Users/...``, each part percent-encoded (what Premiere writes)."""
+def path_url(path, host="localhost"):
+    """``file://localhost/Users/...``, each part percent-encoded (what Premiere writes); ``host=""`` gives the
+    ``file:///C:/...`` form OTIO expects (a drive letter is never the URL's host)."""
     p = os.path.abspath(path).replace(os.sep, "/")
     if re.match(r"^[A-Za-z]:/", p):
         p = "/" + p
-    return "file://localhost" + quote(p, safe="/:")
+    return f"file://{host}" + quote(p, safe="/:")
 
 
 def url_path(url):
+    """The local path of a ``file:`` URL, in this OS's form (``C:\\...`` on Windows); reads the older
+    ``file://C:/...`` form too, where the drive letter landed in the URL's host."""
     u = urlparse(url)
     p = unquote(u.path)
-    return p[1:] if re.match(r"^/[A-Za-z]:/", p) else p
+    if re.match(r"^[A-Za-z]:$", u.netloc or ""):
+        p = u.netloc + p
+    elif re.match(r"^/[A-Za-z]:/", p):
+        p = p[1:]
+    return os.path.normpath(p) if re.match(r"^[A-Za-z]:/", p) else p
 
 
 def _b(v):
@@ -559,8 +566,7 @@ def otio(tl):
                            "time_scalar": float(c["speed"]), "metadata": {}})
             kids.append({"OTIO_SCHEMA": "Clip.1", "name": c["name"], "source_range": _tr(c["cut_in"], c["end"] - c["start"], fps),
                          "media_reference": {"OTIO_SCHEMA": "ExternalReference.1", "name": f["name"],
-                                             "target_url": "file://" + quote(os.path.abspath(f["path"]).replace(os.sep, "/"),
-                                                                             safe="/:"),
+                                             "target_url": path_url(f["path"], host=""),
                                              "available_range": _tr(0, f["duration"], fps), "metadata": {}},
                          "effects": fx, "markers": [], "enabled": c.get("enabled", True),
                          "metadata": {"reelfold": {k: c[k] for k in ("gain", "link") if c.get(k) is not None}}})
@@ -707,7 +713,7 @@ def relink(export_dir, media_dir):
                 def walk(x):
                     if isinstance(x, dict):
                         if x.get("OTIO_SCHEMA", "").startswith("ExternalReference") and x.get("target_url"):
-                            x["target_url"] = "file://" + quote(new_path(url_path(x["target_url"])), safe="/:")
+                            x["target_url"] = path_url(new_path(url_path(x["target_url"])), host="")
                         for v in x.values():
                             walk(v)
                     elif isinstance(x, list):
