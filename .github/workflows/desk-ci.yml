@@ -134,12 +134,14 @@ jobs:
         run: npx playwright test $ARGS
       - uses: actions/upload-artifact@v7
         if: success() || failure()
+        continue-on-error: true # diagnostics: a network blip uploading them is not a test failure
         with:
           name: desk-e2e-blob-${{ matrix.index }}
           path: apps/desk/blob-report
           retention-days: 3
       - uses: actions/upload-artifact@v7
         if: failure()
+        continue-on-error: true # diagnostics: a network blip uploading them is not a test failure
         with:
           name: desk-test-results-${{ matrix.index }}
           path: apps/desk/test-results
@@ -258,6 +260,7 @@ jobs:
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v7
         if: failure()
+        continue-on-error: true # diagnostics: a network blip uploading them is not a test failure
         with:
           name: desk-test-results-windows-${{ matrix.shard }}
           path: apps/desk/test-results
