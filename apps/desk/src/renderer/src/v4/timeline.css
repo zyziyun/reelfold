@@ -124,3 +124,23 @@
 /* the player's timecode: leading zero groups and the duration recede */
 .pl .ctl .tc { color: var(--text); font-size: 12.5px; letter-spacing: 0.01em; }
 .pl .ctl .tc .z, .pl .ctl .tc .of { color: var(--text-faint); }
+
+/* the shot plan lane (ShotLane): one quiet block per shot of the edit list; teal edge = her change, a sparkle tint =
+   an AI-generated shot; the open shot's "why this" floats over the lanes' top right */
+.tl2 .shb { position: absolute; top: 3px; bottom: 3px; padding: 0 6px; display: flex; align-items: center; border: 1px solid var(--border-strong); border-radius: 5px; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text-muted); font: inherit; font-size: 11px; line-height: 1; cursor: pointer; overflow: hidden; white-space: nowrap; text-align: left; }
+.tl2 .shb:hover { background: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+.tl2 .shb.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.tl2 .shb.her { box-shadow: inset 3px 0 0 var(--accent); }
+.tl2 .shb.ai { background: color-mix(in srgb, var(--warn) 14%, transparent); border-style: dashed; }
+.tl2 .shb.hook { opacity: 0.7; }
+.tl2 .shb .nm { overflow: hidden; text-overflow: ellipsis; }
+.ce-tl { display: flex; flex-direction: column; }
+.ce-tl > .ce-tl-main { flex: 1 1 auto; min-height: 0; }
+/* the open shot's "why this", docked under the lanes (never over them) */
+.shot-pop { position: relative; flex: none; margin-top: 8px; max-height: 50%; min-height: 0; overflow: auto; padding: 2px 14px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-strong); animation: tl-in 120ms var(--ease); }
+.shot-pop .x { position: absolute; top: 6px; right: 6px; }
+.shot-pop .brain-whybox { border-top: 0; margin-top: 4px; padding-top: 8px; padding-right: 30px; }
+.shot-pop .brain-whybox ul { margin: 4px 0 6px; }
+.shot-pop .brain-whybox.gen b { display: flex; align-items: center; gap: 6px; }
+.shot-pop .brain-whybox.gen p { margin: 4px 0 6px; }
+.shot-pop .brain-take { font-size: 12px; margin-top: 2px; }

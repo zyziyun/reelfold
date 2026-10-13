@@ -37,6 +37,7 @@ import { PinnedQuestion } from './PinnedQuestion';
 import { ShareButton } from './ShareDialog';
 import { Player, type PlayerApi } from './Player';
 import { Timeline } from './Timeline';
+import { ShotPop, useClipShots } from './ShotLane';
 import { TriageBar } from './TriageBar';
 import { MarksChips } from './transcript/MarksMenu';
 import { CutStatus, type CutSave } from './transcript/CutStatus';
@@ -94,6 +95,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   const [playing, setPlaying] = useState(false);
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
   const [fxSel, setFxSel] = useState<string | null>(null);
+  const [shotSel, setShotSel] = useState<number | null>(null);
   const [preview, setPreview] = useState<{ ops: EditOp[] | null; compare: boolean; before?: ChatDoc | null; rendered?: boolean }>({ ops: null, compare: false });
   const [drafts, setDrafts] = useState<{ turn: string; ops: EditOp[] }[]>([]);
   const [primary, setPrimary] = useState<Primary>('export');
@@ -622,6 +624,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     return () => window.clearTimeout(tm);
   }, [flash]);
   const { strip, failed: stripFailed } = useStrip(client, id, clip, doc?.files[0]?.path ?? null);
+  const clipShots = useClipShots(id, doc ? clip : null);
   const transcribe = useTranscribe(client, subscribe, id, clip, reload);
   const onPreview = useCallback((v: { ops: EditOp[] | null; compare: boolean; before?: ChatDoc | null; rendered?: boolean }) => setPreview(v), []);
   const setTextDrafts = useCallback((f: (d: Drafts) => Drafts) => cuts.set(f), [cuts]);
@@ -912,49 +915,57 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         />
       ) : (
         <div className="ce-tl">
-          <Timeline
-            doc={view}
-            time={time}
-            playing={playing}
-            selection={sel}
-            selectedFx={fxSel}
-            strip={strip}
-            stripFailed={stripFailed}
-            transcribe={transcribe}
-            defs={effects}
-            pending={spans}
-            fill
-            header={
-              marks.some((m) => m.tone === 'draft') || doc.steps.length || pending ? (
-                <>
-                  <span className="lg">
-                    <i className="d" />
-                    {t('ce.legend.draft')}
-                  </span>
-                  <span className="lg">
-                    <i className="a" />
-                    {t('ce.legend.applied')}
-                  </span>
-                  {preview.compare && <span>{t('ce.holdC')}</span>}
-                </>
-              ) : doc.words.length ? (
-                <span>{t('ce.tlHint')}</span>
-              ) : null
-            }
-            markers={marks}
-            onMarker={(turn) => (split.openChat(), chat.current?.focusTurn(turn))}
-            onSeek={(x) => pl.current?.seek(x)}
-            onSelect={(s) => {
-              setSel(s);
-              pl.current?.setSelection(s);
-            }}
-            onSelectFx={(f) => {
-              setFxSel(f);
-              if (f) setTab('effects');
-            }}
-            onMoveFx={(fx, start, end) => void edit([{ op: 'effect_update', id: fx.id, start, end }])}
-            onTrim={(a, b) => void edit([{ op: 'trim', start: a, end: b }])}
-          />
+          <div className="ce-tl-main">
+            <Timeline
+              shots={clipShots.shots}
+              shotSel={shotSel}
+              onShot={setShotSel}
+              doc={view}
+              time={time}
+              playing={playing}
+              selection={sel}
+              selectedFx={fxSel}
+              strip={strip}
+              stripFailed={stripFailed}
+              transcribe={transcribe}
+              defs={effects}
+              pending={spans}
+              fill
+              header={
+                marks.some((m) => m.tone === 'draft') || doc.steps.length || pending ? (
+                  <>
+                    <span className="lg">
+                      <i className="d" />
+                      {t('ce.legend.draft')}
+                    </span>
+                    <span className="lg">
+                      <i className="a" />
+                      {t('ce.legend.applied')}
+                    </span>
+                    {preview.compare && <span>{t('ce.holdC')}</span>}
+                  </>
+                ) : doc.words.length ? (
+                  <span>{t('ce.tlHint')}</span>
+                ) : null
+              }
+              markers={marks}
+              onMarker={(turn) => (split.openChat(), chat.current?.focusTurn(turn))}
+              onSeek={(x) => pl.current?.seek(x)}
+              onSelect={(s) => {
+                setSel(s);
+                pl.current?.setSelection(s);
+              }}
+              onSelectFx={(f) => {
+                setFxSel(f);
+                if (f) setTab('effects');
+              }}
+              onMoveFx={(fx, start, end) => void edit([{ op: 'effect_update', id: fx.id, start, end }])}
+              onTrim={(a, b) => void edit([{ op: 'trim', start: a, end: b }])}
+            />
+          </div>
+          {shotSel != null && clipShots.shots.find((x) => x.i === shotSel) && (
+            <ShotPop item={id} shot={clipShots.shots.find((x) => x.i === shotSel)!} onClose={() => setShotSel(null)} onChanged={clipShots.reload} />
+          )}
         </div>
       )}
     </LowerPane>

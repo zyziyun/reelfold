@@ -1,19 +1,22 @@
 // "How it's cut" on the project page (the engine's editor brain, desk_engine/brain.py): the template the project is
 // cut with and why (Change: the same recipe's other templates), the shot plan with "why this effect" per shot (two
-// plain alternatives at most, Reset when she changed it), and the "Could be generated" cards she approves or skips.
-// Nothing here spends: an approved idea waits for the Create spend gate. Mockup: ux/editor-brain/mockups.html (A).
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
-import type { BrainDoc, BrainProposal, BrainShot, BrainText } from '../../../shared/v04';
+// plain alternatives at most, Reset when she changed it), and the "Could be generated" cards. Generating one goes
+// through the Create spend gate (BrainGate: the price, the most it can cost, the month left, every refusal) and only
+// her click there spends; the take lands in the edit at the proposed spot and the project re-renders - "Take it out"
+// undoes that. Mockup: ux/editor-brain/mockups.html (A).
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChevronRight, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
+import type { BrainDoc, BrainProposal, BrainShot, BrainState } from '../../../shared/v04';
 import { getLang, t, type MessageKey } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
+import { BrainGate, gateText } from './BrainGate';
+import { said } from './brainText';
 import { Thumb } from './kit';
 import { errText } from './msg';
 import { useUi } from './ui';
 import './brain.css';
 
-/** The engine writes its reasons in English and Chinese; French reads the English. */
-export const said = (x: BrainText | null | undefined): string => (!x ? '' : getLang() === 'zh-CN' ? x.zh || x.en : x.en || x.zh);
+export { said };
 
 const BY: Record<string, MessageKey> = { rules: 'brain.by.rules', her: 'brain.by.her', ai: 'brain.by.ai' };
 const JOIN: Record<string, MessageKey> = {
@@ -37,7 +40,7 @@ export function shotLine(s: BrainShot): string {
 }
 
 /** The one plain alternative per decision she may want: the runner-up of the engine's own candidates. */
-export function alternative(s: BrainShot, dim: 'transition' | 'speed'): string | null {
+export function alternative(s: Pick<BrainShot, 'transition' | 'speed' | 'choices'>, dim: 'transition' | 'speed'): string | null {
   const cur = dim === 'transition' ? s.transition?.kind : s.speed;
   const c = (s.choices?.[dim] ?? []).map(([k]) => k).filter((k) => k !== cur && k !== 'open' && k !== 'morph-fallback' && k !== 'continuous');
   return c[0] ?? null;
@@ -45,6 +48,31 @@ export function alternative(s: BrainShot, dim: 'transition' | 'speed'): string |
 
 export function money(cny: number | null | undefined): string {
   return cny == null ? t('brain.gen.priceUnknown') : `≈ ¥${cny.toFixed(cny < 10 ? 1 : 0)}`;
+}
+
+export type GenView = 'idea' | 'generating' | 'placed' | 'kept' | 'failed' | 'unknown' | 'skipped';
+
+/** What a proposal's card shows: the engine's status, unless this desk session knows a generation is running. */
+export function genView(p: BrainProposal, live?: BrainState['generating']): GenView {
+  const run = live?.[p.id]?.state;
+  if (run === 'generating') return 'generating';
+  if (run === 'failed' && (p.status === 'proposed' || p.status === 'approved' || p.status === 'failed')) return 'failed';
+  switch (p.status) {
+    case 'generating':
+      return 'generating';
+    case 'placed':
+      return 'placed';
+    case 'generated':
+      return 'kept';
+    case 'failed':
+      return 'failed';
+    case 'unknown-charge':
+      return 'unknown';
+    case 'skipped':
+      return 'skipped';
+    default:
+      return 'idea';
+  }
 }
 
 export function BrainPanel({ item }: { item: string }) {
@@ -55,13 +83,15 @@ export function BrainPanel({ item }: { item: string }) {
   const [sel, setSel] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [gate, setGate] = useState<BrainProposal | null>(null);
   useEffect(() => subscribe((e) => (e.type === 'brain' && e.item === item ? setN((x) => x + 1) : undefined)), [subscribe, item]);
   const computing = data?.state === 'computing';
+  const generating = Object.values(data?.generating ?? {}).some((g) => g.state === 'generating');
   useEffect(() => {
-    if (!computing) return;
+    if (!computing && !generating) return;
     const tm = setInterval(() => setN((x) => x + 1), 4000);
     return () => clearInterval(tm);
-  }, [computing]);
+  }, [computing, generating]);
   const doc = data?.doc ?? null;
   const shots = useMemo(() => doc?.plan?.shots ?? [], [doc]);
   const used = shots.filter((s) => !s.skip);
@@ -83,6 +113,18 @@ export function BrainPanel({ item }: { item: string }) {
   const tpl = doc?.template;
   const props = doc?.proposals ?? [];
   const open = props.filter((p) => p.status === 'proposed');
+  const inEdit = props.filter((p) => p.status === 'placed').length;
+  const answer = (p: BrainProposal, action: 'take' | 'skip' | 'undo' | 'out' | 'in') => {
+    if (!client) return;
+    if (action === 'take') return setGate(p);
+    if (action === 'out' || action === 'in')
+      return void apply(async () => {
+        const r = await client.brainPlace(item, p.id, action === 'out');
+        ui.toast(action === 'out' ? t('brain.gen.tookOut') : t('brain.gen.putBack'));
+        return r;
+      });
+    void apply(() => client.brainGen(item, p.id, action));
+  };
   return (
     <section className="brain" data-testid="brain">
       <div className="brain-hd">
@@ -159,26 +201,55 @@ export function BrainPanel({ item }: { item: string }) {
           <div className="row">
             <Sparkles className="ico" />
             <b>{t('brain.gen.title')}</b>
-            <span className="muted">· {t('brain.gen.sum', { n: open.length, cost: money(doc?.cost.cny) })}</span>
+            <span className="muted">
+              ·{' '}
+              {[open.length ? t('brain.gen.sum', { n: open.length, cost: money(doc?.cost.cny) }) : null, inEdit ? t('brain.gen.sumPlaced', { n: inEdit }) : null]
+                .filter(Boolean)
+                .join(' · ') || t('brain.gen.sumNone')}
+            </span>
           </div>
           <div className="brain-cards">
             {props.map((p) => (
-              <GenCard key={p.id} p={p} busy={busy} onAnswer={(action) => client && void apply(() => client.brainGen(item, p.id, action, action === 'approve' ? p.code : undefined))} />
+              <GenCard key={p.id} p={p} view={genView(p, data.generating)} live={data.generating?.[p.id]} busy={busy} onAnswer={(a) => answer(p, a)} />
             ))}
           </div>
         </div>
+      )}
+      {gate && client && (
+        <BrainGate
+          item={item}
+          p={gate}
+          onClose={() => setGate(null)}
+          onStarted={() => {
+            setGate(null);
+            setN((x) => x + 1);
+          }}
+        />
       )}
     </section>
   );
 }
 
-function ShotWhy({ s, busy, onChange }: { s: BrainShot; busy: boolean; onChange: (set: Record<string, string | boolean> | null) => void }) {
+/** "Why this" for one shot with the plain alternatives (the project page's strip and the clip timeline's shots lane
+ * show the same box). */
+export function ShotWhy({
+  s,
+  busy,
+  onChange,
+  extra,
+}: {
+  s: Pick<BrainShot, 'id' | 'why' | 'choices' | 'skip' | 'by' | 'transition' | 'speed'>;
+  busy: boolean;
+  onChange: (set: Record<string, string | boolean> | null) => void;
+  extra?: ReactNode;
+}) {
   const alt = alternative(s, 'transition');
   const spd = alternative(s, 'speed');
   const fits = (s.choices?.transition ?? []).map(([k, f]) => `${JOIN[k] ? t(JOIN[k]) : k} ${f.toFixed(2)}`).join(' · ');
   return (
     <div className="brain-whybox" data-testid="brain-why">
       <b>{t('brain.whyTitle', { id: s.id })}</b>
+      {extra}
       <ul>
         {s.why.map((w, i) => (
           <li key={i}>{said(w)}</li>
@@ -217,29 +288,87 @@ const MODE: Record<string, MessageKey> = {
   'text-to-image': 'brain.mode.t2i',
 };
 
-function GenCard({ p, busy, onAnswer }: { p: BrainProposal; busy: boolean; onAnswer: (a: 'approve' | 'skip' | 'undo') => void }) {
+function GenCard({
+  p,
+  view,
+  live,
+  busy,
+  onAnswer,
+}: {
+  p: BrainProposal;
+  view: GenView;
+  live?: { error?: string | null; code?: string | null; params?: Record<string, unknown> | null };
+  busy: boolean;
+  onAnswer: (a: 'take' | 'skip' | 'undo' | 'out' | 'in') => void;
+}) {
   const price = money(p.estimate.cny);
+  const who = p.estimate.label || p.provider;
+  const failText = live?.code ? gateText({ code: live.code, params: live.params ?? {} }, who) : p.run?.code ? gateText({ code: p.run.code, params: {} }, who) : '';
+  const still = p.file && /\.(jpe?g|png)$/i.test(p.file);
   return (
-    <div className={`brain-card ${p.status}`} data-testid={`brain-gen-${p.kind}`}>
-      {p.source?.thumb ? <Thumb src={p.source.thumb} ratio="16/9" /> : <div className="brain-ph"><Sparkles className="ico lg" /></div>}
+    <div className={`brain-card ${view}`} data-testid={`brain-gen-${p.kind}`} data-state={view}>
+      {p.file && !still && (view === 'placed' || view === 'kept') ? (
+        <Thumb src={null} video={p.file} ratio="16/9" />
+      ) : still ? (
+        <Thumb src={p.file} ratio="16/9" />
+      ) : p.source?.thumb ? (
+        <Thumb src={p.source.thumb} ratio="16/9" />
+      ) : (
+        <div className="brain-ph">
+          <Sparkles className="ico lg" />
+        </div>
+      )}
       <b>{said(p.title)}</b>
       <span className="muted">{said(p.why)}</span>
       <span className="muted brain-meta">
-        {[p.estimate.label || p.provider, MODE[p.mode] ? t(MODE[p.mode]) : p.mode, t('brain.secs', { n: p.seconds }), price, t('brain.gen.labelled')].join(' · ')}
+        {[who, MODE[p.mode] ? t(MODE[p.mode]) : p.mode, t('brain.secs', { n: p.seconds }), price, t('brain.gen.labelled')].join(' · ')}
       </span>
+      {view === 'generating' && (
+        <span className="brain-state" data-testid="brain-generating">
+          <Loader2 className="ico spin" />
+          {t('brain.gen.making', { who })}
+        </span>
+      )}
+      {view === 'placed' && <span className="brain-state ok">{t('brain.gen.placed')}</span>}
+      {view === 'kept' && <span className="brain-state">{p.kind === 'cover' ? t('brain.gen.keptCover') : t('brain.gen.kept')}</span>}
+      {view === 'failed' && (
+        <span className="brain-state bad" data-testid="brain-gen-failed">
+          {t('brain.gen.failed')}
+          {failText ? ` · ${failText}` : ''}
+        </span>
+      )}
+      {view === 'unknown' && (
+        <span className="brain-state bad">
+          <TriangleAlert className="ico" />
+          {t('brain.gen.unknown', { who })}
+        </span>
+      )}
       <div className="row">
-        {p.status === 'proposed' ? (
+        {(view === 'idea' || view === 'failed') && (
           <>
-            <button className="btn primary sm" disabled={busy || p.estimate.cny == null} onClick={() => onAnswer('approve')} data-testid="brain-approve">
-              {t('brain.gen.approve', { price })}
+            <button className="btn primary sm" disabled={busy || p.estimate.cny == null} onClick={() => onAnswer('take')} data-testid="brain-approve">
+              {view === 'failed' ? t('brain.gen.again', { price }) : t('brain.gen.approve', { price })}
             </button>
-            <button className="btn sm" disabled={busy} onClick={() => onAnswer('skip')} data-testid="brain-skip-gen">
-              {t('brain.gen.skip')}
-            </button>
+            {p.status === 'proposed' && (
+              <button className="btn sm" disabled={busy} onClick={() => onAnswer('skip')} data-testid="brain-skip-gen">
+                {t('brain.gen.skip')}
+              </button>
+            )}
           </>
-        ) : (
+        )}
+        {view === 'placed' && (
+          <button className="btn sm" disabled={busy} onClick={() => onAnswer('out')} data-testid="brain-take-out">
+            {t('brain.gen.takeOut')}
+          </button>
+        )}
+        {view === 'kept' && p.kind !== 'cover' && (
+          <button className="btn sm" disabled={busy} onClick={() => onAnswer('in')} data-testid="brain-put-back">
+            {t('brain.gen.putIn')}
+          </button>
+        )}
+        {view === 'skipped' && (
           <>
-            <span className="muted">{p.status === 'approved' ? t('brain.gen.approved') : t('brain.gen.skipped')}</span>
+            <span className="muted">{t('brain.gen.skipped')}</span>
             <span className="sp" />
             <button className="btn ghost sm" disabled={busy} onClick={() => onAnswer('undo')} data-testid="brain-undo">
               {t('brain.gen.undo')}

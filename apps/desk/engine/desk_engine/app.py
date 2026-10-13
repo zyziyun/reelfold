@@ -110,7 +110,9 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
                                            is gone for good; her files are never touched)
   GET  /api/brain/<item>; POST .../refresh; POST .../template {id}; POST .../shot {id, set | reset};
        POST .../gen {id, action approve | skip | undo, code?}  the editor brain: template + why, the per-shot plan,
-       "Could be generated" proposals (never spends)   (brain.py)
+       "Could be generated" proposals; POST .../estimate {id} + .../generate {id, estimate_id, confirm_code,
+       max_cny, code} (the Create spend gate: only her click spends), .../place {id, undo?}; GET .../shots?clip=
+       (the clip's shots + why)   (brain.py)
   GET  /api/autopilot/<item>; POST .../reopen {checkpoint, item}; POST .../mode {on};
        POST .../change {checkpoint, item, answer}; POST .../remake {item, do {checkpoint: choice | null}}
        (a finished clip's vertical framing / post copy made again, older projects too)   (autopilot.py)
@@ -518,7 +520,7 @@ class Api:
         self.autopilot = K["Autopilot"](self.history, runner if real else None, bus, intake=self.intake)
         self.project_ask.autopilot = self.autopilot
         from .brain import Brain                    # the editor brain: template, per-shot plan, generation proposals
-        self.brain = Brain(self.history, runner if real else None, bus)
+        self.brain = Brain(self.history, runner if real else None, bus, outputs=self.outputs)
         self.outputs.autopilot = self.autopilot        # the clip chat's "follow the subject" / "rewrite the copy"
         from .imports import Imports                # finished videos made elsewhere -> second-pass editing
         self.imports = Imports(engine.data_dir, self.history, self.outputs, self.strips, bus, runner if real else None)
@@ -757,6 +759,15 @@ class Api:
                 return self.brain.shot(parts[1], b.get("id"), b.get("set"), reset=b.get("reset") is True)
             if parts[2:] == ["gen"] and method == "POST":
                 return self.brain.gen(parts[1], b.get("id"), b.get("action"), b.get("code"))
+            if parts[2:] == ["estimate"] and method == "POST":
+                return self.brain.estimate(parts[1], b.get("id"))
+            if parts[2:] == ["generate"] and method == "POST":
+                return self.brain.generate(parts[1], b.get("id"), b.get("estimate_id"), b.get("confirm_code"),
+                                           b.get("max_cny"), b.get("code"))
+            if parts[2:] == ["place"] and method == "POST":
+                return self.brain.place(parts[1], b.get("id"), undo=b.get("undo") is True)
+            if parts[2:] == ["shots"] and method == "GET":
+                return self.brain.shots(parts[1], (query.get("clip") or [""])[0])
         if parts == ["sample"] and method == "GET":
             return self.sample.info()
         if parts == ["sample", "remove"] and method == "POST":

@@ -45,7 +45,7 @@ import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { Goal, GoalEditOp } from './goal';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, BrainDoc, BrainState, CalendarDoc, CalendarPost, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, BrainDoc, BrainEstimate, BrainState, CalendarDoc, CalendarPost, ClipShots, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import type { ImportCheck, ImportInfo, ImportJob, ImportTakes } from './imports';
 import { CreateClient } from './create';
@@ -603,6 +603,28 @@ export class EngineClient {
   /** her answer on a generation proposal; approve carries its confirm code (this price). Nothing is spent here. */
   brainGen(item: string, id: string, action: 'approve' | 'skip' | 'undo', code?: string) {
     return this.req<{ ok: boolean; doc: BrainDoc }>('POST', `/api/brain/${bid(item)}/gen`, { id, action, code });
+  }
+  /** the Create spend gate's sheet for one proposal: price, the most it can cost, the month left (nothing sent) */
+  brainEstimate(item: string, id: string) {
+    return this.req<BrainEstimate>('POST', `/api/brain/${bid(item)}/estimate`, { id });
+  }
+  /** her click in the gate: approve at this price and generate (the one paid call), placed in the edit */
+  brainGenerate(item: string, id: string, est: { id: string; confirm_code: string; max_cny: number }, code: string) {
+    return this.req<{ ok: boolean; started: boolean; state: string }>('POST', `/api/brain/${bid(item)}/generate`, {
+      id,
+      estimate_id: est.id,
+      confirm_code: est.confirm_code,
+      max_cny: est.max_cny,
+      code,
+    });
+  }
+  /** a generated take out of the edit again (undo: true) or back in */
+  brainPlace(item: string, id: string, undo: boolean) {
+    return this.req<{ ok: boolean; doc: BrainDoc; resumed: boolean }>('POST', `/api/brain/${bid(item)}/place`, { id, undo });
+  }
+  /** a clip's shots on its timeline with the plan's why + alternatives */
+  brainShots(item: string, clip: string) {
+    return this.req<ClipShots>('GET', `/api/brain/${bid(item)}/shots?clip=${encodeURIComponent(clip)}`);
   }
   /** what the autopilot decided for a project, and whether it is on */
   autopilot(item: string) {

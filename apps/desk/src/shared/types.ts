@@ -310,7 +310,8 @@ export type StreamEvent =
   | { type: 'import-match'; item: string; clip: string; state: 'running' | 'done' | 'failed'; progress?: number; matched?: number; shots?: number; error?: string; ts: number }
   | { type: 'import-copy'; item: string; clip: string; state: 'running' | 'done' | 'failed'; error?: string; ts: number }
   | { type: 'goals'; id?: string; state?: string; ts: number }
-  /** the editor brain of a project was computed (desk_engine.brain) */
-  | { type: 'brain'; item: string; state: 'ready' | 'failed'; ts: number }
+  /** the editor brain of a project was computed (desk_engine.brain); ``gen``: a generation of that proposal moved
+   * on (generating -> placed | generated | failed | unknown-charge) */
+  | { type: 'brain'; item: string; state: 'ready' | 'failed'; gen?: string; gen_state?: string; ts: number }
   /** a watched job's live transcript grew (desk_engine.live): fetch it from your cursor */
   | { type: 'live'; key: string; ts: number };

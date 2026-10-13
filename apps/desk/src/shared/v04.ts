@@ -659,10 +659,56 @@ export interface BrainProposal {
   provider: string;
   model: string;
   estimate: { cny: number | null; unknown?: boolean; verified?: boolean; label?: string | null };
-  status: 'proposed' | 'approved' | 'skipped';
+  /** proposed -> (her click in the spend gate) generating -> placed (in the edit) | generated (kept, out of the
+   * edit) | failed | unknown-charge (the service did not answer after the request left: maybe charged) */
+  status: 'proposed' | 'approved' | 'skipped' | 'generating' | 'generated' | 'placed' | 'failed' | 'unknown-charge';
   /** the confirm code an Approve carries (this proposal at this price) */
   code: string;
   stale?: boolean;
+  /** the generated take (state/brain/gen/) */
+  file?: string | null;
+  placed?: { items: { item: string; file: string | null }[]; file: string; seconds: number; at: string } | null;
+  run?: { task?: string | null; state: string; cny?: number | null; provider?: string; code?: string | null } | null;
+  error?: string | null;
+}
+/** POST /api/brain/<item>/estimate: the Create spend gate's sheet for one proposal (nothing is sent) */
+export interface BrainEstimate {
+  id: string;
+  confirm_code: string;
+  max_cny: number;
+  subtotal_cny: number;
+  expires_at: number;
+  lines: { provider: string; model: string; label: string; kind: string; seconds?: number; seconds_billed?: number | null; native_units?: number | null; cny: number | null; verified?: boolean; resolution?: string | null }[];
+  /** every reason the gate would refuse now (create.provider-not-ready, create.over-cap ...) */
+  codes: { code: string; params: Record<string, unknown> }[];
+  month: { cap: number | null; used: number; left_after: number | null };
+  proposal: { id: string; code: string; kind: string; title: BrainText; why: BrainText; mode: string; seconds: number; provider: string; model: string };
+}
+/** GET /api/brain/<item>/shots?clip=: the clip's per-shot edit list joined with the plan */
+export interface ClipShot {
+  i: number;
+  t0: number;
+  t1: number;
+  src?: string | null;
+  file?: string | null;
+  src_in?: number | null;
+  src_out?: number | null;
+  join?: string | null;
+  speed?: number | null;
+  role?: string | null;
+  ramp?: string | null;
+  ai?: boolean;
+  brain: (Partial<BrainShot> & { id: string }) | null;
+  gen: { id: string; kind: string; title: BrainText; why: BrainText; status: string; mode?: string; provider?: string } | null;
+}
+export interface ClipShots {
+  item: string;
+  supported: boolean;
+  builder?: string;
+  duration?: number | null;
+  shots: ClipShot[];
+  fresh?: boolean;
+  reason?: string;
 }
 export interface BrainDoc {
   template: BrainTemplate | null;
@@ -678,6 +724,8 @@ export interface BrainState {
   state?: 'ready' | 'computing' | 'failed';
   doc?: BrainDoc | null;
   error?: string;
+  /** generations running / just ended in this desk session: proposal id -> {state, error?, code?, params?} */
+  generating?: Record<string, { state: string; error?: string | null; code?: string | null; params?: Record<string, unknown> | null }>;
 }
 
 /** GET /api/autopilot/<item> */

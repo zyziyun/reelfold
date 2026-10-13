@@ -18,7 +18,8 @@
 .brain-tile .th { border-radius: 6px; overflow: hidden; }
 .brain-tile.out { opacity: 0.45; }
 .brain-tile.on .th, .brain-tile:hover .th { outline: 2px solid var(--accent); outline-offset: 1px; }
-.brain-l { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brain-l { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11.5px; line-height: 1.35; color: var(--text-muted); overflow: hidden; }
+.brain-l .dot { display: inline-block; vertical-align: 1px; margin-right: 4px; }
 .brain-whybox { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; }
 .brain-whybox ul { margin: 6px 0 8px; padding-left: 18px; }
 .brain-whybox .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -28,8 +29,32 @@
 .brain-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin-top: 8px; }
 .brain-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; min-width: 0; }
 .brain-card .th { border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
-.brain-card.approved { border-style: solid; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.brain-card.generating, .brain-card.placed, .brain-card.kept { border-style: solid; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.brain-card.failed, .brain-card.unknown { border-style: solid; border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 .brain-card.skipped { opacity: 0.55; }
+.brain-state { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+.brain-state.ok { color: var(--accent); }
+.brain-state.bad { color: var(--danger); }
+.brain-state .ico.spin, .brain-busy .ico.spin { animation: brain-spin 900ms linear infinite; }
+@keyframes brain-spin { to { transform: rotate(360deg); } }
 .brain-card .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .brain-meta { font-size: 12px; }
 .brain-ph { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: 6px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-muted); margin-bottom: 4px; }
+
+/* the Create spend gate for one idea (BrainGate): the same calm sheet as the Create page's spend sheet */
+.brain-scrim { position: fixed; inset: 0; z-index: 90; background: var(--scrim); display: flex; align-items: center; justify-content: center; animation: fadein 140ms var(--ease); }
+.brain-gate { width: 520px; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.35); padding: 26px 28px 22px; }
+.brain-gate h2 { font-size: 20px; margin: 0; line-height: 1.3; }
+.brain-gate .sub { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin: 8px 0 14px; }
+.brain-gate .gl { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.brain-gate .gl .l1 { font-size: 15px; }
+.brain-gate .gl .l2 { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+.brain-gate .gl .amt { margin-left: auto; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.brain-gate .gsum { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 14px 0 6px; padding: 14px 16px; border-radius: 10px; background: var(--surface-2); }
+.brain-gate .gsum .big { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.brain-gate .gsum .muted { font-size: 13.5px; }
+.brain-gate .gnote { font-size: 13px; margin: 8px 0 0; line-height: 1.5; }
+.brain-gate .gblock { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--danger) 10%, transparent); font-size: 13.5px; }
+.brain-gate .gblock b { font-weight: 500; }
+.brain-gate .acts { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
+.brain-gate .acts .sp { flex: 1; }

@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AudioLines, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import type { StripInfo, TranscribeState } from '../../../shared/timeline';
-import type { EffectDef, EffectInstance, OutputDoc } from '../../../shared/v04';
+import type { ClipShot, EffectDef, EffectInstance, OutputDoc } from '../../../shared/v04';
+import { laneLabel, laneTitle } from './ShotLane';
 import { t } from '../i18n';
 import {
   clampPps,
@@ -69,6 +70,10 @@ export interface TimelineProps {
   pending?: [number, number][];
   /** grow the lanes with the space the lower pane gives (the editor's split); the base heights are the minimum */
   fill?: boolean;
+  /** the shot plan (ShotLane.useClipShots): one block per shot of the builder's edit list, a click opens its why */
+  shots?: ClipShot[];
+  shotSel?: number | null;
+  onShot?: (i: number | null) => void;
 }
 
 const GUTTER = 76;
@@ -79,7 +84,7 @@ function keptOf(a: number, b: number, cuts: [number, number][]): number {
   for (const [x, y] of cuts) cut += Math.max(0, Math.min(b, y) - Math.max(a, x));
   return Math.max(0, b - a - cut);
 }
-const H = { ruler: 24, film: 46, wave: 40, words: 30, fxRow: 24 };
+const H = { ruler: 24, shots: 24, film: 46, wave: 40, words: 30, fxRow: 24 };
 const OVERSCAN = 240; // px drawn beyond each edge of the viewport
 
 export function Timeline(p: TimelineProps) {
@@ -243,7 +248,8 @@ export function Timeline(p: TimelineProps) {
     setAvail(el.clientHeight);
     return () => ro.disconnect();
   }, [p.fill]);
-  const sc = p.fill && avail ? Math.min(2.4, Math.max(1, (avail - 64 - H.ruler - fxH) / (H.film + H.wave + H.words))) : 1;
+  const shotsH = p.shots?.length ? H.shots : 0;
+  const sc = p.fill && avail ? Math.min(2.4, Math.max(1, (avail - 64 - H.ruler - shotsH - fxH) / (H.film + H.wave + H.words))) : 1;
   const L = { film: Math.round(H.film * sc), wave: Math.round(H.wave * sc), words: Math.round(H.words * Math.min(sc, 1.5)) };
   const trimA = drag?.kind === 'trim' && drag.edge === 'l' ? drag.cur : (doc.trim?.start ?? 0);
   const trimB = drag?.kind === 'trim' && drag.edge === 'r' ? drag.cur : (doc.trim?.end ?? D);
@@ -262,7 +268,7 @@ export function Timeline(p: TimelineProps) {
   }, [doc.words, t0, t1, pps]);
   const tr = p.transcribe;
   const est = listenEstimate(D);
-  const lanesTop = H.ruler;
+  const lanesTop = H.ruler + shotsH;
   const lanesH = L.film + L.wave + L.words + fxH;
 
   return (
@@ -284,6 +290,7 @@ export function Timeline(p: TimelineProps) {
       <div className="tl2-body">
         <div className="tl2-gutter" aria-hidden="true">
           <span style={{ height: H.ruler }} />
+          {shotsH > 0 && <span style={{ height: shotsH }}>{t('brain.tl.lane')}</span>}
           <span style={{ height: L.film }}>{t('tl.lane.video')}</span>
           <span style={{ height: L.wave }}>{t('tl.lane.audio')}</span>
           <span style={{ height: L.words }}>{t('tl.lane.words')}</span>
@@ -330,6 +337,33 @@ export function Timeline(p: TimelineProps) {
                   />
                 ))}
             </div>
+            {/* the shot plan: one block per shot of the edit list (why + alternatives on a click) */}
+            {shotsH > 0 && (
+              <div className="ln shots" style={{ top: H.ruler, height: shotsH }} data-testid="tl-shots">
+                {(p.shots ?? []).map((s) => {
+                  const left = x(Math.max(0, s.t0));
+                  const w = Math.max(3, x(Math.min(D, s.t1)) - left - 1);
+                  const label = laneLabel(s);
+                  return (
+                    <button
+                      key={s.i}
+                      className={`shb ${s.gen || s.ai ? 'ai' : ''} ${s.brain?.by === 'her' ? 'her' : ''} ${p.shotSel === s.i ? 'on' : ''} ${s.role === 'hook' ? 'hook' : ''}`}
+                      style={{ left, width: w }}
+                      title={laneTitle(s)}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        p.onShot?.(p.shotSel === s.i ? null : s.i);
+                        onSeek(Math.max(0, s.t0 + 0.01));
+                      }}
+                      data-testid="tl-shot"
+                      data-brain={s.brain?.id ?? s.gen?.id ?? ''}
+                    >
+                      {w >= 26 && <span className="nm">{fitText(label, w - 10)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {/* filmstrip */}
             <div className="ln film" style={{ top: lanesTop, height: L.film }} onPointerDown={seekDown} data-testid="tl-film" data-ready={strip?.sprite ? '1' : '0'}>
               <Film strip={strip ?? null} failed={!!p.stripFailed} pps={pps} W={W} from={scroll - OVERSCAN} to={scroll + width + OVERSCAN} h={L.film} />
