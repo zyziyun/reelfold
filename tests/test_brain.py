@@ -1,6 +1,8 @@
 """vstudio.brain: template classifier, per-shot treatment planner, generation proposals, the project store.
 
 No media work: analyses, tiles and projects are built by hand; prices come from the real rate card."""
+import os
+
 import pytest
 
 from vstudio.brain import genplan as G
@@ -321,7 +323,7 @@ def project(tmp_path, monkeypatch):
     an = _drone(2)
     for f, c in zip([f for f in an["files"] if f["kind"] == "video"], clips):
         f["path"] = c
-    ts = [_tile(1, clip=clips[0].rsplit("/", 1)[1][:-4]), _tile(2, clip="x", score=0.2, bright=0.1)]
+    ts = [_tile(1, clip=os.path.splitext(os.path.basename(clips[0]))[0]), _tile(2, clip="x", score=0.2, bright=0.1)]
     ts[0]["clip"], ts[1]["clip"] = clips[0], clips[1]
     monkeypatch.setattr(ST, "_signals", lambda project, paths, refresh=False, light=False: (T.signals(an, project.data["prompt"]), []))
     monkeypatch.setattr(ST, "_tiles", lambda project, paths, refresh=False, echo=None: ts)
