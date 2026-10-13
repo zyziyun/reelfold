@@ -65,6 +65,11 @@ with open(edl, "w") as f:
     json.dump(dict(version=1, builder="photo-story", duration=6.0, shots=[
         dict(i=0, t0=0, t1=2, src=s1[0], kind="video", src_in=0.2, src_out=1.8),
         dict(i=1, t0=2, t1=4, src=s1[1], kind="video", src_in=0.1, src_out=1.9)]), f)
+goal["survey"] = dict(totals=dict(videos=10, photos=0, panoramas=0, seconds=300.0, days=[s["date"] for s in stories]),
+                      unused=dict(stories=["s3"], photos=0, panoramas=0), notes=[],
+                      stories=[{k: s.get(k) for k in ("id", "place", "date", "start", "end", "time_of_day", "videos", "photos",
+                                                      "panoramas", "seconds", "aerial", "thumbs", "sheet", "folder")}
+                               for s in stories])
 goal.update(prompt="用 DJI 卡里的素材做 4 条左右，最少 3 条，YouTube、小红书和 B站", mode="ask", count=None)
 with open(gpath, "w", encoding="utf-8") as f:
     json.dump(goal, f, ensure_ascii=False)
