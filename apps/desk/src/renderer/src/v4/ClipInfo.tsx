@@ -4,12 +4,13 @@
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw, Sparkles } from 'lucide-react';
-import type { AutopilotChoice, AutopilotDoc, EditOp, OutputDoc } from '../../../shared/v04';
+import type { AutopilotChoice, AutopilotDoc, ClipFile, EditOp, OutputDoc } from '../../../shared/v04';
 import type { PilotFailure } from '../../../shared/v02';
 import type { StripInfo } from '../../../shared/timeline';
 import { fmtDate, fmtList, t, type MessageKey } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { nextFreeDay } from '../lib/nextSlot';
+import { versionFor } from '../lib/versions';
 import type { RenderState } from '../lib/autoRender';
 import { href } from '../lib/router';
 import { useChannels, useChosenPlatforms } from './Channels';
@@ -121,8 +122,8 @@ export function CaptionLooks({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
 }
 
 // ---------------------------------------------------------------- versions
-const VERSIONS = ['9:16', '16:9', '3:4'] as const; // international first
-const ASPECT_TARGET: Record<string, string> = { '3:4': 'xiaohongshu:vertical', '9:16': 'douyin:vertical', '16:9': 'youtube:horizontal' };
+export const VERSIONS = ['9:16', '16:9', '3:4'] as const; // international first
+export const ASPECT_TARGET: Record<string, string> = { '3:4': 'xiaohongshu:vertical', '9:16': 'douyin:vertical', '16:9': 'youtube:horizontal' };
 
 /** The shapes each platform takes: a clip made for some platforms offers only their shapes as versions. */
 const PLATFORM_SHAPES: Record<string, string[]> = {
@@ -498,7 +499,17 @@ export function ClipSchedule({ item, clip, compact = false }: { item: string; cl
   return <ClipScheduleView s={useClipSchedule(item, clip)} compact={compact} />;
 }
 
-export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState; compact?: boolean }) {
+/** which version a platform chip posts (the clip page): its shape after the name */
+function PfVersion({ pf, files }: { pf: string; files?: ClipFile[] }) {
+  const a = files?.length ? versionFor(pf, files)?.aspect : null;
+  return a && /^\d+:\d+$/.test(a) ? (
+    <span className="ci-pf-v" title={t('ci.pfVersion', { v: a })} data-testid="ci-pf-version">
+      {a}
+    </span>
+  ) : null;
+}
+
+export function ClipScheduleView({ s, compact = false, files }: { s: ClipScheduleState; compact?: boolean; files?: ClipFile[] }) {
   const { g, accounts, actions, off, setOff, pfs, rows } = s;
   if (!s.loaded) return <div className="ci-sched" data-testid="ci-schedule" aria-busy="true" />;
   if (!g) {
@@ -519,6 +530,7 @@ export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState;
               <button key={pf} className={`ci-chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setOff(on ? [...off, pf] : off.filter((x) => x !== pf))} data-testid="ci-pf" data-pf={pf}>
                 <PlatformIcon id={pf} size={13} />
                 {platformName(pf)}
+                <PfVersion pf={pf} files={files} />
               </button>
             );
           })}
@@ -563,6 +575,7 @@ export function ClipScheduleView({ s, compact = false }: { s: ClipScheduleState;
             >
               <PlatformIcon id={pf} size={13} />
               {platformName(pf)}
+              <PfVersion pf={pf} files={files} />
             </button>
           );
         })}

@@ -45,3 +45,34 @@
 .ce-right .ci-toggle:hover { color: var(--text); }
 .ce-right .ci-toggle .ico { width: 14px; height: 14px; }
 .ci-copyre { display: flex; } /* Rewrite post copy, under the clip's post */
+/* the clip page's Versions (VersionSwitcher.tsx): one switcher - each made version plays in the big player on a
+   click (the one playing is filled), a size not made yet is a dashed "+"; under it what the playing one is for */
+.vsw { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.vsw-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.vsw-it { display: inline-flex; align-items: stretch; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.vsw-it:hover { border-color: var(--text-faint); }
+.vsw-it.on { border-color: var(--accent); background: var(--accent-soft); }
+.vsw-b { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.vsw-b .ico { width: 13px; height: 13px; color: var(--text-muted); }
+.vsw-it.on .vsw-b { font-weight: 500; }
+.vsw-it.on .vsw-b .ico { color: var(--accent); fill: currentColor; }
+.vsw-it.making .vsw-b { color: var(--text-muted); cursor: default; }
+.vsw-add { border: 1px dashed var(--border-strong); border-radius: 8px; color: var(--text-muted); }
+.vsw-add:hover:not(:disabled) { border-color: var(--text-faint); color: var(--text); }
+.vsw-add:disabled { cursor: default; opacity: 0.6; }
+.vsw-x { display: inline-flex; align-items: center; padding: 0 7px; border: 0; border-left: 1px solid var(--border); background: transparent; color: var(--text-faint); cursor: pointer; }
+.vsw-x:hover { color: var(--text); }
+.vsw-x .ico { width: 12px; height: 12px; }
+.vsw-d { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; font-size: 12.5px; }
+.vsw-d .sp { flex: 1; }
+.vsw-pf { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+/* a platform chip: the version it posts */
+.ci-pf-v { margin-left: 2px; padding: 0 5px; border-radius: 5px; background: var(--surface-3); color: var(--text-muted); font-size: 11px; line-height: 17px; font-variant-numeric: tabular-nums; }
+.vsw-lang { flex-basis: 100%; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.vsw-open { align-self: center; display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; font-size: 12.5px; color: var(--text-muted); text-decoration: none; }
+.vsw-open:hover { color: var(--text); }
+.vsw-open .ico { width: 12px; height: 12px; }
+.vsw-post { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 13px; }
+.vsw-post p { margin: 0; color: var(--text-muted); line-height: 1.45; }
+/* the player's badge (another language's version playing) stays over its cover */
+.pl .pposter ~ .pbadge { z-index: 2; }

@@ -64,6 +64,8 @@ export interface PlayerProps {
   onFullExit?: () => void;
   /** shown over the video while it is paused at its start (the clip's cover, never a black first frame) */
   poster?: ReactNode;
+  /** the version playing changed (a size chip here, or `initialAspect` from outside): its aspect */
+  onVersion?: (aspect: string) => void;
 }
 
 const VOL_KEY = 'player.volume';
@@ -144,6 +146,20 @@ export const Player = forwardRef<PlayerApi, PlayerProps>(function Player(p, ref)
   // keep position (and playing) when the file under the player changes: another size version, a new render of the
   // same version (its `v`), or a reload after a load error
   const keepAt = useRef(0);
+  // a version picked outside the player (the clip page's Versions): the same moment in that file
+  const wantAspect = p.initialAspect;
+  useEffect(() => {
+    const i = p.files.findIndex((f) => f.aspect === wantAspect);
+    if (i < 0) return;
+    setVi((cur) => {
+      if (cur !== i) keepAt.current = v.current?.currentTime ?? 0;
+      return i;
+    });
+  }, [wantAspect]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onVersion = p.onVersion;
+  useEffect(() => {
+    if (aspect) onVersion?.(aspect);
+  }, [aspect, onVersion]);
   const resume = useRef(false);
   // a load error is retried with a fresh URL before it is shown: the file may have been replaced while it played (a
   // render writes the same path again) or be missing for a moment between the two

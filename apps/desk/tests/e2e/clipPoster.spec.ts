@@ -1,11 +1,14 @@
-// The clip page player at its start and its version chips with the REAL engine (2026-10-13, her "Golden Hour on
-// Elliott Bay" clip page sat black at 0:00 - a vlog fades in from black - picking a cover changed nothing she could
-// see, and the versions read "Edited · Edited · Edited · Original"). On the project-page fixture's finished vlog
-// (fixture/vlog_pages_project.py):
+// The clip page player at its start and its versions with the REAL engine (2026-10-13: her "Golden Hour on Elliott
+// Bay" clip page sat black at 0:00 - a vlog fades in from black - picking a cover changed nothing she could see, the
+// versions read "Edited · Edited · Edited · Original", a version chip started a render, and the other language's cut
+// of the same goal video was nowhere on the page). On a goal video made in English and 中文
+// (fixture/vlog_lang_pair.py: two finished vlog projects, YouTube / TikTok and 小红书 / B站, and their goal record):
 //   * paused at its start the player shows the clip's cover, not a black frame
 //   * a cover picked shows at once: the player goes to its start and shows that frame with the title on it; once the
 //     clip is rendered again, the render's own cover
 //   * the rendered clip's versions are named by what they are ("16:9 · edited", "Original ..."), never just "Edited"
+//   * Versions is one switcher grouped by language: a click plays that version's file at once (its shape), never a
+//     render; each platform chip says which version it posts; the 中文 cut's 小红书 3:4 plays here with its post copy
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -38,9 +41,9 @@ test.beforeAll(async () => {
   test.setTimeout(300000);
   const env: NodeJS.ProcessEnv = { ...process.env, ...engineEnv, PYTHONPATH: path.join(REPO, 'lib') };
   for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'VSTUDIO_PERSONA']) delete env[k];
-  const out = execFileSync(process.env.DESK_PYTHON || 'python3', [path.join(import.meta.dirname, 'fixture/vlog_pages_project.py'), tmp], { env, encoding: 'utf8' });
-  const fx = JSON.parse(out.trim().split('\n').pop()!) as { done: { dir: string; status: string } };
-  expect(fx.done.status).toBe('done');
+  const out = execFileSync(process.env.DESK_PYTHON || 'python3', [path.join(import.meta.dirname, 'fixture/vlog_lang_pair.py'), tmp, path.join(tmp, 'profile', 'engine-data')], { env, encoding: 'utf8' });
+  const fx = JSON.parse(out.trim().split('\n').pop()!) as { en: { dir: string; status: string; item: string }; zh: { dir: string; status: string; item: string } };
+  expect([fx.en.status, fx.zh.status]).toEqual(['done', 'done']);
   app = await electron.launch({
     args: [path.resolve(import.meta.dirname, '../..')],
     env: { ...env, PYTHONPATH: '', DESK_STUDIO: '1', DESK_ENGINE_MOCK: '', DESK_USER_DATA: path.join(tmp, 'profile'), DESK_HISTORY_WATCH: '', DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
@@ -55,9 +58,10 @@ test.beforeAll(async () => {
   await page.reload();
   await page.waitForURL(/^app:\/\/desk\//);
   expect((await page.evaluate(() => window.desk.engineInfo())).mode).toBe('real');
-  const idOf = async () => (await api<Hist>('/api/history')).items.find((i) => fs.realpathSync(i.dir) === fs.realpathSync(fx.done.dir))?.id ?? '';
+  const idOf = async () => (await api<Hist>('/api/history')).items.find((i) => fs.realpathSync(i.dir) === fs.realpathSync(fx.en.dir))?.id ?? '';
   await expect.poll(idOf, { timeout: 60000 }).not.toBe('');
   done = await idOf();
+  expect(done).toBe(fx.en.item);
 });
 
 test.afterAll(async () => {
@@ -97,10 +101,7 @@ const brightness = async () => {
 
 test('paused at its start the clip page player shows the cover; a cover picked shows at once, then its render', async () => {
   test.setTimeout(300000);
-  await hash('#/studio');
-  const r = page.locator(`[data-testid=studio-row][data-row="${done}/main"]`);
-  await expect(r).toHaveAttribute('data-group', 'ready', { timeout: 60000 });
-  await r.click();
+  await hash(`#/p/${done}/clip/main`);
   await expect(page.getByTestId('editor')).toHaveAttribute('data-layout', 'studio', { timeout: 30000 });
   const player = page.getByTestId('editor-player');
   const video = player.getByTestId('player-video');
@@ -152,4 +153,77 @@ test('the rendered clip\'s versions are named by what they are, never just "Edit
   expect(names).not.toContain('Edited');
   expect(names.some((n) => /^Original\b/.test(n))).toBe(true);
   expect(new Set(names).size).toBe(names.length);
+});
+
+// every request the page makes while she only picks versions: none may render, export or edit
+const watchRequests = () => {
+  const urls: string[] = [];
+  const on = (r: { url(): string; method(): string }) => void (r.method() === 'POST' && urls.push(r.url()));
+  page.on('request', on);
+  return { urls, stop: () => page.off('request', on) };
+};
+
+const video = () => page.getByTestId('editor-player').getByTestId('player-video');
+const shape = () => video().evaluate((v: HTMLVideoElement) => (v.readyState >= 1 && v.videoHeight ? v.videoWidth / v.videoHeight : 0));
+const WANT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '3:4': 3 / 4 };
+
+test('the Versions switcher plays each version at once (never a render); each platform shows the version it posts', async () => {
+  test.setTimeout(120000);
+  const detail = page.getByTestId('ci-version-detail');
+  const req = watchRequests();
+  const play = async (a: string) => {
+    const b = page.getByTestId(`ci-version-${a}`);
+    await expect(b).toHaveAttribute('data-made', '1');
+    await b.click();
+    await expect(b).toHaveAttribute('aria-checked', 'true');
+    await expect(detail).toHaveAttribute('data-aspect', a);
+    await expect.poll(shape, { timeout: 15000 }).toBeCloseTo(WANT[a], 2);
+    return video().getAttribute('src');
+  };
+  const srcs = [await play('9:16')];
+  // the vertical platforms post the 9:16 version: they are listed under it, and their chips say so
+  await expect(detail.locator('[data-testid=ci-version-pf][data-pf=tiktok]')).toBeVisible();
+  await expect(page.locator('[data-testid=ci-pf][data-pf=tiktok] [data-testid=ci-pf-version]')).toHaveText('9:16');
+  await shot('C5-version-9x16');
+  srcs.push(await play('16:9'));
+  await expect(detail.locator('[data-testid=ci-version-pf][data-pf=tiktok]')).toHaveCount(0);
+  expect(new Set(srcs).size).toBe(2);
+  req.stop();
+  expect(req.urls.filter((u) => /\/(render|export|edit)\b/.test(u))).toEqual([]);
+});
+
+test('a goal video made in two languages: the 中文 cut\'s versions play here too, grouped by language', async () => {
+  test.setTimeout(120000);
+  const mine = page.getByTestId('ci-versions-mine');
+  const zh = page.locator('[data-testid=ci-versions-other][data-lang=zh]');
+  await expect(zh).toBeVisible({ timeout: 30000 });
+  await expect(mine).toHaveAttribute('data-lang', 'en');
+  await expect(mine).toContainText('English');
+  await expect(zh).toContainText('中文');
+  const req = watchRequests();
+  // English 16:9 -> 中文 小红书 3:4: another file, another shape, its language's post copy
+  await page.getByTestId('ci-version-16:9').click();
+  await expect.poll(shape, { timeout: 15000 }).toBeCloseTo(WANT['16:9'], 2);
+  const en = await video().getAttribute('src');
+  const x = page.getByTestId('ci-version-zh-3:4');
+  await x.click();
+  await expect(x).toHaveAttribute('aria-checked', 'true');
+  await expect.poll(shape, { timeout: 15000 }).toBeCloseTo(WANT['3:4'], 2);
+  const src = (await video().getAttribute('src')) ?? '';
+  expect(src).not.toBe(en);
+  expect(decodeURIComponent(src)).toMatch(/[/\\]zh[/\\].*xiaohongshu/);
+  await expect(page.getByTestId('player-badge')).toContainText('中文');
+  const detail = page.getByTestId('ci-version-detail');
+  await expect(detail).toHaveAttribute('data-lang', 'zh');
+  await expect(detail.locator('[data-testid=ci-version-pf]')).toHaveAttribute('data-pf', 'xiaohongshu');
+  await expect(page.getByTestId('ci-version-post')).toContainText(/[\u4e00-\u9fff]/);
+  await expect(page.getByTestId('ci-version-16:9')).toHaveAttribute('aria-checked', 'false');
+  await shot('C6-version-zh-3x4');
+  await page.getByTestId('ci-versions').screenshot({ path: path.join(SHOTS, 'C7-versions-switcher.png') });
+  await expect(page.getByTestId('player-badge')).toBeVisible();
+  // and back to this clip's English 16:9
+  await page.getByTestId('ci-version-16:9').click();
+  await expect.poll(() => video().getAttribute('src'), { timeout: 15000 }).toBe(en);
+  req.stop();
+  expect(req.urls.filter((u) => /\/(render|export|edit)\b/.test(u))).toEqual([]);
 });

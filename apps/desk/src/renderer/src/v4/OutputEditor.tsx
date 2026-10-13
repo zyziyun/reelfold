@@ -30,6 +30,9 @@ import { Splitter } from './Splitter';
 import { ChatPanel, type ChatApi } from './chat/ChatPanel';
 import { Empty, media, Sk } from './kit';
 import { CoverPoster, posterLook } from './CoverPoster';
+import { VersionSwitcher, type OtherPick } from './VersionSwitcher';
+import { langName, useLangVersions } from '../lib/langVersions';
+import { platformName as pfName } from '../lib/platformName';
 import { editedFiles } from '../lib/versions';
 import { LowerPane } from './LowerPane';
 import { effectLabel, emsg, errText, humanizeParam, setEffectLabels } from './msg';
@@ -56,7 +59,7 @@ import './transcript/transcript.css';
 import { keyHint } from '../lib/keys';
 import { useAutoRender } from '../lib/autoRender';
 import { ClipImported } from './imports/ClipImported';
-import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVersions, ClipVisualsRedo, RenderPill, useClipSchedule } from './ClipInfo';
+import { CaptionLooks, ClipCopyRewrite, ClipCovers, ClipFill, ClipInfoPanel, ClipScheduleView, ClipVisualsRedo, RenderPill, useClipSchedule } from './ClipInfo';
 import { ProjectAIPanel } from './ProjectAIPanel';
 
 // cover, captions, versions and export live in the clip's info (ClipInfo) now; the drawer keeps the precise tools
@@ -250,6 +253,14 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     },
     [client, id, clip, reload, ui],
   );
+  // the version playing (the Versions switcher, the player's own size chips, ?v= in the link)
+  const [ver, setVer] = useState<string | undefined>(q.v);
+  useEffect(() => setVer(q.v), [clip, q.v]);
+  // a goal video made in several languages: its siblings' versions play here too (another language's file, as is)
+  const langs = useLangVersions(id);
+  const [other, setOther] = useState<OtherPick | null>(null);
+  useEffect(() => setOther(null), [id, clip]);
+  const playMine = useCallback((a: string) => (setOther(null), setVer(a)), []);
   // a cover picked: the player shows it at once (paused at its start, the poster), before the edit is saved
   const [coverPick, setCoverPick] = useState<{ t: number; text?: string | null; style?: string | null } | null>(null);
   useEffect(() => setCoverPick(null), [clip]);
@@ -806,15 +817,24 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   // once the clip is rendered with it, else the clip's cover - never a black first frame
   const coverEdit = odoc?.cover_edit;
   const freshCover = doc.renders.find((r) => r.target === 'primary' && r.quality === 'final' && r.fresh && !r.simulated && r.cover);
-  const poster = posterLook({
-    pick: coverPick ?? (coverEdit?.t != null ? { t: coverEdit.t, text: coverEdit.text ?? odoc?.title, style: coverEdit.style } : null),
-    rendered: coverPick ? null : (freshCover?.cover ?? null),
-    renderedV: freshCover?.key ?? freshCover?.at,
-    cover: odoc?.cover ?? null,
-    coverV: odoc?.cover_v,
-    file: doc.files[0]?.path ?? null,
-    duration: doc.duration,
-  });
+  const playingFile = files.find((f) => f.aspect === ver) ?? files[0];
+  const onPrimary = !playingFile || playingFile.aspect === files[0]?.aspect;
+  const coverPickNow = coverPick ?? (coverEdit?.t != null ? { t: coverEdit.t, text: coverEdit.text ?? odoc?.title, style: coverEdit.style } : null);
+  const poster = onPrimary
+    ? posterLook({
+        pick: coverPickNow,
+        rendered: coverPick ? null : (freshCover?.cover ?? null),
+        renderedV: freshCover?.key ?? freshCover?.at,
+        cover: odoc?.cover ?? null,
+        coverV: odoc?.cover_v,
+        file: doc.files[0]?.path ?? null,
+        duration: doc.duration,
+      })
+    : // another version: its own cover beside its file (that size's), else its frame
+      posterLook({ pick: null, rendered: playingFile.path.replace(/\.mp4$/i, '.cover.jpg'), renderedV: playingFile.v, cover: null, file: playingFile.path, duration: playingFile.duration ?? doc.duration });
+  // the platforms this clip goes to: scheduled, else the ones picked to schedule
+  const postPfs = sched.g ? sched.g.posts.filter((x) => x.enabled !== false).map((x) => x.platform.split(':')[0]) : sched.pfs;
+  const openExport = () => (setAi((a) => ({ ...a, open: true, all: false })), window.setTimeout(() => chat.current?.openCard('export'), 30));
   const playerCuts = useFresh
     ? []
     : [...view.cuts, ...(pending ? keepToCuts(keep, doc.duration).filter((c) => !view.cuts.some((v) => Math.abs(v.start - c.start) < 0.01 && Math.abs(v.end - c.end) < 0.01)) : []), ...pinCuts.map(([a, b]) => ({ start: a, end: b }))];
@@ -828,13 +848,36 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
   // the player's share of the editor's height, as a pane: min / max from the min sizes, steps of 4 %
   const stageSpec = split.height > MIN_STAGE + MIN_LOWER ? { def: PRESETS.balanced, min: MIN_STAGE / split.height, max: 1 - MIN_LOWER / split.height } : { def: PRESETS.balanced, min: 0.15, max: 0.85 };
 
+  const otherPf = other?.file.platform ? other.file.platform.split(':')[0] : null;
+  const otherPoster = other
+    ? posterLook({
+        pick: null,
+        rendered: other.file.path === other.v.clip.files[0]?.path && other.v.clip.cover ? other.v.clip.cover : other.file.path.replace(/\.mp4$/i, '.cover.jpg'),
+        renderedV: other.file.path === other.v.clip.files[0]?.path ? other.v.clip.cover_v : other.file.v,
+        cover: null,
+        file: other.file.path,
+        duration: other.file.duration ?? other.v.clip.duration ?? 0,
+      })
+    : null;
   const stageEl = (
     <section className="ce-stage">
+      {other ? (
+        // another language's version: its own file as it goes out (its captions, cover, watermark burned in)
+        <Player
+          key={`other:${other.file.path}`}
+          files={[{ ...other.file, label: undefined }]}
+          duration={other.file.duration ?? other.v.clip.duration ?? undefined}
+          badge={[langName(other.v.lang), otherPf ? pfName(otherPf) : null, other.file.aspect].filter(Boolean).join(' · ')}
+          poster={otherPoster ? <CoverPoster look={otherPoster} /> : null}
+          testId="editor-player"
+        />
+      ) : (
       <Player
         ref={pl}
         key={files.map((f) => f.path).join('|')}
         files={files}
-        initialAspect={q.v}
+        initialAspect={ver}
+        onVersion={setVer}
         fps={doc.fps}
         duration={doc.duration}
         captions={doc.captions.map((c) => ({ ...c }))}
@@ -853,6 +896,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
         poster={poster ? <CoverPoster look={poster} /> : null}
         testId="editor-player"
       />
+      )}
       {pickup && (
         <PickupStage
           item={id}
@@ -1172,7 +1216,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
               </div>
               <div className="ci-sec">
                 <span className="ci-lbl">{t('ci.versions')}</span>
-                <ClipVersions doc={odoc} edit={edit} />
+                <VersionSwitcher doc={odoc} files={files} playing={playingFile?.aspect} platforms={postPfs} onPlay={playMine} onExport={openExport} edit={edit} lang={langs.mine} others={langs.others} other={other} onPlayOther={setOther} />
               </div>
               <ClipFill item={id} clip={clip} onRemade={reload} />
               <ClipVisualsRedo item={id} clip={clip} />
@@ -1196,7 +1240,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             <div className="cs-made">{madeEl}</div>
             <div className="cs-lower">{lowerEl}</div>
             <div className="ci cs-post">
-              <ClipScheduleView s={sched} compact />
+              <ClipScheduleView s={sched} compact files={files} />
               <ClipCopyRewrite item={id} clip={clip} onDone={sched.reload} imported={!!odoc.imported} />
             </div>
           </section>
