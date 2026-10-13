@@ -1,8 +1,10 @@
 // The Studio's row actions (「任务的删除怎么没了」) and an empty recording's clip ("zmian": 0:00, black covers, no
 // transcript). Window hidden, mock engine, isolated profile, the Studio on. Every row has a hover ⋯ and a right-click
-// menu: Archive (undo toast), ⌫ archives, the Archived filter restores, ⌘-click picks several for the bulk bar, a
-// failed request is deleted for good after a confirm, a project's folder goes to the Trash after the main process's
-// confirm that names it (her recording stays), and a clip of under a second says so plainly instead of "0:00".
+// menu: Archive (undo toast), ⌫ archives, the Archived filter restores, ⌘-click picks several for the bulk bar, and
+// Delete… opens one dialog for every kind (a request, a project, her work folders, from the row menu, the Archived
+// filter and the bulk bar) that names what Reelfold made and goes and what of hers stays: Move to Trash (Undo, then
+// the Trash - a test folder here) or Delete permanently after a second, red step. A clip of under a second says so
+// plainly instead of "0:00".
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -118,8 +120,8 @@ test('⌘-click picks several: the bulk bar archives them (undo brings them back
   const bar = page.getByTestId('studio-bulk');
   await expect(bar).toContainText('2 selected');
   await expect(a).toHaveAttribute('aria-selected', 'true');
-  // Delete is not offered: these are her own folders (archive only)
-  await expect(bar.getByTestId('studio-bulk-delete')).toHaveCount(0);
+  // Delete… is offered too (only what Reelfold made in them would go)
+  await expect(bar.getByTestId('studio-bulk-delete')).toBeVisible();
   await page.screenshot({ path: path.join(SHOTS, 'bulk-bar.png') });
   await bar.getByTestId('studio-bulk-archive').click();
   await expect(a).toHaveCount(0);
@@ -185,38 +187,53 @@ test('an almost empty recording: its length is 0:00.9, said plainly, with Archiv
   await expect(note).toHaveCount(0);
 });
 
-test('Delete a project: the confirm names its folder and that her recording stays; it goes to the Trash', async () => {
-  await app.evaluate(({ dialog, shell }) => {
-    const g = globalThis as unknown as { __asked: { message: string; detail: string }[] };
-    g.__asked = [];
-    dialog.showMessageBox = (async (...a: unknown[]) => {
-      const o = (a.length > 1 ? a[1] : a[0]) as { message: string; detail: string };
-      g.__asked.push({ message: o.message, detail: o.detail });
-      return { response: 1, checkboxChecked: false };
-    }) as typeof dialog.showMessageBox;
-    // the test's temp folder, not her real Trash
+/** The main process's Trash: a folder of the test (not her real Trash); returns where things went. */
+async function stubTrash() {
+  const trash = path.join(tmp, 'Trash');
+  fs.mkdirSync(trash, { recursive: true });
+  await app.evaluate(({ shell }, dest) => {
     shell.trashItem = (async (p: string) => {
       const fsm = process.getBuiltinModule('node:fs') as typeof import('node:fs');
-      fsm.rmSync(p, { recursive: true, force: true });
+      const pm = process.getBuiltinModule('node:path') as typeof import('node:path');
+      fsm.renameSync(p, pm.join(dest, `${Date.now()}-${pm.basename(p)}`));
     }) as typeof shell.trashItem;
-  });
+  }, trash);
+  return trash;
+}
+
+test('Delete a project: the dialog names what goes and that her recording stays; Undo, then the Trash', async () => {
+  const trash = await stubTrash();
   const p = rowNamed('talkinghead-1');
   await p.hover();
   await p.locator('xpath=..').getByTestId('row-more').click();
   await page.getByTestId('context-menu').getByTestId('row-delete').click();
-  await expect(page.getByTestId('toast').filter({ hasText: 'Moved 1 project to the Trash' })).toBeVisible();
+  const dlg = page.getByTestId('delete-dialog');
+  await expect(dlg).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveAttribute('aria-label', 'Delete “talkinghead-1”?');
+  await expect(dlg.getByTestId('delete-item')).toHaveCount(1);
+  await expect(dlg.getByTestId('delete-paths')).toContainText(path.join(fs.realpathSync.native(tmp), 'vhome', 'projects', '512d9d387962'));
+  await expect(dlg.getByTestId('delete-keep')).toContainText('Never deleted');
+  await expect(dlg.getByTestId('delete-keep')).toContainText(fs.realpathSync.native(rec));
+  await expect(page.getByTestId('delete-soft')).toBeFocused(); // Move to Trash is the default
+  await page.screenshot({ path: path.join(SHOTS, 'delete-dialog.png') });
+  await page.getByTestId('delete-soft').click();
+  const toast = page.getByTestId('toast').filter({ hasText: 'Moved 1 item to the Trash' });
+  await expect(toast).toBeVisible();
   await expect(p).toHaveCount(0);
-  const asked = await app.evaluate(() => (globalThis as unknown as { __asked: { message: string; detail: string }[] }).__asked);
-  expect(asked).toHaveLength(1);
-  expect(asked[0].message).toBe('Move “talkinghead-1” to the Trash?');
-  expect(asked[0].detail).toContain(path.join(fs.realpathSync.native(tmp), 'vhome', 'projects', '512d9d387962'));
-  expect(asked[0].detail).toContain('Your recordings stay where they are:');
-  expect(asked[0].detail).toContain(rec);
-  expect(fs.existsSync(projParent)).toBe(false); // projects/<id> as a whole (only its intake note was beside it)
+  expect(fs.existsSync(projParent)).toBe(true); // nothing moved while Undo is possible
+  await toast.getByTestId('toast-undo').click();
+  await expect(p).toHaveCount(1, { timeout: 15000 });
+  // again, and this time the toast goes by: then the folder goes to the Trash
+  await p.click({ button: 'right' });
+  await page.getByTestId('context-menu').getByTestId('row-delete').click();
+  await page.getByTestId('delete-soft').click();
+  await expect(p).toHaveCount(0);
+  await expect.poll(() => fs.existsSync(projParent), { timeout: 20000 }).toBe(false); // projects/<id> as a whole
+  expect(fs.readdirSync(trash).some((f) => f.endsWith('512d9d387962'))).toBe(true);
   expect(fs.existsSync(rec)).toBe(true); // her recording stays
 });
 
-test('a failed request: the hover ⋯ offers Try again / Archive / Delete…; Delete asks, then it is gone for good', async () => {
+test('a failed request: the hover ⋯ offers Try again / Archive / Delete…; Delete says nothing on disk goes', async () => {
   await app.evaluate(({ dialog }, paths) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: paths })) as typeof dialog.showOpenDialog;
   }, [rec]);
@@ -232,9 +249,64 @@ test('a failed request: the hover ⋯ offers Try again / Archive / Delete…; De
   for (const id of ['row-retry', 'row-archive', 'row-delete']) await expect(menu.getByTestId(id)).toBeVisible();
   await page.screenshot({ path: path.join(SHOTS, 'request-menu.png') });
   await menu.getByTestId('row-delete').click();
-  await expect(page.getByTestId('row-delete-body')).toContainText('Your files stay where they are.');
-  await page.getByTestId('row-delete-ok').click();
-  await expect(page.getByTestId('toast').filter({ hasText: 'Deleted 1 request' })).toBeVisible();
+  await expect(page.getByTestId('delete-dialog')).toContainText('Nothing on disk: only the request goes.');
+  await page.getByTestId('delete-soft').click();
+  await expect(page.getByTestId('toast').filter({ hasText: 'Moved 1 item to the Trash' })).toBeVisible();
   await expect(page.locator('[data-testid=studio-row][data-kind=request]')).toHaveCount(0);
   expect(fs.existsSync(rec)).toBe(true);
+});
+
+test('Archived: Delete permanently needs a second, red step; the Reelfold-made files are gone from disk', async () => {
+  const dir = path.join(watch, 'travel-a');
+  await rowNamed('travel-a').click({ button: 'right' }); // renamed video "Sunrise…", project travel-a
+  await page.getByTestId('context-menu').getByTestId('row-archive').click();
+  await page.getByTestId('studio-f-archived').click();
+  const ar = page.getByTestId('studio-archived-row').filter({ hasText: 'travel-a' });
+  await expect(ar).toBeVisible();
+  await ar.click({ button: 'right' });
+  await page.getByTestId('context-menu').getByTestId('row-delete').click();
+  const dlg = page.getByTestId('delete-dialog');
+  await expect(dlg.getByTestId('delete-item')).toContainText('travel-a');
+  await expect(dlg.getByTestId('delete-paths')).toContainText(fs.realpathSync.native(dir));
+  await page.getByTestId('delete-hard').click();
+  const step = page.getByTestId('delete-hard-step');
+  await expect(step).toContainText('cannot be put back');
+  const ok = page.getByTestId('delete-hard-ok');
+  await expect(ok).toBeDisabled();
+  await page.screenshot({ path: path.join(SHOTS, 'delete-hard-step.png') });
+  await page.getByTestId('delete-sure').check();
+  await ok.click();
+  await expect(page.getByTestId('toast').filter({ hasText: 'Deleted 1 item permanently' })).toBeVisible();
+  await expect(ar).toHaveCount(0);
+  expect(fs.existsSync(dir)).toBe(false); // final/ was all there was: the folder goes whole
+});
+
+test('Archived bulk bar: pick several, Delete…, Move to Trash', async () => {
+  const trash = await stubTrash();
+  await page.getByTestId('studio-f-all').click();
+  for (const name of ['travel-b', 'mcp-part1']) {
+    await rowNamed(name).click({ button: 'right' });
+    await page.getByTestId('context-menu').getByTestId('row-archive').click();
+    await expect(rowNamed(name)).toHaveCount(0);
+  }
+  await page.getByTestId('studio-f-archived').click();
+  const rows = page.getByTestId('studio-archived-row');
+  const b = rows.filter({ hasText: 'travel-b' });
+  const m = rows.filter({ hasText: 'mcp-course' });
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
+  await b.click({ modifiers: [mod] });
+  await m.click({ modifiers: [mod] });
+  const bar = page.getByTestId('studio-bulk');
+  await expect(bar).toContainText('2 selected');
+  await bar.getByTestId('studio-bulk-delete').click();
+  await expect(page.getByRole('dialog')).toHaveAttribute('aria-label', 'Delete 2 items?');
+  await expect(page.getByTestId('delete-item')).toHaveCount(2);
+  await page.getByTestId('delete-soft').click();
+  await expect(page.getByTestId('toast').filter({ hasText: 'Moved 2 items to the Trash' })).toBeVisible();
+  await expect(b).toHaveCount(0);
+  await expect(m).toHaveCount(0);
+  await expect.poll(() => fs.existsSync(path.join(watch, 'travel-b')), { timeout: 20000 }).toBe(false);
+  // mcp-course: its exports and run notes were all Reelfold made, so the folder goes whole
+  await expect.poll(() => fs.existsSync(path.join(watch, 'mcp-course')), { timeout: 20000 }).toBe(false);
+  expect(fs.readdirSync(trash).length).toBeGreaterThan(1);
 });

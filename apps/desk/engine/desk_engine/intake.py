@@ -120,6 +120,7 @@ class Intake:
         self.sample = sample
         self.defaults = defaults or (lambda: {})
         self.jobs = {}
+        self.hidden = set()            # request ids waiting in a pending delete (purge.py): in no list until Undo
         self._procs = {}               # plan id -> running engine children (stop kills them)
         self._lock = threading.Lock()
         self._real = None
@@ -293,7 +294,7 @@ class Intake:
         for j in list(self.jobs.values()):
             if not j.get("mode") or j.get("applied") or j.get("discarded"):
                 continue
-            if bool(j.get("archived_at")) != bool(archived):
+            if bool(j.get("archived_at")) != bool(archived) or j["id"] in self.hidden:
                 continue
             plan = j.get("plan") or {}
             names = [p.get("name") for p in plan.get("projects") or [] if p.get("name")]
@@ -310,7 +311,7 @@ class Intake:
             return dict(items=out)
         # how many she archived (the Studio shows its Archived filter without reading them)
         n = sum(1 for j in list(self.jobs.values()) if j.get("archived_at") and j.get("mode") and not j.get("applied")
-                and not j.get("discarded"))
+                and not j.get("discarded") and j.get("id") not in self.hidden)
         return dict(items=out, archived=n)
 
     # ---------------------------------------------------------- archive / restore / delete (the Studio's row menu)

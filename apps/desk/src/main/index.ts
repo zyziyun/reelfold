@@ -45,7 +45,7 @@ import { APP_NAME, applyIdentity } from './identity';
 import { SecretStore } from './secrets';
 import { checkForUpdates, initUpdater, installUpdate, updateState } from './updater';
 import { registerCleanupIpc, registerV02Ipc, v02EngineEnv, writeTtsPrefs } from './v02';
-import { trashProjects } from './trash';
+import { trashPending, trashStale } from './trash';
 import { devOnly, setPackaged, tempOnly, testSwitch } from './testHooks';
 import { openFeedback, recordProblem, registerSupportIpc } from './support';
 import { AccessStore, commonFolder } from './access';
@@ -1035,11 +1035,10 @@ function registerIpc() {
     ownSources: () => BrowserWindow.getAllWindows().map((w) => w.getMediaSourceId()),
   });
   registerCleanupIpc(handle, { win: () => win, client: () => client, lang: () => (settings.get().lang === 'zh-CN' ? 'zh' : 'en') });
-  // the Studio's Delete for a project: the engine's plan, one native confirm naming what goes, then the Trash
-  handle('history:trash', async (p) => {
-    const l = settings.get().lang;
-    return trashProjects(p.dirs, { win, client, lang: l === 'zh-CN' ? 'zh' : l === 'fr' ? 'fr' : 'en' });
-  });
+  // Delete › Move to Trash: after her confirm (the renderer's dialog) and the Undo toast, the engine's pending paths
+  // go to the Trash here, each checked again; then the engine forgets them
+  handle('delete:trash', async (p) => trashPending(p.id, { client }));
+  handle('delete:stale', async () => trashStale({ client }));
 }
 
 let primeAiRoutes: { primeRoutes: () => Promise<void> } | null = null;

@@ -569,6 +569,48 @@ export interface OpenRequest {
   goal_video?: string | null;
 }
 
+/** What Delete picks (POST /api/delete/*): project / batch / work folders, single videos, requests. */
+export interface DeleteSel {
+  dirs?: string[];
+  clips?: { item: string; clip: string }[];
+  requests?: string[];
+}
+
+/** One thing in the Delete plan (engine/desk_engine/purge.py): what Reelfold made and would go, and what stays. */
+export interface DeletePlanItem {
+  key: string;
+  kind: 'project' | 'batch' | 'work' | 'import' | 'clip' | 'request';
+  name: string;
+  ok: boolean;
+  /** running | nothing-made | unsafe | not-found | made (a request already made into projects) */
+  reason?: 'running' | 'nothing-made' | 'unsafe' | 'not-found' | 'made';
+  dir?: string;
+  id?: string;
+  item?: string;
+  clip?: string;
+  /** a video's project */
+  project?: string;
+  /** the Reelfold-made paths that go */
+  targets: string[];
+  /** the folder goes as a whole */
+  whole?: boolean;
+  files: number;
+  bytes: number;
+  /** her footage / recordings it points at: they stay */
+  keep: string[];
+  /** other files of hers in the folder: they stay */
+  other: string[];
+}
+
+export interface DeletePlan {
+  items: DeletePlanItem[];
+  keep: string[];
+  files: number;
+  bytes: number;
+  /** signs exactly the targets she was shown (stage / hard refuse a changed plan) */
+  sig: string;
+}
+
 /** POST /api/history/trash-plan: what Delete would move to the Trash, per project folder (her footage stays). */
 export interface TrashPlanItem {
   dir: string;

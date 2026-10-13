@@ -354,6 +354,7 @@ class History:
         self._thumbs = set()
         self._thumbs_archived = set()
         self._media = set()
+        self.gone = set()        # real paths waiting in a pending Trash (purge.py): in no list until Undo / moved
 
     # ---------------------------------------------------------- config (watched folders, hidden)
     def _cfg(self):
@@ -693,6 +694,8 @@ class History:
                         r["sources"].append(src)
                 continue
             seen.add(rp)
+            if rp in self.gone:
+                continue
             if not mine_temp and is_temp_path(d):
                 continue
             if (rp in hidden) != archived:
@@ -773,6 +776,8 @@ class History:
             rows.append(row)
         for r in self._more_rows({r["id"] for r in rows}):
             rr = os.path.realpath(r.get("real") or r.get("dir") or "")
+            if rr in self.gone:
+                continue
             if (rr in hidden) != archived:
                 n_archived += rr in hidden
                 continue

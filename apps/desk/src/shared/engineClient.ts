@@ -45,7 +45,7 @@ import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { Goal, GoalEditOp } from './goal';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
-import type { AskResult, AutopilotDoc, BrainDoc, BrainEstimate, BrainState, CalendarDoc, CalendarPost, ClipShots, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
+import type { AskResult, AutopilotDoc, BrainDoc, BrainEstimate, BrainState, CalendarDoc, CalendarPost, ClipShots, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, DeletePlan, DeleteSel, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
 import type { ImportCheck, ImportInfo, ImportJob, ImportTakes } from './imports';
 import { CreateClient } from './create';
@@ -336,6 +336,30 @@ export class EngineClient {
   /** Delete, step 2: project folders now in the Trash leave the desk's notes (posts still waiting to go out go too) */
   forgetHistory(dirs: string[]) {
     return this.req<{ ok: boolean; forgot: string[]; posts_removed: number }>('POST', '/api/history/forget', { dirs });
+  }
+  /** Delete (purge.py): what would go - Reelfold-made files only, her footage stays */
+  deletePlan(sel: DeleteSel) {
+    return this.req<DeletePlan>('POST', '/api/delete/plan', sel);
+  }
+  /** Move to Trash, step 1: out of every list now; the main process moves the targets once the Undo toast is gone */
+  deleteStage(sel: DeleteSel, sig: string) {
+    return this.req<{ id: string; targets: string[]; refused: DeletePlan['items'] }>('POST', '/api/delete/stage', { ...sel, sig });
+  }
+  /** Delete permanently: removed from disk now (her second confirm already given) */
+  deleteHard(sel: DeleteSel, sig: string) {
+    return this.req<{ ok: boolean; deleted: string[]; failed: { key: string; name: string }[]; files: number; bytes: number }>('POST', '/api/delete/hard', { ...sel, sig, confirm: true });
+  }
+  deletePending() {
+    return this.req<{ items: { id: string; at: number; stale: boolean; targets: string[] }[] }>('GET', '/api/delete/pending');
+  }
+  deletePendingOne(id: string) {
+    return this.req<{ id: string; at: number; targets: string[] }>('GET', `/api/delete/pending/${pid(id)}`);
+  }
+  deleteUndo(id: string) {
+    return this.req<{ ok: boolean; restored: string[] }>('POST', `/api/delete/pending/${pid(id)}/undo`);
+  }
+  deleteCommit(id: string, trashed: string[], failed: string[]) {
+    return this.req<{ ok: boolean; deleted: string[]; back: { key: string; name: string }[] }>('POST', `/api/delete/pending/${pid(id)}/commit`, { trashed, failed });
   }
   /** 「Stop」 a project's run (out of the line, or interrupted at a safe point); 「Try again」 runs it on */
   stopHistory(id: string) {

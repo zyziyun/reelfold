@@ -31,7 +31,7 @@ export interface MenuItem {
 
 export interface Ui {
   /** ``action``: one link on the toast ("Open" the project just sent) */
-  toast(text: string, opts?: { undo?: () => unknown; error?: boolean; ms?: number; action?: { label: string; href: string } }): void;
+  toast(text: string, opts?: { undo?: () => unknown; error?: boolean; ms?: number; action?: { label: string; href: string }; onGone?: () => unknown }): void;
   menu(e: { clientX: number; clientY: number; preventDefault?: () => void }, items: MenuItem[]): void;
   openPalette(): void;
   openSheet(): void;
@@ -79,9 +79,16 @@ export function UiProvider({
   // a toast goes by itself after its time, counted again from when the pointer leaves it: while she points at it
   // (reaching for Undo) it stays (WCAG 2.2.1: a time limit she can hold)
   const toastTimers = useRef(new Map<number, { ms: number; tm?: number }>());
-  const dropToast = useCallback((id: number) => {
+  // ``onGone``: the toast left without its Undo (its time ran out, a newer one pushed it out): a Move to Trash goes on
+  const toastGone = useRef(new Map<number, () => unknown>());
+  const toastIds = useRef<number[]>([]);
+  const dropToast = useCallback((id: number, undone = false) => {
     window.clearTimeout(toastTimers.current.get(id)?.tm);
     toastTimers.current.delete(id);
+    toastIds.current = toastIds.current.filter((y) => y !== id);
+    const gone = toastGone.current.get(id);
+    toastGone.current.delete(id);
+    if (gone && !undone) void gone();
     setToasts((x) => x.filter((y) => y.id !== id));
   }, []);
   const holdToast = useCallback((id: number, hold: boolean) => {
@@ -92,10 +99,13 @@ export function UiProvider({
   }, [dropToast]);
   const toast = useCallback<Ui['toast']>((text, opts = {}) => {
     const id = ++toastSeq;
+    for (const old of toastIds.current.slice(0, -2)) dropToast(old);
+    toastIds.current = [...toastIds.current, id];
+    if (opts.onGone) toastGone.current.set(id, opts.onGone);
     setToasts((x) => [...x.slice(-2), { id, text, undo: opts.undo, error: opts.error, action: opts.action }]);
     toastTimers.current.set(id, { ms: opts.ms ?? (opts.undo ? 8000 : 4000) });
     holdToast(id, false);
-  }, [holdToast]);
+  }, [holdToast, dropToast]);
   const openMenu = useCallback<Ui['menu']>((e, items) => {
     e.preventDefault?.();
     setMenu({ x: Math.min(e.clientX, window.innerWidth - 240), y: Math.min(e.clientY, window.innerHeight - items.length * 34 - 16), items });
@@ -296,7 +306,7 @@ export function UiProvider({
                 className="btn sm"
                 data-testid="toast-undo"
                 onClick={() => {
-                  dropToast(x.id);
+                  dropToast(x.id, true);
                   void x.undo?.();
                 }}
               >

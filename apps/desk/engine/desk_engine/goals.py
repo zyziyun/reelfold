@@ -406,6 +406,29 @@ class Goals:
             self.bus.publish("batches")
         return dict(self.view(gid), cleared=dict(requests=len(reqs), projects=len(dirs)))
 
+    def forget(self, dirs=(), requests=()):
+        """Projects / requests she deleted (purge.py): a goal's video made from them leaves its group's links and,
+        when nothing of it is left, is dropped (``deleted``) - no group points at a folder that is gone."""
+        rps = {os.path.realpath(d) for d in dirs}
+        rids = set(requests)
+        for g in self._all():
+            hit = False
+            for v in g.get("videos") or []:
+                projs = v.get("projects") or []
+                left = [p for p in projs if not (p.get("dir") and os.path.realpath(p["dir"]) in rps)]
+                gone_req = v.get("intake") in rids
+                if len(left) == len(projs) and not gone_req:
+                    continue
+                hit = True
+                v["projects"] = left
+                if gone_req:
+                    v["intake"] = None
+                if not left and v.get("state") != "dropped":
+                    v.update(state="dropped", reason_code="deleted", cleared=True, finished=time.time())
+            if hit:
+                self._save(g)
+        return dict(ok=True)
+
     def dismiss(self, gid):
         """The group leaves the lists (its videos stay where they are)."""
         g = self._get(gid)

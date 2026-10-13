@@ -1,0 +1,17 @@
+/* Delete dialog (DeleteDialog.tsx): what goes, what stays, Move to Trash / Delete permanently */
+.modal:has(.del-body) { width: min(620px, calc(100vw - 48px)); }
+.del-body { display: flex; flex-direction: column; gap: 12px; max-height: min(60vh, 520px); overflow: auto; font-size: 13.5px; }
+.del-body h4 { margin: 0 0 6px; font-size: 12.5px; font-weight: 600; text-transform: none; }
+.del-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.del-items > li { padding: 8px 10px; border: 1px solid var(--line, rgba(127, 127, 127, 0.25)); border-radius: 8px; }
+.del-kind { font-size: 11.5px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, currentColor 10%, transparent); }
+.del-paths { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.del-paths code { font-size: 11.5px; word-break: break-all; opacity: 0.85; }
+.del-keep { padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.del-refused ul { margin: 0; padding-left: 18px; }
+.del-total, .del-hint { margin: 0; }
+.del-actions { margin-top: 14px; }
+.del-warn { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 8px; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.del-sure { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.btn.danger.solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger.solid:disabled { opacity: 0.45; }

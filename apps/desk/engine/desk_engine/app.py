@@ -63,6 +63,15 @@ History (history.py; read-only discovery of past work: desk + engine registries,
                                            main process moves it after her confirm) {items [{dir, name, ok, reason?,
                                            target, files, bytes, keep[] (her footage: stays), inside[]}]}
   POST /api/history/forget {dirs[]}        Delete, step 2: folders now in the Trash leave the desk's notes
+                                           (trash-plan / forget: older desks; the Delete dialog uses /api/delete)
+Delete (purge.py: Reelfold-made files only - her footage / recordings never; running ones refused)
+  POST /api/delete/plan {dirs[], clips[{item, clip}], requests[]}  -> {items [{key, kind, name, ok, reason?, targets[],
+                                           files, bytes, keep[], other[]}], keep[], files, bytes, sig}
+  POST /api/delete/stage {..., sig}        Move to Trash, step 1: out of every list now -> {id, targets[]}; the desk's
+                                           main process moves the targets to the Trash once the Undo toast is gone;
+                                           GET /api/delete/pending[/<id>]; POST .../<id>/undo; POST .../<id>/commit
+                                           {trashed[], failed[]} (step 2: their notes go - calendar, goals, titles)
+  POST /api/delete/hard {..., sig, confirm: true}   Delete permanently: removed from disk now, then their notes go
   POST /api/history/item/<id>/stop|resume  stop a project's run (pilot.stop: resumable) / run it on (Try again)
   POST /api/history/item/<id>/finish       its clips not made yet made (a pilot goes on to the rest) -> {started}
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
@@ -537,6 +546,8 @@ class Api:
             threading.Thread(target=requeue, daemon=True).start()
         from .calendar import Calendar
         self.calendar = Calendar(engine.data_dir, self.history, self.outputs, bus, mode=engine.mode)
+        from .purge import Purge                   # Delete: Move to Trash (undo) / Delete permanently; never her footage
+        self.purge = Purge(engine.data_dir, self.history, self.intake, self.calendar, self.outputs, self.goals, bus)
         from .workpkg import WorkPackages
         self.workpkg = WorkPackages(engine.data_dir, self.history, self.outputs)
         from .weekplan import WeekPlans            # 「这周的素材 → 一周的帖子」 (intake + run + calendar.plan)
@@ -611,12 +622,39 @@ class Api:
             return self.imports.takes(parts[1], clip, int(shot))
         raise KeyError("no such import route")
 
+    def _route_delete(self, method, parts, b):
+        """Delete (purge.py): plan -> Move to Trash (stage; the desk's main process moves the paths after the Undo
+        toast, then commit) or Delete permanently (hard)."""
+        p = self.purge
+        if parts == ["plan"] and method == "POST":
+            return p.plan(b)
+        if parts == ["stage"] and method == "POST":
+            return p.stage(b, b.get("sig"))
+        if parts == ["hard"] and method == "POST":
+            need(b.get("confirm") is True, "confirm: true (Delete permanently asks twice)")
+            return p.hard(b, b.get("sig"))
+        if parts == ["pending"] and method == "GET":
+            return p.pending()
+        if len(parts) >= 2 and parts[0] == "pending" and re.match(r"^[0-9a-f]{12}$", parts[1]):
+            if len(parts) == 2 and method == "GET":
+                return p.pending_one(parts[1])
+            if parts[2:] == ["undo"] and method == "POST":
+                return p.undo(parts[1])
+            if parts[2:] == ["commit"] and method == "POST":
+                tr, fl = b.get("trashed") or [], b.get("failed") or []
+                need(isinstance(tr, list) and isinstance(fl, list) and len(tr) + len(fl) <= 5000 and
+                     all(isinstance(x, str) and os.path.isabs(x) for x in tr + fl), "trashed / failed: absolute paths")
+                return p.commit(parts[1], tr, fl)
+        raise KeyError("no such delete route")
+
     def route_v04(self, method, parts, query, body):
         """v0.4: outputs (player + second-pass editor), intake (composer -> plan card), inbox. None = not mine."""
         from urllib.parse import unquote
         b = body if isinstance(body, dict) else {}
         if parts[:1] == ["effects"] and method == "GET":
             return self.outputs.effects()
+        if parts[:1] == ["delete"]:
+            return self._route_delete(method, parts[1:], b)
         if parts[:1] == ["import"]:
             return self._route_import(method, parts, query, b)
         if parts[:1] == ["project-ask"] and len(parts) >= 2:

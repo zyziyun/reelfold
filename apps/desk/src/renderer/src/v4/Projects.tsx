@@ -2,13 +2,15 @@
 // type, multi-select with bulk actions (归档 / 恢复), inline rename, right-click menu, and the watched folders folded at
 // the bottom. Archiving never deletes anything; archived projects are dimmed under 已归档 and still open.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, CheckSquare, Copy, Eye, FolderOpen, FolderPlus, Pencil, Plus, Square, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, CheckSquare, Copy, Eye, FolderOpen, FolderPlus, Pencil, Plus, Square, Trash2, Users } from 'lucide-react';
+
 import { PromptModal } from '../components/ui';
 import { useAgencyMode } from '../lib/prefs';
 import type { HistoryItem } from '../../../shared/v02';
 import { t, tk } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
-import { archivedLine, archiveFlow, noMatchText, restoreFlow, shownProjects, type ProjectsFilter } from '../lib/archive';
+import { archivedLine, archiveFlow, isRunning, noMatchText, restoreFlow, shownProjects, type ProjectsFilter } from '../lib/archive';
+import { useDelete } from './DeleteDialog';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { go, href, routeQuery } from '../lib/router';
@@ -120,6 +122,13 @@ function ProjectsGrid({ viewSeg }: { viewSeg: React.ReactNode }) {
     if (!client || !list.length) return;
     if (await restoreFlow(client, ui, list, reload)) setSel(new Set());
   };
+  // Delete… (DeleteDialog.tsx): what Reelfold made goes - to the Trash (Undo) or permanently - her footage never
+  const del = useDelete();
+  const remove = (list: HistoryItem[]) => {
+    const going = list.find(isRunning);
+    if (going) return ui.toast(t('ra.running', { name: going.name }), { error: true });
+    if (list.length) void del.ask({ dirs: list.map((i) => i.dir) }, () => setSel(new Set()));
+  };
   const rename = async (i: HistoryItem, name: string) => {
     setRenaming(null);
     if (!client || !name.trim() || name.trim() === i.name) return;
@@ -148,6 +157,7 @@ function ProjectsGrid({ viewSeg }: { viewSeg: React.ReactNode }) {
       i.archived
         ? { label: t('projects.restore'), icon: <ArchiveRestore className="ico" />, run: () => restore([i]), testId: 'menu-restore' }
         : { label: t('projects.archive'), icon: <Archive className="ico" />, run: () => archive([i]), testId: 'menu-archive' },
+      ...(isRunning(i) ? [] : [{ label: t('ra.delete'), icon: <Trash2 className="ico" />, run: () => remove([i]), testId: 'menu-delete' }]),
     ]);
 
   return (
@@ -273,10 +283,15 @@ function ProjectsGrid({ viewSeg }: { viewSeg: React.ReactNode }) {
                 {t('projects.archive')}
               </button>
             )}
+            <button className="btn danger" onClick={() => remove(pool.filter((i) => sel.has(i.id)))} data-testid="projects-bulk-delete">
+              <Trash2 className="ico" />
+              {t('ra.delete')}
+            </button>
           </div>
         )}
         <Watched />
       </div>
+      {del.modal}
       {clientFor && (
         <PromptModal title={t('projects.setClientTitle', { name: clientFor.name })} placeholder={clientFor.client || t('projects.setClientNone')} okLabel={t('ch.save')} onOk={(v) => void saveClient(clientFor, v)} onCancel={() => setClientFor(null)} />
       )}

@@ -276,7 +276,9 @@ export interface DeskApi {
     screenPick(id: string): Promise<{ ok: boolean }>;
   };
   confirmCleanup(batchId: string): Promise<{ confirmed: boolean; trashed: string[]; failed: string[]; outside: string[] }>;
-  /** Delete projects: one native confirm naming the folders (her recordings stay), then the Trash (main/trash.ts) */
-  trashProjects(dirs: string[]): Promise<{ confirmed: boolean; trashed: string[]; refused: { dir: string; name: string; reason: string }[] }>;
+  /** Delete › Move to Trash, step 2: the engine's pending delete ``id`` goes to the Trash (main/trash.ts) */
+  trashPending(id: string): Promise<{ trashed: string[]; failed: string[]; back: { key: string; name: string }[] }>;
+  /** pending deletes the app left when it quit before their Undo toast was gone: moved to the Trash now */
+  trashStale(): Promise<{ n: number }>;
   mediaUrl(path: string): string;
 }

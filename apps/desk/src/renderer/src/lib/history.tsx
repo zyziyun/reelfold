@@ -108,6 +108,21 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
+  // a Move to Trash whose Undo toast was still up when the app quit: its files go to the Trash now (main/trash.ts)
+  // (again a little later: a window reloaded while its toast was up leaves one that is not stale yet)
+  useEffect(() => {
+    if (!client) return;
+    const go = () =>
+      window.desk
+        .trashStale?.()
+        .then((r) => r.n && reload())
+        .catch(() => undefined);
+    void go();
+    const tm = window.setTimeout(() => void go(), 125_000);
+    return () => window.clearTimeout(tm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
+
   useEffect(
     () =>
       subscribe((e) => {

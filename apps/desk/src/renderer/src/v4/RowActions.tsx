@@ -1,14 +1,15 @@
 // The Studio's row actions (「任务的删除怎么没了」): one hook for the list's hover ⋯ and right-click menu, the bulk
-// bar, ⌫ and the page header's ⋯. Archive is the default (undo toast); Delete… removes a request that never became a
-// project for good (after a confirm, her files untouched) and moves a project's folder to the Trash after the main
-// process's confirm that names what goes (her recordings stay); Stop / Try again for a run; Rename; Show in Finder.
+// bar, ⌫ and the page header's ⋯. Archive is the default (undo toast); Delete… opens the Delete dialog for every kind
+// (DeleteDialog.tsx: what Reelfold made goes - to the Trash with Undo, or permanently after a second step - her
+// recordings never); Stop / Try again for a run; Rename; Show in Finder.
 import { useState, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, FolderOpen, Pencil, RotateCcw, Square, Trash2 } from 'lucide-react';
-import { Modal, PromptModal } from '../components/ui';
+import { PromptModal } from '../components/ui';
 import { t } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { useHistory } from '../lib/history';
-import { alsoGoes, busy, rowActions, split, type ActionTarget, type RowAction } from '../lib/rowActions';
+import { alsoGoes, busy, deleteSel, rowActions, split, type ActionTarget, type RowAction } from '../lib/rowActions';
+import { useDelete } from './DeleteDialog';
 import { errText } from './msg';
 import { useUi, type MenuItem } from './ui';
 
@@ -17,7 +18,7 @@ export interface RowActionsApi {
   items(x: ActionTarget, picked?: ActionTarget[]): MenuItem[];
   run(a: RowAction, xs: ActionTarget[]): Promise<void>;
   archive(xs: ActionTarget[]): Promise<boolean>;
-  /** the rename / delete prompts (render once) */
+  /** the rename prompt and the Delete dialog (render once) */
   modal: ReactNode;
 }
 
@@ -37,11 +38,7 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
   const { reload, wantArchived } = useHistory();
   const ui = useUi();
   const [renaming, setRenaming] = useState<ActionTarget | null>(null);
-  const [asking, setAsking] = useState<{
-    xs: ActionTarget[];
-    requests: number;
-    projects: number;
-  } | null>(null);
+  const del = useDelete();
 
   const fail = (e: unknown) => ui.toast(errText(e), { error: true });
 
@@ -86,33 +83,6 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
     return true;
   };
 
-  const trash = async (xs: ActionTarget[]) => {
-    const s = split(xs);
-    if (!client) return;
-    if (s.requests.length) {
-      try {
-        await client.deleteRequests(s.requests);
-        ui.toast(t('ra.deletedN', { n: s.requests.length }));
-      } catch (e) {
-        return fail(e);
-      }
-    }
-    if (s.dirs.length) {
-      try {
-        const r = await window.desk.trashProjects(s.dirs);
-        for (const x of r.refused) {
-          const k = `ra.refused.${x.reason}`;
-          ui.toast(t((['own-folder', 'footage-inside', 'running'].includes(x.reason) ? k : 'ra.refused.other') as 'ra.refused.other', { name: x.name }), { error: true, ms: 8000 });
-        }
-        if (r.trashed.length) ui.toast(t('ra.trashedN', { n: r.trashed.length }));
-      } catch (e) {
-        fail(e);
-      }
-    }
-    reload();
-    onDone?.('delete', xs);
-  };
-
   const run = async (a: RowAction, xs: ActionTarget[]) => {
     const x = xs[0];
     if (!x || !client) return;
@@ -143,18 +113,9 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
           ui.toast(t('ra.retrying'));
           reload();
           return;
-        case 'delete': {
-          const s = split(xs);
-          // a request never became a project: her confirm here; project folders: the main process's confirm
-          if (s.requests.length)
-            setAsking({
-              xs,
-              requests: s.requests.length,
-              projects: s.dirs.length,
-            });
-          else await trash(xs);
+        case 'delete':
+          await del.ask(deleteSel(xs, all), () => onDone?.('delete', xs));
           return;
-        }
       }
     } catch (e) {
       fail(e);
@@ -172,9 +133,7 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
           ? t('ra.archiveProject', { n: siblings })
           : t('ra.archive')
         : a === 'delete'
-          ? siblings > 1
-            ? t('ra.deleteProject', { n: siblings })
-            : t('ra.delete')
+          ? t('ra.delete')
           : a === 'open-folder'
             ? t('c.reveal')
             : a === 'rename'
@@ -220,32 +179,7 @@ export function useRowActions(all: ActionTarget[], onDone?: (a: RowAction, xs: A
           }}
         />
       )}
-      {asking && (
-        <Modal title={t('ra.reqDeleteTitle', { n: asking.requests })} onClose={() => setAsking(null)}>
-          <p className="muted" style={{ margin: 0 }} data-testid="row-delete-body">
-            {t('ra.reqDeleteBody')}
-            {asking.projects ? ` ${t('ra.reqDeleteMore', { n: asking.projects })}` : ''}
-          </p>
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={() => setAsking(null)}>
-              {t('common.cancel')}
-            </button>
-            <button
-              className="btn danger"
-              autoFocus
-              data-testid="row-delete-ok"
-              onClick={() => {
-                const xs = asking.xs;
-                setAsking(null);
-                void trash(xs);
-              }}
-            >
-              <Trash2 className="ico" />
-              {t('ra.deleteOk')}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {del.modal}
     </>
   );
 

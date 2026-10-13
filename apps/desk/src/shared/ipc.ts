@@ -171,8 +171,10 @@ export const ipcSchemas = {
   // Lite (Mac App Store) build: keep access to dropped files / folders across launches (main/access.ts)
   'access:grant': z.strictObject({ paths: z.array(absPath).min(1).max(200) }),
   'cleanup:confirm': z.strictObject({ batchId }),
-  // the Studio's row menu: Delete project folders (main asks, then moves them to the Trash; main/trash.ts)
-  'history:trash': z.strictObject({ dirs: z.array(absPath).min(1).max(200) }),
+  // Delete › Move to Trash: the engine's pending delete moved to the Trash once its Undo toast is gone (main/trash.ts)
+  'delete:trash': z.strictObject({ id: z.string().regex(/^[0-9a-f]{12}$/) }),
+  // pending deletes left when the app quit before their toast was gone: moved now
+  'delete:stale': z.undefined(),
   // AI accounts & models: status, CLI login terminal (command from the engine), routes
   'ai:status': z.strictObject({ refresh: z.boolean().optional(), probe: z.boolean().optional(), providers: z.array(provider).max(40).optional() }),
   'ai:test': z.strictObject({ provider }),

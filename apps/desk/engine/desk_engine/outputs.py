@@ -383,15 +383,19 @@ TITLE_MAX = 300                  # the publish board's title cap (calendar.MAX_T
 
 
 def list_clips(entry):
-    """A history entry (kind batch | project | work, dir) -> clips."""
+    """A history entry (kind batch | project | work, dir) -> clips (the ones she deleted left out: purge.py)."""
+    from .purge import hidden_clips
     kind, d = entry["kind"], entry["dir"]
     if kind == "work":
         from .imports import import_clips
         imp = import_clips(d, probe=probe)               # finished videos imported: one clip per imported clip
-        return _ready(d, imp if imp is not None else WK.clips(d, probe=probe))
-    if kind == "project":
-        return _batch_clips(os.path.join(d, "state"), project_dir=d)
-    return _batch_clips(d)
+        out = _ready(d, imp if imp is not None else WK.clips(d, probe=probe))
+    elif kind == "project":
+        out = _batch_clips(os.path.join(d, "state"), project_dir=d)
+    else:
+        out = _batch_clips(d)
+    gone = hidden_clips(d)
+    return [c for c in out if c["id"] not in gone] if gone else out
 
 
 def _ready(d, clips):

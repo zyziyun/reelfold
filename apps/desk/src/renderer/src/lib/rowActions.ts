@@ -3,7 +3,7 @@
 // by id, projects by folder, one folder per project however many of its videos are picked). Pure: unit-tested; the
 // list's hover ⋯, its right-click menu, the bulk bar, ⌫ and the page header's ⋯ all read it.
 import type { HistoryItem } from '../../../shared/v02';
-import type { OpenRequest } from '../../../shared/v04';
+import type { DeleteSel, OpenRequest } from '../../../shared/v04';
 
 export type RowAction = 'open-folder' | 'rename' | 'stop' | 'retry' | 'archive' | 'restore' | 'delete';
 
@@ -47,13 +47,14 @@ export function rowActions(x: ActionTarget): RowAction[] {
   const i = x.i;
   if (!i) return [];
   const out: RowAction[] = ['open-folder', 'rename'];
-  if (i.archived) return [...out, 'restore', ...(i.kind === 'project' ? (['delete'] as const) : [])];
+  // Delete… for every kind (a project, a batch, an import, a work folder, one video): only what Reelfold made goes,
+  // her footage never (the dialog names both; engine/desk_engine/purge.py)
+  if (i.archived) return [...out, 'restore', 'delete'];
   const going = busy(i);
   if (going && (i.pilot || i.queued)) out.push('stop'); // a run the desk started (an outside one is its own)
   if (!going && (i.stopped || i.failure)) out.push('retry');
   if (!going) out.push('archive');
-  // only a project the app made or found goes to the Trash; a plain work folder / batch is her own folder
-  if (!going && i.kind === 'project') out.push('delete');
+  if (!going) out.push('delete');
   return out;
 }
 
@@ -86,6 +87,37 @@ export function split(xs: ActionTarget[]): Split {
     dirs: [...items.keys()],
     items: [...items.values()],
   };
+}
+
+/** A selection -> what Delete picks: requests by id; a project / batch row by its folder; a video on its own - unless
+ * it is its project's only video on screen, or every video of the project is picked: then the project goes whole. */
+export function deleteSel(xs: ActionTarget[], all: ActionTarget[]): DeleteSel {
+  const requests = new Set<string>();
+  const dirs = new Set<string>();
+  const clips = new Map<string, { item: string; clip: string; dir: string }>();
+  for (const x of xs) {
+    if (x.kind === 'request' && x.r) requests.add(x.r.id);
+    else if (x.kind === 'clip' && x.i && x.clip) clips.set(`${x.i.id}/${x.clip}`, { item: x.i.id, clip: x.clip, dir: x.i.dir });
+    else if (x.i) dirs.add(x.i.dir);
+  }
+  const picked = new Set(xs.map((x) => x.key));
+  for (const [k, c] of clips) {
+    if (dirs.has(c.dir)) {
+      clips.delete(k);
+      continue;
+    }
+    const left = all.filter((y) => y.kind === 'clip' && y.i?.dir === c.dir && !picked.has(y.key));
+    if (!left.length) {
+      dirs.add(c.dir);
+      clips.delete(k);
+    }
+  }
+  for (const [k, c] of clips) if (dirs.has(c.dir)) clips.delete(k);
+  const out: DeleteSel = {};
+  if (dirs.size) out.dirs = [...dirs];
+  if (clips.size) out.clips = [...clips.values()].map(({ item, clip }) => ({ item, clip }));
+  if (requests.size) out.requests = [...requests];
+  return out;
 }
 
 /** How many other videos of the same project go with a picked one (archive / delete work on the whole project). */

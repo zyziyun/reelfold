@@ -127,7 +127,8 @@ const api: DeskApi = {
     models: (opts) => call('ai:models', opts ?? {}),
   },
   confirmCleanup: (batchId) => call('cleanup:confirm', { batchId }),
-  trashProjects: (dirs) => call('history:trash', { dirs }),
+  trashPending: (id) => call('delete:trash', { id }),
+  trashStale: () => call('delete:stale'),
   mediaUrl: (p) => `vsmedia://local/${encodeURIComponent(p)}`,
 };
 
