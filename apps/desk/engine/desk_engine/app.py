@@ -107,7 +107,11 @@ v0.4 (outputs.py, intake.py, inbox.py; engine command when available, desk imple
   GET  /api/outputs/<item>/<clip>/strip    timeline filmstrip sprite + audio peaks (timeline.py, cached);
                                            POST|GET .../transcribe 「听一遍」 -> output-transcribe events
   GET  /api/effects                        effects catalogue (zh labels, params, preview kind)
-  POST /api/intake {prompt, inputs[], platforms?, lang?, mode? autopilot|ask, sample_name?}  -> {id};
+  GET|POST /api/ai/<item> {ai {provider, model?} | null, by? you|chat|group}   the project's AI (aichoice.py):
+                                           every AI step of it uses it, a running one from its next step; null =
+                                           the app's default; POST /api/intake/<id>/ai {ai} (a request);
+                                           POST /api/goals/<id>/ai {ai, video?} (the group / one of its videos)
+  POST /api/intake {prompt, inputs[], platforms?, lang?, mode? autopilot|ask, sample_name?, ai?}  -> {id};
                                            GET /api/intake/<id>; POST .../revise {prompt}; POST .../apply
                                            {plan?, run?}; POST .../stop (planning / revising); POST .../retry (a
                                            failed plan / revision / apply again); POST .../discard; GET
@@ -736,10 +740,12 @@ class Api:
                 if b.get("goal") is True or (b.get("goal") is None and not b.get("recipe") and not b.get("sample_name")
                                              and self.goals.detect(prompt, inputs)):
                     g = self.goals.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"),
-                                         "ask" if b.get("mode") == "ask" else "autopilot")
+                                         "ask" if b.get("mode") == "ask" else "autopilot",
+                                         **({"ai": b["ai"]} if b.get("ai") else {}))
                     return dict(id=g["id"], goal=True)
                 return self.intake.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"), b.get("mode"),
-                                         b.get("sample_name"), **({"recipe": b["recipe"]} if b.get("recipe") else {}))
+                                         b.get("sample_name"), **({"recipe": b["recipe"]} if b.get("recipe") else {}),
+                                         **({"ai": b["ai"]} if b.get("ai") else {}))
             if parts == ["intake", "recent"] and method == "GET":
                 return self.intake.recent()
             if parts == ["intake", "open"] and method == "GET":
@@ -775,6 +781,11 @@ class Api:
                 return self.intake.add(parts[1], [_abs_path(p, "inputs[]") for p in inputs], b.get("text"))
             if parts[2:] == ["go-on"] and method == "POST":
                 return self.intake.go_on(parts[1])
+            if parts[2:] == ["ai"] and method == "POST":
+                return self.intake.set_ai(parts[1], b.get("ai"), b.get("by") or "you")
+        if parts[:1] == ["ai"] and len(parts) == 2:
+            need(ID_RE.match(parts[1]), "bad item id")
+            return self.project_ai(parts[1], method, b)
         if parts[:1] == ["autopilot"] and len(parts) >= 2:
             need(ID_RE.match(parts[1]), "bad item id")
             if len(parts) == 2 and method == "GET":
@@ -883,6 +894,21 @@ class Api:
                 return self.inbox.redraft(b.get("key"), b.get("instruction"))
         return None
 
+    def project_ai(self, item, method, b):
+        """GET|POST /api/ai/<item>: the project's AI (aichoice.py)."""
+        from . import aichoice
+        e = self.history.find(item)
+        d = e.get("dir") or ""
+        ok = e.get("kind") == "project" and os.path.isfile(os.path.join(d, "project.yaml"))
+        if method == "GET":
+            return dict(item=item, supported=ok, ai=aichoice.read_project(d) if ok else None)
+        need(method == "POST", "GET or POST")
+        need(ok, "only a recipe project has an AI of its own")
+        r = aichoice.set_project(getattr(self.autopilot, "runner", None), d, aichoice.clean(b.get("ai")), b.get("by") or "you")
+        if self.bus:
+            self.bus.publish("batches")
+        return dict(ok=True, item=item, **r)
+
     def route_goals(self, method, parts, b):
         """/api/goals[/<id>[/<verb>]] (goals.py)."""
         G = self.goals
@@ -898,6 +924,8 @@ class Api:
                                b.get("mode") or "autopilot")
         need(len(parts) >= 1 and PID_RE.match(parts[0]), "bad goal id")
         gid = parts[0]
+        if parts[1:] == ["ai"] and method == "POST":
+            return G.set_ai(gid, b.get("ai"), b.get("video"))
         if len(parts) == 1 and method == "GET":
             return G.view(gid)
         if len(parts) == 2 and method == "POST":

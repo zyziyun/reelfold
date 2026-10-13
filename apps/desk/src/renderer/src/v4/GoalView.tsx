@@ -7,6 +7,9 @@
 //   done       what was made (each video's files per platform and its post) and what was dropped and why;
 //              「Remove unfinished」
 // The stories the footage fell into (time, place, light) are below, with their frames.
+import { AiPickChip, AiTag } from './AiPick';
+import { labelOf } from '../lib/projectAi';
+import type { ProjectAi } from '../../../shared/projectAi';
 import { Check, ChevronDown, ChevronRight, Copy, FolderOpen, GitMerge, Layers, Play, RotateCcw, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { GOAL_KINDS, type Goal, type GoalEditOp, type GoalKind, type GoalStory, type GoalVideo } from '../../../shared/goal';
@@ -85,6 +88,15 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
             <Layers className="ico" /> {t('goal.kicker')} · {t('goal.from', { where: from })}
           </span>
           <span className="sp" />
+          {g.state !== 'done' && g.state !== 'failed' && (
+            <AiPickChip
+              value={g.ai ?? null}
+              onChange={(v) => void act(() => client!.setGoalAi(g.id, v), () => ui.toast(t('tai.groupSwitched', { name: labelOf(v) })))}
+              testId="goal-ai"
+              title={t('tai.groupTip')}
+              disabled={busy}
+            />
+          )}
           {(g.state === 'surveying' || g.state === 'running') && (
             <button className="btn sm" disabled={busy} onClick={() => void act(() => client!.goalAct(g.id, 'stop'))} data-testid="goal-stop">
               <Square className="ico" />
@@ -148,7 +160,15 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
           <section className="goalv-sec" data-testid="goal-videos">
             <h2 className="runv-h">{t('goal.videos')}</h2>
             {vs.map((v) => (
-              <VideoRow key={v.id} gid={g.id} v={v} on={vid === v.id} busy={busy} onAct={(a) => void act(() => client!.goalVideo(g.id, v.id, a))} />
+              <VideoRow
+                key={v.id}
+                gid={g.id}
+                v={v}
+                on={vid === v.id}
+                busy={busy}
+                onAct={(a) => void act(() => client!.goalVideo(g.id, v.id, a))}
+                onAi={(x) => void act(() => client!.setGoalAi(g.id, x, v.id), () => ui.toast(t('tai.switched', { name: labelOf(x) })))}
+              />
             ))}
           </section>
         </>
@@ -347,7 +367,7 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
 }
 
 /** One video of the group while it is made / once it is settled. */
-export function VideoRow({ gid, v, on, busy, onAct }: { gid: string; v: GoalVideo; on?: boolean; busy?: boolean; onAct?: (a: 'drop' | 'retry') => void }) {
+export function VideoRow({ gid, v, on, busy, onAct, onAi }: { gid: string; v: GoalVideo; on?: boolean; busy?: boolean; onAct?: (a: 'drop' | 'retry') => void; onAi?: (ai: ProjectAi | null) => void }) {
   const tone = videoTone(v);
   const pct = v.state === 'making' && v.progress != null ? Math.round(v.progress * 100) : null;
   return (
@@ -365,6 +385,11 @@ export function VideoRow({ gid, v, on, busy, onAct }: { gid: string; v: GoalVide
         )}
         <Versions v={v} />
       </span>
+      {onAi && (v.state === 'waiting' || v.state === 'planning' || v.state === 'making' || v.state === 'you') ? (
+        <AiPickChip value={v.ai ?? null} onChange={onAi} testId="goal-video-ai" title={t('tai.videoTip')} compact disabled={busy} />
+      ) : (
+        <AiTag ai={v.own_ai ? v.ai : null} testId="goal-video-ai-tag" />
+      )}
       {v.projects?.length ? (
         <a className="btn sm ghost" href={videoHref(gid, v)} data-testid="goal-video-open">
           {t('goal.open')}

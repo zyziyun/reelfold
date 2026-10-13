@@ -576,6 +576,8 @@ export interface OpenRequest {
   goal_title_zh?: string | null;
   /** stopped: who stopped it - she did (you), or the app did (stall: planning showed no progress; goal) */
   stopped_by?: 'you' | 'stall' | 'goal' | null;
+  /** the AI picked for this request in the composer (absent = the app's default) */
+  ai?: import('./projectAi').ProjectAi | null;
 }
 
 /** What Delete picks (POST /api/delete/*): project / batch / work folders, single videos, requests. */

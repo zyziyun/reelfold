@@ -28,6 +28,7 @@ import { ProjectDetail, stateLine } from './Hub';
 import { itemPipeline, stepOfStage } from '../lib/pipeline';
 import { failureReason } from './Failure';
 import { Composer } from './Composer';
+import { AiTag } from './AiPick';
 import { isTyping, useUi } from './ui';
 import { archivedLine } from '../lib/archive';
 import { bulkActions, emptyClip, rangePick, togglePick, type ActionTarget } from '../lib/rowActions';
@@ -679,6 +680,7 @@ function StudioListRow({ r, on, n, picked, onPick, onMenu, nested = false }: { r
           <i className={`dot ${r.tone}`} />
           {lineOf(r)}
           {r.kind === 'project' && r.i?.autopilot ? <Sparkles className="ico ap" aria-label={t('ap.auto')} /> : null}
+          {r.kind !== 'clip' && <AiTag ai={r.i?.ai ?? r.r?.ai} testId="studio-row-ai" />}
         </span>
         {where && <span className="w clamp1 faint">{where}</span>}
         {r.group === 'run' && r.tone === 'run' && (

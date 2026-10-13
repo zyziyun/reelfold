@@ -17,6 +17,8 @@ import { useCreateEnabled } from '../create/flag';
 import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { PlatformChip } from './Home';
 import { ManyToggle } from './ManyToggle';
+import { AiPickChip } from './AiPick';
+import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
 import { errText } from './msg';
 import { useUi } from './ui';
 import { useComposerSlash } from './ComposerSlash';
@@ -45,7 +47,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const wp = useWeekPlan();
   const draft = (() => {
     try {
-      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[] };
+      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown };
     } catch {
       return {};
     }
@@ -57,8 +59,10 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
   const [many, setMany] = useState(false);
+  // this request's AI (null = her default from Settings › AI); back to the default after it is sent
+  const [ai, setAi] = useState<ProjectAi | null>(cleanAi(draft.ai));
   const ta = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files })), [prompt, files]);
+  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, ...(ai ? { ai } : {}) })), [prompt, files, ai]);
   useEffect(() => {
     // her choice, else her accounts' platforms, else the international pair - international first (as on Home)
     void window.desk.getSettings().then((s) => {
@@ -99,11 +103,13 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         // a fixed intent (the sample): no planning call
         recipe: p.sample ? 'talkinghead' : undefined,
         ...(many && !p.sample ? { goal: true } : {}),
+        ...(ai && !p.sample ? { ai } : {}),
       });
       sessionStorage.removeItem(DRAFT);
       setPrompt('');
       setFiles([]);
       setMany(false);
+      setAi(null);
       reloadHist();
       const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');
       ui.toast(r.goal ? t('goal.sent') : t(auto ? 'home.sent' : 'home.sentAsk', { name }));
@@ -210,6 +216,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
           </a>
         )}
         <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
+        <AiPickChip value={ai} onChange={setAi} testId="composer-ai" compact={compact} title={t('tai.composerTip')} />
         <ManyToggle on={many} onChange={setMany} compact={compact} />
         <button className="btn ghost icon sm" onClick={more} aria-label={t('st.more')} data-tip={t('st.more')} data-testid="composer-more">
           <MoreHorizontal className="ico" />

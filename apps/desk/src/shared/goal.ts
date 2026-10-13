@@ -47,6 +47,9 @@ export interface GoalVersion {
 }
 
 export interface GoalVideo {
+  /** the AI this video runs on (its own, else the group's; absent = the app's default); own_ai: a choice of its own */
+  ai?: import('./projectAi').ProjectAi | null;
+  own_ai?: boolean;
   id: string;
   title: string;
   title_zh?: string | null;
@@ -122,6 +125,8 @@ export interface GoalProgress {
 }
 
 export interface Goal {
+  /** the group's AI (the composer's choice; absent = the app's default) */
+  ai?: import('./projectAi').ProjectAi | null;
   id: string;
   prompt: string;
   inputs: string[];

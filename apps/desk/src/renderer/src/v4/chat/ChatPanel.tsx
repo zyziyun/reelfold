@@ -11,12 +11,17 @@ import { EngineError } from '../../../../shared/engineClient';
 import type { EditOp, EffectDef } from '../../../../shared/v04';
 import { fmtClock, getLang, intlLocale, t, type MessageKey } from '../../i18n';
 import { askFirstReason, needsRenderedCompare, cardFor, cardState, contextOf, costLine, failureOf, isCardSlash, lengthChange, offlineFrom, slashCommand, slashMatches, suggestions, undoPlan, undoToCount, SLASH, type Primary, type Slash, type SlashId, type Suggestion } from '../../lib/chatEdit';
+import { labelOf, switchProjectByWords, useProjectAi } from '../../lib/projectAi';
 import { currentLine, switchByWords } from '../../lib/modelCmd';
+import { effectiveAi, sameAi } from '../../../../shared/projectAi';
+import { aiState, pickModel } from '../../lib/ai';
+import type { ProviderId } from '../../../../shared/aiRoutes';
 import { useAskAiEdits } from '../../lib/prefs';
 import { useEngine } from '../../lib/engine';
 import { go } from '../../lib/router';
 import { textLang } from '../../lib/transcript';
-import { ModelPicker, ProviderChip } from '../AiChip';
+import { ModelPicker } from '../AiChip';
+import { ProjectAiChip } from '../AiPick';
 import { Sk } from '../kit';
 import { effectLabel, emsg, errText } from '../msg';
 import { useUi } from '../ui';
@@ -84,6 +89,14 @@ const isSlashNote = (c: ChatTurn['card']) => c === 'model' || c === 'help';
 
 export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   const { client, subscribe } = useEngine();
+  // the project's own AI: /model and the chip switch THIS project (her default stays; "Make this my default" sets it)
+  const { ai: projAi, supported: hasProjAi } = useProjectAi(client, p.item);
+  const projNow = () => {
+    if (!hasProjAi) return currentLine('edit'); // an imported / adopted work: the app-wide edit job
+
+    const e = effectiveAi(projAi ?? null, aiState().routes?.routes);
+    return e ? { provider: e.provider, model: e.model, name: labelOf(projAi ?? null) } : null;
+  };
   const ui = useUi();
   const { doc, item, clip } = p;
   const turns = useMemo(() => doc.chat ?? [], [doc.chat]);
@@ -249,9 +262,9 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     setText('');
     try {
       if (sc.id === 'model') {
-        const r = sc.arg ? await switchByWords(sc.arg, 'edit') : null;
+        const r = sc.arg ? (hasProjAi ? await switchProjectByWords(client, item, sc.arg, projAi) : await switchByWords(sc.arg, 'edit')) : null;
         // `/model` alone keeps what ran at that moment (summary): a later switch does not rewrite the old line
-        const now = r ? null : currentLine('edit');
+        const now = r ? null : projNow();
         await client.addChatTurn(item, clip, { role: 'user', text: raw.trim(), card: 'model', status: 'note', reply: r ? r.text : null, ...(now ? { summary: t('mdl.cur', { name: now.name }) } : {}), ...(r?.ok ? { provider: r.provider, model: r.model ?? null } : {}) });
       } else await client.addChatTurn(item, clip, { role: 'user', text: raw.trim(), card: 'help', status: 'note', reply: sc.id === 'unknown' ? t('mdl.unknownCmd', { cmd: sc.name }) : null });
       p.reload();
@@ -715,12 +728,27 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
 
   const lastModelTurn = [...turns].reverse().find((x) => x.card === 'model')?.id ?? null;
   const slashTurn = (x: ChatTurn) => {
-    const now = currentLine('edit');
+    const now = projNow();
     let body: React.ReactNode;
     if (x.card === 'model') {
       // `/model 5.5`: what it switched to (or why not); `/model`: what runs now + the picker (on the newest one)
+      // a switch of this project: "Make this my default" (her default for new requests) on the newest one
+      const mine = hasProjAi && x.provider && projAi && projAi.provider === x.provider && (projAi.model ?? null) === (x.model ?? null);
+      const isDefault = !!x.provider && sameAi({ provider: x.provider as ProviderId, model: x.model ?? null }, { provider: aiState().routes?.routes.default.provider as ProviderId, model: aiState().routes?.routes.default.model ?? null });
       body = x.reply ? (
-        <div className="say" data-testid="model-reply">{x.reply}</div>
+        <>
+          <div className="say" data-testid="model-reply">{x.reply}</div>
+          {mine && !isDefault && x.id === lastModelTurn && (
+            <button
+              className="btn ghost sm"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={() => void pickModel('default', x.provider as ProviderId, x.model ?? null).then(() => ui.toast(t('tai.madeDefault', { name: labelOf(projAi) })))}
+              data-testid="model-make-default"
+            >
+              {t('tai.makeDefault')}
+            </button>
+          )}
+        </>
       ) : (
         <>
           <div className="say" data-testid="model-current">{x.summary ?? (now ? t('mdl.cur', { name: now.name }) : t('mdl.noRoutes'))}</div>
@@ -1018,7 +1046,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
                 {t('ce.off.noModel')}
               </button>
             ) : (
-              <ProviderChip task="edit" testId="ce-provider-chip" />
+              <ProjectAiChip item={item} testId="ce-provider-chip" compact orTask="edit" />
             )}
             {pending ? (
               <button className="send on" onClick={stop} aria-label={t('ce.stop')} data-tip={t('ce.stop')} data-testid="chat-stop">

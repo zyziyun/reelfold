@@ -10,6 +10,13 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ### Added
 
+- **Pick the AI for each request**: the composer (Home, the Studio, "Several videos") has an AI chip next to the
+  platforms. It shows your default ("Claude Code · Opus 5.5"); pick another ready AI and model for this request
+  only. The project keeps it, and every AI step of that project uses it, falling back along your fallback order.
+  Switch a project's AI on its run page, its page or its clip chat (from its next AI step; a running step is never
+  interrupted; the switch goes into the decisions log). `/model` in a project's chat now switches that project only,
+  with "Make this my default". A goal group switches all its videos not made yet, or one of them. Lists show a
+  project's own AI. Settings › AI keeps the default, the fallback order and the per-job overrides (advanced).
 - **Premium finish for footage films**:
   - Shots are matched in colour: each shot's white balance and tint move toward the film's reference shot, and six
     film looks (Cinema neutral, Kodak 2383 soft, Portra warm, Fuji cool, Silver mono, Soft bleach) are mixed in at

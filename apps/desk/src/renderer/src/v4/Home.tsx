@@ -46,6 +46,8 @@ import { liveStep, liveText } from '../lib/liveStatus';
 import { itemPipeline } from '../lib/pipeline';
 import { keyHint } from '../lib/keys';
 import { goalHref, useGoals } from '../lib/goals';
+import { AiPickChip, AiTag } from './AiPick';
+import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
 import { ManyToggle } from './ManyToggle';
 
 /** Starting points whose request is a fixed intent (sent as written: the talking-head recipe, planned by the rules). */
@@ -101,7 +103,7 @@ export function Home() {
   const { data: hist, reload: reloadHist } = useHistory();
   const draft = useMemo(() => {
     try {
-      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[] };
+      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown };
     } catch {
       return {};
     }
@@ -121,6 +123,8 @@ export function Home() {
   const [platforms, setPlatforms] = useState<string[] | null>(null);
   const [auto, setAuto] = useState(true); // Settings › New projects: autopilot (default) or ask me first
   const [many, setMany] = useState(false); // 「Several videos」: a goal (survey + a group of videos)
+  // this request's AI (the composer's AI chip; null = her default from Settings › AI), back to the default once sent
+  const [ai, setAi] = useState<ProjectAi | null>(() => cleanAi(draft.ai));
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const { data: recent } = useLoad((c) => c.recentPrompts(), [sent]);
   // a goal being read or made is work under way (its videos are not projects yet): not the first-run page
@@ -129,8 +133,8 @@ export function Home() {
   const wp = useWeekPlan();
 
   useEffect(() => {
-    sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files }));
-  }, [prompt, files]);
+    sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, ...(ai ? { ai } : {}) }));
+  }, [prompt, files, ai]);
   useEffect(() => {
     void window.desk.getSettings().then((s) => {
       // her choice, else her accounts' platforms, else the international pair - international first (Create agrees)
@@ -185,6 +189,7 @@ export function Home() {
             // a fixed intent (the sample, the talking-head start as written): no ~2 min planning call
             recipe: p.sample || FIXED_STARTS.some((k) => t(k) === p.prompt.trim()) ? 'talkinghead' : undefined,
             ...(many && !p.sample ? { goal: true } : {}),
+            ...(ai && !p.sample ? { ai } : {}),
           });
           // the request is a project now (All projects lists it): Home is free for the next one
           const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');
@@ -193,6 +198,7 @@ export function Home() {
           setFiles([]);
           setSent((n) => n + 1);
           setMany(false);
+          setAi(null);
           reloadHist();
           if (r.goal) ui.toast(t('goal.sent'), { action: { label: t('home.sentOpen'), href: goalHref(r.id) }, ms: 8000 });
           else ui.toast(t(auto ? 'home.sent' : 'home.sentAsk', { name }), { action: { label: t('home.sentOpen'), href: selHref(r.id) }, ms: 8000 });
@@ -341,6 +347,7 @@ export function Home() {
                 <Paperclip className="ico" />
               </button>
               <PlatformChip value={platforms} onChange={savePlatforms} saved={savedPf} onMakeDefault={makeDefault} />
+              <AiPickChip value={ai} onChange={setAi} testId="composer-ai" title={t('tai.composerTip')} />
               <ManyToggle on={many} onChange={setMany} />
               <span className="sp" />
               <span className="ux-kbdhint" aria-hidden>{keyHint('⌘↵')}</span>
@@ -631,6 +638,7 @@ export function ProjectTile({ i, onContext, note, posts }: { i: HistoryItem; onC
         <StatusPill s={s} label={label} />
       </div>
       <LiveCardLine live={i.live} />
+      <AiTag ai={i.ai} testId="project-card-ai" />
       <ArrowRight className="sr" />
     </a>
   );

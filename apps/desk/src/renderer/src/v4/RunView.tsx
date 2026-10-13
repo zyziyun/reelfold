@@ -26,6 +26,9 @@ import { PlanCard } from './PlanCard';
 import { WithProjectChat } from './ProjectChat';
 import { Splitter } from './Splitter';
 import { WorkPieces } from './WorkPieces';
+import { AiPickChip, ProjectAiChip } from './AiPick';
+import { labelOf } from '../lib/projectAi';
+import type { ProjectAi } from '../../../shared/projectAi';
 import { newVideo, useUi } from './ui';
 import './runview.css';
 
@@ -217,10 +220,21 @@ export function RequestRun({ r }: { r: OpenRequest }) {
     } catch {
       // already gone
     }
-    sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: r.prompt ?? '', files: r.inputs ?? [] }));
+    sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: r.prompt ?? '', files: r.inputs ?? [], ...(r.ai ? { ai: r.ai } : {}) }));
     sessionStorage.removeItem('v4.hubSel');
     reload();
     newVideo();
+  };
+  // the request's AI: switched while it plans, the next AI call uses it (the call now is never interrupted)
+  const setAi = async (v: ProjectAi | null) => {
+    if (!client) return;
+    try {
+      await client.setRequestAi(r.id, v);
+      ui.toast(v ? t('tai.switched', { name: labelOf(v) }) : t('tai.switchedDefault', { name: labelOf(null) }));
+      reload();
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    }
   };
   const stop = async () => {
     try {
@@ -267,6 +281,7 @@ export function RequestRun({ r }: { r: OpenRequest }) {
       }
       actions={
         <>
+          <AiPickChip value={r.ai ?? null} onChange={setAi} testId="run-ai-chip" title={t('tai.runTip')} />
           <span className={`hub-mode ${r.mode === 'autopilot' ? 'on' : ''}`} data-testid="hub-request-mode">
             {r.mode === 'autopilot' ? <Sparkles className="ico" /> : null}
             {t(r.mode === 'autopilot' ? 'ap.auto' : 'ap.ask')}
@@ -385,17 +400,20 @@ export function ProjectRun({ i, p }: { i: HistoryItem; p: Pipeline; posts: Calen
         </>
       }
       actions={
-        (ap?.supported || i.autopilot !== undefined) && (
-          <div className="seg hub-modeseg" role="radiogroup" aria-label={t('ap.setting')} data-testid="hub-mode" data-on={on ? '1' : '0'}>
-            <button role="radio" aria-checked={on} className={on ? 'on' : ''} onClick={() => void setMode(true)} title={t('hub.modeOn')} data-testid="hub-mode-auto">
-              <Sparkles className="ico" />
-              {t('ap.auto')}
-            </button>
-            <button role="radio" aria-checked={!on} className={!on ? 'on' : ''} onClick={() => void setMode(false)} title={t('hub.modeOff')} data-testid="hub-mode-ask">
-              {t('ap.ask')}
-            </button>
-          </div>
-        )
+        <>
+          <ProjectAiChip item={i.id} seed={i.ai ?? null} testId="run-ai-chip" />
+          {(ap?.supported || i.autopilot !== undefined) && (
+            <div className="seg hub-modeseg" role="radiogroup" aria-label={t('ap.setting')} data-testid="hub-mode" data-on={on ? '1' : '0'}>
+              <button role="radio" aria-checked={on} className={on ? 'on' : ''} onClick={() => void setMode(true)} title={t('hub.modeOn')} data-testid="hub-mode-auto">
+                <Sparkles className="ico" />
+                {t('ap.auto')}
+              </button>
+              <button role="radio" aria-checked={!on} className={!on ? 'on' : ''} onClick={() => void setMode(false)} title={t('hub.modeOff')} data-testid="hub-mode-ask">
+                {t('ap.ask')}
+              </button>
+            </div>
+          )}
+        </>
       }
       title={i.name}
       prompt={i.prompt}

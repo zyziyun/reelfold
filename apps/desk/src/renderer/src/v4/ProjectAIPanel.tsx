@@ -17,7 +17,8 @@ import { useEngine } from '../lib/engine';
 import type { EngineClient } from '../../../shared/engineClient';
 import { go } from '../lib/router';
 import { useUi } from './ui';
-import { AnsweredBy, FallbackNote, ProviderChip } from './AiChip';
+import { AnsweredBy, FallbackNote } from './AiChip';
+import { ProjectAiChip } from './AiPick';
 
 interface Msg {
   id: number;
@@ -318,7 +319,7 @@ export function ProjectAIPanel({
     <aside className="agent" data-testid={testId} data-scope="project">
       <div className="hd">
         <b style={{ whiteSpace: 'nowrap', flex: 'none' }}>{t('ai.title')}</b>
-        <ProviderChip task="edit" testId="ai-provider-chip" />
+        <ProjectAiChip item={item} testId="ai-provider-chip" orTask="edit" />
         <span className="sp" />
         {onFold && (
           <button className="btn ghost icon sm" onClick={onFold} aria-label={t('pc.fold')} data-tip={t('pc.fold')} data-testid="project-chat-fold">

@@ -130,7 +130,7 @@ class Intake:
 
     JOB_KEYS = ("id", "state", "step", "prompt", "inputs", "error", "error_code", "error_provider", "started",
                 "seconds", "platforms", "lang", "mode", "sample_name", "applied", "discarded", "failed_apply",
-                "failed_revise", "name", "needs", "ignore_needs", "archived_at", "stopped_by")
+                "failed_revise", "name", "needs", "ignore_needs", "archived_at", "stopped_by", "ai")
 
     def _job_path(self, pid):
         return os.path.join(self.dir, f"{pid}.job.json")
@@ -198,7 +198,8 @@ class Intake:
         r = self.runner.sibling("vstudio.intake")
         track = self._procs.setdefault(pid, [])
         os.makedirs(self.dir, exist_ok=True)
-        env = {AGENT_ENV: self.live_path(pid)}
+        from .aichoice import env as ai_env
+        env = {AGENT_ENV: self.live_path(pid), **ai_env((self.jobs.get(pid) or {}).get("ai"))}
         self._live(pid, "cmd", f"vstudio.intake {args[0]}")
         if self.streams():
             done = r.events([*args, "--json-events"], lambda ev: self._progress(pid, ev), timeout=timeout, track=track,
@@ -303,7 +304,8 @@ class Intake:
                        progress=j.get("progress"), error_code=j.get("error_code"), error=j.get("error"),
                        name=j.get("name") or (names[0] if names else None), projects=len(names) or None,
                        failed_apply=bool(j.get("failed_apply")), needs=j.get("needs") or None,
-                       stopped_by=j.get("stopped_by") if j.get("state") == "stopped" else None)
+                       stopped_by=j.get("stopped_by") if j.get("state") == "stopped" else None,
+                       ai=j.get("ai") or None)
             if archived:
                 row.update(archived=True, archived_at=j.get("archived_at"))
             out.append(row)
@@ -407,12 +409,16 @@ class Intake:
         return dict(ok=True, id=pid)
 
     # ---------------------------------------------------------- plan / revise
-    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, sample_name=None, recipe=None):
+    def start(self, prompt, inputs, platforms=None, lang=None, mode=None, sample_name=None, recipe=None, ai=None):
         """``platforms``: the composer's platform chip (used when the request names none); ``lang``: the UI's
         language, the one the card's questions are written in. ``mode``: autopilot | ask (a project from Home, see
         the module doc; None: a plan card of its own, e.g. the week plan's); ``sample_name``: the built-in sample's
         projects are named so (labelled and deletable). ``recipe``: the request's intent is fixed (the recorder's
-        「做成口播」, Home's talking-head start): planned by the rules for that recipe, no model call."""
+        「做成口播」, Home's talking-head start): planned by the rules for that recipe, no model call. ``ai``: the
+        composer's AI for this request ({provider, model}; None = the app's default): its planning uses it and every
+        project it becomes keeps it (``aichoice``)."""
+        from .aichoice import clean
+        ai = clean(ai)
         lang = ui_lang(lang)
         need(recipe is None or (isinstance(recipe, str) and re.match(r"^[a-z][a-z0-9-]{1,40}$", recipe)), "recipe: id")
         need(mode in (None, "autopilot", "ask"), "mode: autopilot | ask")
@@ -423,11 +429,30 @@ class Intake:
         pid = hashlib.sha1(f"{prompt}\0{inputs}\0{time.time()}".encode()).hexdigest()[:12]
         self._set(pid, id=pid, state="running", step="analyze", prompt=prompt, inputs=inputs, plan=None, error=None,
                   started=time.time(), op_started=time.time(), seconds=None, platforms=platforms or None,
-                  progress=None, lang=lang, mode=mode, sample_name=sample_name, recipe=recipe)
+                  progress=None, lang=lang, mode=mode, sample_name=sample_name, recipe=recipe, ai=ai)
         if mode and self.bus:
             self.bus.publish("batches")
         threading.Thread(target=self._plan, args=(pid, prompt, inputs), daemon=True).start()
         return dict(id=pid)
+
+    def set_ai(self, pid, ai, by="you"):
+        """Switch a request's AI: its next planning call uses it; once it is made into projects, each of them
+        (from their next AI step). -> {ok, ai, projects}"""
+        from .aichoice import clean, set_project
+        ai = clean(ai)
+        j = self.get(pid)
+        self._set(pid, ai=ai)
+        if j.get("state") == "running" and not j.get("applied"):
+            self._live(pid, "ai", f"AI → {(ai or {}).get('provider') or 'default'} (from the next AI step)", dict(ai=ai))
+        done = []
+        for p in j.get("applied") or []:
+            d = p.get("dir") if isinstance(p, dict) else None
+            if d and os.path.isfile(os.path.join(d, "project.yaml")):
+                set_project(self.runner, d, ai, by=by)
+                done.append(d)
+        if self.bus:
+            self.bus.publish("batches")
+        return dict(ok=True, id=pid, ai=ai, projects=done)
 
     def _platform_hint(self, pid, prompt):
         """The chip's platforms as words the planner reads, when the request itself names no platform."""
@@ -651,6 +676,16 @@ class Intake:
                                                          timeout=900)
         projects = [dict(dir=p.get("dir"), name=p.get("name"), recipe=p.get("recipe"))
                     for p in doc.get("projects") or [] if isinstance(p, dict)]
+        ai = (self.jobs.get(pid) or {}).get("ai")
+        if ai:                                       # the request's AI is each project's AI (before it runs)
+            from .aichoice import set_project
+            for p in projects:
+                if p["dir"]:
+                    try:
+                        set_project(self.runner, p["dir"], ai, by="you", live=False)
+                        p["ai"] = ai
+                    except Exception as e:  # noqa: BLE001  (an older engine: the project follows the default)
+                        self._live(pid, "log", f"AI not set on {p.get('name')}: {e}")
         if run:
             lang = (self.jobs.get(pid) or {}).get("lang")
             for p in projects:

@@ -4,9 +4,10 @@
 // CLIs: ROOT/bin/claude answers like `claude -p` with the model it was given (--model, else "its default"
 // claude-opus-4-7[1m]) and logs its arguments; ROOT/bin/codex lists a ChatGPT login's models (`codex debug models`).
 // In the clip chat: "/" lists the commands; "/model" says what runs and offers a picker; a request is answered by the
-// CLI default; "/model 5.5" switches to Opus 5.5 (said in the thread, the chip shows it, the routes file passes it)
-// and the NEXT reply says claude-opus-5-5 (the CLI really got --model claude-opus-5-5); "/model sonnet" -> Sonnet
-// 5.5; "/foo" is not a command - and none of the commands ever reached the model.
+// CLI default; "/model 5.5" switches THIS PROJECT to Opus 5.5 (said in the thread, the chip shows it, project.yaml
+// keeps it, her default in the routes file stays) and the NEXT reply says claude-opus-5-5 (the CLI really got --model
+// claude-opus-5-5); "/model sonnet" -> Sonnet 5.5; "/foo" is not a command - and none of the commands ever reached
+// the model.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -82,6 +83,12 @@ if _bin:
 const calls = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) : []);
 const modelArg = (c: string[]) => (c.includes('--model') ? c[c.indexOf('--model') + 1] : null);
 const routes = () => JSON.parse(fs.readFileSync(path.join(tmp, 'profile', 'llm-routes.json'), 'utf8'));
+let projDir = '';
+// the project's own AI (project.yaml `ai`), as the engine reads it on each AI step
+const projAi = () => {
+  const m = /\nai:\n((?: {2}.*\n)+)/.exec(fs.readFileSync(path.join(projDir, 'project.yaml'), 'utf8'));
+  return m ? Object.fromEntries(m[1].trim().split('\n').map((l) => l.trim().split(': ').map((x) => x.replace(/^'|'$/g, '')))) : null;
+};
 
 test.describe.configure({ mode: 'serial' });
 
@@ -121,6 +128,7 @@ test.beforeAll(async () => {
   const find = async () => (await api<{ items: { id: string; dir: string }[] }>('/api/history')).items.find((i) => fs.realpathSync(i.dir) === fs.realpathSync(fx.dir))?.id ?? '';
   await expect.poll(find, { timeout: 60000 }).not.toBe('');
   id = await find();
+  projDir = fx.dir;
 });
 
 test.afterAll(async () => {
@@ -171,11 +179,11 @@ test('/model 5.5 switches to Opus 5.5: said in the thread, on the chip, and the 
   test.setTimeout(240000);
   await say('/model 5.5');
   const reply = page.getByTestId('chat-model-turn').last().getByTestId('model-reply');
-  await expect(reply).toHaveText('Switched to Claude Code · Opus 5.5. The next reply uses it.', { timeout: 30000 });
+  await expect(reply).toHaveText('This project now uses Claude Code · Opus 5.5, from its next AI step. Your default stays Claude Code · CLI default.', { timeout: 30000 });
   await expect(page.getByTestId('ce-provider-chip')).toHaveAttribute('data-model', 'claude-opus-5-5');
   await expect(page.getByTestId('ce-provider-chip')).toContainText('Claude Code · Opus 5.5');
-  expect(routes().tasks.output_edit).toMatchObject({ provider: 'claude-code', model: 'claude-opus-5-5' });
-  expect(routes().default.model).toBe('claude-opus-5-5');
+  expect(projAi()).toEqual({ provider: 'claude-code', model: 'claude-opus-5-5' });
+  expect(routes().default.model ?? null).toBeNull(); // her default is untouched: only this project switched
   expect(calls().length).toBe(1);
   await say('and now?');
   await expect(page.getByTestId('chat-ai').last().getByTestId('chat-cost')).toContainText('Claude Code · claude-opus-5-5', { timeout: 120000 });
@@ -200,10 +208,11 @@ test('/model sonnet -> the newest Sonnet; the picker; unknown commands never rea
   // an earlier /model keeps what ran then (not what runs now), and only the newest one has the picker
   await expect(page.getByTestId('chat-model-turn').first().getByTestId('model-current')).toHaveText('Using Claude Code · CLI default.');
   await expect(page.getByTestId('model-picker')).toHaveCount(0);
-  expect(routes().default.model).toBe('claude-haiku-5-5');
+  expect(projAi()).toEqual({ provider: 'claude-code', model: 'claude-haiku-5-5' });
+  expect(routes().default.model ?? null).toBeNull();
   // the chip's menu offers the same models
   await page.getByTestId('ce-provider-chip').click();
-  await page.getByTestId('chip-model-claude-opus-5-5').click();
+  await page.getByTestId('ce-provider-chip-model-claude-opus-5-5').click();
   await expect(page.getByTestId('ce-provider-chip')).toHaveAttribute('data-model', 'claude-opus-5-5');
   await say('/foo');
   await expect(page.getByTestId('chat-help-turn').last()).toContainText('“/foo” isn’t a command.', { timeout: 30000 });
@@ -218,7 +227,10 @@ test('Settings › AI: the model of the AI in use, and Codex’s config model he
   test.setTimeout(120000);
   await hash('#/settings/ai');
   await expect(page.getByTestId('ai-accounts')).toBeVisible({ timeout: 30000 });
-  await expect(page.getByTestId('model-select-claude-code')).toHaveValue('claude-opus-5-5', { timeout: 30000 });
+  // the clip chat's /model switched only that project: her default is still the CLI's own model
+  await expect(page.getByTestId('model-select-claude-code')).toHaveValue('', { timeout: 30000 });
+  await page.getByTestId('model-select-claude-code').selectOption('claude-opus-5-5');
+  await expect.poll(() => routes().default.model ?? routes().models?.['claude-code'] ?? null).toBe('claude-opus-5-5');
   // Codex: the catalog of her login (the stand-in's), and her config.toml's gpt-6-astra flagged with the fix
   const problem = page.getByTestId('model-problem-codex');
   await expect(problem).toContainText('gpt-6-astra', { timeout: 60000 });

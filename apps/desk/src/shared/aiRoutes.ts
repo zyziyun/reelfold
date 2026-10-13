@@ -258,7 +258,7 @@ type EngineEntry = { provider: string; model?: string; fallback?: (string | { pr
  * engine ranks the persona's llm.tasks above any default: an omitted task would silently use the persona's route.
  * Each entry carries its model (the job's own, else the provider's) and each fallback its provider's model, so a
  * fallback Codex runs on the model picked for Codex (never on whatever its config.toml says). */
-export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<string, EngineEntry>; regions?: Partial<Record<ProviderId, Region>> } {
+export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<string, EngineEntry>; regions?: Partial<Record<ProviderId, Region>>; models?: Partial<Record<ProviderId, string>> } {
   const pm = r.models ?? {};
   const entry = (c: RouteChoice): EngineEntry => {
     const model = c.model || (c.provider !== 'none' ? pm[c.provider] : undefined);
@@ -271,7 +271,10 @@ export function routesFile(r: AiRoutes): { default: EngineEntry; tasks: Record<s
   for (const extra of ['script', 'planner']) tasks[extra] = entry(r.default);
   // the endpoint of each provider that has two (the engine reads `regions` on every call)
   const regions = cleanRegions(r.regions);
-  return { default: entry(r.default), tasks, ...(Object.keys(regions).length ? { regions } : {}) };
+  // the model picked for each provider: a project on its own AI without a model of its own runs on it
+  // (vstudio.llm project_ai)
+  const models = cleanModels(r.models);
+  return { default: entry(r.default), tasks, ...(Object.keys(regions).length ? { regions } : {}), ...(Object.keys(models).length ? { models } : {}) };
 }
 
 /** Engine fallback record (vstudio.llm complete -> output ai / intake planner). */

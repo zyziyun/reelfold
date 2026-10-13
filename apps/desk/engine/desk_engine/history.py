@@ -155,6 +155,9 @@ def summarize_project(pdir):
         out["autopilot"] = bool(ap.get("on")) if isinstance(ap, dict) else bool(ap)
         if isinstance(data.get("prompt"), str):
             out["prompt"] = data["prompt"][:300]
+        ai = data.get("ai")                         # the project's AI (aichoice): the lists show it
+        if isinstance(ai, dict) and isinstance(ai.get("provider"), str):
+            out["ai"] = {"provider": ai["provider"], **({"model": ai["model"]} if isinstance(ai.get("model"), str) else {})}
     sdir = os.path.join(pdir, "state")
     if os.path.exists(os.path.join(sdir, "batch.db")):
         b = summarize_batch(sdir)

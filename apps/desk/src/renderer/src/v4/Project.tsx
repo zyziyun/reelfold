@@ -1,6 +1,7 @@
 // Project page (adapts to the type): title -> one line -> the clips (one card per clip: cover, length, size
 // versions, caption) -> tabs 成片 / (审片 / 交付) / 修改记录 / 素材和文件 -> details folded. Right: 「让 AI 改」.
 // Plain work folders show their in-progress clips and refresh live (fs watch + a 5 s timer while running).
+import { ProjectAiChip } from './AiPick';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArchiveRestore, ArrowLeft, CalendarPlus, Clapperboard, Copy, FolderOpen, Maximize2, Play, Share2, Undo2, Wand2 } from 'lucide-react';
 import type { HistoryDetail } from '../../../shared/v02';
@@ -256,6 +257,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
                   </button>
                 </>
               )}
+              {item?.kind === 'project' && <ProjectAiChip item={id} seed={item.ai ?? null} testId="project-ai" />}
               <StatusPill s={s} label={failure ? t('status.failed') : undefined} />
               {!failure && done.length > 0 && <ShareButton item={id} />}
               {/* an explainer whose scenes came out plain: every scene drawn again by the AI, the voice kept */}

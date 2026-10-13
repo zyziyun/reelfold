@@ -239,3 +239,8 @@
 .ux-stills { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
 .ux-stills img { width: 100%; aspect-ratio: auto; border-radius: 6px; background: var(--surface-2); object-fit: contain; max-height: 220px; }
 .ux-stillvid { width: 100%; max-height: 320px; border-radius: 8px; background: #000; }
+
+/* per-task AI: the chip of a request / project with an AI of its own, and the small label in the lists */
+.ux-aichip.own { border-color: var(--accent); }
+.ux-aitag { display: inline-flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
+.pcard .ux-aitag { margin-top: 2px; }

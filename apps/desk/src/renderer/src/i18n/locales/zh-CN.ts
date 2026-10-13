@@ -27,6 +27,7 @@ import { purgeZh } from './purge';
 import { homeDashZh } from './homeDash';
 import { checksZh } from './checks';
 import { modelsZh } from './models';
+import { taskAiZh } from './taskAi';
 import { layoutZh } from './layout';
 import { runZh } from './runview';
 import { settingsV2Zh } from './settingsV2';
@@ -624,4 +625,4 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'editor.zoomFit': '全部',
 };
 
-export const zhCN: Record<MessageKey, string> = { ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...brainZh, ...agentsZh, ...nleZh };
+export const zhCN: Record<MessageKey, string> = { ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...brainZh, ...agentsZh, ...nleZh, ...taskAiZh };

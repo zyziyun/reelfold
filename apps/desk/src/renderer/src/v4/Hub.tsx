@@ -2,6 +2,7 @@
 // running / ready / scheduled & out / earlier) and the selected one on the right - where it is in the pipeline, what
 // the AI decided (each one can be taken back), its clips (each opens the player + editor) and its publishing. A
 // request from Home shows here the moment it is sent: planning, a plan waiting for her Start (Ask me first), a failure.
+import { ProjectAiChip } from './AiPick';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CalendarPlus, Check, Sparkles, Trash2 } from 'lucide-react';
 import type { HistoryItem } from '../../../shared/v02';
@@ -245,7 +246,7 @@ export function RequestDetail({ r, onApplied }: { r: OpenRequest; onApplied: (di
     } catch {
       // already gone: Home is still where she starts over
     }
-    sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: r.prompt ?? '', files: r.inputs ?? [] }));
+    sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: r.prompt ?? '', files: r.inputs ?? [], ...(r.ai ? { ai: r.ai } : {}) }));
     sessionStorage.removeItem('v4.hubSel');
     reload();
     newVideo(); // the composer with her words (the Studio's ＋ New video, else Home)
@@ -331,6 +332,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
           </h2>
           {i.prompt ? <p className="muted clamp2">“{i.prompt}”</p> : <p className="muted">{fmtAgo(i.updated)}</p>}
         </div>
+        {i.kind === 'project' && <ProjectAiChip item={i.id} seed={i.ai ?? null} testId="project-ai" />}
         {(ap?.supported || i.autopilot !== undefined) && (
           <div className="seg hub-modeseg" role="radiogroup" aria-label={t('ap.setting')} data-testid="hub-mode" data-on={on ? '1' : '0'}>
             <button role="radio" aria-checked={on} className={on ? 'on' : ''} onClick={() => void setMode(true)} title={t('hub.modeOn')} data-testid="hub-mode-auto">

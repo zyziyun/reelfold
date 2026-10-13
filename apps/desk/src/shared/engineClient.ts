@@ -44,6 +44,7 @@ import type { AskContext, ChatTurn, ExportJob } from './chatEdit';
 import type { StripInfo, TranscribeState } from './timeline';
 import type { WeekPlan, WeekPlanStart } from './weekPlan';
 import type { Goal, GoalEditOp } from './goal';
+import type { ProjectAi } from './projectAi';
 import type { ShareJob, ShareOptions, ShareRequest } from './share';
 import type { AskResult, AutopilotDoc, BrainDoc, BrainEstimate, BrainState, CalendarDoc, CalendarPost, ClipShots, ClipsDoc, HomeSuggestions, NewPost, SchedulePlan, EditOp, EffectDef, EngineMsg, InboxDoc, IntakeJob, IntakePlan, LiveDoc, NleFormat, NleResult, OpenRequest, OutputDoc, DeletePlan, DeleteSel, PiecesDoc, PreviewEdl, ProjectAskJob, Retimed, TrashPlanItem } from './v04';
 
@@ -554,7 +555,9 @@ export class EngineClient {
   /** ``goal``: true = 「Make several videos」 (a survey + a group of videos); false = always one request; absent = the
    * engine decides (a goal-style request: several videos from a folder). The answer says ``goal: true`` when the
    * request became a goal (its id is the goal's). */
-  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string; goal?: boolean } = {}) {
+  /** ``opts.ai``: the composer's AI for this request (absent = the app's default): its planning and every project it
+   * becomes use it */
+  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string; goal?: boolean; ai?: ProjectAi | null } = {}) {
     return this.req<{ id: string; goal?: boolean }>('POST', '/api/intake', {
       prompt: prompt.slice(0, 2000),
       inputs,
@@ -564,7 +567,25 @@ export class EngineClient {
       ...(opts.sampleName ? { sample_name: opts.sampleName.slice(0, 80) } : {}),
       ...(opts.recipe ? { recipe: opts.recipe } : {}),
       ...(opts.goal !== undefined ? { goal: opts.goal } : {}),
+      ...(opts.ai ? { ai: opts.ai } : {}),
     });
+  }
+  /** a request's AI (planning: from its next AI call; once made, its projects') - null = the app's default */
+  setRequestAi(id: string, ai: ProjectAi | null) {
+    return this.req<{ ok: boolean; ai: ProjectAi | null }>('POST', `/api/intake/${pid(id)}/ai`, { ai });
+  }
+  /** the group's AI (``video``: one video's) - the videos not made yet switch, running ones from their next step */
+  setGoalAi(id: string, ai: ProjectAi | null, video?: string) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/ai`, { ai, ...(video ? { video } : {}) });
+  }
+  /** a project's own AI (null = the app's default) */
+  projectAi(item: string) {
+    return this.req<{ item: string; supported: boolean; ai: ProjectAi | null }>('GET', `/api/ai/${bid(item)}`);
+  }
+  /** switch a project's AI: every AI step of it from the next one on (a running step is never interrupted); recorded
+   * in its decisions log. ``by``: you (a picker) | chat (/model in its chat) | group (its goal) */
+  setProjectAi(item: string, ai: ProjectAi | null, by: 'you' | 'chat' | 'group' = 'you') {
+    return this.req<{ ok: boolean; ai: ProjectAi | null; resolved?: { provider: string; model: string | null; source: string } }>('POST', `/api/ai/${bid(item)}`, { ai, by });
   }
   /** goal mode: the groups of videos (not dismissed; finished ones for two weeks), newest first */
   goals() {

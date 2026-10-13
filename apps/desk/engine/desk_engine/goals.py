@@ -236,7 +236,10 @@ class Goals:
         return read_json(self._path(gid, plan=True), None)
 
     # ------------------------------------------------------------------ start / survey
-    def start(self, prompt, inputs, platforms=None, lang=None, mode="autopilot"):
+    def start(self, prompt, inputs, platforms=None, lang=None, mode="autopilot", ai=None):
+        """``ai``: the composer's AI for the group ({provider, model}; aichoice): the survey and every video use it."""
+        from .aichoice import clean
+        ai = clean(ai)
         need(isinstance(prompt, str) and len(prompt) <= 2000, "prompt: max 2000 chars")
         need(mode in ("autopilot", "ask"), "mode: autopilot | ask")
         named = [p for p in paths_in(prompt) if p not in (inputs or [])]
@@ -245,7 +248,7 @@ class Goals:
         gid = hashlib.sha1(f"{prompt}\0{inputs}\0{time.time()}\0{os.urandom(4).hex()}".encode()).hexdigest()[:12]
         g = dict(id=gid, prompt=prompt.strip(), inputs=inputs, platforms=platforms or None, lang=lang, mode=mode,
                  state="surveying", step="scan", created=time.time(), videos=[], goal=None, survey=None,
-                 error=None, error_code=None, progress=None)
+                 error=None, error_code=None, progress=None, ai=ai)
         self._save(g)
         if self.bus:
             self.bus.publish("batches")
@@ -276,7 +279,8 @@ class Goals:
             args += ["--ui-lang", lang]
         track = self._procs.setdefault(g["id"], [])
         r = self.runner.sibling("vstudio.intake")
-        done = r.events([*args, "--json-events"], on_event, timeout=3600, track=track)
+        from .aichoice import env as ai_env
+        done = r.events([*args, "--json-events"], on_event, timeout=3600, track=track, env_extra=ai_env(g.get("ai")))
         return done.get("plan") or read_json(out, None) or {}
 
     def _run_survey(self, gid):
@@ -541,7 +545,8 @@ class Goals:
         fixed = v.get("recipe") if (g.get("planner") or {}).get("fallback") else None
         try:
             r = self.intake.start(v["request"], list(v.get("inputs") or []), v.get("platforms"), g.get("lang"),
-                                  "autopilot", **({"recipe": fixed} if fixed else {}))
+                                  "autopilot", **({"recipe": fixed} if fixed else {}),
+                                  **({"ai": v.get("ai") or g.get("ai")} if (v.get("ai") or g.get("ai")) else {}))
         except Exception as e:  # noqa: BLE001
             self._failed(g, v, getattr(e, "code", None) or "intake", now, str(e))
             return
@@ -678,6 +683,37 @@ class Goals:
                 pass
 
     # ------------------------------------------------------------------ read
+    def set_ai(self, gid, ai, video=None):
+        """Switch the group's AI (``video`` None) or one video's: a video still waiting plans with it, one planning
+        uses it from its next AI call, one making from its project's next AI step; made / dropped ones stay as they
+        were made. -> the goal's view."""
+        from .aichoice import clean, set_project
+        ai = clean(ai)
+        g = self._get(gid)
+        need(video is None or (isinstance(video, str) and VID_RE.match(video)), "video: a video id")
+        vids = [v for v in g.get("videos") or [] if video is None or v.get("id") == video]
+        need(video is None or vids, f"no video {video}")
+        if video is None:
+            g["ai"] = ai
+        for v in vids:
+            if video is None:
+                v.pop("ai", None)                    # the group's AI again
+            else:
+                v["ai"] = ai
+            if v.get("state") in SETTLED or v.get("state") == "skipped":
+                continue
+            eff = v.get("ai") or g.get("ai")         # a video's own AI, else the group's
+            if v.get("state") == "planning" and v.get("intake"):
+                try:
+                    self.intake.set_ai(v["intake"], eff, by="group")
+                except Exception:  # noqa: BLE001  (the request is gone: its retry plans with the new AI)
+                    pass
+            for p in v.get("projects") or []:
+                if p.get("dir") and os.path.isfile(os.path.join(p["dir"], "project.yaml")):
+                    set_project(self.intake.runner, p["dir"], eff, by="group")
+        self._save(g)
+        return self.view(gid)
+
     def view(self, gid):
         g = self._get(gid)
         vids = [v for v in g.get("videos") or [] if v.get("state") != "skipped"]
@@ -690,11 +726,12 @@ class Goals:
             counts["total"] = sum(1 for v in g.get("videos") or [] if not v.get("planned_out"))
         out = {k: g.get(k) for k in ("id", "prompt", "inputs", "platforms", "lang", "mode", "state", "step", "goal",
                                      "survey", "planner", "error", "error_code", "progress", "created", "updated",
-                                     "approved", "finished", "dismissed_at", "count")}
-        out["videos"] = [{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills",
+                                     "approved", "finished", "dismissed_at", "count", "ai")}
+        out["videos"] = [{**{k: v.get(k) for k in ("id", "title", "title_zh", "kind", "theme", "why", "length_s", "clips", "stills",
                                                 "stories", "platforms", "request", "state", "intake", "projects",
                                                 "attempts", "retried", "reason_code", "progress", "live", "queued", "started",
-                                                "finished", "planned_out", "merged_into", "cleared", "versions", "last_error")}
+                                                "finished", "planned_out", "merged_into", "cleared", "versions", "last_error")},
+                          "ai": v.get("ai") or g.get("ai"), "own_ai": bool(v.get("ai"))}
                          for v in g.get("videos") or []]
         out["counts"] = counts
         out["goal_code"] = g.get("goal_code") or _goal_code(g.get("goal"))

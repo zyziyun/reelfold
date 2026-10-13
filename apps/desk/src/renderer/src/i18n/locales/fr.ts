@@ -32,6 +32,7 @@ import { purgeFr } from './purge';
 import { homeDashFr } from './homeDash';
 import { checksFr } from './checks';
 import { modelsFr } from './models';
+import { taskAiFr } from './taskAi';
 import { layoutFr } from './layout';
 import { runFr } from './runview';
 import { settingsV2Fr } from './settingsV2';
@@ -1892,4 +1893,4 @@ const releaseFr: Record<keyof typeof releaseEn, string> = {
   'set.developerHint': 'Pour travailler sur Reelfold lui-même. Rien de tout cela n’est nécessaire pour faire des vidéos.',
 };
 
-export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr };
+export const fr: Record<MessageKey, string> = { ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };
