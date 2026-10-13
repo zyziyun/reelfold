@@ -252,16 +252,18 @@ def run_prep(ctx):
 
 
 def _with_smooth(fn):
-    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys) + the editor brain's
-    join policy for this recording when it has one (her "cut here" / "punch in here" re-runs the cleanup)."""
+    """A stage key + ``smooth_cuts`` only when it is on (older batches keep their keys) + her own changes of the
+    editor brain's join policy for this recording."""
     def key(job, spec):
         d = fn(job, spec)
         p = job.get("params") or {}
         if p.get("smooth_cuts") is True:
             d["smooth_cuts"] = True
-        spans = brain_spans(p)
-        if spans:
-            d["brain_joins"] = [[round(x["a"], 2), round(x["b"], 2), x["join"]] for x in spans if x["join"]]
+        # her own "cut here" / "punch in here" re-runs the cleanup; the rules' plan is applied whenever it exists
+        # (a brain computed later never reopens a finished clip by itself)
+        hers = [[round(x["a"], 2), round(x["b"], 2), x["join"]] for x in brain_spans(p) if x["by"] == "her"]
+        if hers:
+            d["brain_joins"] = hers
         return d
     return key
 
