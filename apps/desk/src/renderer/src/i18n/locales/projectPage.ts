@@ -4,6 +4,9 @@
 // English, 简体中文, Français.
 
 export const projectPageEn = {
+  'hub.filesMissing': 'Finished files not found',
+  'hub.filesMissingHelp': 'The recorded videos are unavailable. Select their new locations to reconnect them. Your files stay where they are.',
+  'hub.relink': 'Reconnect video files…',
   'hub.s.ready': 'Ready to post',
   'hub.step.ready': 'Ready to post',
   'hub.step.out': 'Posted',
@@ -60,6 +63,9 @@ export const projectPageEn = {
 };
 
 export const projectPageZh: Record<keyof typeof projectPageEn, string> = {
+  'hub.filesMissing': '成片文件找不到',
+  'hub.filesMissingHelp': '原来记录的成片目前不可用。选择搬移后的成片文件即可重新关联；文件会留在原位置。',
+  'hub.relink': '重新关联成片…',
   'hub.s.ready': '可以发了',
   'hub.step.ready': '可以发',
   'hub.step.out': '已发布',
@@ -116,6 +122,9 @@ export const projectPageZh: Record<keyof typeof projectPageEn, string> = {
 };
 
 export const projectPageFr: Record<keyof typeof projectPageEn, string> = {
+  'hub.filesMissing': 'Fichiers vidéo introuvables',
+  'hub.filesMissingHelp': 'Les vidéos enregistrées sont indisponibles. Sélectionnez leur nouvel emplacement pour les reconnecter. Les fichiers restent en place.',
+  'hub.relink': 'Reconnecter les vidéos…',
   'hub.s.ready': 'Prête à publier',
   'hub.step.ready': 'Prête à publier',
   'hub.step.out': 'Publiée',

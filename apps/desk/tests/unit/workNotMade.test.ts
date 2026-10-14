@@ -35,3 +35,12 @@ describe('a watched folder with nothing made in it', () => {
     expect(itemPipeline(made).state).toBe('ready');
   });
 });
+
+it('missing recorded outputs cannot inherit a stale Made state', () => {
+  const missing = folder({ status: 'done', missing_outputs: true, live: { state: 'interrupted', heartbeat: NOW - 90000 } as HistoryItem['live'] });
+  expect(itemStatus(missing, NOW)).toBe('error');
+  expect(itemPipeline(missing).state).toBe('idle');
+  const [row] = studioRows([missing], [], {}, [], [], NOW);
+  expect(row.tone).not.toBe('done');
+  expect(row.group).not.toBe('ready');
+});

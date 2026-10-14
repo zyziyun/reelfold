@@ -310,6 +310,9 @@ export class EngineClient {
   hideHistory(dir: string) {
     return this.req<{ ok: boolean; deleted: false }>('POST', '/api/history/hide', { dir });
   }
+  relinkOutputs(id: string, paths: string[]) {
+    return this.req<{ ok: boolean; linked: number }>('POST', `/api/history/item/${bid(id)}/relink`, { paths });
+  }
   historyItem(id: string) {
     return this.req<HistoryDetail>('GET', `/api/history/item/${bid(id)}`);
   }

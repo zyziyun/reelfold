@@ -75,6 +75,7 @@ Delete (purge.py: Reelfold-made files only - her footage / recordings never; run
   POST /api/history/item/<id>/stop|resume  stop a project's run (pilot.stop: resumable) / run it on (Try again)
   POST /api/history/item/<id>/finish       its clips not made yet made (a pilot goes on to the rest) -> {started}
   GET  /api/history/item/<id>              one entry; work folders + detail {outputs, covers, sheets, posts, notes}
+  POST /api/history/item/<id>/relink       {paths[]} reconnect missing work outputs, validates videos first
   POST /api/history/item/<id>/adopt        {recipe?: guess|name, title?} plain work folder -> .vstudio/work.json
   GET  /api/history/item/<id>/progress?n=  the run's last events as codes (「看过程」 in the control room)
   GET  /api/history/item/<id>/pieces       the making piece by piece (outputs.pieces: each stage's wip files while it
@@ -1062,6 +1063,10 @@ class Api:
                         from . import pilot
                         return pilot.stop(e["dir"], self.bus)
                     return self.intake.resume_pilot(e["dir"])
+                if parts[3:] == ["relink"] and method == "POST":
+                    r = h.relink(parts[2], (body or {}).get("paths"))
+                    self.bus.publish("batches")
+                    return r
                 if parts[3:] == ["adopt"] and method == "POST":
                     b = body if isinstance(body, dict) else {}
                     rec = b.get("recipe") or "guess"

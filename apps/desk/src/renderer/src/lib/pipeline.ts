@@ -76,6 +76,7 @@ export function workNotMade(i: Pick<HistoryItem, 'kind' | 'counts' | 'live' | 's
 
 /** A project's place in the pipeline. ``hasDecision``: the Inbox holds a question for it. */
 export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDecision = false): Pipeline {
+  if (i.missing_outputs && !i.pilot && !i.queued && i.live?.state !== 'running') return { state: 'idle', current: 'plan', progress: null, eta: null };
   const s = itemStatus(i);
   const live = i.live;
   const progress = live?.progress ?? null;

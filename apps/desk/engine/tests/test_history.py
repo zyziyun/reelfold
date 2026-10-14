@@ -45,6 +45,40 @@ def make_batch(d, name="b", recipe="longform-split", jobs=(("ep01", "done", "gre
 
 
 class HistoryTest(unittest.TestCase):
+    def test_missing_outputs_reconnect_real_movie(self):
+        import subprocess
+        import shutil
+        from desk_engine import works as WK
+        from desk_engine.outputs import probe
+        with tempfile.TemporaryDirectory() as root:
+            d = os.path.join(root, "old")
+            os.makedirs(os.path.join(d, ".vstudio"))
+            with open(WK.record_path(d), "w") as f:
+                json.dump(dict(title="old", outputs=["out/gone.mp4"]), f)
+            before = WK.summarize(d)
+            self.assertTrue(before["missing_outputs"])
+            self.assertNotEqual(before["status"], "done")
+            movie = os.path.join(root, "relocated.mp4")
+            ffmpeg = shutil.which("ffmpeg")
+            self.assertIsNotNone(ffmpeg)
+            subprocess.run([ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=size=64x64:rate=10", "-t", "0.3", "-pix_fmt", "yuv420p", movie], check=True)
+            h = HI.History(os.path.join(root, "desk"), Registry(os.path.join(root, "desk")))
+            with mock.patch.object(h, "find", return_value=dict(id="abc", dir=d, kind="work", missing_outputs=True)):
+                with open(WK.record_path(d)) as f:
+                    original = f.read()
+                with self.assertRaises((ValueError, AssertionError)):
+                    h.relink("abc", [movie, movie + ".missing"])
+                with open(WK.record_path(d)) as f:
+                    self.assertEqual(f.read(), original)
+                self.assertEqual(h.relink("abc", [movie])["linked"], 1)
+            after = WK.summarize(d)
+            self.assertFalse(after["missing_outputs"])
+            self.assertEqual(after["status"], "done")
+            self.assertTrue(WK.clips(d, probe=probe))
+            self.assertTrue(os.path.isfile(movie))
+            os.rename(movie, movie + ".moved")
+            self.assertTrue(WK.summarize(d)["missing_outputs"])
+
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="hist-")
         self.data = os.path.join(self.root, "desk")

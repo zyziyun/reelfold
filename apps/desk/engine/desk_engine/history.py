@@ -882,6 +882,30 @@ class History:
         out = WK.adopt(r["dir"], recipe=recipe, title=title, home=vstudio_home())
         return dict(out, id=item_id)
 
+    def relink(self, item_id, paths):
+        """Reconnect finished movies without moving, copying or overwriting them."""
+        r = self.find(item_id)
+        need(r["kind"] == "work" and r.get("missing_outputs"), "only missing work outputs can be relinked")
+        need(not r.get("pilot") and not r.get("queued") and (r.get("live") or {}).get("state") not in ("running", "waiting"), "wait for the run to finish")
+        need(isinstance(paths, list) and 0 < len(paths) <= 200, "choose finished video files")
+        from .outputs import probe
+        linked = []
+        for p in paths:
+            need(isinstance(p, str) and os.path.isabs(p) and os.path.isfile(p) and os.path.splitext(p)[1].lower() in WK.VIDEO, "choose existing video files")
+            info = probe(p)  # validate every movie before changing the record
+            need(info.get("w") and info.get("h"), "choose a video with a playable picture")
+            if p not in linked:
+                linked.append(p)
+        rp = WK.record_path(r["dir"])
+        rec = read_json(rp, {}) or {}
+        rec.setdefault("original_outputs", rec.get("outputs", []))
+        rec["outputs"] = linked
+        rec["linked_outputs"] = linked
+        write_json(rp, rec)
+        self.allow_media(linked)
+        self._last = self._last_archived = None
+        return dict(ok=True, linked=len(linked))
+
     def roots(self):
         """``jobs/`` folders of the last listed entries with a thumbnail (the media protocol allow-list)."""
         return sorted({os.path.dirname(os.path.dirname(os.path.dirname(t))) if os.sep + "jobs" + os.sep in t

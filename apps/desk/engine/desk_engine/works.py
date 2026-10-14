@@ -92,6 +92,8 @@ def scan(d):
     sources = []
     for sub in SRC_DIRS:
         sources += [os.path.join(d, p) for p in _files(d, sub, VIDEO | {".wav", ".mp3", ".m4a"} | IMAGE, 50)]
+    linked = (read_json(record_path(d), {}) or {}).get("linked_outputs", [])
+    outs += [p for p in linked if isinstance(p, str) and os.path.isabs(p) and os.path.isfile(p) and p not in outs]
     return dict(outputs=outs, covers=covers, posts=posts, sheets=sheets, notes=notes, sources=sources[:50])
 
 
@@ -176,7 +178,8 @@ def summarize(d):
                 client=(rec or {}).get("client"), type=typ, created=created, updated=newest or None,
                 counts=dict(total=len(found["outputs"]), green=0, red=0, approved=0, done=len(found["outputs"]),
                             failed=0),
-                status="done" if found["outputs"] else "in-progress", thumb=thumb,
+                status="done" if found["outputs"] else "in-progress",
+                missing_outputs=bool((rec or {}).get("outputs") and not found["outputs"]), thumb=thumb,
                 deliveries=0, adopted=bool(rec))
 
 

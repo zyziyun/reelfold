@@ -24,6 +24,9 @@ test.beforeAll(async () => {
   for (const n of ['01-home-landing', '02-request-drop-folder']) {
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x200:rate=30:duration=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(promo, 'raw', `${n}.mp4`)]);
   }
+  const missing = path.join(watch, 'missing-movies');
+  fs.mkdirSync(path.join(missing, '.vstudio'), { recursive: true });
+  fs.writeFileSync(path.join(missing, '.vstudio', 'work.json'), JSON.stringify({ title: 'Missing movies', outputs: ['out/moved.mp4'] }));
   app = await electron.launch({
     args: [path.resolve(import.meta.dirname, '../..')],
     env: { ...process.env, DESK_STUDIO: '1', DESK_ENGINE_MOCK: '1', DESK_MOCK_STEP: '0.02', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' },
@@ -71,4 +74,15 @@ test('"Make a video from this folder" hands the folder to the composer; sent, a 
   await expect(page.getByTestId('composer-file')).toHaveCount(0);
   // her folder is read, never written
   expect(fs.readdirSync(promo).sort()).toEqual(['BRIEF.md', 'raw']);
+});
+
+ test('missing finished movies show a reconnect entry instead of Made', async () => {
+  await page.evaluate(() => (location.hash = '#/studio'));
+  const row = page.getByTestId('studio-row').filter({ hasText: 'Missing movies' });
+  await expect(row).toContainText('Finished files not found');
+  await expect(row).not.toHaveAttribute('data-tone', 'done');
+  await row.click();
+  await expect(page.getByTestId('hub-files-missing')).toBeVisible();
+  await expect(page.getByTestId('hub-relink')).toHaveText('Reconnect video files…');
+  await expect(page.getByTestId('hub-state-line')).toHaveText('Finished files not found');
 });

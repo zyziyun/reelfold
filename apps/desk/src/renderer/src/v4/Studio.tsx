@@ -588,6 +588,7 @@ function useGoalParam() {
 function lineOf(r: StudioRow): string {
   // the control room's words (Hub.stateLine): one vocabulary for where a video is
   if (r.kind === 'request') return stateLine(r.p, undefined, r.r);
+  if (r.i?.missing_outputs && r.p.state === 'idle') return stateLine(r.p, r.i);
   if (r.ask) return inboxTitle(r.ask);
   if (r.group === 'you') return r.tone === 'error' ? t('hub.s.failed') : t('hub.s.you');
   if (r.group === 'run') {

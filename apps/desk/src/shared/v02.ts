@@ -420,6 +420,8 @@ export interface ProgressFeed {
 }
 export const WORK_TYPES = ['talkinghead', 'slices', 'explainer', 'photo-story', 'vlog', 'podcast', 'aigc', 'script', 'batch', 'promo', 'slides', 'other'] as const;
 export interface HistoryItem {
+  /** Recorded finished files are unavailable; live file discovery found none. */
+  missing_outputs?: boolean;
   kind: 'batch' | 'project' | 'work';
   /** the project's own AI (project.yaml `ai`; absent = the app's default): every AI step of it uses it */
   ai?: import('./projectAi').ProjectAi | null;

@@ -157,6 +157,7 @@ export function ControlRoom() {
 }
 
 export function stateLine(p: Pipeline, i?: HistoryItem, r?: OpenRequest): string {
+  if (i?.missing_outputs && p.state === 'idle') return t('hub.filesMissing');
   switch (p.state) {
     case 'planning':
       return r?.mode === 'autopilot' && r.state === 'done' ? t('hub.s.run') : t('hub.s.planning');
@@ -364,7 +365,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
           )}
         </div>
         {p.state === 'queued' && <p className="muted small">{t('hub.queuedLong')}</p>}
-        {p.state === 'idle' && workNotMade(i) && (
+        {!i.missing_outputs && p.state === 'idle' && workNotMade(i) && (
           <div className="hub-worknone" role="status" data-testid="hub-work-none">
             <p className="muted small">{t('hub.work.none')}</p>
             <button
@@ -387,7 +388,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
             <FailureActions item={i.id} failure={i.failure} />
           </div>
         )}
-        {!(p.state === 'idle' && workNotMade(i)) && <Steps p={p} />}
+        {!i.missing_outputs && !(p.state === 'idle' && workNotMade(i)) && <Steps p={p} />}
         {feedOpen && <ProgressFeed item={i.id} clips={clips} running={live || p.state === 'run'} />}
       </div>
       {ap?.supported !== false && <Decisions item={i.id} doc={ap} clips={clips} busy={p.state === 'run'} onChanged={() => (reloadAp(), reloadHist())} />}
@@ -396,7 +397,20 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
           <b>{t('hub.clips')}</b>
           <span className="muted">{clips.length ? `· ${t('hub.clipsLine', { done: ready.length, n: clips.length })}` : ''}</span>
         </div>
-        {clips.length ? (
+        {i.missing_outputs ? (
+          <div role="status" data-testid="hub-files-missing">
+            <p className="muted small">{t('hub.filesMissingHelp')}</p>
+            <button className="btn soft sm" data-testid="hub-relink" onClick={async () => {
+              if (!client) return;
+              try {
+                const paths = await window.desk.openFiles('video');
+                if (!paths.length) return;
+                await client.relinkOutputs(i.id, paths);
+                reloadClips(); reloadHist();
+              } catch (e) { ui.toast(errText(e), { error: true }); }
+            }}>{t('hub.relink')}</button>
+          </div>
+        ) : clips.length ? (
           <div className="hub-clips">
             {clips.slice(0, 24).map((c) => (
               <ClipTile key={c.id} item={i.id} c={c} post={mine.filter((x) => x.clip === c.id)} />
