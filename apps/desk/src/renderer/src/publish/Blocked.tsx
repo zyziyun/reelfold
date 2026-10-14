@@ -12,8 +12,8 @@ export function BlockedNotice({ blocked, pf, onBack, onUploadInBrowser }: { bloc
   return (
     <div className="blk col" data-testid="blocked-notice" data-provider={blocked.provider}>
       <ShieldAlert className="ico blk-ico" />
-      <h3>{t(`blk.${blocked.provider}.title`)}</h3>
-      <p>{t(`blk.${blocked.provider}.body`)}</p>
+      <h3>{blocked.kind === 'passkey' ? t('blk.passkey.title') : t(`blk.${blocked.provider}.title`)}</h3>
+      <p>{blocked.kind === 'passkey' ? t('blk.passkey.body') : t(`blk.${blocked.provider}.body`)}</p>
       <p className="muted">{t('blk.otherWay', { pf, provider })}</p>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         <button className="btn primary" onClick={onBack} data-testid="blocked-back">

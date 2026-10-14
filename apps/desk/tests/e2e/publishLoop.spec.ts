@@ -253,6 +253,16 @@ test('Settings: Open at login; YouTube signs in through Google’s API (her own 
   for (const id of ['tiktok', 'x', 'instagram']) await expect(page.getByTestId(`api-${id}`)).toContainText('Not yet');
   await page.getByTestId('yt-own-add').click();
   await expect(page.getByTestId('yt-guide')).toBeVisible();
+  await expect(page.getByTestId('yt-guide-steps')).toHaveCSS('user-select', 'text');
+  const oldClipboard = await app.evaluate(({ clipboard }) => clipboard.readText());
+  try {
+    await page.getByTestId('yt-guide-copy').click();
+    const guide = await app.evaluate(({ clipboard }) => clipboard.readText());
+    expect(guide).toContain('1. Open console.cloud.google.com');
+    expect(guide).toContain('6. Paste them below');
+  } finally {
+    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), oldClipboard);
+  }
   await page.screenshot({ path: path.join(SHOTS, 'settings-api.png') });
   await page.keyboard.press('Escape');
   await page.getByTestId('open-at-login').click();

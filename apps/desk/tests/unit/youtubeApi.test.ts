@@ -438,3 +438,11 @@ describe('IPC', () => {
     expect(() => validateIpc('publish:ytPublish', { ...ok, publishAt: '2026-10-20 10:00' })).toThrow();
   });
 });
+
+
+it('detects the Google passkey challenge without mistaking another site or password login', () => {
+  expect(embeddedBlock('https://accounts.google.com/v3/signin/challenge/pk')).toEqual({ provider: 'google', by: 'url', kind: 'passkey' });
+  expect(embeddedBlock('https://accounts.google.com/v3/signin/challenge', 'Complete sign-in using your passkey')).toEqual({ provider: 'google', by: 'text', kind: 'passkey' });
+  expect(embeddedBlock('https://x.com/login', 'Complete sign-in using your passkey')).toBeNull();
+  expect(embeddedBlock('https://accounts.google.com/v3/signin/challenge/pwd', 'Enter your password')).toBeNull();
+});

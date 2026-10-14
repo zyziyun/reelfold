@@ -156,11 +156,19 @@ export class PublishBrowser {
       } else if (!w.isDestroyed() && w.getURL() === url) setBlocked(b);
     };
     wc.on('did-navigate', () => void checkBlock(wc, false));
+    wc.on('did-navigate-in-page', () => void checkBlock(wc, false));
     wc.on('did-stop-loading', () => void checkBlock(wc, false));
     wc.on('did-create-window', (child) => {
       const cw = child.webContents;
       cw.on('did-navigate', () => void checkBlock(cw, true));
-      cw.on('did-stop-loading', () => void checkBlock(cw, true));
+      cw.on('did-navigate-in-page', () => void checkBlock(cw, true));
+      let blockTimer: NodeJS.Timeout | null = null;
+      cw.on('did-stop-loading', () => {
+        void checkBlock(cw, true);
+        if (blockTimer) clearTimeout(blockTimer);
+        blockTimer = setTimeout(() => void checkBlock(cw, true), 2500);
+      });
+      cw.once('destroyed', () => { if (blockTimer) clearTimeout(blockTimer); });
     });
     // login state: the URL first, then what the page shows a moment after it settled (SPAs redirect late)
     let check: NodeJS.Timeout | null = null;
@@ -175,6 +183,7 @@ export class PublishBrowser {
       });
       check = setTimeout(async () => {
         if (wc.isDestroyed()) return;
+        void checkBlock(wc, false);
         const byCookie = await probeLogin(ses, entry.adapter);
         if (byCookie) return this.onLogin(entry.adapter.id, account, byCookie);
         let page: PageSignals | null = null;

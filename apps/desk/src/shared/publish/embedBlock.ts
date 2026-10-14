@@ -10,6 +10,7 @@ export interface EmbedBlock {
   provider: BlockProvider;
   /** what was seen: a known rejection URL, or the rejection text on a sign-in page */
   by: 'url' | 'text';
+  kind?: 'passkey';
 }
 
 const hostIs = (h: string, d: string) => h === d || h.endsWith(`.${d}`);
@@ -38,6 +39,9 @@ export function embeddedBlock(url: string, text = ''): EmbedBlock | null {
   if (u.protocol !== 'https:') return null;
   const h = u.hostname.toLowerCase();
   if (hostIs(h, 'accounts.google.com') || hostIs(h, 'accounts.youtube.com')) {
+    if (/\/challenge\/(pk|passkey)(?:\/|$)/i.test(u.pathname)) return { provider: 'google', by: 'url', kind: 'passkey' };
+    if (/complete sign-in using your passkey|use your passkey to (?:sign in|verify)|使用.*通行密钥|用.*通行密钥.*登录|connecter.*clé d’accès/i.test(text))
+      return { provider: 'google', by: 'text', kind: 'passkey' };
     if (GOOGLE_PATHS.some((p) => p.test(u.pathname))) return { provider: 'google', by: 'url' };
     if (/disallowed_useragent/i.test(u.search)) return { provider: 'google', by: 'url' };
     if (text && GOOGLE_TEXT.some((p) => p.test(text))) return { provider: 'google', by: 'text' };

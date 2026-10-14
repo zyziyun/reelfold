@@ -3,7 +3,7 @@
 // one post (title, description, tags, category, visibility, now / at a time, made for kids, altered content, Short,
 // thumbnail, playlist). Uploading starts only from her Publish / Schedule click.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
 import { shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../../shared/v04';
@@ -91,6 +91,13 @@ export function YtGuideSheet({ onClose, onSaved }: { onClose: () => void; onSave
   const [cid, setCid] = useState('');
   const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
+  const steps = (['yt.guide.s1', 'yt.guide.s2', 'yt.guide.s3', 'yt.guide.s4', 'yt.guide.s5', 'yt.guide.s6'] as const).map((k) => t(k));
+  const copyGuide = async () => {
+    try {
+      await window.desk.copyText([t('yt.guide.title'), t('yt.guide.lead'), ...steps.map((line, i) => `${i + 1}. ${line}`), t('yt.guide.note')].join('\n\n'));
+      ui.toast(t('yt.guide.copied'));
+    } catch (e) { ui.toast(errText(e), { error: true }); }
+  };
   const ok = /^[\w.-]{5,200}\.apps\.googleusercontent\.com$/.test(cid.trim());
   const save = async () => {
     setBusy(true);
@@ -113,12 +120,13 @@ export function YtGuideSheet({ onClose, onSaved }: { onClose: () => void; onSave
         </button>
       }
     >
-      <p className="muted small">{t('yt.guide.lead')}</p>
-      <ol className="yt-steps small">
-        {(['yt.guide.s1', 'yt.guide.s2', 'yt.guide.s3', 'yt.guide.s4', 'yt.guide.s5', 'yt.guide.s6'] as const).map((k) => (
-          <li key={k}>{t(k)}</li>
-        ))}
+      <p className="muted small sel">{t('yt.guide.lead')}</p>
+      <ol className="yt-steps small sel" data-testid="yt-guide-steps">
+        {steps.map((line, i) => <li key={i}>{line}</li>)}
       </ol>
+      <button className="btn sm" onClick={() => void copyGuide()} data-testid="yt-guide-copy">
+        <Copy className="ico" />{t('yt.guide.copy')}
+      </button>
       <button className="btn sm" onClick={() => void window.desk.openExternal('https://console.cloud.google.com/apis/credentials')}>
         <ExternalLink className="ico" />
         {t('yt.guide.open')}
@@ -132,7 +140,7 @@ export function YtGuideSheet({ onClose, onSaved }: { onClose: () => void; onSave
         <input className="input mono" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} data-testid="yt-client-secret" />
         <span className="muted">{t('yt.clientSecretHint')}</span>
       </label>
-      <p className="muted small">{t('yt.guide.note')}</p>
+      <p className="muted small sel">{t('yt.guide.note')}</p>
     </Sheet>
   );
 }
