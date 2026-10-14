@@ -2,6 +2,7 @@
 // edit drawer, the one-sentence schedule, first-run "where do you post?", month and data views.
 
 export const publishBoardEn = {
+  'pb.d.publishNow': 'Publish now',
   'pb.sub.this': '{n, plural, =0 {Nothing scheduled this week} one {# post this week} other {# posts this week}}',
   'pb.sub.next': '{n, plural, =0 {Nothing scheduled next week} one {# post next week} other {# posts next week}}',
   'pb.sub.range': '{n, plural, =0 {Nothing scheduled {range}} one {# post {range}} other {# posts {range}}}',
@@ -158,6 +159,7 @@ export const publishBoardEn = {
 type PbKey = keyof typeof publishBoardEn;
 
 export const publishBoardZh: Record<PbKey, string> = {
+  'pb.d.publishNow': '立即发布',
   'pb.sub.this': '{n, plural, =0 {本周还没有排期} other {本周 # 条}}',
   'pb.sub.next': '{n, plural, =0 {下周还没有排期} other {下周 # 条}}',
   'pb.sub.range': '{n, plural, =0 {{range} 还没有排期} other {{range} # 条}}',
@@ -312,6 +314,7 @@ export const publishBoardZh: Record<PbKey, string> = {
 };
 
 export const publishBoardFr: Record<PbKey, string> = {
+  'pb.d.publishNow': 'Publier maintenant',
   'pb.sub.this': '{n, plural, =0 {Rien de programmé cette semaine} one {# publication cette semaine} other {# publications cette semaine}}',
   'pb.sub.next': '{n, plural, =0 {Rien de programmé la semaine prochaine} one {# publication la semaine prochaine} other {# publications la semaine prochaine}}',
   'pb.sub.range': '{n, plural, =0 {Rien de programmé du {range}} one {# publication du {range}} other {# publications du {range}}}',

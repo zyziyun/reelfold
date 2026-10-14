@@ -118,6 +118,10 @@ test('the drawer: time, platform off / on, caption with the counter, Shorten for
   await card('B_自媒体').locator('.pc-top').click(); // the time row opens the drawer (the cover opens the clip)
   const d = page.getByTestId('pb-drawer');
   await expect(d).toBeVisible();
+  await d.getByTestId('pb-publish-now').click();
+  await expect(page.getByTestId('pb-now-x')).toBeVisible();
+  await expect(page.getByTestId('pb-now-xiaohongshu')).toBeVisible();
+  await page.keyboard.press('Escape');
   const date = d.getByTestId('pb-date');
   expect(await date.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
   const originalDay = await date.inputValue();

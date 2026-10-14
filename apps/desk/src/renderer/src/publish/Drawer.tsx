@@ -3,10 +3,10 @@
 // the counter, the overflow marked, "Shorten for X"), Back to queue (unschedule, undo; files never touched),
 // Duplicate…, Done.
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Clock, Copy, CornerUpLeft, ExternalLink, Plus, X } from 'lucide-react';
+import { CalendarDays, Clock, Copy, CornerUpLeft, ExternalLink, Plus, Send, X } from 'lucide-react';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtClock, fmtDate, t } from '../i18n';
-import { go } from '../lib/router';
+import { go, href } from '../lib/router';
 import { platformName } from '../v4/Home';
 import { PlatformIcon } from '../v4/PlatformIcon';
 import { ClipThumbLink, PostLink } from '../v4/kit';
@@ -59,7 +59,7 @@ export function PostDrawer({
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !(e.target as HTMLElement)?.closest?.('input, textarea')) onClose();
+      if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('[role=menu]') && !(e.target as HTMLElement)?.closest?.('input, textarea')) onClose();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -71,6 +71,12 @@ export function PostDrawer({
     setTypedErr(false);
     setTyped('');
     void actions.retime(g, w.day ?? g.day, w.time).then(() => onMoved(w.day ?? g.day));
+  };
+  const publishNow = (e: React.MouseEvent) => {
+    const pending = g.on.filter((p) => p.state !== 'posted');
+    const open = (p: CalendarPost) => { location.hash = `${href({ name: 'postNow', id: p.id })}?now=1`; };
+    if (pending.length === 1) return open(pending[0]);
+    ui.menu(e, pending.map((p) => ({ label: platformName(base(p.platform)), icon: <PlatformIcon id={base(p.platform)} size={14} />, run: () => open(p), testId: `pb-now-${base(p.platform)}` })));
   };
   const dup = (e: React.MouseEvent) =>
     ui.menu(e, [
@@ -235,7 +241,12 @@ export function PostDrawer({
           {t('pb.d.duplicate')}
         </button>
         <span className="sp" />
-        <button className="btn primary" onClick={onClose} data-testid="pb-done">
+        {g.on.some((p) => p.state !== 'posted') && (
+          <button className="btn primary" onClick={publishNow} data-testid="pb-publish-now">
+            <Send className="ico" />{t('pb.d.publishNow')}
+          </button>
+        )}
+        <button className="btn ghost" onClick={onClose} data-testid="pb-done">
           {t('pb.d.done')}
         </button>
       </footer>

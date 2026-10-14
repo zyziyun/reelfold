@@ -217,7 +217,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 /** A post's YouTube form; Publish / Schedule is her click. */
-export function YtPublishForm({ post, account, result, onPosted }: { post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
+export function YtPublishForm({ post, account, result, onPosted, immediate = false }: { immediate?: boolean; post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
   const ui = useUi();
   const { yt, apply } = useYt();
   const acct = ytAccount(yt, account);
@@ -229,7 +229,7 @@ export function YtPublishForm({ post, account, result, onPosted }: { post: Calen
   const [privacy, setPrivacy] = useState<'public' | 'unlisted' | 'private'>('public');
   const due = useMemo(() => new Date(`${post.at}:00`), [post.at]);
   const ahead = due.getTime() - Date.now() > 10 * 60_000;
-  const [when, setWhen] = useState<'now' | 'at'>(ahead ? 'at' : 'now');
+  const [when, setWhen] = useState<'now' | 'at'>(!immediate && ahead ? 'at' : 'now');
   const [at, setAt] = useState(post.at);
   const [kids, setKids] = useState<boolean | null>(null);
   const [synthetic, setSynthetic] = useState(false);

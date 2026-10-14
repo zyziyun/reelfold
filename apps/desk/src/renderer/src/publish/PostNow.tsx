@@ -43,6 +43,7 @@ export function PostNow({ id }: { id: string }) {
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
   const [manual, setManual] = useState<string | null>(null);
   const [autoGo] = useState(() => routeQuery().go === '1');
+  const [immediate] = useState(() => routeQuery().now === '1');
   const [inBrowser, setInBrowser] = useState(false);
   /** sent through the API just now: what YouTube answered stays on the page */
   const [ytSent, setYtSent] = useState<YtPublishResult | null>(null);
@@ -155,8 +156,8 @@ export function PostNow({ id }: { id: string }) {
             </span>
             {adapter && <span className="muted small" data-testid="post-path" data-path={publishPath(adapter.id)}>{t(`pp.${publishPath(adapter.id)}`)}</span>}
             <span className={`muted small ${late > 0 && post.state !== 'posted' ? 'pb-amber' : ''}`}>
-              {fmtDate(due, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
-              {late > 60_000 && post.state !== 'posted' ? ` · ${t('pl.due.ago', { when: fmtAgo(due.getTime() / 1000) })}` : ''}
+              {immediate && post.state !== 'posted' ? t('pb.d.publishNow') : fmtDate(due, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+              {!immediate && late > 60_000 && post.state !== 'posted' ? ` · ${t('pl.due.ago', { when: fmtAgo(due.getTime() / 1000) })}` : ''}
             </span>
           </div>
         </div>
@@ -318,7 +319,7 @@ export function PostNow({ id }: { id: string }) {
       <section className="pl-browser">
         {viaApi ? (
           (phase.k !== 'posted' || ytSent) && account && CAPS.youtubeApi ? (
-            <YtPublishForm post={post} account={account.account} result={ytSent} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
+            <YtPublishForm immediate={immediate} post={post} account={account.account} result={ytSent} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
           ) : null
         ) : (
           <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => setInBrowser(true)} pf={platformName(pf)} />

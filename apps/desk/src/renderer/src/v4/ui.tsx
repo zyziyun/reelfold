@@ -208,6 +208,7 @@ export function UiProvider({
         return;
       }
       if (e.key === 'Escape') {
+        if (document.querySelector('[role=menu]')) e.preventDefault();
         setMenu(null);
         setSheet(false);
         setPalette(false);

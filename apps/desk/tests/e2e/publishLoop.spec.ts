@@ -147,7 +147,15 @@ test('the drawer: only her platforms in Where, the title edited inline with 小�
   await page.screenshot({ path: path.join(SHOTS, 'drawer-title.png') });
   await d.getByTestId('pb-title-reset').click();
   await expect.poll(async () => (await rows()).find((r) => r.clip === 'B_自媒体')?.title).toBe('再小的博主，也是博主');
-  await d.getByTestId('pb-done').click();
+  const scheduled = (await rows()).find((r) => r.clip === 'B_自媒体')!;
+  await d.getByTestId('pb-publish-now').click();
+  await expect(page).toHaveURL(/\/publish\/post\/[^?]+\?now=1$/);
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'idle');
+  // Opening the immediate flow does not upload, mark posted or alter the saved schedule.
+  const unchanged = (await rows()).find((r) => r.id === scheduled.id)!;
+  expect(unchanged.at).toBe(scheduled.at);
+  expect(unchanged.state).not.toBe('posted');
+  await hash('#/publish');
 });
 
 test('one title per clip: the AI’s title by default; renamed in the editor header -> the drawer follows', async () => {

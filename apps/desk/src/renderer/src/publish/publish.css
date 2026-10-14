@@ -324,3 +324,6 @@
 .blk h3 { margin: 0; }
 .blk p { margin: 0; max-width: 460px; }
 .blk-ico { width: 32px; height: 32px; color: var(--warn, #b7791f); }
+
+.pb-dfoot { flex-wrap: wrap; }
+.pb-dfoot [data-testid=pb-publish-now] { order: -1; width: 100%; justify-content: center; }
