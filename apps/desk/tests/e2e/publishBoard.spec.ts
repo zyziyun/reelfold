@@ -118,6 +118,15 @@ test('the drawer: time, platform off / on, caption with the counter, Shorten for
   await card('B_自媒体').locator('.pc-top').click(); // the time row opens the drawer (the cover opens the clip)
   const d = page.getByTestId('pb-drawer');
   await expect(d).toBeVisible();
+  const date = d.getByTestId('pb-date');
+  expect(await date.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+  const originalDay = await date.inputValue();
+  await date.fill(dayOf(1, 2));
+  await expect(date).toHaveValue(dayOf(1, 2));
+  expect((await rows()).filter((x) => x.clip === 'B_自媒体').every((x) => x.at.startsWith(dayOf(1, 2)))).toBe(true);
+  await date.fill(originalDay);
+  await expect(date).toHaveValue(originalDay);
+  expect(await d.getByTestId('pb-time').evaluate((el) => getComputedStyle(el, '::-webkit-calendar-picker-indicator').display)).not.toBe('none');
   await d.getByTestId('pb-time').fill('21:30');
   await expect(card('B_自媒体').locator('.pc-time')).toHaveText('21:30');
   expect((await rows()).filter((x) => x.clip === 'B_自媒体').every((x) => x.at.endsWith('21:30'))).toBe(true);

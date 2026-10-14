@@ -124,11 +124,9 @@ export function PostDrawer({
 
         <h4>{t('pb.d.when')}</h4>
         <div className="pb-when">
-          <label className="pb-field" onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.showPicker?.()}>
+          <label className="pb-field">
             <CalendarDays className="ico" />
-            <span className="lbl">{fmtDate(`${g.day}T12:00`, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
             <input
-              className="over"
               type="date"
               aria-label={t('pb.d.date')}
               value={g.day}

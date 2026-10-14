@@ -191,7 +191,8 @@
 .pb-wrow.off .pfi { opacity: 0.4; }
 .pb-wrow .sp { flex: 1; }
 .pb-tinput { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 15px; padding: 0; width: 46px; }
-.pb-tinput::-webkit-calendar-picker-indicator, .pb-field input[type='time']::-webkit-calendar-picker-indicator { display: none; }
+.pb-tinput::-webkit-calendar-picker-indicator { display: none; }
+.pb-field input::-webkit-calendar-picker-indicator { cursor: pointer; }
 .pb-field { position: relative; cursor: pointer; }
 .pb-field .lbl { color: var(--text); font-size: 16px; flex: 1; white-space: nowrap; }
 .pb-field input.over { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }

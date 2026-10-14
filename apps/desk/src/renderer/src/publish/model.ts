@@ -206,6 +206,9 @@ function whenTime(s: string): string | null {
 export function parseWhen(text: string, from: Date): { day?: string; time?: string } | null {
   const s = text.trim();
   if (!s) return null;
+  if (/^(now|right now|现在|現在|马上|立刻|maintenant|tout de suite)[.!。！]?$/i.test(s)) {
+    return { day: iso(from), time: `${pad(from.getHours())}:${pad(from.getMinutes())}` };
+  }
   const today = new Date(from);
   today.setHours(0, 0, 0, 0);
   let day: Date | null = null;

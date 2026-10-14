@@ -588,10 +588,9 @@ export function ClipScheduleView({ s, compact = false, files }: { s: ClipSchedul
   return (
     <div className="ci-sched" data-testid="ci-schedule" data-state="scheduled">
       <div className="ci-when">
-        <label className="pb-field" onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.showPicker?.()}>
+        <label className="pb-field">
           <CalendarDays className="ico" />
-          <span className="lbl">{fmtDate(`${g.day}T12:00`, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-          <input className="over" type="date" aria-label={t('pb.d.date')} value={g.day} onChange={(e) => e.target.value && void actions.retime(g, e.target.value)} data-testid="ci-date" />
+          <input type="date" aria-label={t('pb.d.date')} value={g.day} onChange={(e) => e.target.value && void actions.retime(g, e.target.value)} data-testid="ci-date" />
         </label>
         <label className="pb-field narrow">
           <Clock className="ico" />

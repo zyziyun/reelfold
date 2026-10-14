@@ -69,6 +69,10 @@ describe('publish board model', () => {
     expect(parseWhen('same time tomorrow', tue)).toEqual({ day: '2026-10-07' });
     expect(parseWhen('21:15', tue)).toEqual({ time: '21:15' });
     expect(parseWhen('whenever', tue)).toBeNull();
+    for (const word of ['now', 'right now', '现在', 'maintenant']) {
+      expect(parseWhen(word, new Date(2026, 9, 14, 15, 7))).toEqual({ day: '2026-10-14', time: '15:07' });
+    }
+    expect(parseWhen('not now', tue)).toBeNull();
     expect(weekStart(tue).getDate()).toBe(5);
   });
 
