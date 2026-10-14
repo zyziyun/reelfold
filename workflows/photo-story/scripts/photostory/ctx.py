@@ -241,6 +241,8 @@ class Ctx:
         if self.SUBS == "en":
             self.HEAD_MAIN, self.HEAD_SUB = (self.TITLE_EN or self.HEAD_MAIN), ""
         self.SECTIONS = list(g("SECTIONS", ["Story"]))
+        if not self.SECTIONS:  # no chapter labels: retain the internal section slots used by SCRIPT
+            self.SECTIONS = [""] * (1 + max((int(u[0]) for u in g("SCRIPT", []) if u), default=0))
         self.SECTIONS_EN = list(g("SECTIONS_EN", [""] * len(self.SECTIONS)))
         self.HEAD_SECTIONS = ([e or z for z, e in zip(self.SECTIONS, self.SECTIONS_EN + [""] * len(self.SECTIONS))]
                               if self.EN_LEAD else self.SECTIONS)

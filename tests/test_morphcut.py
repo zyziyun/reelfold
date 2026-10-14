@@ -206,3 +206,18 @@ def test_rife_slowmo_writes_the_planned_length(tmp_path):
     out = rife.slowmo(v, str(tmp_path / "slow.mp4"), 0.0, None, speed=0.5, fps=30)
     from vstudio import media
     assert abs(media.probe(out)["duration"] - 1.0) < 0.05
+
+
+def test_rife_calls_from_parallel_renderers_stay_on_one_mlx_thread(monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    workers = []
+    def run(a, b, times, scale, batch):
+        workers.append(threading.get_ident())
+        return [a.copy() for _ in times]
+    monkeypatch.setattr(rife, "_interpolate", run)
+    a = np.zeros((32, 32, 3), np.uint8)
+    with ThreadPoolExecutor(max_workers=3) as renderers:
+        outputs = list(renderers.map(lambda _: rife.interpolate(a, a, [0.5]), range(6)))
+    assert len(set(workers)) == 1 and workers[0] != threading.get_ident()
+    assert all(np.array_equal(x[0], a) for x in outputs)

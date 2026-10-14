@@ -390,3 +390,43 @@ def test_clean_reels_have_no_one_beat_shots():
     assert pl.shot_beats(dict(kind="video", beats=1), "every-beat") == 2
     pl.min_u = 1
     assert pl.pattern_beats("every-beat") == 1
+
+
+def test_clean_hit_budget_never_reintroduces_a_flash():
+    pl = _bare_planner(dict(transitions="clean", max_hits=0))
+    tl = [dict(role="body", kind="video", n0=0, nb=8, t0=0, f0=0, f1=120),
+          dict(role="body", kind="video", n0=8, nb=8, t0=4, f0=120, f1=240),
+          dict(role="finale", kind="video", n0=16, nb=8, t0=8, f0=240, f1=360)]
+    cuts = pl._transitions(tl, dict(drops_used=[8]))
+    assert cuts and all(c["kind"] == "cut" for c in cuts)
+
+
+@need_ff
+def test_empty_chapters_and_seconds_grid_render_a_valid_timeline(media_dir, monkeypatch):
+    from photostory.ctx import Ctx
+    from photostory.music import MusicTimeline
+    from photostory.timeline import Timeline, load_timing
+    spec = types.SimpleNamespace(__file__=str(media_dir / "spec.py"), SECTIONS=(), SECTIONS_EN=(),
+                                 SCRIPT=[(0, [("A quiet shore", "安静的岸边")], [("p0", 2.8, "still", {})]),
+                                         (0, [], [("p1", 5.2, "still", {})])],
+                                 BGM="song.wav", MUSIC=dict(grid="seconds", per=1.0, captions=False),
+                                 MODE="music", CANVAS=(320, 180))
+    C = Ctx(spec)
+    assert C.SECTIONS == [""]
+    T = MusicTimeline(C)
+    assert T.beats.backend == "seconds"
+    assert T.shots[0]["end"] == pytest.approx(2.8)
+    assert T.total == pytest.approx(8.0)
+    assert T.sec_bounds == [0, pytest.approx(8.0)]
+    spec.MODE = "narration"
+    C = Ctx(spec)
+    timing, _ = load_timing(C)
+    T = Timeline(C, timing)
+    assert T.total > 0 and T.sec_bounds[0] == 0 and T.sec_bounds[-1] == T.total
+
+
+def test_missing_narration_plan_reports_a_useful_error():
+    from photostory.timeline import Timeline
+    C = types.SimpleNamespace(spec=types.SimpleNamespace(SCRIPT=[], PACING={}))
+    with pytest.raises(ValueError, match="SCRIPT has no narration or shots"):
+        Timeline(C, {})

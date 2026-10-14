@@ -141,3 +141,11 @@ describe('one group, one truth (her DJI goal, 2026-10-13)', () => {
     expect(countNote({ count: null })).toBeNull();
   });
 });
+
+
+it('shows specific render failures on dropped collection rows', () => {
+  expect(dropReason({ reason_code: 'stage-gpu-stream' })).toContain('Slow-motion rendering');
+  expect(dropReason({ reason_code: 'stage-flicker' })).toContain('flicker check');
+  expect(dropReason({ reason_code: 'stage-spec-invalid' })).toContain('invalid timing');
+  expect(dropReason({ reason_code: 'disk' })).not.toContain('Something went wrong');
+});

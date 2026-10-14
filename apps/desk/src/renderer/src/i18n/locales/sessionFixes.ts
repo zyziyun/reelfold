@@ -4,6 +4,9 @@
 import { reviewEn, reviewFr, reviewZh } from './review';
 
 export const sessionFixesEn = {
+  'fail.reason.stage-gpu-stream': "Slow-motion rendering failed in the graphics worker. Update Reelfold before retrying.",
+  'fail.reason.stage-flicker': "The video did not pass the flicker check. Its transitions need correction before retrying.",
+  'fail.reason.stage-spec-invalid': "The video plan contains invalid timing settings. The plan needs correction before rendering.",
   ...reviewEn,
   // ---------------------------------------------------------------- author checkpoint (Inbox)
   'inbox.author.file': 'File',
@@ -102,6 +105,9 @@ export const sessionFixesEn = {
 };
 
 export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
+  'fail.reason.stage-gpu-stream': "慢动作渲染的图形处理线程出错，请更新千剪后再重试。",
+  'fail.reason.stage-flicker': "视频未通过闪烁检查，需要修正转场后再重试。",
+  'fail.reason.stage-spec-invalid': "视频计划中的时间设置无效，需要修正计划后再渲染。",
   ...reviewZh,
   'inbox.author.file': '文件',
   'inbox.author.open': '在编辑器中打开',
@@ -189,6 +195,9 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
 };
 
 export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
+  'fail.reason.stage-gpu-stream': "Le rendu du ralenti a échoué dans le traitement graphique. Mettez Reelfold à jour avant de réessayer.",
+  'fail.reason.stage-flicker': "La vidéo échoue au contrôle de scintillement. Corrigez les transitions avant de réessayer.",
+  'fail.reason.stage-spec-invalid': "Le plan vidéo contient des réglages temporels invalides. Corrigez le plan avant le rendu.",
   ...reviewFr,
   'inbox.author.file': 'Fichier',
   'inbox.author.open': 'Ouvrir dans l’éditeur',

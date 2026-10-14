@@ -37,6 +37,13 @@ def log(d, *lines, rec=None):
 
 
 class ClassifyTest(unittest.TestCase):
+    def test_render_causes_have_specific_codes(self):
+        for text, code in [("RuntimeError: There is no Stream(gpu, 0) in current thread.", "stage-gpu-stream"),
+                           ("!! render failed - flicker: the whole picture flashes at 9.5s", "stage-flicker"),
+                           ("ValueError: could not convert string to float: 'seconds'", "stage-spec-invalid"),
+                           ("No space left on device", "disk")]:
+            self.assertEqual(PI.classify(text), code)
+
     def test_codes(self):
         self.assertEqual(PI.classify(ERR), "ai-login")
         self.assertEqual(PI.classify("codex: 429 rate limit"), "ai-quota")
@@ -71,6 +78,13 @@ class FailureTest(unittest.TestCase):
         f = PI.failure(self.d)
         self.assertEqual((f["state"], f["code"], f["provider"]), ("failed", "ai-login", "claude-code"))
         self.assertNotIn("/Users/", f["error"])
+
+    def test_job_failure_preserves_its_reason_even_without_a_top_level_error(self):
+        log(self.d, {"event": "stage-fail", "job": "main", "stage": "render", "error": "No space left on device"},
+            {"event": "job-done", "job": "main", "state": "failed", "reasons": ["No space left on device"]},
+            {"event": "project-end", "exit_code": 1}, rec=dict(pid=None, started=time.time(), offset=0, exit=1))
+        failure = PI.failure(self.d)
+        self.assertEqual((failure["code"], failure["stage"]), ("disk", "render"))
 
     def test_pilot_review_is_not_a_failure(self):
         log(self.d, {"event": "project-end", "status": "pilot-review", "exit_code": 4},

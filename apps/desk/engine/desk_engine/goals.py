@@ -181,7 +181,7 @@ def project_state(d):
     if fail and not fail.get("remake"):
         if not (live and live.get("state") in ("running", "waiting") and
                 (live.get("heartbeat") or 0) > (fail.get("at") or 0) + 5):
-            return "failed", dict(code=fail.get("code") or "unknown", stage=fail.get("stage"))
+            return "failed", dict(code=fail.get("code") or "unknown", stage=fail.get("stage"), error=fail.get("error"))
     if pilot.running(d) or pilot.queued(d) or (live and live.get("state") == "running"):
         return "running", dict(live=live, queued=pilot.queued(d))
     if live and live.get("state") in ("interrupted", "failed"):
@@ -669,7 +669,7 @@ class Goals:
             return self._failed(g, v, "lost", now)
         bad = next(((p, d) for p, s, d in states if s == "failed"), None)
         if bad:
-            return self._failed(g, v, bad[1].get("code") or "unknown", now, project=bad[0])
+            return self._failed(g, v, bad[1].get("code") or "unknown", now, error=bad[1].get("error"), project=bad[0])
         stuck = next(((p, d) for p, s, d in states if s == "you" and d.get("blocker") in RETRY_BLOCKERS), None)
         if stuck:                                     # autopilot could not draft a step: a failure, not a question
             return self._failed(g, v, stuck[1]["blocker"], now, project=stuck[0])
@@ -707,6 +707,8 @@ class Goals:
     def _failed(self, g, v, code, now, error=None, project=None):
         """A failure: tried once more while it has tries left, else dropped with the reason."""
         v["last_error"] = (str(error)[:300] if error else None)
+        if code == "disk":  # a retry cannot create free space and may leave another partial render
+            return self._drop(v, code)
         if (v.get("attempts") or 0) < MAX_TRIES:
             v["attempts"] = (v.get("attempts") or 0) + 1
             v["retried"] = code
@@ -1295,6 +1297,16 @@ class Goals:
                           "ai": v.get("ai") or g.get("ai"), "own_ai": bool(v.get("ai")),
                           "can_undo_recut": bool(v.get("prev")) and v.get("state") in SETTLED}
                          for v in g.get("videos") or []]
+        # Older dropped rows kept only "unknown". Re-read their project logs for an actionable reason, read-only.
+        from . import pilot
+        for row in out["videos"]:
+            if row.get("state") == "dropped" and row.get("projects"):
+                for p in row["projects"]:
+                    fail = pilot.failure(p.get("dir") or "")
+                    if fail:
+                        row["reason_code"] = fail.get("code") or row.get("reason_code")
+                        row["last_error"] = fail.get("error")
+                        break
         out["counts"] = counts
         out["goal_code"] = g.get("goal_code") or _goal_code(g.get("goal"))
         if not out.get("count"):                    # a goal planned before the count was kept: her words still say it

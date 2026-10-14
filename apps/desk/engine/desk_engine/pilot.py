@@ -60,6 +60,9 @@ _CODES = (
     ("ai-missing", r"(claude|codex)\b.*(not found|no such file|not installed)|command not found|"
                    r"is not installed \(`[\w.-]+` not on path"),
     ("disk", r"no space left|disk full"),
+    ("stage-gpu-stream", r"there is no stream\(gpu"),
+    ("stage-flicker", r"render failed.*flicker|flicker: the whole picture"),
+    ("stage-spec-invalid", r"could not convert string to float: .seconds.|script has no shots|script has no narration|(?:timeline|music)\.py[\s\S]*indexerror: list assignment index out of range"),
     ("engine", r"no module named|importerror|modulenotfounderror"),
     # only a real open / read error (never any line that merely says "ffmpeg")
     ("media", r"invalid data found|moov atom|could not open|no such file|error opening input|input/output error"),
@@ -174,6 +177,10 @@ def failure(d, now=None):
             if err:
                 bad = e
                 break
+        if e.get("event") == "job-done" and e.get("state") == "failed" and e.get("reasons"):
+            err = "\n".join(map(str, e["reasons"]))
+            bad = e
+            break
     if bad is not None and not bad.get("code") and err:
         # the CLI's closing {"ok": false, "error"} repeats the stage-fail before it: that one carries the engine's code
         # (a remake no model drew: ai-needs-model)
@@ -186,6 +193,10 @@ def failure(d, now=None):
     c = classify(err)
     extra = tool_fix(c, err)
     stage = (bad or {}).get("stage")
+    if not stage and bad is not None:
+        failed_stage = next((e for e in reversed(evs) if e.get("event") == "stage-fail"
+                             and e.get("job") == bad.get("job")), None)
+        stage = (failed_stage or {}).get("stage")
     ecode = (bad or {}).get("code") or ((bad or {}).get("error_info") or {}).get("code")
     if isinstance(ecode, str) and _ENGINE_CODE.match(ecode):
         # the engine said what failed (e.g. tool-missing / tool-broken {tool, path, fix}): its code wins
@@ -193,7 +204,7 @@ def failure(d, now=None):
         params = (bad or {}).get("params") or ((bad or {}).get("error_info") or {}).get("params")
         if isinstance(params, dict):
             extra = dict(extra, params={k: v for k, v in params.items() if isinstance(v, (str, int, float))})
-    elif c == "engine" and stage and not re.search(_CODES_ENGINE_START, (err or "").lower()):
+    elif c in ("engine", "unknown") and stage and not re.search(_CODES_ENGINE_START, (err or "").lower()):
         c = "stage"            # a step crashed: the engine itself started fine ("Part of Reelfold didn't start" lies)
     out = dict(state="failed", code=c, provider=rec.get("provider") or provider_of(err),
                error=scrub(err), exit=code, at=rec.get("finished") or rec.get("started") or now or time.time(),

@@ -95,3 +95,16 @@ def test_media_run_feeds_stdin_once_across_the_stall_poll():
     r = media.run(["ffmpeg", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "16x16", "-i", "-", "-vf",
                    "loop=loop=170:size=1,setpts=N/30/TB,realtime", "-f", "null", "-"], input=frame, capture=True)
     assert r.returncode == 0
+
+
+def test_render_refuses_low_disk_space_before_starting_a_child(tmp_path, monkeypatch):
+    from vstudio.project import build
+    from collections import namedtuple
+    env = build.Env.__new__(build.Env)
+    env.dir = env.item_dir = str(tmp_path)
+    env.entry = dict(id="render", resource="cpu-render")
+    usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(build.shutil, "disk_usage", lambda _: usage(10 * 1024**3, 9 * 1024**3, 1024**3))
+    monkeypatch.setattr(build.subprocess, "run", lambda *a, **k: pytest.fail("render child must not start"))
+    with pytest.raises(RuntimeError, match="No space left for rendering"):
+        env.run([sys.executable, "render.py"])

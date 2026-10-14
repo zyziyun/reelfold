@@ -22,8 +22,8 @@ import os
 import shutil
 import subprocess
 import sys
-import threading
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -207,7 +207,8 @@ def _build():
 
 
 _NET = {}
-_LOCK = threading.Lock()       # one MLX graph at a time (segment renders run in threads)
+_GPU_WORKER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rife-mlx")
+# MLX graphs and their streams belong to the thread that created them. All model work stays on this worker.
 
 
 def _net():
@@ -241,8 +242,7 @@ def _compiled(scales):
 
 def interpolate(a, b, times, scale=None, batch=1):
     """Frames between ``a`` and ``b`` (HxWx3 uint8, same size) at each t in ``times`` (0..1) -> [uint8 frames]."""
-    with _LOCK:
-        return _interpolate(a, b, times, scale, batch)
+    return _GPU_WORKER.submit(_interpolate, a, b, list(times), scale, batch).result()
 
 
 def _interpolate(a, b, times, scale, batch):

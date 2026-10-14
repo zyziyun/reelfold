@@ -224,3 +224,5 @@ Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zo
 - Landscape: the medal ring is shrunk and centred above the overlaid subtitles; the header puts the title left and the
   section progress right.
 - Editing a line's cue count invalidates that unit's timing. Render falls back to an estimate for that unit and prints a warning. Re-run `tts.py <i>`.
+
+Music timing: `MUSIC.grid="seconds"` uses each shot weight as seconds (at 0.1-second resolution); `per` scales those seconds. `SECTIONS=[]` hides chapter labels while preserving internal section slots from SCRIPT. Other grids remain `bar`, `beat`, `half`, or a numeric beat count.

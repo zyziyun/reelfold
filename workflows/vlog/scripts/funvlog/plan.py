@@ -750,8 +750,9 @@ class Planner:
             if ok:
                 hits.append(c)
             else:
-                c["note"] = f"{c['kind']} -> leak (full-frame hit budget, A4)"
-                c["kind"] = "leak"
+                replacement = "cut" if clean else "leak"
+                c["note"] = f"{c['kind']} -> {replacement} (full-frame hit budget, A4)"
+                c["kind"] = replacement
         meta["hits"] = [dict(n=h["n"], t=h["t"], kind=h["kind"], reason=h["reason"]) for h in sorted(hits, key=lambda h: h["n"])]
         self._cap_leaks(cuts)
         return cuts

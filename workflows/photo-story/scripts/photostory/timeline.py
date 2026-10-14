@@ -62,6 +62,8 @@ class Timeline:
         pace.update(getattr(C.spec, "PACING", {}) or {})
         self.pace = pace
         script = C.spec.SCRIPT
+        if not script or not any(unit[2] for unit in script):
+            raise ValueError("SCRIPT has no narration or shots; write the video plan before rendering")
         t = pace["lead"]
         self.units, self.shots, self.subs = [], [], []
         for i, (sec, chunks, shotlist) in enumerate(script):

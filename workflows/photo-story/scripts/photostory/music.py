@@ -93,6 +93,8 @@ def _analyze(p, backend="auto"):
 
 def grid_step(cfg):
     g = cfg["grid"]
+    if str(g) == "seconds":
+        return 0.1
     return {"bar": float(vbeats.BAR), "beat": 1.0, "half": 0.5}.get(str(g), None) or float(g)
 
 
@@ -179,7 +181,17 @@ class MusicTimeline:
     def __init__(self, C):
         from .timeline import PACING
         cfg = self.cfg = config(C)
-        b = self.beats = analyze(C)
+        if cfg["grid"] == "seconds":
+            import numpy as np
+            from vstudio import media
+            duration = float(media.probe(bgm_path(C))["duration"])
+            ticks = np.arange(0.0, duration + 1.0)
+            b = vbeats.Beats(ticks, ticks, 60.0, 1.0, 0.0, 0.0, 0.0, True,
+                             duration=duration, backend="seconds")
+            cfg["per"] = float(cfg["per"]) * 10  # each shot weight is seconds, not tenths
+        else:
+            b = analyze(C)
+        self.beats = b
         pace = dict(PACING)
         pace.update(getattr(C.spec, "PACING", {}) or {})
         step = grid_step(cfg)

@@ -117,6 +117,11 @@ class Env:
         e.update({k: str(v) for k, v in (env or {}).items()})
         cwd = cwd or self.item_dir
         os.makedirs(cwd, exist_ok=True)
+        entry = getattr(self, "entry", {})
+        if entry.get("id") == "render" or entry.get("resource") in ("cpu-render", "browser"):
+            free = shutil.disk_usage(cwd).free
+            if free < 2 * 1024**3:
+                raise RuntimeError(f"No space left for rendering: {free / 1024**3:.1f} GiB free; at least 2 GiB needed")
         r = subprocess.run([str(a) for a in argv], cwd=cwd, capture_output=True, text=True, env=e, timeout=timeout)
         with open(self.path(log), "w", encoding="utf-8") as f:
             f.write(" ".join(map(str, argv)) + f"\n(cwd {cwd}, exit {r.returncode})\n\n" + (r.stdout or "")
