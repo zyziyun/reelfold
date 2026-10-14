@@ -2,7 +2,7 @@
 // Edited · Original"): "16:9 · edited", "9:16 TikTok · edited", "3:4 Xiaohongshu · edited", "Original". An edit's fresh
 // renders (one per target: primary + her exports; the final when there is one, else the preview) first, then the
 // original files. Pure: the editor and the unit tests share it.
-import type { ClipFile } from '../../../shared/v04';
+import type { ClipFile, OutputDoc } from '../../../shared/v04';
 import { EXPORT_PLATFORMS } from '../../../shared/chatEdit';
 import { t } from '../i18n';
 import { platformName } from './platformName';
@@ -122,4 +122,13 @@ export function missingTargets(targets: string[] | null | undefined, files: Pick
       return r != null && Math.abs(r - want) < 0.04;
     });
   });
+}
+
+/** A rendered narration/grade keeps the transcript's timestamps when the edit did not retime the clip.
+ * Only source-time editing (cuts, trim, speed or pickups) needs the original while the transcript is open. */
+export function transcriptNeedsSource(doc: Pick<OutputDoc, 'cuts' | 'trim' | 'speed' | 'duration' | 'pickups'>): boolean {
+  return doc.cuts.some((c) => c.end > c.start)
+    || !!(doc.trim && (doc.trim.start > 0 || doc.trim.end < doc.duration))
+    || doc.speed !== 1
+    || !!doc.pickups?.length;
 }

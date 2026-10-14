@@ -142,6 +142,22 @@ test('paused at its start the clip page player shows the cover; a cover picked s
   await expect.poll(() => poster.locator('img').evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
   expect(await brightness()).toBeGreaterThan(25);
   await shot('C3-cover-rendered');
+  // A fresh audio/visual edit keeps playing after the comparison closes, in Transcript and on reopening.
+  // Previously Transcript forced the original file even without cuts/trim/speed, hiding the new narration.
+  await page.getByTestId('tab-transcript').click();
+  await expect.poll(async () => decodeURIComponent((await video.getAttribute('src')) ?? '')).toMatch(/renders[\\/].*\.mp4/);
+  await page.reload();
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
+  await page.getByTestId('tab-transcript').click();
+  const renderedSrc = await video.getAttribute('src');
+  await expect.poll(async () => decodeURIComponent((await video.getAttribute('src')) ?? '')).toMatch(/renders[\\/].*\.mp4/);
+  // Holding C still auditions the original; releasing it restores the edited soundtrack.
+  await page.getByTestId('editor-title').click();
+  await page.keyboard.down('c');
+  await expect.poll(() => video.getAttribute('src')).not.toBe(renderedSrc);
+  await page.keyboard.up('c');
+  await expect.poll(() => video.getAttribute('src')).toBe(renderedSrc);
+
 });
 
 test('the rendered clip\'s versions are named by what they are, never just "Edited"', async () => {

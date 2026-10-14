@@ -1,7 +1,7 @@
 // The clip page's version chips name each version by what it is, never "Edited · Edited · Edited · Original".
 import { afterAll, describe, expect, it } from 'vitest';
 import { setLang } from '../../src/renderer/src/i18n';
-import { editedFiles, targetAspect } from '../../src/renderer/src/lib/versions';
+import { editedFiles, targetAspect, transcriptNeedsSource } from '../../src/renderer/src/lib/versions';
 
 afterAll(() => setLang('en'));
 
@@ -25,5 +25,23 @@ describe('version chips', () => {
     setLang('zh-CN');
     const fs = editedFiles([r('primary')], [...orig, { path: '/p/tiktok-vertical.mp4', aspect: '9:16', platform: 'tiktok:vertical' }]);
     expect(fs.map((f) => f.label)).toEqual(['16:9 · 改后', '原片 16:9', '原片 9:16']);
+  });
+});
+
+
+describe('rendered sound in the transcript player', () => {
+  const doc = { duration: 50, cuts: [], trim: null, speed: 1 };
+
+  it('plays the fresh narration render after comparison closes and on reopening', () => {
+    expect(transcriptNeedsSource(doc)).toBe(false);
+    expect(transcriptNeedsSource({ ...doc, trim: { start: 0, end: 50 } })).toBe(false);
+  });
+
+  it('keeps original timestamps for text cuts, trim, speed and recorded pickups', () => {
+    expect(transcriptNeedsSource({ ...doc, cuts: [{ start: 2, end: 3, index: 0 }] })).toBe(true);
+    expect(transcriptNeedsSource({ ...doc, trim: { start: 1, end: 50 } })).toBe(true);
+    expect(transcriptNeedsSource({ ...doc, trim: { start: 0, end: 49 } })).toBe(true);
+    expect(transcriptNeedsSource({ ...doc, speed: 1.05 })).toBe(true);
+    expect(transcriptNeedsSource({ ...doc, pickups: [{ id: 'take', start: 1, end: 2, text: 'new line', replaced: 'old line' }] })).toBe(true);
   });
 });

@@ -34,7 +34,7 @@ import { CoverPoster, posterLook } from './CoverPoster';
 import { VersionSwitcher, type OtherPick } from './VersionSwitcher';
 import { langName, useLangVersions } from '../lib/langVersions';
 import { platformName as pfName } from '../lib/platformName';
-import { editedFiles } from '../lib/versions';
+import { editedFiles, transcriptNeedsSource } from '../lib/versions';
 import { LowerPane } from './LowerPane';
 import { effectLabel, emsg, errText, humanizeParam, setEffectLabels } from './msg';
 import { ClipTitle } from './ClipTitle';
@@ -809,10 +809,10 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
 
   const fresh = doc.renders.filter((r) => r.fresh && !r.simulated);
   const renderedAfter = renderedCmp && fresh.length > 0;
-  // the transcript speaks in the original's seconds: while it is open (or cuts are pending) the player plays the
-  // original and previews every cut by skipping it; otherwise the newest render leads
-  const sourceTimes = lowerTab === 'transcript' || pending || pinCuts.length > 0 || (!!before && !sameTimeline);
-  const useFresh = fresh.length > 0 && (!sourceTimes || renderedAfter);
+  // Transcript-only edits need source timestamps after retiming. A narration or sound edit keeps the original
+  // timing, so its fresh render must remain audible even after comparison closes or the clip is reopened.
+  const sourceTimes = (lowerTab === 'transcript' && transcriptNeedsSource(doc)) || pending || pinCuts.length > 0 || (!!before && !sameTimeline);
+  const useFresh = !holdC && fresh.length > 0 && (!sourceTimes || renderedAfter);
   const files: ClipFile[] = useFresh ? editedFiles(doc.renders, doc.files) : doc.files;
   // paused at its start the player shows the cover: the one she just picked (its frame and title), the render's own
   // once the clip is rendered with it, else the clip's cover - never a black first frame
