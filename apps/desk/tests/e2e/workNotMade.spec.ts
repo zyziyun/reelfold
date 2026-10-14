@@ -51,7 +51,9 @@ test('a just-edited folder with only a brief and clips is "Not made yet", never 
   const row = page.getByTestId('studio-row').filter({ hasText: 'promo-027-v2' });
   await expect(row).toHaveCount(1, { timeout: 30000 });
   await expect(row).toHaveAttribute('data-tone', 'off');
-  await expect(row).toContainText('Not started'); // the Studio's word for one nothing has started
+  await expect(page.getByTestId('studio-f-draft')).toContainText('Ready to make');
+  await expect(page.getByTestId('studio-f-run')).toHaveText('In progress');
+  await expect(row).toContainText('Ready to make'); // the Studio's word for one nothing has started
   await row.click();
   // the project page with what it is and the way to make it - not the run page (Making · Plan · 0 pieces, no output)
   await expect(page.getByTestId('hub-work-none')).toBeVisible();
@@ -59,6 +61,8 @@ test('a just-edited folder with only a brief and clips is "Not made yet", never 
   await expect(page.getByTestId('work-pieces')).toHaveCount(0);
   await expect(page.getByTestId('hub-state-line')).toHaveText('Not made yet');
   await expect(page.getByTestId('running-badge')).toHaveCount(0);
+  await expect(page.getByTestId('hub-clips')).toHaveCount(0);
+  await expect(page.getByTestId('hub-publish')).toHaveCount(0);
 });
 
 test('"Make a video from this folder" hands the folder to the composer; sent, a video is made from it', async () => {

@@ -163,3 +163,10 @@ describe('a project whose run still goes (her DJI goal, 2026-10-13)', () => {
     expect(rows[0].title).toBe('The Needle After Dark');
   });
 });
+
+ it('idle source folders are ready to make, while queued work stays in progress', () => {
+   const idle = item('dddddddddddd', { kind: 'work', status: 'new', counts: { total: 0, green: 0, red: 0, approved: 0, done: 0, failed: 0 } });
+   const rows = studioRows([idle, { ...idle, id: 'eeeeeeeeeeee', queued: 1 }], [], {}, [], [], NOW);
+   expect(rows.find(r => r.item === idle.id)?.group).toBe('draft');
+   expect(rows.find(r => r.item === 'eeeeeeeeeeee')?.group).toBe('run');
+ });

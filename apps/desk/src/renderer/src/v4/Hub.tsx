@@ -392,7 +392,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
         {feedOpen && <ProgressFeed item={i.id} clips={clips} running={live || p.state === 'run'} />}
       </div>
       {ap?.supported !== false && <Decisions item={i.id} doc={ap} clips={clips} busy={p.state === 'run'} onChanged={() => (reloadAp(), reloadHist())} />}
-      <div className="card hub-card" data-testid="hub-clips">
+      {(clips.length > 0 || i.missing_outputs || !(p.state === 'idle' && workNotMade(i))) && <div className="card hub-card" data-testid="hub-clips">
         <div className="row">
           <b>{t('hub.clips')}</b>
           <span className="muted">{clips.length ? `· ${t('hub.clipsLine', { done: ready.length, n: clips.length })}` : ''}</span>
@@ -419,13 +419,13 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
         ) : (
           <p className="muted small">{t('hub.clipsNone')}</p>
         )}
-      </div>
+      </div>}
       {i.kind === 'project' && (
         <div className="card hub-card" data-testid="hub-pieces">
           <WorkPieces item={i.id} running={live} open={live || !ready.length} onPaused={reloadHist} />
         </div>
       )}
-      <div className="card hub-card" data-testid="hub-publish">
+      {(ready.length > 0 || pp.total > 0) && <div className="card hub-card" data-testid="hub-publish">
         <div className="row">
           <b>{t('hub.publish')}</b>
           <span className="muted">· {pp.total ? t('hub.postsLine', { s: pp.scheduled, p: pp.posted }) : t('hub.postsNone')}</span>
@@ -440,7 +440,7 @@ export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; po
             {t('hub.openPublish')} <ArrowRight className="ico" />
           </a>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

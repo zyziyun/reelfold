@@ -140,7 +140,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   const groups = useMemo(() => grouped(freeRows), [freeRows]);
   // the goals' own videos, counted where the group shows them (needs you / in progress / ready)
   const goalN = useMemo(() => {
-    const n = { you: 0, run: 0, ready: 0, scheduled: 0 } as Record<StudioGroup, number>;
+    const n = { you: 0, run: 0, draft: 0, ready: 0, scheduled: 0 } as Record<StudioGroup, number>;
     for (const g of goals) {
       if (g.state === 'planned' || g.state === 'failed') n.you += 1;
       for (const v of groupVideos(g)) {
@@ -181,7 +181,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   useEffect(() => {
     if (inArchive) wantArchived();
   }, [inArchive, wantArchived]);
-  const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'ready', 'scheduled'] : [filter];
+  const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'draft', 'ready', 'scheduled'] : [filter];
   // a project with several videos is one header with its videos under it (its question as the header's badge)
   const listRows = freeRows;
   const pieces = useMemo(() => screenPieces(listRows, order), [listRows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -590,6 +590,7 @@ function lineOf(r: StudioRow): string {
   if (r.kind === 'request') return stateLine(r.p, undefined, r.r);
   if (r.i?.missing_outputs && r.p.state === 'idle') return stateLine(r.p, r.i);
   if (r.ask) return inboxTitle(r.ask);
+  if (r.group === 'draft') return t('vs.draft');
   if (r.group === 'you') return r.tone === 'error' ? t('hub.s.failed') : t('hub.s.you');
   if (r.group === 'run') {
     // not in the run line (no queue place): it has simply not been started - never "waiting its turn"

@@ -172,7 +172,7 @@ export function studioRows(
       thumb: i.thumb ?? null,
       video: null,
       duration: null,
-      group: p.state === 'you' || p.state === 'failed' ? 'you' : p.state === 'run' || p.state === 'queued' || p.state === 'idle' || p.state === 'stopped' ? 'run' : p.state === 'scheduled' || p.state === 'out' ? 'scheduled' : 'ready',
+      group: p.state === 'you' || p.state === 'failed' ? 'you' : p.state === 'run' || p.state === 'queued' || p.state === 'stopped' ? 'run' : p.state === 'idle' && !i.missing_outputs ? 'draft' : p.state === 'idle' ? 'you' : p.state === 'scheduled' || p.state === 'out' ? 'scheduled' : 'ready',
       tone: p.state === 'failed' ? 'error' : p.state === 'you' ? 'you' : p.state === 'run' ? 'run' : p.state === 'queued' || p.state === 'idle' || p.state === 'stopped' ? 'off' : 'done',
       p,
       ask: projAsks[0] ?? null,
@@ -242,7 +242,7 @@ export function screenRows(rows: StudioRow[], order: StudioGroup[]): StudioRow[]
 
 /** Rows in screen order: needs you, in progress (making first, then queued), ready, scheduled; newest first. */
 export function grouped(rows: StudioRow[]): Record<StudioGroup, StudioRow[]> {
-  const g: Record<StudioGroup, StudioRow[]> = { you: [], run: [], ready: [], scheduled: [] };
+  const g: Record<StudioGroup, StudioRow[]> = { you: [], run: [], draft: [], ready: [], scheduled: [] };
   for (const r of rows) g[r.group].push(r);
   for (const k of STUDIO_GROUPS) g[k].sort((a, b) => b.at - a.at);
   g.run.sort((a, b) => runRank(a) - runRank(b) || b.at - a.at);
