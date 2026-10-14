@@ -75,6 +75,7 @@ test('a made group says it is short of her number, and has its composer', async 
   await expect(page.getByTestId('goal-chat-input')).toHaveAttribute('placeholder', 'Tell this collection what to change…');
   await expect(page.getByTestId('goal-chat-chip')).toHaveText(['Make 3 more', 'Fill up to 4', 'Add a voice-over to all', 'Swap in other shots']);
   await expect(page.getByTestId('goal-chat-ai')).toBeVisible();
+  await expect(page.getByTestId('goal-versions')).toHaveCount(0);
   await shot('E1-composer');
 });
 
@@ -160,6 +161,12 @@ test('a failed language keeps the made version and offers its own retry', async 
   await expect(row.getByTestId('goal-version').first()).toHaveAttribute('data-state', 'made');
   await expect(row.getByTestId('goal-version').last()).toHaveAttribute('data-state', 'failed');
   await expect(row.getByTestId('goal-version').last()).toContainText('Slow-motion rendering');
+  await page.addStyleTag({ content: '.goalv-vers { width: 240px; }' });
+  const failedRow = row.getByTestId('goal-version').last();
+  expect(await failedRow.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const bounds = await failedRow.boundingBox();
+  const retryBounds = await row.getByTestId('goal-version-retry').boundingBox();
+  expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width + 1);
   await expect(row.getByTestId('goal-video-open')).toHaveAttribute('href', `#/studio/${v.projects[0].item}`);
   // Resume the real, already-rendered fixture project. Only its forced failure record changes.
   const madeRecord = path.join(v.projects[0].dir, 'desk-pilot.json');

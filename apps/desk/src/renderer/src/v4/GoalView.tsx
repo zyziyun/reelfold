@@ -542,7 +542,7 @@ export function Versions({ gid, v, item }: { gid: string; v: GoalVideo; item?: s
     }
   };
   const xs = v.versions ?? [];
-  if (!xs.length) return null;
+  if (!xs.length || xs.every((x) => x.state === 'made')) return null;
   return (
     <span className="goalv-vers" data-testid="goal-versions">
       {xs.map((x, k) => (
@@ -568,7 +568,10 @@ export function Versions({ gid, v, item }: { gid: string; v: GoalVideo; item?: s
           }}
         >
           <i className={`dot ${versionTone(x)}`} />
-          <b>{x.name || versionLabel(x)}</b> <span className="muted">{versionLine(x)}</span>
+          <span className="goalv-ver-text">
+            <b>{x.name || versionLabel(x)}</b>
+            <span className="muted goalv-ver-status">{versionLine(x)}</span>
+          </span>
           {!v.cleared && x.item && (x.state === 'failed' || x.state === 'stopped' || x.state === 'you') && (
             <span role="button" tabIndex={0} className="btn sm ghost" aria-disabled={retrying !== null}
               data-testid="goal-version-retry"

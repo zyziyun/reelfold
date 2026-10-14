@@ -107,11 +107,14 @@
 .btn.ux-many { color: var(--text-muted); }
 .btn.ux-many.on { color: var(--accent); background: var(--accent-soft); }
 /* a video's language versions, inside its row (one video, two cuts) */
-.goalv-vers { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; }
-.goalv-ver { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; margin-left: -6px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.goalv-vers { display: flex; flex-direction: column; min-width: 0; gap: 4px; margin-top: 2px; font-size: 12px; }
+.goalv-ver { display: flex; align-items: flex-start; gap: 6px; min-width: 0; max-width: 100%; padding: 4px 6px; border-radius: 6px; cursor: pointer; white-space: normal; }
+.goalv-ver-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.goalv-ver-status { font-size: 12px; line-height: 1.4; }
+.goalv-ver > .btn { flex: none; align-self: center; }
 .goalv-ver:hover, .goalv-ver.on { background: var(--surface-2); }
 .goalv-ver b { font-weight: 500; }
-.goalv-ver .dot { width: 6px; height: 6px; }
+.goalv-ver .dot { width: 6px; height: 6px; flex: none; margin-top: 6px; }
 .goalv-missing { cursor: default; border-style: dashed; color: var(--text-2, inherit); }
 .goalv-missing:hover { border-color: var(--border); }
 .goalv-missing .btn { padding: 0 6px; min-height: 0; }
