@@ -146,7 +146,14 @@ def slug_id(oid):
 
 def _probe(path):
     from vstudio import media
-    i = media.probe(path)
+    try:
+        i = media.probe(path)
+    except media.FFmpegError as e:
+        if re.search(r"moov atom not found|invalid data found when processing input", str(e), re.I):
+            raise _err("output-incomplete", "This video was not written completely. Retry this version's render; "
+                       "reloading the preview cannot repair it.",
+                       "这段视频没有完整写入。请重试这个版本的渲染；重新加载预览无法修复它。") from e
+        raise
     return dict(w=int(i.get("display_w") or i["w"]), h=int(i.get("display_h") or i["h"]), fps=float(i["fps"] or 30.0),
                 duration=float(i["duration"] or 0.0), has_audio=bool(i["has_audio"]))
 
@@ -183,7 +190,7 @@ def _profile_for(w, h, key=None):
     return None
 
 
-def _project_outputs(pdir):
+def _project_outputs(pdir, *, playable=True):
     from vstudio.batch.store import Store
 
     from . import manifests as M
@@ -205,6 +212,15 @@ def _project_outputs(pdir):
                 f = e.get("file")
                 if not f or not os.path.isfile(f) or os.path.splitext(f)[1].lower() not in VIDEO:
                     continue
+                if playable and j["state"] not in ("done", "approved", "packaged"):
+                    # Failed/running renderers may leave a large MP4 without its closing metadata.
+                    # Existence is not evidence of a playable output; successful sibling outputs stay visible.
+                    try:
+                        _probe_cached(f)
+                    except OutputError as err:
+                        if err.info["code"] == "output-incomplete":
+                            continue
+                        raise
                 tag = "-".join(x for x in (e.get("platform"), e.get("orientation")) if x) or os.path.basename(f)
                 oid = f"{j['id']}/{tag}"
                 if oid in ids:                       # out/story.mp4 + out/bilibili/story.mp4: the folder tells them apart
@@ -339,7 +355,7 @@ def resolve(d, output):
     """-> the output record: {id, owner, kind, file, info, mode, master, cues, platform, reason, edit_dir}."""
     d, kind = _owner(d)
     if kind == "project":
-        rows = _project_outputs(d)
+        rows = _project_outputs(d, playable=False)
     else:
         rows = [dict(id=r, file=os.path.normpath(os.path.join(d, r)),
                      title=os.path.splitext(os.path.basename(r))[0])

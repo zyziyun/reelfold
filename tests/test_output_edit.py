@@ -607,3 +607,40 @@ def test_fresh_finals_are_what_goes_out(tmp_path, synth):
     assert fin["primary"]["cover"] and os.path.exists(fin["primary"]["cover"])
     O.edit(w, oid, [dict(op="caption_style", style=dict(position="top"))])
     assert R.fresh_finals(w, oid) == {}
+
+
+@media
+def test_incomplete_mp4_reports_an_actionable_error_and_recovers_after_replacement(tmp_path):
+    p = tmp_path / "unfinished.mp4"
+    p.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64)
+    with pytest.raises(O.OutputError) as err:
+        O._probe_cached(str(p))
+    assert err.value.info["code"] == "output-incomplete"
+    assert str(tmp_path) not in str(err.value)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=s=64x64:d=1",
+                    "-c:v", "libx264", str(p)], check=True)
+    assert O._probe_cached(str(p))["duration"] > 0
+
+
+@media
+def test_failed_project_hides_partial_movie_but_keeps_playable_sibling(th, synth, tmp_path, monkeypatch):
+    from vstudio.batch.store import Store
+    from vstudio.project import manifests
+    clone = tmp_path / 'project'
+    shutil.copytree(th, clone)
+    st = Store(str(clone / 'state'))
+    try:
+        st.x("UPDATE jobs SET state='failed'")
+    finally:
+        st.close()
+    broken = tmp_path / 'partial.mp4'
+    broken.write_bytes(b'\x00\x00\x00\x18ftypmp42' + b'\x00' * 64)
+    monkeypatch.setattr(manifests, 'resolve_ref', lambda _ref: lambda _p, _j, _rows: [
+        dict(file=str(broken)), dict(file=synth['video'])])
+    outputs = O._project_outputs(str(clone))
+    assert outputs and all(o['file'] == synth['video'] for o in outputs)
+    original = O._project_outputs(str(clone), playable=False)
+    broken_id = next(o['id'] for o in original if o['file'] == str(broken))
+    with pytest.raises(O.OutputError) as err:
+        O.resolve(str(clone), broken_id)
+    assert err.value.info['code'] == 'output-incomplete'
