@@ -78,6 +78,15 @@ class RealInboxTest(unittest.TestCase):
     def status(self):
         return self.runner.sibling("vstudio.project").json(["status", "--dir", self.fx["dir"], "--json"])
 
+    def test_watched_unregistered_project_keeps_its_checkpoint(self):
+        from vstudio.project import home as PH
+        rows = self.h.list()["items"]
+        self.assertTrue(any(r["dir"] == self.fx["dir"] for r in rows))
+        with mock.patch.object(PH, "live_projects", return_value=[]), mock.patch.object(self.h, "list", return_value={"items": rows}):
+            doc = self.ib._engine_inbox()
+        self.assertTrue(doc["entries"], "watched project checkpoints must not depend on registration")
+        self.assertEqual(doc["entries"][0]["id"], "filler")
+
     def test_answer_continue_review_and_publish(self):
         items = self.ib.list()["items"]
         self.assertEqual([(i["source"], i["kind"]) for i in items], [("engine", "filler-confirm")])   # listed once

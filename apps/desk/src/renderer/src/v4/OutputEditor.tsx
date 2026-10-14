@@ -17,6 +17,7 @@ import { fmtClock, fmtLen, getLang, t, type MessageKey } from '../i18n';
 import { useEngine, useLoad } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
+import { asksFor } from '../lib/studio';
 import { previewDoc } from '../lib/outputs';
 import { snapEdge } from '../lib/timeline';
 import { goalHref } from '../lib/goals';
@@ -736,7 +737,8 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     };
   }, [studio, hasDoc, id, clip]);
   const project = hist.data?.items.find((x) => x.id === id);
-  const pinItem = (q.item ? inbox.all.find((x) => x.key === q.item) : null) ?? (studio ? ask : null);
+  const pinItem = (q.item ? inbox.all.find((x) => x.key === q.item) : null) ?? (studio ? ask : null)
+    ?? asksFor(inbox.all, id, clip)[0] ?? asksFor(inbox.all, id, null)[0];
   const triageItem = triage ? inbox.items.find((x) => x.key === triage.keys[triage.i]) ?? null : null;
   if (err && !doc && studio)
     return (

@@ -107,6 +107,7 @@ export function PinnedQuestion({
         {item.at ? <span className="muted">{t('pin.asked', { ago: fmtAgo(item.at) })}</span> : null}
       </div>
       <div className="ux-pin-t">{lead}</div>
+      {item.kind === 'publish' && <p className="muted small" data-testid="pin-publish-help">{t('pin.publishHelp')}</p>}
       <div className="ux-pin-opts">
         {opts.map((o, i) => (
           <OptionCard

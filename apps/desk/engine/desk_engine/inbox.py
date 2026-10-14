@@ -358,7 +358,15 @@ class Inbox:
             if doc is not None and time.time() - at < self.ENGINE_TTL:
                 return doc
             from vstudio.project import inbox as PI
-            doc = json.loads(json.dumps(PI.inbox(), ensure_ascii=False, default=str))   # the CLI's JSON, same shape
+            from vstudio.project import home as PH
+            # Watched/imported recipe folders can have checkpoints without a project-registry entry.
+            # Include archived folders too: only their own page shows those questions.
+            dirs = {os.path.realpath(p["dir"]) for p in PH.live_projects()}
+            for archived in (False, True):
+                for row in self.history.list(archived=archived)["items"]:
+                    if row.get("kind") == "project" and row.get("dir"):
+                        dirs.add(os.path.realpath(row["dir"]))
+            doc = json.loads(json.dumps(PI.inbox(projects=sorted(dirs)), ensure_ascii=False, default=str))   # the CLI's JSON, same shape
             self._engine_doc = (time.time(), doc)
             return doc
 
@@ -478,7 +486,7 @@ class Inbox:
                         raw = [dict(o, labels=dict(en=_export_label(o["file"]), zh=_export_label(o["file"], "zh")),
                                     platform=_export_parts(o["file"])[0], aspect=_export_parts(o["file"])[1])
                                for o in raw if str(o.get("file") or "").endswith((".mp4", ".mov"))
-                               and os.sep + "exports" + os.sep in str(o.get("file"))]
+                               ]
                         allow += [o["file"] for o in raw]
                     author = author_block(p, pd) if kind in AUTHOR_KINDS else None
                     if author:
