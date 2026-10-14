@@ -69,7 +69,10 @@ library modules: [references/CAPABILITIES.md](references/CAPABILITIES.md). Full 
   recommendation, never a silent choice. Lines naming colleagues, a boss, a company or her self-introduction are listed
   for her before they are cut or kept.
 - **Framing**: keep the source framing; no big-face crop (a 1.7x upscale was 太丑). A finished master with burned
-  captions goes into a band layout (picture band + new captions), not a face crop. Keep people fully in frame.
+  captions must not be cropped blindly. Keep people fully in frame. Changing aspect means rebuilding the
+  composition from original sources (shots, titles, captions), not adding black/blank borders to a finished movie.
+  If a true remake is unavailable, keep the video canvas and adapt only its cover, with a viewing-orientation hint.
+  Padding/band layouts are only for an explicit request for that layout, never the default platform adaptation.
 - **Look = one design theme** (`vstudio.theme`, references/STYLE_RULES.md), `editorial` by default; never hard-code
   colours; no saturated red text; notes = light paper card; quotes = typography; subtle stamps / pops.
 - **No series labels** (01/04, PART n, 第n集, 系列名 + 编号) unless she says it is a series.

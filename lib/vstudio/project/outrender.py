@@ -258,7 +258,8 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     cover = None
     if st.get("cover"):
         cv = st["cover"]
-        cover = dict(cv, edit_t=tl.to_edit(cv["t"], "start"), size=_cover_size(tg))
+        size = {"3:4": [1080, 1440], "9:16": [1080, 1920], "16:9": [1920, 1080]}.get(cv.get("aspect")) or _cover_size(tg)
+        cover = dict(cv, edit_t=tl.to_edit(cv["t"], "start"), size=size)
         cover["key"] = sha1_json(["cover", timeline["key"], cover, rec["mode"]], 16)
     return dict(target=tg["target"], quality=quality, canvas=canvas, timeline=timeline, audio=audio, final=final,
                 cover=cover, tl=tl, band=band, splice=splice)

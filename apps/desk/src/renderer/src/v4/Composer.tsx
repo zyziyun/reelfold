@@ -47,12 +47,13 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const wp = useWeekPlan();
   const draft = (() => {
     try {
-      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown };
+      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown; reviewPlan?: boolean };
     } catch {
       return {};
     }
   })();
   const [prompt, setPrompt] = useState(draft.prompt ?? '');
+  const [reviewPlan, setReviewPlan] = useState(draft.reviewPlan ?? false);
   const [files, setFiles] = useState<string[]>(draft.files ?? []);
   const [platforms, setPlatforms] = useState<string[] | null>(null);
   const [savedPf, setSavedPf] = useState<string[] | null>(null);
@@ -62,7 +63,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   // this request's AI (null = her default from Settings › AI); back to the default after it is sent
   const [ai, setAi] = useState<ProjectAi | null>(cleanAi(draft.ai));
   const ta = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, ...(ai ? { ai } : {}) })), [prompt, files, ai]);
+  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, reviewPlan, ...(ai ? { ai } : {}) })), [prompt, files, ai, reviewPlan]);
   useEffect(() => {
     // her choice, else her accounts' platforms, else the international pair - international first (as on Home)
     void window.desk.getSettings().then((s) => {
@@ -77,6 +78,14 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   useEffect(() => {
     if (ui.dropped.length) setFiles((f) => [...new Set([...f, ...ui.takeDropped()])]);
   }, [ui.dropped, ui]);
+
+  useEffect(() => {
+    if (ui.prefill) {
+      setPrompt(ui.prefill);
+      setReviewPlan(ui.prefillReview);
+      ui.setPrefill(null);
+    }
+  }, [ui.prefill, ui]);
 
   const ready = !!(prompt.trim() || files.length);
   // what she dropped are finished videos (made here or anywhere): editing them again is one click away
@@ -96,7 +105,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     }
     setBusy(true);
     try {
-      const auto = (await window.desk.getSettings()).autopilot !== false;
+      const auto = (await window.desk.getSettings()).autopilot !== false && !reviewPlan;
       const r = await client.startIntake(p.prompt, p.files, platforms ?? undefined, getLang(), {
         mode: auto ? 'autopilot' : 'ask',
         sampleName: p.sample ? t('sample.projectName') : undefined,
@@ -107,6 +116,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
       });
       sessionStorage.removeItem(DRAFT);
       setPrompt('');
+      setReviewPlan(false);
       setFiles([]);
       setMany(false);
       setAi(null);
@@ -227,7 +237,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         </span>
         <button className={`btn ux-make ${ready ? 'primary' : ''}`} disabled={busy || !ready} onClick={submit} data-testid="make-plan">
           <Sparkles className="ico" />
-          {t('home.submitAuto')}
+          {reviewPlan ? t('resize.planAction') : t('home.submitAuto')}
         </button>
       </div>
     </div>

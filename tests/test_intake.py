@@ -150,7 +150,7 @@ GOLDEN = [
                                           params={"platforms": ["xiaohongshu:vertical"], "cleanup_profile": "standard",
                                                   "speed": 1.25})),     # the talking-head format, not the generic 1.1
     ("finished", "把后面自媒体的思考单独剪出来", dict(recipes=["talkinghead"], method="focus",
-                                                      params={"layout": "band", "crop_bottom": 0.28, "captions": True,
+                                                      params={"captions": False,
                                                               "speed": 1.0, "cleanup_profile": "gentle"},
                                                       ranges_after=450)),
     ("photos", "这些照片和视频做个文艺片", dict(recipes=["photo-story"], method="single", inputs=["photos", "clips"])),
@@ -426,8 +426,8 @@ def test_apply_focus_rows_become_ranged_items(tmp_path, tiny):
     plan = PL.make_plan("把后面自媒体的思考单独剪出来", analysis=a, asr="off")
     res = AP.apply_plan(plan, str(tmp_path / "out"))
     pr = Project(res["projects"][0]["dir"])
-    assert pr.data["recipe"] == "talkinghead" and pr.data["params"]["layout"] == "band"
-    assert pr.data["params"]["captions"] is True
+    assert pr.data["recipe"] == "talkinghead" and pr.data["params"].get("layout") != "band"
+    assert pr.data["params"]["captions"] is False
     assert all(i["params"]["range"][0] >= 450 and i["inputs"]["video"].endswith("_final.mp4") for i in pr.data["items"])
     assert res["series"] is None and not pr.data.get("group")
     res = AP.apply_plan(plan, str(tmp_path / "out2"), group="abc123")      # a goal's video: the goal is its group
@@ -636,3 +636,9 @@ def test_intake_cli_attempt_grows_with_the_prompt(monkeypatch):
     assert PL.cli_timeout_for(10 ** 7) == PL.MAX_CLI_TIMEOUT and PL.cli_timeout_for(5000) == PL.CLI_TIMEOUT_FLOOR
     # a 13-file intake (~35.6k chars) took Claude Code 78-90 s (104 s at 60k): the limit keeps ~1.7x headroom
     assert PL.cli_timeout_for(35600) >= 1.7 * 104 and PL.cli_timeout_for(60000) >= 1.7 * 104
+
+def test_burned_caption_layout_is_an_explicit_preference():
+    source = dict(burned_captions=True, caption_band="lower")
+    assert PL._burned_defaults(source, {}) == dict(captions=False)
+    assert PL._burned_defaults(source, dict(burned="keep")) == dict(captions=False)
+    assert PL._burned_defaults(source, dict(burned="band")) == dict(layout="band", crop_bottom=0.28, captions=True)

@@ -4,6 +4,16 @@
 // English, 简体中文, Français.
 
 export const projectPageEn = {
+  'resize.planAction': 'Plan the new version',
+  'resize.title': 'Make a {aspect} version',
+  'resize.help': 'Choose how to adapt this video. Adding empty borders does not remake its composition.',
+  'resize.remake': 'Remake from the original materials (recommended)',
+  'resize.remakeHelp': 'Opens a new draft using this project. Recompose shots, titles and captions for the new canvas; check the plan before rendering.',
+  'resize.cover': 'Keep the video; adapt only the cover',
+  'resize.coverHelp': 'Keeps the original video canvas and makes a cover for the new ratio. No padded video is added.',
+  'resize.watchOriginal': 'Watch in the original orientation',
+  'resize.cancel': 'Cancel',
+  'resize.brief': 'Remake “{title}” in {aspect} using the original materials in this folder. Inspect source availability; do not use old finished videos or cached padded exports as sources. Recompose each shot, title and caption for the target canvas, preserving the story and soundtrack. Do not add borders or shrink a finished video into an empty canvas. Keep existing materials and outputs; create a separate project. First show the plan and list any missing sources; wait for my confirmation before rendering.',
   'hub.filesMissing': 'Finished files not found',
   'hub.filesMissingHelp': 'The recorded videos are unavailable. Select their new locations to reconnect them. Your files stay where they are.',
   'hub.relink': 'Reconnect video files…',
@@ -63,6 +73,16 @@ export const projectPageEn = {
 };
 
 export const projectPageZh: Record<keyof typeof projectPageEn, string> = {
+  'resize.planAction': '先生成制作方案',
+  'resize.title': '制作 {aspect} 版本',
+  'resize.help': '选择适配方式。只加空白边框，并没有按新画幅重新制作。',
+  'resize.remake': '用原始素材重新制作（推荐）',
+  'resize.remakeHelp': '打开这个项目的新草稿，按目标画幅重排镜头、标题和字幕；先检查方案再渲染。',
+  'resize.cover': '保留视频，只适配封面',
+  'resize.coverHelp': '视频保持原画幅，另做目标比例的封面，不增加套框视频。',
+  'resize.watchOriginal': '建议横屏或按原画幅观看',
+  'resize.cancel': '取消',
+  'resize.brief': '用这个目录的原始素材，将“{title}”重新制作成 {aspect}。先检查源素材是否齐全，不要拿旧成片或加边框的缓存导出当源素材。按目标画幅重排每个镜头、标题和字幕，保留故事和音轨。不加边框，不把成片缩小塞进空白画布。保留原素材和已有输出，另建项目。先给制作方案并列出缺失素材，等我确认后再渲染。',
   'hub.filesMissing': '成片文件找不到',
   'hub.filesMissingHelp': '原来记录的成片目前不可用。选择搬移后的成片文件即可重新关联；文件会留在原位置。',
   'hub.relink': '重新关联成片…',
@@ -122,6 +142,16 @@ export const projectPageZh: Record<keyof typeof projectPageEn, string> = {
 };
 
 export const projectPageFr: Record<keyof typeof projectPageEn, string> = {
+  'resize.planAction': 'Préparer la nouvelle version',
+  'resize.title': 'Créer une version {aspect}',
+  'resize.help': 'Choisissez une adaptation. Ajouter des bordures ne refait pas la composition.',
+  'resize.remake': 'Recréer à partir des sources (recommandé)',
+  'resize.remakeHelp': 'Ouvre un nouveau brouillon pour recomposer les plans, titres et sous-titres. Vérifiez le plan avant le rendu.',
+  'resize.cover': 'Garder la vidéo ; adapter la couverture',
+  'resize.coverHelp': 'Conserve le format vidéo et crée une couverture au nouveau ratio, sans vidéo avec bordures.',
+  'resize.watchOriginal': 'Regarder dans le format original',
+  'resize.cancel': 'Annuler',
+  'resize.brief': 'Recréez « {title} » au format {aspect} à partir des sources de ce dossier. Vérifiez leur disponibilité. Ne réutilisez pas les anciennes vidéos finales. Recomposez les plans, titres et sous-titres sans bordures, en gardant récit et audio. Préservez les sources et sorties ; créez un autre projet. Présentez le plan et attendez ma confirmation avant le rendu.',
   'hub.filesMissing': 'Fichiers vidéo introuvables',
   'hub.filesMissingHelp': 'Les vidéos enregistrées sont indisponibles. Sélectionnez leur nouvel emplacement pour les reconnecter. Les fichiers restent en place.',
   'hub.relink': 'Reconnecter les vidéos…',

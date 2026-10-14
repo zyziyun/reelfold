@@ -324,3 +324,7 @@ com.lveditor.draft`, Windows: `%LOCALAPPDATA%`). `--media copy` clones (APFS) / 
 `output nle-relink --out EXPORT --media-dir NEW` re-points every timeline of an export at the files of the same name
 -> `{ok, relinked, missing, files}`. Errors: `unknown-format`, `no-outputs`. Ported from OpenFilm's `nle.mjs` /
 `jianying.mjs` (MIT, THIRD_PARTY_NOTICES.md). Tests: `tests/test_output_nle.py` (round-trip parse of every format).
+
+### Aspect changes versus cover adaptation
+
+A platform ratio is a recommendation, not permission to pad a finished movie. For a new aspect, rebuild from available original shots and the source composition; redesign titles, captions and safe areas, preserving story and audio. If the output editor cannot reconstruct that source layout, open a separate source-based remake draft and report missing sources before rendering. Alternatively keep the original video and make a new-ratio cover (`cover` with `aspect`); do not add an export or claim that a new-ratio video was made. A viewing-orientation hint can go on the cover. Use `layout: band` only when the creator explicitly asks to keep the whole frame in that designed layout.

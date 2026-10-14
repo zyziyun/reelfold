@@ -1779,6 +1779,10 @@ def normalize(doc, st, op):
                 raise _err("bad-param", "cover style: card | plain | band", "封面样式：card / plain / band",
                            name="style", value=style)
             n["cover"] = dict(t=t, text=str(op.get("text") or ""), style=style)
+            if op.get("aspect") is not None:
+                if op["aspect"] not in ("3:4", "9:16", "16:9"):
+                    raise _err("bad-param", "cover aspect: 3:4 | 9:16 | 16:9", "封面比例：3:4 / 9:16 / 16:9")
+                n["cover"]["aspect"] = op["aspect"]
     elif k in ("export_add", "export_remove"):
         tk = target_key(op.get("target") or op.get("platform"))
         n["target"] = tk
@@ -2656,6 +2660,9 @@ Rules:
   ...); each version shows its own language. Premium look: few words, no exclamation marks, no emoji.
 - Respect the capability flags (e.g. a flattened output cannot restyle or edit burned-in captions).
 - Prefer few, purposeful ops; do not repeat existing effects.
+- A different video aspect needs source-based recomposition, not padding the finished movie. Never silently
+  use band/letterbox to satisfy a size request. If source layout cannot be rebuilt here, explain the need to
+  remake from original materials, or offer only a cover with a new aspect while retaining the video canvas.
 - `her_edits` lists what the creator changed by hand (caption text / style fields, effects, title, cover, trim ...):
   keep them exactly; do not propose an op that changes one unless she points at it or names it.
 - A voice-over / narration / 配音 / 旁白 / TTS request is the `voiceover` op: it does generate new speech (the
@@ -2682,7 +2689,7 @@ OP_DOC = {
     "effect_add": "{op, effect, start, end?, params {..}}",
     "effect_remove": "{op, id}",
     "effect_update": "{op, id, start?, end?, shift?, params?}",
-    "cover": "{op, t, text, style card|plain|band}",
+    "cover": "{op, t, text, style card|plain|band, aspect?: 3:4|9:16|16:9} cover only; never changes the video canvas",
     "export_add": "{op, target: platform[:orientation] | 3:4 | 9:16 | 16:9, layout?: auto|band, lang?: en|zh|fr|..} "
                   "lang = a version in another language: the speech translated, voiced again and captioned "
                   "(e.g. an English YouTube version of a Chinese clip)",

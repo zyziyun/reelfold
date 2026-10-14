@@ -25,6 +25,7 @@ import { firstTab, PostCopy, type Row } from '../publish/PostCopy';
 import { useAccounts, usePublishData } from '../publish/usePublish';
 import '../publish/publish.css';
 import './clipinfo.css';
+import { useResizeChoice } from './ResizeChoice';
 import { ClipImported, ImportCopyRewrite } from './imports/ClipImported';
 
 type EditFn = (ops: EditOp[], undoToast?: boolean) => Promise<boolean>;
@@ -141,13 +142,13 @@ export function versionsFor(targets: string[] | null | undefined): readonly stri
 export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
   const orig = new Set(doc.files.map((f) => f.aspect));
   // the shapes of the platforms it is made for (a goal video's English cut: YouTube's 16:9), plus what it already has
-  const shapes = versionsFor(doc.targets);
   // the engine keeps an export by its platform target (3:4 -> xiaohongshu:vertical): the chip is on either way
   const added = new Set(doc.exports.flatMap((e) => [e.target, ...Object.entries(ASPECT_TARGET).filter(([, x]) => x === e.target).map(([a]) => a)]));
-  const flat = doc.mode === 'flattened';
+  const resize = useResizeChoice(doc, edit);
   return (
     <div className="ci-chips" data-testid="ci-versions">
-      {VERSIONS.filter((v) => shapes.includes(v) || orig.has(v) || doc.exports.some((e) => e.target === v || e.target === ASPECT_TARGET[v])).map((v) => {
+      {resize.dialog}
+      {VERSIONS.map((v) => {
         const own = orig.has(v);
         const on = own || added.has(v);
         return (
@@ -157,7 +158,7 @@ export function ClipVersions({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
             aria-pressed={on}
             disabled={own || doc.caps.export === false}
             title={own ? t('ci.vOwn') : undefined}
-            onClick={() => void edit([on ? { op: 'export_remove', target: v } : { op: 'export_add', target: v, layout: flat ? 'band' : 'auto' }] as EditOp[], true)}
+            onClick={() => on ? void edit([{ op: 'export_remove', target: v }] as EditOp[], true) : resize.choose(v)}
             data-testid={`ci-version-${v}`}
           >
             {on && <Check className="ico" />}

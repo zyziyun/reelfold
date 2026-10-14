@@ -126,7 +126,7 @@ publish:
                            # always English (no setting changes it)
 
 intake:                    # one sentence + materials -> plan (python -m vstudio.intake)
-  burned_captions: band    # a finished edit with burned-in captions, cut again: band = crop the old captions off,
+  burned_captions: keep    # a finished edit with burned-in captions, cut again: band = crop the old captions off,
                            # picture in a band, new captions below; keep = leave the old captions, add none
 
 cleanup:                   # shared 气口 / filler / repeat tool (python -m vstudio.cleanup, references/CLEANUP.md)

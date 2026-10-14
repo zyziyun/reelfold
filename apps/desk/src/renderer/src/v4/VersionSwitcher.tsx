@@ -11,9 +11,10 @@ import type { LangVersion } from '../lib/langVersions';
 import { langName } from '../lib/langVersions';
 import { clipHref } from '../lib/nav';
 import { filePlatforms, versionFor } from '../lib/versions';
-import { ASPECT_TARGET, VERSIONS, versionsFor } from './ClipInfo';
+import { ASPECT_TARGET, VERSIONS } from './ClipInfo';
 import { platformName } from './Home';
 import { PlatformIcon } from './PlatformIcon';
+import { useResizeChoice } from './ResizeChoice';
 
 const RATIO = /^\d+:\d+$/;
 
@@ -56,10 +57,9 @@ export function VersionSwitcher({
   const own = new Set(doc.files.map((f) => f.aspect));
   // the engine keeps an export by its platform target (3:4 -> xiaohongshu:vertical)
   const added = new Set(doc.exports.flatMap((e) => [e.target, ...Object.entries(ASPECT_TARGET).filter(([, x]) => x === e.target).map(([a]) => a)]));
-  const flat = doc.mode === 'flattened';
+  const resize = useResizeChoice(doc, edit);
   // the shapes of the platforms it is made for (a goal video's English cut: YouTube's 16:9), plus what it has
-  const shapes = versionsFor(doc.targets);
-  const sizes = [...new Set<string>([...VERSIONS.filter((v) => shapes.includes(v) || added.has(v)), ...files.map((f) => f.aspect)])];
+  const sizes = [...new Set<string>([...VERSIONS, ...files.map((f) => f.aspect)])];
   const name = (v: string) => ((VERSIONS as readonly string[]).includes(v) ? t(`ci.v.${v}` as MessageKey) : RATIO.test(v) ? v : t('c.original'));
   const cur = other ? null : (files.find((f) => f.aspect === playing) ?? null);
   // each platform posts one version (the publisher's pick); this one's platforms
@@ -70,6 +70,7 @@ export function VersionSwitcher({
   const grouped = others.length > 0;
   return (
     <div className="vsw" data-testid="ci-versions">
+      {resize.dialog}
       <div className="vsw-row" role="radiogroup" aria-label={t('ci.vPick')} data-testid="ci-versions-mine" data-lang={lang ?? ''}>
         {grouped && <span className="vsw-lang">{lang ? langName(lang) : t('ci.vThis')}</span>}
         {sizes.map((v) => {
@@ -109,7 +110,7 @@ export function VersionSwitcher({
               key={v}
               className="vsw-b vsw-add"
               disabled={doc.caps.export === false}
-              onClick={() => void edit([{ op: 'export_add', target: v, layout: flat ? 'band' : 'auto' } as EditOp], true)}
+              onClick={() => resize.choose(v)}
               data-testid={`ci-version-${v}`}
               data-made="0"
             >

@@ -243,3 +243,25 @@ test('a goal video made in two languages: the 中文 cut\'s versions play here t
   req.stop();
   expect(req.urls.filter((u) => /\/(render|export|edit)\b/.test(u))).toEqual([]);
 });
+
+test('new canvas offers a remake draft or cover-only adaptation instead of padding', async () => {
+  await hash(`#/p/${done}/clip/main`);
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
+  const req = watchRequests();
+  const mine = page.getByTestId('ci-versions-mine');
+  const add = mine.getByTestId('ci-version-3:4');
+  await expect(add).toHaveAttribute('data-made', '0');
+  await add.click();
+  const choice = page.getByTestId('resize-choice');
+  await expect(choice).toBeVisible();
+  await expect(choice.getByTestId('resize-cover')).toContainText('cover');
+  await choice.getByTestId('resize-remake').click();
+  const composer = page.getByTestId('composer');
+  await expect(composer).toBeVisible();
+  await expect(composer.getByTestId('composer-file')).toHaveCount(1);
+  await expect(composer.getByTestId('composer-input')).toHaveValue(/3:4/);
+  await expect(composer.getByTestId('make-plan')).toHaveText('Plan the new version');
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('v4.composer') ?? '{}').reviewPlan)).toBe(true);
+  req.stop();
+  expect(req.urls.filter((u) => /\/(render|export|edit)\b/.test(u))).toEqual([]);
+});

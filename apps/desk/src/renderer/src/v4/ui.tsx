@@ -40,7 +40,8 @@ export interface Ui {
   takeDropped(): string[];
   setDropped(paths: string[]): void;
   prefill: string | null;
-  setPrefill(s: string | null): void;
+  prefillReview: boolean;
+  setPrefill(s: string | null, review?: boolean): void;
   setTheme(theme: 'studio-dark' | 'notebook-light'): void;
   setLanguage(l: string): void;
   theme: 'studio-dark' | 'notebook-light';
@@ -72,7 +73,9 @@ export function UiProvider({
   const [palette, setPalette] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [dropped, setDroppedS] = useState<string[]>([]);
-  const [prefill, setPrefill] = useState<string | null>(null);
+  const [prefill, setPrefillS] = useState<string | null>(null);
+  const [prefillReview, setPrefillReview] = useState(false);
+  const setPrefill = useCallback((s: string | null, review = false) => { setPrefillS(s); setPrefillReview(review); }, []);
   const [over, setOver] = useState(false);
   const droppedRef = useRef<string[]>([]);
 
@@ -254,12 +257,13 @@ export function UiProvider({
       takeDropped,
       setDropped,
       prefill,
+      prefillReview,
       setPrefill,
       setTheme: onTheme,
       setLanguage: onLang,
       theme,
     }),
-    [toast, openMenu, dropped, takeDropped, setDropped, prefill, onTheme, onLang, theme],
+    [toast, openMenu, dropped, takeDropped, setDropped, prefill, prefillReview, setPrefill, onTheme, onLang, theme],
   );
 
   return (

@@ -644,3 +644,23 @@ def test_failed_project_hides_partial_movie_but_keeps_playable_sibling(th, synth
     with pytest.raises(O.OutputError) as err:
         O.resolve(str(clone), broken_id)
     assert err.value.info['code'] == 'output-incomplete'
+
+@media
+def test_cover_aspect_changes_cover_only(tmp_path):
+    from PIL import Image
+    w = tmp_path / "cover-only"
+    (w / "final").mkdir(parents=True)
+    file = w / "final" / "landscape.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=size=320x180:rate=10", "-t", "0.5", "-pix_fmt", "yuv420p", str(file)], check=True)
+    from vstudio.project import works
+    works.adopt(str(w))
+    oid = O.list_outputs(str(w))["outputs"][0]["id"]
+    O.edit(str(w), oid, [dict(op="cover", t=0, text="Landscape", aspect="3:4")])
+    state = O.show(str(w), oid)["state"]
+    assert state["exports"] == [] and state["cover"]["aspect"] == "3:4"
+    r = R.render(str(w), oid, quality="preview", targets=["primary"])
+    assert len(r["targets"]) == 1
+    target = r["targets"][0]
+    assert target["canvas"][0] / target["canvas"][1] == pytest.approx(16 / 9)
+    assert Image.open(target["cover"]).size == (1080, 1440)
+    assert file.exists()

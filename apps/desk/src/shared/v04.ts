@@ -173,7 +173,7 @@ export type EditOp =
   | { op: 'effect_add'; effect: string; start: number; end?: number; params?: Record<string, unknown> }
   | { op: 'effect_update'; id: string; start?: number; end?: number; params?: Record<string, unknown> }
   | { op: 'effect_remove'; id: string }
-  | { op: 'cover'; t?: number; text?: string; style?: 'card' | 'plain' | 'band'; clear?: boolean }
+  | { op: 'cover'; t?: number; text?: string; style?: 'card' | 'plain' | 'band'; aspect?: '3:4' | '9:16' | '16:9'; clear?: boolean }
   | { op: 'export_add'; target: string; layout?: 'auto' | 'band'; lang?: string }
   | { op: 'shot_swap'; shot: number; source?: string; t?: number; restore?: boolean }
   | { op: 'export_remove'; target: string }
@@ -276,7 +276,7 @@ export interface OutputDoc {
   recording?: { session: string; dir: string; script: boolean; group?: string | null; created?: string | null; studio?: boolean } | null;
   speed: number;
   title_band: { text: string; sub?: string } | null;
-  cover_edit: { t?: number; text?: string; style?: string } | null;
+  cover_edit: { t?: number; text?: string; style?: string; aspect?: string } | null;
   exports: { target: string; layout?: string; lang?: string | null }[];
   /** the platforms the clip is made for (its project's own): what its schedule offers on by default */
   targets?: string[];

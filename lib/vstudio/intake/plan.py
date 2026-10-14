@@ -78,7 +78,7 @@ def context(client=None):
     shapes.update({k: v.get("post_shape") for k, v in (P.get("platforms") or {}).items()
                    if isinstance(v, dict) and v.get("post_shape") in ("full", "vertical", "horizontal")})
     return dict(client=cdir, client_name=eff.get("name") or None, llm_config=cfg, shapes=shapes,
-                burned=str(((P.get("intake") or {}).get("burned_captions")) or "band"),
+                burned=str(((P.get("intake") or {}).get("burned_captions")) or "keep"),
                 platforms=[x.split(":")[0] for x in (eff.get("platforms") or [])] or [plat_default],
                 speed=float((P.get("speed") or {}).get("body") or 1.1),
                 cleanup=(eff.get("cleanup_profile") or (P.get("cleanup") or {}).get("profile") or "standard"),
@@ -130,9 +130,16 @@ Rules:
   segment planner picks N ranges of a long recording at run time), focus (the creator named WHICH content to cut out:
   give rows with exact "range": [start_s, end_s] when a transcript is provided, else describe the focus), episodes
   (N episodes), list (one row per topic / script).
+- Ordinary speech-editing defaults belong to the workflow: shared cleanup of needless pauses/fillers while
+  preserving intentional emphasis and meaning; original speech retained; semantic subtitle breaks, checked
+  names and no duplicate burned subtitles. Do not require the creator to repeat these in every request.
+- A target aspect requires original-source recomposition of shots, titles and captions. Never meet a ratio
+  request by adding empty borders. If source reconstruction is unavailable, retain the video canvas and
+  propose a cover-only adaptation with a viewing-orientation hint; report missing sources.
 - A finished edit (burned-in captions, "final" export) cut into shorter pieces: talkinghead layout "band" (the old
   burned captions are cropped off, the picture sits in a band, NEW captions go below it: captions=true,
-  crop_bottom ~0.28), gentle cleanup, speed 1.0 unless asked. Only when the creator says to keep the old captions:
+  crop_bottom ~0.28) only when that designed caption layout is wanted; do not treat it as automatic aspect
+  adaptation. Otherwise keep the source framing and existing captions. Gentle cleanup, speed 1.0 unless asked. Only when the creator says to keep the old captions:
   captions=false.
 - Never drop a material the creator attached. Footage she wants cut in over the main recording (B-roll, 插片, screen
   recordings, finished clips, "素材") goes into the recipe's "broll" input when it has one - all of it (a group id
@@ -658,12 +665,12 @@ BAND_CROP = {"lower": 0.28}      # source height fraction cropped off per burned
 
 def _burned_defaults(src, ctx):
     """A finished edit with burned-in captions, cut again: crop the old captions off and lay the picture out in a
-    band with NEW captions below (talkinghead layout "band"), unless the persona says ``intake.burned_captions:
-    keep`` (old captions stay, no new ones) or the old captions sit mid-frame (cannot be cropped cleanly)."""
+    band with NEW captions below only when ``intake.burned_captions: band`` was chosen. The default
+    keeps the existing captions, adding none; mid-frame captions cannot be cropped cleanly."""
     if not src or not src.get("burned_captions"):
         return dict(captions=False) if src and I.material_role(src) == "finished-edit" else {}
     crop = BAND_CROP.get(src.get("caption_band") or "lower")
-    if ctx.get("burned") == "keep" or crop is None:
+    if ctx.get("burned") != "band" or crop is None:
         return dict(captions=False)
     return dict(layout="band", crop_bottom=crop, captions=True)
 

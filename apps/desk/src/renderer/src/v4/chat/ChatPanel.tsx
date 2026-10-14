@@ -24,6 +24,8 @@ import { FallbackNote, ModelPicker } from '../AiChip';
 import { ProjectAiChip } from '../AiPick';
 import { effectLabel, emsg, errText } from '../msg';
 import { useUi } from '../ui';
+import { useResizeChoice } from '../ResizeChoice';
+import { targetAspect } from '../../lib/versions';
 import { CaptionsCard, CARD_ICON, CoverCard, EffectCard, ExportCard, FallbackCard, primaryPlatform, TrimCard, type CardEnv, type ExportRun } from './cards';
 import { CutCard } from './CutCard';
 import { EditProgress } from './EditProgress';
@@ -100,8 +102,14 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     const e = effectiveAi(projAi ?? null, aiState().routes?.routes);
     return e ? { provider: e.provider, model: e.model, name: labelOf(projAi ?? null) } : null;
   };
-  const ui = useUi();
   const { doc, item, clip } = p;
+  const ui = useUi();
+  const resize = useResizeChoice(doc, async (ops) => {
+    if (!client) return false;
+    await client.editOutput(item, clip, ops);
+    p.reload();
+    return true;
+  });
   const turns = useMemo(() => doc.chat ?? [], [doc.chat]);
   const [local, setLocal] = useState<Record<string, Local>>({});
   const [adjust, setAdjust] = useState<{ turn: string; i: number } | null>(null);
@@ -246,6 +254,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
       // act at once, make it undoable: the change goes on the clip now (Undo / Before / after on its card); what
       // removes most of the clip or cannot be taken back cheaply - or everything, when she asked for that - waits
       const ops = (r.proposals ?? []).map((x) => x.op);
+      if (resize.intercept(ops)) { setPending(null); p.reload(); return; }
       if (r.turn && ops.length && !askAi && !askFirstReason(ops, doc)) {
         const turn = r.turn;
         setBefores((m) => ({ ...m, [turn]: doc }));
@@ -305,7 +314,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     }
   };
   const apply = async (x: ChatTurn, ops: EditOp[]) => {
-    if (!client || !ops.length) return;
+    if (!client || !ops.length || resize.intercept(ops)) return;
     setBusy(x.id);
     setErrs((m) => ({ ...m, [x.id]: '' }));
     setBefores((m) => ({ ...m, [x.id]: doc }));
@@ -364,6 +373,8 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
   };
   const startExport = async (x: ChatTurn, targets: string[], watermark?: boolean) => {
     if (!client) return;
+    const changed = targets.find((tg) => targetAspect(tg) && targetAspect(tg) !== doc.files[0]?.aspect && !doc.exports.some((x) => targetAspect(x.target) === targetAspect(tg)));
+    if (changed) { resize.choose(changed); return; }
     const prim = primaryPlatform(doc);
     const norm = (s: string) => (s === '9:16' ? 'douyin:vertical' : s === '16:9' ? 'youtube:horizontal' : s === '3:4' ? 'xiaohongshu:vertical' : s);
     const add = targets.filter((tg) => tg !== prim && !doc.exports.some((e) => norm(e.target) === tg));
@@ -373,7 +384,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     try {
       // the transcript's last deletes go into this export (saved now if the timer has not done it yet)
       if (p.flush && !(await p.flush())) throw new Error(t('fs.cut.notSaved'));
-      if (add.length) await client.editOutput(item, clip, add.map((tg) => ({ op: 'export_add', target: tg, layout: doc.mode === 'flattened' && tg.endsWith(':horizontal') ? 'band' : 'auto' })), x.id);
+      if (add.length) await client.editOutput(item, clip, add.map((tg) => ({ op: 'export_add', target: tg, layout: 'auto' })), x.id);
       else await client.updateChatTurn(item, clip, x.id, { status: 'applied' });
       const j = await client.exportOutput(item, clip, rt, watermark);
       trackUsage('export_done', { count: rt.length });
@@ -870,6 +881,7 @@ export const ChatPanel = forwardRef<ChatApi, Props>(function ChatPanel(p, ref) {
     );
   return (
     <aside className="cc" data-testid="chat-panel">
+      {resize.dialog}
       <div className="cc-hd">
         <MessageSquare className="ico" />
         <b>{t('ce.chatTitle')}</b>
