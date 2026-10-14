@@ -74,14 +74,14 @@ export function goalPct(g: Pick<Goal, 'videos' | 'state'>): number {
 }
 
 /** The dot of a video's row. */
-export function videoTone(v: Pick<GoalVideo, 'state' | 'queued'>): 'run' | 'you' | 'error' | 'done' | 'off' {
+export function videoTone(v: Pick<GoalVideo, 'state' | 'queued' | 'versions'>): 'run' | 'you' | 'error' | 'done' | 'off' {
   switch (v.state) {
     case 'made':
       return 'done';
     case 'you':
       return 'you';
     case 'dropped':
-      return 'error';
+      return v.versions?.some((x) => x.state === 'made') ? 'you' : 'error';
     case 'planning':
     case 'making':
       return v.queued ? 'off' : 'run';
@@ -146,8 +146,10 @@ export function videoLine(v: GoalVideo): string {
       return t('goal.v.you');
     case 'made':
       return t('goal.v.made');
-    case 'dropped':
-      return `${t('goal.v.dropped')} — ${dropReason(v)}`;
+    case 'dropped': {
+      const made = v.versions?.filter((x) => x.state === 'made').length ?? 0;
+      return made ? t('goal.v.partial', { made, total: v.versions!.length }) : `${t('goal.v.dropped')} — ${dropReason(v)}`;
+    }
     default:
       return '';
   }
@@ -166,7 +168,7 @@ export function versionLine(x: GoalVersion): string {
     case 'you':
       return t('goal.v.you');
     case 'failed':
-      return t('goal.ver.failed');
+      return x.code ? failureReason({ code: x.code, state: 'failed' } as PilotFailure) : t('goal.ver.failed');
     case 'stopped':
       return t('goal.ver.stopped');
     default: {
@@ -232,8 +234,8 @@ export function surveyLine(g: Pick<Goal, 'progress'>): string {
 }
 
 /** Where a video opens: its project once it has one, else the goal's page with the video picked. */
-export function videoHref(gid: string, v: Pick<GoalVideo, 'id' | 'projects'>): string {
-  const item = v.projects?.[0]?.item;
+export function videoHref(gid: string, v: Pick<GoalVideo, 'id' | 'projects' | 'versions'>): string {
+  const item = v.versions?.find((x) => x.state === 'made' && x.item)?.item ?? v.projects?.[0]?.item;
   return item ? `#/studio/${item}` : goalHref(gid, v.id);
 }
 
@@ -247,7 +249,7 @@ export function useGoals(): { goals: Goal[]; loaded: boolean; reload: () => void
   const { data, reload } = useLoad((c) => c.goals().catch(() => ({ goals: [] as Goal[] })), []);
   useEffect(() => subscribe((e) => void ((e.type === 'goals' || e.type === 'batches') && reload())), [subscribe]); // eslint-disable-line react-hooks/exhaustive-deps
   const goals = useMemo(() => data?.goals ?? [], [data]);
-  const going = goals.some((g) => g.state === 'surveying' || g.state === 'running');
+  const going = goals.some((g) => g.state === 'surveying' || g.state === 'running' || g.videos.some((v) => v.state === 'making'));
   useEffect(() => {
     if (!going) return;
     const tm = window.setInterval(reload, GOAL_POLL_MS);

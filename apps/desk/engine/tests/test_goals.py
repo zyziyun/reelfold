@@ -2,6 +2,7 @@
 ordinary autopilot request; at most N in flight; a failure is retried once, then the video is dropped with the reason;
 the goal is done when every video is made or dropped; clearing the unfinished ones; the lists mark a goal's rows."""
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -239,6 +240,58 @@ class FailureAndCompletion(Base):
         v = G.view(gid)["videos"][0]
         self.assertEqual((v["state"], v["attempts"]), ("planning", 2))     # a fresh request, its second try
         self.assertNotEqual(v["intake"], rid)
+
+    def test_settled_view_refreshes_versions_and_recovers_completed_rows_without_writes(self):
+        G, gid = self._running(1)
+        en, zh = self.proj("English"), self.proj("中文")
+        v = G.goals[gid]["videos"][0]
+        v.update(state="dropped", reason_code="unknown", projects=[dict(dir=en, item="en"), dict(dir=zh, item="zh")])
+        self.states.update({en: ("failed", {"code": "stage-gpu-stream"}), zh: ("made", {})})
+        G.goals[gid].update(state="done", count=dict(asked=1))
+        G._save(G.goals[gid])
+        before = Path(G._path(gid)).read_text()
+        view = G.view(gid)
+        self.assertEqual([x["state"] for x in view["videos"][0]["versions"]], ["failed", "made"])
+        self.assertEqual(view["videos"][0]["reason_code"], "stage-gpu-stream")
+        self.states[en] = ("made", {})
+        view = G.view(gid)
+        self.assertEqual(view["videos"][0]["state"], "made")
+        self.assertEqual((view["counts"]["made"], view["counts"]["dropped"], view["fill"]["need"]), (1, 0, 0))
+        self.assertEqual(Path(G._path(gid)).read_text(), before)
+        v["reason_code"] = "by-you"
+        self.assertEqual(G.view(gid)["videos"][0]["state"], "dropped")
+        v.update(reason_code="unknown", cleared=True)
+        self.assertEqual(G.view(gid)["videos"][0]["state"], "dropped")
+
+    def test_retry_one_version_only_and_read_running_state_after_goal_settled(self):
+        G, gid = self._running(1)
+        en, zh = self.proj("English"), self.proj("中文")
+        v = G.goals[gid]["videos"][0]
+        v.update(state="dropped", projects=[dict(dir=en, item="en"), dict(dir=zh, item="zh")])
+        G.goals[gid]["state"] = "done"
+        self.states.update({en: ("failed", {"code": "stage-gpu-stream"}), zh: ("made", {})})
+        with self.assertRaises(BadRequest):
+            G.retry_version(gid, v["id"], "other")
+        with self.assertRaises(BadRequest):
+            G.retry_version(gid, v["id"], "zh")
+        G.retry_version(gid, v["id"], "en")
+        self.assertEqual([c for c in self.intake.calls if c[0] == "retry_pilot"], [("retry_pilot", en)])
+        self.states[en] = ("running", {})
+        self.assertEqual(G.view(gid)["videos"][0]["state"], "making")
+        self.states[en] = ("made", {})
+        self.assertEqual(G.view(gid)["videos"][0]["state"], "made")
+
+    def test_retry_resumes_failed_versions_without_replanning_successful_ones(self):
+        G, gid = self._running(1)
+        en, zh = self.proj("English"), self.proj("中文")
+        v = G.goals[gid]["videos"][0]
+        projects = [dict(dir=en, item="en"), dict(dir=zh, item="zh")]
+        v.update(state="dropped", reason_code="unknown", projects=projects)
+        self.states.update({en: ("failed", {"code": "stage-gpu-stream"}), zh: ("made", {})})
+        G._retry_video(v)
+        self.assertEqual(v["projects"], projects)
+        self.assertEqual(v["state"], "making")
+        self.assertEqual([c for c in self.intake.calls if c[0] == "retry_pilot"], [("retry_pilot", en)])
 
     def test_she_drops_a_video_and_stops_the_goal(self):
         G, gid = self._running(3)

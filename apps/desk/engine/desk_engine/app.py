@@ -972,6 +972,8 @@ class Api:
             if verb == "edit":
                 return G.edit(gid, b.get("ops"))
             if verb == "video":
+                if b.get("action") == "retry" and b.get("version"):
+                    return G.retry_version(gid, b.get("video"), b.get("version"))
                 return G.video(gid, b.get("video"), b.get("action"))
             if verb in ("approve", "stop", "retry", "clear", "dismiss"):
                 return getattr(G, verb)(gid)

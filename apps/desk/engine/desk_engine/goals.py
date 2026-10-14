@@ -471,9 +471,7 @@ class Goals:
             self._drop(v, "by-you")
         else:
             need(v.get("state") == "dropped", "only a dropped video can be tried again")
-            _retire(v)
-            v.update(state="waiting", attempts=0, intake=None, projects=[], reason=None, reason_code=None,
-                     cleared=None)
+            self._retry_video(v)
             if g["state"] in ("done", "stopped"):
                 g.update(state="running", step="running", finished=None)
         self._save(g)
@@ -481,12 +479,41 @@ class Goals:
         self.tick(gid)
         return self.view(gid)
 
+    def retry_version(self, gid, vid, item):
+        """Resume one existing language/cut project, preserving every other version."""
+        g = self._get(gid)
+        v = next((x for x in g["videos"] if x.get("id") == vid), None)
+        need(v is not None and not v.get("cleared"), "no such video in this goal")
+        p = next((x for x in v.get("projects") or [] if x.get("item") == item), None)
+        need(p is not None, "no such version in this video")
+        state, _detail = project_state(p["dir"])
+        need(state in ("failed", "stopped", "you"), "this version is already made or running")
+        self.intake.retry_pilot(p["dir"])
+        if self.bus:
+            self.bus.publish("batches")
+        return self.view(gid)
+
+    def _retry_video(self, v):
+        # Keep the successful language/cut projects. Resume only unfinished versions, rather than re-plan
+        # the whole video and leave the finished files behind in a retired request.
+        projects = v.get("projects") or []
+        if projects and not v.get("cleared") and all(os.path.isdir(p.get("dir") or "") for p in projects):
+            for p in projects:
+                state, _detail = project_state(p["dir"])
+                if state not in ("made", "running"):
+                    self.intake.retry_pilot(p["dir"])
+            v.update(state="making", attempts=1, seen=time.time(), reason=None, reason_code=None,
+                     last_error=None, live=None, queued=False, cleared=None)
+            return
+        _retire(v)
+        v.update(state="waiting", attempts=0, intake=None, projects=[], versions=None, reason=None,
+                 reason_code=None, cleared=None)
+
     def _retry_dropped(self, gid):
         g = self._get(gid)
         for v in g["videos"]:
             if v.get("state") == "dropped" and not v.get("cleared"):
-                _retire(v)
-                v.update(state="waiting", attempts=0, intake=None, projects=[], reason=None, reason_code=None)
+                self._retry_video(v)
         self._save(g)
         return self.view(gid)
 
@@ -667,16 +694,16 @@ class Goals:
         states = [(p, *project_state(p["dir"])) for p in v.get("projects") or []]
         if not states:
             return self._failed(g, v, "lost", now)
+        v["versions"] = [dict(item=p.get("item"), dir=p.get("dir"), name=p.get("name"), lang=_lang_of(p), state=s,
+                              code=d.get("code"), queued=bool(d.get("queued")),
+                              progress=(d.get("live") or {}).get("progress") if s == "running" else None)
+                         for p, s, d in states]
         bad = next(((p, d) for p, s, d in states if s == "failed"), None)
         if bad:
             return self._failed(g, v, bad[1].get("code") or "unknown", now, error=bad[1].get("error"), project=bad[0])
         stuck = next(((p, d) for p, s, d in states if s == "you" and d.get("blocker") in RETRY_BLOCKERS), None)
         if stuck:                                     # autopilot could not draft a step: a failure, not a question
             return self._failed(g, v, stuck[1]["blocker"], now, project=stuck[0])
-        v["versions"] = [dict(item=p.get("item"), dir=p.get("dir"), name=p.get("name"), lang=_lang_of(p), state=s,
-                              code=d.get("code"), queued=bool(d.get("queued")),
-                              progress=(d.get("live") or {}).get("progress") if s == "running" else None)
-                         for p, s, d in states]
         if all(s == "made" for _p, s, _d in states):
             v.update(state="made", finished=now, progress=1.0, live=None)
             if (v.get("recut") or {}).get("state") == "making":
@@ -1297,16 +1324,30 @@ class Goals:
                           "ai": v.get("ai") or g.get("ai"), "own_ai": bool(v.get("ai")),
                           "can_undo_recut": bool(v.get("prev")) and v.get("state") in SETTLED}
                          for v in g.get("videos") or []]
-        # Older dropped rows kept only "unknown". Re-read their project logs for an actionable reason, read-only.
-        from . import pilot
+        # Settled goals stop ticking, but their projects can finish or be retried outside the goal.
+        # Refresh the public view without rewriting her stored goal or reviving deliberate drops.
         for row in out["videos"]:
-            if row.get("state") == "dropped" and row.get("projects"):
-                for p in row["projects"]:
-                    fail = pilot.failure(p.get("dir") or "")
-                    if fail:
-                        row["reason_code"] = fail.get("code") or row.get("reason_code")
-                        row["last_error"] = fail.get("error")
-                        break
+            if (row.get("state") != "dropped" or not row.get("projects") or row.get("cleared")
+                    or row.get("planned_out") or row.get("reason_code") in ("by-you", "stopped", "deleted")):
+                continue
+            states = [(p, *project_state(p.get("dir") or "")) for p in row["projects"]]
+            row["versions"] = [dict(item=p.get("item"), dir=p.get("dir"), name=p.get("name"), lang=_lang_of(p),
+                                    state=s, code=d.get("code"), queued=bool(d.get("queued")),
+                                    progress=(d.get("live") or {}).get("progress")) for p, s, d in states]
+            if all(s == "made" for _p, s, _d in states):
+                row.update(state="made", reason_code=None, last_error=None, progress=1.0, live=None)
+                counts["made"] += 1
+                counts["dropped"] -= 1
+            else:
+                if any(s == "running" for _p, s, _d in states):
+                    row.update(state="making", queued=all(d.get("queued") for _p, s, d in states if s == "running"),
+                               progress=sum(s == "made" for _p, s, _d in states) / len(states))
+                    counts["making"] += 1
+                    counts["dropped"] -= 1
+                bad = next((d for _p, s, d in states if s == "failed"), None)
+                if bad:
+                    row["reason_code"] = bad.get("code") or row.get("reason_code")
+                    row["last_error"] = bad.get("error")
         out["counts"] = counts
         out["goal_code"] = g.get("goal_code") or _goal_code(g.get("goal"))
         if not out.get("count"):                    # a goal planned before the count was kept: her words still say it
@@ -1314,7 +1355,7 @@ class Goals:
             if rng and (rng.get("want") or rng.get("min") or rng.get("max")):
                 out["count"] = dict(asked=rng.get("want"), min=rng.get("min"), max=rng.get("max"),
                                     planned=counts["total"])
-        out["fill"] = self._fill(g, out.get("count"))
+        out["fill"] = self._fill({**g, "videos": out["videos"]}, out.get("count"))
         out["more"] = g.get("more")
         out["fanouts"] = [_public_fanout(f, g) for f in (g.get("fanouts") or [])[-FANOUT_KEEP:]]
         return out

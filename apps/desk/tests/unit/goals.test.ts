@@ -149,3 +149,12 @@ it('shows specific render failures on dropped collection rows', () => {
   expect(dropReason({ reason_code: 'stage-spec-invalid' })).toContain('invalid timing');
   expect(dropReason({ reason_code: 'disk' })).not.toContain('Something went wrong');
 });
+
+it('keeps successful versions visible when another language fails', () => {
+  const v = vid('v1', { state: 'dropped', projects: [{ item: 'en', dir: '/en' }, { item: 'zh', dir: '/zh' }],
+    versions: [{ item: 'en', state: 'failed', code: 'stage-gpu-stream' }, { item: 'zh', state: 'made' }] });
+  expect(videoLine(v)).toBe('1 of 2 versions made · some versions need retrying');
+  expect(videoTone(v)).toBe('you');
+  expect(videoHref('group', v)).toBe('#/studio/zh');
+  expect(versionLine(v.versions![0])).toContain('Slow-motion rendering');
+});

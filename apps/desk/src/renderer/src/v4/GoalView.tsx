@@ -491,7 +491,7 @@ export function VideoRow({ gid, v, on, busy, onAct, onAi, onUndoRecut }: { gid: 
             <i style={{ width: `${Math.max(4, pct ?? 30)}%` }} />
           </span>
         )}
-        <Versions v={v} />
+        <Versions gid={gid} v={v} />
       </span>
       {onAi && (v.state === 'waiting' || v.state === 'planning' || v.state === 'making' || v.state === 'you') ? (
         <AiPickChip value={v.ai ?? null} onChange={onAi} testId="goal-video-ai" title={t('tai.videoTip')} compact disabled={busy} />
@@ -526,9 +526,23 @@ export function VideoRow({ gid, v, on, busy, onAct, onAi, onUndoRecut }: { gid: 
 
 /** A video's language versions (one project each): one line per version inside the video, each opening its own
  * page - the English and the Chinese cut are one video, never two loose rows. */
-export function Versions({ v, item }: { v: GoalVideo; item?: string }) {
+export function Versions({ gid, v, item }: { gid: string; v: GoalVideo; item?: string }) {
+  const { client } = useEngine();
+  const ui = useUi();
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const retry = async (id: string) => {
+    if (!client || retrying) return;
+    setRetrying(id);
+    try {
+      await client.goalVideo(gid, v.id, 'retry', id);
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setRetrying(null);
+    }
+  };
   const xs = v.versions ?? [];
-  if (xs.length < 2 || v.state === 'made' || v.state === 'dropped') return null;
+  if (!xs.length) return null;
   return (
     <span className="goalv-vers" data-testid="goal-versions">
       {xs.map((x, k) => (
@@ -554,7 +568,15 @@ export function Versions({ v, item }: { v: GoalVideo; item?: string }) {
           }}
         >
           <i className={`dot ${versionTone(x)}`} />
-          <b>{versionLabel(x)}</b> <span className="muted">{versionLine(x)}</span>
+          <b>{x.name || versionLabel(x)}</b> <span className="muted">{versionLine(x)}</span>
+          {!v.cleared && x.item && (x.state === 'failed' || x.state === 'stopped' || x.state === 'you') && (
+            <span role="button" tabIndex={0} className="btn sm ghost" aria-disabled={retrying !== null}
+              data-testid="goal-version-retry"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); void retry(x.item!); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); void retry(x.item!); } }}>
+              {t('goal.retryVideo')}
+            </span>
+          )}
         </span>
       ))}
     </span>
@@ -565,12 +587,13 @@ export function Versions({ v, item }: { v: GoalVideo; item?: string }) {
 function GoalSummary({ g, onRecut, onUndoRecut }: { g: Goal; onRecut?: (vid: string) => void; onUndoRecut?: (vid: string) => void }) {
   const vs = groupVideos(g);
   const made = vs.filter((v) => v.state === 'made');
+  const partial = vs.filter((v) => v.state === 'dropped' && v.versions?.some((x) => x.state === 'made'));
   const dropped = vs.filter((v) => v.state === 'dropped');
   return (
     <section className="goalv-sec goalv-summary" data-testid="goal-summary">
       <h2 className="runv-h">{made.length === vs.length ? t('goal.allMade', { n: made.length }) : t('goal.doneSome', { made: made.length, total: vs.length, dropped: dropped.length })}</h2>
-      {made.length ? <p className="muted small">{t('goal.summaryLead')}</p> : <p className="muted">{t('goal.noneMade')}</p>}
-      {made.map((v) => (
+      {made.length || partial.length ? <p className="muted small">{t('goal.summaryLead')}</p> : <p className="muted">{t('goal.noneMade')}</p>}
+      {[...made, ...partial].map((v) => (
         <MadeVideo key={v.id} gid={g.id} v={v} onRecut={onRecut} onUndoRecut={onUndoRecut} />
       ))}
       {dropped.length > 0 && (
@@ -579,7 +602,7 @@ function GoalSummary({ g, onRecut, onUndoRecut }: { g: Goal; onRecut?: (vid: str
           <ul>
             {dropped.map((v) => (
               <li key={v.id} className="small">
-                <b>{videoTitle(v)}</b> — <span className="muted">{dropReason(v)}</span>
+                <b>{videoTitle(v)}</b> — <span className="muted">{videoLine(v)} · {dropReason(v)}</span>
               </li>
             ))}
           </ul>
@@ -817,7 +840,7 @@ export function GoalGroup({ g, on, vid, item }: { g: Goal; on: boolean; vid?: st
                     <i style={{ width: `${Math.max(4, Math.round((v.progress ?? 0.3) * 100))}%` }} />
                   </span>
                 )}
-                <Versions v={v} item={item} />
+                <Versions gid={g.id} v={v} item={item} />
               </span>
             </a>
           );

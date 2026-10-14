@@ -626,8 +626,8 @@ export class EngineClient {
   goalAct(id: string, verb: 'approve' | 'stop' | 'retry' | 'clear' | 'dismiss') {
     return this.req<Goal & { cleared?: { requests: number; projects: number } }>('POST', `/api/goals/${pid(id)}/${verb}`, {});
   }
-  goalVideo(id: string, video: string, action: 'drop' | 'retry') {
-    return this.req<Goal>('POST', `/api/goals/${pid(id)}/video`, { video, action });
+  goalVideo(id: string, video: string, action: 'drop' | 'retry', version?: string) {
+    return this.req<Goal>('POST', `/api/goals/${pid(id)}/video`, { video, action, ...(version ? { version } : {}) });
   }
   /** 「Edit the collection」: her words to a made group -> more videos | one video's re-cut | an edit across all */
   goalSay(id: string, text: string) {

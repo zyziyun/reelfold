@@ -133,3 +133,39 @@ test('"全部加水印" goes to every made video, each settles with its own row'
   await expect(f.getByTestId('goal-fan-summary')).toContainText('of 2');
   await shot('E4-fanout');
 });
+
+test('a failed language keeps the made version and offers its own retry', async () => {
+  const goalPath = path.join(tmp, 'profile', 'engine-data', 'goals', `${fx.goal}.json`);
+  const g = JSON.parse(fs.readFileSync(goalPath, 'utf8'));
+  const v = g.videos[0];
+  v.state = 'dropped';
+  v.reason_code = 'unknown';
+  g.state = 'done';
+  const failed = v.projects[1];
+  fs.writeFileSync(path.join(failed.dir, 'desk-pilot.json'), JSON.stringify({ exit: 1, finished: Date.now() / 1000, offset: 0 }));
+  fs.writeFileSync(path.join(failed.dir, 'desk-pilot.log'), JSON.stringify({ event: 'stage-fail', stage: 'render', error: 'There is no Stream(gpu, 0) in current thread.' }) + '\n');
+  fs.writeFileSync(goalPath, JSON.stringify(g));
+  // Restart only this isolated test app: the engine loads goals into memory.
+  await closeApp(app);
+  app = await electron.launch({ args: [path.resolve(import.meta.dirname, '../..')], env: {
+    ...process.env, ...engineEnv, PYTHONPATH: '', DESK_STUDIO: '1', DESK_ENGINE_MOCK: '',
+    DESK_USER_DATA: path.join(tmp, 'profile'), DESK_HISTORY_WATCH: '', DESK_HIDE_WINDOW: '1',
+    DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '',
+  } });
+  page = await app.firstWindow();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await hash(`#/studio?goal=${fx.goal}`);
+  const row = page.getByTestId('goal-video').filter({ has: page.getByText(v.title, { exact: true }) });
+  await expect(row.getByTestId('goal-video-line')).toContainText('1 of 2 versions made');
+  await expect(row.getByTestId('goal-version').first()).toHaveAttribute('data-state', 'made');
+  await expect(row.getByTestId('goal-version').last()).toHaveAttribute('data-state', 'failed');
+  await expect(row.getByTestId('goal-version').last()).toContainText('Slow-motion rendering');
+  await expect(row.getByTestId('goal-video-open')).toHaveAttribute('href', `#/studio/${v.projects[0].item}`);
+  // Resume the real, already-rendered fixture project. Only its forced failure record changes.
+  const madeRecord = path.join(v.projects[0].dir, 'desk-pilot.json');
+  const before = fs.existsSync(madeRecord) ? fs.readFileSync(madeRecord, 'utf8') : null;
+  await row.getByTestId('goal-version-retry').click();
+  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(failed.dir, 'desk-pilot.json'), 'utf8')).started).toBeGreaterThan(0);
+  expect(fs.existsSync(madeRecord) ? fs.readFileSync(madeRecord, 'utf8') : null).toBe(before);
+  await shot('E5-partial-versions');
+});
