@@ -43,7 +43,9 @@ const ASPECTS: Record<string, Record<string, string[]>> = {
 const DEFAULT_ASPECTS: Record<string, string[]> = { vertical: ['9:16'], full: ['9:16'], horizontal: ['16:9'], square: ['1:1'], reels: ['9:16'], feed: ['4:5', '1:1'], '': ['9:16', '3:4'] };
 
 /** The rendered version for this platform: one made for it, else the aspect it posts, else the first file. */
-export function pickFile(files: ClipFile[], platform: string): ClipFile | null {
+export function pickFile(files: ClipFile[], platform: string, selected?: string | null): ClipFile | null {
+  // An unavailable explicit choice must never silently upload a different version.
+  if (selected) return files.find(f => f.path === selected) ?? null;
   if (!files.length) return null;
   const [base, orient = ''] = platform.split(':');
   const own = files.find((f) => f.platform && (f.platform === base || f.platform === platform || f.platform.startsWith(`${base}-`) || f.platform.startsWith(`${base}:`)));

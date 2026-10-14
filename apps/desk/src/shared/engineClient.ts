@@ -829,6 +829,7 @@ export class EngineClient {
       stats?: { views?: number; likes?: number };
       title?: string | null;
       platform_title?: string | null;
+      video_path?: string | null;
       url?: string | null;
       via?: 'assisted' | 'api' | 'manual';
     },

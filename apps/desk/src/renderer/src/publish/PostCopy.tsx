@@ -10,6 +10,8 @@ import { t } from '../i18n';
 import { platformName } from '../v4/Home';
 import { PlatformIcon } from '../v4/PlatformIcon';
 import { useUi } from '../v4/ui';
+import { useLoad } from '../lib/engine';
+import { pickFile } from '../../../shared/publish/postNow';
 import { base, overflowAt, type PostGroup } from './model';
 import type { Accounts, usePublishData } from './usePublish';
 
@@ -44,6 +46,7 @@ export function PostCopy({ rows, tab, setTab, accounts, actions, shorten }: { ro
           </button>
         ))}
       </div>
+      <PostVideo key={`v:${cur.post.id}`} post={cur.post} actions={actions} />
       {tl ? <PostTitleEdit key={`t:${cur.post.id}:${cur.post.platform_title ?? cur.post.title}`} post={cur.post} limit={tl.limit} actions={actions} /> : null}
       <CaptionEditor key={cur.post.id} post={cur.post} actions={actions} shorten={shorten} />
     </>
@@ -252,4 +255,24 @@ export function PostTitleEdit({ post, limit, actions }: { post: CalendarPost; li
       </div>
     </div>
   );
+}
+
+/** Version choice belongs to the destination post, independent of playback or other platforms. */
+function PostVideo({ post, actions }: { post: CalendarPost; actions: Actions }) {
+  const { data } = useLoad(c => c.clips(post.item), [post.item]);
+  const files = data?.clips.find(c => c.id === post.clip)?.files ?? [];
+  const [busy, setBusy] = useState(false);
+  const selected = pickFile(files, post.platform, post.video_path);
+  return <label className="pb-video">
+    <span>{t('pb.video.label')}</span>
+    <select aria-label={t('pb.video.label')} data-testid="pb-video" value={post.video_path ?? ''} disabled={busy || !data || post.state === 'posted'} onChange={async e => {
+      setBusy(true);
+      try { await actions.video(post, e.target.value || null); } finally { setBusy(false); }
+    }}>
+      <option value="">{t('pb.video.auto')}</option>
+      {post.video_path && !selected && <option value={post.video_path}>{t('pb.video.missing')}</option>}
+      {files.map(f => <option key={f.path} value={f.path}>{[f.aspect, f.platform ? platformName(f.platform.split(':')[0]) : '', f.label].filter(Boolean).join(' · ')}</option>)}
+    </select>
+    <small className="muted">{post.video_path && !selected && data ? t('pb.video.missing') : t('pb.video.keep')}</small>
+  </label>;
 }

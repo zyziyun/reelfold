@@ -44,6 +44,18 @@ class Board(unittest.TestCase):
     def posts(self):
         return self.cal.list()["posts"]
 
+    def test_explicit_video_is_per_post_and_must_exist(self):
+        posts = self.cal.add_many([dict(item=self.item, clip=A, platform=p, at="2026-10-07T20:00") for p in ("youtube", "xiaohongshu")])["posts"]
+        xhs = next(p for p in posts if p["platform"] == "xiaohongshu")
+        file = self.o.clips(self.item)["clips"][0]["files"][0]["path"]
+        self.cal.update(xhs["id"], {"video_path": file})
+        self.assertEqual(next(p for p in self.posts() if p["id"] == xhs["id"])["video_path"], file)
+        self.assertNotIn("video_path", next(p for p in self.posts() if p["platform"] == "youtube"))
+        with self.assertRaises(BadRequest):
+            self.cal.update(xhs["id"], {"video_path": "/not/a/clip.mp4"})
+        self.cal.update(xhs["id"], {"video_path": None})
+        self.assertNotIn("video_path", next(p for p in self.posts() if p["id"] == xhs["id"]))
+
     def test_schedule_many_is_one_step_and_decorated(self):
         r = self.cal.add_many([dict(item=self.item, clip=A, platform=p, at="2026-10-07T20:00") for p in ("xiaohongshu", "douyin", "x")])
         self.assertEqual(len(r["ids"]), 3)

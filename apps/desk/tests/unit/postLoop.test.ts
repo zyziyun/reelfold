@@ -247,3 +247,10 @@ describe('IPC for the loop', () => {
     expect(validateIpc('settings:set', { openAtLogin: true })).toEqual({ openAtLogin: true });
   });
 });
+
+it('an explicit horizontal video wins for Xiaohongshu; a missing choice never falls back', () => {
+ const files = [{path: '/vertical.mp4', aspect: '3:4', platform: 'xiaohongshu'}, {path: '/wide.mp4', aspect: '16:9', platform: 'youtube'}];
+ expect(pickFile(files, 'xiaohongshu', '/wide.mp4')?.path).toBe('/wide.mp4');
+ expect(pickFile(files, 'xiaohongshu', '/removed.mp4')).toBeNull();
+ expect(pickFile(files, 'xiaohongshu', null)?.path).toBe('/vertical.mp4');
+});

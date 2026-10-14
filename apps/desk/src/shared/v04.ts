@@ -988,6 +988,8 @@ export interface InboxDoc {
 // ---------------------------------------------------------------- calendar
 /** One clip on one platform at one time (the board groups a clip's rows of one day into one card). */
 export interface CalendarPost {
+  /** Explicit finished file for this post; null/unset uses platform defaults. */
+  video_path?: string | null;
   id: string;
   item: string;
   clip: string;

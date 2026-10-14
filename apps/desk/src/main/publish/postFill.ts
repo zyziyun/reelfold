@@ -93,7 +93,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
 
   const clips = await deps.client.clips(post.item);
   const clip = clips.clips.find((c) => c.id === post.clip);
-  const file = clip ? pickFile(clip.files, post.platform) : null;
+  const file = clip ? pickFile(clip.files, post.platform, post.video_path) : null;
   if (!clip || !file) return { ok: false, reason: 'no-file', detail: post.clip, adapterId: adapter.id, account };
   if (!fs.existsSync(file.path)) return { ok: false, reason: 'file-missing', detail: file.path, adapterId: adapter.id, account };
   const cover = clip.cover && fs.existsSync(clip.cover) ? clip.cover : null;

@@ -138,6 +138,7 @@ export function usePublishData() {
             ui.toast(t('pb.t.platformOn', { pf: name }), { undo: undoAdd(r.ids) });
           }
         }),
+      video: (p: CalendarPost, file: string | null) => run(() => c().updatePost(p.id, { video_path: file })),
       caption: (p: CalendarPost, text: string | null) => run(() => c().updatePost(p.id, { caption: text })),
       /** the card's title, on every row of the card (a platform's own title still wins there) - one undo */
       retitle: (g: PostGroup, title: string) =>

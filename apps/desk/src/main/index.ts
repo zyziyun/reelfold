@@ -645,7 +645,7 @@ async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitle
   if (!p) throw new Error('this post is gone from the calendar');
   const doc = await needClient().clips(p.item);
   const clip = doc.clips.find((c) => c.id === p.clip);
-  const file = clip ? pickFile(clip.files, p.platform) : null;
+  const file = clip ? pickFile(clip.files, p.platform, p.video_path) : null;
   if (!clip || !file) throw new Error('this clip has no rendered video yet');
   if (!fs.existsSync(file.path)) throw new Error(`the rendered video is missing: ${file.path}`);
   const adapter = adapterFor(p.platform.split(':')[0], adapters.adapters);

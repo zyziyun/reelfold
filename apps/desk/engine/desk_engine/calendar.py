@@ -384,6 +384,19 @@ class Calendar:
             if b.get("remove"):
                 rows = [r for r in rows if r["id"] != pid]
             else:
+                if "video_path" in b:
+                    need(row.get("state") != "posted", "a published post cannot change its video")
+                    chosen = b["video_path"]
+                    if chosen is None:
+                        row.pop("video_path", None)
+                    else:
+                        need(isinstance(chosen, str), "video_path: a finished clip file")
+                        clip = self._clips({}, row["item"]).get(row["clip"]) or {}
+                        need(any(f.get("path") == chosen for f in clip.get("files", [])) and os.path.isfile(chosen),
+                             "the selected finished video is unavailable; choose another version")
+                        row["video_path"] = chosen
+                    if row.get("state") == "filled":
+                        row["state"] = "planned"
                 if b.get("at") is not None:
                     need(isinstance(b["at"], str) and AT_RE.match(b["at"]), "at: YYYY-MM-DDTHH:MM")
                     row["at"] = b["at"]

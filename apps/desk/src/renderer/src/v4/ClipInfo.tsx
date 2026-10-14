@@ -543,8 +543,8 @@ export function ClipSchedule({ item, clip, compact = false }: { item: string; cl
 }
 
 /** which version a platform chip posts (the clip page): its shape after the name */
-function PfVersion({ pf, files }: { pf: string; files?: ClipFile[] }) {
-  const a = files?.length ? versionFor(pf, files)?.aspect : null;
+function PfVersion({ pf, files, selected }: { pf: string; files?: ClipFile[]; selected?: string | null }) {
+  const a = files?.length ? (selected ? files.find(f => f.path === selected) : versionFor(pf, files))?.aspect : null;
   return a && /^\d+:\d+$/.test(a) ? (
     <span className="ci-pf-v" title={t('ci.pfVersion', { v: a })} data-testid="ci-pf-version">
       {a}
@@ -617,7 +617,7 @@ export function ClipScheduleView({ s, compact = false, files }: { s: ClipSchedul
             >
               <PlatformIcon id={pf} size={13} />
               {platformName(pf)}
-              <PfVersion pf={pf} files={files} />
+              <PfVersion pf={pf} files={files} selected={row?.video_path} />
             </button>
           );
         })}

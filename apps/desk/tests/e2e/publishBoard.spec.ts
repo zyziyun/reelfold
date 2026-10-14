@@ -141,6 +141,14 @@ test('the drawer: time, platform off / on, caption with the counter, Shorten for
   await expect(card('B_自媒体')).toHaveAttribute('data-platforms', 'x xiaohongshu douyin');
   // a caption too long for X: counted CJK = 2, marked, a warning on the card, then shortened
   await d.locator('[data-testid="pb-ctab"][data-pf="x"]').click();
+  const video = d.locator('[data-testid=pb-video]:visible');
+  await expect(video).toBeEnabled();
+  const chosen = await video.locator('option').nth(1).getAttribute('value');
+  await video.selectOption(chosen!);
+  await expect.poll(async () => (await api<{posts: (Row & {video_path?: string})[]}>('/api/calendar')).posts.find(p => p.clip === 'B_自媒体' && p.platform === 'x')?.video_path).toBe(chosen);
+  await video.selectOption('');
+  await expect.poll(async () => (await api<{posts: (Row & {video_path?: string})[]}>('/api/calendar')).posts.find(p => p.clip === 'B_自媒体' && p.platform === 'x')?.video_path).toBeUndefined();
+
   await d.getByTestId('pb-caption').fill('再小的博主也是博主。'.repeat(20));
   await expect(d.getByTestId('pb-counter')).toContainText('400 / 280');
   await expect(card('B_自媒体').getByTestId('pb-warn')).toHaveAttribute('data-kind', 'caption_too_long', { timeout: 10000 });
