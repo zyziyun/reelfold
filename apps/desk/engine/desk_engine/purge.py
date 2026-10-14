@@ -203,10 +203,13 @@ class Purge:
         PENDING_CLIPS.clear()
         PENDING_CLIPS.update(clips)
 
-    def _publish(self):
+    def _publish(self, items=()):
         if self.bus:
             for t in ("batches", "inbox", "calendar"):
                 self.bus.publish(t)
+            for x in items:
+                if x.get("kind") == "clip":
+                    self.bus.publish("output-edit", item=x["item"], clip=x["clip"])
 
     # ------------------------------------------------------------------ the plan
     def _busy(self, d):
@@ -410,7 +413,7 @@ class Purge:
             p[pid] = rec
             write_json(self.path, p)
             self._apply_hidden()
-        self._publish()
+        self._publish(rec["items"])
         return dict(id=pid, items=rec["items"], targets=[t for x in ok for t in x["targets"]],
                     refused=[x for x in doc["items"] if not x["ok"]])
 
@@ -434,7 +437,7 @@ class Purge:
                 raise KeyError(f"no pending delete {pid}")
             write_json(self.path, p)
             self._apply_hidden()
-        self._publish()
+        self._publish(rec["items"])
         return dict(ok=True, restored=[x["key"] for x in rec["items"]])
 
     def commit(self, pid, trashed, failed=()):
@@ -454,7 +457,7 @@ class Purge:
             self._forget(done)
             write_json(self.path, p)
             self._apply_hidden()
-        self._publish()
+        self._publish(rec["items"])
         return dict(ok=True, deleted=[x["key"] for x in done], back=[dict(key=x["key"], name=x["name"]) for x in back])
 
     # ------------------------------------------------------------------ Delete permanently (hard)
@@ -477,7 +480,7 @@ class Purge:
                 failed.append(dict(key=it["key"], name=it["name"]))
         with self._lock:
             self._forget(done)
-        self._publish()
+        self._publish(done)
         return dict(ok=True, deleted=[x["key"] for x in done], failed=failed, files=sum(x["files"] for x in done),
                     bytes=sum(x["bytes"] for x in done), refused=[x for x in doc["items"] if not x["ok"]])
 

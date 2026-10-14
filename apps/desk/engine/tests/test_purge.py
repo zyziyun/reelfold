@@ -235,11 +235,15 @@ class PurgeTest(unittest.TestCase):
         self.assertEqual([x["id"] for x in self.cal._rows()], ["5" * 12])
 
     def test_soft_one_video_hidden_while_pending(self):
+        self.pg.bus = mock.Mock()
         bid = self.item_id("rag")
         doc = self.pg.plan(dict(clips=[dict(item=bid, clip="ep02")]))
         st = self.pg.stage(dict(clips=[dict(item=bid, clip="ep02")]), doc["sig"])
         self.assertEqual([c["id"] for c in OU.list_clips(self.h.find(bid))], ["ep01"])
+        self.pg.bus.publish.assert_any_call("output-edit", item=bid, clip="ep02")
+        self.pg.bus.reset_mock()
         self.pg.undo(st["id"])
+        self.pg.bus.publish.assert_any_call("output-edit", item=bid, clip="ep02")
         self.assertEqual([c["id"] for c in OU.list_clips(self.h.find(bid))], ["ep01", "ep02"])
 
     def test_requests(self):
