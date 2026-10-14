@@ -815,8 +815,12 @@ def fold(st, op):
         else:
             sh.pop(str(op["shot"]), None)
         st["shots"] = sh
-    elif k == "voiceover":                       # a narration over the clip (outvoice): one per id
-        st["voiceovers"] = [v for v in st.get("voiceovers") or [] if v["id"] != op["id"]] + [
+    elif k == "voiceover":                       # a new full narration replaces the previous full take
+        def replaced(v):
+            return v["id"] == op["id"] or (
+                op.get("mode") == v.get("mode") == "full"
+                and max(v["start"], op["start"]) < min(v["end"], op["end"]))
+        st["voiceovers"] = [v for v in st.get("voiceovers") or [] if not replaced(v)] + [
             {kk: v for kk, v in op.items() if kk not in ("op", "seq")}]
         st["seq"] = max(st["seq"], op.get("seq", 0))
     elif k == "voiceover_remove":
@@ -2640,6 +2644,8 @@ Rules:
   keep them exactly; do not propose an op that changes one unless she points at it or names it.
 - A voice-over / narration / 配音 / 旁白 / TTS request is the `voiceover` op: it does generate new speech (the
   engine's own TTS) - never answer that a narration cannot be made.
+- Redoing a full narration uses ONE `voiceover` with mode full. It replaces earlier overlapping full narrations
+  and their captions together; never duplicate its subtitles with caption_add. Use intro/span for a short addition.
 - `output.speech` says whether anyone speaks in the clip. With speech false there is no voice: never say music is
   ducked / lowered under a voice or that captions follow the speech; describe only what the ops really do.
 Return {"ops": [{"op": ..., ...}], "summary": "<one sentence, English>"}."""

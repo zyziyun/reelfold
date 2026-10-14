@@ -55,6 +55,8 @@ HyperFrames workflows (explainer, promo-recut, launch-kit) also need Node 18+ an
 | How long each platform's version is (a long cut with chapters for YouTube / B站, a short cut for Shorts / 小红书 / TikTok) | `vstudio.platform_habits` + one editable file per platform: `references/platforms/<name>.md` (references/PLATFORMS.md) |
 | 气口 / filler / 重复 / 口误 in any recording with her speech | `python -m vstudio.cleanup` (references/CLEANUP.md), inside every workflow |
 
+Second-pass narration: a new full narration replaces earlier overlapping full narrations and their subtitle track together. Use one `voiceover` op, not extra `caption_add` ops for the same words; Undo restores the earlier take. See `references/OUTPUT_EDIT.md`.
+
 Mixed jobs chain workflows (preproduction → record → talkinghead → cover → polish). Phrase table, capability index and
 library modules: [references/CAPABILITIES.md](references/CAPABILITIES.md). Full topic → post SOP: references/SOP_SHORT_VIDEO.md.
 

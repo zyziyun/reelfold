@@ -249,3 +249,34 @@ def test_an_old_step_with_a_voice_not_installed_renders_with_an_installed_one(tm
     assert v["lang"] == "en" and v["voice"]["speaker"] == "af_heart" and "not installed" in v["voice"]["reason"]
     named = VO.cast_voices(rec, ["en"], named="bm_george")["en"]
     assert named["speaker"] in ("am_michael", "af_heart") and "bm_george is not installed" in named["reason"]
+
+
+def test_redo_full_narration_replaces_old_audio_and_captions_and_undo_restores(tmp_path, clip, _iso):
+    w, oid = work(tmp_path, clip)
+    O.edit(w, oid, [dict(op="voiceover", mode="full", lines=[dict(start=3.0, text_zh="旧的旁白")])])
+    old = O.show(w, oid)["state"]["voiceovers"][0]["id"]
+    O.edit(w, oid, [dict(op="voiceover", mode="full", lines=[dict(start=3.0, text_zh="新的旁白")])])
+    rec, doc = O._load(w, oid)
+    st = doc.state()
+    assert len(st["voiceovers"]) == 1 and st["voiceovers"][0]["id"] != old
+    p = R.plan(rec, doc, st, R.targets_of(rec, st)[0], "preview")
+    assert len(p["audio"]["vo"]) == 1
+    assert [c[2] for c in p["final"]["visual"]["captions"]] == ["新的旁白"]
+    R.render(w, oid, quality="preview")
+    assert [v["text"] for v in _iso] == ["新的旁白"]
+    O.undo(w, oid)
+    assert O.show(w, oid)["state"]["voiceovers"][0]["id"] == old
+
+
+def test_redo_full_narration_also_fixes_old_logs_but_keeps_independent_spans():
+    # Old saved edits already contain two full narration ops. Folding them fixes playback without a data migration.
+    st = O.empty_state()
+    old = dict(op="voiceover", id="vo1", seq=1, mode="full", start=0, end=50, lines=[])
+    new = dict(old, id="vo2", seq=2)
+    span = dict(old, id="vo3", seq=3, mode="span", start=52, end=55)
+    for op in [old, span, new]:
+        st = O.fold(st, op)
+    assert [v["id"] for v in st["voiceovers"]] == ["vo3", "vo2"]
+    # Separate full takes covering disjoint ranges remain independent.
+    st = O.fold(st, dict(old, id="vo4", seq=4, start=55, end=60))
+    assert [v["id"] for v in st["voiceovers"]] == ["vo3", "vo2", "vo4"]
