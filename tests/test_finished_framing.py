@@ -55,7 +55,6 @@ def test_legacy_vertical_engine_refuses_false_source_preservation():
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
 def test_actual_export_keeps_source_corners_and_landscape_canvas(tmp_path, monkeypatch):
-    import cv2
     import numpy as np
     from PIL import Image
     from vstudio.batch import stages
@@ -82,8 +81,10 @@ def test_actual_export_keeps_source_corners_and_landscape_canvas(tmp_path, monke
     assert output["orientation"] == "horizontal"
     info = media.probe(output["file"])
     assert abs(info["display_w"] / info["display_h"] - 16 / 9) < .01
-    cap = cv2.VideoCapture(output["file"]); cap.set(cv2.CAP_PROP_POS_MSEC, 800)
-    ok, bgr = cap.read(); cap.release(); assert ok
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(int)
+    # FFmpeg honours the H.264 colour matrix; OpenCV's RGB conversion can ignore
+    # it, creating a false 601/709 colour mismatch in an otherwise correct export.
+    raw = subprocess.check_output([media.ffmpeg_bin(), "-v", "error", "-ss", "0.8", "-i", output["file"],
+                                   "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+    rgb = np.frombuffer(raw, np.uint8).reshape(info["display_h"], info["display_w"], 3).astype(int)
     for colour in colours:
-        assert np.any(np.all(np.abs(rgb - colour) < 30, axis=2))
+        assert np.any(np.all(np.abs(rgb - colour) < 8, axis=2))
