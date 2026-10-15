@@ -273,6 +273,8 @@ def transition_of(plan, i):
     if (cur.get("panes") or [{}])[0].get("cont"):
         return "cut"
     if tr == "mix":
+        if cur["layout"] == "macro" or prev["layout"] == "macro":
+            return "crossfade"             # a new context/scale, not a continuation punch-in
         k = sum(1 for j in range(1, i) if sc[j]["layout"] in S.FOOTAGE and sc[j - 1]["layout"] in S.FOOTAGE
                 and not sc[j]["panes"][0].get("cont"))
         return CUTS[k % len(CUTS)]

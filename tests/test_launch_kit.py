@@ -898,6 +898,44 @@ def test_launch_arc_brand_card_reel_and_chapter_chips(cfg, shots):
     assert S.plan(_long_film(cfg), shots, "demo", "en", "16:9")["arc"] == "plain"
 
 
+def test_reel_uses_same_feature_alternative_to_avoid_a_dark_pulse(tmp_path):
+    from PIL import Image
+    shots = {}
+    for sid, luma in [("before", 235), ("ui", 230), ("result", 20), ("after", 238)]:
+        still = tmp_path / f"{sid}.png"
+        Image.new("RGB", (100, 60), (luma,) * 3).save(still)
+        shots[sid] = dict(still=str(still))
+    cfg = dict(features=[dict(id="a", shot="before"), dict(id="b", shot=["ui", "result"]), dict(id="c", shot="after")])
+    panes = [dict(fid="a", sid="before"), dict(fid="b", sid="result"), dict(fid="c", sid="after")]
+    S._reel_sources(cfg, panes, shots)
+    assert [(p["fid"], p["sid"], p["k"]) for p in panes] == [("a", "before", 0), ("b", "ui", 0), ("c", "after", 0)]
+    # With similarly exposed neighbours, the intended result stays selected,
+    # and its per-shot trim uses its actual index rather than the first trim.
+    for sid in ("before", "after"):
+        Image.new("RGB", (100, 60), (25,) * 3).save(shots[sid]["still"])
+    panes[1]["sid"] = "result"
+    S._reel_sources(cfg, panes, shots)
+    assert panes[1]["sid"] == "result" and panes[1]["k"] == 1
+
+
+def test_reel_shows_a_normal_speed_result_window(cfg, shots):
+    plan = S.plan(_arc_film(cfg), shots, "demo", "en", "16:9")
+    reel = next(s for s in plan["scenes"] if s["layout"] == "reel")
+    for pane in reel["panes"]:
+        assert pane["media"]["segs"]
+        assert all(rate <= 1.0 for _, _, rate in pane["media"]["segs"])
+        assert sum((b - a) / rate for a, b, rate in pane["media"]["segs"]) <= pane["play"] + .002
+
+
+def test_new_macro_context_dissolves_but_a_continuation_stays_a_punch_in():
+    plan = dict(transition="mix", scenes=[dict(layout="float", panes=[{}]), dict(layout="macro", panes=[{}])])
+    assert CO.transition_of(plan, 1) == "crossfade"
+    plan["scenes"][1]["panes"][0]["cont"] = True
+    assert CO.transition_of(plan, 1) == "cut"
+    plan["scenes"] = [dict(layout="macro", panes=[{}]), dict(layout="float", panes=[{}])]
+    assert CO.transition_of(plan, 1) == "crossfade"
+
+
 def test_launch_arc_builds_slam_tilt_log_camera_and_foley(cfg, shots, tmp_path):
     c = _arc_film(cfg)
     p = S.plan(c, shots, "demo", "en", "16:9")

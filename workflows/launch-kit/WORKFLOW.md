@@ -163,6 +163,14 @@ whole screen. Events closer than 0.6 s share one move. Translations are clamped 
   visual container animated by the main GSAP timeline; never put a second media clock on its parent.
 - Platform glyphs need staged local fonts too, including Chinese marks in English films. Do not rely on an
   undeclared system-font fallback. Clear lint errors before treating a browser layout check as executed.
+- A reel preview shows a result window at the requested pace, not a whole operation accelerated to fit a tiny
+  slot. When a feature has multiple supplied views, the planner prefers exposure continuity without reordering
+  features; the intended result remains preferred when exposures are similar. Posters cannot establish motion
+  safety: rerender and check the final file, particularly dark examples surrounded by light UI.
+- Inspect what each recording actually shows. A filename such as “watch all” may contain a debug log rather
+  than a creator-facing workflow. Use another verified source and narrow the claim, or omit the unsupported
+  promise. Pair an actual editor/input view with its result when that explains the feature better than a lone
+  dark example. Never manufacture a result or change its colours merely to make a check pass.
 - A loop needs its last frame to be its first: the last scene crossfades into a still of the first scene's opening
   frame, and the first scene has no entrance animation.
 - Fit captions by measuring the actual font (PIL on the woff2), not by character counts: Newsreader and Noto Serif

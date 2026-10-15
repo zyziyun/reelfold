@@ -738,12 +738,15 @@ def _place_reel(cfg, s, layout, shots, xf):
     """Media + camera for each moment of a reel: the stretch of the take that ends on its result, framed a little
     in on where the screen changes and creeping in."""
     box = layout["reel"]["view"]
+    _reel_sources(cfg, s["panes"], shots)
     cuts = reel_cuts(s, xf) + [s["dur"]]
     for k, p in enumerate(s["panes"]):
         play = round(cuts[k + 1] - cuts[k], 3)
         media, shot = _pane_media(cfg, shots, p, play, "end")
-        base = TM.fit(media.pop("segs0"), play)
-        segs = TM.window(base, 0.0, play)
+        base = media.pop("segs0")
+        # A preview shows the result of a real take. Do not race four seconds
+        # of UI actions through a half-second slot at 6x to fill the reel.
+        segs = TM.window(base, max(0.0, TM.length(base) - play), TM.length(base))
         media["segs"] = segs
         media["end"] = base[-1][1] if base else media["until"]
         m0 = segs[0][0] if segs else media["end"]
@@ -754,6 +757,49 @@ def _place_reel(cfg, s, layout, shots, xf):
                  thumb=round((m0 + m1) / 2, 3) if shot["kind"] == "video" else 0.0,
                  cam=[dict(t=0.0, d=0.0, ease="none", **cam_pose(box, shot, cx, cy, 1.12)),
                       dict(t=0.0, d=play, ease="none", **cam_pose(box, shot, cx, cy, 1.2))])
+
+
+def _reel_sources(cfg, panes, shots):
+    """Prefer exposure continuity among a feature's supplied alternatives, without changing feature order.
+
+    Result shots remain preferred when exposure is similar. This poster-based choice
+    cannot prove motion safety; the rendered reel still needs temporal QC.
+    """
+    from PIL import Image
+    rows = []
+    for pane in panes:
+        candidates = []
+        ids = shot_ids(C.feature(cfg, pane["fid"]))
+        for index, sid in enumerate(ids):
+            still = (shots.get(sid) or {}).get("still")
+            if not still:
+                continue
+            try:
+                with Image.open(still) as image:
+                    values = list(image.convert("L").resize((24, 24)).getdata())
+                luma = sum(values) / len(values) / 255
+            except OSError:
+                continue
+            candidates.append((sid, index, luma))
+        if not candidates:
+            candidates = [(pane["sid"], ids.index(pane["sid"]) if pane["sid"] in ids else pane.get("k", 0), None)]
+        rows.append(candidates)
+    if not rows:
+        return
+    states = [(0.0 if candidate[0] == panes[0]["sid"] else .001, [candidate]) for candidate in rows[0]]
+    for pane, candidates in zip(panes[1:], rows[1:]):
+        nxt = []
+        for candidate in candidates:
+            sid, _, luma = candidate
+            choices = []
+            for cost, path in states:
+                prev = path[-1][2]
+                jump = (prev - luma) ** 2 if prev is not None and luma is not None else 0.0
+                choices.append((cost + jump + (0 if sid == pane["sid"] else .001), path + [candidate]))
+            nxt.append(min(choices, key=lambda row: row[0]))
+        states = nxt
+    for pane, (sid, index, _) in zip(panes, min(states, key=lambda row: row[0])[1]):
+        pane.update(sid=sid, k=index)
 
 
 def plan(cfg, shots, cut, lang, aspect, feature=None):
