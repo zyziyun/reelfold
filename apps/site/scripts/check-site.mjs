@@ -38,6 +38,11 @@ const attr = (tag, name) => (tag.match(new RegExp(`\\s${name}="([^"]*)"`)) || []
 
 let links = 0;
 for (const [url, { f, html }] of pages) {
+  // Google ownership proofs are exact plaintext protocol responses, not website pages.
+  if (/^\/google[0-9a-f]{16}\.html$/.test(url)) {
+    if (html.trim() !== `google-site-verification: ${url.slice(1)}`) err(f, 'invalid Google verification file');
+    continue;
+  }
   if (isStub(html)) continue;
   const noindex = /<meta name="robots" content="noindex"/.test(html);
   const body = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
