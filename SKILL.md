@@ -1,6 +1,7 @@
 ---
 name: video-studio
-description: Open-source one-stop workbench (开源自媒体工作台, 一站式) for creators and course makers: create from notes/Notion/a topic, edit your footage, publish to every platform (YouTube/TikTok/Instagram/X/LinkedIn, then 小红书/抖音/B站/视频号) on a calendar; hundreds per batch. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm or 卡点快节奏, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
+description: >-
+  Open-source one-stop workbench (开源自媒体工作台, 一站式) for creators and course makers: create from notes/Notion/a topic, edit your footage, publish to every platform (YouTube/TikTok/Instagram/X/LinkedIn, then 小红书/抖音/B站/视频号) on a calendar; hundreds per batch. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm or 卡点快节奏, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
 ---
 
 # video-studio
@@ -60,14 +61,20 @@ Second-pass narration: a new full narration replaces earlier overlapping full na
 Mixed jobs chain workflows (preproduction → record → talkinghead → cover → polish). Phrase table, capability index and
 library modules: [references/CAPABILITIES.md](references/CAPABILITIES.md). Full topic → post SOP: references/SOP_SHORT_VIDEO.md.
 
+For polished personal-story / expert talking-head shorts, including clips from a long recording, read
+[references/SPOKEN_EDITING.md](references/SPOKEN_EDITING.md). Selecting ranges and burning subtitles is only
+an assembly; the editorial, visual-explanation and finishing passes still need to be executed.
+
 ## 3. Rules learned from her corrections (all workflows)
-- **Speed is always applied and always said.** Use the format's speeds; hooks above 1.6x and Chinese speech above ~1.4x
-  sound fake. firstpass fails a render that is not shorter than its sources / speed.
-- **Hooks: never auto-picked.** Formats with `hooks: menu` show ~12 numbered candidates (text, type, length at hook
-  speed) and she picks the set and order; promo / explainer / vlog get no hook montage unless she asks.
-- **She decides taste-critical choices** (hooks, which sentences go, style preset, voice): a short menu with a
-  recommendation, never a silent choice. Lines naming colleagues, a boss, a company or her self-introduction are listed
-  for her before they are cut or kept.
+- **Speed is intentional and recorded.** Use the format/persona speed when appropriate; preserve 1.0x when
+  requested or when performance matters. Do not substitute blanket speed-up for editing. Hooks above 1.6x and
+  Chinese speech above ~1.4x sound fake.
+- **Hooks follow request mode.** In Ask-me-first, formats with `hooks: menu` offer candidates for her choice;
+  Autopilot selects a source-faithful opening and records why. Promo / explainer / vlog get no hook montage
+  unless requested.
+- **Request mode governs review.** Ask-me-first presents taste-critical choices (hooks, cuts, style, voice)
+  with a recommendation. Autopilot makes and records routine choices; do not add another confirmation gate.
+  Respect any specific review request for sensitive names or self-introduction.
 - **Framing**: keep the source framing; no big-face crop (a 1.7x upscale was 太丑). A finished master with burned
   captions must not be cropped blindly. Keep people fully in frame. Changing aspect means rebuilding the
   composition from original sources (shots, titles, captions), not adding black/blank borders to a finished movie.

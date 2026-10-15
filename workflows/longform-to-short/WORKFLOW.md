@@ -19,6 +19,15 @@ shared screen following the content below, captions in the platform's caption bo
 Not in scope: writing a script (the recording exists), music beds (tested and rejected for lectures — only a
 card stinger).
 
+## Personal-story and expert shorts
+
+If the source is long but the deliverable is a polished solo talking-head story, use this workflow to find
+source-verified segments, then follow [SPOKEN_EDITING](../../references/SPOKEN_EDITING.md). Do not apply the
+lecture assumptions (fixed title band, code zooms, blanket speed-up) to personal stories. Inspect burned
+subtitles before adding any; a second caption system is a delivery failure. A basic `longform-slices` batch
+only assembles cleaned ranges and exports; it currently has no semantic graphic/beat finishing stage. Use a
+supported finishing pass for premium requests and report the actual execution, not just a proposed plan.
+
 ## Setup
 
 ```bash

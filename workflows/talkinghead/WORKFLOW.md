@@ -21,6 +21,11 @@ Prereqs: `ffmpeg`, Python with `numpy opencv-python pillow soundfile mediapipe`,
 `./install.sh` for fonts + face model. Both tracks are built on `lib/vstudio` (cutting, dissolves, loudness,
 ASR, overlays, covers, publish copy); only the V-track per-frame animation engine and the cut-list logic are local.
 
+For a premium / 强剪辑 request, including a personal story excerpted from a long finished video, read
+[SPOKEN_EDITING](../../references/SPOKEN_EDITING.md) before choosing the H/V track. It adds an argument edit,
+source-aware layout/caption decision, semantic beat sheet and sound/visual finishing. Do not equate the
+basic talking-head batch's completion with completion of that premium editorial work.
+
 ## Step 0: pick the track and the style
 
 **Track**
