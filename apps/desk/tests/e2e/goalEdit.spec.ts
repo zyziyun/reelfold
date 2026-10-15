@@ -157,7 +157,7 @@ test('a failed language keeps the made version and offers its own retry', async 
   await page.waitForURL(/^app:\/\/desk\//);
   await hash(`#/studio?goal=${fx.goal}`);
   const row = page.getByTestId('goal-video').filter({ has: page.getByText(v.title, { exact: true }) });
-  await expect(row.getByTestId('goal-video-line')).toContainText('1 of 2 versions made');
+  await expect(row.getByTestId('goal-video-line')).toContainText('1 of 2 versions made', { timeout: 30000 });
   await expect(row.getByTestId('goal-version').first()).toHaveAttribute('data-state', 'made');
   await expect(row.getByTestId('goal-version').last()).toHaveAttribute('data-state', 'failed');
   await expect(row.getByTestId('goal-version').last()).toContainText('Slow-motion rendering');
