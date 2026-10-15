@@ -22,6 +22,19 @@ chinois. Open source, gratuit, et tout sur votre Mac.</p>
   <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <a href="https://reelfold.com/fr/demo/?utm_source=github&utm_medium=readme&utm_campaign=organic-discovery">
+    <img src="apps/site/public/media/reelfold-demo-en.jpg" alt="Voir la démo de 44 secondes" width="800">
+  </a>
+</p>
+
+### Essayez un parcours, puis partagez votre expérience
+
+[Créer plusieurs vidéos depuis un dossier](https://reelfold.com/docs/fr/guides/several-videos/) ·
+[Enregistrer caméra et écran](https://reelfold.com/docs/fr/guides/recording/) ·
+[Partager un résultat](https://github.com/zyziyun/reelfold/discussions/new?category=show-and-tell) ·
+[Poser une question](https://github.com/zyziyun/reelfold/discussions/new?category=q-a)
+
 - **Toute une série en une phrase.** Indiquez un dossier ou une carte SD et demandez « une douzaine de vidéos, chacune
   avec son thème ». Il regroupe les rushes en histoires, prévoit la série demandée (de 10 à 20 vidéos, par exemple)
   et la réalise en pilote automatique. Des centaines de montages d’un coup ; chaque décision est notée avec sa raison.

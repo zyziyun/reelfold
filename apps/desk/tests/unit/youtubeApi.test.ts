@@ -40,8 +40,9 @@ class FakeGoogle {
   /** scopes the consent screen grants (null: all asked) */
   grant: string[] | null = null;
   channels = [{ id: 'UC1', snippet: { title: 'Ziyun Studio' } }];
-  /** unaudited project: uploads become private */
+  /** A provider response that differs from the requested public visibility. */
   lockPrivate = false;
+  omitStatus = false;
   codes = new Map<string, { challenge: string; redirect: string; scope: string }>();
   refresh = new Map<string, string>();
   access = new Set<string>();
@@ -154,7 +155,7 @@ class FakeGoogle {
       const finish = () => {
         s.done = true;
         const privacy = this.lockPrivate ? 'private' : s.meta.status.privacyStatus;
-        return this.json(res, 201, { id: 'vid123', status: { privacyStatus: privacy, ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } });
+        return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
       };
       const incomplete = () => res.writeHead(308, s.received ? { Range: `bytes=0-${s.received - 1}` } : {}).end();
       if (range.startsWith('bytes */')) {
@@ -342,7 +343,7 @@ describe('resumable upload (fake API)', () => {
     await expect(yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null })).rejects.toThrow(/after 6 retries/);
   });
 
-  it('an expired access token is refreshed once; an unaudited project keeps it private and says so', async () => {
+  it('an expired access token is refreshed once; the provider returns private visibility', async () => {
     const { yt, dir } = await connected();
     g.access.clear(); // the cached access token is no longer valid
     g.lockPrivate = true;
@@ -352,6 +353,13 @@ describe('resumable upload (fake API)', () => {
     const r = await yt.upload('main', { file: video(dir, 1000), title: 't', description: '', tags: [], publishAt: null, privacy: 'public' });
     expect(r).toMatchObject({ privacy: 'private', lockedPrivate: true });
     expect(g.tokenRequests.filter((f) => f.get('grant_type') === 'refresh_token').length).toBe(1);
+  });
+
+  it('does not claim requested public visibility or publish time when the provider omits status', async () => {
+    const { yt, dir } = await connected();
+    g.omitStatus = true;
+    const r = await yt.upload('main', { file: video(dir, 1000), title: 't', description: '', tags: [], publishAt: new Date(Date.now() + 3600_000), privacy: 'public' });
+    expect(r).toMatchObject({ privacy: 'unknown', publishAt: null });
   });
 
   it('a thumbnail YouTube refuses or a playlist without permission: the video is up, with notes', async () => {

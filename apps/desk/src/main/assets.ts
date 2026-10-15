@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { groupsFor, safeRel, type AssetGroup, type AssetManifest, type AssetsStatusMsg } from '../shared/assets';
 
 const MARKER = '.installed.json';
@@ -416,8 +417,24 @@ export class AssetManager {
     }
     if (have === size) return onBytes(have);
     const f = this.o.fetchImpl ?? fetch;
-    const res = await f(url, { signal, redirect: 'follow', headers: have ? { Range: `bytes=${have}-` } : {} });
-    if (!res.ok || !res.body) throw new Error(`download failed: HTTP ${res.status} for ${new URL(url).host}`);
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await f(url, { signal, redirect: 'follow', headers: have ? { Range: `bytes=${have}-` } : {} });
+      if (![429, 503].includes(res.status) || attempt === 3) break;
+      const retryAfter = res.headers.get('retry-after');
+      const seconds = retryAfter && /^\d+$/.test(retryAfter.trim()) ? Number(retryAfter) : NaN;
+      const date = retryAfter ? Date.parse(retryAfter) : NaN;
+      const wait = Number.isFinite(seconds) ? seconds * 1000 : Number.isFinite(date) ? date - Date.now() : 5000 * 2 ** attempt;
+      // Do not retry earlier than requested when a server asks for a longer pause.
+      if (wait > 120_000) break;
+      await res.body?.cancel();
+      this.o.log?.(`[assets] HTTP ${res.status} for ${new URL(url).host}; retry ${attempt + 1}/3`);
+      await delay(Math.max(1000, wait), undefined, { signal });
+    }
+    if (!res.ok || !res.body) {
+      await res.body?.cancel();
+      throw new Error(`download failed: HTTP ${res.status} for ${new URL(url).host}`);
+    }
     if (have && res.status !== 206) have = 0; // server ignored the range: start over
     const out = fs.createWriteStream(file, { flags: have ? 'a' : 'w' });
     // a write error (disk full, folder removed) must reject this download, never surface as an uncaught 'error'

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Copy, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
-import { shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
+import { apiDeliveryState, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtDate, t } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -320,7 +320,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
       <div className={`pl-card ${r.lockedPrivate ? 'warn' : 'ok'}`} data-testid="ytp-done" data-privacy={r.privacy} data-locked={r.lockedPrivate}>
         {r.lockedPrivate ? <TriangleAlert className="ico" /> : <CheckCircle2 className="ico" />}
         <div className="col" style={{ gap: 6 }}>
-          <b>{r.publishAt && !r.lockedPrivate ? t('ytp.done.scheduled', { when: fmtDate(r.publishAt, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }) : r.privacy === 'public' ? t('ytp.done.now') : t('ytp.done.private', { privacy: t(`ytp.f.${r.privacy}` as MessageKey) })}</b>
+          <b>{apiDeliveryState(r) === 'scheduled' ? t('ytp.done.scheduled', { when: fmtDate(r.publishAt!, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }) : r.privacy === 'public' ? t('ytp.done.now') : t('ytp.done.private', { privacy: t(`ytp.f.${['public', 'private', 'unlisted'].includes(r.privacy) ? r.privacy : 'unknown'}` as MessageKey) })}</b>
           {r.lockedPrivate && <span className="small">{t('ytp.locked')}</span>}
           {r.warnings.length > 0 && <span className="muted small">{t('ytp.notes', { list: r.warnings.join(' · ') })}</span>}
           <button className="pb-link" onClick={() => void window.desk.openExternal(r.url)} data-testid="ytp-url">

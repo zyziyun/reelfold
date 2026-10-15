@@ -14,9 +14,24 @@ const sha = crypto.createHash('sha256').update(body).digest('hex');
 let server: http.Server;
 let base = '';
 let rangeRequests = 0;
+const retries = new Map<string, number>();
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
+    if (req.url?.startsWith('/busy')) {
+      const n = (retries.get(req.url) ?? 0) + 1;
+      retries.set(req.url, n);
+      if (req.url === '/busy-long' || n === 1) {
+        return void res.writeHead(503, { 'retry-after': req.url === '/busy-long' ? '1200' : new Date(Date.now() + 1000).toUTCString() }).end();
+      }
+    }
+    if (req.url?.startsWith('/limited')) {
+      const n = (retries.get(req.url) ?? 0) + 1;
+      retries.set(req.url, n);
+      if (req.url !== '/limited-once' || n === 1) {
+        return void res.writeHead(429, { 'retry-after': req.url === '/limited-cancel' ? '60' : '0' }).end();
+      }
+    }
     if (req.url === '/missing') return void res.writeHead(404).end();
     if (req.url === '/slow') {
       res.writeHead(200, { 'content-length': body.length });
@@ -95,6 +110,56 @@ describe('AssetManager', () => {
   it('reports HTTP errors per group', async () => {
     const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/missing`, dest: 'a', sha256: sha, size: 1 }] }), dir: tmp(), target: 'x' });
     expect((await m.install()).groups[0].error).toMatch(/HTTP 404/);
+  });
+
+  it('waits and resumes the same verified file after a rate limit', async () => {
+    const dir = tmp();
+    const staging = path.join(dir, '.downloads', 'core');
+    fs.mkdirSync(staging, { recursive: true });
+    fs.writeFileSync(path.join(staging, `${sha}.part`), body.subarray(0, 1000));
+    const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/limited-once`, dest: 'a', sha256: sha, size: body.length }] }), dir, target: 'x' });
+    const started = Date.now();
+    expect((await m.install()).groups[0].installed).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(950);
+    expect(retries.get('/limited-once')).toBe(2);
+    expect(fs.readFileSync(path.join(dir, 'vstudio-cache', 'a')).equals(body)).toBe(true);
+  });
+
+  it('bounds rate-limit retries and leaves the group available for manual retry', async () => {
+    const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/limited-always`, dest: 'a', sha256: sha, size: body.length }] }), dir: tmp(), target: 'x' });
+    const st = await m.install();
+    expect(st.groups[0].error).toMatch(/HTTP 429/);
+    expect(st.groups[0].installed).toBe(false);
+    expect(retries.get('/limited-always')).toBe(4);
+    expect(m.busy).toBe(false);
+  });
+
+  it('cancels a server-requested retry wait immediately', async () => {
+    let paused!: () => void;
+    const waiting = new Promise<void>((r) => { paused = r; });
+    const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/limited-cancel`, dest: 'a', sha256: sha, size: body.length }] }), dir: tmp(), target: 'x', log: (s) => { if (s.includes('retry 1/3')) paused(); } });
+    const install = m.install();
+    await waiting;
+    m.cancel();
+    await install;
+    expect(retries.get('/limited-cancel')).toBe(1);
+    expect(m.busy).toBe(false);
+    expect(m.status().groups[0].installed).toBe(false);
+  });
+
+  it('accepts an HTTP-date retry time for a temporarily unavailable source', async () => {
+    const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/busy-once`, dest: 'a', sha256: sha, size: body.length }] }), dir: tmp(), target: 'x' });
+    const started = Date.now();
+    expect((await m.install()).groups[0].installed).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(950);
+    expect(retries.get('/busy-once')).toBe(2);
+  });
+
+  it('reports long server cooldowns without retrying earlier than requested', async () => {
+    const m = new AssetManager({ manifest: manifest({ files: [{ url: `${base}/busy-long`, dest: 'a', sha256: sha, size: body.length }] }), dir: tmp(), target: 'x' });
+    expect((await m.install()).groups[0].error).toMatch(/HTTP 503/);
+    expect(retries.get('/busy-long')).toBe(1);
+    expect(m.busy).toBe(false);
   });
 
   it('queues groups in the background: install never throws while busy, cancel(id) drops one, onIdle once', async () => {

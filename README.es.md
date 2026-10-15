@@ -22,6 +22,19 @@ Código abierto, gratis y todo en tu Mac.</p>
   <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <a href="https://reelfold.com/es/demo/?utm_source=github&utm_medium=readme&utm_campaign=organic-discovery">
+    <img src="apps/site/public/media/reelfold-demo-en.jpg" alt="Ver la demo de 44 segundos" width="800">
+  </a>
+</p>
+
+### Prueba un flujo y comparte tu experiencia
+
+[Crear varios vídeos desde una carpeta](https://reelfold.com/docs/es/guides/several-videos/) ·
+[Grabar cámara y pantalla](https://reelfold.com/docs/es/guides/recording/) ·
+[Compartir un resultado](https://github.com/zyziyun/reelfold/discussions/new?category=show-and-tell) ·
+[Hacer una pregunta](https://github.com/zyziyun/reelfold/discussions/new?category=q-a)
+
 - **Toda una serie con una frase.** Indica una carpeta o una tarjeta SD y pide «unos 12 vídeos, cada uno con su tema».
   Agrupa el material en historias, planifica la serie que pediste (de 10 a 20 vídeos, por ejemplo) y la hace en piloto
   automático. Cientos de ediciones de una vez; cada decisión queda anotada con su motivo.

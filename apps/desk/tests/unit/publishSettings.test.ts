@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CalendarPost, SchedulePlan } from '../../src/shared/v04';
 import { setLang } from '../../src/renderer/src/i18n';
-import { groupPosts, groupStatus, overflowAt, postCount, parseWhen, queueByProject, weekStart } from '../../src/renderer/src/publish/model';
+import { duplicatePosts, groupPosts, groupStatus, overflowAt, postCount, parseWhen, queueByProject, weekStart } from '../../src/renderer/src/publish/model';
 import { daysText, planSummary } from '../../src/renderer/src/publish/NlBar';
 import { registerSettingsSection, settingsSections } from '../../src/renderer/src/settings/registry';
 import { engineWords, pythonWords } from '../../src/renderer/src/settings/words';
@@ -15,6 +15,26 @@ const P = (o: Partial<CalendarPost>): CalendarPost => ({ id: Math.random().toStr
 afterEach(() => setLang('en'));
 
 describe('publish board model', () => {
+  it('duplicates her file, account and custom copy as a new draft, without old publication data', () => {
+    const source = P({ at: '2026-12-31T20:30', account: 'brand', video_path: '/clip/youtube.mp4',
+      caption: '', caption_custom: true, platform_title: 'My title', title_custom: true,
+      state: 'uploaded', via: 'api', url: 'https://youtu.be/old', stats: { views: 12 },
+      api_result: { url: 'https://youtu.be/old', privacy: 'private', publishAt: null, lockedPrivate: false, warnings: [] } });
+    const g = groupPosts([source, P({ enabled: false, platform: 'x', at: source.at })])[0];
+    for (const [days, date] of [[1, '2027-01-01'], [7, '2027-01-07']] as const) {
+      expect(duplicatePosts(g, days)).toEqual([{ item: source.item, clip: source.clip, platform: source.platform,
+        at: `${date}T20:30`, account: 'brand', video_path: '/clip/youtube.mp4', caption: '', platform_title: 'My title' }]);
+    }
+  });
+
+  it('keeps inherited copy and title inherited so future clip edits still apply', () => {
+    const g = groupPosts([P({ caption: 'effective text', caption_custom: false, platform_title: 'effective title', title_custom: false })])[0];
+    const [copy] = duplicatePosts(g, 1);
+    expect(copy).not.toHaveProperty('caption');
+    expect(copy).not.toHaveProperty('platform_title');
+    expect(copy).not.toHaveProperty('video_path');
+  });
+
   it('one card per clip per day; earliest switched-on time; platforms in account order; warnings of switched-on rows', () => {
     const g = groupPosts(
       [
@@ -44,6 +64,9 @@ describe('publish board model', () => {
     expect(groupStatus([P({ state: 'ready' }), P({ state: 'planned' })])).toBe('draft');
     expect(groupStatus([P({ state: 'planned', enabled: false }), P({ state: 'ready' })])).toBe('ready');
     expect(groupStatus([P({ status: 'filled' })])).toBe('filled');
+    expect(groupStatus([P({ state: 'scheduled' }), P({ state: 'posted' })])).toBe('scheduled');
+    expect(groupStatus([P({ state: 'uploaded' }), P({ state: 'scheduled' })])).toBe('uploaded');
+    expect(groupStatus([P({ state: 'ready' }), P({ state: 'scheduled' })])).toBe('ready');
   });
 
   it('queue grouped by project in order', () => {

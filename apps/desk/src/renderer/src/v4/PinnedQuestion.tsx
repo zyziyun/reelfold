@@ -21,6 +21,7 @@ export function PinnedQuestion({
   onSkip,
   words,
   onPreviewCuts,
+  primary = true,
 }: {
   item: InboxItem;
   items: InboxItem[];
@@ -30,6 +31,7 @@ export function PinnedQuestion({
   /** the clip's words: a ticked filler cut that is still in the clip is found there and skipped in the preview */
   words?: { w: string; t: number; te: number }[];
   onPreviewCuts?: (spans: [number, number][]) => void;
+  primary?: boolean;
 }) {
   const opts = useMemo(() => item.options ?? [], [item.options]);
   const triage = useTriageState();
@@ -60,6 +62,7 @@ export function PinnedQuestion({
   const ref = useRef(confirm);
   ref.current = confirm;
   useEffect(() => {
+    if (!primary) return;
     const on = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.key !== 'Enter') return;
       if (document.querySelector('.scrim, .ctx')) return;
@@ -69,7 +72,7 @@ export function PinnedQuestion({
     };
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
-  }, []);
+  }, [primary]);
   const cuts = item.kind === 'confirm' || item.kind === 'filler-confirm';
   // a run / remake that stopped is not a question: its own words (which step, why) and Try again, never Confirm
   if (item.failure) {
@@ -92,7 +95,7 @@ export function PinnedQuestion({
             </button>
           )}
           <span className="sp" />
-          {item.project.id && <FailureActions item={item.project.id} failure={item.failure} primary only />}
+          {item.project.id && <FailureActions item={item.project.id} failure={item.failure} primary={primary} only />}
         </div>
       </div>
     );
@@ -142,10 +145,10 @@ export function PinnedQuestion({
           </button>
         )}
         <span className="sp" />
-        <button className="btn primary" onClick={() => void confirm()} data-testid="pin-confirm">
+        <button className={`btn ${primary ? 'primary' : ''}`} onClick={() => void confirm()} data-testid="pin-confirm">
           <Check className="ico" />
           {triage ? t('pin.confirmNext') : t('pin.confirm')}
-          <span className="kbd on">↵</span>
+          {primary && <span className="kbd on">↵</span>}
         </button>
       </div>
     </div>

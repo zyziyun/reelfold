@@ -2,6 +2,7 @@
 // Where (one switch per connected platform with its account + own time + problem), Caption (a tab per platform with
 // the counter, the overflow marked, "Shorten for X"), Back to queue (unschedule, undo; files never touched),
 // Duplicate…, Done.
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Clock, Copy, CornerUpLeft, ExternalLink, Plus, Send, X } from 'lucide-react';
 import type { CalendarPost } from '../../../shared/v04';
@@ -13,7 +14,7 @@ import { ClipThumbLink, PostLink } from '../v4/kit';
 import { clipHref } from '../lib/nav';
 import { useUi } from '../v4/ui';
 import { StatusMark } from './Board';
-import { addDays, base, dayOf, iso, parseWhen, sortIds, type PostGroup } from './model';
+import { addDays, base, dayOf, duplicatePosts, parseWhen, sortIds, type PostGroup } from './model';
 import type { Accounts } from './usePublish';
 import { firstTab, PostCopy, TitleEdit, titleLimitsOf, type Actions, type Shorten } from './PostCopy';
 
@@ -73,15 +74,15 @@ export function PostDrawer({
     void actions.retime(g, w.day ?? g.day, w.time).then(() => onMoved(w.day ?? g.day));
   };
   const publishNow = (e: React.MouseEvent) => {
-    const pending = g.on.filter((p) => p.state !== 'posted');
+    const pending = g.on.filter((p) => !postDelivered(p));
     const open = (p: CalendarPost) => { location.hash = `${href({ name: 'postNow', id: p.id })}?now=1`; };
     if (pending.length === 1) return open(pending[0]);
     ui.menu(e, pending.map((p) => ({ label: platformName(base(p.platform)), icon: <PlatformIcon id={base(p.platform)} size={14} />, run: () => open(p), testId: `pb-now-${base(p.platform)}` })));
   };
   const dup = (e: React.MouseEvent) =>
     ui.menu(e, [
-      { label: t('pb.d.dupTomorrow'), run: () => actions.add(g.on.map((p) => ({ item: g.item, clip: g.clip, platform: p.platform, account: p.account, at: `${iso(addDays(dayOf(p.at), 1))}${p.at.slice(10)}` })), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 1)) })), testId: 'pb-dup-tomorrow' },
-      { label: t('pb.d.dupNextWeek'), run: () => actions.add(g.on.map((p) => ({ item: g.item, clip: g.clip, platform: p.platform, account: p.account, at: `${iso(addDays(dayOf(p.at), 7))}${p.at.slice(10)}` })), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 7)) })), testId: 'pb-dup-week' },
+      { label: t('pb.d.dupTomorrow'), run: () => actions.add(duplicatePosts(g, 1), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 1)) })), testId: 'pb-dup-tomorrow' },
+      { label: t('pb.d.dupNextWeek'), run: () => actions.add(duplicatePosts(g, 7), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 7)) })), testId: 'pb-dup-week' },
       ...accounts.connected
         .filter((pf) => !g.platforms.includes(pf))
         .map((pf) => ({ label: t('pb.d.dupOn', { pf: platformName(pf) }), icon: <PlatformIcon id={pf} size={14} />, run: () => actions.togglePlatform(g, pf, true, `${g.day}T${accounts.timeOf(pf)}`, platformName(pf)) })),
@@ -117,7 +118,7 @@ export function PostDrawer({
                 {t('pub.openClip')}
               </a>
               {g.on
-                .filter((p) => p.state === 'posted' && p.url)
+                .filter((p) => postDelivered(p) && p.url)
                 .map((p) => (
                   <span key={p.id} className="row" style={{ gap: 4 }}>
                     <PlatformIcon id={p.platform.split(':')[0]} size={14} />
@@ -135,7 +136,7 @@ export function PostDrawer({
             <input
               type="date"
               aria-label={t('pb.d.date')}
-              value={g.day}
+              disabled={g.posts.some(postDelivered)} value={g.day}
               onChange={(e) => {
                 const d = e.target.value;
                 if (d) void actions.retime(g, d).then(() => onMoved(d));
@@ -145,19 +146,19 @@ export function PostDrawer({
           </label>
           <label className="pb-field narrow">
             <Clock className="ico" />
-            <input type="time" aria-label={t('pb.d.time')} value={g.time} onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && void actions.retime(g, g.day, e.target.value)} data-testid="pb-time" />
+            <input type="time" aria-label={t('pb.d.time')} disabled={g.posts.some(postDelivered)} value={g.time} onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && void actions.retime(g, g.day, e.target.value)} data-testid="pb-time" />
           </label>
         </div>
         <input
           className={`input pb-typed ${typedErr ? 'bad' : ''}`}
           placeholder={t('pb.d.typePh')}
-          value={typed}
+          disabled={g.posts.some(postDelivered)} value={typed}
           onChange={(e) => (setTyped(e.target.value), setTypedErr(false))}
           onKeyDown={(e) => e.key === 'Enter' && typed.trim() && applyTyped()}
           aria-label={t('pb.d.typePh')}
           data-testid="pb-typed"
         />
-        <p className="pb-hint">{typedErr ? <span className="pb-amber">{t('pb.d.notUnderstood')}</span> : t('pb.d.typeIt')}</p>
+        <p className="pb-hint">{g.posts.some(postDelivered) ? t('pl.post.remoteEdit') : typedErr ? <span className="pb-amber">{t('pb.d.notUnderstood')}</span> : t('pb.d.typeIt')}</p>
 
         <h4>{t('pb.d.where')}</h4>
         <div className="pb-where">
@@ -181,7 +182,7 @@ export function PostDrawer({
                     <input
                       type="time"
                       className={`pb-tinput num ${clash ? 'clash' : ''}`}
-                      value={post!.at.slice(11, 16)}
+                      disabled={postDelivered(post!)} value={post!.at.slice(11, 16)}
                       onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && void actions.setPostTime(post!, e.target.value)}
                       aria-label={`${platformName(pf)} ${t('pb.d.time')}`}
                       title={clash ? t('pb.d.clash') : undefined}
@@ -196,7 +197,7 @@ export function PostDrawer({
                   aria-checked={on}
                   aria-label={platformName(pf)}
                   className={`tgl ${on ? 'on' : ''}`}
-                  disabled={post?.state === 'posted'}
+                  disabled={!!post && postDelivered(post)}
                   onClick={() => void actions.togglePlatform(g, pf, !on, `${g.day}T${accounts.timeOf(pf)}`, platformName(pf))}
                   data-testid="pb-where-toggle"
                 >
@@ -219,7 +220,7 @@ export function PostDrawer({
             <PostCopy rows={onRows} tab={tab} setTab={setTab} accounts={accounts} actions={actions} shorten={shorten} />
           </>
         )}
-        {g.on.some((p) => p.state !== 'posted') && (
+        {g.on.some((p) => !postDelivered(p)) && (
           <p className="pb-hint" style={{ marginTop: 16 }}>
             <button className="pb-link" onClick={() => go({ name: 'publish', batch: g.item })}>
               {t('pb.d.fill')}
@@ -241,7 +242,7 @@ export function PostDrawer({
           {t('pb.d.duplicate')}
         </button>
         <span className="sp" />
-        {g.on.some((p) => p.state !== 'posted') && (
+        {g.on.some((p) => !postDelivered(p)) && (
           <button className="btn primary" onClick={publishNow} data-testid="pb-publish-now">
             <Send className="ico" />{t('pb.d.publishNow')}
           </button>

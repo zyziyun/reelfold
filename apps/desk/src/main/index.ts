@@ -33,7 +33,7 @@ import { PublishScheduler, type ApiUpload } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
 import { postAccount } from '../shared/publish/account';
-import { API_PLATFORMS, apiOnly, BROWSER_UPLOAD_URL, type ApiStatusMsg, type PostPackageMsg } from '../shared/publish/apiPlatforms';
+import { API_PLATFORMS, apiDeliveryState, postDelivered, apiOnly, BROWSER_UPLOAD_URL, type ApiStatusMsg, type PostPackageMsg } from '../shared/publish/apiPlatforms';
 import { PLATFORMS } from '../shared/platforms';
 import type { CalendarPost } from '../shared/v04';
 import { findBundledRuntime, runtimeEnv, type BundledRuntime } from './runtime';
@@ -705,9 +705,9 @@ function startScheduler() {
       win?.webContents.send('publish:due', { ids: due.map((p) => p.id) });
       tray?.update(due);
     },
-    markPosted: async (p, url, via) => {
-      await needClient().updatePost(p.id, { ...(p.account ? { account: p.account } : {}), state: 'posted', via, ...(url ? { url } : {}) });
-      win?.webContents.send('publish:posted', { postId: p.id, url });
+    markPosted: async (p, url, via, result) => {
+      await needClient().updatePost(p.id, { ...(p.account ? { account: p.account } : {}), state: result ? apiDeliveryState(result) : 'posted', via, ...(result ? { api_result: result } : {}), ...(url ? { url } : {}) });
+      win?.webContents.send('publish:posted', { postId: p.id, url, result });
     },
     api: {
       wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(p),
@@ -1076,7 +1076,7 @@ function registerIpc() {
   handle('publish:ytPublish', async (p) => {
     noYouTubeApiInLite();
     const row = (await needClient().calendar(undefined, { queue: false })).posts.find((post) => post.id === p.postId);
-    if (!row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) || row.state === 'posted' || postAccount(ytAccounts(), row.account) !== p.account) throw new Error('choose the publishing account for this post first');
+    if (!row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) || postDelivered(row) || postAccount(ytAccounts(), row.account) !== p.account) throw new Error('choose the publishing account for this post first');
     if (!ytAccounts().includes(p.account)) throw new Error('unknown YouTube account');
     if (!youtube.accountStatus(p.account).connected) throw new Error('YouTube is not connected: sign in with Google in your browser first');
     const pkg = await postPackage(p.postId);

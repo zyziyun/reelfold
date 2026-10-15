@@ -1,6 +1,7 @@
 // The calendar part of the publish board: week columns (one card per clip per day, bold time, cover, title,
 // platform marks, one calm status, the first problem in amber), clickable empty slots at the account's usual time,
 // the month grid, and the dashed cards of a one-sentence plan.
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, Plus } from 'lucide-react';
 import type { PostWarning, QueueClip } from '../../../shared/v04';
@@ -61,7 +62,7 @@ export function PostCard({ g, selected, onOpen }: { g: PostGroup; selected: bool
   return (
     <div
       className={`pc ${g.status} ${selected ? 'sel' : ''}`}
-      draggable={g.status !== 'posted'}
+      draggable={!g.posts.some(postDelivered)}
       onDragStart={(e) => {
         e.dataTransfer.setData(DRAG, JSON.stringify({ group: g.key }));
         e.dataTransfer.effectAllowed = 'move';
@@ -225,7 +226,7 @@ export function MonthGrid({ month, today, groups, freeTime, onOpen, onDrop, onFr
           >
             <span className={`pb-mn num ${day === today ? 'today' : ''}`}>{d.getDate()}</span>
             {mine.slice(0, 3).map((g) => (
-              <button key={g.key} className={`pb-ml ${g.status}`} onClick={() => onOpen(g)} draggable={g.status !== 'posted'} onDragStart={(e) => e.dataTransfer.setData(DRAG, JSON.stringify({ group: g.key }))} data-testid="pub-post" data-group={g.key} title={g.title}>
+              <button key={g.key} className={`pb-ml ${g.status}`} onClick={() => onOpen(g)} draggable={!g.posts.some(postDelivered)} onDragStart={(e) => e.dataTransfer.setData(DRAG, JSON.stringify({ group: g.key }))} data-testid="pub-post" data-group={g.key} title={g.title}>
                 {g.cover ? <img src={media(g.cover)} alt="" /> : <i className="ph" />}
                 <b className="num">{g.time}</b>
                 <span className="clamp1" lang="zh-CN">

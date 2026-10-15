@@ -330,3 +330,6 @@
 
 .pb-video { display: grid; gap: 8px; margin: 16px 0; min-width: 0; }
 .pb-video select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
+
+.pb .pb-st.uploaded, .pb .pb-st.scheduled { color: var(--run); }
+.pb .pb-st.uploaded > i, .pb .pb-st.scheduled > i { background: var(--run); }

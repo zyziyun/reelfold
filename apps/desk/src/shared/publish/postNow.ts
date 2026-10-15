@@ -1,5 +1,6 @@
 // Closing the loop for one scheduled post (发布 board row): which posts are due, which rendered file goes to the
 // platform, and what text the upload form gets. Pure functions (unit-tested in tests/unit/postLoop.test.ts).
+import { postDelivered } from './apiPlatforms';
 import type { CalendarPost, ClipFile } from '../v04';
 import { parsePostCopy, type PostCopy } from './postCopy';
 
@@ -16,7 +17,7 @@ export function localDate(at: string): Date {
 export function duePosts(posts: CalendarPost[], now: Date, maxAgeDays = 14): CalendarPost[] {
   const t = now.getTime();
   return posts
-    .filter((p) => p.enabled !== false && p.state !== 'posted')
+    .filter((p) => p.enabled !== false && !postDelivered(p))
     .filter((p) => {
       const at = localDate(p.at).getTime();
       return at <= t && t - at <= maxAgeDays * 86400_000;
@@ -28,7 +29,7 @@ export function duePosts(posts: CalendarPost[], now: Date, maxAgeDays = 14): Cal
 export function upcomingPosts(posts: CalendarPost[], now: Date, withinMs: number): CalendarPost[] {
   const t = now.getTime();
   return posts.filter((p) => {
-    if (p.enabled === false || p.state === 'posted') return false;
+    if (p.enabled === false || postDelivered(p)) return false;
     const at = localDate(p.at).getTime();
     return at > t && at - t <= withinMs;
   });

@@ -317,6 +317,32 @@ def check_quarantine(root, log):
 
 # ------------------------------------------------------------------------------------------------------------- asar
 ASAR_TOP = {"out", "package.json", "node_modules"}
+# Reviewed app uses, not a general list of every reason Apple permits. Update this with a new API use.
+# https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype
+REQUIRED_API_REASONS = {
+    "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1", "3B52.1"},  # own container + user-selected files
+    "NSPrivacyAccessedAPICategorySystemBootTime": {"35F9.1"},          # elapsed-time measurements
+    "NSPrivacyAccessedAPICategoryDiskSpace": {"E174.1"},             # capacity before downloads/renders
+    "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},          # own preferences
+}
+
+
+def required_api_problems(accessed):
+    if not isinstance(accessed, list) or len(accessed) != len(REQUIRED_API_REASONS) or \
+            any(not isinstance(item, dict) for item in accessed):
+        return ["required-reason API declarations must cover the four reviewed app categories"]
+    categories = [item.get("NSPrivacyAccessedAPIType") for item in accessed]
+    if any(not isinstance(c, str) for c in categories) or set(categories) != set(REQUIRED_API_REASONS):
+        return ["required-reason API categories must be unique and match the reviewed app uses"]
+    errors = []
+    for item in accessed:
+        category = item["NSPrivacyAccessedAPIType"]
+        reasons = item.get("NSPrivacyAccessedAPITypeReasons")
+        expected = REQUIRED_API_REASONS[category]
+        if not isinstance(reasons, list) or any(not isinstance(r, str) for r in reasons) or \
+                len(reasons) != len(expected) or set(reasons) != expected:
+            errors.append(f"{category} must declare the reviewed reasons {sorted(expected)}")
+    return errors
 
 
 def asar_header(path):
@@ -394,8 +420,8 @@ def check_bundle(root, unsigned, mac_dir, log):
                         item.get("NSPrivacyCollectedDataTypeLinked") is not True or \
                         item.get("NSPrivacyCollectedDataTypePurposes") != ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]:
                     fail(privacy_path, "AI content must declare account linkage, app functionality and no tracking")
-        if not isinstance(privacy.get("NSPrivacyAccessedAPITypes"), list):
-            fail(privacy_path, "missing required-reason API declarations")
+        for message in required_api_problems(privacy.get("NSPrivacyAccessedAPITypes")):
+            fail(privacy_path, message)
     except (OSError, ValueError, plistlib.InvalidFileException) as e:
         fail(privacy_path, f"missing or invalid privacy manifest: {e}")
     for item in ("Squirrel.framework", "Mantle.framework", "ReactiveObjC.framework"):

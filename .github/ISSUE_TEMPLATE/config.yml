@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Share a workflow
+    url: https://github.com/zyziyun/reelfold/discussions/new?category=show-and-tell
+    about: Show what you made, the steps you used, and what could be better.
   - name: Question or idea
     url: https://github.com/zyziyun/reelfold/discussions
     about: Ask how to do something, share a result, or float an idea before it becomes a feature request.

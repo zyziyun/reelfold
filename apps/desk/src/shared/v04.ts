@@ -1,6 +1,7 @@
 // v0.4 engine documents: outputs (player + second-pass editor), intake (composer -> plan card), inbox, calendar.
 // Mirrors engine/desk_engine/{outputs,intake,inbox,calendar}.py.
 
+import type { YtPublishResult } from './publish/apiPlatforms';
 import type { ImportedDoc } from './imports';
 
 export type Aspect = '3:4' | '9:16' | '16:9' | string;
@@ -1000,9 +1001,9 @@ export interface CalendarPost {
   platform: string;
   at: string;
   /** planned = draft; filled = the upload form is filled, waiting for her to press publish */
-  state: 'planned' | 'ready' | 'filled' | 'posted';
+  state: 'planned' | 'ready' | 'filled' | 'uploaded' | 'scheduled' | 'posted';
   // decorated by the engine (older engines leave them out)
-  status?: 'draft' | 'ready' | 'filled' | 'posted';
+  status?: 'draft' | 'ready' | 'filled' | 'uploaded' | 'scheduled' | 'posted';
   enabled?: boolean;
   /** her text for this platform, else the clip's post copy */
   caption?: string;
@@ -1024,6 +1025,8 @@ export interface CalendarPost {
    * official API, or marked by hand) */
   url?: string;
   posted_at?: string;
+  /** Last confirmed official API response, retained across restarts. */
+  api_result?: YtPublishResult;
   via?: 'assisted' | 'api' | 'manual';
 }
 
@@ -1049,6 +1052,8 @@ export interface QueueClip {
 
 export interface NewPost {
   account?: string | null;
+  video_path?: string | null;
+  platform_title?: string;
   item: string;
   clip: string;
   platform: string;

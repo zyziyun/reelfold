@@ -1,4 +1,5 @@
 // Publish board state + every create / read / update / delete action, each with one undo (toast).
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import { useCallback, useMemo } from 'react';
 import type { CalendarPost, NewPost } from '../../../shared/v04';
 import type { ChannelMsg } from '../../../shared/channels';
@@ -90,6 +91,7 @@ export function usePublishData() {
       moveGroup: (g: PostGroup, day: string) =>
         run(async () => {
           if (g.day === day) return;
+          if (g.posts.some(postDelivered)) throw new Error(t('pl.post.remoteEdit'));
           const before = g.posts.map((p) => [p.id, p.at] as const);
           for (const p of g.posts) await c().updatePost(p.id, { at: `${day}${p.at.slice(10)}` });
           ui.toast(t('pb.t.moved', { date: fmtDate(`${day}T12:00`, { weekday: 'short', month: 'short', day: 'numeric' }) }), {
@@ -102,6 +104,7 @@ export function usePublishData() {
       /** date and / or time for a card (time: every switched-on platform gets it) */
       retime: (g: PostGroup, day: string, time?: string) =>
         run(async () => {
+          if (g.posts.some(postDelivered)) throw new Error(t('pl.post.remoteEdit'));
           const before = g.posts.map((p) => [p.id, p.at] as const);
           for (const p of g.posts) {
             const at = `${day}T${time && p.enabled !== false ? time : p.at.slice(11, 16)}`;

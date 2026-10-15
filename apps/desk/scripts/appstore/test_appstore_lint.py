@@ -294,6 +294,37 @@ class BundleTest(unittest.TestCase):
             plistlib.dump(data, f)
         self.assertIn('account linkage', str(self.check()))
 
+    def test_required_api_declarations_cannot_be_empty_or_malformed(self):
+        manifest = os.path.join(self.res, 'PrivacyInfo.xcprivacy')
+        with open(manifest, 'rb') as f:
+            data = plistlib.load(f)
+        for value in ([], {}, ['not a declaration']):
+            with self.subTest(value=value):
+                data['NSPrivacyAccessedAPITypes'] = value
+                with open(manifest, 'wb') as f:
+                    plistlib.dump(data, f)
+                self.assertIn('required-reason API', str(self.check()))
+
+    def test_required_api_categories_cannot_be_duplicated(self):
+        manifest = os.path.join(self.res, 'PrivacyInfo.xcprivacy')
+        with open(manifest, 'rb') as f:
+            data = plistlib.load(f)
+        data['NSPrivacyAccessedAPITypes'][1] = data['NSPrivacyAccessedAPITypes'][0]
+        with open(manifest, 'wb') as f:
+            plistlib.dump(data, f)
+        self.assertIn('categories must be unique', str(self.check()))
+
+    def test_required_api_reasons_must_match_the_declared_category(self):
+        manifest = os.path.join(self.res, 'PrivacyInfo.xcprivacy')
+        with open(manifest, 'rb') as f:
+            data = plistlib.load(f)
+        for reasons in ([], ['TODO'], ['CA92.1'], ['C617.1', 'C617.1'], ['C617.1', {}]):
+            with self.subTest(reasons=reasons):
+                data['NSPrivacyAccessedAPITypes'][0]['NSPrivacyAccessedAPITypeReasons'] = reasons
+                with open(manifest, 'wb') as f:
+                    plistlib.dump(data, f)
+                self.assertIn('must declare the reviewed reasons', str(self.check()))
+
     def test_sparse_archive_cannot_pass(self):
         AsarTest.write_asar(os.path.join(self.res, 'app.asar'), ['out', 'package.json'])
         self.assertIn('missing out/main/index.cjs', str(self.check()))

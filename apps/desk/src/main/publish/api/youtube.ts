@@ -494,7 +494,7 @@ export class YouTubeApi {
     if (!done?.id) throw new Error('YouTube did not return the new video');
     onProgress?.(size, size);
     const id = done.id;
-    const privacy = done.status?.privacyStatus ?? meta.status.privacyStatus;
+    const privacy = done.status?.privacyStatus ?? 'unknown';
     const asked = meta.status.privacyStatus;
     const warnings: string[] = [];
     if (v.thumbnail) {
@@ -510,7 +510,7 @@ export class YouTubeApi {
       id,
       url: `https://youtu.be/${id}`,
       privacy,
-      publishAt: done.status?.publishAt ?? ('publishAt' in meta.status ? (meta.status.publishAt as string) : null),
+      publishAt: done.status?.publishAt ?? null,
       // asked public / unlisted and got private; or scheduled and YouTube dropped the time (the response does not establish why)
       lockedPrivate: asked !== 'private' ? privacy === 'private' : !!v.publishAt && !!done.status && !done.status.publishAt,
       warnings,

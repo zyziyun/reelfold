@@ -840,6 +840,7 @@ export class EngineClient {
       video_path?: string | null;
       url?: string | null;
       via?: 'assisted' | 'api' | 'manual';
+      api_result?: CalendarPost['api_result'];
     },
   ) {
     return this.req<{ ok: boolean; post: CalendarPost; before: CalendarPost }>('POST', `/api/calendar/${bid(id)}`, body);

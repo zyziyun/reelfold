@@ -109,11 +109,21 @@ test('the second launch reuses the copy (no new migration) and still decrypts', 
 
 // macOS / Linux: the key lives in a keychain item named after the app. Windows' DPAPI key sits in the profile's own
 // Local State (copied with it), so the app name does not matter there and this control does not apply.
-test('control: with the wrong keychain key the same data does not read (and the app says so)', async () => {
+test('control: another key cannot recover the secret; unreadable ciphertext is reported', async () => {
   test.skip(process.platform === 'win32', 'DPAPI: the key travels with the profile');
   const rec = path.join(newDir, 'migrated-from.json');
   const saved = fs.readFileSync(rec, 'utf8');
+  const secrets = path.join(newDir, 'secrets.json');
+  const savedSecrets = fs.readFileSync(secrets, 'utf8');
+  // macOS synchronous safeStorage uses CBC: wrong-key padding can pass by chance, returning garbage.
+  // Compare the known synthetic plaintext instead of treating "did not throw" as a key match.
+  const check = execFileSync(electronBin, [path.join(ROOT, 'tests/e2e/fixture/legacyProfile.mjs'), '--check-secret', newDir, 'Reelfold E2E Other'], { encoding: 'utf8' });
+  expect(check).toContain('LEGACY_SECRET_MATCH:false');
   fs.writeFileSync(rec, JSON.stringify({ ...JSON.parse(saved), safeStorageName: 'Reelfold E2E Other' }));
+  // Independently exercise the app's unreadable-data report with an invalid encryption prefix.
+  const encrypted = Buffer.from(JSON.parse(savedSecrets).openai, 'base64');
+  encrypted[0] = 0;
+  fs.writeFileSync(secrets, JSON.stringify({ openai: encrypted.toString('base64') }));
   fs.writeFileSync(path.join(newDir, 'logs/main.log'), '');
   try {
     const report = await runUntilReport();
@@ -123,5 +133,6 @@ test('control: with the wrong keychain key the same data does not read (and the 
     // tests/packaged covers them)
   } finally {
     fs.writeFileSync(rec, saved);
+    fs.writeFileSync(secrets, savedSecrets);
   }
 });

@@ -1,6 +1,7 @@
 // A post's copy, one tab per switched-on platform: the platform's own title (with its counter) and the caption (the
 // counter, the overflow marked, "Shorten for X"). One component for the publish drawer and the clip's own page, on
 // the same calendar rows (a platform's copy = its row's caption; empty = the clip's post copy).
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Sparkles } from 'lucide-react';
 import type { CalendarPost } from '../../../shared/v04';
@@ -94,6 +95,7 @@ export function CaptionEditor({ post, actions, shorten }: { post: CalendarPost; 
           {'\n'}
         </div>
         <textarea
+          readOnly={postDelivered(post)}
           value={text}
           onChange={(e) => (setText(e.target.value), save(e.target.value))}
           onScroll={(e) => back.current && (back.current.scrollTop = e.currentTarget.scrollTop)}
@@ -110,7 +112,7 @@ export function CaptionEditor({ post, actions, shorten }: { post: CalendarPost; 
         ) : null}
         {over && <span className="muted small">{pf === 'x' ? t('pb.d.counterHintX', { max: limit ?? 0 }) : t('pb.d.counterHint', { pf: platformName(pf), max: limit ?? 0 })}</span>}
         <span className="sp" />
-        {post.caption_custom && !over && (
+        {post.caption_custom && !over && !postDelivered(post) && (
           <button className="pb-link muted" onClick={() => (setText(''), (saved.current = ''), void actions.caption(post, null))}>
             {t('pb.d.reset')}
           </button>
@@ -118,7 +120,7 @@ export function CaptionEditor({ post, actions, shorten }: { post: CalendarPost; 
         {over && (
           <button
             className="pb-link"
-            disabled={busy}
+            disabled={busy || postDelivered(post)}
             onClick={async () => {
               setBusy(true);
               const before = text;
@@ -180,6 +182,7 @@ export function TitleEdit({ g, actions, limits }: { g: PostGroup; actions: Actio
   return (
     <div className="col" style={{ gap: 4, minWidth: 0 }}>
       <input
+        readOnly={g.posts.some(postDelivered)}
         className="pb-title-input"
         lang="zh-CN"
         value={v}
@@ -235,6 +238,7 @@ export function PostTitleEdit({ post, limit, actions }: { post: CalendarPost; li
         <span className="muted small">{t('pl.d.titleFor', { pf: platformName(pf) })}</span>
         <input
           className={`input ${n > limit ? 'bad' : ''}`}
+          readOnly={postDelivered(post)}
           value={v}
           onChange={(e) => setV(e.target.value)}
           onBlur={commit}
@@ -249,7 +253,7 @@ export function PostTitleEdit({ post, limit, actions }: { post: CalendarPost; li
         </span>
         {pf === 'xiaohongshu' && <span className="muted small">{t('pl.d.xhsCount')}</span>}
         <span className="sp" />
-        {post.title_custom && (
+        {post.title_custom && !postDelivered(post) && (
           <button className="pb-link muted" onClick={() => void actions.postTitle(post, null)} data-testid="pb-title-reset">
             {t('pl.d.titleReset')}
           </button>
@@ -267,7 +271,7 @@ function PostVideo({ post, actions }: { post: CalendarPost; actions: Actions }) 
   const selected = pickFile(files, post.platform, post.video_path);
   return <label className="pb-video">
     <span>{t('pb.video.label')}</span>
-    <select aria-label={t('pb.video.label')} data-testid="pb-video" value={post.video_path ?? ''} disabled={busy || !data || post.state === 'posted'} onChange={async e => {
+    <select aria-label={t('pb.video.label')} data-testid="pb-video" value={post.video_path ?? ''} disabled={busy || !data || postDelivered(post)} onChange={async e => {
       setBusy(true);
       try { await actions.video(post, e.target.value || null); } finally { setBusy(false); }
     }}>
