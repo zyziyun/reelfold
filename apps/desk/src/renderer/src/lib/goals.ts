@@ -166,7 +166,7 @@ export function versionLine(x: GoalVersion): string {
     case 'made':
       return t('goal.v.made');
     case 'you':
-      return t('goal.v.you');
+      return t('goal.ver.review');
     case 'failed':
       return x.code ? failureReason({ code: x.code, state: 'failed' } as PilotFailure) : t('goal.ver.failed');
     case 'stopped':

@@ -572,7 +572,14 @@ export function Versions({ gid, v, item }: { gid: string; v: GoalVideo; item?: s
             <b>{x.name || versionLabel(x)}</b>
             <span className="muted goalv-ver-status">{versionLine(x)}</span>
           </span>
-          {!v.cleared && x.item && (x.state === 'failed' || x.state === 'stopped' || x.state === 'you') && (
+          {!v.cleared && x.item && x.state === 'you' && (
+            <span role="link" tabIndex={0} className="btn sm ghost" data-testid="goal-version-review"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); location.hash = `#/studio/${x.item}`; }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); location.hash = `#/studio/${x.item}`; } }}>
+              {t('goal.reviewVersion')}
+            </span>
+          )}
+          {!v.cleared && x.item && (x.state === 'failed' || x.state === 'stopped') && (
             <span role="button" tabIndex={0} className="btn sm ghost" aria-disabled={retrying !== null}
               data-testid="goal-version-retry"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); void retry(x.item!); }}

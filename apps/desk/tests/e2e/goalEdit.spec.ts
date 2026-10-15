@@ -176,3 +176,57 @@ test('a failed language keeps the made version and offers its own retry', async 
   expect(fs.existsSync(madeRecord) ? fs.readFileSync(madeRecord, 'utf8') : null).toBe(before);
   await shot('E5-partial-versions');
 });
+
+test('a version waiting for confirmation opens its checkpoint without retrying', async () => {
+  const goalPath = path.join(tmp, 'profile', 'engine-data', 'goals', `${fx.goal}.json`);
+  const g = JSON.parse(fs.readFileSync(goalPath, 'utf8'));
+  const v = g.videos[0];
+  const waiting = v.projects[1];
+  // An actual pending recipe gate, in this test's private project/store only.
+  execFileSync(process.env.DESK_PYTHON || 'python3', ['-c', `
+import json, pathlib, sys
+from vstudio.project.core import Project
+from vstudio.batch.store import Store
+p = Project(sys.argv[1])
+st = Store(p.state_dir)
+try:
+    job = st.jobs()[0]['id']
+    st.set_job(job, state='planned')
+    st.set_stage(job, 'cp_story', state='failed', error='CheckpointPending: story')
+finally:
+    st.close()
+pay = dict(id='story', kind='media-selection', scope='item', item=job, recipe='photo-story',
+           project_dir=p.dir, labels=dict(en='Selection and chapters', zh='选片与章节'),
+           options=[], previews=[], default=dict(done=True), digest='review-test',
+           answer_schema=dict(type='object', properties=dict(done=dict(type='boolean'))))
+dest = pathlib.Path(p.state_dir) / 'checkpoints' / job / 'story.json'
+dest.parent.mkdir(parents=True, exist_ok=True)
+dest.write_text(json.dumps(pay))
+`, waiting.dir], { env: { ...process.env, ...engineEnv, PYTHONPATH: path.join(REPO, 'lib') } });
+  v.state = 'you';
+  v.versions[1].state = 'you';
+  g.state = 'done';
+  fs.writeFileSync(goalPath, JSON.stringify(g));
+  await closeApp(app);
+  app = await electron.launch({ args: [path.resolve(import.meta.dirname, '../..')], env: {
+    ...process.env, ...engineEnv, PYTHONPATH: '', DESK_STUDIO: '1', DESK_ENGINE_MOCK: '',
+    DESK_USER_DATA: path.join(tmp, 'profile'), DESK_HISTORY_WATCH: '', DESK_HIDE_WINDOW: '1',
+    DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '',
+  } });
+  page = await app.firstWindow();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await hash(`#/studio?goal=${fx.goal}`);
+  const row = page.getByTestId('goal-video').filter({ has: page.getByText(v.title, { exact: true }) });
+  const version = row.getByTestId('goal-version').last();
+  await expect(version).toContainText('Waiting for your review');
+  await expect(version.getByTestId('goal-version-retry')).toHaveCount(0);
+  const pilot = path.join(waiting.dir, 'desk-pilot.json');
+  const before = fs.existsSync(pilot) ? fs.readFileSync(pilot, 'utf8') : null;
+  await version.getByTestId('goal-version-review').focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/studio/${waiting.item}`));
+  await expect(page.getByText('Choose the material', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirm ↵', exact: true })).toBeVisible();
+  expect(fs.existsSync(pilot) ? fs.readFileSync(pilot, 'utf8') : null).toBe(before);
+  await shot('E6-waiting-review');
+});

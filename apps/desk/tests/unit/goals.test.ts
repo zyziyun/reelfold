@@ -125,6 +125,7 @@ describe('one group, one truth (her DJI goal, 2026-10-13)', () => {
     expect(versionLine({ state: 'running', queued: true })).toBe('Waiting for a free slot');
     expect(versionLine({ state: 'running', progress: 0.25 })).toBe('Making · 25%');
     expect(versionLine({ state: 'failed' })).toBe('Failed — the group tries it again');
+    expect(versionLine({ state: 'you' })).toBe('Waiting for your review');
     expect(versionTone({ state: 'made' })).toBe('done');
   });
   it('a goal\'s request row reads as its video, never the raw request', () => {
