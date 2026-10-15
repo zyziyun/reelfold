@@ -23,8 +23,24 @@ describe('review in a row', () => {
     expect(location.hash).toContain('triage=1');
   });
 
-  it('one project’s clip reviews keep the full-screen review; no review: the other questions in a row', () => {
-    reviewInRow([item('a1', 'review', 'A'), item('a2', 'publish', 'A', 's2')]);
+  it('one project’s linked videos use the same inline queue as several projects', () => {
+    reviewInRow([item('a1', 'review', 'A', 's1'), item('a2', 'publish', 'A', 's2')]);
+    expect(triageState()).toEqual({ keys: ['a1', 'a2'], i: 0 });
+    expect(location.hash).toContain('/A/clip/s1');
+    expect(location.hash).toContain('triage=1');
+  });
+
+  it('a linked clip stays inline when polling changes its question into a publish check', () => {
+    for (const kind of ['filler-confirm', 'publish', 'review']) {
+      reviewInRow([item('q1', kind, 'A', 's1')]);
+      expect(location.hash).toContain('/A/clip/s1');
+      expect(location.hash).toContain('triage=1');
+      expect(triageState()?.keys).toEqual(['q1']);
+    }
+  });
+
+  it('an aggregate review without a linked clip opens its project review; other questions queue normally', () => {
+    reviewInRow([item('a1', 'review', 'A')]);
     expect(location.hash).toBe('#/p/A/focus');
     reviewInRow([item('q1', 'filler', 'A', 's1'), item('q2', 'music', 'B')]);
     expect(triageState()?.keys).toEqual(['q1', 'q2']);
