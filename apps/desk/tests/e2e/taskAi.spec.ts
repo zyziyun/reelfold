@@ -81,7 +81,9 @@ if _bin:
 const claudeCalls = () => (fs.existsSync(CLAUDE_LOG) ? fs.readFileSync(CLAUDE_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { intake: boolean; argv: string[] }) : []);
 const routes = () => JSON.parse(fs.readFileSync(path.join(tmp, 'profile', 'llm-routes.json'), 'utf8'));
 const projAi = () => {
-  const m = /\nai:\n((?: {2}.*\n)+)/.exec(fs.readFileSync(path.join(projDir, 'project.yaml'), 'utf8'));
+  // Python writes native CRLF on Windows; read the same persisted AI block on every runner.
+  const yaml = fs.readFileSync(path.join(projDir, 'project.yaml'), 'utf8').replace(/\r\n/g, '\n');
+  const m = /\nai:\n((?: {2}.*\n)+)/.exec(yaml);
   return m ? Object.fromEntries(m[1].trim().split('\n').map((l) => l.trim().split(': ').map((x) => x.replace(/^'|'$/g, '')))) : null;
 };
 
@@ -205,7 +207,7 @@ test('a project’s AI switched on its page: the next AI step runs on it; switch
   await chip.click();
   await page.getByTestId('ce-provider-chip-pick-kimi').click();
   await expect(chip).toHaveAttribute('data-provider', 'kimi');
-  expect(projAi()).toEqual({ provider: 'kimi' });
+  await expect.poll(projAi).toEqual({ provider: 'kimi' });
   expect(routes().default.provider).toBe('claude-code');
   const before = { kimi: KIMI_LOG.length, claude: claudeCalls().length };
   await page.getByTestId('chat-input').fill('does this need any change?');
@@ -223,7 +225,7 @@ test('a project’s AI switched on its page: the next AI step runs on it; switch
   await pchip.click();
   await page.getByTestId('project-ai-default').click();
   await expect(pchip).toHaveAttribute('data-own', '0');
-  expect(projAi()).toBeNull();
+  await expect.poll(projAi).toBeNull();
   await hash(`#/p/${id}/clip/talk`);
   await expect(page.getByTestId('editor')).toBeVisible({ timeout: 60000 });
   await page.getByTestId('studio-ai-input').fill('and now?');
