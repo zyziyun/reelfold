@@ -40,8 +40,8 @@ DEFAULTS = dict(voice="marin", model="gpt-4o-mini-tts", tries=3, good=0.93, use_
                              "enthusiastic, never salesy. Pacing: calm and clear, slightly slower than conversation.",
                 sample_voices=["marin", "coral", "nova"], language="en")
 
-# words (latin) and single characters (CJK): the take's transcript is matched per token in either language
-norm = lambda s: re.findall(r"[a-z0-9]+|[\u3400-\u9fff]", s.lower().replace("’", "").replace("'", ""))
+# Share the same multilingual matching units as the caption timing pass.
+norm = asr.alignment_tokens
 OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse",
                  "marin", "cedar"}
 

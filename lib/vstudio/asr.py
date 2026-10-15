@@ -41,6 +41,7 @@ import re
 import sys
 import tempfile
 import types
+import unicodedata
 
 from . import media
 
@@ -956,7 +957,29 @@ def join_subwords(words, max_gap=0.02):
     return out
 
 
-_TOK = lambda s: re.findall(r"[a-z0-9]+|[⺀-鿿豈-﫿]", s.lower().replace("’", "").replace("'", ""))
+def alignment_tokens(text):
+    """Matching units, not a linguistic word segmenter. Keep Unicode letters/marks/numbers;
+    normalize equivalent forms, and split East Asian scripts into characters so ASR word
+    grouping does not change the match. Never change the displayed script.
+    """
+    text = unicodedata.normalize("NFKC", str(text)).casefold().replace("’", "").replace("'", "")
+    out, run = [], []
+    for ch in text:
+        name = unicodedata.name(ch, "")
+        per_char = name.startswith(("CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH",
+                                    "HIRAGANA LETTER", "KATAKANA LETTER", "HANGUL SYLLABLE"))
+        category = unicodedata.category(ch)[0]
+        if per_char or category not in "LMN":
+            if run:
+                out.append("".join(run))
+                run = []
+            if per_char:
+                out.append(ch)
+        else:
+            run.append(ch)
+    if run:
+        out.append("".join(run))
+    return out
 
 
 def align_script(texts, words, dur):
@@ -969,11 +992,11 @@ def align_script(texts, words, dur):
     ws = [(w["w"], w["t"], w["te"]) if isinstance(w, dict) else tuple(w) for w in words]
     exp, owner = [], []
     for ci, t in enumerate(texts):
-        for tok in _TOK(t):
+        for tok in alignment_tokens(t):
             exp.append(tok); owner.append(ci)
     got, gt = [], []
     for wd, s, e in ws:
-        for tok in _TOK(wd):
+        for tok in alignment_tokens(wd):
             got.append(tok); gt.append((s, e))
     tmap = [None] * len(exp)
     for blk in difflib.SequenceMatcher(None, exp, got, autojunk=False).get_matching_blocks():

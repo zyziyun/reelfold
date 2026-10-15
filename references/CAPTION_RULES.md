@@ -34,3 +34,14 @@ name then ends up in the captions, a notes card and the post copy at once.
 A caption fix may only swap a short mis-heard span for what the speaker said: no deleted or added words, no
 translation, no rephrasing (`vstudio.proofread.faithful`). Fillers and repetitions are a cleanup question
 (references/CLEANUP.md), not a proofreading one.
+
+
+For authored narration, use `vstudio.asr.align_script` with the original script for display text and ASR words
+for timing. Its shared `alignment_tokens` keeps Unicode letters, combining marks and numbers; do not add
+ASCII-only tokenizers in individual workflows. Canonically equivalent spellings match without changing the
+visible text. East Asian character matching tolerates different ASR word grouping.
+
+This is token matching with interpolation, not phonetic forced alignment: a valid interval is not proof of
+speech sync. Inspect unmatched phrases and cue boundaries against the recording, especially names, mixed
+scripts and words the recognizer omitted. Do not replace the authored script with ASR errors just to obtain
+a match. For original speech, retain the corrected transcript and follow the source-fidelity rules above.
