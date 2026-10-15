@@ -274,6 +274,18 @@ describe('scheduler', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it('does not retry a failed manual form with automatic visibility defaults', async () => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+    const publish = vi.fn();
+    const { s, notified } = mk([p], clock, { api: { wants: () => true, publish } });
+    await s.upload(p, async () => ({ ok: false, error: 'quota exceeded' }));
+    clock.t = new Date(2026, 9, 7, 20, 30);
+    await s.tick();
+    expect(publish).not.toHaveBeenCalled();
+    expect(notified).toEqual([['y1']]);
+  });
+
   it('more than apiGraceMs late: no automatic upload, she decides', async () => {
     const clock = { t: new Date(2026, 9, 8, 18, 0) };
     const publish = vi.fn();

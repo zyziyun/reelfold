@@ -43,7 +43,9 @@ A corrupt receipt journal is preserved and automatic uploads stop; it must not b
 empty history. A manual request cannot start another upload while the scheduler owns that post (or vice versa). Completed
 requests reuse the saved provider result, including after restart. Changing the local time or account of an
 already uploaded post cannot insert another remote video; make changes on the platform or create a separate
-post. Remote scheduled/private/public status reconciliation still needs the same audit.
+post. A failed manual upload is not retried by the automatic scheduler with different visibility or audience
+defaults; the creator retries from the form. Remote scheduled/private/public status reconciliation still needs
+the same audit.
 
 ## Length per platform
 

@@ -25,6 +25,7 @@ export interface ApiAttempt {
   calendarSynced?: boolean;
   resolvedAccount?: string;
   result?: YtPublishResult;
+  source?: 'manual' | 'scheduled';
 }
 
 interface State {
@@ -142,7 +143,7 @@ export class PublishScheduler {
       const apiRan = await this.runApi(posts, now);
       const byApi = (p: CalendarPost) => {
         const a = this.state.api[p.id];
-        return a && a.at === p.at && (a.account ?? null) === (p.account ?? null) && (a.status === 'uploading' || a.status === 'done' || (a.status === 'failed' && a.tries < MAX_TRIES && this.deps.api?.wants(p)));
+        return a && a.at === p.at && (a.account ?? null) === (p.account ?? null) && (a.status === 'uploading' || a.status === 'done' || (a.status === 'failed' && a.source !== 'manual' && a.tries < MAX_TRIES && this.deps.api?.wants(p)));
       };
       const due = duePosts(posts, now).filter((p) => !byApi(p));
       const fresh = due.filter((p) => this.state.notified[p.id] !== p.at);
@@ -182,6 +183,9 @@ export class PublishScheduler {
     const ran: string[] = [];
     for (const p of candidates) {
       const prev = this.state.api[p.id];
+      // A manual form can contain different visibility/audience choices. Never retry it
+      // with the scheduler's defaults after a failure.
+      if (prev?.source === 'manual') continue;
       const same = prev && prev.at === p.at && (prev.account ?? null) === (p.account ?? null);
       if (prev && ['done', 'uploading'].includes(prev.status)) continue;
       if (same) {
@@ -190,14 +194,14 @@ export class PublishScheduler {
       const at = localDate(p.at);
       // YouTube refuses a publishAt in the past or too close: schedule only when it is comfortably ahead
       const publishAt = at.getTime() - t > 15 * 60_000 ? at : null;
-      const r = await this.upload(p, () => api.publish(p, publishAt));
+      const r = await this.upload(p, () => api.publish(p, publishAt), 'scheduled');
       if (r.ok || this.state.api[p.id]?.lastTry === t) ran.push(p.id);
     }
     return ran;
   }
 
   /** One durable owner for manual and scheduled uploads. No await before claiming the post. */
-  async upload(p: CalendarPost, publish: () => Promise<ApiUpload>): Promise<ApiUpload> {
+  async upload(p: CalendarPost, publish: () => Promise<ApiUpload>, source: 'manual' | 'scheduled' = 'manual'): Promise<ApiUpload> {
     if (!this.stateReadable) return { ok: false, error: 'Upload history is unreadable; check the platform before uploading again.' };
     const prev = this.state.api[p.id];
     if (prev?.status === 'uploading') return { ok: false, error: 'This post has an upload in progress or awaiting verification. Check the platform before uploading again.' };
@@ -208,7 +212,7 @@ export class PublishScheduler {
       if (!prev.calendarSynced) await this.syncReceipt(p, prev);
       return { ok: true, url: prev.url ?? null, account: prev.resolvedAccount, result: prev.result };
     }
-    const rec: ApiAttempt = { at: p.at, account: p.account, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
+    const rec: ApiAttempt = { at: p.at, account: p.account, source, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
     this.state.api[p.id] = rec;
     if (!this.write()) {
       if (prev) this.state.api[p.id] = prev;
