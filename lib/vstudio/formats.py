@@ -96,11 +96,13 @@ FORMATS = {
         rules=["每条以问题开头（问题卡或提问者原声），回答剪紧：去掉「好问题」、口癖和长停顿",
                "说话人标签用角色（主持人 / 嘉宾），没给名字就不写名字", "嘉宾露脸先问，遮脸只盖头"]),
     "vlog": dict(
-        labels=dict(zh="vlog（自己的旁白）", en="Voice-over vlog"), workflow="vlog",
-        speed=dict(body=1.3, hook=1.3, inserts=1.0), hooks="none", cleanup="gentle", tag_set="",
-        cover=dict(aspect="video", style="collage", retouch=False, min_luma=0.45, text="none"),
-        rules=["用她自己录的声音，不用 TTS", "人要完整入镜，不重复用素材", "不加暗角，防抖，空镜可 1.3x",
-               "配乐轻，不要太欢快"]),
+        labels=dict(zh="旅行与生活 vlog", en="Travel and everyday vlog"), workflow="vlog",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="gentle", tag_set="",
+        cover=dict(aspect="video", style="hero-photo", retouch=False, min_luma=0.45, text="designed"),
+        rules=["有旁白时优先保留原声，不自动添加 TTS；也支持环境声或纯画面",
+               "按素材动作选段，保留人物与重要画面，不重复用素材",
+               "默认原速，按镜头意图调整；不加暗角，检查抖动",
+               "根据画面选择单幅封面或拼贴；配乐不盖过原声"]),
     "explainer": dict(
         labels=dict(zh="讲解视频（3b1b）", en="Explainer"), workflow="explainer",
         speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="off", captions="bilingual",

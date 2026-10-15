@@ -72,7 +72,9 @@ Most segments 8-22 s of source; weak shots trimmed short rather than sped up har
 | ambient-audio vlog (waves, birds, street) | music would hide the place | `ambient_audio:true`, then `add_music.py --ambient-db -12` or skip music |
 
 Vertical delivery (Reels/Shorts/小红书): `res:[1080,1920]`, `fit:"crop"` for landscape drone shots only
-when the subject is central; otherwise `fit:"blur"`.
+when important subjects and context fit the crop. Rebuild from suitable raw windows where possible.
+If they cannot fit, retain the native canvas and adapt its cover/orientation hint; `fit:"blur"` is a layout
+the creator explicitly chooses, not the default substitute for a remake.
 
 ## Colour grade values
 Dim / flat evening footage; lifts it without looking fake:

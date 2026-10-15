@@ -1,6 +1,6 @@
 # vlog: B-roll clips -> short vlog (calm or fun / fast-paced)
 
-**Use when:** Edit a pile of silent or ambient B-roll clips (drone/DJI aerials, phone travel or walking clips, nature, city, action cam) into one short polished vlog - inspect the footage, cut the good windows out of long takes, colour grade (HDR phone clips tone-mapped), speed-adjust per shot, crossfade with a clean non-black opening and a fade-out ending, build a scrapbook torn-paper cover, and add CC-BY or catalog music. Use when someone hands over several clips and wants them "剪成一个vlog / 合并 / 去掉不好的部分 / 加转场 / 调色 / 配乐 / 做封面", even if they mention only one piece, or to tweak one stage of an already-built vlog (re-cut, re-grade, speed, music swap, cover, smaller upload file).
+**Use when:** Edit a pile of silent or ambient B-roll clips (drone/DJI aerials, phone travel or walking clips, nature, city, action cam) into one short polished vlog - inspect the footage, cut the good windows out of long takes, colour grade (HDR phone clips tone-mapped), speed-adjust per shot, choose joins with a clean non-black opening and a fade-out ending, design a source-based cover, and add CC-BY or catalog music. Use when someone hands over several clips and wants them "剪成一个vlog / 合并 / 去掉不好的部分 / 加转场 / 调色 / 配乐 / 做封面", even if they mention only one piece, or to tweak one stage of an already-built vlog (re-cut, re-grade, speed, music swap, cover, smaller upload file).
 
 **Use when** the footage carries the story without narration: drone flights, walks, trips, nature,
 city wandering, a day of phone clips. The raw material is long takes, slow moves, dim or HDR light,
@@ -16,7 +16,9 @@ optional still photos (JPG/PNG/HEIC) and, for the fun style, a music track.
 Fun style: `work/fun_vlog.mp4` (+ `.nomusic.mp4`, `.report.json`, `.cues.json`/`.srt`, `.clean.mp4`).
 
 ## Choose a style: calm or fun
-Ask once ("calm & cinematic, or fun & fast, cut to the beat?") and recommend from the footage + platform:
+Follow the current request mode. In Autopilot, choose from the footage, request and platform and record the
+style in `edit.json`; do not add a style confirmation gate. In Ask me first, recommend a style and ask only
+when the choice is genuinely unclear:
 
 | | **calm** (default, `build_vlog.py`) | **fun** (`"style": "fun"`, `build_fun.py`) |
 |---|---|---|
@@ -50,7 +52,9 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    python3 $VSTUDIO/workflows/vlog/scripts/probe.py footage/*.MP4 footage/*.MOV
    ```
    Note size, fps, duration, audio and HDR per clip. If the user named a subset, edit only those.
-   Confirm the subset and target (16:9 4K master? vertical 1080x1920?) before any long render.
+   Use the requested subset and target. Ask only when those are missing or materially ambiguous; Autopilot
+   resolves routine choices and records them. Keep a finished source’s original canvas unless clean sources
+   support a genuine remake; do not pad an exported movie just to label it a different format.
 
 2. **SEE the footage (never edit blind).**
    ```bash
@@ -59,15 +63,22 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    Read every `work/sheets/*_sheet.jpg`: one tile per 4 s, 5 across, left->right top->bottom,
    each labelled with its source time (tile n = (n-1)*4 s). Mark windows where the subject is clearly framed and the move is smooth;
    skip approach/retreat tails, pocket shots, shaky stretches.
+   Choose an opening with clear story-bearing action rather than automatically the widest view. Compare
+   adjacent shots for screen direction, motion, weather and exposure. Keep useful context and breathing room;
+   trimming to a fixed duration or adding effects does not by itself improve the story.
 
 3. **Write the edit list.**
    ```bash
    python3 $VSTUDIO/workflows/vlog/scripts/probe.py footage/* --init work/edit.json
    ```
    then replace the placeholder `segments` with `{clip,start,dur}` windows (optional `speed`,
-   `kind:"empty"`, `bright`, `stabilize`). Order them into a small arc: wide establishing ->
-   reveal -> intimate subject moments -> calm closing shot. Keep most segments 8-22 s of source.
+   `kind:"empty"`, `bright`, `stabilize`). Order them into a small arc: a readable opening action, enough context to locate it, a reveal or
+   closer subject moment, then a deliberate closing shot. Let the action determine the source windows.
    Schema + example: `references/recipes.md`, `examples/edit.example.json`.
+   Choose each join after reviewing the actual boundary. A long dissolve can double moving people; use the
+   supported per-segment `xfade: 0` for a clean cut where it reads better. Save dissolves for compatible motion
+   or a deliberate time/place change. Do not apply the same transition to every shot merely because the style
+   is calm. The example is a starting shape, not a grade or shot-length prescription for arbitrary material.
 
 4. **(optional) Draft first.** Copy edit.json with `res` at 1080p (or `--max-res 1920` on `--init`)
    and `"out": "draft.mp4"`; render, watch, adjust windows.
@@ -87,8 +98,18 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    the cleaned clip; EDL + review sheet in `<out dir>/clips/cleanup/`. Needs `"ambient_audio": true`; transcript
    from the segment's `words`, `<clip>.words.json`, else ASR.
 
-6. **Build the cover** (scrapbook torn-paper collage, full-bleed, no text by default).
-   Extract 5-6 frames where the subject reads clearly plus one wide frame for the darkened backing:
+6. **Design the cover from the material.** In a recipe project, use its cover decision (shared cover engine).
+   For a standalone edit, compare a clean hero frame with a collage at phone size. Keep the main subject clear
+   and use a short, source-faithful title if it helps. A collage is an option for a travel scrapbook, not a
+   requirement for every calm film. A native-size hero cover can reuse `vstudio.cover_engine.single_cover`:
+   ```bash
+   ffmpeg -ss 3 -i work/vlog_master.mp4 -frames:v 1 work/frames/hero.jpg
+   python3 -c 'from vstudio.cover_engine import single_cover; single_cover("work/frames/hero.jpg", "A quiet afternoon", "work/cover.png")'
+   ```
+   Use the actual film title and check the result: automated saliency/matting can select the wrong person, crop
+   useful context or miss a small face. Small-size text tests alone do not establish a good cover.
+
+   **Optional scrapbook cover.** Extract 5-6 frames where the subject reads clearly plus one wide frame for the darkened backing:
    ```bash
    mkdir -p work/frames
    ffmpeg -ss 3 -i footage/CLIP.MP4 -frames:v 1 -vf "scale=1400:-1,hue=s=1.18" work/frames/a.jpg
@@ -103,8 +124,9 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    `examples/cover.example.json`, adjust `bgpos`/`bgsize`/`left/top`, and re-run with `--config`.
    For HDR phone clips pull frames from the master, not the source.
 
-7. **Add music.** Ask for the vibe in the user's words, map it to the cheatsheet inside
-   `fetch_music.sh`, fetch, mux:
+7. **Add music.** Follow a stated vibe; otherwise Autopilot selects a suitable licensed track and records why,
+   while Ask me first offers a recommendation if needed. Prefer the installed catalog below. The optional
+   `fetch_music.sh` path fetches the named CC-BY track and its credit, then muxes it:
    ```bash
    bash $VSTUDIO/workflows/vlog/scripts/fetch_music.sh music "Atlantean Twilight"
    python3 $VSTUDIO/workflows/vlog/scripts/add_music.py work/vlog_master.mp4 \
@@ -136,7 +158,10 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
 
    **Vertical platforms + post copy (in a project).** A landscape master going to 9:16 / 3:4 is reframed with
    `--mode follow` (`vstudio.reframe` subject mode: the camera follows what stands out in each shot, holds on
-   static shots, eases through the crossfades; a shot that cannot be cropped is shown whole on a blurred fill).
+   static shots and eases through the crossfades). Inspect each target: the current subject planner can fall back
+   to a blurred fill on a wide/split shot. That is not a successful native remake. Choose compatible original
+   windows or retain the native video with a platform cover/orientation hint when important content cannot fit.
+   A padded or blurred composition requires an explicit choice of that layout, not an automatic platform default.
    The `framing` decision records it (autopilot: follow the subject); she can switch to "Fill with blur" in the
    Inbox or on the clip page (On vertical screens). The `copy` stage writes each platform's post copy
    (`vstudio.postcopy`): title / hook, 2-4 line body (a longer YouTube description), topic hashtags within the
@@ -289,8 +314,10 @@ in the report. Still check A3 (first version too fast? use `pace: "relaxed"`) an
 - **fun**: default = persona `platforms.default` in its full-screen vertical orientation. The profile sets
   canvas, fps, safe box (every overlay), caption box + caption size/char limits, loudness (LUFS / true
   peak), encode guidance, length check (warning in the report). Off-aspect clips are reframed with
-  `vstudio.reframe` (face mode keeps the face in the safe box; faceless scenery falls back to `pad-blur`, or
-  `"reframe_fallback": "center"` / per-shot `"fit": "crop"` for a centre crop).
+  `vstudio.reframe` (face mode keeps the face in the safe box; standalone `build_fun.py` uses a centre crop
+  fallback, while the project adapter requests subject following). Neither a blind crop nor automatic blurred
+  fill proves a good adaptation. Review the source and native target; `"reframe_fallback": "pad-blur"` is an
+  explicit layout choice. Use original-canvas video plus an adapted cover when a safe remake is unavailable.
 - **Several platforms from one edit**: re-run `build_fun.py --platform X` per target (layouts, captions and
   reframes are native to each canvas; cached analysis makes reruns cheap). Or render once with
   `--clean-master` (caption-free `<out>.clean.mp4` + `<out>.cues.json`) and
@@ -310,7 +337,7 @@ in the report. Still check A3 (first version too fast? use `pace: "relaxed"`) an
 - `scripts/add_music.py` - loop/fade/two-pass-loudnorm music mux (optional ambient bed), video copied.
 
 ## Persona keys (all optional)
-`vlog.speed_subject` (1.2), `vlog.speed_empty` (1.3), `vlog.grade` ({brightness, contrast,
+`vlog.speed_subject` (1.0), `vlog.speed_empty` (1.0), `vlog.grade` ({brightness, contrast,
 saturation, gamma}), `vlog.cover_tape` (title label underline colour), `vlog.fun_grade` (fun-style grade),
 `vlog.fun_music_lufs` (-19); `brand.*` colours for the fun graphics; `platforms.default`; plus existing
 `audio.loudness_lufs`, `audio.music_lufs` (bed level before the final loudnorm), `audio.voice_lufs`,

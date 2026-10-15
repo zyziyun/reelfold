@@ -42,6 +42,18 @@ def test_learned_defaults():
     assert F.get("photo-story", persona_formats={})["tag_set"] == "art"   # no career tags on an art post
 
 
+def test_vlog_defaults_keep_real_time_and_allow_directed_speed():
+    # The same defaults are shown before rendering and used to judge its duration.
+    f = F.get("vlog", persona_formats={})
+    assert f["speed"] == dict(body=1.0, hook=1.0, inserts=1.0)
+    assert "body 1x" in F.summary(f, "en")
+    assert f["cover"]["style"] == "hero-photo"
+    directed = F.get("vlog", persona_formats={"vlog": {"speed": {"body": 1.15}}})
+    assert "body 1.15x" in F.summary(directed, "en")
+    assert directed["speed"]["hook"] == 1.0
+    assert F.get("vlog", persona_formats={})["speed"]["body"] == 1.0
+
+
 def test_persona_overrides_and_aliases():
     f = F.get("口播", persona_formats={"talking-head": {"speed": {"body": 1.3}, "hooks": "none"}})
     assert f["id"] == "talking-head" and f["speed"]["body"] == 1.3 and f["speed"]["hook"] == 1.5
