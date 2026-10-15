@@ -180,6 +180,9 @@ test('on a finished project a 9:16 and a 1:1 segment and a tall image fit the wi
   const wp = page.getByTestId('work-pieces');
   await expect(wp).toHaveAttribute('data-live', '0', { timeout: 15000 });
   if ((await wp.getAttribute('open')) === null) await wp.locator('summary').click();
+  await expect(wp).toHaveAttribute('open', '');
+  await page.reload();
+  await expect(wp).toHaveAttribute('open', '', { timeout: 30000 });
   const segs = page.locator('[data-testid=work-piece][data-stage=render][data-kind=videos]');
   const sheets = page.locator('[data-testid=work-piece][data-stage=sheets]');
   await expect(segs).toHaveCount(3);
@@ -191,6 +194,7 @@ test('on a finished project a 9:16 and a 1:1 segment and a tall image fit the wi
       ['segment-1x1', segs.nth(2)],
       ['sheet-tall', sheets.nth(2)],
     ] as const) {
+      await expect(wp).toHaveAttribute('open', '');
       await tile.scrollIntoViewIfNeeded();
       await tile.click();
       await fits(`done-${tag}-${name}`);
