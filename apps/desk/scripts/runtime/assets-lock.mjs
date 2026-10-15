@@ -229,7 +229,7 @@ groups.push({
 });
 log('music library');
 // required: the CC0 music library every video's music is picked from (vstudio.music; ~290 MB). The track list, each
-// file's pinned URL (the original, archived), size and sha256 live in the engine's music_library.json (built and
+// file's pinned mirror URL, size and sha256 live in the engine's music_library.json (built and
 // licence-checked by curation; vstudio.music.validate_library) - copied here, not re-downloaded.
 const musicLib = JSON.parse(fs.readFileSync(path.join(ROOT, '..', '..', 'lib', 'vstudio', 'music_library.json'), 'utf8'));
 groups.push({

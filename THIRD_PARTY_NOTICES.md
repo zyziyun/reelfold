@@ -41,7 +41,10 @@ SOFTWARE.
 ## Music library (first-run download, `music-library`)
 
 The music every video is given is picked from ~50 real tracks that Reelfold downloads on first run
-(`lib/vstudio/music_library.json`: each file pinned by sha256 to its original URL, archived by the Internet Archive).
+(`lib/vstudio/music_library.json`: each file pinned by sha256). Downloads use the versioned
+[music-library-v1 GitHub mirror](https://github.com/zyziyun/reelfold/releases/tag/music-library-v1);
+the original and archived source URLs and licence evidence remain in the manifest. The mirror preserves the exact
+recording bytes and existing hashes.
 Every track is **CC0 1.0 / public domain**: it may be redistributed by this MIT app and used in published, monetised
 videos with no fee and no credit. Licence evidence per track: the archived FreePD.com category page ("100% Free Music -
 Creative Commons 0", each track "available for commercial and non-commercial purposes") or the Musopen collection's
