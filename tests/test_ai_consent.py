@@ -121,3 +121,24 @@ def test_redirects_never_forward_approved_content(monkeypatch):
     client = C.sdk_transport()['http_client']
     assert client.follow_redirects is False
     client.close()
+
+
+def test_standalone_ai_video_keeps_shared_consent_import_without_pythonpath(monkeypatch):
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    code = """
+import sys, io, os
+sys.path.insert(0, sys.argv[1])
+import providers
+assert 'vstudio.ai_consent' not in sys.modules
+class Response(io.BytesIO):
+    headers = {}
+providers.urllib.request.urlopen = lambda *a, **kw: Response(b'{}')
+assert providers._http('https://test.invalid', b'{}')[0] == b'{}'
+"""
+    env = dict(os.environ)
+    env.pop('VSTUDIO_AI_CONSENT_REQUIRED', None)
+    subprocess.run([sys.executable, '-I', '-c', code, str(root / 'workflows/ai-video/scripts')],
+                   env=env, check=True, capture_output=True)
