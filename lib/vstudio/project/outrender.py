@@ -176,6 +176,8 @@ def plan(rec, doc, st, tg, quality, watermark=None):
         # flattened, no burned captions: a 2-frame audio fade at every plain join (a hard cut of the finished mix)
         timeline["join_fade"] = round(2.0 / float(rec["info"]["fps"] or 30.0), 4)
     timeline["op"] = "none" if (full and tl.speed == 1.0 and not grade and not endf and not morph) else "ffmpeg"
+    if timeline["op"] != "none":
+        timeline["timing_version"] = 2  # invalidate renders that shortened VFR gaps at cut boundaries
     timeline["key"] = sha1_json(["timeline", canvas["key"], timeline, quality if timeline["op"] != "none" else None], 16)
     sfx = sorted([[round(tl.to_edit(e["start"], "start") or 0.0, 3), e["params"]["name"], e["params"].get("gain", 1.0)]
                   for e in effs if e["effect"] == "sfx-placement" and tl.span(e["start"], e["start"] + 0.05)])
@@ -631,13 +633,17 @@ def run_timeline(spec, src, out, quality, workdir):
     from vstudio import xfade
     m = _media()
     info = m.probe(src)
-    fps = info["fps"] or 30.0
+    # A sparse capture frame rate must not quantize word edits to whole seconds.
+    fps = max(24.0, info["fps"] or 30.0)
     has_a = bool(info["has_audio"])
     g, segs = [], spec["segs"]
     jd = {j["index"]: j for j in spec["joins"]}
     jf = float(spec.get("join_fade") or 0.0)
     for k, (a, b) in enumerate(segs):
-        g.append(f"[0:v:0]trim=start={a:.6f}:end={b:.6f},setpts=PTS-STARTPTS,fps={fps:.6g},format=yuv420p,"
+        # Fill VFR gaps on the source clock before trimming. Resetting the first remaining
+        # frame to zero first would remove the gap after each cut and shorten the picture.
+        g.append(f"[0:v:0]fps={fps:.6g},tpad=stop_mode=clone:stop_duration={b:.6f},"
+                 f"trim=start={a:.6f}:end={b:.6f},setpts=PTS-STARTPTS,format=yuv420p,"
                  f"settb=AVTB[v{k}]")
         if has_a:
             fades = ""

@@ -253,3 +253,25 @@ def test_record_edit_target_then_pickup_from_a_session(home, monkeypatch):  # no
     W = O.cached_words(O._load(d, r["output"])[1])
     assert [w["w"] for w in W][5:7] == ["again", "better"]
     assert len(out["history"]["steps"]) == 2 and out["state"]["cuts"]              # the auto cuts survive
+
+
+def test_sparse_picture_preserves_longer_audio_clock(tmp_path):
+    """A throttled recorder may stop drawing before its microphone stops."""
+    import subprocess
+
+    paths = [str(tmp_path / n) for n in ("base-sparse.mp4", "pick-sparse.mp4", "joined.mp4")]
+    for path, picture, sound in ((paths[0], 5, 6.4), (paths[1], 2, 2.4)):
+        media.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+                   f"testsrc2=size=160x90:rate=1:duration={picture}", "-f", "lavfi", "-i",
+                   f"sine=frequency=440:sample_rate=48000:duration={sound}",
+                   "-c:v", "libx264", "-c:a", "aac", path])
+    r = P.splice(paths[0], paths[1], at=2.1, out=paths[2])
+    assert r["inserted"] == pytest.approx(2.4, abs=1 / 24)
+    expected = media.probe(paths[0])["duration"] + r["inserted"]
+    streams = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_streams",
+                                                  "-of", "json", paths[2]]))["streams"]
+    for stream in streams:
+        assert float(stream["duration"]) == pytest.approx(expected, abs=.1)
+    x = audio.decode_audio(paths[2], SR, 2)
+    assert len(x) / SR == pytest.approx(expected, abs=.1)
+    assert np.sqrt(np.mean(x[-SR // 5:] ** 2)) > .03

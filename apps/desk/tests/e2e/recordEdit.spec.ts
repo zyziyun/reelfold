@@ -118,16 +118,16 @@ test.describe('record -> edit -> pickup', () => {
     ({ app, page } = await launch('main'));
     await page.evaluate(() => (location.hash = '#/create/record'));
     // Synthetic browser tracks avoid a CoreAudio fake-device hang on headless macOS runners.
-    await page.evaluate(() => {
+    await page.evaluate((frameMs) => {
       const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=360;
       const ctx = canvas.getContext('2d')!; ctx.fillStyle='#238b82'; ctx.fillRect(0,0,640,360);
-      setInterval(() => ctx.fillRect(0,0,640,360), 40);
+      setInterval(() => ctx.fillRect(0,0,640,360), frameMs);
       Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {configurable:true, value:async()=>{
         const audio = new AudioContext(); const tone=audio.createOscillator(); const dest=audio.createMediaStreamDestination();
         tone.connect(dest); tone.start();
         return new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
       }});
-    });
+    }, Number(process.env.DESK_RECORD_FRAME_MS || 40));
     await page.getByTestId('create-rec-allow').click();
     await expect(page.getByTestId('create-rec-preview')).toBeVisible({ timeout: 20000 });
     await page.getByTestId('create-rec-screen').click();
@@ -212,14 +212,24 @@ test.describe('record -> edit -> pickup', () => {
     const m = /#\/p\/([^/]+)\/clip\/([^/?]+)/.exec(await page.evaluate(() => location.hash));
     expect(m).not.toBeNull();
     const [item, clip] = [m![1], decodeURIComponent(m![2])];
-    const doc = await api<{ duration: number; words: { w: string }[]; pickups: { start: number; end: number }[]; cuts: { start: number; end: number }[] }>(page, `/api/outputs/${item}/${encodeURIComponent(clip)}`);
+    const doc = await api<{ file: string; fps: number; duration: number; words: { w: string }[]; pickups: { start: number; end: number }[]; cuts: { start: number; end: number }[] }>(page, `/api/outputs/${item}/${encodeURIComponent(clip)}`);
     expect(doc.pickups).toHaveLength(1);
     expect(doc.words.map((x) => x.w)).toContain('pickup');
     const r = await api<{ targets: { file: string }[] }>(page, `/api/outputs/${item}/${encodeURIComponent(clip)}/render`, { quality: 'final', targets: 'primary' });
     const file = r.targets[0].file;
     const kept = doc.duration - doc.cuts.reduce((s, c) => s + (c.end - c.start), 0);
-    // frame-snapped joins + two 40 ms crossfades per pickup + encoder padding: within half a second
-    expect(Math.abs(probe(file) - kept)).toBeLessThan(0.5);
+    const actual = probe(file);
+    const info = (p: string) => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', p], { encoding: 'utf8' }));
+    fs.writeFileSync(test.info().outputPath('pickup-duration.json'), JSON.stringify({ doc, kept, actual, base: info(doc.file), render: info(file) }, null, 2));
+    if (Math.abs(actual - kept) >= 0.5) {
+      // Preserve only this test's synthetic media for a failing CI diagnosis.
+      for (const [name, source] of [['base.mp4', doc.file], ['render.mp4', file]]) {
+        expect(fs.realpathSync(source).startsWith(fs.realpathSync(tmp) + path.sep)).toBe(true);
+        fs.copyFileSync(source, test.info().outputPath(name));
+      }
+    }
+    // Frame-snapped joins and encoder padding stay within half a second.
+    expect(Math.abs(actual - kept)).toBeLessThan(0.5);
     expect(kept).toBeGreaterThan(doc.pickups[0].end - doc.pickups[0].start);
     await page.getByTestId('editor-undo').click();
     await expect(page.getByTestId('pickup-tag')).toHaveCount(0, { timeout: 20000 });

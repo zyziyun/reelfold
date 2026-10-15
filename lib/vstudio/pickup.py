@@ -115,14 +115,15 @@ def _xfade(A, B):
 def splice(base, insert, at, end=None, out=None, span=None, xfade=0.04, crf=18):
     """See the module doc. ``at`` / ``end`` in base seconds, ``span`` (a, b) in insert seconds (default: all)."""
     bi, ii = media.probe(base), media.probe(insert)
-    fps = float(bi.get("fps") or 30.0)
+    # Sparse recorder frames still need a fine edit grid to preserve word boundaries.
+    fps = max(24.0, float(bi.get("fps") or 30.0))
     bdur, idur = float(bi["duration"]), float(ii["duration"])
     W = int(bi.get("display_w") or bi["w"]) // 2 * 2
     H = int(bi.get("display_h") or bi["h"]) // 2 * 2
     a = _grid(min(max(0.0, float(at)), bdur), fps)
     b = _grid(min(max(a, float(end if end is not None else at)), bdur), fps)
     ia, ib = span if span else (0.0, idur)
-    ifps = float(ii.get("fps") or fps)
+    ifps = max(24.0, float(ii.get("fps") or fps))
     ia, ib = _grid(max(0.0, ia), ifps), _grid(min(idur, ib), ifps)
     ins = round(round((ib - ia) * fps) / fps, 6)                     # what the insert lasts on the base's grid
     if ins < 2 / fps:
@@ -135,6 +136,8 @@ def splice(base, insert, at, end=None, out=None, span=None, xfade=0.04, crf=18):
     xi = decode_audio(insert, SR, 2) if ii.get("has_audio") else np.zeros((int(idur * SR), 2), np.float32)
     A, B = int(round(a * SR)), int(round(b * SR))
     I0, I1 = int(round(ia * SR)), int(round(ib * SR))
+    # Keep the source container clock when its picture and sound end at different times.
+    xb = np.pad(xb, ((0, max(0, round(bdur * SR) - len(xb))), (0, 0)))
     nb = len(xb)
     xb = np.concatenate([xb, np.zeros((max(0, B + h - len(xb)), 2), np.float32)])
     xi = np.concatenate([np.zeros((h, 2), np.float32), xi, np.zeros((max(0, I1 + h - len(xi)) + h, 2), np.float32)])
@@ -169,15 +172,18 @@ def splice(base, insert, at, end=None, out=None, span=None, xfade=0.04, crf=18):
     # ---- picture: base[0:a] + insert[ia:ib] + base[b:], one encode
     out = out or os.path.splitext(base)[0] + ".pickup.mp4"
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    fit = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps:g}"
+    fit = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1"
     parts, labels = [], []
     if a > 0:
-        parts.append(f"[0:v]trim=0:{a:.6f},setpts=PTS-STARTPTS,{fit}[v0]")
+        parts.append(f"[0:v]fps={fps:g},tpad=stop_mode=clone:stop_duration={bdur:.6f},"
+                     f"trim=0:{a:.6f},setpts=PTS-STARTPTS,{fit}[v0]")
         labels.append("[v0]")
-    parts.append(f"[1:v]trim={ia:.6f}:{ib:.6f},setpts=PTS-STARTPTS,{fit}[v1]")
+    parts.append(f"[1:v]fps={fps:g},tpad=stop_mode=clone:stop_duration={ib:.6f},"
+                 f"trim={ia:.6f}:{ib:.6f},setpts=PTS-STARTPTS,{fit}[v1]")
     labels.append("[v1]")
     if b < bdur - 0.5 / fps:
-        parts.append(f"[0:v]trim=start={b:.6f},setpts=PTS-STARTPTS,{fit}[v2]")
+        parts.append(f"[0:v]fps={fps:g},tpad=stop_mode=clone:stop_duration={bdur:.6f},"
+                     f"trim=start={b:.6f}:end={bdur:.6f},setpts=PTS-STARTPTS,{fit}[v2]")
         labels.append("[v2]")
     parts.append(f"{''.join(labels)}concat=n={len(labels)}:v=1:a=0[v]")
     with tempfile.TemporaryDirectory() as td:

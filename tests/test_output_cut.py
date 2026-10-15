@@ -359,3 +359,32 @@ def test_preview_edl_parity_with_the_renderer(tmp_path, pz):
              json.dumps(dict(op="cut", words=[11, 12], sig=sig, why="transcript")), "--json")
     j = json.loads(c.stdout)
     assert c.returncode == 0 and j["step"]["retimed"] and  j["values"][0]["words"] == "最后总结", c.stdout + c.stderr
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+def test_vfr_cut_boundaries_preserve_picture_and_audio_duration(tmp_path):
+    """Camera/screen recordings can have no frame at a word cut's exact start."""
+    import subprocess
+    from vstudio import audio as A, media as M
+
+    src, timeline, final = [str(tmp_path / n) for n in ("vfr.mp4", "timeline.mp4", "final.mp4")]
+    M.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+               "testsrc2=size=160x90:rate=24:duration=6", "-f", "lavfi", "-i",
+               "sine=frequency=440:sample_rate=48000:duration=6", "-vf",
+               "select='not(between(t,1,2)+between(t,3,4))'", "-fps_mode", "vfr",
+               "-c:v", "libx264", "-c:a", "aac", src])
+    spec = dict(segs=[(0, .9), (1.2, 2.8), (3.2, 6)], joins=[], speed=1)
+    expected = sum(b - a for a, b in spec["segs"])
+    R.run_timeline(spec, src, timeline, "preview", str(tmp_path))
+    streams = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_streams",
+                                                  "-of", "json", timeline]))["streams"]
+    for stream in streams:
+        assert float(stream["duration"]) == pytest.approx(expected, abs=.1)
+    # The final mux uses the shorter stream: a shortened picture used to lose >1s of speech.
+    wav = str(tmp_path / "sound.wav")
+    A.write_wav(wav, A.decode_audio(timeline, SR, 2), SR)
+    R.run_encode(timeline, final, wav, "preview", None, dict(w=160, h=90))
+    assert M.probe(final)["duration"] == pytest.approx(expected, abs=.1)
+    x = A.decode_audio(final, SR, 2)
+    assert len(x) / SR == pytest.approx(expected, abs=.1)
+    assert np.sqrt(np.mean(x[-SR // 5:] ** 2)) > .03
