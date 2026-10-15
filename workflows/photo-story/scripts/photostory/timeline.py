@@ -112,7 +112,7 @@ class Timeline:
                 sh["_tl_from"] = last_year
                 last_year = tl
         for k, sh in enumerate(self.shots):    # each shot keeps rendering until the next transition ends
-            sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else 99
+            sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else max(0.0, self.total - sh["end"])
 
     def section_at(self, gt):
         return max(i for i in range(len(self.sec_bounds) - 1) if self.sec_bounds[i] <= gt)

@@ -430,3 +430,30 @@ def test_missing_narration_plan_reports_a_useful_error():
     C = types.SimpleNamespace(spec=types.SimpleNamespace(SCRIPT=[], PACING={}))
     with pytest.raises(ValueError, match="SCRIPT has no narration or shots"):
         Timeline(C, {})
+
+
+@need_ff
+@pytest.mark.parametrize("tail", [0, 1.5])
+def test_final_music_shot_only_holds_for_the_authored_tail(media_dir, tail):
+    from photostory.ctx import Ctx
+    from photostory.music import MusicTimeline
+    from photostory.shots import ImageShot
+    spec = types.SimpleNamespace(__file__=str(media_dir / "spec.py"), SECTIONS=["Process"],
+        SCRIPT=[(0, [("Details", "细节")], [("p0", 4, "in", {})])],
+        BGM="song.wav", MUSIC=dict(grid="seconds", length=4, tail=tail, captions=False),
+        MODE="music", CANVAS=(320,180), MEDIA=dict(images="."))
+    c = Ctx(spec); t = MusicTimeline(c); shot = t.shots[-1]
+    assert shot["end"] + shot["tail"] == pytest.approx(t.total)
+    assert shot["tail"] == pytest.approx(tail)
+    assert t.total == pytest.approx(4 + tail)
+    move = ImageShot(c, shot, "p0")
+    a, b = move.frame(0), move.frame((t.total-shot["start"]) * 0.95)
+    assert np.mean(np.abs(a-b)) > 2  # the authored zoom actually progresses during the visible closing shot
+
+
+def test_final_narrated_shot_has_no_invisible_animation_extension():
+    from photostory.timeline import Timeline
+    c = types.SimpleNamespace(spec=types.SimpleNamespace(SCRIPT=[(0, [("Done", "结束")],
+        [("p0",1,"in",{})])], PACING={}), SECTIONS=["End"], cinema=True)
+    t = Timeline(c, {0:dict(dur=4,path=None,chunks=[dict(start=0,end=4)])})
+    assert t.shots[-1]["end"] == t.total and t.shots[-1]["tail"] == 0

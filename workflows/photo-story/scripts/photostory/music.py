@@ -217,7 +217,7 @@ class MusicTimeline:
             mins = [1] * len(flat)
         self.min_units = mins
         if cfg["length"]:
-            U = int((float(cfg["length"]) + m0 - G(0)) // unit)
+            U = int(math.floor((float(cfg["length"]) + m0 - G(0)) / unit + 1e-6))
         else:
             U = int(round(sum(sh[1] for _, _, sh in flat) * float(cfg["per"])))
         if U < sum(mins):
@@ -289,7 +289,7 @@ class MusicTimeline:
             if k == 0:
                 sh["tr"], sh["trd"] = None, 0
         for k, sh in enumerate(self.shots):
-            sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else 99
+            sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else max(0.0, self.total - sh["end"])
         # ---- on-screen text: each item's lines share the item's span
         style = cfg["captions"]
         if style:
