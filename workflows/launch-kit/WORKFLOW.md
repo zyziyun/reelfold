@@ -48,7 +48,7 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    `capture.images` with a focus box; the camera then makes a slow move to it.
 3. **Build + render.**
    ```bash
-   $LK build launch.config.yaml && (cd kit/build/demo-en-16x9 && npx hyperframes lint)
+   $LK build launch.config.yaml && (cd kit/build/demo-en-16x9 && npx hyperframes check)
    $LK render launch.config.yaml [--only demo|loop|clip|<feature>] [--quality draft]
    ```
    One HyperFrames project per cut × language × canvas (`kit/build/<name>/index.html`, `plan.json`, `cues.json`).
@@ -159,6 +159,10 @@ whole screen. Events closer than 0.6 s share one move. Translations are clamped 
   with JPEG frame extraction or Playwright's default recorder.
 - HyperFrames: never put a CSS `transform` on an element GSAP moves (`gsap_css_transform_conflict`); the camera's
   first pose is a `tl.set` at 0. Overlay start states are `opacity: 0` in CSS.
+- Media clips own their absolute `data-start`/`data-duration`. A scene containing timed videos is an untimed
+  visual container animated by the main GSAP timeline; never put a second media clock on its parent.
+- Platform glyphs need staged local fonts too, including Chinese marks in English films. Do not rely on an
+  undeclared system-font fallback. Clear lint errors before treating a browser layout check as executed.
 - A loop needs its last frame to be its first: the last scene crossfades into a still of the first scene's opening
   frame, and the first scene has no entrance animation.
 - Fit captions by measuring the actual font (PIL on the woff2), not by character counts: Newsreader and Noto Serif

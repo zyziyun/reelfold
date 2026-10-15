@@ -18,6 +18,7 @@ HyperFrames CLI: ``npx hyperframes`` (set $VSTUDIO_HYPERFRAMES to pin a version,
 import html
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -656,6 +657,8 @@ def build(cfg, plan, proj, quiet=False):
     if BL.used(plan):
         strings.append(BL.words(plan))
     langs = [lang] + (["en"] if zh else [])
+    if BL.used(plan) and re.search(r"[\u3400-\u9fff]", BL.words(plan)) and "zh" not in langs:
+        langs.append("zh")                 # Chinese platform glyphs also appear in English launch films
     # Optional YAML text (e.g. site/version) may be explicitly null. Use the
     # same text semantics as the visible fields, never render the word None.
     faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"),
@@ -886,7 +889,12 @@ def build(cfg, plan, proj, quiet=False):
             inner.append(f'<div class="full" id="{sid}g">' + "".join(grp) + "</div>")
             js.append(f'tl.fromTo("#{sid}g", {{scale: 1}}, {{scale: 1.03, duration: {_r(du)}, ease: "sine.out"}}, '
                       f'{_r(st)});')
-        body.append(f'<div class="scene clip" id="{sid}" data-start="{_r(st)}" data-duration="{_r(du)}" '
+        # Videos own their absolute media windows; the GSAP scene container must
+        # not introduce a second timing clock around those videos.
+        timed = '' if any('<video ' in part for part in inner) else (
+            f' data-start="{_r(st)}" data-duration="{_r(du)}"')
+        cls = 'scene' if not timed else 'scene clip'
+        body.append(f'<div class="{cls}" id="{sid}"{timed} '
                     f'data-track-index="{1 + i % 2}" data-layout="{lay}">' + "".join(inner) + "</div>")
     if plan["loop"]:
         # tail: a still of the first scene's opening frame fades in over the last crossfade -> seamless loop

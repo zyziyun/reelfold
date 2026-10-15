@@ -342,8 +342,7 @@ CSS = """
 .liftline .lw { display: inline-block; }
 .liftline .sep { display: inline-block; color: var(--lk-accent); margin: 0 .16em; opacity: 0; }
 .pm { position: absolute; }
-.pmark { display: inline-grid; place-items: center; color: #fff; font-family: {HEAVY}, -apple-system,
-  "PingFang SC", sans-serif; font-weight: 800; line-height: 1;
+.pmark { display: inline-grid; place-items: center; color: #fff; font-family: {HEAVY}; font-weight: 800; line-height: 1;
   box-shadow: 0 14px 30px -14px rgba(var(--lk-shadow), .55), inset 0 0 0 1px rgba(255,255,255,.14); }
 """
 
@@ -366,5 +365,6 @@ def words(plan):
         out += list(s.get("words") or []) + [s.get("sub") or "", s.get("kicker") or "", s.get("eyebrow") or ""]
         if s["layout"] in ("hook", "waterfall"):
             out += [s.get("text") or "", s.get("title") or ""]
-    out += [g for g, _ in MARKS.values()]
+        if s["layout"] == "lift":
+            out += [MARKS.get(p, ((p[:1] or "?").upper(), ""))[0] for p in s.get("platforms") or [] if p]
     return C.plain("".join(out))

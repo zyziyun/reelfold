@@ -391,6 +391,22 @@ def test_build_writes_a_lint_clean_shaped_project(cfg, shots, tmp_path):
     assert re.search(r'tl\.set\("#s1m0", \{x: [-\d.]+, y: [-\d.]+, scale: [\d.]+\}, 0\)', html)
     assert '<span class="w mk">one sentence</span>' in html                 # the lower third, its term in accent
     assert html.count("<video ") >= 3 and 'data-volume="0"' in html          # + the detail cut's continuation
+    from html.parser import HTMLParser
+    class MediaClock(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.stack = []
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "video" and "data-start" in attrs:
+                assert not any("data-start" in a and "data-composition-id" not in a for _, a in self.stack)
+            if tag not in ("img", "meta", "link", "br", "input", "hr", "source"):
+                self.stack.append((tag, attrs))
+        def handle_endtag(self, tag):
+            for n in range(len(self.stack) - 1, -1, -1):
+                if self.stack[n][0] == tag:
+                    del self.stack[n:]; break
+    MediaClock().feed(html)
+    assert "PingFang SC" not in html
     assert 'data-layout="macro"' in html and 'class="lt"' in html and "box-shadow" in html
     assert "--lk-flat" in html and html.count('class="full field"') == 2       # gradient only behind the cards
     assert "#0E9484" not in html and "#2F6F9F" in html.upper()      # the brand accent, not someone else's
@@ -989,6 +1005,8 @@ def test_blocks_build_waterfall_lift_hook_on_a_cream_stage(cfg, shots, tmp_path)
     assert html.count('class="tile"') > 150 and "assets/thumbs/t000-" in html
     assert os.path.exists(os.path.join(proj, "assets", "brand", "wordmark-1920x1080.png"))
     assert 'class="pmark"' in html and html.count('class="pm"') == 9 and ">Publish<" in html
+    assert 'font-family: "LK-zh-heavy"' in html   # Chinese platform marks have a staged face in the English film
+    assert "PingFang SC" not in html
     assert "font-weight: 880" in html and "--lk-flat:#F2ECE3" in html                 # heavy type, cream stage
     assert 'class="center chap heavy"' in html                                       # heavy chapter titles
     assert 'ease: "power2.in"' in html and "yPercent: 115" in html
