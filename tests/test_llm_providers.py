@@ -496,5 +496,5 @@ def test_tts_engines_compatible_and_elevenlabs(monkeypatch, tmp_path):
     assert calls[-1][0].startswith("https://api.elevenlabs.io/v1/text-to-speech/vid")
     assert calls[-1][1]["voice_settings"]["speed"] == 1.2 and calls[-1][2]["xi-api-key"] == "el-test"
     rows = {r["provider"] for r in tts.providers(probe=False)}
-    assert rows == {"openai", "kokoro", "qwen", "edge", "clone", "elevenlabs", "openai-compatible"}
+    assert rows == {"openai", "kokoro", "qwen", "edge", "clone", "elevenlabs", "openai-compatible", "system"}
     assert tts.default_voice("elevenlabs") and tts.default_voice("openai-compatible")

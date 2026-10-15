@@ -154,7 +154,7 @@ def test_apply_keeps_her_header_and_a_backup_and_refuses_a_bad_config(tmp_path):
 def test_clip_ai_routes_to_the_kit_and_the_editor_knows_the_film(tmp_path, monkeypatch):
     d, f = _kit(tmp_path)
     oid = "main/demo-en-16x9.mp4"
-    monkeypatch.setattr(O, "_project_outputs", lambda pdir: [dict(id=oid, file=f, item="main", job_state="done",
+    monkeypatch.setattr(O, "_project_outputs", lambda pdir, **kw: [dict(id=oid, file=f, item="main", job_state="done",
                                                                   platform=None, orientation=None, title="promo",
                                                                   _rows={}, _params={})])
     monkeypatch.setenv("VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER", "claude-code")
