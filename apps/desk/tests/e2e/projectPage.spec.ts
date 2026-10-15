@@ -33,7 +33,7 @@ const engineEnv = {
   ...Object.fromEntries(['SEGMENT_PLAN', 'PROOFREAD', 'GLOSSARY', 'COPY', 'SCRIPT', 'PLANNER', 'INTAKE', 'OUTPUT_EDIT', 'EDIT', 'JUDGE'].map((t) => [`VSTUDIO_LLM_${t}_PROVIDER`, 'none'])),
 };
 
-type Hist = { items: { id: string; dir: string; stopped?: number; status?: string; thumb?: string | null; live?: { state?: string } | null }[] };
+type Hist = { items: { id: string; dir: string; stopped?: number; pilot?: unknown; queued?: unknown; status?: string; thumb?: string | null; live?: { state?: string } | null }[] };
 
 test.describe.configure({ mode: 'serial' });
 
@@ -187,7 +187,11 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   const stop = page.locator(`${CHAT} [data-testid=pai-project-action][data-kind=stop]`);
   await expect(stop).toBeVisible({ timeout: 15000 });
   await stop.click();
-  await expect.poll(async () => !!(await api<Hist>('/api/history')).items.find((i) => i.id === fresh)?.stopped, { timeout: 30000 }).toBe(true);
+  // Stop is acknowledged before the worker exits. Wait for safe shutdown before resuming.
+  await expect.poll(async () => {
+    const item = (await api<Hist>('/api/history')).items.find((i) => i.id === fresh);
+    return !!item?.stopped && !item.pilot && !item.queued && item.live?.state !== 'running';
+  }, { timeout: 30000 }).toBe(true);
   await shot('P6-chat-paused');
   // ... and run it on
   await input.fill('继续');

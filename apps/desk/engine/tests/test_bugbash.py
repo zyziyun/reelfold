@@ -184,7 +184,7 @@ class InboxPollIsCheap(unittest.TestCase):
     """BB-19: every /api/inbox poll started a `vstudio.project inbox` CLI (1.5-4.5 s of CPU while idle)."""
 
     class Hist:
-        def list(self):
+        def list(self, archived=False):
             return dict(items=[])
 
         def allow_media(self, paths):
@@ -271,7 +271,7 @@ class LaunchVideoInbox(unittest.TestCase):
         d = tempfile.mkdtemp()
 
         class Hist:
-            def list(self):
+            def list(self, archived=False):
                 return dict(items=[dict(id="p1", dir=d, name="P", kind="project", live=dict(
                     needs_you=True, heartbeat=1.0, message="checkpoint: filler"))])
 
@@ -312,7 +312,7 @@ class AutopilotStepsAreNotHers(unittest.TestCase):
         auto = [True]
 
         class Hist:
-            def list(self):
+            def list(self, archived=False):
                 return dict(items=[dict(id="p1", dir=d, name="P", kind="project", autopilot=auto[0])])
 
             def allow_media(self, paths):
@@ -362,7 +362,7 @@ class RealAppRecording(unittest.TestCase):
         d = tempfile.mkdtemp()
 
         class Hist:
-            def list(self):
+            def list(self, archived=False):
                 return dict(items=[dict(id="p1", dir=d, name="P", kind="project", live=dict(
                     needs_you=True, heartbeat=1.0, message="checkpoint: filler"))])
 

@@ -167,8 +167,10 @@ test('her project: the failure names the key, and Try again makes the voice with
   await item.click();
   const pane = page.getByTestId('inbox-preview');
   await expect(pane).toContainText('Press Try again to make the voice with the free voice on this computer');
-  await expect(pane).not.toContainText('OPENAI_API_KEY');
-  await expect(pane).not.toContainText('Traceback');
+  // Collapsed diagnostic details preserve the technical error for copying.
+  await expect.poll(() => pane.innerText()).not.toContain('OPENAI_API_KEY');
+  await expect.poll(() => pane.innerText()).not.toContain('Traceback');
+  await expect(pane.getByTestId('failure-details')).not.toHaveAttribute('open', '');
   await expect(page.getByTestId('fail-add-key')).toHaveText('Add your OpenAI key');
   await page.getByTestId('fail-retry').click();
   await expect.poll(() => firstTake(fx.course), { timeout: 180000 }).toBe('kokoro:zf_xiaobei');

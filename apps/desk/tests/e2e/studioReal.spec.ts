@@ -126,7 +126,7 @@ test('title + copy + cover + schedule on the clip page: 4 clicks, one screen', a
   await expect(page.getByTestId('ci-cover').first()).toBeVisible({ timeout: 30000 });
   await click(page.getByTestId('ci-cover').nth(2));
   await expect(page.getByTestId('ci-render')).toBeVisible({ timeout: 15000 });
-  // schedule: the header's one button, the next free slot on her platforms
+  // Schedule this clip's own target (YouTube), not every default platform.
   await click(page.getByTestId('studio-schedule'));
   await expect(page.getByTestId('studio-scheduled')).toBeVisible({ timeout: 15000 });
   // the copy, per platform (the post section under the transcript)
@@ -140,7 +140,7 @@ test('title + copy + cover + schedule on the clip page: 4 clicks, one screen', a
   await expect(page.getByTestId('editor-title')).toHaveText('一条录像变一周内容');
   await expect
     .poll(async () => (await api<{ posts: { item: string; clip: string; title: string; caption: string }[] }>('/api/calendar')).posts.filter((p) => p.item === id && p.clip === 'talk').map((p) => p.title), { timeout: 15000 })
-    .toEqual(['一条录像变一周内容', '一条录像变一周内容', '一条录像变一周内容']);
+    .toEqual(['一条录像变一周内容']);
   await expect(page.getByTestId('ci-render')).toHaveAttribute('data-phase', 'done', { timeout: 180000 });
   await shot('R3-studio-four-clicks');
   expect(clicks).toBe(4);

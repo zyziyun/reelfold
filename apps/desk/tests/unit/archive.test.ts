@@ -12,6 +12,8 @@ import { archiveEn } from '../../src/renderer/src/i18n/locales/archive';
 import { archivedLine, archiveFlow, isRunning, noMatchText, restoreFlow, shownProjects } from '../../src/renderer/src/lib/archive';
 
 const hist = vi.hoisted(() => ({ value: null as unknown }));
+// Archive SSR tests need a fixed AI store; the live store only supports client rendering.
+vi.mock('../../src/renderer/src/lib/ai', async (orig) => ({ ...(await orig<object>()), useAi: () => ({ routes: null, status: null, checking: false, models: null }) }));
 vi.mock('../../src/renderer/src/lib/history', () => ({ useHistory: () => hist.value }));
 vi.mock('../../src/renderer/src/lib/engine', () => ({
   useEngine: () => ({ client: null, subscribe: () => () => undefined }),
