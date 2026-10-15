@@ -9,6 +9,7 @@
 // import: the clock, the calendar and the notifier are injected (tests drive it with a fake clock).
 import fs from 'node:fs';
 import path from 'node:path';
+import type { YtPublishResult } from '../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../shared/v04';
 import { duePosts, localDate, upcomingPosts } from '../../shared/publish/postNow';
 
@@ -23,6 +24,7 @@ export interface ApiAttempt {
   /** The upload receipt is durable independently of the local calendar update. */
   calendarSynced?: boolean;
   resolvedAccount?: string;
+  result?: YtPublishResult;
 }
 
 interface State {
@@ -31,10 +33,12 @@ interface State {
   api: Record<string, ApiAttempt>;
 }
 
+export type ApiUpload = { ok: true; url: string | null; account?: string; result?: YtPublishResult } | { ok: false; error: string };
+
 export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
-  publish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null; account?: string } | { ok: false; error: string }>;
+  publish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload>;
 }
 
 export interface SchedulerDeps {
@@ -179,37 +183,51 @@ export class PublishScheduler {
     for (const p of candidates) {
       const prev = this.state.api[p.id];
       const same = prev && prev.at === p.at && (prev.account ?? null) === (p.account ?? null);
+      if (prev && ['done', 'uploading'].includes(prev.status)) continue;
       if (same) {
         if (prev.status !== 'failed' || prev.tries >= MAX_TRIES || t - prev.lastTry < RETRY_MS) continue;
       }
       const at = localDate(p.at);
       // YouTube refuses a publishAt in the past or too close: schedule only when it is comfortably ahead
       const publishAt = at.getTime() - t > 15 * 60_000 ? at : null;
-      const rec: ApiAttempt = { at: p.at, account: p.account, status: 'uploading', tries: (same ? prev.tries : 0) + 1, lastTry: t };
-      this.state.api[p.id] = rec;
-      if (!this.write()) {
-        if (prev) this.state.api[p.id] = prev;
-        else delete this.state.api[p.id];
-        continue; // Do not make an external change without a durable attempt record.
-      }
-      ran.push(p.id);
-      try {
-        const r = await api.publish(p, publishAt);
-        if (r.ok) {
-          const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}) };
-          this.state.api[p.id] = receipt;
-          await this.syncReceipt(p, receipt);
-        } else {
-          this.state.api[p.id] = { ...rec, status: 'failed', detail: r.error };
-          this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
-        }
-      } catch (e) {
-        this.state.api[p.id] = { ...rec, status: 'failed', detail: (e as Error).message };
-        this.deps.log?.(`[scheduler] API post ${p.id} failed: ${(e as Error).message}`);
-      }
-      this.write();
+      const r = await this.upload(p, () => api.publish(p, publishAt));
+      if (r.ok || this.state.api[p.id]?.lastTry === t) ran.push(p.id);
     }
     return ran;
+  }
+
+  /** One durable owner for manual and scheduled uploads. No await before claiming the post. */
+  async upload(p: CalendarPost, publish: () => Promise<ApiUpload>): Promise<ApiUpload> {
+    if (!this.stateReadable) return { ok: false, error: 'Upload history is unreadable; check the platform before uploading again.' };
+    const prev = this.state.api[p.id];
+    if (prev?.status === 'uploading') return { ok: false, error: 'This post has an upload in progress or awaiting verification. Check the platform before uploading again.' };
+    if (prev?.status === 'done') {
+      if (prev.at !== p.at || (prev.account ?? null) !== (p.account ?? null)) {
+        return { ok: false, error: 'This post was already uploaded. Edit its time or account on the platform, or create a separate post.' };
+      }
+      if (!prev.calendarSynced) await this.syncReceipt(p, prev);
+      return { ok: true, url: prev.url ?? null, account: prev.resolvedAccount, result: prev.result };
+    }
+    const rec: ApiAttempt = { at: p.at, account: p.account, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
+    this.state.api[p.id] = rec;
+    if (!this.write()) {
+      if (prev) this.state.api[p.id] = prev;
+      else delete this.state.api[p.id];
+      return { ok: false, error: 'Could not save upload history. No upload was started.' };
+    }
+    let r: ApiUpload;
+    try { r = await publish(); }
+    catch (e) { r = { ok: false, error: (e as Error).message }; }
+    if (r.ok) {
+      const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}), ...(r.result ? { result: r.result } : {}) };
+      this.state.api[p.id] = receipt;
+      await this.syncReceipt(p, receipt);
+    } else {
+      this.state.api[p.id] = { ...rec, status: 'failed', detail: r.error };
+      this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
+    }
+    this.write();
+    return r;
   }
 
   private async syncReceipt(p: CalendarPost, receipt: ApiAttempt): Promise<void> {

@@ -222,6 +222,58 @@ describe('scheduler', () => {
     expect(s.apiState('y1')?.status).toBe('uploading');
   });
 
+  it('manual upload owns the same post while the scheduler and another manual request run', async () => {
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+    const automatic = vi.fn();
+    const { s } = mk([p], { t: new Date(2026, 9, 7, 19, 30) }, { api: { wants: () => true, publish: automatic } });
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    const manual = vi.fn(async () => { await waiting; return { ok: true as const, url: 'https://youtu.be/one' }; });
+    const first = s.upload(p, manual);
+    await s.tick();
+    const second = await s.upload(p, manual);
+    expect(second.ok).toBe(false);
+    expect(automatic).not.toHaveBeenCalled();
+    expect(manual).toHaveBeenCalledTimes(1);
+    finish();
+    expect((await first).ok).toBe(true);
+    await s.tick();
+    expect(automatic).not.toHaveBeenCalled();
+  });
+
+  it('scheduled upload owns the post before a manual upload can start', async () => {
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    const automatic = vi.fn(async () => { await waiting; return { ok: true as const, url: 'https://youtu.be/one' }; });
+    const { s } = mk([p], { t: new Date(2026, 9, 7, 19, 30) }, { api: { wants: () => true, publish: automatic } });
+    const ticking = s.tick();
+    await vi.waitFor(() => expect(automatic).toHaveBeenCalledTimes(1));
+    const manual = vi.fn();
+    expect((await s.upload(p, manual)).ok).toBe(false);
+    expect(manual).not.toHaveBeenCalled();
+    finish();
+    await ticking;
+  });
+
+  it('manual retry after restart returns the saved provider result, including local sync failures', async () => {
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+    const stateFile = path.join(tmp(), 's.json');
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const result = { url: 'https://youtu.be/one', privacy: 'private', publishAt: '2026-10-08T03:00:00Z', lockedPrivate: false, warnings: ['cover unavailable'] };
+    const first = mk([p], clock, { stateFile, markPosted: async () => { throw new Error('calendar offline'); } });
+    await first.s.upload(p, async () => ({ ok: true, url: result.url, account: 'main', result }));
+    const restarted = mk([p], clock, { stateFile });
+    const publish = vi.fn();
+    expect(await restarted.s.upload(p, publish)).toMatchObject({ ok: true, result });
+    expect(publish).not.toHaveBeenCalled();
+    expect(restarted.posted).toEqual(['y1']);
+    // Changing an existing remote post does not mean inserting a second video.
+    expect((await restarted.s.upload({ ...p, at: '2026-10-08T20:00' }, publish)).ok).toBe(false);
+    expect((await restarted.s.upload({ ...p, account: 'brand' }, publish)).ok).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('more than apiGraceMs late: no automatic upload, she decides', async () => {
     const clock = { t: new Date(2026, 9, 8, 18, 0) };
     const publish = vi.fn();
