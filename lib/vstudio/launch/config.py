@@ -112,6 +112,20 @@ def _abs(root, p):
     return p if os.path.isabs(p) else os.path.normpath(os.path.join(root, p))
 
 
+def _input_abs(root, p):
+    """A bare imported filename may refer to prepare's exact inputs link, never a filesystem search.
+
+    Explicit paths and existing config-relative files retain their normal meaning. This also reads older
+    AI-authored configs that omitted the inputs/ prefix without rewriting the creator's config.
+    """
+    resolved = _abs(root, p)
+    if p and not os.path.exists(resolved) and os.path.basename(str(p)) == str(p):
+        linked = os.path.join(root, "inputs", str(p))
+        if os.path.isfile(linked):
+            return linked
+    return resolved
+
+
 def load_shots(cfg):
     """capture.shots (shots.json written by scripts/capture.mjs) + capture.clips (recordings she already has) +
     capture.images (screenshots) ->
@@ -204,8 +218,8 @@ def load(path, overrides=None):
         if cap.get(k):
             cap[k] = _abs(root, cap[k])
     for im in cap.get("images") or []:
-        im["file"] = _abs(root, im["file"])
-    cap["clips"] = [_abs(root, c) if isinstance(c, str) else dict(c, file=_abs(root, c.get("file")))
+        im["file"] = _input_abs(root, im["file"])
+    cap["clips"] = [_input_abs(root, c) if isinstance(c, str) else dict(c, file=_input_abs(root, c.get("file")))
                     for c in cap.get("clips") or []]
     if isinstance(cfg.get("make"), str):
         cfg["make"] = [cfg["make"]]

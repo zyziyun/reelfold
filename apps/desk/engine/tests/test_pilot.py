@@ -44,6 +44,11 @@ class ClassifyTest(unittest.TestCase):
                            ("No space left on device", "disk")]:
             self.assertEqual(PI.classify(text), code)
 
+    def test_launch_missing_inputs_are_media_failures(self):
+        for text in ("capture.clips.home: not found: /tmp/project/home.mp4",
+                     "launch_kit.py exit 2: capture.images.poster: not found: /tmp/project/poster.png"):
+            self.assertEqual(PI.classify(text), "media")
+
     def test_codes(self):
         self.assertEqual(PI.classify(ERR), "ai-login")
         self.assertEqual(PI.classify("codex: 429 rate limit"), "ai-quota")

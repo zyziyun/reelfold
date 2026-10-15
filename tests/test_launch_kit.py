@@ -1009,3 +1009,36 @@ def test_review_page_and_contact_sheet(cfg, kitdir, tmp_path):
         assert im.width > 1000
     page = open(K.review_page(c), encoding="utf-8").read()
     assert "films/short-en-9x16.mp4" in page and "short-en-9x16.sheet.jpg" in page and "not rendered yet" in page
+
+
+def test_imported_bare_media_uses_exact_inputs_link_and_preserves_explicit_paths(tmp_path):
+    inputs = tmp_path / 'inputs'
+    inputs.mkdir()
+    (inputs / 'demo.mp4').write_bytes(b'video')
+    (inputs / 'screen.png').write_bytes(b'image')
+    assert C._input_abs(str(tmp_path), 'demo.mp4') == str(inputs / 'demo.mp4')
+    assert C._input_abs(str(tmp_path), 'screen.png') == str(inputs / 'screen.png')
+    assert C._input_abs(str(tmp_path), 'missing.mp4') == str(tmp_path / 'missing.mp4')
+    assert C._input_abs(str(tmp_path), 'other/demo.mp4') == str(tmp_path / 'other/demo.mp4')
+    assert C._input_abs(str(tmp_path), '/external/demo.mp4') == '/external/demo.mp4'
+    # A file next to the config wins; do not silently replace it with the imported take.
+    (tmp_path / 'demo.mp4').write_bytes(b'another video')
+    assert C._input_abs(str(tmp_path), 'demo.mp4') == str(tmp_path / 'demo.mp4')
+
+
+def test_config_load_resolves_old_bare_imports_without_rewriting_file(tmp_path):
+    inputs = tmp_path / 'inputs'
+    inputs.mkdir()
+    (inputs / 'demo.mp4').write_bytes(b'video')
+    (inputs / 'screen.png').write_bytes(b'image')
+    p = tmp_path / 'launch.config.yaml'
+    raw = dict(product=dict(name='Example', one_liner=dict(en='Real recordings')),
+               languages=['en'], capture=dict(clips=[dict(id='take',file='demo.mp4')],
+               images=[dict(id='screen',file='screen.png')]),
+               features=[dict(id='demo',shot='take',caption=dict(en='Create a video'))])
+    p.write_text(yaml.safe_dump(raw))
+    before=p.read_bytes()
+    cfg=C.load(str(p))
+    assert cfg['capture']['clips'][0]['file'] == str(inputs/'demo.mp4')
+    assert cfg['capture']['images'][0]['file'] == str(inputs/'screen.png')
+    assert p.read_bytes() == before

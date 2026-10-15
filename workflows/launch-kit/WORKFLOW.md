@@ -163,3 +163,10 @@ whole screen. Events closer than 0.6 s share one move. Translations are clamped 
   frame, and the first scene has no entrance animation.
 - Fit captions by measuring the actual font (PIL on the woff2), not by character counts: Newsreader and Noto Serif
   SC differ by 40 % in width at the same size.
+
+### Imported recordings in an App project
+
+The prepare stage links supplied media under the item's `inputs/` directory. In `capture.clips` and
+`capture.images[].file`, use those paths (for example `inputs/01-home.mp4`), not bare filenames relative to
+`launch.config.yaml`. The loader accepts an older bare filename only when that exact file exists in `inputs/`;
+explicit paths keep their meaning and genuinely missing files still stop before capture/render.

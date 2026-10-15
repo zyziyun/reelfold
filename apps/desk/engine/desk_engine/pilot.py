@@ -65,7 +65,8 @@ _CODES = (
     ("stage-spec-invalid", r"could not convert string to float: .seconds.|script has no shots|script has no narration|(?:timeline|music)\.py[\s\S]*indexerror: list assignment index out of range"),
     ("engine", r"no module named|importerror|modulenotfounderror"),
     # only a real open / read error (never any line that merely says "ffmpeg")
-    ("media", r"invalid data found|moov atom|could not open|no such file|error opening input|input/output error"),
+    ("media", r"invalid data found|moov atom|could not open|no such file|error opening input|input/output error|"
+              r"capture\.(clips|images)\.[^\n]*not found:"),
     ("engine", r"traceback \(most recent"),                  # any other Python crash
 )
 _CODES_ENGINE_START = r"no module named|importerror|modulenotfounderror"
