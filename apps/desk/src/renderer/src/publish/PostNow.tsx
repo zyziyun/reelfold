@@ -5,9 +5,10 @@
 // notification with ?go=1, the fill starts by itself. A platform published through its official API (YouTube) never
 // opens in the built-in browser: the right side is its publish form, and Publish / Schedule is her click. Every
 // platform also offers "Upload in your browser" (her default browser, the pieces handed over one by one).
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FolderOpen, Loader2, LogIn, RotateCcw, Send, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FolderOpen, Loader2, LogIn, Pause, Play, RotateCcw, Send, TriangleAlert } from 'lucide-react';
 import type { FillStepMsg, PostFillMsg, PublishStateMsg } from '../../../shared/deskApi';
+import { withFillStep } from '../../../shared/publish/fillPlan';
 import { adapterFor } from '../../../shared/publish/adapterSchema';
 import { apiOnly, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
 import { CAPS } from '../../../shared/edition';
@@ -29,7 +30,7 @@ import { postAccount } from '../../../shared/publish/account';
 import { PostAccount } from './PostAccount';
 import './publish.css';
 
-type Phase = { k: 'idle' } | { k: 'filling' } | { k: 'filled'; r: Extract<PostFillMsg, { ok: true }> } | { k: 'failed'; r: Extract<PostFillMsg, { ok: false }> } | { k: 'posted'; url: string | null };
+type Phase = { k: 'idle' } | { k: 'filling'; paused?: boolean } | { k: 'filled'; r: Extract<PostFillMsg, { ok: true }> } | { k: 'failed'; r: Extract<PostFillMsg, { ok: false }> } | { k: 'posted'; url: string | null };
 
 export function PostNow({ id }: { id: string }) {
   const ui = useUi();
@@ -45,6 +46,7 @@ export function PostNow({ id }: { id: string }) {
   const [savingAccount, setSavingAccount] = useState(false);
   const [apiBusy, setApiBusy] = useState(false);
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
+  const fillSeq = useRef(0);
   const [steps, setSteps] = useState<FillStepMsg[]>([]);
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
   const [manual, setManual] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function PostNow({ id }: { id: string }) {
       window.desk.on('publish:state', (s) => setBstate(s as PublishStateMsg)),
       window.desk.on('publish:fillStep', (s) => {
         const st = s as FillStepMsg & { postId?: string };
-        if (st.postId === id) setSteps((x) => [...x, st]);
+        if (st.postId === id) setSteps((x) => withFillStep(x, st));
       }),
       window.desk.on('publish:posted', (d) => {
         const p = d as { postId: string; url: string | null };
@@ -72,6 +74,7 @@ export function PostNow({ id }: { id: string }) {
       }),
     ];
     return () => {
+      fillSeq.current += 1;
       offs.forEach((f) => f());
       void window.desk.publish.hide();
     };
@@ -83,17 +86,33 @@ export function PostNow({ id }: { id: string }) {
   }, [post, phase.k]);
 
   const fill = useCallback(async () => {
+    const seq = ++fillSeq.current;
     setSteps([]);
     setPhase({ k: 'filling' });
     try {
       const r = await window.desk.publish.fillPost(id, account?.account);
+      if (seq !== fillSeq.current) return;
+      if (!r.ok && r.reason === 'cancelled') setSteps((x) => x.filter((s) => s.status !== 'running'));
       setPhase(r.ok ? { k: 'filled', r } : { k: 'failed', r });
       cal.reload();
     } catch (e) {
+      if (seq !== fillSeq.current) return;
       setPhase({ k: 'idle' });
       ui.toast(errText(e), { error: true });
     }
   }, [id, account?.account, cal, ui]);
+
+  const controlFill = async (action: 'pause' | 'resume' | 'cancel') => {
+    try {
+      if (await window.desk.publish.controlFill(id, action)) {
+        if (action !== 'cancel') setPhase((p) => p.k === 'filling' ? { ...p, paused: action === 'pause' } : p);
+      }
+    } catch (e) { ui.toast(errText(e), { error: true }); }
+  };
+  const uploadInBrowser = async () => {
+    await controlFill('cancel');
+    setInBrowser(true);
+  };
 
   const [started, setStarted] = useState(false);
   useEffect(() => {
@@ -129,6 +148,9 @@ export function PostNow({ id }: { id: string }) {
     if (!client || !post) return;
     const u = url.trim();
     if (u && !/^https:\/\/\S+$/.test(u)) return ui.toast(t('pl.post.badUrl'), { error: true });
+    fillSeq.current += 1;
+    await controlFill('cancel');
+    setPhase((p) => p.k === 'filling' ? { k: 'failed', r: { ok: false, reason: 'cancelled' } } : p);
     try {
       await client.updatePost(post.id, { state: 'posted', via: 'manual', ...(u ? { url: u } : {}) });
       setManual(null);
@@ -235,9 +257,18 @@ export function PostNow({ id }: { id: string }) {
               </div>
             )}
             {phase.k === 'filling' && (
-              <div className="pl-card" aria-busy="true">
-                <Loader2 className="ico spin" />
-                <span>{t('pl.post.filling', { pf: platformName(pf) })}</span>
+              <div className="pl-card" aria-busy={!phase.paused} data-testid="post-filling" data-paused={!!phase.paused}>
+                {phase.paused ? <Pause className="ico" /> : <Loader2 className="ico spin" />}
+                <div className="col" style={{ gap: 10 }}>
+                  <span>{phase.paused ? t('pl.post.paused') : t('pl.post.filling', { pf: platformName(pf) })}</span>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <button className="btn sm" onClick={() => void controlFill(phase.paused ? 'resume' : 'pause')} data-testid="post-pause">
+                      {phase.paused ? <Play className="ico" /> : <Pause className="ico" />}
+                      {t(phase.paused ? 'pl.post.resume' : 'pl.post.pause')}
+                    </button>
+                    <button className="btn sm" onClick={() => void controlFill('cancel')} data-testid="post-takeover">{t('pl.post.takeover')}</button>
+                  </div>
+                </div>
               </div>
             )}
             {phase.k === 'filled' && (
@@ -250,8 +281,8 @@ export function PostNow({ id }: { id: string }) {
               </div>
             )}
             {fail && (
-              <div className="pl-card warn" data-testid="post-failed" data-reason={fail.reason}>
-                <TriangleAlert className="ico" />
+              <div className={`pl-card ${fail.reason === 'cancelled' ? '' : 'warn'}`} data-testid="post-failed" data-reason={fail.reason}>
+                {fail.reason === 'cancelled' ? <Pause className="ico" /> : <TriangleAlert className="ico" />}
                 <div className="col" style={{ gap: 8 }}>
                   <span>{t(`pl.fail.${fail.reason}` as 'pl.fail.no-post', { pf: platformName(pf), detail: fail.detail ?? '' })}</span>
                   {fail.reason === 'login-required' ? (
@@ -279,9 +310,9 @@ export function PostNow({ id }: { id: string }) {
           <ul className="pl-steps" data-testid="post-steps">
             {steps.map((s, i) => (
               <li key={i} className={s.status} data-field={s.field} data-status={s.status}>
-                {s.status === 'ok' ? <Check className="ico" /> : <TriangleAlert className="ico" />}
+                {s.status === 'ok' ? <Check className="ico" /> : s.status === 'running' ? (phase.k === 'filling' && phase.paused ? <Pause className="ico" /> : <Loader2 className="ico spin" />) : <TriangleAlert className="ico" />}
                 {t(`pl.step.${s.field}` as 'pl.step.file')}
-                {s.status !== 'ok' && <span className="muted small"> — {t(s.status === 'not-found' ? 'pl.step.notFound' : 'pl.step.error')}</span>}
+                {s.status !== 'ok' && s.status !== 'running' && <span className="muted small"> — {t(s.status === 'not-found' ? 'pl.step.notFound' : 'pl.step.error')}</span>}
               </li>
             ))}
           </ul>
@@ -317,7 +348,7 @@ export function PostNow({ id }: { id: string }) {
                   {t('pl.post.again')}
                 </button>
               )}
-              <button className="btn sm" onClick={() => setInBrowser(true)} data-testid="post-in-browser">
+              <button className="btn sm" onClick={() => void uploadInBrowser()} data-testid="post-in-browser">
                 <ExternalLink className="ico" />
                 {t('ub.open')}
               </button>
@@ -342,7 +373,7 @@ export function PostNow({ id }: { id: string }) {
             <YtPublishForm key={account.account} immediate={immediate} post={post} account={account.account} result={ytSent} onBusy={setApiBusy} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
           ) : null
         ) : (
-          <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => setInBrowser(true)} pf={platformName(pf)} />
+          <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => void uploadInBrowser()} pf={platformName(pf)} />
         )}
       </section>
       {inBrowser && <UploadInBrowserSheet postId={post.id} pf={platformName(pf)} onClose={() => setInBrowser(false)} onPosted={(url) => (setInBrowser(false), void markPosted(url))} />}

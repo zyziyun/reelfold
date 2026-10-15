@@ -28,6 +28,7 @@ import { shortsFit, YouTubeApi } from './publish/api/youtube';
 import { CAPTURE_JS, saveCapture, type CaptureResult } from './publish/capture';
 import { probeLogin } from './publish/loginProbe';
 import { fillScheduledPost } from './publish/postFill';
+import { FillRuns } from './publish/fillControl';
 import { PublishScheduler } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
@@ -116,6 +117,7 @@ let win: BrowserWindow | null = null;
 let engine: EngineProcess | null = null;
 let client: EngineClient | null = null;
 let browser: PublishBrowser | null = null;
+const fillRuns = new FillRuns();
 let settings: SettingsStore;
 let pstore: PublishStore;
 let adapters: { adapters: Adapter[]; errors: { file: string; error: string }[] } = { adapters: [], errors: [] };
@@ -553,6 +555,7 @@ function createWindow(route?: string, show = true) {
       mainLog(`[main] first page load failed: ${String((e as Error)?.message ?? e)}`);
     });
   win.on('closed', () => {
+    fillRuns.cancel();
     browser?.destroy();
     browser = null;
     win = null;
@@ -925,6 +928,7 @@ function registerIpc() {
     return channelList();
   });
   handle('publish:removeAccount', async (p) => {
+    if (browser?.active?.adapter.id === p.adapterId && browser.active.account === p.account) fillRuns.cancel();
     const st = settings.get();
     const acc = { ...st.accounts, [p.adapterId]: (st.accounts[p.adapterId] ?? []).filter((x) => x !== p.account) };
     if (!acc[p.adapterId].length) delete acc[p.adapterId];
@@ -940,13 +944,15 @@ function registerIpc() {
     return channelList();
   });
   handle('publish:open', async (p) => {
+    fillRuns.cancel();
     const acc = settings.get().accounts[p.adapterId] ?? [];
     if (!acc.includes(p.account)) throw new Error('add the account first');
     browser!.open(adapterById(p.adapterId), p.account, p.page);
   });
   handle('publish:setBounds', async (p) => browser?.setBounds(p));
-  handle('publish:hide', async () => browser?.hide());
-  handle('publish:navigate', async (p) => browser?.navigate(p.action));
+  handle('publish:hide', async () => { fillRuns.cancel(); browser?.hide(); });
+  handle('publish:navigate', async (p) => { fillRuns.cancel(); browser?.navigate(p.action); });
+  handle('publish:controlFill', async (p) => fillRuns.command(p.postId, p.action));
   handle('publish:confirmPackage', async (p) => {
     const m = await needClient().manifest(p.batchId);
     if (!m.manifest || !m.verify.ok || m.manifest.confirmation_code !== p.code) {
@@ -958,8 +964,9 @@ function registerIpc() {
   handle('publish:fill', async (p) => {
     const acc = settings.get().accounts[p.adapterId] ?? [];
     if (!acc.includes(p.account)) throw new Error('unknown account');
-    return assistedFill(
+    return fillRuns.run(`batch:${p.batchId}:${p.job}`, (control) => assistedFill(
       {
+        control,
         client: needClient(),
         store: pstore,
         adapters: adapters.adapters,
@@ -967,7 +974,7 @@ function registerIpc() {
         onStep: (r) => win?.webContents.send('publish:fillStep', r),
       },
       p,
-    );
+    ));
   });
   handle('publish:markPosted', async (p) => {
     const m = await needClient().manifest(p.batchId);
@@ -994,8 +1001,9 @@ function registerIpc() {
     return { ids: r.due.map((p) => p.id), api: Object.fromEntries(r.due.map((p) => [p.id, scheduler?.apiState(p.id) ?? null])) };
   });
   handle('publish:fillPost', async (p) => {
-    const out = await fillScheduledPost(
+    const out = await fillRuns.run(p.postId, (control) => fillScheduledPost(
       {
+        control,
         client: needClient(),
         adapters: adapters.adapters,
         browser: browser!,
@@ -1008,7 +1016,7 @@ function registerIpc() {
         log: mainLog,
       },
       p,
-    );
+    ));
     if (!out.ok) mainLog(`[publish] fill ${p.postId}: ${out.reason}${out.detail ? ` (${out.detail})` : ''}`);
     return out;
   });

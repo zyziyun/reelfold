@@ -2,6 +2,7 @@
 // the creator's own login -> assisted fill of one confirmed item -> she reviews and presses publish herself ->
 // "mark posted" (optional URL) is logged.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { withFillStep } from '../../../shared/publish/fillPlan';
 import type { FillResult, FillStepMsg, PostedEntryMsg, PublishStateMsg } from '../../../shared/deskApi';
 import { adapterFor, type Adapter } from '../../../shared/publish/adapterSchema';
 import { checkCopy, type CopyCheck, type PostCopy } from '../../../shared/publish/postCopy';
@@ -97,7 +98,7 @@ export function Publish({ batch }: { batch: string }) {
   useEffect(() => {
     void refreshLocal();
     const off1 = window.desk.on('publish:state', (s) => setBstate(s as PublishStateMsg));
-    const off2 = window.desk.on('publish:fillStep', (s) => setSteps((x) => [...x, s as FillStepMsg]));
+    const off2 = window.desk.on('publish:fillStep', (s) => setSteps((x) => withFillStep(x, s as FillStepMsg)));
     return () => {
       off1();
       off2();
@@ -388,7 +389,7 @@ export function Publish({ batch }: { batch: string }) {
                       {steps.map((s, k) => (
                         <tr key={k}>
                           <td>{tk(`fill.${s.field}`)}</td>
-                          <td className={s.status === 'ok' ? 'okc' : 'err'}>{t(`fill.s.${s.status}`)}</td>
+                          <td className={s.status === 'ok' ? 'okc' : s.status === 'running' ? 'muted' : 'err'}>{s.status === 'running' ? t('c.loading') : t(`fill.s.${s.status}`)}</td>
                           <td className="muted mono">{s.detail}</td>
                         </tr>
                       ))}

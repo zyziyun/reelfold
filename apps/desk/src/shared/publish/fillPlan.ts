@@ -91,3 +91,9 @@ export function planFill(a: Adapter, p: FillPayload): FillStep[] {
   }
   return steps;
 }
+
+/** Progress is keyed by field: a start event is replaced by that field's outcome, not duplicated as a failure. */
+export function withFillStep<T extends { field: string }>(steps: T[], step: T): T[] {
+  const index = steps.findIndex((s) => s.field === step.field);
+  return index < 0 ? [...steps, step] : steps.map((s, i) => i === index ? step : s);
+}

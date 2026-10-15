@@ -1,3 +1,4 @@
+import type { FillControl } from './fillControl';
 // Assisted fill orchestration: gate (confirmed manifest hash) -> resolve + re-hash the files -> open the
 // platform's upload page in the account's session -> run the fill plan over CDP. Never clicks publish.
 import crypto from 'node:crypto';
@@ -56,6 +57,7 @@ export async function assistedFill(
     adapters: Adapter[];
     browser: PublishBrowser;
     onStep?: (r: StepResult) => void;
+    control?: FillControl;
   },
   req: FillRequest & { account: string; params?: Record<string, string> },
 ): Promise<FillOutcome> {
@@ -78,6 +80,7 @@ export async function assistedFill(
   } catch (e) {
     return { ok: false, reason: 'bad-param', detail: (e as Error).message };
   }
+  await deps.control?.checkpoint();
   const entry = deps.browser.open(adapter, req.account, 'upload');
   const wc = entry.view.webContents;
   await waitLoaded(wc);
@@ -90,6 +93,7 @@ export async function assistedFill(
   }
   if (!onUploadPage(wc.getURL(), adapter, target)) return { ok: false, reason: 'page-failed', detail: wc.getURL() };
 
+  await deps.control?.checkpoint();
   const steps = planFill(adapter, { videoPath: video, coverPath: cover && fs.existsSync(cover) ? cover : null, copy });
   const dbg = wc.debugger;
   let attachedHere = false;
@@ -102,7 +106,7 @@ export async function assistedFill(
     return { ok: false, reason: 'debugger-busy', detail: (e as Error).message };
   }
   try {
-    const results = await runFill((method, params) => dbg.sendCommand(method, params), steps, { onStep: deps.onStep });
+    const results = await runFill((method, params) => dbg.sendCommand(method, params), steps, { onStep: deps.onStep, control: deps.control });
     return { ok: true, results, job: item.job, platform: item.platform };
   } finally {
     if (attachedHere && dbg.isAttached()) dbg.detach();
