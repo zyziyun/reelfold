@@ -89,7 +89,7 @@ e2e:
   apps/desk/engine/desk_engine/works.py: [projectPage.spec.ts, studioScale.spec.ts, workNotMade.spec.ts]
   apps/desk/engine/desk_engine/intake.py: [planLang.spec.ts, homeRequests.spec.ts, voiceKey.spec.ts]
   apps/desk/engine/desk_engine/planning.py: [planLang.spec.ts, homeRequests.spec.ts]
-  apps/desk/engine/desk_engine/goals.py: [goalEdit.spec.ts, goalStory.spec.ts]
+  apps/desk/engine/desk_engine/goals.py: [goalEdit.spec.ts, goalStory.spec.ts, goalRemakeOpen.spec.ts]
   apps/desk/engine/desk_engine/goaledit.py: [goalEdit.spec.ts]
   apps/desk/engine/desk_engine/projask.py: [projectAi.spec.ts, modelSwitch.spec.ts]
   apps/desk/engine/desk_engine/deliver.py: [publish.spec.ts, publishLoop.spec.ts]

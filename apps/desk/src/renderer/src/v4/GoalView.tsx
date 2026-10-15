@@ -221,13 +221,13 @@ function SurveySteps({ g }: { g: Goal }) {
 
 function storyThumbs(g: Goal, v: Pick<GoalVideo, 'stories'>): string[] {
   const by = new Map((g.survey?.stories ?? []).map((s) => [s.id, s]));
-  return v.stories.flatMap((s) => by.get(s)?.thumbs ?? []).slice(0, 3);
+  return (v.stories ?? []).flatMap((s) => by.get(s)?.thumbs ?? []).slice(0, 3);
 }
 
 function storyWhere(g: Goal, v: Pick<GoalVideo, 'stories'>): string {
   const zh = getLang() === 'zh-CN';
   const by = new Map((g.survey?.stories ?? []).map((s) => [s.id, s]));
-  const bits = v.stories.map((s) => {
+  const bits = (v.stories ?? []).map((s) => {
     const x = by.get(s);
     if (!x) return null;
     const place = x.place ? (zh ? x.place.zh : x.place.en) : null;
@@ -392,8 +392,8 @@ function PlanCard({ g, v, picked, onPick, onOps, busy }: { g: Goal; v: GoalVideo
               </label>
             )}
             {v.lengths ? null : (
-              <span className="goalv-plats" aria-label={v.platforms.map(platformName).join(', ')}>
-                {v.platforms.map((p) => (
+              <span className="goalv-plats" aria-label={(v.platforms ?? []).map(platformName).join(', ')}>
+                {(v.platforms ?? []).map((p) => (
                   <PlatformIcon key={p} id={p} size={14} title={platformName(p)} />
                 ))}
               </span>
@@ -434,7 +434,7 @@ function PlatformLengths({ v, busy, onOps }: { v: GoalVideo; busy: boolean; onOp
     <div className="goalv-lens" data-testid="goal-plan-lengths">
       <span className="faint small">{t('goal.lengths')}</span>
       <div className="goalv-lenrow">
-        {v.platforms.map((p) => (
+        {(v.platforms ?? []).map((p) => (
           <LengthBox key={p} p={p} value={lens[p] ?? v.length_s} own={v.lengths_own?.[p] != null} busy={busy} onSet={(n) => onOps([{ op: 'length', video: v.id, platform: p, length_s: n }])} />
         ))}
       </div>

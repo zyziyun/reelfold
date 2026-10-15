@@ -129,6 +129,15 @@ class PlanToGroup(Base):
         G.tick(gid)
         remake = G._video(gid, linked["video"])
         self.assertEqual(remake["state"], "you")
+        self.assertEqual(remake["stories"], ["s1"])
+        self.assertEqual(remake["platforms"], ["youtube", "xiaohongshu"])
+        # Existing rows made before this fix must be safe without mutating their on-disk state.
+        remake.update(stories=None, platforms=None, clips=None)
+        public = next(v for v in G.view(gid)["videos"] if v["id"] == remake["id"])
+        self.assertEqual(public["stories"], [])
+        self.assertEqual(public["platforms"], [])
+        self.assertEqual(public["clips"], 0)
+        self.assertIsNone(remake["stories"])
         self.assertNotIn(("apply", rid), self.intake.calls)
         row = G.mark([dict(id=rid)], "id")[0]
         self.assertEqual(row["goal"], gid)

@@ -1341,6 +1341,11 @@ class Goals:
                           "ai": v.get("ai") or g.get("ai"), "own_ai": bool(v.get("ai")),
                           "can_undo_recut": bool(v.get("prev")) and v.get("state") in SETTLED}
                          for v in g.get("videos") or []]
+        # Old remake rows lack survey metadata. Normalize the public contract without rewriting stored data.
+        for row in out["videos"]:
+            for key in ("stories", "platforms"):
+                row[key] = row.get(key) or []
+            row["clips"] = row.get("clips") or 0
         # Settled goals stop ticking, but their projects can finish or be retried outside the goal.
         # Refresh the public view without rewriting her stored goal or reviving deliberate drops.
         for row in out["videos"]:
@@ -1436,6 +1441,8 @@ class Goals:
             title = (source.get("title") or "Remake") + (" — " + shape[0] if shape else " — Remake")
             row = dict(id="remake-" + request_id, title=title, kind=source.get("kind") or "film",
                        theme=source.get("theme"), length_s=source.get("length_s") or 60,
+                       stories=list(source.get("stories") or []), platforms=list(source.get("platforms") or g.get("platforms") or []),
+                       clips=source.get("clips") or 0, stills=source.get("stills") or 0,
                        state="planning", intake=request_id, request=prompt, inputs=[], projects=[],
                        attempts=1, started=time.time(), seen=time.time(), manual_plan=True)
             g["videos"].append(row)
