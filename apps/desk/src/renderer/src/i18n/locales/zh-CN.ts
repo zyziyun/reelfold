@@ -638,6 +638,7 @@ const v04Zh: Record<keyof typeof v04En, string> = {
 };
 
 const learningStrings = {
+  "learning.timeNotKnown": "播放进度尚未同步。想记准确时间点时，可以核对原播放器后校准。",
   "learning.timeEdit": "校准材料时间点",
   "learning.useForDemo": "这条想法用于 AI demo",
   "learning.demoTooLong": "请为这次 demo 选少一些想法，最多 1600 字符。",

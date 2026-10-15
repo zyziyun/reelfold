@@ -637,6 +637,7 @@ export const v04En = {
 };
 
 const learningStrings = {
+  "learning.timeNotKnown": "Player time has not synced yet. Check the original player and adjust the source time if you want a precise bookmark.",
   "learning.timeEdit": "Adjust source time",
   "learning.useForDemo": "Use this thought for an AI demo",
   "learning.demoTooLong": "Choose a shorter set of thoughts for this demo (up to 1600 characters).",

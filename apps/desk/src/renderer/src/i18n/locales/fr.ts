@@ -1922,6 +1922,7 @@ const releaseFr: Record<keyof typeof releaseEn, string> = {
 };
 
 const learningStrings = {
+  "learning.timeNotKnown": "Le temps du lecteur n’est pas encore synchronisé. Vérifiez le lecteur et ajustez le temps pour un repère précis.",
   "learning.timeEdit": "Ajuster le temps source",
   "learning.useForDemo": "Utiliser pour une démo IA",
   "learning.demoTooLong": "Choisissez moins de réflexions pour cette démo (1600 caractères maximum).",
