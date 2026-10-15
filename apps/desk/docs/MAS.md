@@ -158,6 +158,9 @@ The `bundle` lint check requires valid store Info.plist/version/team/export meta
 for enabled hardware permissions, the privacy manifest, complete built app entries inside app.asar,
 no Squirrel updater framework and no node-pty (including unpacked files). It runs on signed and unsigned
 apps; runtime-only scans skip bundle metadata. Failed symbol/quarantine scans also fail closed.
+The privacy check requires the four reviewed API categories and their actual reason codes, rejecting empty,
+duplicate, malformed or mismatched declarations. New API uses require updating both the manifest and this gate;
+the gate validates the reviewed declaration and does not infer every dependency's behavior from binary symbols.
 Unknown `--only` check names are errors rather than silent clean reports.
 
 Before upload: run the expanded signed-bundle lint and strict signature/pkg checks, exercise window
@@ -186,7 +189,9 @@ substitute. Upload and Submit for Review remain separate actions.
   ```
 - **AI**: needs her own API key or a local model; give the reviewer a path that works without one (the sample uses
   rules when no AI is connected).
-- **Size**: ~3.4 GB installed (Python + MLX + ffmpeg). Allowed; mention first-run downloads (~0.5 GB, data only).
+- **Size**: Python, MLX and FFmpeg are included in the installed app. Required first-run data downloads on
+  Apple silicon total 1,218,407,705 bytes (about 1.2 GB in the October 15 manifest), including the CC0 music library.
+  Verify the footprint and current manifest totals for each submission instead of reusing an older size claim.
 
 ## Research (sources)
 
