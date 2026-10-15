@@ -11,8 +11,7 @@
 //     how much arrived and resumes from there (exponential backoff). Then thumbnails.set and, when she chose one,
 //     playlistItems.insert. A time ahead = private + status.publishAt: YouTube itself publishes at her time.
 //   - Nothing is uploaded unless she pressed Publish / Schedule (or switched on scheduled posting herself).
-// Google's rule for API projects that have not passed YouTube's audit: their uploads are locked to private. The
-// result's privacy is reported as YouTube returns it, never hidden.
+// Report the visibility YouTube actually returns. A private response does not identify the policy/account cause.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -101,7 +100,7 @@ export interface YtVideo {
   madeForKids?: boolean;
   /** "Altered or synthetic content" */
   synthetic?: boolean;
-  /** a Short: vertical / square and <= 60 s (marked #Shorts) */
+  /** a Short: vertical / square and <= 180 s (marked #Shorts) */
   short?: boolean;
   thumbnail?: string | null;
   playlistId?: string | null;
@@ -110,10 +109,10 @@ export interface YtVideo {
 export interface YtResult {
   id: string;
   url: string;
-  /** as YouTube answered (an unaudited API project gets private whatever was asked) */
+  /** as YouTube answered; no assumption about the account or API-project restrictions */
   privacy: string;
   publishAt: string | null;
-  /** asked public / unlisted, YouTube kept it private: the project has not passed the audit */
+  /** asked public / unlisted but YouTube returned private, or did not retain the requested schedule */
   lockedPrivate: boolean;
   /** the thumbnail / playlist steps that did not work (the video itself is up) */
   warnings: string[];
@@ -512,7 +511,7 @@ export class YouTubeApi {
       url: `https://youtu.be/${id}`,
       privacy,
       publishAt: done.status?.publishAt ?? ('publishAt' in meta.status ? (meta.status.publishAt as string) : null),
-      // asked public / unlisted and got private; or scheduled and YouTube dropped the time (both: the unaudited rule)
+      // asked public / unlisted and got private; or scheduled and YouTube dropped the time (the response does not establish why)
       lockedPrivate: asked !== 'private' ? privacy === 'private' : !!v.publishAt && !!done.status && !done.status.publishAt,
       warnings,
     };
