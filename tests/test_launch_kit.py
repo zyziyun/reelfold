@@ -987,7 +987,7 @@ def test_film_set_merges_each_film_and_names_its_jobs(cfg):
     assert C.films(c) == [("hero", [("en", "16:9"), ("zh", "9:16")]), ("short", [("en", "9:16")])]
     names = [j[0] for j in K.jobs(c)]
     assert names == ["hero-en-16x9", "hero-zh-9x16", "short-en-9x16"]
-    assert all(j[1] == "film" and "/films/" in j[5] for j in K.jobs(c))
+    assert all(j[1] == "film" and os.path.basename(os.path.dirname(j[5])) == "films" for j in K.jobs(c))
     assert [j[0] for j in K.jobs(c, ["short"])] == ["short-en-9x16"]
     bad = dict(c, films=[dict(id="x", shots=["nope"], renders=["fr:16:9"], film=dict(blocks=["fireworks", "hook"]),
                               colour="red"), dict(id="x")])
