@@ -1,5 +1,10 @@
 # preproduction — script writing + pronunciation drills
 
+Product/company briefs and unrecorded comedy also use this workflow when no visual sources exist; read
+`references/CONTENT_MODES.md`. Their automatic drafter uses demonstration/evidence/CTA or
+setup/escalation/payoff/reaction with shot notes and character dialogue. Do not force a teaching-style insight
+paragraph into these scripts. Speech lint measures language and duration, not whether a joke or commercial works.
+
 **Use when:** before anything is recorded: drafting or revising a spoken script for a short (60–180 s) or
 mid-length (3–10 min) video, fixing a flat hook or a generic ending, or preparing the narrator to say the hard
 words in a locked script. **Inputs:** a topic / notes / draft. **Outputs:** `SCRIPT.md` (locked, linted) and an

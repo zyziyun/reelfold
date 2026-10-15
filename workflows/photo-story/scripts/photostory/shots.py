@@ -205,6 +205,20 @@ class ImageShot:
         ih, iw = img.shape[:2]
         dur = sh["end"] - sh["start"] + sh["tail"]
         u = ease(lt / dur)
+        if sh.get("fit") == "contain":
+            # Product/artwork proof: show the complete source without stretching,
+            # reflected edges or blurred duplicates. Matte follows its own edges.
+            edge = np.concatenate((img[0], img[-1], img[:, 0], img[:, -1]))
+            colour = np.median(edge, axis=0)
+            scale = min(BW / iw, BH / ih) * 0.94
+            if sh["motion"] in ("in", "out"):
+                scale *= (0.96 + 0.04 * u) if sh["motion"] == "in" else (1 - 0.04 * u)
+            w, h = max(1, round(iw * scale)), max(1, round(ih * scale))
+            out = np.empty((BH, BW, 3), np.float32)
+            out[:] = colour
+            x, y = (BW - w) // 2, (BH - h) // 2
+            out[y:y + h, x:x + w] = cv2.resize(img, (w, h), interpolation=cv2.INTER_CUBIC)
+            return out
         z = sh.get("z", 1.0)
         mo = sh["motion"]
         Z = {"in": z * (1 + 0.12 * u), "out": z * (1.12 - 0.12 * u)}.get(mo, z * 1.04)

@@ -67,6 +67,18 @@ def draft_script(ctx, cp, path, template=None, instruction=None, complete=None):
     from .. import drafts as DR
     topic = ctx.inputs.get("topic") or ctx.params.get("title") or ctx.item
     topic = topic[0] if isinstance(topic, list) and topic else topic
+    from vstudio.content_kind import detect, direction
+    purpose = detect(ctx.request() + "\n" + str(topic))
+    if purpose:
+        headings = ("SETUP", "ESCALATION", "PAYOFF", "REACTION") if purpose == "sketch" else (
+            "OPENING", "DEMONSTRATION", "EVIDENCE", "CTA")
+        structure = "\n\n".join(f"## {heading}\n[Shot/action and exact dialogue or on-screen line]" for heading in headings)
+        c = dict(cp, labels=dict(en="Video script", zh="视频脚本"),
+                 author=dict(file=path, format="Markdown production script; separate shot/action notes in brackets "
+                             "from spoken dialogue with speaker labels; do not force an educational insight section"),
+                 help=dict(en=f"Write a shootable script for: {topic}. {direction(purpose)}"))
+        return DR.generic(ctx, c, path, instruction=instruction, complete=complete,
+                          template_text=f"# {topic}\n\n{structure}\n")
     c = dict(cp, labels=dict(en="Spoken script"), author=dict(file=path, format="spoken script, Markdown with ## HOOK "
              "/ ## BODY / ## INSIGHT / ## CLOSE, each an indented block of what she says"),
              help=dict(en=f"A short-video script she reads to camera about: {topic}"))

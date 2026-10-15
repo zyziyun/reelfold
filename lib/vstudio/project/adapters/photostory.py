@@ -28,6 +28,11 @@ SYSTEM = (
     "sentence>\"}.")
 
 GUIDE = """Notes for this spec (they override the template where they differ):
+- SCRIPT is a list of (section_index, [(English, 中文), ...], [(source_id, positive_weight, motion, options_or_None), ...])
+  tuples, NEVER dict units. For example SCRIPT = [(0, [("A green cup.", "绿色杯子。")], [("p0001", 1, "still", None)])].
+  A final CTA is an ordinary final cue/shot. Do not invent CTA, DURATION or ART_DIRECTION globals; they do not render.
+  In music mode set MUSIC = dict(grid="seconds", length={target}, tail=0, captions="all"); weights allocate its time.
+  For a photo that must be shown complete use dict(fit="contain"); its whole image fits on a colour-matched matte.
 - MEDIA = dict(images=["frames", "../inputs"], videos="../inputs")  (paths relative to this spec's folder).
 - A video shot's source is "v" + the clip id, e.g. ("v{first}", 1, "still", dict(off=12.0, audio="mute")): off = the
   second in the clip where the shot starts (from the contact sheet); weight = its share of the unit's narration time.
@@ -142,6 +147,11 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     work = os.path.dirname(path)
     ids = [os.path.splitext(os.path.basename(p))[0] for p in vids]
     ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids) if vids else ("", [], [])
+    from . import photo_inputs
+    photos = (ctx.inputs or {}).get("photos") or []
+    photos = photos if isinstance(photos, list) else [photos]
+    ptext, pimages, photo_ids = photo_inputs.context(photos, work)
+    imgs += pimages
     by_id = {f["id"]: f for f in facts}
     target = _target(request, ctx.params)
     plats = list(ctx.params.get("platforms") or [])
@@ -176,6 +186,17 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     guide = GUIDE.format(first=ids[0] if ids else "CLIP", lang_note=lang_note, target=int(target), bgm_note=bgm_note,
                          length_of="of on-screen lines" if music_mode else "of narration", platforms=plat_names,
                          words_lang="Chinese" if lang_zh else "English")
+    from vstudio.content_kind import detect, direction
+    purpose_kind = detect(request)
+    purpose = direction(purpose_kind)
+    if ptext:
+        guide += ("\nProvided photos (the attached contact sheets label each photo by its actual ID):\n" + ptext +
+                  '\nUse these IDs as image sources in SCRIPT and COVER. Set MEDIA.images to '
+                  '["source_photos", "frames", "../inputs"]. Do not invent a photo ID or turn a provided '
+                  'photo into a guessed video. For photo-only projects choose the COVER hero from these photos; '
+                  'no frame extraction is needed. Never use the sheet-*.jpg contact sheets as finished shots.')
+    if purpose:
+        guide += "\nEditorial purpose (overrides scenic/poetic defaults above): " + purpose
     from vstudio.brain import steer as BST
     doc = BST.plan_doc(ctx.project_dir) if vids else None
     brain_line = BST.photo_line(doc, by_id) if doc else ""
@@ -202,16 +223,21 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         return None
     js = r.get("json") if isinstance(r.get("json"), dict) else {}
     text = js.get("content")
-    if isinstance(text, str) and "SYNTHETIC" not in text[:600] and not DR.data_module_ok(text):
+    if isinstance(text, str) and "SYNTHETIC" not in text[:600] and (not DR.data_module_ok(text) or spec_error(text)):
         # a long spec with one string left open (a Chinese intro broken over two lines) was thrown away and the step
         # waited for her: the model is shown what is wrong and fixes its own spec once
-        r2 = complete("planner", SYSTEM, body + "\n\n" + _repair_note(text), schema=True, max_tokens=16000,
+        error = spec_error(text) if DR.data_module_ok(text) else None
+        repair = ("Your previous content has unsupported story data: " + error + ". Rewrite the complete spec using "
+                  "the SCRIPT tuple contract above. Previous spec:\n" + text) if error else _repair_note(text)
+        r2 = complete("planner", SYSTEM, body + "\n\n" + repair, schema=True, max_tokens=16000,
                       timeout=limit, cli_timeout=limit, retries=1, effort="medium")
         js2 = r2.get("json") if isinstance(r2, dict) and isinstance(r2.get("json"), dict) else {}
         if isinstance(js2.get("content"), str) and DR.data_module_ok(js2["content"]):
             r, js, text = r2, dict(js, **js2), js2["content"]
     if not isinstance(text, str) or not DR.data_module_ok(text) or "SYNTHETIC" in text[:600]:
         return None
+    if spec_error(text):
+        raise ValueError("photo-story: invalid generated spec: " + spec_error(text))
     length = None
     if vp.get("narrate") in ("zh", "en") and not instruction:
         # an AI script much shorter than its target (120 -> 80 s) is extended (up to two rounds), never shipped
@@ -224,7 +250,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
                           retries=1, effort="medium")
             j3 = r3.get("json") if isinstance(r3, dict) and isinstance(r3.get("json"), dict) else {}
             c3 = j3.get("content")
-            if isinstance(c3, str) and DR.data_module_ok(c3) and "SYNTHETIC" not in c3[:600]:
+            if isinstance(c3, str) and DR.data_module_ok(c3) and not spec_error(c3) and "SYNTHETIC" not in c3[:600]:
                 extra[c3] = j3
                 return c3
             return None
@@ -249,13 +275,42 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     # a still the spec names that no frame was cut for would stop the render ("image not found"): it becomes one
     # of the frames that exist (a cover polaroid shows another still) - never a crash three stages later
     text = fix_video_refs(text, by_id)
-    missing = [n for n in image_refs(text, set(by_id)) if n not in made and not os.path.exists(
+    missing = [n for n in image_refs(text, set(by_id)) if n not in photo_ids and n not in made and not os.path.exists(
         os.path.join(work, "frames", f"{n}.jpg"))]
     if missing:
+        if photo_ids:
+            raise ValueError("photo-story: unknown photo source(s): " + ", ".join(missing) +
+                             "; use the provided photo IDs: " + ", ".join(sorted(photo_ids)))
         if not made:
             return None
         for n in missing:
             text = re.sub(rf"(?<=[\"':,|]){re.escape(n)}(?=[\"',|])", made[0], text)
+    if photo_ids:
+        media = _spec_value(text, "MEDIA")
+        media = dict(media) if isinstance(media, dict) else {}
+        media["images"] = ["source_photos", "frames", "../inputs"]
+        media.setdefault("videos", "../inputs")
+        text = _set_global(text, "MEDIA", media)
+    if purpose_kind == "product":
+        # Product identity is evidence. Scenic grading/grain and floating film
+        # chapters are inappropriate defaults for the supplied product itself.
+        for name, value in (("GRADE_LOOK", None), ("COLOR_MATCH", 0), ("PRESERVE_COLOUR", True),
+                            ("TITLE_CARD", False), ("CHAPTER_CARD", 0)):
+            if _spec_value(text, name) is None:
+                text = _set_global(text, name, value)
+        if photo_ids:
+            palette = dict(_spec_value(text, "PALETTE") or {})
+            ink = photo_inputs.caption_ink(photos, work)
+            for key in ("ink", "sub_en", "sub_zh"):
+                palette.setdefault(key, ink)
+            text = _set_global(text, "PALETTE", palette)
+            layout = dict(_spec_value(text, "LAYOUT") or {})
+            layout.setdefault("caption_y", 0.12)
+            text = _set_global(text, "LAYOUT", layout)
+            text = _set_global(text, "SUB_BACKDROP", False)
+        pace = dict(_spec_value(text, "PACING") or {})
+        pace.setdefault("end_fade", 0.4)
+        text = _set_global(text, "PACING", pace)
     steered = []
     if doc:                                  # the plan's joins / label places (her changes always), still plain data
         text, steered = BST.photo_fix(text, doc, by_id)
@@ -286,7 +341,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     return dict(by="ai", provider=r.get("provider"), model=r.get("model"), instruction=instruction, review=rv,
                 sheets=len(imgs), frames=cut, bgm=os.path.basename(bgm) if bgm else None,
                 language="zh" if lang_zh else "en", narration=vp.get("narrate"), voice_note=vp.get("note"),
-                brain=len(steered), facts=fact_rec, length=length)
+                brain=len(steered), facts=fact_rec, length=length, photos=len(photo_ids))
 
 
 _AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg")
@@ -457,6 +512,50 @@ def _spec_value(text, name):
                 return eval(compile(ast.Expression(st.value), "<spec>", "eval"), {"__builtins__": {}}, {"dict": dict})
     except Exception:  # noqa: BLE001
         return None
+    return None
+
+
+def spec_error(text):
+    """The renderer's structural contract, checked before planning frames or TTS."""
+    import math
+    script = _spec_value(text, "SCRIPT")
+    if not isinstance(script, (list, tuple)) or not script:
+        return "SCRIPT must contain (section_index, cues, shots) tuples"
+    for i, unit in enumerate(script):
+        if not isinstance(unit, (tuple, list)) or len(unit) != 3:
+            return f"SCRIPT[{i}] must be a three-part tuple, not a dict"
+        section, cues, shots = unit
+        if type(section) is not int or section < 0:
+            return f"SCRIPT[{i}] section must be a nonnegative integer"
+        if not isinstance(cues, (list, tuple)) or any(
+            not isinstance(c, (list, tuple)) or len(c) != 2 or not all(isinstance(t, str) for t in c) for c in cues
+        ):
+            return f"SCRIPT[{i}] cues must be (English, Chinese) string pairs"
+        if not isinstance(shots, (list, tuple)) or not shots:
+            return f"SCRIPT[{i}] needs at least one shot"
+        for sh in shots:
+            if not isinstance(sh, (list, tuple)) or len(sh) != 4:
+                return f"SCRIPT[{i}] shots must be (source, weight, motion, options) tuples"
+            source, weight, motion, opts = sh
+            if not isinstance(source, str) or not source or type(weight) not in (int, float) or not math.isfinite(weight) or weight <= 0:
+                return f"SCRIPT[{i}] needs a real source and a finite positive shot weight"
+            if not isinstance(motion, str) or (opts is not None and not isinstance(opts, dict)):
+                return f"SCRIPT[{i}] needs a motion string and dict/None options"
+            if opts and opts.get("fit") not in (None, "contain", "cover"):
+                return f"SCRIPT[{i}] fit must be contain or cover"
+    for name in ("CTA", "DURATION", "ART_DIRECTION"):
+        if _spec_value(text, name) is not None:
+            return f"{name} does not render; put CTA text in SCRIPT and duration in MUSIC.length"
+    for name in ("MEDIA", "COVER", "MUSIC", "PACING", "PALETTE", "LAYOUT"):
+        value = _spec_value(text, name)
+        if value is not None and not isinstance(value, dict):
+            return f"{name} must be a dict"
+    cover = _spec_value(text, "COVER") or {}
+    if cover.get("hero") is not None and not isinstance(cover["hero"], dict):
+        return "COVER.hero must be a dict with src"
+    if cover.get("polaroids") is not None and (not isinstance(cover["polaroids"], (list, tuple)) or
+                                               any(not isinstance(p, dict) for p in cover["polaroids"])):
+        return "COVER.polaroids must be a list of dicts with src"
     return None
 
 

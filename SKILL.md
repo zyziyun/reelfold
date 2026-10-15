@@ -61,6 +61,10 @@ Second-pass narration: a new full narration replaces earlier overlapping full na
 Mixed jobs chain workflows (preproduction → record → talkinghead → cover → polish). Phrase table, capability index and
 library modules: [references/CAPABILITIES.md](references/CAPABILITIES.md). Full topic → post SOP: references/SOP_SHORT_VIDEO.md.
 
+For product/ecommerce films, company/brand films or comedy, read
+[references/CONTENT_MODES.md](references/CONTENT_MODES.md). Editorial purpose and executable workflow are separate:
+inspect the material before choosing a renderer; a commercial request alone does not authorise generated footage.
+
 For polished personal-story / expert talking-head shorts, including clips from a long recording, read
 [references/SPOKEN_EDITING.md](references/SPOKEN_EDITING.md). Selecting ranges and burning subtitles is only
 an assembly; the editorial, visual-explanation and finishing passes still need to be executed.

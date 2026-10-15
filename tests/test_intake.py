@@ -317,6 +317,36 @@ def test_parse_prompt():
     assert R.parse_prompt("1.2x 速度，发 B站")["platforms"] == ["bilibili"]
 
 
+@pytest.mark.parametrize("prompt,material,expected", [
+    ("帮我做一条电商产品视频，保留杯子的真实颜色和比例", "footage", "photo-story"),
+    ("Create a product ad from these product videos", "photos", "photo-story"),
+    ("做一条企业宣传片，展示工厂与团队，不编客户数量", "footage", "photo-story"),
+    ("Create a corporate brand film from our office footage", "footage", "photo-story"),
+    ("公司宣传片，用这段口播介绍我们的产品", "talk", "promo-recut"),
+    ("做一个两个同事互相误解的搞笑段子", None, "preproduction"),
+    ("Make a comedy skit about a coffee machine", None, "preproduction"),
+    ("剪这个已经拍好的双人段子，保留铺垫与笑点", "sketch", "talkinghead"),
+    ("Generate an AI skit about a coffee machine", None, "ai-video"),
+    ("用录屏做产品发布视频", "screen", "launch-kit"),
+])
+def test_content_purpose_and_materials_choose_executable_workflows(tmp_path, prompt, material, expected):
+    m = Mat(tmp_path)
+    if material == "photos":
+        m.photo("product.jpg")
+    elif material:
+        m.video("source.mp4", 45, speech=material != "footage", talking_head=material == "talk",
+                multi_person=material == "sketch", screen_share=material == "screen")
+    plan = PL.make_plan(prompt, analysis=m.analysis(), asr="off")
+    assert PL.validate(plan) == []
+    assert [p["recipe"] for p in plan["projects"]] == [expected]
+    if expected == "photo-story":
+        assert plan["projects"][0]["params"]["mode"] == "music"
+    if material == "sketch":
+        p = plan["projects"][0]["params"]
+        assert p["speed"] == 1 and p["cleanup_profile"] == "gentle"
+        assert p["note_cards"] is False and p["smooth_cuts"] is False
+
+
 def test_focus_ranges_respect_position():
     sents = _career_transcript()
     picks = R.focus_ranges(sents, 650, R.focus_of("把后面对于自媒体的思考剪出来"), count=2, max_s=120)

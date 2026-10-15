@@ -21,6 +21,7 @@ these are editing defaults for footage the creator hands over.
 import argparse
 import copy
 import json
+import re
 import sys
 
 # Field meanings (every format has every key; persona overrides deep-merge):
@@ -126,6 +127,26 @@ FORMATS = {
         cover=dict(aspect="video", style="title-card", retouch=False, min_luma=0.40, text="designed"),
         rules=["真实的产品操作录屏，不放假数据当真实数字", "动态字幕 + 推近到操作处，默认无旁白，配内置曲库的轻背景音",
                "配乐只用有授权的曲库（内置生成曲或写明授权的自有曲）；AI 配音要标注", "平台顺序：国际平台在前，中文平台在后"]),
+    "product-film": dict(
+        labels=dict(zh="电商 / 产品展示", en="Product film"), workflow="photo-story",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="off", tag_set="",
+        cover=dict(aspect="video", style="hero-photo", retouch=False, min_luma=0.35, text="designed"),
+        rules=["保留真实商品颜色、比例、标签；使用场景 → 可见特点 → 证明画面 → 一个行动引导", "不编造价格、折扣、销量或功效"]),
+    "company-film": dict(
+        labels=dict(zh="企业 / 品牌介绍", en="Company film"), workflow="photo-story",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="off", tag_set="",
+        cover=dict(aspect="video", style="hero-photo", retouch=False, min_luma=0.35, text="designed"),
+        rules=["真实地点、团队、流程与结果；统一品牌视觉", "不编造客户、认证、排名和业绩数字"]),
+    "sketch": dict(
+        labels=dict(zh="喜剧 / 段子脚本", en="Comedy sketch"), workflow="preproduction",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="gentle", tag_set="",
+        cover=dict(aspect="video", style="frames", retouch=False, min_luma=0.35, text="designed"),
+        rules=["铺垫 → 升级 → 笑点 → 反应；不把喜剧改成教学总结", "未拍素材先写可拍脚本，生成视频需明确要求与预算"]),
+    "sketch-edit": dict(
+        labels=dict(zh="已拍摄段子剪辑", en="Recorded sketch edit"), workflow="talkinghead",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="gentle", tag_set="", engine="fast",
+        cover=dict(aspect="video", style="frames", retouch=False, min_luma=0.35, text="designed"),
+        rules=["保留铺垫、笑点与反应停顿，不统一加速", "保留原声与连续性，不用教学笔记面板替代表演"]),
 }
 # recipe / workflow id -> format (intake.rules recipe ids and workflow folder names)
 BY_RECIPE = {"talkinghead": "talking-head", "promo-recut": "promo", "call-clips": "call-clips",
@@ -218,6 +239,12 @@ def detect(text, materials=None):
     t = (text or "").lower()
     if not t.strip():
         return None
+    from vstudio.content_kind import detect as content_kind
+    purpose = content_kind(t)
+    if purpose and not any(w in t for w in ("aigc", "ai生成", "ai 生成", "ai-generated", "ai generated", "ai skit", "ai short", "可灵", "即梦", "产品发布", "launch", "release video")):
+        if purpose == "sketch" and ((materials or {}).get("videos") or re.search(r"剪|拍好|\bedit\b|recut|recorded|footage", t)):
+            return "sketch-edit"
+        return {"product": "product-film", "company": "company-film", "sketch": "sketch"}[purpose]
     try:
         from vstudio.intake.rules import recipe_scores
         scores = recipe_scores(t)

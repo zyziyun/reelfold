@@ -60,6 +60,12 @@ def test_persona_overrides_and_aliases():
     ("做个 3b1b 讲解视频", "explainer"),
     ("看展的照片做成文艺片", "photo-story"),
     ("用可灵做个 AI 短剧", "ai-skit"),
+    ("电商产品视频，用我的商品照片", "product-film"),
+    ("Create a product film from these studio photos", "product-film"),
+    ("企业宣传片，展示真实团队与工厂", "company-film"),
+    ("Make a comedy skit about a coffee machine", "sketch"),
+    ("剪这个拍好的双人段子，保留反应停顿", "sketch-edit"),
+    ("Generate an AI skit about a coffee machine", "ai-skit"),
 ])
 def test_detect(text, fid):
     assert F.detect(text) == fid

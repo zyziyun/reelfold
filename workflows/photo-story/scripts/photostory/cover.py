@@ -188,6 +188,8 @@ def frame_candidates(spec, C):
     for d in C.img_dirs:
         if os.path.isdir(d):
             for f in sorted(os.listdir(d)):
+                if os.path.basename(d) == "source_photos" and (f.startswith("sheet-") or "-preview." in f):
+                    continue                       # planning previews are never finished cover candidates
                 if os.path.splitext(f)[1] in C.img_ext and not f.startswith("."):
                     add_still(os.path.join(d, f))
     return stills[:60], {v: sorted(set(round(t, 2) for t in ts)) for v, ts in clips.items()}
@@ -244,6 +246,8 @@ def pick_frame(spec, C, log=print):
 
 def designed_cover(spec, C, cfg, W, H, out, log=print):
     """Cover engine 2.0 for this platform -> out (+ on YouTube <stem>.ab1-3.jpg and <stem>.ab.md)."""
+    if getattr(spec, "PRESERVE_COLOUR", False):
+        return product_cover(spec, C, cfg, W, H, out)
     from vstudio import cover_engine as CE
     frame, _ = pick_frame(spec, C, log=log)
     texts = cover_texts(spec, C)
@@ -288,6 +292,44 @@ def designed_cover(spec, C, cfg, W, H, out, log=print):
         json.dump(dict({k: v for k, v in r.items() if k != "file"}, platform=sp["key"], frame=frame, texts=texts,
                        variants=[{k: v for k, v in x.items() if k != "legibility"} for x in variants]),
                   f, ensure_ascii=False, indent=1)
+    return out
+
+
+def product_cover(spec, C, cfg, W, H, out):
+    """A complete, ungraded product image and a separate title area; never shade its label for text."""
+    from PIL import ImageOps
+    from vstudio import subs
+    hero = cfg.get("hero") or {}
+    if hero.get("src"):
+        frame = C._readable(C.find_image(hero["src"]))
+    else:
+        frame, _ = pick_frame(spec, C)
+    source = ImageOps.exif_transpose(Image.open(frame)).convert("RGB")
+    corners = np.array([source.getpixel(xy) for xy in ((0, 0), (source.width - 1, 0),
+                       (0, source.height - 1), (source.width - 1, source.height - 1))])
+    paper = tuple(np.median(corners, axis=0).astype(int))
+    from vstudio import theme
+    palette = theme.resolve(recipe="photo-story")
+    ink = max((theme.rgb(palette, "ink"), theme.rgb(palette, "paper")),
+              key=lambda c: theme.contrast(c, paper))
+    image = Image.new("RGB", (W, H), paper)
+    margin, title_h = round(min(W, H) * .06), round(H * .22)
+    title = str(cfg.get("title") or (C.TITLE_EN if C.SUBS == "en" else C.TITLE_ZH) or C.TITLE_EN or "")
+    size = round(min(W, H) * .075)
+    while True:
+        font = font_for(title, size)
+        measure = lambda s: font.getlength(s)
+        lines = subs.balanced_wrap(title, W - 2 * margin, measure=measure)
+        if (len(lines) <= 2 and len(lines) * size * 1.25 <= title_h - 2 * margin) or size <= 16:
+            break
+        size -= 2
+    draw = ImageDraw.Draw(image)
+    for n, line in enumerate(lines):
+        draw.text((margin, margin + n * size * 1.25), line, font=font, fill=ink)
+    picture = ImageOps.contain(source, (W - 2 * margin, H - title_h - margin), Image.Resampling.LANCZOS)
+    image.paste(picture, ((W - picture.width) // 2, title_h + (H - title_h - margin - picture.height) // 2))
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    image.save(out)
     return out
 
 

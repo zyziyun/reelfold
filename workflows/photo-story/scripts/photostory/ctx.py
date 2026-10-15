@@ -187,6 +187,8 @@ class Ctx:
                 self.SUB_Y0 = self.CAP[3] - self.SUB_H
             self.BOX_H = (self.H if self.overlay_subs else self.SUB_Y0) - self.HDR
             self.BOX_H -= self.BOX_H % 2
+        if self.overlay_subs and "caption_y" in lay:
+            self.SUB_Y0 = max(self.SAFE[1], min(px(lay["caption_y"]), self.SAFE[3] - self.SUB_H))
         self.BOX_W = self.W
         # lowest box row (box coords) that is not covered by overlaid subtitles / below the safe area
         self.LAB_BOT = self.BOX_H - (self.SUB_H if self.overlay_subs and self.prof is None else 0)

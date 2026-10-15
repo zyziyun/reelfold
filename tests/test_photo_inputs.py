@@ -1,0 +1,185 @@
+"""Supplied-photo story planning uses the same real sources as the renderer."""
+import os
+
+import pytest
+from PIL import Image
+
+from vstudio.project import drafts as DR
+from vstudio.project.adapters import photo_inputs as PI, photostory as PS
+
+
+def test_photo_sheets_have_unique_ids_and_leave_sources_unchanged(tmp_path):
+    photos = []
+    for name, colour in (("a/商品.png", "red"), ("b/商品.png", "blue")):
+        path = tmp_path / name
+        path.parent.mkdir()
+        Image.new("RGB", (180, 240), colour).save(path)
+        photos.append(str(path))
+    original = [open(p, "rb").read() for p in photos]
+    work = tmp_path / "work"
+    text, sheets, ids = PI.context(photos, str(work))
+    assert ids == {"p0001", "p0002"} and len(sheets) == 1
+    assert "商品.png" in text and "180x240" in text
+    assert Image.open(work / "source_photos/p0001.png").getpixel((90, 120)) == (255, 0, 0)
+    assert Image.open(work / "source_photos/p0002.png").getpixel((90, 120)) == (0, 0, 255)
+    assert [open(p, "rb").read() for p in photos] == original
+
+
+def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypatch):
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    photo = tmp_path / "cup.png"
+    Image.new("RGB", (600, 800), (20, 100, 80)).save(photo)
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(photos=[str(photo)]),
+                 _item_dir=str(tmp_path / "item"), mode="music", platforms=["youtube"]), "photo-story")
+    ctx.request_text = "Create a 6-second product ad for this cup, no voice-over"
+    path = str(tmp_path / "item/work/spec.py")
+    seen = {}
+    def complete(task, system, body, **kw):
+        seen.update(body=body, **kw)
+        return dict(provider="test", model="fixture", json=dict(content=(
+            'TITLE_EN = "A daily cup"\nMEDIA = dict(images="wrong-directory")\n'
+            'MUSIC = dict(length=6)\nCOVER = dict(hero=dict(src="p0001"))\n'
+            'SCRIPT = [(0, [("A daily cup.", "日常水杯。")], [("p0001", 1, "still", None)])]\n'), summary="Product shown"))
+    rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
+    assert rec and rec["photos"] == 1
+    assert len(seen["images"]) == 1 and os.path.isfile(seen["images"][0])
+    assert "p0001: cup.png" in seen["body"] and "Do not invent price" in seen["body"]
+    media = PS._spec_value(open(path).read(), "MEDIA")
+    assert media["images"][0] == "source_photos"
+    assert os.path.isfile(os.path.join(os.path.dirname(path), media["images"][0], "p0001.png"))
+    assert DR.data_module_ok(open(path).read())
+    result = open(path).read()
+    assert PS._spec_value(result, "GRADE_LOOK") is None
+    assert PS._spec_value(result, "CHAPTER_CARD") == 0
+    assert PS._spec_value(result, "TITLE_CARD") is False
+    assert PS._spec_value(result, "PRESERVE_COLOUR") is True
+    assert PS._spec_value(result, "LAYOUT")["caption_y"] == 0.12
+
+
+def test_unknown_photo_is_not_silently_replaced(tmp_path, monkeypatch):
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    photo = tmp_path / "real.png"
+    Image.new("RGB", (120, 160)).save(photo)
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(photos=[str(photo)]),
+                 _item_dir=str(tmp_path / "item"), mode="music"), "photo-story")
+    ctx.request_text = "product ad, no voice"
+    with pytest.raises(ValueError, match="unknown photo source.*imaginary"):
+        PS.draft_spec(ctx, dict(id="story", author={}), str(tmp_path / "item/work/spec.py"), complete=lambda *a, **k:
+                      dict(provider="test", json=dict(content='SCRIPT = [(0, [("Cup", "杯子")], [("imaginary", 1, "still", None)])]')))
+
+
+@pytest.mark.parametrize("script", [
+    'SCRIPT = [dict(duration=4, cues=[("Cup", "杯子")], shots=[("p0001", 1, "still", None)])]',
+    'SCRIPT = [(0, [("Cup",)], [("p0001", 1, "still", None)])]',
+    'SCRIPT = [(0, [], [("p0001", -1, "still", None)])]',
+    'SCRIPT = [(0, [], [("p0001", 1, "still", None)])]\nCTA = dict(text="Not rendered")',
+])
+def test_valid_python_is_not_enough_for_a_renderable_story(script):
+    assert DR.data_module_ok(script)
+    assert PS.spec_error(script)
+
+
+def test_contain_photo_preserves_all_corners_on_each_canvas():
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import numpy as np
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'workflows/photo-story/scripts'))
+    from photostory.shots import ImageShot
+    im = Image.new("RGB", (300, 180), (240, 235, 225))
+    colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 0, 255)]
+    for box, colour in zip([(0, 0, 30, 30), (270, 0, 300, 30), (0, 150, 30, 180), (270, 150, 300, 180)], colours):
+        im.paste(colour, box)
+    for w, h in ((320, 180), (180, 320), (180, 240)):
+        ctx = SimpleNamespace(BOX_W=w, BOX_H=h, open_img=lambda _: im.copy())
+        shot = ImageShot(ctx, dict(start=0, end=3, tail=0, motion="in", fit="contain"), "p0001")
+        for t in (0, 1, 2.9):
+            frame = shot.frame(t)
+            assert frame.shape == (h, w, 3)
+            for colour in colours:
+                assert np.any(np.all(np.abs(frame - np.array(colour)) < 8, axis=2))
+
+
+def test_valid_python_with_wrong_timeline_is_repaired_before_render(tmp_path, monkeypatch):
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    photo = tmp_path / "cup.png"
+    Image.new("RGB", (120, 160), "white").save(photo)
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(photos=[str(photo)]),
+                 _item_dir=str(tmp_path / "item"), mode="music"), "photo-story")
+    ctx.request_text = "A 6-second product film from this illustration, no voice-over"
+    bad = 'SCRIPT = [dict(duration=6, shots=[("p0001", 1, "still", None)])]'
+    good = 'SCRIPT = [(0, [("A cup", "杯子")], [("p0001", 1, "still", None)])]\nMUSIC = dict(length=6)'
+    calls = []
+    def complete(*args, **kw):
+        calls.append(args[2])
+        return dict(provider="test", json=dict(content=bad if len(calls) == 1 else good))
+    dest = str(tmp_path / "item/work/spec.py")
+    assert PS.draft_spec(ctx, dict(id="story", author={}), dest, complete=complete)
+    assert len(calls) == 2 and "three-part tuple" in calls[1]
+    assert PS.spec_error(open(dest).read()) is None
+
+
+def test_macos_heic_preview_preserves_the_original(tmp_path):
+    import shutil
+    import subprocess
+    import sys
+    if sys.platform != "darwin" or not shutil.which("sips"):
+        pytest.skip("macOS HEIC conversion")
+    src = tmp_path / "fixture.png"
+    Image.new("RGB", (180, 240), (40, 110, 80)).save(src)
+    heic = tmp_path / "fixture.heic"
+    subprocess.run(["sips", "-s", "format", "heic", str(src), "--out", str(heic)], check=True, capture_output=True)
+    original = heic.read_bytes()
+    text, sheets, ids = PI.context([str(heic)], str(tmp_path / "work"))
+    assert ids == {"p0001"} and "180x240" in text and sheets
+    assert heic.read_bytes() == original
+    assert PI.caption_ink([str(heic)], str(tmp_path / "work")) is not None
+
+
+def test_product_cover_preserves_whole_source_and_its_colours(tmp_path, monkeypatch):
+    import importlib.util
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import numpy as np
+    monkeypatch.setenv("VSTUDIO_DEFAULT_PERSONA", "1")
+    scripts = Path(__file__).resolve().parents[1] / "workflows/photo-story/scripts"
+    sys.path.insert(0, str(scripts))
+    module = importlib.util.spec_from_file_location("photo_cover_test", scripts / "photostory/cover.py")
+    cover = importlib.util.module_from_spec(module)
+    module.loader.exec_module(cover)
+    src = tmp_path / "source.png"
+    im = Image.new("RGB", (300, 180), (230, 230, 220))
+    colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 0, 255)]
+    for box, colour in zip([(0, 0, 30, 30), (270, 0, 300, 30), (0, 150, 30, 180), (270, 150, 300, 180)], colours):
+        im.paste(colour, box)
+    im.save(src)
+    ctx = SimpleNamespace(_readable=lambda p: p, find_image=lambda _: str(src),
+                          TITLE_EN="A real product", TITLE_ZH="", SUBS="en")
+    for w, h in ((480, 270), (270, 480), (360, 480)):
+        out = tmp_path / f"cover-{w}-{h}.png"
+        cover.product_cover(SimpleNamespace(), ctx, dict(hero=dict(src="source")), w, h, str(out))
+        frame = np.asarray(Image.open(out)).astype(int)
+        assert frame.shape == (h, w, 3)
+        for colour in colours:
+            assert np.any(np.all(np.abs(frame - colour) < 3, axis=2))
+
+
+@pytest.mark.parametrize("prompt,heading", [
+    ("Write a comedy skit about a coffee machine", "PAYOFF"),
+    ("企业宣传片，展示真实工厂", "EVIDENCE"),
+    ("Write a product ad for this cup", "DEMONSTRATION"),
+])
+def test_non_teaching_scripts_receive_their_own_structure(tmp_path, monkeypatch, prompt, heading):
+    from vstudio.project.adapters import preproduction as PP
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(topic=prompt)), "preproduction")
+    ctx.request_text = prompt
+    seen = {}
+    def generic(ctx, cp, path, **kw):
+        seen.update(cp=cp, **kw)
+        return dict(by="test")
+    monkeypatch.setattr(DR, "generic", generic)
+    assert PP.draft_script(ctx, dict(id="lock"), str(tmp_path / "SCRIPT.md"))
+    assert f"## {heading}" in seen["template_text"]
+    assert "## INSIGHT" not in seen["template_text"]
+    assert "shot/action" in seen["cp"]["author"]["format"]

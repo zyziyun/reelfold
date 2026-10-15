@@ -271,7 +271,9 @@ class MusicTimeline:
             c += n
         self.shots[0]["start"] = 0.0
         self.total = G(c) - m0 + float(cfg["tail"] or 0)
-        pace["end_fade"] = min(max(pace["end_fade"], 2 * b.period), 0.5 * (self.shots[-1]["end"] - self.shots[-1]["start"]))
+        explicit_fade = "end_fade" in (getattr(C.spec, "PACING", {}) or {})
+        pace["end_fade"] = min(max(pace["end_fade"], 0 if explicit_fade else 2 * b.period),
+                               0.5 * (self.shots[-1]["end"] - self.shots[-1]["start"]))
         self.pace = pace
         self.cuts = [G(sum(units_per_shot[:k])) for k in range(1, len(self.shots))]   # music time of every cut
         # ---- section bounds (chapter cards + header progress)

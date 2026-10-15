@@ -18,7 +18,7 @@ from . import inventory as I
 # (recipe, phrases, weight). Longer / more specific phrases first; weights break ties between recipes.
 PHRASES = [
     ("ai-video", ["ai短剧", "ai 短剧", "短剧", "aigc", "ai生成", "ai 生成", "可灵", "即梦", "seedance", "海螺", "定妆照", "分镜prompt",
-                  "积分", "连载"], 3),
+                  "积分", "连载", "ai skit", "ai-generated", "ai generated", "ai short", "text-to-video"], 3),
     ("explainer", ["讲解视频", "讲解短视频", "讲解", "3b1b", "3blue1brown", "解释一个概念", "原理讲解", "科普", "explainer"], 2),
     ("lesson-clips", ["切成知识点", "按知识点", "知识点切片", "知识点", "教学点", "今日短语", "每日短语", "每个短语", "学习笔记",
                       "单词卡", "knowledge point", "knowledge-point", "teaching point", "today's phrase", "study notes",
@@ -407,6 +407,21 @@ def choose_recipes(intent, analysis):
     out = []
     for c in intent["clauses"] or [dict(text=intent["text"], scores=intent["scores"], count=intent.get("count"))]:
         sc = {r: v for r, v in c["scores"].items() if r not in excl}
+        from vstudio.content_kind import detect
+        kind = detect(c["text"])
+        # Purpose plus the actual material, before generic "promo" / "vlog".
+        # Explicit launch and AI requests still own their specialised workflows.
+        if kind and not (set(sc) & {"launch-kit", "ai-video", "preproduction"}):
+            if kind == "sketch":
+                picked = "talkinghead" if _by_kind(analysis, "video") else "preproduction"
+            elif present & {"talking-head", "finished-edit"}:
+                picked = "promo-recut"
+            elif present & {"photo", "footage"}:
+                picked = "photo-story"
+            else:
+                picked = "preproduction"  # a script first; never invent footage or a paid generation
+            if picked not in excl:
+                sc[picked] = max(sc.values(), default=0) + 1
         if not sc:
             continue
         r = _resolve(max(sc, key=sc.get), sc, intent, present, c)
@@ -446,7 +461,8 @@ def _resolve(r, sc, intent, present, clause):
         return r
     if r == "longform-course" and not (present & RECORDING_ROLES) and (present & {"doc", "slides", "notes", "script"}):
         return "explainer"          # "做成课程视频" from lecture notes / a script, no recording: a course explainer
-    if r == "photo-story" and "photo" not in present and "footage" in present:
+    from vstudio.content_kind import detect
+    if r == "photo-story" and "photo" not in present and "footage" in present and detect(text) not in ("product", "company"):
         return "vlog"
     if r == "vlog" and "photo" in present and "footage" not in present:
         return "photo-story"
@@ -522,6 +538,11 @@ def rule_projects(intent, analysis, ctx):
     for rid, clause in chosen:
         p = dict(recipe=rid, materials=[], inputs={}, items={}, params={}, why="")
         ctext = (clause or {}).get("text") or ""
+        from vstudio.content_kind import detect
+        kind = detect(ctext or intent["text"])
+        if kind == "sketch" and rid == "talkinghead":
+            p["params"].update(speed=1.0, hook_speed=1.0, cleanup_profile="gentle", note_cards=False,
+                               smooth_cuts=False, engine="fast")
         cnt = (clause or {}).get("count") or (intent.get("count") if len(chosen) == 1 else None)
         if rid in EDU_SOURCE:
             src, cam = _pick_source(analysis, EDU_SOURCE[rid]), None
@@ -682,7 +703,7 @@ def rule_projects(intent, analysis, ctx):
                 if clips:
                     p["inputs"]["clips"] = [f["path"] for f in clips]
                 from vstudio import narration as NR
-                if intent.get("narration") is False or (music and intent.get("narration") is not True) or (
+                if (kind in ("product", "company") and intent.get("narration") is not True) or intent.get("narration") is False or (music and intent.get("narration") is not True) or (
                         intent.get("narration") is None and NR.is_mood_piece(intent.get("text"))):
                     p["params"]["mode"] = "music"          # a mood piece: no voice-over by default
             else:

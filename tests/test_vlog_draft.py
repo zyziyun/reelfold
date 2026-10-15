@@ -24,6 +24,8 @@ def _iso(tmp_path, monkeypatch):
     monkeypatch.setenv("VSTUDIO_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
     monkeypatch.setenv("VSTUDIO_MUSIC_DIRS", "")
+    monkeypatch.setenv("VSTUDIO_TTS_PREFS", str(tmp_path / "tts-prefs.json"))
+    monkeypatch.setenv("VSTUDIO_TTS_ENGINE", "kokoro")
 
 
 @pytest.fixture(scope="module")
@@ -207,6 +209,7 @@ def test_photo_story_spec_with_a_string_left_open_is_fixed_by_the_model_once(tmp
     ctx.request_text = "a 60-second history explainer, narrated in English"
     broken = 'TITLE_EN = "Waterfront"\nPOST = dict(intro="ninety seconds of rails,\n  "piers and parks")\n'
     fixed = 'TITLE_EN = "Waterfront"\nPOST = dict(intro=("ninety seconds of rails, " "piers and parks"))\n'
+    fixed += 'SCRIPT = [(0, [("The piers.", "码头。")], [("v' + os.path.splitext(os.path.basename(clips[0]))[0] + '", 1, "still", None)])]\n'
     calls = []
 
     def complete(task, system, body, **kw):
@@ -215,7 +218,8 @@ def test_photo_story_spec_with_a_string_left_open_is_fixed_by_the_model_once(tmp
                     model="t")
     path = str(tmp_path / "item" / "work" / "spec.py")
     rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
-    assert rec and rec["by"] == "ai" and len(calls) == 2 and "SyntaxError at line 2" in calls[1]
+    assert rec and rec["by"] == "ai" and "SyntaxError at line 2" in calls[1]
+    assert sum("SyntaxError at line 2" in body for body in calls) == 1  # one repair; later length/fact calls are separate
     assert open(path).read().startswith('TITLE_EN = "Waterfront"\nPOST = dict(intro=("ninety')
     calls.clear()
     os.remove(path)

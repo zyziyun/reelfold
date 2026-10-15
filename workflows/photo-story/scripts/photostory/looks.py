@@ -64,6 +64,8 @@ def paper_bg(C, seed):
 def film_look(C, box, gt, strong):
     """Always: light grain. strong=True (FILM_SECTIONS or film-strip shots): memory film —
     desaturated warm grade, flicker, vignette, random scratches and dust."""
+    if getattr(C.spec, "PRESERVE_COLOUR", False):
+        return box
     fi = int(gt * C.FPS)
     amt = 9.0 if strong else (1.2 if getattr(C, "cinema", False) else 3.2)   # cinema: barely-there grain
     box += C.GRAIN[fi % len(C.GRAIN)] * amt

@@ -96,7 +96,7 @@ def main():
     end_t = min(total, t_from + a.preview) if a.preview else total
 
     header = Header(C) if C.HDR > 0 else None
-    title_card = make_title_card(C) if header is None else None
+    title_card = make_title_card(C) if header is None and getattr(C.spec, "TITLE_CARD", True) else None
     chapters = {s: make_chapter(C, s) for s in range(1, len(C.SECTIONS))}
     for s in T.subs:
         s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(C, s["en"], s["zh"])
@@ -104,7 +104,7 @@ def main():
         if "label" in sh and not sh["src"].startswith("split:") and C.shown(sh["label"]):
             sh["_lab"] = make_label(C, sh["label"])       # a label with nothing in this version's language: none
         sh["_video"] = parse_src(C, sh["src"])[0] == "video"
-    backdrop = sub_backdrop(C) if C.overlay_subs else None
+    backdrop = sub_backdrop(C) if C.overlay_subs and getattr(C.spec, "SUB_BACKDROP", True) else None
     chap_len = float(getattr(C.spec, "CHAPTER_CARD", 2.2) or 0)
     end_fade = T.pace["end_fade"]
 

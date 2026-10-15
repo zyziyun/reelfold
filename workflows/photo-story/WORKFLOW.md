@@ -22,6 +22,12 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
 
 ## Pipeline
 
+For product/ecommerce or company footage, first read `references/CONTENT_MODES.md`; do not apply a scenic essay
+structure merely because this renderer owns the photos. Automatic project drafting supplies labelled real-photo
+contact sheets and binds their `pNNNN` IDs to `work/source_photos/`. Product defaults preserve colour, omit floating
+film chapters/title cards and use source-aware contrasting captions. `fit="contain"` on a photo keeps its whole
+frame; inspect each canvas rather than resizing a completed movie.
+
 1. **Gather media.** Put photos in `my_photos/` (names are the shot ids: `photo07.jpg` → `"photo07"`), clips in
    `my_clips/` (`IMG_1234.MOV` can be referenced as `"v1234"`). Still frames from a clip: extract them to
    `my_photos/` with ffmpeg and use them as photos.

@@ -133,6 +133,12 @@ Rules:
 - Ordinary speech-editing defaults belong to the workflow: shared cleanup of needless pauses/fillers while
   preserving intentional emphasis and meaning; original speech retained; semantic subtitle breaks, checked
   names and no duplicate burned subtitles. Do not require the creator to repeat these in every request.
+- Purpose and available material determine the workflow. Real product/ecommerce or corporate photos/footage
+  without a presenter use photo-story with their commercial brief, not travel-vlog or a promo-recut requiring
+  a talking-head take. Presenter plus product/screenshots can use promo-recut; a software UI tour uses launch-kit.
+  A recorded sketch keeps its original performance (talkinghead, speed=1, gentle cleanup, no note_cards,
+  smooth_cuts=false); preserve setup and reaction pauses. An unrecorded comedy idea uses preproduction to write
+  its script; ai-video only when the creator asks for generated footage. Never infer paid generation from "ad".
 - A target aspect requires original-source recomposition of shots, titles and captions. Never meet a ratio
   request by adding empty borders. If source reconstruction is unavailable, retain the video canvas and
   propose a cover-only adaptation with a viewing-orientation hint; report missing sources.
