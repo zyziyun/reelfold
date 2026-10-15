@@ -763,7 +763,9 @@ def collect_files(project, job, rows):
 
 def _glob(p):
     import glob as G
-    return [x for x in G.glob(p) if os.path.isfile(x)] if any(c in p for c in "*?[") else ([p] if os.path.isfile(p) else [])
+    hits = G.glob(p) if any(c in p for c in "*?[") else [p]
+    # Manifest templates use '/', while native sidecar paths use os.sep. Identity must agree on Windows.
+    return [os.path.normpath(x) for x in hits if os.path.isfile(x)]
 
 
 def collect_vstudio_exports(project, job, rows):
