@@ -13,6 +13,7 @@ babel
 pypinyin
 fonttools[woff]
 openai
+httpx  # explicit transport for the AI consent redirect policy
 # local whisper (ASR): MLX on Apple silicon, CTranslate2 elsewhere (vstudio.asr picks what is installed)
 mlx-whisper; sys_platform == "darwin" and platform_machine == "arm64"
 regex; sys_platform == "darwin" and platform_machine == "arm64"
