@@ -64,7 +64,7 @@ test('a just-edited folder with only a brief and clips is "Not made yet", never 
   await expect(page.getByTestId('hub-work-none')).toBeVisible();
   await expect(page.locator('[data-run=project]')).toHaveCount(0);
   await expect(page.getByTestId('work-pieces')).toHaveCount(0);
-  await expect(page.getByTestId('hub-state-line')).toHaveText('Not made yet');
+  await expect(page.getByTestId('hub-state-line')).toHaveText('Materials ready');
   await expect(page.getByTestId('running-badge')).toHaveCount(0);
   await expect(page.getByTestId('hub-clips')).toHaveCount(0);
   await expect(page.getByTestId('hub-publish')).toHaveCount(0);
