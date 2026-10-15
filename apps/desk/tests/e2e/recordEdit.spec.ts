@@ -237,3 +237,73 @@ test.describe('record -> edit -> pickup', () => {
     await expect(page.getByTestId('rec-take-edit')).toBeVisible();
   });
 });
+
+// Current Studio routing: the OS can end display capture independently of camera and mic.
+test.describe('shared window ends during a take', () => {
+  let app: ElectronApplication;
+  test.afterAll(async () => closeApp(app));
+  test('pauses all tracks, prevents an incomplete resume and saves the take', async () => {
+    test.setTimeout(240000);
+    const launched = await launch('screen-ended', { DESK_STUDIO: '1' });
+    app = launched.app;
+    const page = launched.page;
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.evaluate(() => (location.hash = '#/create/record'));
+    await page.evaluate(() => {
+      const makeVideo = (colour: string) => {
+        const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+        const ctx = canvas.getContext('2d')!;
+        const draw = () => { ctx.fillStyle = colour; ctx.fillRect(0, 0, 640, 360); };
+        draw(); setInterval(draw, 40);
+        return canvas.captureStream(24).getVideoTracks()[0];
+      };
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+        const audio = new AudioContext(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        return new MediaStream([makeVideo('#238b82'), ...dest.stream.getAudioTracks()]);
+      }});
+      Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
+        const track = makeVideo('#fafafa');
+        (window as unknown as { endSharedWindow: () => void }).endSharedWindow = () => {
+          track.stop();
+          // stop() itself does not fire ended; the OS dispatches it when a shared window closes.
+          track.dispatchEvent(new Event('ended'));
+        };
+        return new MediaStream([track]);
+      }});
+    });
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.getByTestId('create-rec-screen').click();
+    await page.getByTestId('rec-screen-toggle').click();
+    await page.getByTestId('rec-screen-source').click();
+    await expect(page.getByTestId('rec-screen-preview')).toBeVisible();
+    await page.getByTestId('create-rec-start').click();
+    await expect(page.getByTestId('create-rec-live')).toContainText('REC');
+    await page.waitForTimeout(6500);
+    await page.evaluate(() => (window as unknown as { endSharedWindow: () => void }).endSharedWindow());
+    await expect(page.getByTestId('create-rec-live')).toContainText('Paused');
+    await expect(page.getByTestId('rec-screen-interrupted')).toContainText('Stop to save this take');
+    await expect(page.getByTestId('rec-pause')).toBeDisabled();
+    await shot(page, 'R7-screen-ended-paused');
+    const clock = await page.getByTestId('create-rec-live').textContent();
+    await page.keyboard.press('p');
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId('create-rec-live')).toHaveText(clock!);
+    const group = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('group')!);
+    await page.getByTestId('create-rec-stop').click();
+    await expect(page.getByTestId('editor')).toBeVisible({ timeout: 180000 });
+    const takes = await page.evaluate((g) => window.desk.rec.list(g), group);
+    expect(takes).toHaveLength(1);
+    const saved = JSON.parse(fs.readFileSync(path.join(takes[0].dir, 'session.json'), 'utf8'));
+    expect(fs.statSync(path.join(takes[0].dir, saved.tracks.screen.file)).size).toBeGreaterThan(0);
+    expect(fs.statSync(path.join(takes[0].dir, saved.tracks.camera.file)).size).toBeGreaterThan(0);
+    expect(fs.statSync(path.join(takes[0].dir, saved.tracks.mic.file)).size).toBeGreaterThan(0);
+    const duration = probe(path.join(takes[0].dir, 'final', 'recording.mp4'));
+    expect(duration).toBeGreaterThan(5);
+    expect(duration).toBeLessThan(9);
+    expect(errors).toEqual([]);
+    await shot(page, 'R8-screen-ended-saved');
+  });
+});

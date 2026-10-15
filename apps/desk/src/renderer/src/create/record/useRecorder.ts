@@ -2,6 +2,7 @@
 // line / retake marks, pause / resume and device choice. Studio sound is applied at ingest, not live (raw, no browser
 // noise suppression). Mark times and the clock leave out paused time (MediaRecorder leaves it out of the file too).
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t } from '../../i18n';
 
 export type RecTrack = 'camera' | 'mic' | 'screen';
 export type RecState = 'idle' | 'asking' | 'denied' | 'ready' | 'recording' | 'paused' | 'stopping' | 'error';
@@ -77,6 +78,8 @@ export function useRecorder() {
   const [micId, setMicId] = useState<string | null>(null);
   const [screenOn, setScreenOn] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [screenInterrupted, setScreenInterrupted] = useState(false);
+  const interrupted = useRef(false);
   const sess = useRef<Session | null>(null);
   const screen = useRef<MediaStream | null>(null);
   const raf = useRef<number | null>(null);
@@ -181,6 +184,7 @@ export function useRecorder() {
    * is off for the app) | an error message. */
   const shareScreen = useCallback(
     async (id: string): Promise<ScreenResult> => {
+      if (sess.current) return { error: t('rec.screenFinishTake') };
       stopScreen();
       try {
         await window.desk.rec.screenPick(id);
@@ -188,6 +192,17 @@ export function useRecorder() {
         screen.current = st;
         st.getVideoTracks()[0]?.addEventListener('ended', () => {
           if (screen.current === st) {
+            const s = sess.current;
+            if (s) {
+              // A closed window can end only the screen recorder while camera/mic keep running. Pause them
+              // together immediately; restarting this track mid-take would make the saved tracks misaligned.
+              if (s.pausedAt === null) s.pausedAt = performance.now();
+              for (const r of s.recorders) if (r.state === 'recording') r.pause();
+              interrupted.current = true;
+              setScreenInterrupted(true);
+              setElapsed(recordedSeconds(s, s.pausedAt));
+              setState('paused');
+            }
             screen.current = null;
             setScreenOn(false);
             setScreenStream(null);
@@ -208,7 +223,9 @@ export function useRecorder() {
 
   const start = useCallback(
     async (req: { slug: string; title?: string; script: string[]; series?: string; episode?: string; shot?: string; studio?: boolean; group?: string; pickup?: boolean }) => {
-      if (!stream) return;
+      if (!stream || sess.current) return;
+      interrupted.current = false;
+      setScreenInterrupted(false);
       const vMime = pickMime(VIDEO_TYPES);
       const aMime = pickMime(AUDIO_TYPES);
       const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
@@ -260,7 +277,7 @@ export function useRecorder() {
 
   const resume = useCallback(() => {
     const s = sess.current;
-    if (!s || s.pausedAt === null) return;
+    if (!s || s.pausedAt === null || interrupted.current) return;
     s.pausedMs += performance.now() - s.pausedAt;
     s.pausedAt = null;
     for (const r of s.recorders) if (r.state === 'paused') r.resume();
@@ -301,5 +318,5 @@ export function useRecorder() {
     return { ...out, sessionId: s.id, secs };
   }, []);
 
-  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
+  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, screenInterrupted, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
 }

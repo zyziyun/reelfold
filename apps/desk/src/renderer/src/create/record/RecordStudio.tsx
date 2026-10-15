@@ -533,7 +533,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
             <div className="rs-dock" data-testid="rec-dock">
               <div className="rs-side l">
                 {live ? (
-                  <button type="button" className="rs-ctl" disabled={phase === 'stopping'} onClick={onPause} title={`${rec.state === 'paused' ? t('rec.resume') : t('rec.pause')} (P)`} data-testid="rec-pause">
+                  <button type="button" className="rs-ctl" disabled={phase === 'stopping' || rec.screenInterrupted} onClick={onPause} title={`${rec.state === 'paused' ? t('rec.resume') : t('rec.pause')} (P)`} data-testid="rec-pause">
                     {rec.state === 'paused' ? <Play className="ico" /> : <Pause className="ico" />}
                     <span className="tx">{rec.state === 'paused' ? t('rec.resume') : t('rec.pause')}</span>
                   </button>
@@ -633,9 +633,13 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                 )}
               </div>
             </div>
-            <div className={`rs-hint ${blocked === 'no-script' ? 'warn' : ''}`} data-testid="rec-hint">
-              {hint}
-            </div>
+            {rec.screenInterrupted && live ? (
+              <div className="rs-hint warn" role="alert" data-testid="rec-screen-interrupted">{t('rec.screenInterrupted')}</div>
+            ) : (
+              <div className={`rs-hint ${blocked === 'no-script' ? 'warn' : ''}`} data-testid="rec-hint">
+                {hint}
+              </div>
+            )}
           </>
         )}
       </section>
