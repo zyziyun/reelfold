@@ -29,7 +29,7 @@ import { CAPTURE_JS, saveCapture, type CaptureResult } from './publish/capture';
 import { probeLogin } from './publish/loginProbe';
 import { fillScheduledPost } from './publish/postFill';
 import { FillRuns } from './publish/fillControl';
-import { PublishScheduler } from './publish/scheduler';
+import { PublishScheduler, type ApiUpload } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
 import { postAccount } from '../shared/publish/account';
@@ -681,13 +681,13 @@ async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitle
 }
 
 /** The scheduled-posting switch (hers, off by default): a calendar row through the YouTube API at its time. */
-async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null; account: string } | { ok: false; error: string }> {
+async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload> {
   try {
     const account = ytAccountFor(p);
     if (!account) return { ok: false, error: 'YouTube is not connected' };
     const pkg = await postPackage(p.id);
     const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') });
-    return { ok: true, url: r.url, account };
+    return { ok: true, url: r.url, account, result: r };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -1087,32 +1087,37 @@ function registerIpc() {
     }
     if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 3 minutes or less');
     let last = 0;
-    const r = await youtube.upload(
-      p.account,
-      {
-        file: pkg.video,
-        title: p.title,
-        description: p.description,
-        tags: p.tags,
-        publishAt,
-        privacy: p.privacy,
-        categoryId: p.categoryId,
-        madeForKids: p.madeForKids,
-        synthetic: p.synthetic,
-        short: p.short,
-        thumbnail: p.thumbnail ? pkg.cover : null,
-        playlistId: p.playlistId,
-      },
-      (sent, total) => {
-        if (sent !== total && Date.now() - last < 250) return;
-        last = Date.now();
-        win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
-      },
-    );
-    await needClient().updatePost(p.postId, { account: p.account, state: 'posted', via: 'api', url: r.url });
-    win?.webContents.send('publish:posted', { postId: p.postId, url: r.url });
+    if (!scheduler) throw new Error('Publishing is not ready yet');
+    const uploaded = await scheduler.upload(row, async () => {
+      const r = await youtube.upload(
+        p.account,
+        {
+          file: pkg.video,
+          title: p.title,
+          description: p.description,
+          tags: p.tags,
+          publishAt,
+          privacy: p.privacy,
+          categoryId: p.categoryId,
+          madeForKids: p.madeForKids,
+          synthetic: p.synthetic,
+          short: p.short,
+          thumbnail: p.thumbnail ? pkg.cover : null,
+          playlistId: p.playlistId,
+        },
+        (sent, total) => {
+          if (sent !== total && Date.now() - last < 250) return;
+          last = Date.now();
+          win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
+        },
+      );
+      return { ok: true, url: r.url, account: p.account, result: r };
+    });
+    if (!uploaded.ok) throw new Error(uploaded.error);
+    if (!uploaded.result) throw new Error('This post was already uploaded; check it on YouTube Studio.');
+    const r = uploaded.result;
     void scheduler?.tick();
-    mainLog(`[youtube] ${p.postId} -> ${r.id} ${r.privacy}${r.warnings.length ? ` (${r.warnings.join('; ')})` : ''}`);
+    mainLog(`[youtube] ${p.postId} -> ${r.url} ${r.privacy}${r.warnings.length ? ` (${r.warnings.join('; ')})` : ''}`);
     return { url: r.url, privacy: r.privacy, publishAt: r.publishAt, lockedPrivate: r.lockedPrivate, warnings: r.warnings };
   });
   handle('publish:apiAuto', async (p) => {

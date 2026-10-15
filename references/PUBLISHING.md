@@ -33,15 +33,19 @@ with a logged-in account. The desk keeps the adapter files.
 
 ## Automatic upload recovery
 
-The desktop scheduler saves an attempt before starting an official API upload. If this record cannot be saved,
+Manual and scheduled official API uploads share one desktop execution gate. It saves an attempt before starting an official API upload. If this record cannot be saved,
 it does not upload. A successful API response is saved separately before updating the local calendar; failure
 to update the calendar retries that update, including after restart, without uploading the video again.
 Reconciliation continues outside the upload time window and after automatic uploads are switched off.
 
 An interrupted upload with no confirmed result is not automatically repeated: the platform may already have it.
 A corrupt receipt journal is preserved and automatic uploads stop; it must not be silently replaced with an
-empty history. These guarantees currently cover the scheduler path; the manual upload handler and remote
-scheduled/private/public status reconciliation still need the same audit.
+empty history. A manual request cannot start another upload while the scheduler owns that post (or vice versa). Completed
+requests reuse the saved provider result, including after restart. Changing the local time or account of an
+already uploaded post cannot insert another remote video; make changes on the platform or create a separate
+post. A failed manual upload is not retried by the automatic scheduler with different visibility or audience
+defaults; the creator retries from the form. Remote scheduled/private/public status reconciliation still needs
+the same audit.
 
 ## Length per platform
 
