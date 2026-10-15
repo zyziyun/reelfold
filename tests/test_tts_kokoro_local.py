@@ -147,10 +147,12 @@ def test_voice_the_folder_lacks_names_what_it_has(kokoro_dir, tmp_path, monkeypa
 def test_app_never_fetches_the_model(tmp_path, monkeypatch, mlx_audio_present):
     monkeypatch.setenv(tts.MANAGED_ENV, "1")
     run = FakeRun()
-    monkeypatch.setattr(tts.subprocess, "run", run)
-    with pytest.raises(tts.VoiceNotDownloaded) as e:
-        tts._kokoro("hi", "af_heart", 1.0, tts.kokoro_model(), str(tmp_path / "o.wav"), str(tmp_path))
-    assert not run.calls
+    # Scope the synth mock: provider discovery also queries installed macOS voices.
+    with monkeypatch.context() as synth:
+        synth.setattr(tts.subprocess, "run", run)
+        with pytest.raises(tts.VoiceNotDownloaded) as e:
+            tts._kokoro("hi", "af_heart", 1.0, tts.kokoro_model(), str(tmp_path / "o.wav"), str(tmp_path))
+        assert not run.calls
     # the desk words it and offers the download (pilot failure code tool-voice)
     assert proctail.tool_failure(f"RuntimeError: tts.py exit 1: {e.value}") == dict(
         code="tool-voice", params=dict(tool="voice", fix="download-voice"))

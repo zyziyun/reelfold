@@ -86,7 +86,10 @@ def test_usage_needs_the_token(monkeypatch, tmp_path, capsys):
 
 
 @pytest.fixture
-def server():
+def server(monkeypatch):
+    # The fixture is loopback-only even on a developer Mac with a system HTTP proxy.
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     seen = []
 
     class H(BaseHTTPRequestHandler):
