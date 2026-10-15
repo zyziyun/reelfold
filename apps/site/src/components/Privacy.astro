@@ -29,12 +29,12 @@ const mail = SITE.contactEmail;
         <li>用 Claude Code 或 Codex 订阅时，千剪在你的电脑上运行你自己安装、自己登录的命令行工具，由它按你的订阅条款与 Anthropic 或 OpenAI 通信。应用里的实时窗口只在本机显示它的输出，密钥会被隐去。</li>
         <li>你在请求里贴的链接（网页、公开的 Notion 页面）由你的电脑直接打开读取。导出的 Notion 文件夹和讲稿只在本机读取。</li>
         <li>本地免费配音（英文 Kokoro、下载后的中文 Qwen3-TTS，仅 Apple 芯片）在本机生成，不需要 API Key，也不发送配音文字。</li>
-        <li>人脸检测等图像处理（MediaPipe）完全在本机运行，不向任何服务器发送数据。</li>
+        <li>人脸检测和分割在本机处理图像。当前 Mac 构建锁定不含指标上报模块的 MediaPipe 0.10.21。较早构建或自行安装的较新 MediaPipe SDK 可能向 Google 发送性能和 API 使用指标；Google 说明 SDK 不上传输入图像或视频。详见 <a href="https://developers.google.com/edge/mediapipe/solutions/tasks#mediapipe_tasks_privacy_notice">MediaPipe 隐私说明</a>。</li>
         <li>检查更新时，应用会访问 GitHub 上的发布页面。</li>
         <li>首次使用时，应用会下载语音识别模型和字体等数据文件（来自 GitHub、Google 存储和 Hugging Face）；初次使用免费配音时，会从 Hugging Face 下载 Kokoro 语音模型（约 330 MB）。下载不附带任何身份信息。</li>
         <li>问题报告：千剪从不自己发送。点“报告这个问题”时，你会先看到完整的报告（路径已缩短，不含文件名、文字稿、提示词或密钥），然后由你在浏览器里打开预填好的 GitHub 页面，自己决定是否发布。</li>
         <li><strong>Mac App Store 版</strong>：没有使用次数统计和自动更新检查。项目文件保存在本机应用容器中。使用配置的云端 AI、云端转写、配音或生成服务时，会向对应服务发送任务需要的文字、参考帧或音频等输入。发送前会按服务地址和用途询问许可，可在帮助 › 重置 AI 数据分享许可中撤销后续分享。服务商按其条款处理已发送的数据，撤销无法收回已发送的请求。</li>
-        <li>匿名使用次数（仅桌面应用，<strong>默认关闭，你主动打开才发送</strong>）：随机 ID、版本号、系统、界面语言、事件名、日期和几个小整数（比如一批跑完了多少条）。不发送文件名、文字或素材，服务器不保存 IP 地址；原始记录 13 个月后删除。在应用的“设置 › 通用 › 隐私”里可以随时关闭，或点“删除我的使用数据”删除已发送的记录。完整字段见<a href="/docs/zh/concepts/usage-counts/">隐私：千剪会发送什么</a>。技能不发送任何使用数据。</li>
+        <li>匿名使用次数（仅桌面应用，<strong>默认关闭，你主动打开才发送</strong>）：随机 ID、版本号、系统、界面语言、事件名、日期和几个小整数（比如一批跑完了多少条）。不发送文件名、文字或素材，服务器不保存 IP 地址；原始记录 13 个月后删除。在应用的“设置 › 通用 › 隐私”里可以随时关闭，或点“删除我的使用数据”删除已发送的记录。完整字段见<a href="/docs/zh/concepts/usage-counts/">隐私：千剪会发送什么</a>。技能不发送千剪自身的使用统计；自行安装的 SDK 指标行为见上文。</li>
       </ul>
 
       <h2>4. 联系我们和 GitHub</h2>
@@ -70,12 +70,12 @@ const mail = SITE.contactEmail;
         <li>With a Claude Code or Codex subscription, Reelfold runs the command-line tool you installed and signed in to yourself, on your computer; it talks to Anthropic or OpenAI under your plan’s terms. The app’s live pane shows its output on your computer only, with keys hidden.</li>
         <li>Links you paste into a request (web pages, public Notion pages) are fetched directly by your computer. Exported Notion folders and notes are read locally.</li>
         <li>Local free voices (Kokoro for English and downloaded Qwen3-TTS for Chinese, Apple silicon only) run on your computer. They need no API key and send no narration text.</li>
-        <li>Face detection and other image processing (MediaPipe) run entirely on your computer and send nothing to any server.</li>
+        <li>Face detection and segmentation process images locally. Current Mac builds pin MediaPipe 0.10.21 without its metrics uploader. Older builds or independently installed newer MediaPipe SDKs can send performance and API-use metrics to Google; Google states that input images and video are not uploaded by the SDK. See the <a href="https://developers.google.com/edge/mediapipe/solutions/tasks#mediapipe_tasks_privacy_notice">MediaPipe privacy notice</a>.</li>
         <li>When it checks for updates, the app contacts the release page on GitHub.</li>
         <li>On first use the app downloads data files such as the speech-recognition model and fonts (from GitHub, Google storage and Hugging Face); the first time you use the free voice, it downloads the Kokoro voice model (about 330 MB) from Hugging Face. No identifiers are sent.</li>
         <li>Problem reports: Reelfold never sends them by itself. “Report this problem” shows you the whole report first (paths shortened; no file names, transcripts, prompts or keys), then opens a prefilled GitHub page in your browser; you decide whether to post it.</li>
         <li><strong>Mac App Store edition</strong>: has no usage counts and no update check. Project files are stored in the app’s container on your Mac. Configured cloud AI, transcription, voice and generation services receive the text, reference frames or audio needed for the task. Before sending content, the app asks permission for each service address and use. Revoke future sharing in Help › Reset AI Sharing Permissions. Providers handle sent data under their own terms; revocation cannot recall requests already sent.</li>
-        <li>Anonymous usage counts (desktop app only, <strong>off unless you turn it on</strong>): a random ID, the app version, OS, interface language, the event name, the day and a few small integers (such as how many clips a batch made). No file names, text or footage; the server does not store IP addresses; raw records are deleted after 13 months. Turn it off at any time in Settings › General › Privacy, or press “Delete my usage data” to delete what was sent. Every field is listed in <a href="/docs/concepts/usage-counts/">Privacy: what Reelfold sends</a>. The skill sends no usage data.</li>
+        <li>Anonymous usage counts (desktop app only, <strong>off unless you turn it on</strong>): a random ID, the app version, OS, interface language, the event name, the day and a few small integers (such as how many clips a batch made). No file names, text or footage; the server does not store IP addresses; raw records are deleted after 13 months. Turn it off at any time in Settings › General › Privacy, or press “Delete my usage data” to delete what was sent. Every field is listed in <a href="/docs/concepts/usage-counts/">Privacy: what Reelfold sends</a>. The skill sends no Reelfold usage counts; independently installed SDK metrics are described above.</li>
       </ul>
 
       <h2>4. Contacting us and GitHub</h2>

@@ -1,0 +1,12 @@
+torch; python_version < "0"
+scipy; python_version < "0"
+transformers; python_version < "0"
+espeakng-loader; python_version < "0"
+phonemizer-fork; python_version < "0"
+spacy-curated-transformers; python_version < "0"
+num2words; python_version < "0"
+pypinyin-dict; python_version < "0"
+numpy>=2,<3
+opencv-python; python_version < "0"
+jax; python_version < "0"
+jaxlib; python_version < "0"

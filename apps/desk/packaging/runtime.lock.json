@@ -55,7 +55,7 @@
     "$comment": "Added to the pinned repo's requirements.txt per target. torch is overridden away (mlx-whisper only needs it to convert checkpoints); so is scipy (App Review 2.5.1: its extensions import non-public Accelerate BLAS symbols; the engine is scipy-free and mlx-whisper's one call is patched by scripts/runtime/patch_mlx_whisper.py). darwin-arm64 also carries onnxruntime (MIT; the other targets already have it through faster-whisper) for the cover engine (BiRefNet subject cutout, CLIP aesthetic score), and the free offline voice: Kokoro-82M via mlx-audio (MIT) + misaki G2P (Apache-2.0; zh: jieba/pypinyin/cn2an, en: spaCy + en_core_web_sm, MIT). Dropped for it: transformers (mlx-audio's Kokoro path never imports it), espeak-ng (espeakng-loader / phonemizer-fork, GPL: misaki's English fallback for out-of-dictionary words, which are then skipped), spacy-curated-transformers (+torch, only for en_core_web_trf), pypinyin-dict (110 MB, only misaki's Kokoro v1.1-zh frontend; the v1.0 weights use misaki.zh without it) and num2words (LGPL: replaced by vstudio.numwords_en); scripts/runtime/patch_kokoro.py makes mlx-audio / misaki run without them. The Kokoro weights are a first-run download (packaging/assets.json group tts-kokoro), not in the installer.",
     "extra": {
       "darwin-arm64": [
-        "mediapipe==0.10.35",
+        "mediapipe==0.10.21",
         "mlx>=0.30",
         "mlx-whisper",
         "mlx-audio",
@@ -85,7 +85,16 @@
     "sdist": [
       "jieba"
     ],
-    "$sdist": "Pure-Python packages PyPI has no wheel for, built from their hash-pinned sdist (pip --no-binary; everything else stays --only-binary). jieba (MIT): misaki's Chinese word segmentation."
+    "$sdist": "Pure-Python packages PyPI has no wheel for, built from their hash-pinned sdist (pip --no-binary; everything else stays --only-binary). jieba (MIT): misaki's Chinese word segmentation.",
+    "overridesByTarget": {
+      "darwin-arm64": [
+        "numpy>=2,<3",
+        "opencv-python; python_version < \"0\"",
+        "jax; python_version < \"0\"",
+        "jaxlib; python_version < \"0\""
+      ]
+    },
+    "$mediapipe": "Mac ARM uses 0.10.21, whose official wheel contains no Clearcut metrics uploader. Its Tasks vision API is verified with NumPy 2 (real 478-point detection and segmentation). Override its conservative numpy<2 metadata to retain the existing numerical stack. Its opencv-contrib-python dependency supplies cv2; avoid the competing opencv-python wheel. JAX/JAXLIB are unused optional task dependencies, excluded to keep the runtime SciPy-free. Other targets retain their existing dependency graph."
   },
   "micromamba": {
     "version": "2.9.0-0",

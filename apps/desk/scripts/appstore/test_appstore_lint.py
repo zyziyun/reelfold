@@ -310,3 +310,42 @@ class BundleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VisionTelemetryTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+        self.meta = os.path.join(self.root, 'mediapipe-0.10.21.dist-info', 'METADATA')
+        self.lib = os.path.join(self.root, 'mediapipe', 'tasks', 'c', 'libmediapipe.dylib')
+        os.makedirs(os.path.dirname(self.meta)); os.makedirs(os.path.dirname(self.lib))
+        with open(self.meta, 'w') as f:
+            f.write('Name: mediapipe\nVersion: 0.10.21\n')
+        with open(self.lib, 'wb') as f:
+            f.write(b'vision inference code')
+
+    def test_audited_wheel_without_uploader(self):
+        self.assertEqual(L.check_telemetry(self.root, lambda _: None), [])
+
+    def test_new_unreviewed_sdk_and_hidden_native_uploader_fail(self):
+        with open(self.meta, 'w') as f:
+            f.write('Version: 0.10.35\n')
+        with open(self.lib, 'ab') as f:
+            f.write(b'portable_clearcut_uploader.cc https://play.googleapis.com/log')
+        issues = str(L.check_telemetry(self.root, lambda _: None))
+        self.assertIn('0.10.35', issues)
+        self.assertIn('metrics uploader', issues)
+
+    def test_missing_native_sdk_cannot_pass(self):
+        os.remove(self.lib)
+        self.assertIn('missing bundled MediaPipe native', str(L.check_telemetry(self.root, lambda _: None)))
+
+    def test_unreadable_native_sdk_fails_closed(self):
+        original = open
+        def reader(path, *args, **kwargs):
+            if path == self.lib:
+                raise PermissionError('unreadable')
+            return original(path, *args, **kwargs)
+        with mock.patch('builtins.open', side_effect=reader):
+            self.assertIn('cannot inspect vision SDK privacy', str(L.check_telemetry(self.root, lambda _: None)))

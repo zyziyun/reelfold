@@ -228,6 +228,12 @@ async function verify() {
   const asr = isMac && target.endsWith('arm64') ? 'mlx_whisper' : 'faster_whisper';
   run(pyExe(), ['-c', `import numpy, cv2, mediapipe, soundfile, yaml, PIL, fontTools, openai, ${asr}, vstudio.batch, vstudio.media as m; ` +
     `import shutil; ff = m.ffmpeg_bin(); assert ff.startswith(${JSON.stringify(path.join(OUT, 'ffmpeg'))}), ff; print('ok', ff, '${asr}')`], { env });
+  if (target === 'darwin-arm64') {
+    // This older audited wheel is tested against our current NumPy ABI, not just imported.
+    run(pyExe(), ['-c', 'import mediapipe as mp, numpy as np; assert mp.__version__ == "0.10.21"; ' +
+      'a = np.zeros((2, 3, 3), dtype=np.uint8); im = mp.Image(image_format=mp.ImageFormat.SRGB, data=a); ' +
+      'assert np.array_equal(im.numpy_view(), a); print("telemetry-free vision SDK / NumPy buffer ok")'], { env });
+  }
   // App Store compliance: no scipy, no tkinter; the engine's audio / retouch code and mlx-whisper's word timing run
   run(pyExe(), ['-c', 'import importlib.util as u, numpy as np; assert not u.find_spec("scipy") and not u.find_spec("_tkinter"); ' +
     'import vstudio.audio, vstudio.retouch' + (asr === 'mlx_whisper' ? '; from mlx_whisper import timing as t; ' +
@@ -249,7 +255,7 @@ async function verify() {
   if (isMac) {
     checkMachO();
     // what App Review checks (Tcl / non-public Accelerate symbols, itms-services): the same lint release-mas.sh runs
-    run(pyExe(), [path.join(ROOT, 'scripts', 'appstore', 'appstore_lint.py'), OUT, '--only', 'symbols,strings']);
+    run(pyExe(), [path.join(ROOT, 'scripts', 'appstore', 'appstore_lint.py'), OUT, '--only', target.endsWith('arm64') ? 'symbols,strings,telemetry' : 'symbols,strings']);
   }
   if (isWin) {
     if (!enc.includes('libopenh264')) throw new Error('bundled ffmpeg lacks libopenh264 (the H.264 fallback when Media Foundation has no encoder)');
