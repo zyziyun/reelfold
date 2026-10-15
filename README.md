@@ -23,6 +23,19 @@ Open source, free, and all on your Mac.<br>
   <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <a href="https://reelfold.com/demo/?utm_source=github&utm_medium=readme&utm_campaign=organic-discovery">
+    <img src="apps/site/public/media/reelfold-demo-en.jpg" alt="Watch the 44-second demo" width="800">
+  </a>
+</p>
+
+### Try one workflow, then share what happened
+
+[Make several videos from a folder](https://reelfold.com/docs/guides/several-videos/) ·
+[Record camera and screen](https://reelfold.com/docs/guides/recording/) ·
+[Share a result](https://github.com/zyziyun/reelfold/discussions/new?category=show-and-tell) ·
+[Ask a question](https://github.com/zyziyun/reelfold/discussions/new?category=q-a)
+
 Footage in, edit, covers, a version per platform and language, publish: one workbench for self-media and course
 creators, at batch scale.
 

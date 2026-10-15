@@ -21,6 +21,19 @@
   <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <a href="https://reelfold.com/zh/demo/?utm_source=github&utm_medium=readme&utm_campaign=organic-discovery">
+    <img src="apps/site/public/media/reelfold-demo-zh.jpg" alt="观看 44 秒演示" width="800">
+  </a>
+</p>
+
+### 试一个工作流，分享你的结果
+
+[从文件夹批量剪视频](https://reelfold.com/docs/zh/guides/several-videos/) ·
+[录制摄像头和屏幕](https://reelfold.com/docs/zh/guides/recording/) ·
+[分享成片与过程](https://github.com/zyziyun/reelfold/discussions/new?category=show-and-tell) ·
+[提问](https://github.com/zyziyun/reelfold/discussions/new?category=q-a)
+
 素材进来，剪辑、封面、每个平台和语言各出一版、发布：给自媒体和课程创作者的一站式工作台，按批量来做。
 
 - **一句话，做一整组。** 指向一个文件夹或一张 SD 卡，说“做 12 条左右，每条一个主题”。它把素材按故事分组，规划出你要的那一组
