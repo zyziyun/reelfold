@@ -35,7 +35,7 @@ test.beforeAll(async () => {
   const lavfi = (w: number, h: number) => ['-f', 'lavfi', '-i', `testsrc2=size=${w}x${h}:rate=30:duration=6`, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac'];
   const w = [['你在', 0.2, 0.6], ['副业', 0.6, 1.1], ['当中', 1.1, 1.5], ['其实', 2.4, 2.9], ['底气', 2.9, 3.5], ['很重要', 3.5, 4.4]];
   for (const c of ['A_换圈子', 'B_底气']) {
-    ffmpeg([...lavfi(240, 320), path.join(fuye, 'final', `${c}.mp4`)]);
+    ffmpeg([...lavfi(180, 320), path.join(fuye, 'final', `${c}.mp4`)]);
     fs.writeFileSync(path.join(fuye, 'final', `${c}.mp4.asr.json`), JSON.stringify({ segments: [{ start: 0.2, end: 4.4, words: w.map(([word, start, end]) => ({ word, start, end })) }] }));
   }
   app = await electron.launch({
@@ -233,13 +233,14 @@ for (const [lang, clip] of [['en', 'A_换圈子'], ['zh-CN', 'B_底气']] as con
     const ex = page.getByTestId('card-export');
     await expect(ex).toBeVisible();
     await expect(ex.getByTestId('export-go')).toHaveClass(/primary/);
-    await ex.getByTestId('pf-douyin').click();
+    // Two platforms for the same native 9:16 canvas: a new canvas asks for a remake.
+    await ex.getByTestId('pf-tiktok').click();
     await ex.getByTestId('export-go').click();
     await expect(ex.getByTestId('export-row')).toHaveCount(2);
     await expect(ex.getByTestId('export-stop')).toBeVisible();
     await expect(ex.locator('[data-testid=export-row][data-done="1"]')).toHaveCount(2, { timeout: 20000 });
     await expect(ex.getByTestId('export-state')).toContainText(/re-encode|重新编码/);
-    expect((await api(clip)).exports.map((e: { target: string }) => e.target)).toContain('douyin:vertical');
+    expect((await api(clip)).exports.map((e: { target: string }) => e.target)).toContain('tiktok:vertical');
   });
 
   test(`${lang}: no model -> the fallback card, tools still work`, async () => {
