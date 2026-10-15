@@ -217,7 +217,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 /** A post's YouTube form; Publish / Schedule is her click. */
-export function YtPublishForm({ post, account, result, onPosted, immediate = false }: { immediate?: boolean; post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
+export function YtPublishForm({ post, account, result, onPosted, onBusy, immediate = false }: { onBusy?: (busy: boolean) => void; immediate?: boolean; post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
   const ui = useUi();
   const { yt, apply } = useYt();
   const acct = ytAccount(yt, account);
@@ -238,6 +238,7 @@ export function YtPublishForm({ post, account, result, onPosted, immediate = fal
   const [playlist, setPlaylist] = useState('');
   const [lists, setLists] = useState<{ id: string; title: string }[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ k: 'form' });
+  useEffect(() => { onBusy?.(phase.k === 'uploading'); return () => onBusy?.(false); }, [phase.k, onBusy]);
   const [connect, setConnect] = useState(false);
 
   useEffect(() => {

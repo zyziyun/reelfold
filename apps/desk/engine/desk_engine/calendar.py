@@ -267,6 +267,9 @@ class Calendar:
                    at=b["at"], state="planned")
         if cap is not None:
             row["caption"] = cap
+        if b.get("account") is not None:
+            need(isinstance(b["account"], str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", b["account"]), "account: session label")
+            row["account"] = b["account"]
         return row
 
     def add(self, b):
@@ -353,7 +356,7 @@ class Calendar:
         """Undo of remove_many: the same rows back (same ids, captions, states)."""
         need(isinstance(posts, list) and 0 < len(posts) <= MAX_IDS, f"posts: 1-{MAX_IDS} rows")
         keep = ("id", "item", "clip", "title", "cover", "platform", "at", "state", "caption", "enabled", "stats",
-                "platform_title", "url", "posted_at", "via")
+                "platform_title", "url", "posted_at", "via", "account")
         clean = []
         for p in posts:
             need(isinstance(p, dict) and isinstance(p.get("id"), str) and ITEM_RE.match(p["id"]), "post id")
@@ -361,6 +364,8 @@ class Calendar:
             need(isinstance(p.get("at"), str) and AT_RE.match(p["at"]), "at: YYYY-MM-DDTHH:MM")
             need(isinstance(p.get("platform"), str) and PLATFORM_RE.match(p["platform"]), "platform: id")
             need(p.get("state", "planned") in STATES, "state")
+            need(p.get("account") is None or (isinstance(p["account"], str) and
+                 re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", p["account"])), "account: session label")
             row = {k: p[k] for k in keep if k in p}
             if not p.get("caption_custom", True):
                 row.pop("caption", None)        # a decorated row: the clip's own copy is not her edit
@@ -384,6 +389,17 @@ class Calendar:
             if b.get("remove"):
                 rows = [r for r in rows if r["id"] != pid]
             else:
+                if "account" in b:
+                    need(row.get("state") != "posted", "a published post cannot change its account")
+                    account = b["account"]
+                    need(account is None or (isinstance(account, str) and
+                         re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", account)), "account: session label")
+                    if account is None:
+                        row.pop("account", None)
+                    else:
+                        row["account"] = account
+                    if row.get("state") == "filled" and before.get("account") != account:
+                        row["state"] = "planned"
                 if "video_path" in b:
                     need(row.get("state") != "posted", "a published post cannot change its video")
                     chosen = b["video_path"]
@@ -445,6 +461,8 @@ class Calendar:
                         row["caption"] = cap
                 if b.get("platform") is not None:
                     need(isinstance(b["platform"], str) and PLATFORM_RE.match(b["platform"]), "platform: id")
+                    if b["platform"].split(":")[0] != row["platform"].split(":")[0] and "account" not in b:
+                        row.pop("account", None)
                     row["platform"] = b["platform"]
                 if b.get("enabled") is not None:
                     need(isinstance(b["enabled"], bool), "enabled: true | false")

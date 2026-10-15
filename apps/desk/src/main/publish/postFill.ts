@@ -8,6 +8,7 @@ import type { EngineClient } from '../../shared/engineClient';
 import { loginState } from '../../shared/channels';
 import { adapterFor, type Adapter } from '../../shared/publish/adapterSchema';
 import { apiOnly } from '../../shared/publish/apiPlatforms';
+import { postAccount } from '../../shared/publish/account';
 import { planFill } from '../../shared/publish/fillPlan';
 import { copyForPost, pickFile, postedSignal } from '../../shared/publish/postNow';
 import type { CalendarPost } from '../../shared/v04';
@@ -88,8 +89,8 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   if (apiOnly(adapter.id)) return { ok: false, reason: 'use-api', adapterId: adapter.id };
   if (adapter.status === 'todo') return { ok: false, reason: 'adapter-todo', adapterId: adapter.id };
   const accounts = deps.accounts[adapter.id] ?? [];
-  const account = req.account && accounts.includes(req.account) ? req.account : accounts[0];
-  if (!account) return { ok: false, reason: 'no-account', adapterId: adapter.id };
+  const account = postAccount(accounts, post.account ?? req.account);
+  if (!account || (post.account && req.account && post.account !== req.account)) return { ok: false, reason: 'no-account', adapterId: adapter.id };
 
   const clips = await deps.client.clips(post.item);
   const clip = clips.clips.find((c) => c.id === post.clip);
@@ -99,6 +100,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   const cover = clip.cover && fs.existsSync(clip.cover) ? clip.cover : null;
   const copy = copyForPost(post, adapter.fields.title !== null, [clip.title, clip.post?.title ?? ''].filter(Boolean));
 
+  if (post.account !== account) await deps.client.updatePost(post.id, { account });
   const entry = deps.browser.open(adapter, account, 'upload');
   const wc = entry.view.webContents;
   await waitLoaded(wc);
@@ -133,10 +135,12 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   if (results.some((r) => r.field === 'file' && r.status === 'ok')) {
     await deps.client.updatePost(post.id, { state: 'filled' });
     watchPosted(wc, adapter, (url) => {
-      void deps.client
-        .updatePost(post.id, { state: 'posted', via: 'assisted', ...(url ? { url } : {}) })
-        .then(() => deps.onPosted?.(post.id, url))
-        .catch((e) => deps.log?.(`[publish] could not mark ${post.id} posted: ${(e as Error).message}`));
+      void deps.client.calendar(undefined, { queue: false }).then((cal) => {
+        // An old upload page must not mark a task now assigned to another account.
+        if (cal.posts.find((p) => p.id === post.id)?.account !== account) return;
+        return deps.client.updatePost(post.id, { state: 'posted', via: 'assisted', ...(url ? { url } : {}) })
+          .then(() => deps.onPosted?.(post.id, url));
+      }).catch((e) => deps.log?.(`[publish] could not mark ${post.id} posted: ${(e as Error).message}`));
     });
   }
   return { ok: true, postId: post.id, adapterId: adapter.id, account, results, video: file.path, cover };

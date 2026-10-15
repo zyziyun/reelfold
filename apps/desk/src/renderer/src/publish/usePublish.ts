@@ -9,6 +9,7 @@ import { useEngine, useLoad } from '../lib/engine';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
 import { base, type PostGroup } from './model';
+import { postAccount } from '../../../shared/publish/account';
 
 /** Default post time per platform when nothing else says (a convention, editable per post). */
 export const SLOT_TIME: Record<string, string> = { x: '09:00', instagram: '18:00', 'wechat-channels': '12:00' };
@@ -20,7 +21,8 @@ export interface Accounts {
   /** every platform an adapter can post (for "+ Add platform") */
   all: string[];
   timeOf: (pf: string) => string;
-  accountOf: (pf: string) => ChannelMsg | undefined;
+  accountOf: (pf: string, selected?: string | null) => ChannelMsg | undefined;
+  accountsOf: (pf: string) => ChannelMsg[];
   adapterOf: (pf: string) => Adapter | undefined;
 }
 
@@ -31,16 +33,18 @@ export function useAccounts(adapters: Adapter[], channels: ChannelMsg[], chosen:
     const withAccount = [...new Set(adapters.filter((a) => channels.some((c) => c.adapterId === a.id)).map((a) => a.packagePlatforms[0]))];
     const connected = (chosen?.length ? [...new Set(chosen.map(base))] : withAccount).sort(order);
     const all = [...new Set(adapters.flatMap((a) => a.packagePlatforms))].sort(order);
-    const accountOf = (pf: string) => {
+    const accountsOf = (pf: string) => channels.filter((c) => c.adapterId === adapterOf(base(pf))?.id);
+    const accountOf = (pf: string, selected?: string | null) => {
       const a = adapterOf(base(pf));
-      return a ? channels.find((c) => c.adapterId === a.id) : undefined;
+      const account = postAccount(accountsOf(pf).map((c) => c.account), selected);
+      return a ? channels.find((c) => c.adapterId === a.id && c.account === account) : undefined;
     };
     const timeOf = (pf: string) => {
       const a = adapterOf(base(pf));
       const c = a && channels.find((x) => x.adapterId === a.id && x.times.length);
       return c?.times[0] ?? SLOT_TIME[base(pf)] ?? '19:00';
     };
-    return { connected, all, timeOf, accountOf, adapterOf: (pf: string) => adapterOf(base(pf)) };
+    return { connected, all, timeOf, accountOf, accountsOf, adapterOf: (pf: string) => adapterOf(base(pf)) };
   }, [adapters, channels, chosen]);
 }
 
@@ -139,6 +143,7 @@ export function usePublishData() {
           }
         }),
       video: (p: CalendarPost, file: string | null) => run(() => c().updatePost(p.id, { video_path: file })),
+      account: (p: CalendarPost, account: string | null) => run(() => c().updatePost(p.id, { account })),
       caption: (p: CalendarPost, text: string | null) => run(() => c().updatePost(p.id, { caption: text })),
       /** the card's title, on every row of the card (a platform's own title still wins there) - one undo */
       retitle: (g: PostGroup, title: string) =>

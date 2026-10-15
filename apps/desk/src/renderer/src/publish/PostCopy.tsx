@@ -14,6 +14,7 @@ import { useLoad } from '../lib/engine';
 import { pickFile } from '../../../shared/publish/postNow';
 import { base, overflowAt, type PostGroup } from './model';
 import type { Accounts, usePublishData } from './usePublish';
+import { PostAccount } from './PostAccount';
 
 export type Actions = ReturnType<typeof usePublishData>['actions'];
 export type Shorten = (text: string, platform: string) => Promise<{ text: string; provider: string } | undefined>;
@@ -46,6 +47,7 @@ export function PostCopy({ rows, tab, setTab, accounts, actions, shorten }: { ro
           </button>
         ))}
       </div>
+      <PostAccount post={cur.post} channels={accounts.accountsOf(cur.pf)} onChange={(account) => void actions.account(cur.post, account)} />
       <PostVideo key={`v:${cur.post.id}`} post={cur.post} actions={actions} />
       {tl ? <PostTitleEdit key={`t:${cur.post.id}:${cur.post.platform_title ?? cur.post.title}`} post={cur.post} limit={tl.limit} actions={actions} /> : null}
       <CaptionEditor key={cur.post.id} post={cur.post} actions={actions} shorten={shorten} />

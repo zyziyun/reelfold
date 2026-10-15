@@ -25,6 +25,8 @@ import { BrowserPane } from './BrowserPane';
 import { UploadInBrowserSheet } from './BrowserUpload';
 import { YtPublishForm } from './YouTube';
 import { base } from './model';
+import { postAccount } from '../../../shared/publish/account';
+import { PostAccount } from './PostAccount';
 import './publish.css';
 
 type Phase = { k: 'idle' } | { k: 'filling' } | { k: 'filled'; r: Extract<PostFillMsg, { ok: true }> } | { k: 'failed'; r: Extract<PostFillMsg, { ok: false }> } | { k: 'posted'; url: string | null };
@@ -37,7 +39,11 @@ export function PostNow({ id }: { id: string }) {
   const post: CalendarPost | null = cal.data?.posts.find((p) => p.id === id) ?? null;
   const pf = post ? base(post.platform) : '';
   const adapter = useMemo(() => (pf ? adapterFor(pf, adapters) : undefined), [pf, adapters]);
-  const account = adapter ? channels.find((c) => c.adapterId === adapter.id) : undefined;
+  const accounts = channels.filter((c) => c.adapterId === adapter?.id);
+  const chosen = postAccount(accounts.map((c) => c.account), post?.account);
+  const account = accounts.find((c) => c.account === chosen);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [apiBusy, setApiBusy] = useState(false);
   const [phase, setPhase] = useState<Phase>({ k: 'idle' });
   const [steps, setSteps] = useState<FillStepMsg[]>([]);
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
@@ -106,6 +112,19 @@ export function PostNow({ id }: { id: string }) {
       ui.toast(errText(e), { error: true });
     }
   };
+  const chooseAccount = async (account: string | null) => {
+    if (!client || !post) return;
+    setSavingAccount(true);
+    try {
+      await client.updatePost(post.id, { account });
+      await window.desk.publish.hide();
+      setBstate(null);
+      setPhase({ k: 'idle' });
+      setSteps([]);
+      cal.reload();
+    } catch (e) { ui.toast(errText(e), { error: true }); }
+    finally { setSavingAccount(false); }
+  };
   const markPosted = async (url: string) => {
     if (!client || !post) return;
     const u = url.trim();
@@ -162,6 +181,7 @@ export function PostNow({ id }: { id: string }) {
           </div>
         </div>
 
+        {adapter && <PostAccount post={post} channels={accounts} disabled={savingAccount || apiBusy || phase.k === 'filling'} onChange={(account) => void chooseAccount(account)} />}
         {phase.k === 'posted' ? (
           <div className="pl-card ok" data-testid="post-posted">
             <CheckCircle2 className="ico" />
@@ -185,7 +205,7 @@ export function PostNow({ id }: { id: string }) {
           <div className="pl-card warn" data-testid="post-no-account">
             <TriangleAlert className="ico" />
             <div className="col" style={{ gap: 8 }}>
-              <span>{t('pl.post.noAccount', { pf: platformName(pf) })}</span>
+              <span>{accounts.length ? t(post.account ? 'pl.account.removed' : 'pl.account.required') : t('pl.post.noAccount', { pf: platformName(pf) })}</span>
               <button className="btn primary" onClick={() => go({ name: 'channels' })}>
                 {t('pl.post.addAccount', { pf: platformName(pf) })}
               </button>
@@ -319,7 +339,7 @@ export function PostNow({ id }: { id: string }) {
       <section className="pl-browser">
         {viaApi ? (
           (phase.k !== 'posted' || ytSent) && account && CAPS.youtubeApi ? (
-            <YtPublishForm immediate={immediate} post={post} account={account.account} result={ytSent} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
+            <YtPublishForm key={account.account} immediate={immediate} post={post} account={account.account} result={ytSent} onBusy={setApiBusy} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
           ) : null
         ) : (
           <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => setInBrowser(true)} pf={platformName(pf)} />

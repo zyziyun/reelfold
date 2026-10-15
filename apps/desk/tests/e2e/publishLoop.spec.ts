@@ -95,7 +95,7 @@ const api = <T,>(p: string, body?: unknown) =>
     },
     [p, body] as const,
   ) as Promise<T>;
-type Row = { id: string; clip: string; platform: string; at: string; state: string; title: string; via?: string; title_custom?: boolean };
+type Row = { id: string; clip: string; platform: string; at: string; state: string; title: string; account?: string; via?: string; title_custom?: boolean };
 const rows = async () => (await api<{ posts: Row[] }>('/api/calendar')).posts;
 let item = '';
 
@@ -275,4 +275,69 @@ test('Settings: Open at login; YouTube signs in through Google’s API (her own 
   await page.keyboard.press('Escape');
   await page.getByTestId('open-at-login').click();
   expect((await page.evaluate(() => window.desk.getSettings())).openAtLogin).toBe(true);
+});
+
+test('multiple accounts require a choice; selected session persists and removal never switches accounts', async () => {
+  const hist = await api<{ items: { id: string; dir: string }[] }>('/api/history');
+  const project = hist.items.find((i) => i.dir === work)!.id;
+  await page.evaluate(async () => {
+    await window.desk.publish.addAccount('xiaohongshu', 'brand');
+    await window.desk.publish.updateChannel('xiaohongshu', 'brand', { name: 'Product account' });
+  });
+  await app.evaluate(async ({ session }, mocks) => {
+    const fsm = process.mainModule!.require('node:fs') as typeof fs;
+    const pathm = process.mainModule!.require('node:path') as typeof path;
+    const ses = session.fromPartition('persist:xiaohongshu-brand');
+    ses.protocol.handle('https', (req) => {
+      const u = new URL(req.url);
+      if (u.hostname !== 'creator.xiaohongshu.com') return new Response('offline in tests', { status: 404 });
+      const file = u.pathname.endsWith('_common.js') ? '_common.js' : 'xiaohongshu.html';
+      return new Response(fsm.readFileSync(pathm.join(mocks, file)), { headers: { 'content-type': file.endsWith('.js') ? 'text/javascript' : 'text/html; charset=utf-8' } });
+    });
+    await ses.cookies.set({ url: 'https://creator.xiaohongshu.com', name: 'galaxy_creator_session_id', value: 'brand-test', domain: '.xiaohongshu.com', expirationDate: Date.now() / 1000 + 86400 });
+  }, MOCKS);
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item: project, clip: 'B_自媒体', platform: 'xiaohongshu', at: at(new Date(Date.now() + 86400_000)) }] });
+  const id = r.ids[0];
+  await hash(`#/publish/post/${id}?go=1`);
+  const pn = page.getByTestId('post-now');
+  const select = pn.getByTestId('post-account');
+  await expect(select).toHaveValue('');
+  await expect(pn.getByTestId('post-fill')).toHaveCount(0);
+  await select.selectOption('brand');
+  await expect(pn).toHaveAttribute('data-phase', 'filled', { timeout: 60000 });
+  await expect.poll(async () => (await rows()).find((p) => p.id === id)).toMatchObject({ account: 'brand', state: 'filled' });
+  const filled = await app.evaluate(async ({ session, webContents }) => {
+    const ses = session.fromPartition('persist:xiaohongshu-brand');
+    const wc = webContents.getAllWebContents().find((w) => w.session === ses && w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    return wc.executeJavaScript('window.__state()');
+  });
+  expect(filled).toMatchObject({ file: 'B_自媒体.mp4', clicked: false });
+  await page.screenshot({ path: path.join(SHOTS, 'post-account-brand.png') });
+  await page.reload();
+  await expect(page.getByTestId('post-account')).toHaveValue('brand');
+  await expect(pn).toHaveAttribute('data-phase', 'filled', { timeout: 60000 });
+  await page.evaluate(() => window.desk.publish.removeAccount('xiaohongshu', 'brand', false));
+  await page.reload();
+  await expect(page.getByTestId('post-account')).toHaveValue('brand');
+  await expect(pn).toContainText('The saved account was removed');
+  await expect(pn.getByTestId('post-fill')).toHaveCount(0);
+  await page.screenshot({ path: path.join(SHOTS, 'post-account-missing.png') });
+  expect(await page.evaluate((pid) => window.desk.publish.fillPost(pid), id)).toMatchObject({ ok: false, reason: 'no-account' });
+  // Choosing the remaining account is explicit, and invalidates the old filled form.
+  await page.getByTestId('post-account').selectOption('main');
+  await expect.poll(async () => (await rows()).find((p) => p.id === id)).toMatchObject({ account: 'main', state: 'planned' });
+  // The old account's still-open page must not complete the reassigned task.
+  await app.evaluate(async ({ session, webContents }) => {
+    const ses = session.fromPartition('persist:xiaohongshu-brand');
+    const wc = webContents.getAllWebContents().find((w) => w.session === ses && w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    await wc.executeJavaScript(`document.querySelector('.x9a1-red').click()`);
+  });
+  await page.waitForTimeout(2300); // allow the old session's two-second success watcher to run
+  await expect.poll(async () => (await rows()).find((p) => p.id === id)?.state).toBe('planned');
+  await hash('#/settings/general');
+  await page.getByTestId('lang-zh-CN').click();
+  await hash(`#/publish/post/${id}`);
+  await expect(page.getByTestId('post-now')).toContainText('发布账号');
+  await expect(page.getByTestId('post-account')).toHaveValue('main');
+  await page.screenshot({ path: path.join(SHOTS, 'post-account-removed.png') });
 });

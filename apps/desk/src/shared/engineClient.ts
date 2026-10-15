@@ -827,6 +827,7 @@ export class EngineClient {
   updatePost(
     id: string,
     body: {
+      account?: string | null;
       at?: string;
       state?: CalendarPost['state'];
       remove?: boolean;

@@ -56,6 +56,28 @@ class Board(unittest.TestCase):
         self.cal.update(xhs["id"], {"video_path": None})
         self.assertNotIn("video_path", next(p for p in self.posts() if p["id"] == xhs["id"]))
 
+    def test_account_selection_survives_restart_and_undo_and_platform_changes_clear_it(self):
+        p = self.cal.add(dict(item=self.item, clip=A, platform="xiaohongshu", account="brand", at="2026-10-07T20:00"))
+        pid = p["id"]
+        self.assertEqual(Calendar(os.path.join(self.root, "desk"), self.h, self.o).list()["posts"][0]["account"], "brand")
+        self.cal.update(pid, dict(state="filled"))
+        self.cal.update(pid, dict(account="main"))
+        self.assertEqual(self.posts()[0]["state"], "planned")
+        removed = self.cal.remove_many([pid])["removed"]
+        self.cal.restore(removed)
+        self.assertEqual(self.posts()[0]["account"], "main")
+        self.cal.update(pid, dict(platform="douyin"))
+        self.assertNotIn("account", self.posts()[0])
+        self.cal.update(pid, dict(account="brand"))
+        self.cal.update(pid, dict(account=None))
+        self.assertNotIn("account", self.posts()[0])
+        for invalid in ("", "Upper", "../main", "x" * 33, 42):
+            with self.assertRaises(BadRequest):
+                self.cal.update(pid, dict(account=invalid))
+        self.cal.update(pid, dict(account="main", state="posted"))
+        with self.assertRaises(BadRequest):
+            self.cal.update(pid, dict(account="brand"))
+
     def test_schedule_many_is_one_step_and_decorated(self):
         r = self.cal.add_many([dict(item=self.item, clip=A, platform=p, at="2026-10-07T20:00") for p in ("xiaohongshu", "douyin", "x")])
         self.assertEqual(len(r["ids"]), 3)

@@ -31,6 +31,7 @@ import { fillScheduledPost } from './publish/postFill';
 import { PublishScheduler } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
+import { postAccount } from '../shared/publish/account';
 import { API_PLATFORMS, apiOnly, BROWSER_UPLOAD_URL, type ApiStatusMsg, type PostPackageMsg } from '../shared/publish/apiPlatforms';
 import { PLATFORMS } from '../shared/platforms';
 import type { CalendarPost } from '../shared/v04';
@@ -624,8 +625,12 @@ function noYouTubeApiInLite() {
 }
 
 const ytAccounts = () => settings.get().accounts['youtube-studio'] ?? [];
-/** the YouTube account a post goes out with: the first connected one */
-const ytAccountFor = () => ytAccounts().find((a) => youtube.accountStatus(a).connected) ?? null;
+/** With a post, resolve its chosen account before checking login; never switch channels. */
+const ytAccountFor = (post?: CalendarPost) => {
+  if (!post) return ytAccounts().find((a) => youtube.accountStatus(a).connected) ?? null;
+  const account = postAccount(ytAccounts(), post.account);
+  return account && youtube.accountStatus(account).connected ? account : null;
+};
 
 function apiStatus(): ApiStatusMsg[] {
   const st = settings.get();
@@ -668,13 +673,13 @@ async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitle
 }
 
 /** The scheduled-posting switch (hers, off by default): a calendar row through the YouTube API at its time. */
-async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
+async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null; account: string } | { ok: false; error: string }> {
   try {
-    const account = ytAccountFor();
+    const account = ytAccountFor(p);
     if (!account) return { ok: false, error: 'YouTube is not connected' };
     const pkg = await postPackage(p.id);
     const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') });
-    return { ok: true, url: r.url };
+    return { ok: true, url: r.url, account };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -693,11 +698,11 @@ function startScheduler() {
       tray?.update(due);
     },
     markPosted: async (p, url, via) => {
-      await needClient().updatePost(p.id, { state: 'posted', via, ...(url ? { url } : {}) });
+      await needClient().updatePost(p.id, { ...(p.account ? { account: p.account } : {}), state: 'posted', via, ...(url ? { url } : {}) });
       win?.webContents.send('publish:posted', { postId: p.id, url });
     },
     api: {
-      wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(),
+      wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(p),
       publish: apiPublish,
     },
     stateFile: path.join(app.getPath('userData'), 'publish', 'scheduler.json'),
@@ -1057,6 +1062,8 @@ function registerIpc() {
   });
   handle('publish:ytPublish', async (p) => {
     noYouTubeApiInLite();
+    const row = (await needClient().calendar(undefined, { queue: false })).posts.find((post) => post.id === p.postId);
+    if (!row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) || row.state === 'posted' || postAccount(ytAccounts(), row.account) !== p.account) throw new Error('choose the publishing account for this post first');
     if (!ytAccounts().includes(p.account)) throw new Error('unknown YouTube account');
     if (!youtube.accountStatus(p.account).connected) throw new Error('YouTube is not connected: sign in with Google in your browser first');
     const pkg = await postPackage(p.postId);
@@ -1089,7 +1096,7 @@ function registerIpc() {
         win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
       },
     );
-    await needClient().updatePost(p.postId, { state: 'posted', via: 'api', url: r.url });
+    await needClient().updatePost(p.postId, { account: p.account, state: 'posted', via: 'api', url: r.url });
     win?.webContents.send('publish:posted', { postId: p.postId, url: r.url });
     void scheduler?.tick();
     mainLog(`[youtube] ${p.postId} -> ${r.id} ${r.privacy}${r.warnings.length ? ` (${r.warnings.join('; ')})` : ''}`);

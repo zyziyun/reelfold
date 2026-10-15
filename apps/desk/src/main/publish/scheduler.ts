@@ -13,6 +13,7 @@ import type { CalendarPost } from '../../shared/v04';
 import { duePosts, localDate, upcomingPosts } from '../../shared/publish/postNow';
 
 export interface ApiAttempt {
+  account?: string | null;
   at: string;
   status: 'uploading' | 'done' | 'failed';
   tries: number;
@@ -30,7 +31,7 @@ interface State {
 export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
-  publish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null } | { ok: false; error: string }>;
+  publish(p: CalendarPost, publishAt: Date | null): Promise<{ ok: true; url: string | null; account?: string } | { ok: false; error: string }>;
 }
 
 export interface SchedulerDeps {
@@ -119,7 +120,7 @@ export class PublishScheduler {
       const apiRan = await this.runApi(posts, now);
       const byApi = (p: CalendarPost) => {
         const a = this.state.api[p.id];
-        return a && a.at === p.at && (a.status === 'uploading' || a.status === 'done' || (a.status === 'failed' && a.tries < MAX_TRIES && this.deps.api?.wants(p)));
+        return a && a.at === p.at && (a.account ?? null) === (p.account ?? null) && (a.status === 'uploading' || a.status === 'done' || (a.status === 'failed' && a.tries < MAX_TRIES && this.deps.api?.wants(p)));
       };
       const due = duePosts(posts, now).filter((p) => !byApi(p));
       const fresh = due.filter((p) => this.state.notified[p.id] !== p.at);
@@ -151,13 +152,14 @@ export class PublishScheduler {
     const ran: string[] = [];
     for (const p of candidates) {
       const prev = this.state.api[p.id];
-      if (prev && prev.at === p.at) {
+      const same = prev && prev.at === p.at && (prev.account ?? null) === (p.account ?? null);
+      if (same) {
         if (prev.status !== 'failed' || prev.tries >= MAX_TRIES || t - prev.lastTry < RETRY_MS) continue;
       }
       const at = localDate(p.at);
       // YouTube refuses a publishAt in the past or too close: schedule only when it is comfortably ahead
       const publishAt = at.getTime() - t > 15 * 60_000 ? at : null;
-      const rec: ApiAttempt = { at: p.at, status: 'uploading', tries: (prev?.at === p.at ? prev.tries : 0) + 1, lastTry: t };
+      const rec: ApiAttempt = { at: p.at, account: p.account, status: 'uploading', tries: (same ? prev.tries : 0) + 1, lastTry: t };
       this.state.api[p.id] = rec;
       this.write();
       ran.push(p.id);
@@ -165,7 +167,7 @@ export class PublishScheduler {
         const r = await api.publish(p, publishAt);
         if (r.ok) {
           this.state.api[p.id] = { ...rec, status: 'done', ...(r.url ? { url: r.url } : {}) };
-          await this.deps.markPosted(p, r.url, 'api');
+          await this.deps.markPosted(r.account ? { ...p, account: r.account } : p, r.url, 'api');
         } else {
           this.state.api[p.id] = { ...rec, status: 'failed', detail: r.error };
           this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);

@@ -69,6 +69,23 @@ describe('scheduler', () => {
     expect(r.due.map((p) => p.id)).toEqual(['old']);
   });
 
+  it('a newly chosen account starts its own attempt instead of inheriting another account failure', async () => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube', account: 'main' });
+    const accounts: string[] = [];
+    const { s } = mk([p], clock, { api: { wants: () => true, publish: async (p) => {
+      accounts.push(p.account!);
+      return { ok: false, error: 'sign in again' };
+    } } });
+    await s.tick();
+    await s.tick();
+    expect(accounts).toEqual(['main']);
+    p.account = 'brand';
+    await s.tick();
+    expect(accounts).toEqual(['main', 'brand']);
+    expect(s.apiState('y1')).toMatchObject({ account: 'brand', tries: 1 });
+  });
+
   it('the state survives a restart (no second notification for the same post)', async () => {
     const clock = { t: new Date(2026, 9, 7, 21, 0) };
     const file = path.join(tmp(), 's.json');
