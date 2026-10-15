@@ -33,8 +33,10 @@ def default_out(plan):
     return os.path.join(home(), "projects", plan.get("id") or time.strftime("%Y%m%d-%H%M%S"))
 
 
-def _resolve_unresolved(plan, echo=None):
-    todo = [p for p in plan["projects"] if (p.get("items") or {}).get("unresolved")]
+def _resolve_unresolved(plan, echo=None, call=None):
+    todo = [p for p in plan["projects"] if (p.get("items") or {}).get("unresolved") or
+            ((p.get("items") or {}).get("method") == "focus" and
+             any(not (r.get("params") or {}).get("range") for r in (p.get("items") or {}).get("rows") or []))]
     if not todo:
         return []
     srcs = []
@@ -49,6 +51,36 @@ def _resolve_unresolved(plan, echo=None):
     intent = R.parse_prompt(plan["prompt"] + "\n" + "\n".join(r["prompt"] for r in plan.get("revisions") or []))
     for p in todo:
         PL.resolve_focus(p, analysis, intent, warn)
+        missing = [r for r in (p.get("items") or {}).get("rows") or [] if not (r.get("params") or {}).get("range")]
+        if not missing:
+            continue
+        m = M.get(p["recipe"])
+        fi = m["items"].get("from_input") or "source"
+        src = PL._first_path(p["inputs"].get(fi) or p["inputs"].get("source"))
+        f = next((f for f in analysis["files"] if f["path"] == src), None)
+        tr = I.load_transcript(f) if f else None
+        if not tr:
+            continue
+        from .focus import resolve
+        ctx = PL.context(plan.get("client"))
+        # The selected request AI is passed by the desk to apply as well as plan.
+        # The saved planner is a fallback for a standalone CLI applying the saved plan.
+        planner = plan.get("planner") or {}
+        provider = None if (os.environ.get("VSTUDIO_LLM_INTAKE_PROVIDER") or os.environ.get("VSTUDIO_LLM_PROJECT_AI")) else planner.get("provider")
+        if provider == "none" and call is None:
+            continue
+        if echo:
+            echo("Locating the selected topics in the full transcript…")
+        picks = resolve(missing, tr.get("sentences") or [],
+                        max_s=min(float(p["params"].get("max_s") or 150), 150),
+                        provider=provider, model=None if provider is None else planner.get("model"),
+                        config=ctx.get("llm_config"), call=call)
+        if len(picks) == len(missing):
+            for row in missing:
+                row.setdefault("params", {})["range"] = picks[row["id"]]
+                if fi in {x["key"] for x in m["inputs"]}:
+                    row.setdefault("inputs", {})[fi] = src
+            p["items"].pop("unresolved", None)
     return warn
 
 

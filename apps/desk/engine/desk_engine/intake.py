@@ -684,10 +684,13 @@ class Intake:
 
     def _engine_apply(self, pid, plan, out_root, run, autopilot=False):
         grp = (self.jobs.get(pid) or {}).get("group")
+        from .aichoice import env as ai_env
+        from .live import AGENT_ENV
+        apply_env = {AGENT_ENV: self.live_path(pid), **ai_env((self.jobs.get(pid) or {}).get("ai"))}
         doc = self.runner.sibling("vstudio.intake").json(["apply", "--plan", self._path(pid), "--out", out_root,
                                                           "--json", *(["--autopilot"] if autopilot else []),
                                                           *(["--group", grp] if grp else [])],
-                                                         timeout=900)
+                                                         timeout=900, env_extra=apply_env)
         projects = [dict(dir=p.get("dir"), name=p.get("name"), recipe=p.get("recipe"))
                     for p in doc.get("projects") or [] if isinstance(p, dict)]
         ai = (self.jobs.get(pid) or {}).get("ai")
