@@ -823,7 +823,9 @@ def render(src, dst, pl, overlay=None, encode_args=None, audio=True, fps=None, f
         args = _strip_audio(args)
     if fps:
         args += ["-r", str(fps)]
-    enc += args + [os.fspath(dst)]
+    # Raw BGR frames have no YUV matrix metadata. Convert them explicitly to
+    # the BT.709 delivery matrix; tags alone leave older FFmpeg using BT.601.
+    enc += ["-vf", "scale=out_color_matrix=bt709:out_range=tv"] + args + [os.fspath(dst)]
     fn = frame_fn(pl)
     fsize = sw * sh * 3
     p_dec = None if frames is not None else subprocess.Popen(dec, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
