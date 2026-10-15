@@ -400,6 +400,21 @@ def test_build_writes_a_lint_clean_shaped_project(cfg, shots, tmp_path):
     assert os.path.exists(os.path.join(proj, "assets", "fonts", os.path.basename(DISPLAY)))
 
 
+@pytest.mark.parametrize("lang", ["en", "zh"])
+def test_build_accepts_explicitly_null_optional_product_text(cfg, shots, tmp_path, lang):
+    import copy
+    c = copy.deepcopy(cfg)
+    c["product"].update(site=None, version=None)
+    plan = S.plan(c, shots, "demo", lang, "16:9")
+    proj = CO.build(c, plan, str(tmp_path / lang), quiet=True)
+    html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
+    assert 'data-composition-id="main"' in html
+    assert "None" not in html and "null" not in html
+    cues = json.load(open(os.path.join(proj, "cues.json"), encoding="utf-8"))["cues"]
+    assert cues and all(cue["text"] and "None" not in cue["text"] for cue in cues)
+    assert c["product"]["site"] is None and c["product"]["version"] is None
+
+
 def test_loop_has_a_tail_back_to_frame_zero(cfg, shots, tmp_path):
     proj = str(tmp_path / "loop")
     CO.build(cfg, S.plan(cfg, shots, "loop", "en", "16:9"), proj, quiet=True)

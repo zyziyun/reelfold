@@ -656,7 +656,10 @@ def build(cfg, plan, proj, quiet=False):
     if BL.used(plan):
         strings.append(BL.words(plan))
     langs = [lang] + (["en"] if zh else [])
-    faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"), "".join(strings), langs)
+    # Optional YAML text (e.g. site/version) may be explicitly null. Use the
+    # same text semantics as the visible fields, never render the word None.
+    faces = B.stage_fonts(cfg, os.path.join(proj, "assets", "fonts"),
+                          "".join(C.text(value, lang) for value in strings), langs)
     from vstudio import theme as TH
     lk = (f":root{{--bg-top:{Bk['top']};--bg-bot:{Bk['bottom']};--lk-flat:{Bk['flat']};--lk-ink:{Bk['ink']};"
           f"--lk-ink2:{Bk['ink2']};--lk-accent:{Bk['accent']};--lk-accent-text:{Bk['accent_text']};"
