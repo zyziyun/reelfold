@@ -288,7 +288,7 @@
 .pl-side { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; padding-right: 4px; }
 .pl-side h3 { font-size: 18px; margin: 0; line-height: 1.35; font-weight: 600; }
 .pl-side h4 { font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin: 6px 0 0; }
-.pl-side .pb-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; }
+.pl-side .pb-link, .pl-card .pb-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; }
 .pl-side .pb-link.muted { color: var(--text-muted); }
 .pl-side .pb-hint { color: var(--text-muted); font-size: 13.5px; margin: 0; line-height: 1.5; }
 .pl-side .pb-amber { color: var(--warn); }
@@ -299,6 +299,7 @@
 .pl-card.warn { border-color: var(--warn); }
 .pl-card.warn > .ico { color: var(--warn); }
 .pl-card .pb-link { word-break: break-all; }
+.pl-card .pb-link:disabled { opacity: 0.5; cursor: default; }
 .pl-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .pl-steps li { display: flex; align-items: center; gap: 8px; }
 .pl-steps li.ok .ico { color: var(--accent); }

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Copy, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
-import { apiDeliveryState, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
+import { apiDeliveryState, apiProcessingFailed, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtDate, t } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -240,8 +240,16 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   const [phase, setPhase] = useState<Phase>({ k: 'form' });
   useEffect(() => { onBusy?.(phase.k === 'uploading'); return () => onBusy?.(false); }, [phase.k, onBusy]);
   const [connect, setConnect] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const refresh = async () => {
+    setChecking(true);
+    try { onPosted(await window.desk.publish.api.refresh(post.id)); }
+    catch (e) { ui.toast(errText(e), { error: true }); }
+    finally { setChecking(false); }
+  };
 
   useEffect(() => {
+    if (result) return; // Status checks need the platform receipt, not the original local file.
     void window.desk.publish
       .postPackage(post.id)
       .then((p) => {
@@ -252,7 +260,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
       })
       .catch((e) => ui.toast(errText(e), { error: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [post.id]);
+  }, [post.id, !!result]);
   useEffect(() => {
     if (!acct?.connected) return;
     void window.desk.publish.api
@@ -316,11 +324,16 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
     );
   if (sent) {
     const r = sent;
+    const failed = apiProcessingFailed(r);
+    const processing = r.uploadStatus === 'uploaded' || r.uploadStatus === 'unknown';
     return (
-      <div className={`pl-card ${r.lockedPrivate ? 'warn' : 'ok'}`} data-testid="ytp-done" data-privacy={r.privacy} data-locked={r.lockedPrivate}>
-        {r.lockedPrivate ? <TriangleAlert className="ico" /> : <CheckCircle2 className="ico" />}
+      <div className={`pl-card ${r.lockedPrivate || failed ? 'warn' : 'ok'}`} data-testid="ytp-done" data-privacy={r.privacy} data-locked={r.lockedPrivate}>
+        {r.lockedPrivate || failed ? <TriangleAlert className="ico" /> : <CheckCircle2 className="ico" />}
         <div className="col" style={{ gap: 6 }}>
-          <b>{apiDeliveryState(r) === 'scheduled' ? t('ytp.done.scheduled', { when: fmtDate(r.publishAt!, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }) : r.privacy === 'public' ? t('ytp.done.now') : t('ytp.done.private', { privacy: t(`ytp.f.${['public', 'private', 'unlisted'].includes(r.privacy) ? r.privacy : 'unknown'}` as MessageKey) })}</b>
+          <b>{failed ? t('ytp.status.failed', { reason: r.failureReason ?? r.uploadStatus! }) : apiDeliveryState(r) === 'scheduled' ? t('ytp.done.scheduled', { when: fmtDate(r.publishAt!, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }) : processing ? t('ytp.status.processing') : apiDeliveryState(r) === 'posted' ? t('ytp.done.now') : t('ytp.done.private', { privacy: t(`ytp.f.${['public', 'private', 'unlisted'].includes(r.privacy) ? r.privacy : 'unknown'}` as MessageKey) })}</b>
+          {processing && apiDeliveryState(r) === 'scheduled' && <span className="muted small">{t('ytp.status.processing')}</span>}
+          {r.checkedAt && <span className="muted small" data-testid="ytp-checked">{t('ytp.status.checked', { when: fmtDate(r.checkedAt, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}</span>}
+          <button className="pb-link" disabled={checking || !acct?.connected} onClick={() => void refresh()} data-testid="ytp-refresh">{checking ? t('ytp.status.checking') : t('ytp.status.refresh')}</button>
           {r.lockedPrivate && <span className="small">{t('ytp.locked')}</span>}
           {r.warnings.length > 0 && <span className="muted small">{t('ytp.notes', { list: r.warnings.join(' · ') })}</span>}
           <button className="pb-link" onClick={() => void window.desk.openExternal(r.url)} data-testid="ytp-url">

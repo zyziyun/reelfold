@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadAdapters } from '../../src/main/publish/adapters';
 import { ApiVault } from '../../src/main/publish/api/vault';
 import { builtinClient, shortsFit, YouTubeApi, ytMeta, YT_MANAGE, YT_READONLY, YT_UPLOAD, type GoogleEndpoints } from '../../src/main/publish/api/youtube';
-import { apiOnly, publishPath, PUBLISH_PATH } from '../../src/shared/publish/apiPlatforms';
+import { apiDeliveryState, apiOnly, publishPath, PUBLISH_PATH } from '../../src/shared/publish/apiPlatforms';
 import { embeddedBlock, maybeBlockPage, WEBVIEW_RISK } from '../../src/shared/publish/embedBlock';
 import { validateIpc } from '../../src/shared/ipc';
 
@@ -43,6 +43,9 @@ class FakeGoogle {
   /** A provider response that differs from the requested public visibility. */
   lockPrivate = false;
   omitStatus = false;
+  videoStatus: Record<string, string> | null = { privacyStatus: 'public', uploadStatus: 'processed' };
+  statusCode = 200;
+  statusReads = 0;
   codes = new Map<string, { challenge: string; redirect: string; scope: string }>();
   refresh = new Map<string, string>();
   access = new Set<string>();
@@ -133,6 +136,10 @@ class FakeGoogle {
     }
     if (!this.authed(req)) return this.json(res, 401, { error: { message: 'Invalid Credentials', errors: [{ reason: 'authError' }] } });
     if (u.pathname === '/youtube/v3/channels') return this.json(res, 200, { items: this.channels });
+    if (u.pathname === '/youtube/v3/videos') {
+      this.statusReads++;
+      return this.json(res, this.statusCode, { items: this.videoStatus ? [{ id: u.searchParams.get('id'), status: this.videoStatus }] : [] });
+    }
     if (u.pathname === '/youtube/v3/playlists') return this.json(res, 200, { items: [{ id: 'PL1', snippet: { title: 'Course' } }] });
     if (u.pathname === '/youtube/v3/playlistItems' && req.method === 'POST') {
       const j = JSON.parse(body.toString());
@@ -155,7 +162,7 @@ class FakeGoogle {
       const finish = () => {
         s.done = true;
         const privacy = this.lockPrivate ? 'private' : s.meta.status.privacyStatus;
-        return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
+        return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, uploadStatus: 'processed', ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
       };
       const incomplete = () => res.writeHead(308, s.received ? { Range: `bytes=0-${s.received - 1}` } : {}).end();
       if (range.startsWith('bytes */')) {
@@ -203,6 +210,45 @@ const mk = (dir = tmp(), extra: Partial<ConstructorParameters<typeof YouTubeApi>
 };
 
 describe('OAuth in the system browser (fake Google)', () => {
+  it('reads actual video processing and visibility without another upload', async () => {
+    const { yt } = mk();
+    yt.setClient(CLIENT, 'GOCSPX-desktop');
+    await yt.connect('main', { timeoutMs: 5000 });
+    const previous = { url: 'https://youtu.be/vid123', privacy: 'private', publishAt: null, lockedPrivate: true, warnings: ['Cover unavailable'] };
+    for (const [status, expected] of [
+      [{ privacyStatus: 'public', uploadStatus: 'processed' }, 'posted'],
+      [{ privacyStatus: 'public', uploadStatus: 'uploaded' }, 'uploaded'],
+      [{ privacyStatus: 'public', uploadStatus: 'failed', failureReason: 'codec' }, 'uploaded'],
+      [{ privacyStatus: 'public', uploadStatus: 'rejected', rejectionReason: 'copyright' }, 'uploaded'],
+      [{ privacyStatus: 'private', uploadStatus: 'processed', publishAt: '2026-10-20T12:00:00Z' }, 'scheduled'],
+      [{ privacyStatus: 'private', uploadStatus: 'uploaded', publishAt: '2026-10-20T12:00:00Z' }, 'scheduled'],
+      [{ privacyStatus: 'public' }, 'uploaded'],
+    ] as [Record<string, string>, string][]) {
+      g.videoStatus = status;
+      const r = await yt.videoStatus('main', previous);
+      expect(apiDeliveryState(r)).toBe(expected);
+      expect(r.checkedAt).toMatch(/^\d{4}-/);
+      expect(r.warnings).toEqual(previous.warnings);
+      expect(r.failureReason).toBe(status.failureReason ?? status.rejectionReason);
+    }
+    expect(g.sessions.size).toBe(0);
+    g.videoStatus = null;
+    await expect(yt.videoStatus('main', previous)).rejects.toThrow(/unavailable to this account/);
+    g.statusCode = 503;
+    await expect(yt.videoStatus('main', previous)).rejects.toThrow(/status unavailable/);
+    expect(previous.privacy).toBe('private');
+  });
+
+  it('never fetches an arbitrary receipt URL or accepts a forged video ID', async () => {
+    const { yt } = mk();
+    const previous = { privacy: 'private', publishAt: null, lockedPrivate: false, warnings: [] };
+    for (const url of ['https://evil.test/watch?v=vid123', 'https://youtube.com.evil.test/watch?v=vid123', 'http://youtu.be/vid123', 'https://u:p@youtu.be/vid123']) {
+      await expect(yt.videoStatus('main', { ...previous, url })).rejects.toThrow();
+    }
+    await expect(yt.videoStatus('main', { ...previous, url: 'https://youtu.be/vid123', id: '../other' })).rejects.toThrow(/video ID/);
+    expect(g.statusReads).toBe(0);
+  });
+
   it('PKCE + loopback with her own client: the refresh token is stored encrypted, the channel is named', async () => {
     const { yt, dir, seen } = mk();
     expect(() => yt.setClient('not-a-client')).toThrow(/client ID/);

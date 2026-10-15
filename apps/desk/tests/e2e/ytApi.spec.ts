@@ -37,6 +37,8 @@ interface Rec {
   puts: number;
   thumbs: number;
   verifier: string | null;
+  remote?: Record<string, string>;
+  reads?: number;
 }
 const rec = () => app.evaluate(() => (globalThis as unknown as { __yt: Rec }).__yt);
 
@@ -84,6 +86,10 @@ test.beforeAll(async () => {
       }
       if (u.hostname === 'oauth2.googleapis.com' && u.pathname === '/revoke') return json(200, {});
       if (u.hostname === 'www.googleapis.com') {
+        if (u.pathname === '/youtube/v3/videos') {
+          g.__yt.reads = (g.__yt.reads ?? 0) + 1;
+          return json(200, { items: g.__yt.remote ? [{ id: u.searchParams.get('id'), status: g.__yt.remote }] : [] });
+        }
         if (u.pathname === '/youtube/v3/channels') return json(200, { items: [{ id: 'UCe2e', snippet: { title: 'E2E Channel' } }] });
         if (u.pathname === '/youtube/v3/playlists') return json(200, { items: [] });
         if (u.pathname === '/upload/youtube/v3/videos' && init?.method === 'POST') {
@@ -92,7 +98,7 @@ test.beforeAll(async () => {
         }
         if (u.pathname === '/upload/youtube/v3/videos' && init?.method === 'PUT') {
           g.__yt.puts++;
-          return json(201, { id: 'e2eVid', status: { privacyStatus: 'private', publishAt: (g.__yt.meta?.status as { publishAt?: string }).publishAt } });
+          return json(201, { id: 'e2eVid', status: { privacyStatus: 'private', uploadStatus: 'processed', publishAt: (g.__yt.meta?.status as { publishAt?: string }).publishAt } });
         }
         if (u.pathname === '/upload/youtube/v3/thumbnails/set') {
           g.__yt.thumbs++;
@@ -271,6 +277,33 @@ test('a private upload remains uploaded, not posted, after reopening the page', 
   await expect(page.getByTestId('ytp-done')).toHaveAttribute('data-privacy', 'private');
   await expect(page.getByTestId('ytp-form')).toHaveCount(0);
   await page.screenshot({ path: path.join(SHOTS, 'yt-private.png') });
+});
+
+test('status readback distinguishes processing, public and rejected, persists after reload, never uploads again', async () => {
+  const puts = (await rec()).puts;
+  for (const [status, state, text] of [
+    [{ privacyStatus: 'public', uploadStatus: 'uploaded' }, 'uploaded', 'processing'],
+    [{ privacyStatus: 'private', uploadStatus: 'uploaded', publishAt: '2026-10-25T12:00:00Z' }, 'scheduled', 'Scheduled'],
+    [{ privacyStatus: 'public', uploadStatus: 'processed' }, 'posted', 'Public on YouTube at the last check'],
+    [{ privacyStatus: 'public', uploadStatus: 'rejected', rejectionReason: 'copyright' }, 'uploaded', 'copyright'],
+  ] as [Record<string, string>, string, string][]) {
+    await app.evaluate((_app, remote) => { (globalThis as unknown as { __yt: Rec }).__yt.remote = remote; }, status);
+    await page.getByTestId('ytp-refresh').click();
+    await expect(page.getByTestId('ytp-done')).toContainText(text);
+    await expect(page.getByTestId('ytp-checked')).toBeVisible();
+    const id = (await page.url()).split('/post/')[1].split('?')[0];
+    await expect.poll(async () => (await api<{ posts: Row[] }>('/api/calendar')).posts.find(p => p.id === id)?.state).toBe(state);
+    expect((await rec()).puts).toBe(puts);
+  }
+  await page.reload();
+  await expect(page.getByTestId('ytp-done')).toContainText('copyright');
+  await expect(page.getByTestId('post-posted')).toHaveClass(/warn/);
+  await expect(page.getByTestId('post-posted')).not.toContainText('Published');
+  await page.screenshot({ path: path.join(SHOTS, 'yt-status-rejected.png') });
+  await app.evaluate(() => { (globalThis as unknown as { __yt: Rec }).__yt.remote = undefined; });
+  await page.getByTestId('ytp-refresh').click();
+  await expect(page.getByTestId('ytp-done')).toContainText('copyright'); // Missing to this account is not proof of deletion.
+  expect((await rec()).puts).toBe(puts);
 });
 
 test('Upload in your browser: the page in her browser, the file shown, the copy handed over, posted by link', async () => {

@@ -168,6 +168,7 @@ export const ipcSchemas = {
   'publish:apiDisconnect': z.strictObject({ id: z.literal('youtube'), account: accountName.optional(), forgetClient: z.boolean().optional() }),
   'publish:apiAuto': z.strictObject({ id: z.literal('youtube'), auto: z.boolean() }),
   'publish:ytPlaylists': z.strictObject({ account: accountName }),
+  'publish:ytRefresh': z.strictObject({ postId: z.string().regex(/^[0-9a-f]{12}$/) }),
   // her Publish / Schedule click in the YouTube form (the only thing that uploads, besides her scheduled-posting switch)
   'publish:ytPublish': z.strictObject({
     postId: z.string().regex(/^[0-9a-f]{12}$/),

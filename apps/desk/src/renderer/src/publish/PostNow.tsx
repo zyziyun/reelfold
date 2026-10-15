@@ -10,7 +10,7 @@ import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FolderOpen, Loader2
 import type { FillStepMsg, PostFillMsg, PublishStateMsg } from '../../../shared/deskApi';
 import { withFillStep } from '../../../shared/publish/fillPlan';
 import { adapterFor } from '../../../shared/publish/adapterSchema';
-import { apiOnly, apiDeliveryState, postDelivered, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
+import { apiOnly, apiDeliveryState, apiProcessingFailed, postDelivered, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
 import { CAPS } from '../../../shared/edition';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtDate, getLang, t } from '../i18n';
@@ -55,7 +55,7 @@ export function PostNow({ id }: { id: string }) {
   const [inBrowser, setInBrowser] = useState(false);
   /** sent through the API just now: what YouTube answered stays on the page */
   const [ytSent, setYtSent] = useState<YtPublishResult | null>(null);
-  const sent = ytSent ?? post?.api_result ?? null;
+  const sent = post?.via === 'manual' ? null : ytSent ?? post?.api_result ?? null;
   const viaApi = !!adapter && apiOnly(adapter.id);
   const zh = getLang() === 'zh-CN';
 
@@ -207,10 +207,10 @@ export function PostNow({ id }: { id: string }) {
 
         {adapter && <PostAccount post={post} channels={accounts} disabled={savingAccount || apiBusy || phase.k === 'filling'} onChange={(account) => void chooseAccount(account)} />}
         {phase.k === 'posted' ? (
-          <div className="pl-card ok" data-testid="post-posted">
-            <CheckCircle2 className="ico" />
+          <div className={`pl-card ${sent && apiProcessingFailed(sent) ? 'warn' : 'ok'}`} data-testid="post-posted">
+            {sent && apiProcessingFailed(sent) ? <TriangleAlert className="ico" /> : <CheckCircle2 className="ico" />}
             <div className="col" style={{ gap: 6 }}>
-              <b>{sent ? t(`pb.st.${apiDeliveryState(sent)}`) : t('pl.post.posted')}</b>
+              <b>{sent && apiProcessingFailed(sent) ? t('ytp.status.failed', { reason: sent.failureReason ?? sent.uploadStatus! }) : sent ? t(`pb.st.${apiDeliveryState(sent)}`) : t('pl.post.posted')}</b>
               {sent && <span className="muted small">{t('pl.post.remoteEdit')}</span>}
               {phase.url ? (
                 <button className="pb-link" onClick={() => void window.desk.openExternal(phase.url!)} data-testid="post-url">

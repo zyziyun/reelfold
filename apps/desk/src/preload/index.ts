@@ -86,6 +86,7 @@ const api: DeskApi = {
       disconnect: (account, forgetClient) => call('publish:apiDisconnect', { id: 'youtube', ...(account ? { account } : {}), ...(forgetClient ? { forgetClient } : {}) }),
       setAuto: (auto) => call('publish:apiAuto', { id: 'youtube', auto }),
       playlists: (account) => call('publish:ytPlaylists', { account }),
+      refresh: (postId) => call('publish:ytRefresh', { postId }),
       publish: (req) => call('publish:ytPublish', req),
     },
   },

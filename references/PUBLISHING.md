@@ -40,6 +40,19 @@ switching to a default rendition. The whole card is copied atomically and can be
 
 ## Automatic upload recovery
 
+YouTube receipts keep processing status separately from visibility. Public visibility does not count as published
+while processing is incomplete, failed, rejected or unknown. The post page offers **Check YouTube status**, shows
+an accepted future schedule separately from pending processing,
+the last successful check and retains the previous result when a query fails or the account cannot see the video.
+An empty response is not treated as proof of deletion. Confirmed failed/rejected results show the provider's reason
+and a link to inspect the video; they do not trigger another upload.
+
+While the app is open, connected API posts are checked in bounded batches (at most three status reads per five
+minutes, oldest checked first), independently of the automatic-upload switch. Failed/rejected/deleted results need
+a manual recheck. Tokens and account selection use the existing official API path. Updated results are saved to
+the upload journal before the calendar, so restarting cannot restore an earlier private receipt. A pending check
+cannot undo a manual publication confirmation or recreate a removed calendar post.
+
 Manual and scheduled official API uploads share one desktop execution gate. It saves an attempt before starting an official API upload. If this record cannot be saved,
 it does not upload. A successful API response is saved separately before updating the local calendar; failure
 to update the calendar retries that update, including after restart, without uploading the video again.

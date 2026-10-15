@@ -18,6 +18,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import type { ApiSecret, ApiVault } from './vault';
+import type { YtPublishResult } from '../../../shared/publish/apiPlatforms';
 export { shortsFit } from '../../../shared/publish/apiPlatforms';
 
 export const YT_UPLOAD = 'https://www.googleapis.com/auth/youtube.upload';
@@ -116,6 +117,7 @@ export interface YtResult {
   lockedPrivate: boolean;
   /** the thumbnail / playlist steps that did not work (the video itself is up) */
   warnings: string[];
+  uploadStatus?: YtPublishResult['uploadStatus'];
 }
 
 export interface YtChannel {
@@ -413,6 +415,35 @@ export class YouTubeApi {
     return (j.items ?? []).map((p) => ({ id: p.id, title: p.snippet?.title ?? p.id }));
   }
 
+  /** Read only a known uploaded video through the fixed official endpoint, never fetch the receipt URL. */
+  async videoStatus(account: string, previous: YtPublishResult): Promise<YtPublishResult> {
+    let id = previous.id;
+    if (!id) {
+      const u = new URL(previous.url);
+      if (u.protocol !== 'https:' || u.username || u.password || u.port) throw new Error('Invalid YouTube video link');
+      if (u.hostname === 'youtu.be') id = u.pathname.slice(1);
+      else if (['youtube.com', 'www.youtube.com'].includes(u.hostname) && u.pathname === '/watch') id = u.searchParams.get('v') ?? undefined;
+    }
+    if (!id || !/^[\w-]{1,64}$/.test(id)) throw new Error('No verified YouTube video ID');
+    const token = await this.token(account);
+    const r = await this.f(`${this.ep.api}/videos?part=status&id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) throw new Error(`YouTube status unavailable: ${await errText(r)}`);
+    const j = await r.json() as { items?: { id: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string; failureReason?: string; rejectionReason?: string } }[] };
+    const status = j.items?.find(v => v.id === id)?.status;
+    if (!status) throw new Error('Video unavailable to this account; check YouTube Studio');
+    const privacy = ['public', 'private', 'unlisted'].includes(status.privacyStatus ?? '') ? status.privacyStatus! : 'unknown';
+    const publishAt = typeof status.publishAt === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(status.publishAt) && Number.isFinite(Date.parse(status.publishAt)) ? new Date(status.publishAt).toISOString() : null;
+    const uploadStatus = ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(status.uploadStatus ?? '') ? status.uploadStatus as NonNullable<YtPublishResult['uploadStatus']> : 'unknown';
+    const reason = uploadStatus === 'failed' ? status.failureReason : uploadStatus === 'rejected' ? status.rejectionReason : null;
+    return { id, url: `https://youtu.be/${id}`, privacy, publishAt, uploadStatus,
+      lockedPrivate: privacy === 'private' && !publishAt && previous.lockedPrivate,
+      warnings: previous.warnings, checkedAt: new Date().toISOString(),
+      ...(typeof reason === 'string' ? { failureReason: reason.slice(0, 200) } : {}),
+    };
+  }
+
   /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */
   async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void): Promise<YtResult> {
     const size = fs.statSync(v.file).size;
@@ -494,7 +525,7 @@ export class YouTubeApi {
     if (!done?.id) throw new Error('YouTube did not return the new video');
     onProgress?.(size, size);
     const id = done.id;
-    const privacy = done.status?.privacyStatus ?? 'unknown';
+    const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
     const asked = meta.status.privacyStatus;
     const warnings: string[] = [];
     if (v.thumbnail) {
@@ -510,6 +541,7 @@ export class YouTubeApi {
       id,
       url: `https://youtu.be/${id}`,
       privacy,
+      uploadStatus: ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(done.status?.uploadStatus ?? '') ? done.status!.uploadStatus as YtPublishResult['uploadStatus'] : 'unknown',
       publishAt: done.status?.publishAt ?? null,
       // asked public / unlisted and got private; or scheduled and YouTube dropped the time (the response does not establish why)
       lockedPrivate: asked !== 'private' ? privacy === 'private' : !!v.publishAt && !!done.status && !done.status.publishAt,
@@ -556,7 +588,7 @@ export class YouTubeApi {
   }
 }
 
-type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string } };
+type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string } };
 
 /** 308 Resume Incomplete: "Range: bytes=0-N" -> N+1; no Range: nothing arrived yet. */
 function nextOffset(r: Response): number {

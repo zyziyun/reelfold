@@ -143,11 +143,15 @@ export interface YtPublishReq {
 }
 
 export interface YtPublishResult {
+  id?: string;
   url: string;
   privacy: string;
   publishAt: string | null;
   lockedPrivate: boolean;
   warnings: string[];
+  uploadStatus?: 'uploaded' | 'processed' | 'failed' | 'rejected' | 'deleted' | 'unknown';
+  failureReason?: string;
+  checkedAt?: string;
 }
 
 /** One post's ready-made package: the file made for its platform, the cover, the copy (Upload in your browser, the
@@ -176,8 +180,13 @@ export function shortsFit(f: { w?: number | null; h?: number | null; duration?: 
 }
 
 /** Last confirmed platform response; time passing alone is not proof of publication. */
+export function apiProcessingFailed(r: YtPublishResult): boolean {
+  return !!r.uploadStatus && ['failed', 'rejected', 'deleted'].includes(r.uploadStatus);
+}
+
 export function apiDeliveryState(r: YtPublishResult): 'uploaded' | 'scheduled' | 'posted' {
-  if (r.privacy === 'public') return 'posted';
+  if (r.uploadStatus && !['processed', 'uploaded'].includes(r.uploadStatus)) return 'uploaded';
+  if (r.privacy === 'public') return r.uploadStatus === 'uploaded' ? 'uploaded' : 'posted';
   return r.privacy === 'private' && r.publishAt && !r.lockedPrivate ? 'scheduled' : 'uploaded';
 }
 

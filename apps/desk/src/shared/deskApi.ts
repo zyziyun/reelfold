@@ -235,6 +235,7 @@ export interface DeskApi {
       disconnect(account?: string, forgetClient?: boolean): Promise<ApiStatusMsg[]>;
       setAuto(auto: boolean): Promise<ApiStatusMsg[]>;
       playlists(account: string): Promise<{ id: string; title: string }[]>;
+      refresh(postId: string): Promise<YtPublishResult>;
       /** her Publish / Schedule click: upload through the YouTube Data API (progress: 'publish:ytProgress') */
       publish(req: YtPublishReq): Promise<YtPublishResult>;
     };

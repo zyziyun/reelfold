@@ -26,6 +26,7 @@ export interface ApiAttempt {
   resolvedAccount?: string;
   result?: YtPublishResult;
   source?: 'manual' | 'scheduled';
+  lastCheck?: number;
 }
 
 interface State {
@@ -40,6 +41,8 @@ export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
   publish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload>;
+  canRefresh?(p: CalendarPost): boolean;
+  refresh?(p: CalendarPost, result: YtPublishResult): Promise<YtPublishResult>;
 }
 
 export interface SchedulerDeps {
@@ -68,6 +71,9 @@ export class PublishScheduler {
   private busy = false;
   private last: CalendarPost[] = [];
   private stateReadable = true;
+  private checking = new Map<string, Promise<YtPublishResult>>();
+  private syncing = new Map<string, Promise<void>>();
+  private checkedBatchAt = 0;
 
   constructor(private deps: SchedulerDeps) {
     this.state = this.read();
@@ -174,6 +180,18 @@ export class PublishScheduler {
         await this.syncReceipt(p, receipt);
       }
     }
+    // Bounded readback independent of opt-in uploads: at most three reads per five minutes.
+    if (api.refresh && now.getTime() - this.checkedBatchAt >= 5 * 60_000) {
+      this.checkedBatchAt = now.getTime();
+      const candidates = posts.filter(p => p.via === 'api' && p.api_result && api.canRefresh?.(p) &&
+        now.getTime() - (this.state.api[p.id]?.lastCheck ?? 0) >= 5 * 60_000 &&
+        (!p.api_result.uploadStatus || !['failed', 'rejected', 'deleted'].includes(p.api_result.uploadStatus)))
+        .sort((a, b) => (this.state.api[a.id]?.lastCheck ?? 0) - (this.state.api[b.id]?.lastCheck ?? 0)).slice(0, 3);
+      for (const p of candidates) {
+        try { await this.refresh(p, r => api.refresh!(p, r)); }
+        catch (e) { this.deps.log?.(`[scheduler] status check ${p.id} failed: ${(e as Error).message}`); }
+      }
+    }
     const lead = this.deps.leadMs ?? 60 * 60_000;
     const grace = this.deps.apiGraceMs ?? 6 * 3600_000;
     const t = now.getTime();
@@ -235,12 +253,48 @@ export class PublishScheduler {
     return r;
   }
 
+  /** Keep readback and calendar reconciliation ordered for this post, including a concurrent timer tick. */
+  refresh(p: CalendarPost, read: (previous: YtPublishResult) => Promise<YtPublishResult>): Promise<YtPublishResult> {
+    const running = this.checking.get(p.id);
+    if (running) return running;
+    const task = this.refreshOnce(p, read).finally(() => this.checking.delete(p.id));
+    this.checking.set(p.id, task);
+    return task;
+  }
+
+  private async refreshOnce(p: CalendarPost, read: (previous: YtPublishResult) => Promise<YtPublishResult>): Promise<YtPublishResult> {
+    if (!this.stateReadable || p.via !== 'api' || !p.api_result) throw new Error('No confirmed API upload to check');
+    const old = this.state.api[p.id];
+    if (old && (old.status !== 'done' || ![old.account ?? null, old.resolvedAccount ?? null].includes(p.account ?? null))) throw new Error('Upload account does not match its receipt');
+    const receipt: ApiAttempt = old ?? { at: p.at, account: p.account, status: 'done', tries: 1, lastTry: 0, result: p.api_result };
+    receipt.lastCheck = this.deps.now().getTime();
+    this.state.api[p.id] = receipt;
+    if (!this.write()) throw new Error('Could not save upload history');
+    const result = await read(receipt.result ?? p.api_result);
+    const current = (await this.deps.load()).find(row => row.id === p.id);
+    if (!current || current.via !== 'api' || !current.api_result || current.account !== p.account || current.api_result.url !== p.api_result.url) throw new Error('Post changed while checking its status');
+    const fresh = { ...receipt, at: current.at, result, url: result.url, calendarSynced: false };
+    this.state.api[p.id] = fresh;
+    if (!this.write()) throw new Error('Status read, but could not save upload history');
+    await this.syncReceipt(current, fresh);
+    return result;
+  }
+
   private async syncReceipt(p: CalendarPost, receipt: ApiAttempt): Promise<void> {
+    const previous = this.syncing.get(p.id) ?? Promise.resolve();
+    const task = previous.then(() => this.syncReceiptOnce(p, receipt));
+    this.syncing.set(p.id, task);
+    try { await task; }
+    finally { if (this.syncing.get(p.id) === task) this.syncing.delete(p.id); }
+  }
+
+  private async syncReceiptOnce(p: CalendarPost, receipt: ApiAttempt): Promise<void> {
+    if (this.state.api[p.id] !== receipt) return;
     // Save remote success before touching the calendar. Keep it in memory on disk errors,
     // while the previous durable 'uploading' record prevents a restart from re-uploading.
     if (!this.write()) return;
     try {
-      if (p.state !== (receipt.result ? apiDeliveryState(receipt.result) : 'posted') || (receipt.result && !p.api_result)) {
+      if (p.state !== (receipt.result ? apiDeliveryState(receipt.result) : 'posted') || (receipt.result && JSON.stringify(p.api_result) !== JSON.stringify(receipt.result))) {
         await this.deps.markPosted(receipt.resolvedAccount ? { ...p, account: receipt.resolvedAccount } : p, receipt.url ?? receipt.result?.url ?? null, 'api', receipt.result);
       }
       receipt.calendarSynced = true;

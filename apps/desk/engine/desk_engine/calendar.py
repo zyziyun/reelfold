@@ -80,12 +80,30 @@ def api_result(value):
     notes = value.get("warnings")
     need(isinstance(notes, list) and len(notes) <= 50 and all(isinstance(x, str) and len(x) <= 4000 for x in notes),
          "api_result.warnings")
-    return {k: value.get(k) for k in ("url", "privacy", "publishAt", "lockedPrivate", "warnings")}
+    out = {k: value.get(k) for k in ("url", "privacy", "publishAt", "lockedPrivate", "warnings")}
+    for key, limit in (("id", 64), ("failureReason", 200), ("checkedAt", 64)):
+        if key in value:
+            need(isinstance(value[key], str) and 0 < len(value[key]) <= limit, f"api_result.{key}")
+            out[key] = value[key]
+    if "id" in out:
+        need(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", out["id"]), "api_result.id")
+    if "checkedAt" in out:
+        try:
+            need(dt.datetime.fromisoformat(out["checkedAt"].replace("Z", "+00:00")).tzinfo is not None,
+                 "api_result.checkedAt: timezone required")
+        except ValueError:
+            need(False, "api_result.checkedAt: ISO timestamp")
+    if "uploadStatus" in value:
+        need(value["uploadStatus"] in ("uploaded", "processed", "failed", "rejected", "deleted", "unknown"), "api_result.uploadStatus")
+        out["uploadStatus"] = value["uploadStatus"]
+    return out
 
 
 def api_state(result):
+    if result.get("uploadStatus") and result["uploadStatus"] not in ("processed", "uploaded"):
+        return "uploaded"
     if result["privacy"] == "public":
-        return "posted"
+        return "uploaded" if result.get("uploadStatus") == "uploaded" else "posted"
     return "scheduled" if result["privacy"] == "private" and result.get("publishAt") and not result["lockedPrivate"] else "uploaded"
 
 
@@ -447,6 +465,8 @@ class Calendar:
                         need(field not in b or b[field] == row.get(field),
                              "This video is already uploaded. Change its schedule or details on the platform.")
                 if "api_result" in b:
+                    need(not (row.get("state") == "posted" and row.get("via") == "manual"),
+                         "Manual publication confirmation takes precedence over an old API response.")
                     result = api_result(b["api_result"])
                     need(b.get("state") == api_state(result), "state must match the platform response")
                     row["api_result"] = result

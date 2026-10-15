@@ -123,6 +123,24 @@ class Board(unittest.TestCase):
         self.assertEqual(row["status"], "scheduled")
         self.assertEqual(row["api_result"], result)
         self.assertNotIn("posted_at", row)
+        checked = dict(result, id="video123", privacy="public", publishAt=None, uploadStatus="rejected",
+                       failureReason="copyright", checkedAt="2026-10-08T12:00:00Z")
+        self.cal.update(p["id"], dict(state="uploaded", api_result=checked))
+        self.assertEqual(self.posts()[0]["api_result"], checked)
+        self.assertEqual(self.posts()[0]["state"], "uploaded")
+        for patch in (dict(uploadStatus="bad"), dict(checkedAt="yesterday"), dict(checkedAt="2026-10-08"), dict(id="../bad")):
+            with self.assertRaises(BadRequest):
+                self.cal.update(p["id"], dict(state="uploaded", api_result=dict(checked, **patch)))
+        self.cal.update(p["id"], dict(state="scheduled", api_result=result))
+        self.cal.update(p["id"], dict(state="scheduled", api_result=dict(result, uploadStatus="uploaded")))
+        self.assertEqual(self.posts()[0]["state"], "scheduled")  # Accepted schedule, processing still pending.
+        self.cal.update(p["id"], dict(state="posted", via="manual"))
+        with self.assertRaises(BadRequest):
+            self.cal.update(p["id"], dict(state="scheduled", api_result=result))
+        self.assertEqual(self.posts()[0]["via"], "manual")
+        # Restore the confirmed API fixture for the remaining read-only control checks.
+        self.cal.remove_many([p["id"]])
+        self.cal.restore([row])
         for patch in (dict(at="2026-10-10T20:00"), dict(account="brand"), dict(platform="xiaohongshu"),
                       dict(video_path="/different.mp4"), dict(caption="new caption"), dict(state="ready"), dict(enabled=False)):
             with self.assertRaises(BadRequest):

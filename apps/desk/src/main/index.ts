@@ -712,6 +712,12 @@ function startScheduler() {
     api: {
       wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(p),
       publish: apiPublish,
+      canRefresh: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!ytAccountFor(p),
+      refresh: async (p, r) => {
+        const account = ytAccountFor(p);
+        if (!account) throw new Error('YouTube account is disconnected');
+        return youtube.videoStatus(account, r);
+      },
     },
     stateFile: path.join(app.getPath('userData'), 'publish', 'scheduler.json'),
     log: mainLog,
@@ -1072,6 +1078,14 @@ function registerIpc() {
     const pkg: PostPackageMsg & { clipTitles?: string[] } = await postPackage(p.postId);
     delete pkg.clipTitles;
     return pkg;
+  });
+  handle('publish:ytRefresh', async (p) => {
+    noYouTubeApiInLite();
+    const row = (await needClient().calendar(undefined, { queue: false })).posts.find(post => post.id === p.postId);
+    if (!row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) || row.via !== 'api' || !row.api_result) throw new Error('No confirmed YouTube upload');
+    const account = ytAccountFor(row);
+    if (!account || !scheduler) throw new Error('YouTube account is disconnected');
+    return scheduler.refresh(row, r => youtube.videoStatus(account, r));
   });
   handle('publish:ytPublish', async (p) => {
     noYouTubeApiInLite();

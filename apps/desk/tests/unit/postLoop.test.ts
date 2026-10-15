@@ -317,6 +317,77 @@ describe('scheduler', () => {
 
 describe('confirmed API delivery states', () => {
   const r = { url: 'https://youtu.be/one', privacy: 'private', publishAt: '2026-10-07T20:00:00Z', lockedPrivate: false, warnings: [] };
+  it('persists a fresh read before calendar writes and recovers it after a restart without uploading', async () => {
+    const file = path.join(tmp(), 'scheduler.json');
+    const p = post('r1', '2026-10-07T20:00', { platform: 'youtube', account: 'main', state: 'scheduled', via: 'api', api_result: r });
+    const now = new Date(2026, 9, 8);
+    const fresh = { ...r, privacy: 'public', publishAt: null, uploadStatus: 'processed' as const, checkedAt: now.toISOString() };
+    const mark = vi.fn(async () => {
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).api.r1.result).toEqual(fresh);
+      throw new Error('calendar temporarily unavailable');
+    });
+    const deps = { load: async () => [p], now: () => now, notify: () => undefined, stateFile: file,
+      markPosted: mark, api: { wants: () => false, publish: vi.fn() } };
+    const s = new PublishScheduler(deps);
+    let finish!: (v: typeof fresh) => void;
+    const read = vi.fn(() => new Promise<typeof fresh>(resolve => { finish = resolve; }));
+    const first = s.refresh(p, read);
+    const second = s.refresh(p, read);
+    expect(read).toHaveBeenCalledTimes(1);
+    finish(fresh);
+    expect(await first).toEqual(fresh);
+    expect(await second).toEqual(fresh);
+    expect(mark).toHaveBeenCalledTimes(1);
+    const restored = vi.fn(async () => undefined);
+    await new PublishScheduler({ ...deps, markPosted: restored }).tick();
+    expect(restored).toHaveBeenCalledWith(p, fresh.url, 'api', fresh);
+    expect(deps.api.publish).not.toHaveBeenCalled();
+  });
+
+  it('bounds automatic status reads even when automatic uploading is off', async () => {
+    const ps = Array.from({ length: 6 }, (_, i) => post(`r${i}`, '2026-10-07T20:00', { platform: 'youtube', via: 'api', api_result: r }));
+    let now = new Date(2026, 9, 8);
+    const read = vi.fn(async (_p: CalendarPost, previous: typeof r) => ({ ...previous, checkedAt: now.toISOString() }));
+    const s = new PublishScheduler({ load: async () => ps, now: () => now, notify: () => undefined,
+      markPosted: async () => undefined, stateFile: path.join(tmp(), 'scheduler.json'),
+      api: { wants: () => false, publish: vi.fn(), canRefresh: () => true, refresh: read } });
+    await s.tick();
+    expect(read.mock.calls.map(([p]) => p.id)).toEqual(['r0', 'r1', 'r2']);
+    await s.tick();
+    expect(read).toHaveBeenCalledTimes(3);
+    now = new Date(now.getTime() + 5 * 60_000);
+    await s.tick();
+    expect(read.mock.calls.slice(3).map(([p]) => p.id)).toEqual(['r3', 'r4', 'r5']);
+  });
+
+  it('does not overwrite a manual confirmation or resurrect a removed post during a pending read', async () => {
+    for (const removed of [false, true]) {
+      const p = post('r1', '2026-10-07T20:00', { platform: 'youtube', via: 'api', api_result: r });
+      let ps = [p];
+      const mark = vi.fn(async () => undefined);
+      const s = new PublishScheduler({ load: async () => ps, now: () => new Date(), notify: () => undefined,
+        markPosted: mark, stateFile: path.join(tmp(), 'scheduler.json') });
+      let finish!: (value: typeof r) => void;
+      const pending = s.refresh(p, () => new Promise<typeof r>(resolve => { finish = resolve; }));
+      ps = removed ? [] : [{ ...p, state: 'posted', via: 'manual', api_result: undefined }];
+      finish(r);
+      await expect(pending).rejects.toThrow(/Post changed/);
+      expect(mark).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses status reads for another account or an ambiguous upload attempt', async () => {
+    const file = path.join(tmp(), 'scheduler.json');
+    const p = post('r1', '2026-10-07T20:00', { platform: 'youtube', account: 'main', via: 'api', api_result: r });
+    for (const rec of [{ account: 'brand', status: 'done' }, { account: 'main', status: 'uploading' }]) {
+      fs.writeFileSync(file, JSON.stringify({ api: { r1: { ...rec, at: p.at, tries: 1, lastTry: 0, result: r } } }));
+      const read = vi.fn();
+      const s = new PublishScheduler({ load: async () => [p], now: () => new Date(), notify: () => undefined,
+        markPosted: async () => undefined, stateFile: file });
+      await expect(s.refresh(p, read)).rejects.toThrow(/account does not match/);
+      expect(read).not.toHaveBeenCalled();
+    }
+  });
   it('does not infer public visibility from an upload or the passage of its schedule time', () => {
     expect(apiDeliveryState(r)).toBe('scheduled');
     expect(apiDeliveryState({ ...r, privacy: 'public' })).toBe('posted');
