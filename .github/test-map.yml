@@ -63,7 +63,7 @@ e2e:
   workflows/learning-commentary/**: [learning.spec.ts]
   apps/desk/engine/desk_engine/learning.py: [learning.spec.ts, browserPassage.spec.ts]
   apps/desk/src/shared/learning.ts: [learning.spec.ts]
-  apps/desk/src/renderer/src/create/learning/**: [learning.spec.ts]
+  apps/desk/src/renderer/src/create/learning/**: [learning.spec.ts, voiceInput.spec.ts]
   apps/desk/src/renderer/src/create/LearningCreate.tsx: [learning.spec.ts]
   apps/desk/src/main/appMenu.ts: [windowMenu.spec.ts, smoke.spec.ts]
   apps/desk/src/main/publish/**: [publish.spec.ts, publishBoard.spec.ts, publishLoop.spec.ts, cdp.spec.ts, cdpAll.spec.ts]

@@ -27,6 +27,9 @@ A thought or source quotation is saved as a distinct note with source and time. 
 local/player source. Text fields accept ordinary input, system dictation and tools such as Typeless without a
 special SDK or a claim of a Typeless partnership. Built-in microphone dictation uses installed local ASR,
 returns editable text and never falls back to a cloud provider. Accuracy depends on the actual local model.
+Leaving the workspace releases its microphone, including delayed permission/session creation. Failed writes stop
+the device and offer a retry; a late transcription never fills a different workspace. Recording sessions close
+once even when Stop and navigation overlap.
 
 When YouTube asks for login/verification, offer **Sign in and play in browser**. Open the canonical official
 watch page in the user's normal system browser, preserving the last known/manual source time (or original link

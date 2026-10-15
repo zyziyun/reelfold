@@ -41,9 +41,12 @@ test('a browser passage with sound drops into my materials and becomes a video w
     expect(captureUrl.startsWith('file:')).toBe(true);
     expect(fs.readFileSync(fileURLToPath(captureUrl), 'utf8')).toContain("connect-src 'none'");
     const source = path.join(temp, 'synthetic-source.html');
-    fs.writeFileSync(source, '<!doctype html><title>Reelfold captured source fixture</title><style>body{background:green;color:white}</style><h1>Artificial source</h1><button id="play">Play tone</button><script>document.querySelector("#play").onclick=async()=>{const c=new AudioContext();await c.resume();const o=c.createOscillator();o.frequency.value=500;const g=c.createGain();g.gain.value=.1;o.connect(g).connect(c.destination);o.start();};</script>');
+    const sourceMovie = path.join(temp, 'decoded-source.mp4');
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=green:s=640x360:r=30:d=6', '-f', 'lavfi', '-i', 'sine=frequency=500:duration=6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', sourceMovie]);
+    fs.writeFileSync(source, `<!doctype html><title>Reelfold captured source fixture</title><style>video{position:fixed;inset:0;width:100vw;height:100vh;object-fit:contain}button{position:fixed;z-index:2}</style><video id="source-video" src="${pathToFileURL(sourceMovie).href}" loop playsinline></video><button id="play">Play test video</button><script>document.querySelector('#play').onclick=()=>{document.querySelector('#source-video').play();};</script>`);
     const context = await browser.newContext({ acceptDownloads: true }); const sourceTab = await context.newPage();
     await sourceTab.goto(pathToFileURL(source).href); await sourceTab.locator('#play').click();
+    await expect.poll(() => sourceTab.locator('#source-video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
     const capture = await context.newPage(); await capture.goto(captureUrl);
     expect(await capture.evaluate(() => isSecureContext)).toBe(true);
     await capture.locator('#start').click(); await expect(capture.locator('#stop')).toBeVisible();

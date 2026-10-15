@@ -30,7 +30,8 @@ async function api(method: string, route: string, body?: unknown) {
 }
 test('human thoughts persist with source times and become an editable post without an AI call', async () => {
   test.setTimeout(120000);
-  await page.evaluate(() => { location.hash = '#/create/learning'; });
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.getByTestId('home-create-learning').click();
   await expect(page.getByTestId('learning-create')).toBeVisible();
   await page.getByTestId('learning-idea').fill('A creator thinks before making a post');
   await page.getByTestId('learning-start').click();
