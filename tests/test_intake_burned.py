@@ -1,6 +1,6 @@
-"""P1-8: a finished edit with burned-in captions (the fuye case: 多元副业复盘_final.mp4, 10:53 横屏成片, 字幕 /
-进度条 / 记笔记已烧录) cut into 小红书 slices defaults to the band layout (old captions cropped off, new ones below),
-and 小红书 defaults to 3:4 from the persona / platform default unless the creator names a shape."""
+"""Finished-source captions stay intact by default; a designed crop/band is an explicit preference.
+The talkinghead platform default still requests 3:4; these planning tests do not prove aspect recomposition.
+"""
 import pytest
 
 from vstudio.intake import plan as PL
@@ -19,16 +19,16 @@ def _th(plan):
     return ps[0]
 
 
-def test_fuye_finished_edit_to_xhs_slices_uses_band_and_3x4(tmp_path):
+def test_finished_edit_keeps_baked_captions_without_automatic_band_crop(tmp_path):
     a = build("finished", tmp_path)
     a["files"][0]["caption_band"] = "lower"
     plan = PL.make_plan("把后面自媒体的思考单独剪出来发小红书", analysis=a, asr="off")
     p = _th(plan)
     pr = p["params"]
-    assert pr["layout"] == "band" and pr["crop_bottom"] == 0.28 and pr["captions"] is True
+    assert pr.get("layout") != "band" and "crop_bottom" not in pr and pr["captions"] is False
     assert pr["platforms"] == ["xiaohongshu:vertical"]                      # 3:4
     assert pr["speed"] == 1.0 and pr["cleanup_profile"] == "gentle"
-    assert "裁掉旧字幕" in plan["summary_zh"] and "保留原字幕" not in plan["summary_zh"]
+    assert "保留原字幕" in plan["summary_zh"] and "裁掉旧字幕" not in plan["summary_zh"]
     assert PL.validate(plan) == []
 
 
