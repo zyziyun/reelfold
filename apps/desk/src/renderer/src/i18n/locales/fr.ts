@@ -344,7 +344,7 @@ const legacyFr: Record<keyof typeof legacyEn, string> = {
   'settings.themeHint': 'Notebook Light est encore en chantier',
   'settings.privacy': 'Confidentialité et sécurité',
   'settings.privacyBody':
-    'Vos vidéos et l’audio restent sur cet ordinateur. Seul du texte — les transcriptions et vos demandes — part vers l’IA que vous choisissez (si aucune transcription locale n’est possible et qu’une clé OpenAI est enregistrée, l’audio est envoyé à OpenAI pour être transcrit). Les pages des plateformes s’ouvrent dans des sessions à part : Reelfold n’enregistre aucun mot de passe, ne lit jamais vos cookies et ne publie jamais à votre place.',
+    "La transcription et le rendu sont locaux par défaut. Le service IA choisi peut recevoir instructions, transcriptions et images de référence ; la transcription distante reçoit l’audio, les voix en ligne le texte, et la génération IA les instructions et médias de référence. L’édition Mac App Store demande votre accord par adresse et usage avant l’envoi. Révoquez les partages futurs dans Aide › Réinitialiser les autorisations IA. Les données envoyées sont traitées selon les conditions du fournisseur. La publication demande votre accord.",
   'theme.studio-dark': 'Studio Dark',
   'theme.notebook-light': 'Notebook Light',
   'assets.title': 'Modèles, polices et outils',

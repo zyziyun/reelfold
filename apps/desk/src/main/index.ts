@@ -51,6 +51,7 @@ import { devOnly, setPackaged, tempOnly, testSwitch } from './testHooks';
 import { openFeedback, recordProblem, registerSupportIpc } from './support';
 import { AccessStore, commonFolder } from './access';
 import { HtmlRenderService } from './htmlRender';
+import { AiConsentService, AI_DATA } from './aiConsent';
 import { CAPS, EDITION, IS_LITE } from '../shared/edition';
 
 protocol.registerSchemesAsPrivileged([
@@ -131,6 +132,7 @@ let tray: AppTray | null = null;
 let access: AccessStore;
 /** Lite build: HTML covers / slides rendered by this app's Chromium for the engine (no Chromium download) */
 let htmlRender: HtmlRenderService | null = null;
+let aiConsent: AiConsentService | null = null;
 /** started by the OS at login: stay in the menu bar until she opens the window */
 const HIDDEN_START = startedHidden();
 
@@ -178,6 +180,9 @@ function resolvedConfig() {
 function editionEnv(): Record<string, string> {
   if (!IS_LITE) return {};
   return {
+    VSTUDIO_AI_CONSENT_REQUIRED: '1',
+    VSTUDIO_AI_CONSENT_SOCKET: aiConsent?.socketPath ?? '',
+    VSTUDIO_AI_CONSENT_TOKEN: aiConsent?.token ?? '',
     VSTUDIO_LLM_NO_CLI: '1',
     DESK_HISTORY_WATCH: '',
     VSTUDIO_NO_CHROME: '1',
@@ -1195,7 +1200,7 @@ async function reportMigratedProfile() {
 }
 
 function menu() {
-  installAppMenu({ onOpenMain: () => openRoute(), lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
+  installAppMenu({ onResetAiConsent: IS_LITE ? () => aiConsent?.reset() : undefined, onOpenMain: () => openRoute(), lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
 }
 
 /** File › Import Finished Video…: pick finished videos (files or folders) -> the renderer's import dialog. */
@@ -1276,6 +1281,24 @@ if (!app.requestSingleInstanceLock()) {
     hardenDefaultSession();
     registerProtocols();
     if (IS_LITE) {
+      aiConsent = new AiConsentService({
+        file: path.join(app.getPath('userData'), 'ai-sharing-permissions.json'),
+        ask: async ({ origin, purpose }) => {
+          const lang = settings.get().lang;
+          const copy = {
+            en: { title: 'Allow sharing with this AI service?', allow: 'Allow', deny: 'Don’t Allow', note: 'The service handles this data under its own privacy policy. Allow only if you trust this destination. Permission is remembered for this address and use. Revoke future sharing in Help › Reset AI Sharing Permissions. Requests already sent cannot be recalled.' },
+            'zh-CN': { title: '允许与这个 AI 服务分享数据？', allow: '允许', deny: '不允许', note: '该服务按其隐私政策处理数据，请仅允许你信任的地址。此地址和用途的许可会被记住。可在帮助 › 重置 AI 数据分享许可中撤销后续分享；已发送的请求无法收回。' },
+            fr: { title: 'Autoriser le partage avec ce service IA ?', allow: 'Autoriser', deny: 'Refuser', note: 'Ce service traite les données selon sa propre politique de confidentialité. Autorisez uniquement une destination de confiance. Cette adresse et cet usage seront mémorisés. Révoquez les partages futurs dans Aide › Réinitialiser les autorisations IA. Les requêtes déjà envoyées ne peuvent pas être rappelées.' },
+          }[lang];
+          const options = { type: 'question' as const, title: 'Reelfold', message: copy.title,
+            detail: `${origin}\n\n${AI_DATA[purpose][lang]}\n\n${copy.note}`,
+            buttons: [copy.deny, copy.allow], defaultId: 0, cancelId: 0, noLink: true };
+          openRoute();
+          const result = await (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+          return result.response === 1;
+        },
+      });
+      await aiConsent.start().catch((e) => mainLog(`[privacy] permission service unavailable: ${(e as Error).message}`));
       htmlRender = new HtmlRenderService({ log: mainLog, readable: (f) => access.covers(f, ownDirs()) });
       await htmlRender.start().catch((e) => mainLog(`[html] render service: ${(e as Error).message}`));
     }
@@ -1340,6 +1363,7 @@ if (!app.requestSingleInstanceLock()) {
     recorder?.closeAll();
     scheduler?.stop();
     htmlRender?.stop();
+    aiConsent?.stop();
     void engine?.stop()?.finally(() => access?.stopAll());
   });
 }

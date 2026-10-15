@@ -23,6 +23,7 @@ const L = {
     help: 'Help',
     feedback: 'Send Feedback…',
     privacy: 'Privacy Policy',
+    resetAiConsent: 'Reset AI Sharing Permissions',
     services: 'Services',
     undo: 'Undo',
     redo: 'Redo',
@@ -55,6 +56,7 @@ const L = {
     help: '帮助',
     feedback: '发送反馈…',
     privacy: '隐私政策',
+    resetAiConsent: '重置 AI 数据分享许可',
     services: '服务',
     undo: '撤销',
     redo: '重做',
@@ -87,6 +89,7 @@ const L = {
     help: 'Aide',
     feedback: 'Envoyer un avis…',
     privacy: 'Politique de confidentialité',
+    resetAiConsent: 'Réinitialiser les autorisations IA',
     services: 'Services',
     undo: 'Annuler',
     redo: 'Rétablir',
@@ -119,6 +122,7 @@ export interface MenuDeps {
   onImport?: () => void;
   /** Recreate the main window, or restore and focus it when hidden/minimized. */
   onOpenMain: () => void;
+  onResetAiConsent?: () => void;
 }
 
 function licencesFile(res: string): string | null {
@@ -197,6 +201,7 @@ export function installAppMenu(d: MenuDeps) {
       { label: a['about.licences'], click: () => openLicences(d), enabled: Boolean(licencesFile(d.res)) },
       { label: a['about.repo'], click: () => void shell.openExternal(REPO_URL) },
       { id: 'privacy-policy', label: t.privacy, click: () => void shell.openExternal('https://reelfold.com/privacy/') },
+      ...(d.onResetAiConsent ? [{ id: 'reset-ai-consent', label: t.resetAiConsent, click: () => d.onResetAiConsent?.() }] : []),
       ...(d.onFeedback ? [{ type: 'separator' as const }, { label: t.feedback, click: () => d.onFeedback?.() }] : []),
     ],
   };

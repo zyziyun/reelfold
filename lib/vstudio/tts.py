@@ -435,9 +435,11 @@ def cache_key(text, engine, voice, speed, instructions, model):
 
 
 def _speech_http(url, body, headers, dst, timeout=300):
+    from . import ai_consent
+    ai_consent.require(url, "speech")
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=dict(headers, **{
         "Content-Type": "application/json"}))
-    with urllib.request.urlopen(req, timeout=timeout) as r, open(dst, "wb") as f:
+    with ai_consent.urlopen(req, timeout=timeout) as r, open(dst, "wb") as f:
         f.write(r.read())
 
 
@@ -584,6 +586,9 @@ def _clone(text, cfg, dst, seed=None):
 
 
 def _edge(text, voice, speed, dst):
+    from . import ai_consent
+    if ai_consent.required():
+        raise RuntimeError("Edge voices are unavailable in the Mac App Store edition. Choose a local voice or an API voice service.")
     rate = f"{int(round((speed - 1) * 100)):+d}%"
     if importlib.util.find_spec("edge_tts"):
         import edge_tts

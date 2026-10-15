@@ -284,7 +284,7 @@ export const legacyEn = {
   'settings.themeHint': 'Notebook Light is a work in progress',
   'settings.privacy': 'Privacy and security',
   'settings.privacyBody':
-    'Your videos and audio stay on this computer. Only text — transcripts and what you ask for — goes to the AI you choose (if there is no local transcription and an OpenAI key is set, audio is sent to OpenAI to transcribe it). Platform pages open in their own sessions: Reelfold never stores passwords, never reads your cookies, and never presses publish for you.',
+    "Transcription and rendering run locally by default. Your selected AI service may receive prompts, transcripts and reference frames; cloud transcription sends audio, network voices send narration text, and AI media generation sends prompts and reference media. The Mac App Store edition asks permission for each service address and use before sending content. Revoke future sharing in Help › Reset AI Sharing Permissions. Each provider handles sent data under its own terms. Publishing requires your approval.",
   'theme.studio-dark': 'Studio Dark',
   'theme.notebook-light': 'Notebook Light',
   'assets.title': 'Models, fonts and tools',

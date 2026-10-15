@@ -283,7 +283,7 @@ export const legacyZh = {
   'settings.themeHint': 'Notebook Light 还在做',
   'settings.privacy': '隐私与安全',
   'settings.privacyBody':
-    '视频和声音都留在这台电脑上。只有文字（字幕稿和你的要求）会发给你选的 AI；如果本机没法转写、又设置了 OpenAI 密钥，声音会发给 OpenAI 转写。各平台页面在独立的会话里打开：千剪不存密码、不读 cookie，也从不替你点发布。',
+    "转写和渲染默认在本机完成。你选择的 AI 服务可能收到提示词、逐字稿和参考帧；云端转写会发送音频，网络配音会发送配音文字，AI 媒体生成会发送提示词和参考素材。Mac App Store 版发送前会按服务地址与用途征求许可。可在帮助 › 重置 AI 数据分享许可中撤销后续分享。已发送的数据由服务商按其条款处理。发布需要你确认。",
   'theme.studio-dark': 'Studio Dark',
   'theme.notebook-light': 'Notebook Light',
   'assets.title': '模型、字体与工具',

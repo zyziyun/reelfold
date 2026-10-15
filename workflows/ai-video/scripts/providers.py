@@ -124,9 +124,12 @@ def estimate_cost(job: Job, provider_name: str, rates: dict | None = None):
 
 
 def _http(url, data=None, headers=None, method=None, timeout=300):
+    from vstudio import ai_consent
+    if data is not None:
+        ai_consent.require(url, "generation")
     req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with ai_consent.urlopen(req, timeout=timeout) as r:
             return r.read(), dict(r.headers)
     except urllib.error.HTTPError as e:
         body = e.read()[:500].decode("utf-8", "replace")
