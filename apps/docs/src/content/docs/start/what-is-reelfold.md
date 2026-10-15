@@ -53,7 +53,7 @@ More on each step: [Home](/docs/app/home/), [Autopilot and Ask me first](/docs/a
 
 Transcription, cutting, effects, rendering and the quality checks all run locally. The free voices run locally too: Kokoro for English and Qwen3-TTS for Chinese (Apple silicon). AI is bring-your-own: your logged-in Claude Code or Codex CLI (no API key needed), another coding agent over ACP (Gemini CLI, Cursor CLI, GitHub Copilot CLI, OpenCode, Qwen Code, Kimi CLI, CodeBuddy, iFlow CLI), an API key (Anthropic, OpenAI, DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Gemini, ElevenLabs; Qwen, Kimi, GLM and Doubao with their mainland China or international endpoint), or a local model (Ollama, LM Studio, vLLM, llama.cpp, local whisper). Pick the AI and model per request, project or chat (`/model`).
 
-When an AI model is used, it receives text (transcript, captions, titles, your notes) and, for some steps, contact sheets of still frames; never your video or audio files. In an internal test, one 72-minute lecture became 24 clips for 4 platforms (96 files) for $0.73 in AI API cost, about $0.03 per clip. See [AI providers](/docs/concepts/ai-providers/) and [Privacy](/docs/concepts/privacy/).
+When an AI model is used, it receives text (transcript, captions, titles, your notes) and, for visual planning, contact sheets of still frames. Hosted transcription sends the audio track to the configured service; hosted generation receives the reference inputs it needs. In an internal test, one 72-minute lecture became 24 clips for 4 platforms (96 files) for $0.73 in AI API cost, about $0.03 per clip. See [AI providers](/docs/concepts/ai-providers/) and [Privacy](/docs/concepts/privacy/).
 
 ## Formerly video-studio and Daycut
 

@@ -17,7 +17,7 @@ Only when you tell it to. YouTube goes through its official Data API: you sign i
 
 ## What leaves my Mac?
 
-Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles, and for some steps contact sheets of still frames. With a local model, nothing leaves at all. Two exceptions you opt into: the OpenAI transcription backend sends audio, and OpenAI narration sends the script text (the free Kokoro and Qwen3-TTS voices run on your Mac). The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
+Your video and audio stay on your Mac: transcription and rendering run locally. Only what an AI step needs goes to the AI provider you chose: text such as the transcript, captions and titles, and for some steps contact sheets of still frames. Hosted transcription sends audio, while hosted narration sends the script. To keep AI processing local, use local models for all tasks and fallbacks, local transcription and voices, and leave hosted generation off. Downloads, updates and publishing are separate network operations. The app can also share anonymous usage counts, only if you turn it on ([what is sent](/docs/concepts/usage-counts/)). See [Privacy](/docs/concepts/privacy/).
 
 ## Which AI do I need?
 
