@@ -21,6 +21,7 @@ export function PinnedQuestion({
   onSkip,
   words,
   onPreviewCuts,
+  primary = true,
 }: {
   item: InboxItem;
   items: InboxItem[];
@@ -30,6 +31,7 @@ export function PinnedQuestion({
   /** the clip's words: a ticked filler cut that is still in the clip is found there and skipped in the preview */
   words?: { w: string; t: number; te: number }[];
   onPreviewCuts?: (spans: [number, number][]) => void;
+  primary?: boolean;
 }) {
   const opts = useMemo(() => item.options ?? [], [item.options]);
   const triage = useTriageState();
@@ -92,7 +94,7 @@ export function PinnedQuestion({
             </button>
           )}
           <span className="sp" />
-          {item.project.id && <FailureActions item={item.project.id} failure={item.failure} primary only />}
+          {item.project.id && <FailureActions item={item.project.id} failure={item.failure} primary={primary} only />}
         </div>
       </div>
     );
@@ -142,7 +144,7 @@ export function PinnedQuestion({
           </button>
         )}
         <span className="sp" />
-        <button className="btn primary" onClick={() => void confirm()} data-testid="pin-confirm">
+        <button className={`btn ${primary ? 'primary' : ''}`} onClick={() => void confirm()} data-testid="pin-confirm">
           <Check className="ico" />
           {triage ? t('pin.confirmNext') : t('pin.confirm')}
           <span className="kbd on">↵</span>

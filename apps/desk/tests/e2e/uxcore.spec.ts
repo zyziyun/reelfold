@@ -433,8 +433,9 @@ test('transcript: select -> Delete -> skipped in the preview at once -> saved by
   await expect(card).toContainText('Lakeside City College');
   await expect(page.getByTestId('cut-marker')).toHaveCount(1);
   expect(await steps()).toBe(before + 1);
-  await expect(page.locator('.btn.primary:visible')).toHaveCount(1); // Export stays the one filled button
-  await expect(page.getByTestId('editor-export')).toHaveClass(/primary/);
+  await expect(page.locator('.btn.primary:visible')).toHaveCount(1); // Resolve the pending review before exporting.
+  await expect(page.getByTestId('pin-confirm')).toHaveClass(/primary/);
+  await expect(page.getByTestId('editor-export')).not.toHaveClass(/primary/);
   await shot('T3-selected-pending');
   // still skipped in the preview once saved
   await playFrom(t0 - 0.6);

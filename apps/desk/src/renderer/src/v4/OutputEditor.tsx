@@ -1055,6 +1055,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     <PinnedQuestion
       key={pinItem.key}
       item={pinItem}
+      primary={primary === 'export'}
       items={inbox.items}
       clip={clip}
       seek={(x) => {
@@ -1357,8 +1358,8 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
             <SlidersHorizontal className="ico" />
             {t('ce.precise')}
           </button>
-          {doc.recording && <FinishButton item={id} clip={clip} flush={flushCuts} primary={primary === 'export'} />}
-          <button className={`btn ${primary === 'export' && !doc.recording ? 'primary' : ''}`} onClick={() => (split.openChat(), chat.current?.openCard('export'))} disabled={doc.caps.export === false} data-testid="editor-export">
+          {doc.recording && <FinishButton item={id} clip={clip} flush={flushCuts} primary={primary === 'export' && !pinItem} />}
+          <button className={`btn ${primary === 'export' && !doc.recording && !pinItem ? 'primary' : ''}`} onClick={() => (split.openChat(), chat.current?.openCard('export'))} disabled={doc.caps.export === false} data-testid="editor-export">
             <Upload className="ico" />
             {t('ce.export')}
           </button>
