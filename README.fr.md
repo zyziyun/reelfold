@@ -18,6 +18,7 @@ chinois. Open source, gratuit, et tout sur votre Mac.</p>
   <a href="https://reelfold.com/docs/fr/">Documentation</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">Télécharger pour macOS</a> ·
   <a href="https://reelfold.com/fr/">reelfold.com</a> ·
+  <a href="docs/PRESS_KIT.md">Kit média</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 

@@ -17,6 +17,7 @@
   <a href="https://reelfold.com/docs/zh/">使用文档</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">下载 macOS 版</a> ·
   <a href="https://reelfold.com/zh/">官网</a> ·
+  <a href="docs/PRESS_KIT.md">媒体资料</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 

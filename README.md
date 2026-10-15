@@ -19,6 +19,7 @@ Open source, free, and all on your Mac.<br>
   <a href="https://reelfold.com/docs/">Docs</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">Download for macOS</a> ·
   <a href="https://reelfold.com">reelfold.com</a> ·
+  <a href="docs/PRESS_KIT.md">Media kit</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 
