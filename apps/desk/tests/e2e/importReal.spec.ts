@@ -77,7 +77,7 @@ async function api<T>(p: string, body?: unknown): Promise<T> {
     [p, body] as const,
   ) as Promise<T>;
 }
-type Doc = { words: { w: string }[]; steps: { id: string }[]; speed: number; exports: { target: string }[]; imported: { shots: { i: number; source: string | null; swap: unknown }[] | null } | null };
+type Doc = { words: { w: string }[]; steps: { id: string }[]; speed: number; exports: { target: string }[]; cover_edit?: { aspect?: string }; imported: { shots: { i: number; source: string | null; swap: unknown }[] | null } | null };
 const clipDoc = () => api<Doc>(`/api/outputs/${item}/${clip}`);
 const dur = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim());
 
@@ -131,7 +131,7 @@ test('another take of a shot from the footage (stills), undoable', async () => {
   await expect(page.locator('[data-testid=im-shot][data-shot="1"]')).toHaveAttribute('data-swapped', '1');
 });
 
-test('a chat edit applies and renders; a 3:4 version is made; a language version needs a model', async () => {
+test('a chat edit renders; a new canvas offers a cover; a language version needs a model', async () => {
   test.setTimeout(400000);
   await page.getByTestId('studio-ai-input').fill('1.1倍速');
   await page.getByTestId('studio-ai-input').press('Enter');
@@ -142,14 +142,20 @@ test('a chat edit applies and renders; a 3:4 version is made; a language version
   await shot('05-chat-applied');
   if (await page.getByTestId('studio-ai-pane').isVisible()) await page.getByTestId('studio-ai-close').click();
   await page.getByTestId('ci-version-3:4').click();
-  await expect.poll(async () => (await clipDoc()).exports.map((e) => e.target), { timeout: 30000 }).toContain('xiaohongshu:vertical');
-  // the renders with both edits (the shot swap + the speed), primary and the new vertical version
+  const choice = page.getByTestId('resize-choice');
+  await expect(choice).toBeVisible();
+  await expect(choice.getByTestId('resize-remake')).toBeVisible();
+  expect((await clipDoc()).exports).toEqual([]);
+  await choice.getByTestId('resize-cover').click();
+  await expect(choice).toHaveCount(0, { timeout: 30000 });
+  await expect.poll(async () => (await clipDoc()).cover_edit?.aspect).toBe('3:4');
+  // Both edits (the shot swap + speed) render without reframing the finished video.
   const r = await api<{ ok: boolean; targets: { target: string; file: string }[] }>(`/api/outputs/${item}/${clip}/render`, { quality: 'preview', targets: 'all' });
   const prim = r.targets.find((x) => x.target === 'primary');
-  const vert = r.targets.find((x) => x.target === 'xiaohongshu:vertical');
-  expect(prim && vert).toBeTruthy();
+  expect(prim).toBeTruthy();
+  expect(r.targets.map((x) => x.target)).toEqual(['primary']);
   expect(dur(prim!.file)).toBeLessThan(6 / 1.1 + 0.3);
-  expect(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', vert!.file], { encoding: 'utf8' }).trim()).toBe('1080,1440');
+  expect((await clipDoc()).exports).toEqual([]);
   // a language version: translating needs an AI account; without one it says so and nothing changes
   await page.getByTestId('im-lang').selectOption('zh');
   await page.getByTestId('im-lang-make').click();
