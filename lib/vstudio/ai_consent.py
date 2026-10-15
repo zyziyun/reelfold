@@ -78,9 +78,18 @@ def urlopen(req, timeout):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
-def sdk_transport():
-    """SDKs normally follow redirects; MAS content requests must stay on the approved origin."""
+def sdk_transport(provider):
+    """Use the SDK's public client factory: OpenAI 3 uses httpx2, older SDKs use httpx.
+
+    Supplying an unrelated Client type fails at SDK construction after a user allows sharing.
+    Both factories support follow_redirects=False, preserving the approved destination.
+    """
     if not required():
         return {}
-    import httpx
-    return {"http_client": httpx.Client(follow_redirects=False)}
+    if provider == "openai":
+        from openai import DefaultHttpxClient
+    elif provider == "anthropic":
+        from anthropic import DefaultHttpxClient
+    else:
+        raise ValueError("unsupported AI SDK transport")
+    return {"http_client": DefaultHttpxClient(follow_redirects=False)}

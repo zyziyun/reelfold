@@ -399,7 +399,7 @@ def _openai_api(wav, language, prompt, word_timestamps, model, base_url=None, ke
     from openai import OpenAI
     from . import ai_consent
     ai_consent.require(base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1", "transcription")
-    kw = dict(api_key=key, **ai_consent.sdk_transport())
+    kw = dict(api_key=key, **ai_consent.sdk_transport("openai"))
     if base_url:
         kw["base_url"] = base_url
     # whisper-1 caps uploads at 25 MB: send 32 kbps mono mp3 (~14 MB per hour)
