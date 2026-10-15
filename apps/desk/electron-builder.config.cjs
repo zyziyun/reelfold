@@ -50,6 +50,13 @@ const MAS_PROFILE = env.MAS_PROVISIONING_PROFILE || path.join(__dirname, 'packag
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
+  beforePack: async (context) => {
+    const version = context.packager.config.extraMetadata?.version || context.appInfo.version;
+    const { default: semver } = await import('semver');
+    if (!semver.valid(version)) {
+      throw new Error(`Invalid app version: ${version}. For local builds use 0.2.9-local.g<commit> (prefix the hash with g).`);
+    }
+  },
   electronVersion,
   // New bundle id / AppUserModelID for Reelfold (nothing was released under the old com.vstudio.desk). The profile
   // of an earlier dev / test install is copied over once and keeps its keychain key (src/main/identity.ts APP_ID).

@@ -15,7 +15,9 @@ import { CAPS } from '../shared/edition';
 import { notesText, reduceUpdate, shouldCheck, type UpdateEvent, type UpdateStateMsg } from '../shared/update';
 import { devOnly } from './testHooks';
 
-const { autoUpdater } = electronUpdater;
+// Access constructs the native updater and may throw (e.g. invalid installed version).
+// It must never run at module load or prevent the workbench from opening.
+let autoUpdater: typeof electronUpdater.autoUpdater | null = null;
 const EVERY = 4 * 60 * 60 * 1000;
 /** macOS: quitAndInstall waits until Squirrel.Mac has staged the update; nothing quit after this long = say so */
 const INSTALL_GRACE = 60_000;
@@ -64,6 +66,13 @@ export function initUpdater(onState: (s: UpdateStateMsg) => void = () => {}, onL
   log = onLog;
   state = { state: 'disabled', current: app.getVersion() };
   if (!updatesEnabled()) return;
+  state = { ...state, state: 'idle' };
+  try {
+    autoUpdater = electronUpdater.autoUpdater;
+  } catch (e) {
+    apply({ type: 'error', message: String((e as Error)?.message ?? e), at: Date.now() });
+    return;
+  }
   const feed = testFeed();
   if (feed) {
     // what a packaged app reads from Resources/app-update.yml, for the dev build: the same file format
@@ -91,7 +100,7 @@ export function initUpdater(onState: (s: UpdateStateMsg) => void = () => {}, onL
 
 /** Check now. `manual` (Settings): also when an update was offered but not downloaded yet. */
 export async function checkForUpdates(manual = true): Promise<UpdateStateMsg> {
-  if (!updatesEnabled() || !shouldCheck(state, manual)) return state;
+  if (!autoUpdater || !updatesEnabled() || !shouldCheck(state, manual)) return state;
   try {
     await autoUpdater.checkForUpdates();
   } catch (e) {
@@ -105,7 +114,7 @@ let installTimer: NodeJS.Timeout | null = null;
 
 /** Quit, install the downloaded update and relaunch right away. */
 export function installUpdate(): UpdateStateMsg {
-  if (state.state !== 'ready') return state;
+  if (!autoUpdater || state.state !== 'ready') return state;
   log(`[update] restarting to install ${state.version}`);
   try {
     autoUpdater.quitAndInstall(false, true);
