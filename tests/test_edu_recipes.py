@@ -588,6 +588,7 @@ def test_local_slide_detection_and_unobstructed_body(tmp_path, monkeypatch):
     im.save(png)
     source = str(tmp_path / "slides.mp4")
     MD.run(["ffmpeg", "-y", "-loop", "1", "-i", str(png), "-t", "2", "-r", "30",
+            "-vf", "scale=out_color_matrix=bt709:out_range=tv",
             *MD.delivery_args(preset="ultrafast", audio=False, encoder="libx264"), source])
     monkeypatch.setattr(inventory, "_face_areas", lambda img: pytest.fail("Layout analysis must not need a face model"))
     spec = dict(id="slide", kind="concept", source=source, layout="screen", parts=[dict(kind="src", a=0, b=2)],
@@ -616,6 +617,7 @@ def test_protected_lesson_camera_and_caption_rail_do_not_cover_slides(tmp_path, 
     source, camera = (str(tmp_path / name) for name in ("slides.mp4", "camera.mp4"))
     for path, size, colour in [(source, "640x360", "white"), (camera, "320x240", "red")]:
         MD.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c={colour}:s={size}:r=30:d=1",
+                "-vf", "scale=in_color_matrix=bt601:out_color_matrix=bt709:out_range=tv",
                 *MD.delivery_args(preset="ultrafast", audio=False, encoder="libx264"), path])
     spec = dict(id="separate-camera", source=source, camera=camera, layout="pip", protect_content=True,
                 _caption_rail=True, parts=[dict(kind="src", a=0, b=1)])
