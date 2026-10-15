@@ -12,6 +12,7 @@ export interface Device {
   label: string;
 }
 
+const SCREEN_AUDIO_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 const VIDEO_TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=h264', 'video/webm', 'video/mp4;codecs=avc1'];
 const AUDIO_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
 
@@ -183,12 +184,16 @@ export function useRecorder() {
   /** Share the screen / window she picked (rec:screens -> id). Never silent: -> 'on' | 'denied' (Screen Recording
    * is off for the app) | an error message. */
   const shareScreen = useCallback(
-    async (id: string): Promise<ScreenResult> => {
+    async (id: string, appAudio = false): Promise<ScreenResult> => {
       if (sess.current) return { error: t('rec.screenFinishTake') };
       stopScreen();
       try {
-        await window.desk.rec.screenPick(id);
-        const st = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        await window.desk.rec.screenPick(id, appAudio);
+        const st = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: appAudio });
+        if (appAudio && !st.getAudioTracks().length) {
+          stopStream(st);
+          return { error: t('learning.materialAudioMissing') };
+        }
         screen.current = st;
         st.getVideoTracks()[0]?.addEventListener('ended', () => {
           if (screen.current === st) {
@@ -218,7 +223,7 @@ export function useRecorder() {
         return screenFailure(e);
       }
     },
-    [stopScreen],
+    [stopScreen, stopStream],
   );
 
   const start = useCallback(
@@ -228,8 +233,9 @@ export function useRecorder() {
       setScreenInterrupted(false);
       const vMime = pickMime(VIDEO_TYPES);
       const aMime = pickMime(AUDIO_TYPES);
+      const screenMime = screen.current?.getAudioTracks().length ? pickMime(SCREEN_AUDIO_TYPES) : vMime;
       const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
-      const { sessionId, dir } = await window.desk.rec.begin({ ...req, tracks, mime: { camera: vMime ?? '', mic: aMime ?? '', ...(screen.current ? { screen: vMime ?? '' } : {}) } });
+      const { sessionId, dir } = await window.desk.rec.begin({ ...req, tracks, mime: { camera: vMime ?? '', mic: aMime ?? '', ...(screen.current ? { screen: screenMime ?? '' } : {}) } });
       const s: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], chains: [], pausedMs: 0, pausedAt: null };
       const add = (track: RecTrack, ms: MediaStream, mime?: string) => {
         const r = new MediaRecorder(ms, mime ? { mimeType: mime } : undefined);
@@ -252,7 +258,7 @@ export function useRecorder() {
       };
       add('camera', new MediaStream(stream.getVideoTracks()), vMime);
       add('mic', new MediaStream(stream.getAudioTracks()), aMime);
-      if (screen.current) add('screen', screen.current, vMime);
+      if (screen.current) add('screen', screen.current, screenMime);
       sess.current = s;
       setElapsed(0);
       setState('recording');

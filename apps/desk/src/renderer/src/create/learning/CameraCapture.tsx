@@ -16,6 +16,7 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   }, [id, client, stopRecording]);
   const video = useRef<HTMLVideoElement | null>(null);
   const [screen, setScreen] = useState(false);
+  const [appAudio, setAppAudio] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { if (video.current) video.current.srcObject = rec.stream; }, [rec.stream]);
@@ -45,7 +46,11 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
         {rec.state === 'paused' && !rec.screenInterrupted && <button className="btn" onClick={rec.resume}>{t('rec.resume')}</button>}
       </>}
     </div>
-    {screen && !live && <ScreenPicker on={rec.screenOn} share={rec.shareScreen} stop={rec.stopScreen} done={() => setScreen(false)} />}
+    {screen && !live && <>
+      <label className="small"><input type="checkbox" checked={appAudio} disabled={rec.screenOn} onChange={(e) => setAppAudio(e.target.checked)} data-testid="learning-material-audio" /> {t('learning.materialAudio')}</label>
+      <p className="small muted">{t('learning.materialAudioHint')}</p>
+      <ScreenPicker on={rec.screenOn} share={(source) => rec.shareScreen(source, appAudio)} stop={rec.stopScreen} done={() => setScreen(false)} />
+    </>}
     {rec.screenOn && <p className="muted">{t('rec.screenSharing')}</p>}
     {rec.screenInterrupted && <p role="alert">{t('rec.screenFinishTake')}</p>}
     {(error || rec.error) && <p role="alert">{error || rec.error}</p>}

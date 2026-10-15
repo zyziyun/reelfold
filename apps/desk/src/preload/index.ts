@@ -119,7 +119,7 @@ const api: DeskApi = {
     recover: () => call('rec:recover'),
     discard: (sessionId) => call('rec:discard', { sessionId }),
     screens: () => call('rec:screens'),
-    screenPick: (id) => call('rec:screenPick', { id }),
+    screenPick: (id, appAudio) => call('rec:screenPick', { id, ...(appAudio === undefined ? {} : { appAudio }) }),
   },
   ai: {
     status: (opts) => call('ai:status', opts ?? {}),

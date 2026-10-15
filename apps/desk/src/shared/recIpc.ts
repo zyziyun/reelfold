@@ -50,7 +50,7 @@ export const recIpcSchemas = {
   /** screens + windows she can share (thumbnails), or access 'denied' (macOS Screen Recording is off for the app) */
   'rec:screens': z.undefined(),
   /** the source the next getDisplayMedia shares (from rec:screens; used once, within 30 s) */
-  'rec:screenPick': z.strictObject({ id: z.string().min(1).max(200) }),
+  'rec:screenPick': z.strictObject({ id: z.string().min(1).max(200), appAudio: z.boolean().optional() }),
 } as const;
 
 /** Allow a permission only for media (camera / mic / the screen she picked) from the app's own UI with the Create

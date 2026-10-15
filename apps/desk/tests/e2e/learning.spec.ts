@@ -68,15 +68,25 @@ test('camera and screen sharing stay beside the material; a new take remains edi
   await page.getByTestId('learning-camera-open').click();
   await expect(page.getByTestId('learning-camera-preview')).toBeVisible();
   await page.getByTestId('learning-screen').click();
+  await page.getByTestId('learning-material-audio').check();
   await page.getByTestId('rec-screen-toggle').click();
   const first = page.getByTestId('rec-screen-source').first();
   await expect(first).toBeVisible(); await first.click();
+  await page.getByTestId('learning-source-video').evaluate(async (v: HTMLVideoElement) => { v.currentTime = 0; v.loop = true; v.muted = false; await v.play(); });
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Stop');
   await page.waitForTimeout(1800);
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Record my explanation', { timeout: 30000 });
   await expect(page.getByTestId('learning-source-select')).toContainText('My recorded contribution');
+  await page.getByTestId('learning-source-video').evaluate((v: HTMLVideoElement) => v.pause());
+  const doc = await api('GET', `/api/create/learning/${workspaceId}`);
+  const take = (Object.values(doc.sources) as { role: string; path: string }[]).find((x) => x.role === 'commentary')!;
+  // Chromium's fake-device switch replaces display audio too. This checks track persistence;
+  // learningAudio.spec verifies a real app playback tone with that switch absent.
+  const pcm = execFileSync('ffmpeg', ['-v', 'error', '-i', take.path, '-vn', '-ac', '1', '-ar', '8000', '-f', 's16le', '-']);
+  expect(pcm.length).toBeGreaterThan(8000);
+  expect(pcm.some((x) => x !== 0)).toBe(true);
 });
 test('my ordered draft makes a real demo which opens in the existing editor', async () => {
   test.setTimeout(180000);

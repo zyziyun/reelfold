@@ -185,15 +185,15 @@ export class Recorder {
 
 /** The source she picked in the app's screen picker, handed to the next getDisplayMedia (once, within 30 s). */
 export class ScreenPick {
-  private armed: { id: string; until: number } | null = null;
+  private armed: { id: string; until: number; appAudio: boolean } | null = null;
   constructor(private ttlMs = 30_000) {}
-  arm(id: string, now = Date.now()) {
-    this.armed = { id, until: now + this.ttlMs };
+  arm(id: string, now = Date.now(), appAudio = false) {
+    this.armed = { id, until: now + this.ttlMs, appAudio };
   }
-  take(now = Date.now()): string | null {
+  take(now = Date.now()): { id: string; appAudio: boolean } | null {
     const a = this.armed;
     this.armed = null;
-    return a && now <= a.until ? a.id : null;
+    return a && now <= a.until ? { id: a.id, appAudio: a.appAudio } : null;
   }
 }
 
@@ -274,7 +274,7 @@ export function registerRecorderIpc(handle: Handle, deps: RecorderDeps): Recorde
   });
   handle('rec:screenPick', async (p) => {
     gate();
-    pick.arm(p.id);
+    pick.arm(p.id, Date.now(), p.appAudio);
     return { ok: true };
   });
   handle('rec:ask', async (p) => {
@@ -300,14 +300,16 @@ export function registerRecorderIpc(handle: Handle, deps: RecorderDeps): Recorde
 /** getDisplayMedia -> the source she picked (once); nothing without a pick or with Create off. */
 export function installDisplayMedia(ses: Session, o: { flag: () => boolean; pick: ScreenPick; fakeMedia: boolean }) {
   ses.setDisplayMediaRequestHandler((req, cb) => {
-    const id = o.flag() ? o.pick.take() : null;
-    if (!id) return cb({});
-    if (o.fakeMedia && id === FAKE_SCREEN_ID) return req.frame ? cb({ video: req.frame }) : cb({});
+    const selected = o.flag() ? o.pick.take() : null;
+    // Never let an embedded source frame capture its containing application.
+    if (!selected || !req.frame || req.frame !== req.frame.top) return cb({});
+    const audio = selected.appAudio && req.audioRequested ? { audio: req.frame, enableLocalEcho: true } : {};
+    if (o.fakeMedia && selected.id === FAKE_SCREEN_ID) return cb({ video: req.frame, ...audio });
     desktopCapturer
       .getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
       .then((list) => {
-        const src = list.find((s) => s.id === id);
-        cb(src ? { video: src } : {});
+        const src = list.find((s) => s.id === selected.id);
+        cb(src ? { video: src, ...audio } : {});
       })
       .catch(() => cb({}));
   });

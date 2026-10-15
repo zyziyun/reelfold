@@ -72,7 +72,7 @@ e2e:
   apps/desk/src/main/aiAccounts.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
   apps/desk/src/shared/aiModels.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
   apps/desk/src/shared/aiRoutes.ts: [aiAccounts.spec.ts, modelSwitch.spec.ts]
-  apps/desk/src/main/recorder.ts: [recordEdit.spec.ts]
+  apps/desk/src/main/recorder.ts: [recordEdit.spec.ts, learning.spec.ts, learningAudio.spec.ts]
   apps/desk/src/shared/recIpc.ts: [recordEdit.spec.ts]
   apps/desk/src/main/updater.ts: [update.spec.ts, release.spec.ts]
   apps/desk/src/main/trash.ts: [history.spec.ts, rowActions.spec.ts]

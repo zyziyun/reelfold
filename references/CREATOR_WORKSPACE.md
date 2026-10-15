@@ -30,8 +30,11 @@ returns editable text and never falls back to a cloud provider. Accuracy depends
 
 Camera/mic capture and the existing user-picked screen/window capture stay beside the source. Raw camera,
 microphone and screen tracks remain in the recording session; a muxed derivative becomes a personal material.
-Screen capture currently records picture and the microphone, not system/playback sound. The source's original
-audio can come from attached footage in a separate excerpt. OS permission failures stay visible. These are local
+Screen capture offers an explicit, default-off option to include materials playing inside Reelfold. This captures
+only the app's audio, never system loopback or external browser sound. The screen WebM keeps that audio; the
+microphone remains separate, and the viewing derivative mixes both. Recommend headphones to avoid microphone
+echo. If no audio track is granted, sharing stops with a visible error. Original footage can also provide its
+audio as a separate excerpt. OS permission failures stay visible. These are local
 recordings, not remote live broadcasts or a conferencing feature.
 
 The creator marks a passage, adds their own take, orders/removes parts and explicitly requests a video demo.
