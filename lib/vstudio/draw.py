@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from . import ffmpeg_filters as FF
 from .config import MissingAsset, font, persona
+from .subs import _cjk, word_end
 
 WHITE = (255, 255, 255, 255)
 BRAND_DEFAULTS = dict(accent="#FF2442", highlight="#FFD60A", ink="#ECEEF2", ground="#0B1020",
@@ -124,7 +125,7 @@ def text_size(text: str, f):
 
 
 def is_cjk(ch: str) -> bool:
-    return ord(ch) >= 0x2E80
+    return _cjk(ch)
 
 
 def has_cjk(text: str) -> bool:
@@ -133,7 +134,7 @@ def has_cjk(text: str) -> bool:
 
 # ---------------------------------------------------------------- wrapping
 _LATIN = re.compile(r"[A-Za-z0-9][A-Za-z0-9%/+.\-'_&#@:]*")
-NO_LINE_START = set("，。、？！：；）」』】》〉”’,.!?:;)]}%…～·")
+NO_LINE_START = set("，。、？！：；）」』】》〉”’,.!?:;)]}%…～·،؛؟।॥")
 NO_LINE_END = set("（「『【《〈“‘([{")
 
 
@@ -145,9 +146,9 @@ def tokens(text: str, keep_phrases: bool = None):
         keep_phrases = has_cjk(text)
     raw, i = [], 0
     while i < len(text):
-        m = _LATIN.match(text, i)
-        if m:
-            raw.append(m.group()); i = m.end()
+        end = word_end(text, i)
+        if end > i:
+            raw.append(text[i:end]); i = end
         elif text[i].isspace():
             j = i
             while j < len(text) and text[j].isspace():
@@ -199,7 +200,7 @@ def _split_wide(toks, f, max_w):
             parts = t.split(" ")
             for k, p in enumerate(parts):
                 out += ([" "] if k else []) + _split_wide([p], f, max_w)
-        elif _LATIN.match(t):
+        elif plain(core or t) and word_end(plain(core or t)) == len(plain(core or t)):
             out.append(t)
         else:
             out += list(t)

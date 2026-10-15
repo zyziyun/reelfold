@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 from vstudio import draw
 from vstudio import subs as S
 from vstudio.batch import lfsplit as LS
@@ -67,6 +69,63 @@ def test_join_caption_seams():
     assert S.join_caption(["我们用", "Claude Code", "做了视频"]) == "我们用Claude Code做了视频"
     assert S.join_caption(["Claude", "Code做了"]) == "Claude Code做了"
     assert S.join_caption(["hello", ", world"]) == "hello, world"
+
+
+@pytest.mark.parametrize('text', [
+    'احتفظ بصوتك وراجع الترجمة قبل النشر.',
+    'Проверьте субтитры перед публикацией.',
+    'यह पहला वीडियो है।',
+    'בדקו את הכתוביות לפני הפרסום.',
+    'Αυτό είναι το πρώτο βίντεο.',
+    'cafe\u0301 cre\u0300me avant publication.',
+    'ﺍﺣﺘﻔﻆ ﺑﺼﻮﺗﻚ',
+])
+def test_wrapping_keeps_unicode_words_and_combining_marks(text):
+    # Even a word wider than the box stays whole: the caller can shrink its font, never split a name.
+    expected = text.split()
+    for width in (2, 5, 8):
+        lines = S.balanced_wrap(text, width)
+        assert [w for line in lines for w in line.split()] == expected
+        chunks = S.caption_chunks(text, width, max_lines=2)
+        assert S.join_caption(chunks) == text
+    f = draw.load_font('cjk-bold', 48)
+    for width in (90, 240, 400):
+        lines = draw.wrap(text, f, width, balance=True)
+        assert [w for line in lines for w in line.split()] == expected
+
+
+@pytest.mark.parametrize('word', ['Authentication', 'احتفظ', 'वीडियो', 'публикацией'])
+def test_highlight_does_not_split_a_long_word(word):
+    f = draw.load_font('cjk-bold', 48)
+    text = f'【{word}】'
+    assert draw.wrap(text, f, 10) == [text]
+    assert S.balanced_wrap(text, 1) == [text]
+
+
+def test_ass_rtl_uses_libass_whole_line_layout_and_preserves_logical_text(tmp_path):
+    text = 'راجع 【الترجمة】 قبل النشر.'
+    out = tmp_path / 'rtl.ass'
+    S.ass_write(iter([S.Cue(0, 2, text)]), str(out), font_name='Arial',
+                extra_styles=[dict(name='Note')],
+                extra_events=iter([dict(start=0, end=2, text='A note', style='Note')]))
+    content = out.read_text()
+    assert all(line.endswith(',-1') for line in content.splitlines() if line.startswith('Style:'))
+    assert 'راجع ' in content and 'الترجمة' in content and ' قبل النشر.' in content
+    assert content.count('Dialogue:') == 2
+
+
+def test_ass_ltr_keeps_legacy_encoding_and_rtl_can_explicitly_request_it(tmp_path):
+    for text, encoding in [('Hello 世界.', None), ('בדקו כתוביות.', 1)]:
+        out = tmp_path / 'compatible.ass'
+        S.ass_write([S.Cue(0, 2, text)], str(out), encoding=encoding, font_name='Arial')
+        assert all(line.endswith(',1') for line in out.read_text().splitlines() if line.startswith('Style:'))
+
+
+def test_ass_alt_or_extra_rtl_text_also_selects_whole_line_layout(tmp_path):
+    out = tmp_path / 'alternate.ass'
+    for alt, extra in [('مرحبا.', []), ('', [(0, 2, 'שלום.', 'Sub')])]:
+        S.ass_write([S.Cue(0, 2, 'Hello.', alt=alt)], str(out), extra_events=extra, font_name='Arial')
+        assert next(line for line in out.read_text().splitlines() if line.startswith('Style: Sub')).endswith(',-1')
 
 
 def test_cover_title_uses_the_shared_breaker():

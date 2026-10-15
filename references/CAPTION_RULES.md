@@ -45,3 +45,18 @@ This is token matching with interpolation, not phonetic forced alignment: a vali
 speech sync. Inspect unmatched phrases and cue boundaries against the recording, especially names, mixed
 scripts and words the recognizer omitted. Do not replace the authored script with ASR errors just to obtain
 a match. For original speech, retain the corrected transcript and follow the source-fidelity rules above.
+
+## 3. Preserve words and verify the actual renderer
+
+Use the shared `subs.balanced_wrap` / `draw.wrap` for caption and card lines. In space-delimited scripts,
+keep the complete Unicode word and its combining marks together, including highlighted words. A word wider
+than the box needs a smaller font or a different layout, never an arbitrary letter break. Keep Arabic and
+Indic closing punctuation with the preceding word. This is not dictionary segmentation for Thai or other
+scripts without spaces.
+
+Word-preserving text is not proof of correct glyphs or reading order. Review the rendered result with the
+actual font and backend. The libass writer selects whole-line shaping and automatic base direction for RTL
+dialogue (`Encoding=-1`); an ASS sidecar for legacy VSFilter must explicitly select `encoding=1` and be checked
+in that player. Pillow needs appropriate font coverage and complex-text shaping (Raqm); a successful draw
+call alone does not prove Arabic or Indic text is readable. Do not reverse strings or transliterate them to
+hide a renderer limitation.

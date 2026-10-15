@@ -19,6 +19,7 @@ balanced two lines), photo-story ``subtitles.wrap/bwrap`` (balanced, markers kep
 """
 import math
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 # ------------------------------------------------------------------ model
@@ -136,7 +137,35 @@ def strip_markup(text):
 # ------------------------------------------------------------------ wrapping
 # a latin-script word (accented / Greek / Cyrillic letters too: "café", "Ελλάδα") is one unbreakable unit
 _LATIN = re.compile(r"[A-Za-z0-9\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u1E00-\u1EFF%/+.\-'’&@#_$€£]+")
-_CLOSE = set("，。、！？；：”’）》」』】〉〕｝,.!?;:)]}…%｡､｣")   # closing punctuation: a good place to break AFTER
+
+
+def word_end(text, start=0):
+    """End of a space-delimited word run, preserving Unicode letters and combining marks.
+
+    East Asian characters retain their existing per-character wrapping. This is not dictionary
+    segmentation for scripts without spaces, such as Thai; do not split their combining marks.
+    """
+    match = _LATIN.match(text, start)
+    end = match.end() if match else start
+    while end < len(text):
+        ch = text[end]
+        if not _cjk(ch) and unicodedata.category(ch)[0] in "LMN":
+            end += 1
+        elif end > start and ch in "'’\u200c\u200d":
+            end += 1
+        else:
+            break
+    return end
+
+
+def _word(text):
+    return bool(text) and word_end(text) == len(text)
+
+
+def has_rtl(text):
+    """Whether text contains strong right-to-left letters (Arabic, Hebrew, etc.)."""
+    return any(unicodedata.bidirectional(ch) in ("R", "AL") for ch in str(text))
+_CLOSE = set("，。、！？；：”’）》」』】〉〕｝,.!?;:)]}…%｡､｣،؛؟।॥")   # closing punctuation: a good place to break AFTER
 _OPEN = set("“‘（《「『【〈〔｛([{｢")
 # 避头尾 (kinsoku): marks that may never START a line (closing punctuation plus dashes, the middle dot and the tilde,
 # which are glued to the token before them but are not a preferred break) and marks that may never END one.
@@ -147,7 +176,7 @@ NO_LINE_END = set(_OPEN)
 
 def char_width(c):
     """CJK/full-width = 1.0, everything else 0.5 (xhs_len rule)."""
-    return 0.5 if ord(c) < 0x2E80 else 1.0
+    return 1.0 if _cjk(c) else 0.5
 
 
 def text_width(s):
@@ -168,9 +197,9 @@ def _tokens(text):
     for seg, hi in parse_highlight(text):
         i = 0
         while i < len(seg):
-            m = _LATIN.match(seg, i)
-            if m:
-                raw.append((m.group(), hi)); i = m.end()
+            end = word_end(seg, i)
+            if end > i:
+                raw.append((seg[i:end], hi)); i = end
             else:
                 raw.append((seg[i], hi)); i += 1
     out = []
@@ -213,7 +242,7 @@ _BREAK_BEFORE = set("和与及或但而就都也还在是把被给让从到对�
 
 
 def _cjk(ch):
-    return bool(ch) and ord(ch) >= 0x2E80
+    return bool(ch) and unicodedata.east_asian_width(ch) in ("W", "F")
 
 
 def _word_bounds(plain):
@@ -287,7 +316,7 @@ def kinsoku_violations(lines):
     nonempty = [i for i, ln in enumerate(ls) if ln]
     if len(nonempty) > 1:
         last = ls[nonempty[-1]]
-        if _visible_len(last) == 1 and not _LATIN.fullmatch(last.strip("".join(NO_LINE_START | NO_LINE_END))):
+        if _visible_len(last) == 1 and not _word(last.strip("".join(NO_LINE_START | NO_LINE_END))):
             out.append(dict(line=nonempty[-1], kind="orphan", char=last))
     return out
 
@@ -325,7 +354,7 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
             b -= 1
         span_w[i, j] = sum(widths[a:b]) if a < b else 0.0
         # one CJK character on its own line, punctuation not counted ("了。" is still an orphan)
-        span_orphan[i, j] = b - a == 1 and _visible_len(toks[a][0]) == 1 and not _LATIN.fullmatch(toks[a][0])
+        span_orphan[i, j] = b - a == 1 and _visible_len(toks[a][0]) == 1 and not _word(toks[a][0])
 
     def lw(i, j):
         if (i, j) not in span_w:
@@ -623,18 +652,19 @@ def font_family(role="cjk-bold"):
 
 def ass_style(name, font_name=None, size=40, primary="#FFFFFF", outline_colour="#000000", back="#000000",
               back_alpha=0x88, bold=True, italic=False, border_style=1, outline=2.4, shadow=1, alignment=2,
-              margin_l=60, margin_r=60, margin_v=42):
+              margin_l=60, margin_r=60, margin_v=42, encoding=1):
     """One ``Style:`` line for ``ass_write(extra_styles=...)``. alignment = numpad position (2 bottom
     centre, 8 top centre); border_style 3 = opaque box (``back``/``back_alpha`` is the box colour)."""
     font_name = font_name or font_family()
     ba = f"&H{int(back_alpha):02X}" + _ass_colour(back)[4:]
     return (f"Style: {name},{font_name},{int(size)},{_ass_colour(primary)},{_ass_colour(primary)},"
             f"{_ass_colour(outline_colour)},{ba},{-1 if bold else 0},{-1 if italic else 0},0,0,100,100,0,0,"
-            f"{border_style},{outline:g},{shadow:g},{alignment},{int(margin_l)},{int(margin_r)},{int(margin_v)},1")
+            f"{border_style},{outline:g},{shadow:g},{alignment},{int(margin_l)},{int(margin_r)},{int(margin_v)},{int(encoding)}")
 
 
 def ass_write(cues, path, w=1920, h=1080, font_name=None, size=None, wrap=None, highlight=None,
-              alt_scale=0.72, margin_v=None, outline=2.4, no_overlap=True, extra_styles=None, extra_events=None):
+              alt_scale=0.72, margin_v=None, outline=2.4, no_overlap=True, extra_styles=None, extra_events=None,
+              encoding=None):
     """Write an .ass for burning with ffmpeg's ``ass`` filter (needs libass: ``media.ffmpeg_bin(need=["ass"])``).
 
     Style "Sub": bold white, black outline, bottom-centre; size defaults to 52 px at 1080 lines
@@ -645,8 +675,18 @@ def ass_write(cues, path, w=1920, h=1080, font_name=None, size=None, wrap=None, 
       kwargs (with "name"); extra_events: [(start, end, text, style)] or dicts {start, end, text,
       style, layer=1} drawn with them (e.g. a top-boxed "Note" style for 勘误); markup is honoured.
     Returns the number of events (Sub cues + extra events).
+    RTL dialogue selects libass's Encoding=-1 for paragraph direction and whole-line shaping;
+    for a sidecar intended for legacy VSFilter, explicitly pass encoding=1 (RTL layout may differ).
     From longform ``subs_lib.ass_header/ass_ts`` + ``build_subs``.
     """
+    cues = list(cues)
+    extra_events = list(extra_events or ())
+    if encoding is None:
+        texts = [c.text + "\n" + c.alt for c in cues]
+        texts += [e.get("text", "") if isinstance(e, dict) else e[2] for e in extra_events]
+        # libass's whole-line shaping and base-direction auto-detection keep RTL punctuation and
+        # highlighted runs in their logical order. Encoding 1 forces legacy LTR paragraph layout.
+        encoding = -1 if any(has_rtl(t) for t in texts) else 1
     k = min(w, h) / 1080.0
     size = size or int(52 * k)
     mv = margin_v if margin_v is not None else int(42 * k)
@@ -661,7 +701,7 @@ def ass_write(cues, path, w=1920, h=1080, font_name=None, size=None, wrap=None, 
     extra = ""
     for st in extra_styles or ():
         if isinstance(st, dict):
-            st = ass_style(**{"font_name": font_name, **st})
+            st = ass_style(**{"font_name": font_name, "encoding": encoding, **st})
         extra += st.strip() + "\n"
     head = f"""[Script Info]
 ScriptType: v4.00+
@@ -672,7 +712,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Sub,{font_name},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H88000000,1,0,0,0,100,100,0,0,1,{outline},1,2,{int(60 * k)},{int(60 * k)},{mv},1
+Style: Sub,{font_name},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H88000000,1,0,0,0,100,100,0,0,1,{outline},1,2,{int(60 * k)},{int(60 * k)},{mv},{int(encoding)}
 {extra}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
