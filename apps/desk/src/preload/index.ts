@@ -108,6 +108,7 @@ const api: DeskApi = {
   watchHistory: (roots) => call('history:watch', { roots }),
   grantAccess: (paths) => call('access:grant', { paths }),
   rec: {
+    browserCapture: (lang, sourceUrl) => call('rec:browserCapture', { lang, ...(sourceUrl ? { sourceUrl } : {}) }),
     status: () => call('rec:status'),
     ask: (kind) => call('rec:ask', { kind }),
     openPrivacy: (pane) => call('rec:openPrivacy', { pane }),

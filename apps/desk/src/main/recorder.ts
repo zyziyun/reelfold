@@ -14,6 +14,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { openBrowserFile } from './openBrowserFile';
+import { browserCapturePage } from './browserCapture';
 import { desktopCapturer, shell, systemPreferences, type DesktopCapturerSource, type IpcMainInvokeEvent, type Session, type WebContents } from 'electron';
 import type { IpcChannel, IpcPayload } from '../shared/ipc';
 import { allowAppPermission, REC_TRACKS, type RecTrack, type ScreenSource, type ScreensReply, type TakeInfo } from '../shared/recIpc';
@@ -251,6 +253,14 @@ export function registerRecorderIpc(handle: Handle, deps: RecorderDeps): Recorde
       return 'unknown';
     }
   };
+  handle('rec:browserCapture', async (p) => {
+    gate();
+    const root = path.join(deps.root ?? recordingsRoot(), 'browser');
+    await fs.promises.mkdir(root, { recursive: true });
+    const file = path.join(root, `capture-${p.lang}.html`);
+    await fs.promises.writeFile(file, browserCapturePage(p.lang, p.sourceUrl), { mode: 0o600 });
+    await openBrowserFile(file);
+  });
   handle('rec:status', async () => {
     gate();
     return { camera: status('camera'), microphone: status('microphone'), screen: status('screen'), platform: process.platform, release: os.release() };

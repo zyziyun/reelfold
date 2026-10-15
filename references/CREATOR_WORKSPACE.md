@@ -89,3 +89,20 @@ right beside it; do not make the creator locate an internal file. Show video arr
 When a video needs the creator's own explanation or source credits, offer contextual guidance and take the user
 to the needed fields. Credit text remains a draft until saved; do not enable generation based on unsaved fields.
 Posts are available once the creator has thoughts; quotes stay separate. Keep existing editing accessible.
+
+## Browser passages with sound
+
+When the creator watches in their signed-in browser, the source panel offers an optional local browser capture
+page. It opens in the normal browser, uses the native tab picker, and records only what the creator selects.
+Chrome/Edge tab-audio sharing is supported; no-audio choices fail visibly instead of saving a silent passage.
+This local page uses no account access, network uploads, extensions, drivers or local HTTP server. It does not
+transfer browser login into the embedded player. The creator stops and saves the passage, then drops the downloaded
+WebM anywhere in the workspace to add it as reference material. Native file access consent still applies in Lite.
+
+Each browser passage is explicitly limited to five minutes and saves automatically at that limit to bound
+in-memory recording; another passage can be recorded afterward. Browser downloads without duration/cues are
+remuxed into a project-owned seekable copy, keeping the original byte-identical and recording its origin in an
+adjacent source ledger. This is reference footage, never automatically labeled as the creator's testimony.
+The passage then uses the same source credits, personal explanation, ordered draft, demo and second-edit path.
+Support here is browser-tab capture, not general OS loopback or remote conferencing. Browser/OS support still
+varies; do not claim Safari/Firefox audio support or authenticated YouTube playback without actual acceptance.

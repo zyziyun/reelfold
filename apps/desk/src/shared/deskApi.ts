@@ -275,6 +275,7 @@ export interface DeskApi {
   };
   /** Create recorder (main refuses while the Create flag is off) */
   rec: {
+    browserCapture(lang: 'en' | 'zh' | 'fr', sourceUrl?: string): Promise<void>;
     status(): Promise<{ camera: string; microphone: string; screen: string; platform: string; release: string }>;
     ask(kind: 'camera' | 'microphone'): Promise<boolean>;
     openPrivacy(pane: 'camera' | 'microphone' | 'screen'): Promise<void>;

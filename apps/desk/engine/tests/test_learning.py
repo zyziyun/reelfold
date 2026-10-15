@@ -117,6 +117,24 @@ class Workspace(unittest.TestCase):
         self.assertTrue(self.api.get(d['id'])['readings'][sid]['unavailable'])
         self.assertEqual(len(self.api.get(d['id'])['notes']),2)
 
+    def test_browser_webm_without_duration_becomes_seekable_without_rewriting_original(self):
+        import hashlib
+        from pathlib import Path
+        raw=os.path.join(self.root,'browser-passage.webm')
+        media.run(['ffmpeg','-y','-f','lavfi','-i','color=green:s=320x240:r=24:d=1.5','-f','lavfi','-i','sine=frequency=500:duration=1.5','-c:v','libvpx-vp9','-deadline','realtime','-c:a','libopus','-live','1',raw])
+        self.assertFalse(media.probe(raw).get('duration'))
+        before=hashlib.sha256(Path(raw).read_bytes()).hexdigest()
+        d=self.api.create(dict(idea='My browser passage',files=[raw]))
+        sid=next(iter(d['sources']));source=d['sources'][sid]
+        self.assertNotEqual(source['path'],raw)
+        self.assertTrue(source['has_audio']);self.assertGreater(source['duration'],1.4)
+        self.assertTrue(os.path.isfile(source['path']+'.source.json'))
+        self.assertEqual(hashlib.sha256(Path(raw).read_bytes()).hexdigest(),before)
+        d=self.api.update(d['id'],dict(action='note',text='My thought at the passage',source=sid,at=1))
+        self.assertEqual(d['notes'][-1]['at'],1)
+        d=self.api.update(d['id'],dict(action='files',files=[raw]))
+        self.assertEqual(list(d['sources']),[sid])
+
     def test_local_only_dictation_never_falls_through_to_cloud(self):
         from vstudio.create import store
         d=self.create();rec=os.path.join(store.recordings_root(),'thought');os.makedirs(rec)

@@ -35,13 +35,31 @@ class Learning:
             self.inbox.bus.publish('history')
         return doc
 
-    def _files(self, inputs, paths, role=None):
+    def _files(self, inputs, paths, role=None, material_dir=None):
         need(isinstance(paths, list) and len(paths) <= 100, 'attach up to 100 files')
         for path in paths:
             need(isinstance(path, str) and os.path.isabs(path) and os.path.isfile(path), 'select an existing material')
             ext = os.path.splitext(path)[1].lower()
             key = role or ('references' if ext in VIDEO else 'pages' if ext in PAGE else 'notes' if ext in ('.md', '.txt') else None)
             need(key and (not role or ext in VIDEO), 'select video, page images or text notes')
+            if key == 'references' and ext == '.webm' and material_dir:
+                from vstudio import media
+                info = media.probe(path)
+                if info.get('has_video') and not info.get('duration'):
+                    # Browser MediaRecorder downloads omit seek cues/duration. Keep the original;
+                    # remux a project-owned copy before exposing it for timed notes and excerpts.
+                    st = os.stat(path)
+                    key_id = hashlib.sha256(os.fsencode(path) + f':{st.st_size}:{st.st_mtime_ns}'.encode()).hexdigest()[:16]
+                    prepared_dir = os.path.join(material_dir, key_id)
+                    os.makedirs(prepared_dir, exist_ok=True)
+                    prepared = os.path.join(prepared_dir, os.path.basename(path))
+                    if not os.path.isfile(prepared) or not media.probe(prepared).get('duration'):
+                        temp = prepared + '.tmp.webm'
+                        media.run(['ffmpeg', '-y', '-i', path, '-map', '0', '-c', 'copy', '-cues_to_front', '1', temp])
+                        need(media.probe(temp).get('duration', 0) > 0, 'this browser recording has no playable duration')
+                        os.replace(temp, prepared)
+                        write_json(prepared + '.source.json', dict(original=path, size=st.st_size, mtime_ns=st.st_mtime_ns))
+                    path = prepared
             old = inputs.get(key) or []
             inputs[key] = list(dict.fromkeys((old if isinstance(old, list) else [old]) + [path]))
         return inputs
@@ -93,9 +111,10 @@ class Learning:
         idea, thoughts = b.get('idea'), b.get('thoughts') or ''
         need(isinstance(idea, str) and 0 < len(idea.strip()) <= 6000, 'name your creation or describe an idea')
         need(isinstance(thoughts, str) and len(thoughts) <= 20000, 'thoughts: up to 20000 characters')
-        ins = self._files(dict(brief=idea.strip()), b.get('files') or [])
         ident = uuid.uuid4().hex[:12]
-        p = Project.create(os.path.join(home(), 'projects', 'learning-' + ident), recipe='learning-commentary',
+        project_dir = os.path.join(home(), 'projects', 'learning-' + ident)
+        ins = self._files(dict(brief=idea.strip()), b.get('files') or [], material_dir=os.path.join(project_dir, 'materials'))
+        p = Project.create(project_dir, recipe='learning-commentary',
                            name=idea.strip().splitlines()[0][:70], inputs=ins)
         p.data['prompt'] = idea.strip(); p.save()
         from vstudio.intake.sources import urls_in
@@ -124,7 +143,7 @@ class Learning:
             action = b.get('action')
             if action in ('files', 'take'):
                 ins = dict(p.data.get('inputs') or {})
-                self._files(ins, b.get('files') or [], 'takes' if action == 'take' else None)
+                self._files(ins, b.get('files') or [], 'takes' if action == 'take' else None, material_dir=os.path.join(p.dir, 'materials'))
                 if action == 'take':
                     for path in b.get('files') or []:
                         info = media.probe(path)

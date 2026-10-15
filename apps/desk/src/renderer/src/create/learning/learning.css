@@ -5,3 +5,5 @@
 .learning-notehead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.learning-note-tool{display:flex;align-items:center;gap:8px;color:var(--muted,#939790);margin-top:12px}
 
 .learning-extra{margin-top:16px}.learning-extra>summary{padding:4px 0}.learning-fresh-take{margin-top:14px;padding:14px}.learning-fresh-take details{margin-top:10px}.learning-note-tool{align-items:flex-start}.learning-note-tool input{flex-shrink:0;margin-top:4px}.learning-note-tool span{white-space:pre-wrap}
+
+.learning-drop-over{border-color:var(--accent,#4cbda4);box-shadow:inset 0 0 0 2px rgba(76,189,164,.2)}

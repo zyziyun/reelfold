@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LearningReading, LearningSource } from '../../../../shared/learning';
-import { t } from '../../i18n';
+import { getLang, t } from '../../i18n';
 import { media } from '../../v4/kit';
 import { errText } from '../../v4/msg';
 import { youtubeBrowserUrl, youtubeSource, youtubeTime } from './source';
@@ -29,6 +29,11 @@ export function SourcePlayer({ source, reading, link, browserTime, onTime, seek,
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, [videoId, onTime]);
+  const browserCapture = link ? <details className="learning-extra"><summary data-testid="learning-browser-tools">{t('learning.bringPassage')}</summary><p className="small muted">{t('learning.browserCaptureHint')}</p><button className="btn" data-testid="learning-browser-capture" onClick={() => {
+    const lang = getLang().startsWith('zh') ? 'zh' : getLang() === 'fr' ? 'fr' : 'en';
+    setBrowserError('');
+    void window.desk.rec.browserCapture(lang, youtubeBrowserUrl(link, browserTime) ?? link).catch((e) => setBrowserError(errText(e)));
+  }}>{t('learning.captureBrowserTab')}</button></details> : null;
   if (reading) return <article className="ux-opt" data-testid="learning-source-reading">
     <h3>{reading.path.split(/[\\/]/).pop()}</h3>
     {reading.unavailable ? <p role="alert">{t('learning.readingUnavailable')}</p> : <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 500, overflow: 'auto', font: 'inherit' }}>{reading.text}</pre>}
@@ -43,8 +48,9 @@ export function SourcePlayer({ source, reading, link, browserTime, onTime, seek,
       void window.desk.openExternal(youtubeBrowserUrl(link!, browserTime)!).catch((e) => setBrowserError(errText(e)));
     }}>{t('learning.youtubeBrowser')}</button>
     <p className="small muted">{t('learning.youtubeLoginHint')}</p>
+    {browserCapture}
     {browserError && <p role="alert">{browserError}</p>}
   </div>;
-  if (link) return <div className="ux-opt"><p>{t('learning.webHint')}</p><button className="btn" onClick={() => void window.desk.openExternal(link)} data-testid="learning-open-site">{t('learning.openOriginal')}</button></div>;
+  if (link) return <div className="ux-opt"><p>{t('learning.webHint')}</p><button className="btn" onClick={() => void window.desk.openExternal(link)} data-testid="learning-open-site">{t('learning.openOriginal')}</button>{browserCapture}{browserError && <p role="alert">{browserError}</p>}</div>;
   return <div className="ux-opt muted">{t('learning.pickSource')}</div>;
 }

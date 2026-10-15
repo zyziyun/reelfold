@@ -26,6 +26,7 @@ export function LearningCreate() {
   const [recent, setRecent] = useState<{ id: string; title: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState('');
+  const [dropOver, setDropOver] = useState(false);
   const [time, setTime] = useState(0);
   const [timeKnown, setTimeKnown] = useState(false);
   const [pause, setPause] = useState(0);
@@ -105,17 +106,30 @@ export function LearningCreate() {
     setThought(''); setEditingNote(null); setVoiceAudio(null); anchor.current = null;
   });
   const select = (value: string) => { setSource(value); setCreditOpen(false); setTime(youtubeSource(value)?.start ?? 0); setTimeKnown(false); setMark(null); setSeek(null); };
-  return <div className="cr learning-workspace" data-testid="learning-workspace">
+  return <div className="cr learning-workspace" data-testid="learning-workspace" onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); setDropOver(true); } }} onDragLeave={() => setDropOver(false)} onDrop={(e) => {
+        e.preventDefault(); e.stopPropagation(); setDropOver(false);
+        const paths = [...e.dataTransfer.files].map((file) => window.desk.pathForFile(file)).filter(Boolean);
+        if (!paths.length) return;
+        void act(async () => {
+          const access = await window.desk.grantAccess?.(paths);
+          if (access?.needed && !access.granted) return;
+          if (!client) return;
+          const saved = await client.updateLearning(doc.id, { action: 'files', files: paths });
+          const added = Object.keys(saved.sources).find((id) => !doc.sources[id]) ?? Object.keys(saved.readings ?? {}).find((id) => !doc.readings?.[id]);
+          setDoc(saved); if (added) select(added);
+        });
+      }}>
     <div className="row" style={{ justifyContent: 'space-between' }}><div><div className="tag">{t('learning.creation')}</div><h1>{doc.title}</h1></div><a className="btn ghost" href="#/create/learning">{t('learning.allWorkspaces')}</a></div>
     <p className="muted">{t('learning.humanFlow')}</p>
     <div className="learning-grid">
-      <section className="learning-panel">
+      <section className={`learning-panel ${dropOver ? 'learning-drop-over' : ''}`} data-testid="learning-material-panel">
         <h2>{t('learning.materials')}</h2>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <select value={source} onChange={(e) => select(e.target.value)} aria-label={t('learning.materials')} data-testid="learning-source-select"><option value="">{t('learning.pickSource')}</option>{Object.values(doc.sources).map((s) => <option value={s.id} key={s.id}>{sourceName(s)}</option>)} {Object.values(doc.readings ?? {}).map((r) => <option value={r.id} key={r.id}>{r.path.split(/[\\/]/).pop()}</option>)}{doc.links.map((u) => <option value={u} key={u}>{youtubeSource(u) ? `${t('learning.youtubePlayer')} · ${fmtClock(youtubeSource(u)!.start)}` : u}</option>)}</select>
           <button className="btn sm" disabled={busy} onClick={pick}>{t('learning.sources')}</button>
         </div>
         <details open={!source} className="learning-extra"><summary>{t('learning.addLink')}</summary><div className="row" style={{ gap: 8, margin: '12px 0' }}><input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder={t('learning.linkHint')} aria-label={t('learning.linkHint')} data-testid="learning-link" /><button className="btn sm" disabled={busy || !link.trim()} onClick={() => void act(async () => { await change({ action: 'link', url: link.trim() }); select(link.trim()); setLink(''); })}>{t('learning.addLink')}</button></div></details>
+        {dropOver && <p className="small">{t('learning.dropMaterial')}</p>}
         <SourcePlayer source={current} reading={reading} browserTime={timeKnown ? time : undefined} link={!current && !reading ? source : undefined} onTime={onTime} seek={seek} pause={pause} />
         {!reading && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           <span className="small">{fmtClock(time)}</span><details><summary data-testid="learning-time-edit">{t('learning.timeEdit')}</summary><label className="small">{t('learning.sourceTime')} <input type="number" min={0} step={0.1} value={Math.round(time * 10) / 10} onChange={(e) => { setTime(Number(e.target.value)); setTimeKnown(true); }} style={{ width: 90 }} data-testid="learning-source-time" /></label></details>
