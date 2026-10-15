@@ -91,6 +91,22 @@ def test_masked_shot_keeps_all_frames_and_original_audio(shot):
     assert payload(src) == payload(dst)
 
 
+def test_mask_retags_encoders_that_ignore_colour_metadata(shot, monkeypatch):
+    src, track, root = shot
+    popen = F.subprocess.Popen
+    def encoder_without_tags(cmd, *args, **kwargs):
+        if 'rawvideo' in cmd and '-c:v' in cmd:
+            omit = {'-colorspace', '-color_primaries', '-color_trc', '-color_range'}
+            cmd = [x for i, x in enumerate(cmd) if x not in omit and (not i or cmd[i-1] not in omit)]
+        return popen(cmd, *args, **kwargs)
+    monkeypatch.setattr(F.subprocess, 'Popen', encoder_without_tags)
+    dst = root / 'tagged-mask.mp4'
+    F.render(src, dst, track)
+    info = media.probe(dst)
+    assert info['primaries'] == info['transfer'] == 'bt709'
+    assert info['has_audio'] and abs(info['duration'] - media.duration(src)) < .02
+
+
 @pytest.mark.parametrize('damage', ['source', 'missing', 'short', 'box', 'fps'])
 def test_bad_track_preserves_existing_output(shot, damage):
     src, track, root = shot

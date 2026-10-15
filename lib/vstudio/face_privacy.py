@@ -296,8 +296,12 @@ def render(src, dst, track, mode="mosaic", margin=1.65, crf=18):
             rc = proc.wait()
         if decode_rc or rc or n != len(track["boxes"]):
             raise RuntimeError(f"Face mask render failed ({n} frames): {error[-300:]}")
+        # Hardware/OpenH264 encoders may omit colour primaries/transfer despite the encode flags.
+        # The RGB pass above is explicitly SDR BT.709: tag its bitstream without re-encoding.
+        tagged = os.path.join(tmp, "picture-709.mp4")
+        media.retag_bt709(picture, tagged)
         result = os.path.join(tmp, "masked.mp4")
-        media.run(["ffmpeg", "-v", "error", "-y", "-i", picture, "-i", str(src), "-map", "0:v:0",
+        media.run(["ffmpeg", "-v", "error", "-y", "-i", tagged, "-i", str(src), "-map", "0:v:0",
                    "-map", "1:a?", "-c", "copy", "-movflags", "+faststart", result])
         if _sha(src) != track["source_sha256"]:
             raise ValueError("Source changed while applying its face track; analyze it again")
