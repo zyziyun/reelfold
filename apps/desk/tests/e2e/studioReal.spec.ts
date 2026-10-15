@@ -92,17 +92,21 @@ test('the parked clip is under Needs you with its question in words; answering i
   await shot('R1b-studio-made-review');
 });
 
-test('the review in a row (连着看) publishes it; the made clip opens as one page with its words', async () => {
+test('the review in a row confirms on the clip page; the made clip opens with its words', async () => {
   test.setTimeout(240000);
   await page.getByTestId('studio-f-all').click();
   await page.getByTestId('studio-in-row').click();
-  await expect(page.getByTestId('focus')).toBeVisible({ timeout: 30000 });
-  await page.getByTestId('focus-approve').click();
-  await page.getByTestId('focus-save').click();
+  await expect(page.getByTestId('triage-count')).toHaveText('1 of 1', { timeout: 30000 });
+  await expect(page.getByTestId('studio-question')).toBeVisible();
+  await expect(page.getByTestId('pin-publish-help')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId('pin-confirm')).toHaveClass(/primary/);
+  await page.getByTestId('pin-confirm').click();
   await expect
     .poll(async () => (await api<{ items: { id: string; live?: { state?: string } }[] }>('/api/history')).items.find((i) => i.id === id)?.live?.state, { timeout: 150000, intervals: [2000] })
     .toBe('done');
   await hash('#/studio');
+  // Finishing the inline queue returns to Needs you. Show all videos to check the reviewed clip.
+  await page.getByTestId('studio-f-all').click();
   await expect(row()).toHaveAttribute('data-group', 'ready', { timeout: 60000 });
   await row().click();
   await expect(page.getByTestId('editor')).toHaveAttribute('data-layout', 'studio', { timeout: 30000 });

@@ -106,9 +106,12 @@ export function reviewQueue(items: InboxItem[]): InboxItem[] {
  * waiting, the other questions the same way. */
 export function reviewInRow(items: InboxItem[]) {
   const reviews = reviewQueue(items);
-  // one project's reviews only: its full-screen review (Space approves, X sends back)
+  // Linked videos always use the same inline queue, including while a filler question becomes a
+  // publish check. The number of projects / a polling snapshot must not change the review UI.
+  // An aggregate project review without a linked video still owns the full-screen review.
   const pids = new Set(reviews.map((x) => x.project.id));
-  if (reviews.length && pids.size === 1 && reviews[0].project.id) location.hash = href({ name: 'focus', id: reviews[0].project.id });
+  const linked = reviews.some((x) => (x.options ?? []).some((o) => o.clip_id));
+  if (reviews.length && !linked && pids.size === 1 && reviews[0].project.id) location.hash = href({ name: 'focus', id: reviews[0].project.id });
   else startTriage(reviews.length ? reviews : items);
 }
 
