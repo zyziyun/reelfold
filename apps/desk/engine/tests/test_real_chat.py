@@ -63,6 +63,19 @@ class RealChatTest(unittest.TestCase):
         self.patch.stop()
         shutil.rmtree(self.root, True)
 
+    def fake_cli(self):
+        """Run the Python CLI fixtures directly, including on Windows without POSIX shebang support."""
+        fake = os.path.join(ENGINE, "tests", "fixtures", "fake_cli")
+        hook = os.path.join(self.root, "hook")
+        os.makedirs(hook, exist_ok=True)
+        with open(os.path.join(hook, "sitecustomize.py"), "w", encoding="utf-8") as f:
+            f.write("import os, sys\nfrom vstudio import llm\n"
+                    f"_fakes = {{name: os.path.join({fake!r}, name) for name in ('claude', 'codex')}}\n"
+                    "_find, _argv = llm.find_cli, llm.cli_argv\n"
+                    "llm.find_cli = lambda name, opts=None: _fakes.get(name) or _find(name, opts)\n"
+                    "llm.cli_argv = lambda exe, windows=None: [sys.executable, exe] if exe in _fakes.values() else _argv(exe, windows)\n")
+        self.env["PYTHONPATH"] = hook + os.pathsep + self.env["PYTHONPATH"]
+
     def test_probe_sees_the_extended_commands(self):
         self.assertTrue(self.o.real())
         self.assertTrue(self.o._ext, "the engine has revert / chat / --context: the probe must see them")
@@ -92,9 +105,8 @@ class RealChatTest(unittest.TestCase):
         CLI's own stream-json lines (thinking, tool call, result) in the request's transcript, redacted; a model answer
         that is not {ops} falls back to the rules (a step of its own), never a silent stop."""
         from desk_engine import live as L
-        fake = os.path.join(ENGINE, "tests", "fixtures", "fake_cli")
-        self.env.update(VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER="claude-code", VSTUDIO_LLM_FALLBACK="",
-                        PATH=fake + os.pathsep + self.env.get("PATH", ""))
+        self.fake_cli()
+        self.env.update(VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER="claude-code", VSTUDIO_LLM_FALLBACK="")
         clip = self.o.clips(self.item)["clips"][0]["id"]
         r = self.o.ask(self.item, clip, "1.1倍速", live="abcdef012345")
         self.assertTrue(r.get("turn"))
@@ -116,11 +128,10 @@ class RealChatTest(unittest.TestCase):
         "claude-code failed (...) -> trying codex", the reply and its turn carry {from, to, code} (the footer words
         it) - never a silent switch."""
         from desk_engine import live as L
-        fake = os.path.join(ENGINE, "tests", "fixtures", "fake_cli")
+        self.fake_cli()
         self.env.update(VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER="claude-code", VSTUDIO_LLM_OUTPUT_EDIT_FALLBACK="codex",
                         FAKE_CLI_FAIL="1", FAKE_CLI_REPLY=json.dumps({"ops": [{"op": "speed", "value": 1.1}],
-                                                                      "summary": "faster"}),
-                        PATH=fake + os.pathsep + self.env.get("PATH", ""))
+                                                                      "summary": "faster"}))
         clip = self.o.clips(self.item)["clips"][0]["id"]
         r = self.o.ask(self.item, clip, "1.1倍速", live="abcdef012346")
         self.assertEqual(r["provider"], "codex")
