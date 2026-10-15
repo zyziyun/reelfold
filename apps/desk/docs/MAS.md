@@ -23,7 +23,7 @@ ZH47R7RVKB. Store texts, review notes and screenshots for the listing are kept o
 | Updates | electron-updater (GitHub Releases) | the Mac App Store | Guideline 2.4.5(vii) |
 | First-run downloads | speech models, fonts, face models, optional Chromium | the same minus Chromium (data only) | Guideline 2.4.5(iv) / 2.5.2: no downloaded executables |
 | HTML covers / slides | headless Chrome (installed or downloaded) | rendered by the app's own Chromium (offscreen window) | no second browser binary in the sandbox |
-| Usage counts (opt-in) | yes | none ("Data Not Collected") | simpler privacy label |
+| Usage counts (opt-in) | yes | none | optional cloud AI content is disclosed separately |
 | Publishing | built-in browser (assisted fill, she presses Publish), YouTube API | built-in browser for every platform, YouTube included | Google's desktop OAuth redirects to a loopback port: a listening socket, which Lite does not have (no `network.server`) |
 | Local services | engine sidecar + (Lite) HTML renderer on Unix domain sockets | same | nothing listens on a network port in either edition (Windows: 127.0.0.1, CPython has no AF_UNIX there) |
 
