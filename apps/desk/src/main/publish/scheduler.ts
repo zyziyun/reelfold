@@ -9,7 +9,7 @@
 // import: the clock, the calendar and the notifier are injected (tests drive it with a fake clock).
 import fs from 'node:fs';
 import path from 'node:path';
-import type { YtPublishResult } from '../../shared/publish/apiPlatforms';
+import { apiDeliveryState, type YtPublishResult } from '../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../shared/v04';
 import { duePosts, localDate, upcomingPosts } from '../../shared/publish/postNow';
 
@@ -49,7 +49,7 @@ export interface SchedulerDeps {
   notify(fresh: CalendarPost[]): void;
   /** the due list changed (the renderer's banner) */
   onChange?(due: CalendarPost[]): void;
-  markPosted(p: CalendarPost, url: string | null, via: 'api'): Promise<void>;
+  markPosted(p: CalendarPost, url: string | null, via: 'api', result?: YtPublishResult): Promise<void>;
   api?: ApiPoster;
   stateFile: string;
   log?(msg: string): void;
@@ -169,7 +169,8 @@ export class PublishScheduler {
     // A remote success must never become a new upload because the local calendar was unavailable.
     for (const p of posts) {
       const receipt = this.state.api[p.id];
-      if (receipt?.status === 'done' && !receipt.calendarSynced && receipt.at === p.at && (receipt.account ?? null) === (p.account ?? null)) {
+      if (p.state === 'posted' && p.via === 'manual') continue;
+      if (receipt?.status === 'done' && (!receipt.calendarSynced || (receipt.result && (apiDeliveryState(receipt.result) !== p.state || !p.api_result))) && receipt.at === p.at && ((receipt.account ?? null) === (p.account ?? null) || (!!receipt.resolvedAccount && receipt.resolvedAccount === p.account))) {
         await this.syncReceipt(p, receipt);
       }
     }
@@ -210,7 +211,7 @@ export class PublishScheduler {
         return { ok: false, error: 'This post was already uploaded. Edit its time or account on the platform, or create a separate post.' };
       }
       if (!prev.calendarSynced) await this.syncReceipt(p, prev);
-      return { ok: true, url: prev.url ?? null, account: prev.resolvedAccount, result: prev.result };
+      return { ok: true, url: prev.url ?? prev.result?.url ?? null, account: prev.resolvedAccount, result: prev.result };
     }
     const rec: ApiAttempt = { at: p.at, account: p.account, source, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
     this.state.api[p.id] = rec;
@@ -239,8 +240,8 @@ export class PublishScheduler {
     // while the previous durable 'uploading' record prevents a restart from re-uploading.
     if (!this.write()) return;
     try {
-      if (p.state !== 'posted') {
-        await this.deps.markPosted(receipt.resolvedAccount ? { ...p, account: receipt.resolvedAccount } : p, receipt.url ?? null, 'api');
+      if (p.state !== (receipt.result ? apiDeliveryState(receipt.result) : 'posted') || (receipt.result && !p.api_result)) {
+        await this.deps.markPosted(receipt.resolvedAccount ? { ...p, account: receipt.resolvedAccount } : p, receipt.url ?? receipt.result?.url ?? null, 'api', receipt.result);
       }
       receipt.calendarSynced = true;
       this.write();

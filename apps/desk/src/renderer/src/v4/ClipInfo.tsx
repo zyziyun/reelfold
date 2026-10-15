@@ -2,6 +2,8 @@
 // platform and when it goes out - in the editor's inspector (layout B) and placed one by one on the Studio's clip page
 // (layout A). The copy and the schedule are the publish drawer's own component and calendar rows (PostCopy); cover
 // and caption changes re-render the clip in the background (useAutoRender), with the progress shown here.
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
+import { StatusMark } from '../publish/Board';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarClock, CalendarDays, Check, Clock, Loader2, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import type { AutopilotChoice, AutopilotDoc, ClipFile, EditOp, OutputDoc } from '../../../shared/v04';
@@ -598,14 +600,15 @@ export function ClipScheduleView({ s, compact = false, files }: { s: ClipSchedul
   }
   return (
     <div className="ci-sched" data-testid="ci-schedule" data-state="scheduled">
+      {g.posts.some(postDelivered) && <><StatusMark s={g.status} /><p className="ci-note">{t('pl.post.remoteEdit')}</p></>}
       <div className="ci-when">
         <label className="pb-field">
           <CalendarDays className="ico" />
-          <input type="date" aria-label={t('pb.d.date')} value={g.day} onChange={(e) => e.target.value && void actions.retime(g, e.target.value)} data-testid="ci-date" />
+          <input type="date" aria-label={t('pb.d.date')} disabled={g.posts.some(postDelivered)} value={g.day} onChange={(e) => e.target.value && void actions.retime(g, e.target.value)} data-testid="ci-date" />
         </label>
         <label className="pb-field narrow">
           <Clock className="ico" />
-          <input type="time" aria-label={t('pb.d.time')} value={g.time} onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && void actions.retime(g, g.day, e.target.value)} data-testid="ci-time" />
+          <input type="time" aria-label={t('pb.d.time')} disabled={g.posts.some(postDelivered)} value={g.time} onChange={(e) => /^\d{2}:\d{2}$/.test(e.target.value) && void actions.retime(g, g.day, e.target.value)} data-testid="ci-time" />
         </label>
         <a className="pb-link muted" href={href({ name: 'calendar' })} data-testid="ci-calendar">
           {t('ci.openCalendar')}
@@ -620,7 +623,7 @@ export function ClipScheduleView({ s, compact = false, files }: { s: ClipSchedul
               key={pf}
               className={`ci-chip ${on ? 'on' : ''}`}
               aria-pressed={on}
-              disabled={row?.state === 'posted'}
+              disabled={!!row && postDelivered(row)}
               onClick={() => void actions.togglePlatform(g, pf, !on, `${g.day}T${accounts.timeOf(pf)}`, platformName(pf))}
               data-testid="ci-pf"
               data-pf={pf}

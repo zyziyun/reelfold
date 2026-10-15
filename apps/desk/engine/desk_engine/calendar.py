@@ -27,8 +27,9 @@ from .common import need, read_json, write_json
 AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-STATES = ("planned", "ready", "filled", "posted")
-STATUS = dict(planned="draft", ready="ready", filled="filled", posted="posted")
+STATES = ("planned", "ready", "filled", "uploaded", "scheduled", "posted")
+DELIVERED = ("uploaded", "scheduled", "posted")
+STATUS = dict(planned="draft", ready="ready", filled="filled", uploaded="uploaded", scheduled="scheduled", posted="posted")
 PLATFORM_RE = re.compile(r"^[a-z][a-z-]{0,30}(:[a-z]{3,12})?$")
 ITEM_RE = re.compile(r"^[0-9a-f]{12}$")
 MAX_CAPTION = 40000
@@ -44,6 +45,32 @@ FALLBACK_LIMITS = {"xiaohongshu": 1000, "douyin": 1000, "tiktok": 4000, "youtube
                    "bilibili": 2000, "wechat-channels": 1000, "x": 280, "instagram": 2200, "facebook": 63206,
                    "linkedin": 3000, "threads": 500, "pinterest": 500, "kuaishou": 500, "weibo": 2000, "zhihu": 300,
                    "snapchat": 160, "dailymotion": 3000, "kwai": 500, "reddit": 40000}
+
+
+def api_result(value):
+    """Persist only the bounded platform receipt, never infer public from requested visibility."""
+    need(isinstance(value, dict), "api_result: platform response")
+    need(isinstance(value.get("url"), str) and URL_RE.match(value["url"]), "api_result.url: https://...")
+    need(value.get("privacy") in ("public", "private", "unlisted", "unknown"), "api_result.privacy")
+    when = value.get("publishAt")
+    need(when is None or (isinstance(when, str) and len(when) <= 64), "api_result.publishAt")
+    if when is not None:
+        try:
+            parsed = dt.datetime.fromisoformat(when.replace("Z", "+00:00"))
+            need(parsed.tzinfo is not None, "api_result.publishAt: timezone required")
+        except ValueError:
+            need(False, "api_result.publishAt: ISO timestamp")
+    need(isinstance(value.get("lockedPrivate"), bool), "api_result.lockedPrivate")
+    notes = value.get("warnings")
+    need(isinstance(notes, list) and len(notes) <= 50 and all(isinstance(x, str) and len(x) <= 4000 for x in notes),
+         "api_result.warnings")
+    return {k: value.get(k) for k in ("url", "privacy", "publishAt", "lockedPrivate", "warnings")}
+
+
+def api_state(result):
+    if result["privacy"] == "public":
+        return "posted"
+    return "scheduled" if result["privacy"] == "private" and result.get("publishAt") and not result["lockedPrivate"] else "uploaded"
 
 
 def _xlen(text):
@@ -196,7 +223,7 @@ class Calendar:
             n, lim = text_limit(r["platform"], text)
             pf = r["platform"].split(":")[0]
             warn = []
-            if r.get("enabled", True) is not False and r.get("state") != "posted":
+            if r.get("enabled", True) is not False and r.get("state") not in DELIVERED:
                 if not text.strip():
                     warn.append(dict(kind="no_caption", platform=pf))
                 elif lim and n > lim:
@@ -356,7 +383,7 @@ class Calendar:
         """Undo of remove_many: the same rows back (same ids, captions, states)."""
         need(isinstance(posts, list) and 0 < len(posts) <= MAX_IDS, f"posts: 1-{MAX_IDS} rows")
         keep = ("id", "item", "clip", "title", "cover", "platform", "at", "state", "caption", "enabled", "stats",
-                "platform_title", "url", "posted_at", "via", "account")
+                "platform_title", "url", "posted_at", "via", "account", "api_result", "video_path")
         clean = []
         for p in posts:
             need(isinstance(p, dict) and isinstance(p.get("id"), str) and ITEM_RE.match(p["id"]), "post id")
@@ -366,6 +393,8 @@ class Calendar:
             need(p.get("state", "planned") in STATES, "state")
             need(p.get("account") is None or (isinstance(p["account"], str) and
                  re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", p["account"])), "account: session label")
+            if "api_result" in p:
+                need(p.get("state") == api_state(api_result(p["api_result"])), "state must match the platform response")
             row = {k: p[k] for k in keep if k in p}
             if not p.get("caption_custom", True):
                 row.pop("caption", None)        # a decorated row: the clip's own copy is not her edit
@@ -389,8 +418,20 @@ class Calendar:
             if b.get("remove"):
                 rows = [r for r in rows if r["id"] != pid]
             else:
+                if row.get("state") in DELIVERED or row.get("api_result"):
+                    if row.get("api_result") or row.get("state") != "posted":
+                        need("state" not in b or b["state"] == row.get("state") or "api_result" in b or
+                             (b["state"] == "posted" and b.get("via") == "manual"),
+                             "An uploaded video requires a platform response or manual publication confirmation.")
+                    for field in ("at", "account", "video_path", "platform", "caption", "platform_title", "title", "enabled"):
+                        need(field not in b or b[field] == row.get(field),
+                             "This video is already uploaded. Change its schedule or details on the platform.")
+                if "api_result" in b:
+                    result = api_result(b["api_result"])
+                    need(b.get("state") == api_state(result), "state must match the platform response")
+                    row["api_result"] = result
                 if "account" in b:
-                    need(row.get("state") != "posted", "a published post cannot change its account")
+                    need(row.get("state") != "posted" or b["account"] == row.get("account"), "a published post cannot change its account")
                     account = b["account"]
                     need(account is None or (isinstance(account, str) and
                          re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", account)), "account: session label")
@@ -417,13 +458,18 @@ class Calendar:
                     need(isinstance(b["at"], str) and AT_RE.match(b["at"]), "at: YYYY-MM-DDTHH:MM")
                     row["at"] = b["at"]
                 if b.get("state") is not None:
-                    need(b["state"] in STATES, "state: planned | ready | filled | posted")
+                    need(b["state"] in STATES, "state: planned | ready | filled | uploaded | scheduled | posted")
+                    need(b["state"] not in ("uploaded", "scheduled") or row.get("api_result"), "state needs a platform response")
                     if b["state"] == "posted" and row.get("state") != "posted":
                         row["posted_at"] = dt.datetime.now().isoformat(timespec="seconds")
                     elif b["state"] != "posted":
                         for k in ("posted_at", "url", "via"):
                             row.pop(k, None)
                     row["state"] = b["state"]
+                    if "api_result" not in b and row.get("api_result") and b.get("via") == "manual":
+                        row.pop("api_result", None)
+                    if b["state"] == "scheduled" and row.get("api_result", {}).get("publishAt"):
+                        row["at"] = dt.datetime.fromisoformat(row["api_result"]["publishAt"].replace("Z", "+00:00")).astimezone().strftime("%Y-%m-%dT%H:%M")
                 if "url" in b:
                     u = b["url"]
                     need(u is None or (isinstance(u, str) and URL_RE.match(u)), "url: https://...")
@@ -434,6 +480,9 @@ class Calendar:
                 if b.get("via") is not None:
                     need(b["via"] in ("assisted", "api", "manual"), "via: assisted | api | manual")
                     row["via"] = b["via"]
+                if "api_result" in b:
+                    row["url"] = row["api_result"]["url"]
+                    row["via"] = "api"
                 for key in ("title", "platform_title"):
                     if key not in b:
                         continue

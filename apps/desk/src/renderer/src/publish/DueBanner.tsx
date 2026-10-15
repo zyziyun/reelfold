@@ -1,5 +1,6 @@
 // "2 posts are due": the scheduled posts whose time has come and that she still has to publish (also the ones that
 // came due while Reelfold was closed). Shown at the top of Publish and Home; each row opens "Time to post".
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import { useEffect, useState } from 'react';
 import { BellRing, ChevronRight } from 'lucide-react';
 import type { DueMsg } from '../../../shared/deskApi';
@@ -41,7 +42,7 @@ export function DueBanner() {
   if (!due || !posts) return null;
   const rows = due.ids
     .map((id) => posts.find((p) => p.id === id))
-    .filter((p): p is CalendarPost => !!p && p.state !== 'posted')
+    .filter((p): p is CalendarPost => !!p && !postDelivered(p))
     .sort((a, b) => a.at.localeCompare(b.at) || pfRank(a.platform) - pfRank(b.platform));
   if (!rows.length) return null;
   return (

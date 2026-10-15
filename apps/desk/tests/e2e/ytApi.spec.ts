@@ -206,7 +206,7 @@ test('Publishing accounts: each platform says its path; Google’s refusal page 
 });
 
 let item = '';
-test('a YouTube Short: the form, Schedule after Made for kids, uploaded through the API, posted with its link', async () => {
+test('a YouTube Short: the form, Schedule after Made for kids, uploaded through the API, scheduled with its link', async () => {
   await page.evaluate(() => window.desk.publish.hide());
   await expect.poll(async () => (await api<{ items: { id: string; dir: string }[] }>('/api/history')).items.find((i) => i.dir === work)?.id ?? '', { timeout: 30000 }).not.toBe('');
   item = (await api<{ items: { id: string; dir: string }[] }>('/api/history')).items.find((i) => i.dir === work)!.id;
@@ -235,7 +235,42 @@ test('a YouTube Short: the form, Schedule after Made for kids, uploaded through 
   expect(m.snippet.categoryId).toBe('27');
   expect(m.status).toMatchObject({ privacyStatus: 'private', selfDeclaredMadeForKids: false, publishAt: new Date(`${at(when)}:00`).toISOString() });
   const row = (await api<{ posts: Row[] }>('/api/calendar')).posts.find((x) => x.id === id)!;
-  expect(row).toMatchObject({ state: 'posted', via: 'api', url: 'https://youtu.be/e2eVid' });
+  expect(row).toMatchObject({ state: 'scheduled', via: 'api', url: 'https://youtu.be/e2eVid' });
+  expect(row).not.toHaveProperty('posted_at');
+  await expect(page.getByTestId('post-posted')).toContainText('Scheduled on platform');
+  await page.reload(); // Renderer state is gone: the receipt must come from the calendar.
+  await expect(page.getByTestId('ytp-done')).toContainText('Scheduled', { timeout: 15000 });
+  await expect(page.getByTestId('ytp-form')).toHaveCount(0);
+  expect((await rec()).puts).toBe(1);
+  await page.screenshot({ path: path.join(SHOTS, 'yt-scheduled.png') });
+  await hash('#/publish');
+  const card = page.getByTestId('pub-post').filter({ has: page.getByTestId('pb-status').filter({ hasText: 'Scheduled on platform' }) }).first();
+  await expect(card).toHaveAttribute('draggable', 'false');
+  await card.locator('.pc-top').click();
+  await expect(page.getByTestId('pb-date')).toBeDisabled();
+  await expect(page.getByTestId('pb-time')).toBeDisabled();
+  await expect(page.getByTestId('pb-publish-now')).toHaveCount(0);
+  await page.getByTestId('pb-done').click();
+});
+
+test('a private upload remains uploaded, not posted, after reopening the page', async () => {
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 86400_000)) }] });
+  const id = r.ids[0];
+  await hash(`#/publish/post/${id}?now=1`);
+  await expect(page.getByTestId('ytp-form')).toBeVisible();
+  await page.getByTestId('ytp-privacy').selectOption('private');
+  await page.getByTestId('ytp-kids-no').check();
+  await page.getByTestId('ytp-publish').click();
+  await expect(page.getByTestId('ytp-done')).toHaveAttribute('data-privacy', 'private');
+  await expect(page.getByTestId('post-posted')).toContainText('Uploaded · not public');
+  const row = (await api<{ posts: Row[] }>('/api/calendar')).posts.find((x) => x.id === id)!;
+  expect(row.state).toBe('uploaded');
+  expect(row).not.toHaveProperty('posted_at');
+  await page.reload();
+  await expect(page.getByTestId('post-posted')).toContainText('Uploaded · not public');
+  await expect(page.getByTestId('ytp-done')).toHaveAttribute('data-privacy', 'private');
+  await expect(page.getByTestId('ytp-form')).toHaveCount(0);
+  await page.screenshot({ path: path.join(SHOTS, 'yt-private.png') });
 });
 
 test('Upload in your browser: the page in her browser, the file shown, the copy handed over, posted by link', async () => {

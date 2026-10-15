@@ -10,7 +10,7 @@ import { ArrowLeft, Check, CheckCircle2, Copy, ExternalLink, FolderOpen, Loader2
 import type { FillStepMsg, PostFillMsg, PublishStateMsg } from '../../../shared/deskApi';
 import { withFillStep } from '../../../shared/publish/fillPlan';
 import { adapterFor } from '../../../shared/publish/adapterSchema';
-import { apiOnly, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
+import { apiOnly, apiDeliveryState, postDelivered, publishPath, type YtPublishResult } from '../../../shared/publish/apiPlatforms';
 import { CAPS } from '../../../shared/edition';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtAgo, fmtDate, getLang, t } from '../i18n';
@@ -55,6 +55,7 @@ export function PostNow({ id }: { id: string }) {
   const [inBrowser, setInBrowser] = useState(false);
   /** sent through the API just now: what YouTube answered stays on the page */
   const [ytSent, setYtSent] = useState<YtPublishResult | null>(null);
+  const sent = ytSent ?? post?.api_result ?? null;
   const viaApi = !!adapter && apiOnly(adapter.id);
   const zh = getLang() === 'zh-CN';
 
@@ -66,7 +67,8 @@ export function PostNow({ id }: { id: string }) {
         if (st.postId === id) setSteps((x) => withFillStep(x, st));
       }),
       window.desk.on('publish:posted', (d) => {
-        const p = d as { postId: string; url: string | null };
+        const p = d as { postId: string; url: string | null; result?: YtPublishResult };
+        if (p.postId === id && p.result) setYtSent(p.result);
         if (p.postId === id) {
           setPhase({ k: 'posted', url: p.url });
           cal.reload();
@@ -82,7 +84,7 @@ export function PostNow({ id }: { id: string }) {
   }, [id]);
 
   useEffect(() => {
-    if (post?.state === 'posted' && phase.k !== 'posted') setPhase({ k: 'posted', url: post.url ?? null });
+    if (post && postDelivered(post) && phase.k !== 'posted') setPhase({ k: 'posted', url: post.url ?? null });
   }, [post, phase.k]);
 
   const fill = useCallback(async () => {
@@ -116,7 +118,7 @@ export function PostNow({ id }: { id: string }) {
 
   const [started, setStarted] = useState(false);
   useEffect(() => {
-    if (autoGo && !started && post && post.state !== 'posted' && adapter && account && adapter.status !== 'todo' && !viaApi) {
+    if (autoGo && !started && post && !postDelivered(post) && adapter && account && adapter.status !== 'todo' && !viaApi) {
       setStarted(true);
       void fill();
     }
@@ -196,9 +198,9 @@ export function PostNow({ id }: { id: string }) {
               {account && <span className="muted">· {account.name}</span>}
             </span>
             {adapter && <span className="muted small" data-testid="post-path" data-path={publishPath(adapter.id)}>{t(`pp.${publishPath(adapter.id)}`)}</span>}
-            <span className={`muted small ${late > 0 && post.state !== 'posted' ? 'pb-amber' : ''}`}>
-              {immediate && post.state !== 'posted' ? t('pb.d.publishNow') : fmtDate(due, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
-              {!immediate && late > 60_000 && post.state !== 'posted' ? ` · ${t('pl.due.ago', { when: fmtAgo(due.getTime() / 1000) })}` : ''}
+            <span className={`muted small ${late > 0 && !postDelivered(post) ? 'pb-amber' : ''}`}>
+              {immediate && !postDelivered(post) ? t('pb.d.publishNow') : fmtDate(due, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+              {!immediate && late > 60_000 && !postDelivered(post) ? ` · ${t('pl.due.ago', { when: fmtAgo(due.getTime() / 1000) })}` : ''}
             </span>
           </div>
         </div>
@@ -208,7 +210,8 @@ export function PostNow({ id }: { id: string }) {
           <div className="pl-card ok" data-testid="post-posted">
             <CheckCircle2 className="ico" />
             <div className="col" style={{ gap: 6 }}>
-              <b>{t('pl.post.posted')}</b>
+              <b>{sent ? t(`pb.st.${apiDeliveryState(sent)}`) : t('pl.post.posted')}</b>
+              {sent && <span className="muted small">{t('pl.post.remoteEdit')}</span>}
               {phase.url ? (
                 <button className="pb-link" onClick={() => void window.desk.openExternal(phase.url!)} data-testid="post-url">
                   {phase.url} <ExternalLink className="ico" />
@@ -369,8 +372,8 @@ export function PostNow({ id }: { id: string }) {
       </aside>
       <section className="pl-browser">
         {viaApi ? (
-          (phase.k !== 'posted' || ytSent) && account && CAPS.youtubeApi ? (
-            <YtPublishForm key={account.account} immediate={immediate} post={post} account={account.account} result={ytSent} onBusy={setApiBusy} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
+          (phase.k !== 'posted' || sent) && account && CAPS.youtubeApi ? (
+            <YtPublishForm key={account.account} immediate={immediate} post={post} account={account.account} result={sent} onBusy={setApiBusy} onPosted={(r) => (setYtSent(r), setPhase({ k: 'posted', url: r.url }), cal.reload())} />
           ) : null
         ) : (
           <BrowserPane open={browserOpen} hidden={inBrowser} state={bstate} hint={t('pl.post.slot')} onUploadInBrowser={() => void uploadInBrowser()} pf={platformName(pf)} />

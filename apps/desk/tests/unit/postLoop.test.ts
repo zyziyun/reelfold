@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { loadAdapters } from '../../src/main/publish/adapters';
+import { apiDeliveryState } from '../../src/shared/publish/apiPlatforms';
 import { ytMeta } from '../../src/main/publish/api/youtube';
 import { probeLogin } from '../../src/main/publish/loginProbe';
 import { PublishScheduler } from '../../src/main/publish/scheduler';
@@ -160,7 +161,7 @@ describe('scheduler', () => {
     await restarted.s.tick();
     await restarted.s.tick();
     expect(publish).toHaveBeenCalledTimes(1);
-    expect(markPosted).toHaveBeenCalledExactlyOnceWith({ ...p, account: 'brand' }, 'https://youtu.be/receipt', 'api');
+    expect(markPosted).toHaveBeenCalledExactlyOnceWith({ ...p, account: 'brand' }, 'https://youtu.be/receipt', 'api', undefined);
     expect(restarted.s.apiState('y1')).toMatchObject({ status: 'done', calendarSynced: true });
   });
 
@@ -286,6 +287,24 @@ describe('scheduler', () => {
     expect(notified).toEqual([['y1']]);
   });
 
+  it('repairs an older posted row from its private scheduled receipt without another upload', async () => {
+    const stateFile = path.join(tmp(), 's.json');
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube', account: 'main', state: 'posted' });
+    const result = { url: 'https://youtu.be/one', privacy: 'private', publishAt: '2026-10-08T03:00:00Z', lockedPrivate: false, warnings: [] };
+    fs.writeFileSync(stateFile, JSON.stringify({ api: { y1: { at: p.at, account: 'main', status: 'done', tries: 1, lastTry: 0, calendarSynced: true, result } } }));
+    const publish = vi.fn();
+    const markPosted = vi.fn(async () => { p.state = 'scheduled'; p.api_result = result; });
+    const { s } = mk([p], { t: new Date(2026, 9, 8, 12) }, { stateFile, api: { wants: () => false, publish }, markPosted });
+    await s.tick();
+    await s.tick();
+    expect(markPosted).toHaveBeenCalledExactlyOnceWith(p, result.url, 'api', result);
+    expect(publish).not.toHaveBeenCalled();
+    expect(p.state).toBe('scheduled');
+    p.state = 'posted'; p.via = 'manual'; delete p.api_result;
+    await s.tick();
+    expect(markPosted).toHaveBeenCalledTimes(1); // Explicit manual confirmation wins over the old upload snapshot.
+  });
+
   it('more than apiGraceMs late: no automatic upload, she decides', async () => {
     const clock = { t: new Date(2026, 9, 8, 18, 0) };
     const publish = vi.fn();
@@ -293,6 +312,21 @@ describe('scheduler', () => {
     await s.tick();
     expect(publish).not.toHaveBeenCalled();
     expect(notified).toEqual([['y3']]);
+  });
+});
+
+describe('confirmed API delivery states', () => {
+  const r = { url: 'https://youtu.be/one', privacy: 'private', publishAt: '2026-10-07T20:00:00Z', lockedPrivate: false, warnings: [] };
+  it('does not infer public visibility from an upload or the passage of its schedule time', () => {
+    expect(apiDeliveryState(r)).toBe('scheduled');
+    expect(apiDeliveryState({ ...r, privacy: 'public' })).toBe('posted');
+    expect(apiDeliveryState({ ...r, privacy: 'unlisted' })).toBe('uploaded');
+    expect(apiDeliveryState({ ...r, privacy: 'unknown' })).toBe('uploaded');
+    expect(apiDeliveryState({ ...r, lockedPrivate: true })).toBe('uploaded');
+    expect(apiDeliveryState({ ...r, publishAt: null })).toBe('uploaded');
+    const posts = ['uploaded', 'scheduled', 'posted'].map((state) => post(state, '2026-10-07T20:00', { state: state as CalendarPost['state'] }));
+    expect(duePosts(posts, new Date(2026, 9, 8))).toEqual([]);
+    expect(upcomingPosts(posts, new Date(2026, 9, 7, 19, 30), 3600_000)).toEqual([]);
   });
 });
 

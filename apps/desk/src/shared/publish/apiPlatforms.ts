@@ -174,3 +174,14 @@ export function shortsFit(f: { w?: number | null; h?: number | null; duration?: 
   if (f.duration > YOUTUBE_FORMATS[1].maxSeconds) return { ok: false, why: 'too-long' };
   return { ok: true };
 }
+
+/** Last confirmed platform response; time passing alone is not proof of publication. */
+export function apiDeliveryState(r: YtPublishResult): 'uploaded' | 'scheduled' | 'posted' {
+  if (r.privacy === 'public') return 'posted';
+  return r.privacy === 'private' && r.publishAt && !r.lockedPrivate ? 'scheduled' : 'uploaded';
+}
+
+/** Already on a platform, so a local edit cannot change its remote schedule/file/account. */
+export function postDelivered(p: { state: string }): boolean {
+  return ['uploaded', 'scheduled', 'posted'].includes(p.state);
+}

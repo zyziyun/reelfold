@@ -1,3 +1,4 @@
+import { postDelivered } from '../../../shared/publish/apiPlatforms';
 import type { ChannelMsg } from '../../../shared/channels';
 import { postAccount } from '../../../shared/publish/account';
 import type { CalendarPost } from '../../../shared/v04';
@@ -13,7 +14,7 @@ export function PostAccount({ post, channels, disabled, onChange }: {
   return (
     <label className="col small" style={{ gap: 6, marginBlock: 12 }}>
       {t('pl.account.label')}
-      <select className="input" value={missing ? post.account! : value ?? ''} disabled={disabled || post.state === 'posted'}
+      <select className="input" value={missing ? post.account! : value ?? ''} disabled={disabled || postDelivered(post)}
         onChange={(e) => onChange(e.target.value || null)} data-testid="post-account">
         <option value="" disabled>{t(channels.length ? 'pl.account.choose' : 'pl.account.none')}</option>
         {missing && <option value={post.account!} disabled>{t('pl.account.missing', { account: post.account! })}</option>}

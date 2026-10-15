@@ -44,6 +44,9 @@ describe('publish board model', () => {
     expect(groupStatus([P({ state: 'ready' }), P({ state: 'planned' })])).toBe('draft');
     expect(groupStatus([P({ state: 'planned', enabled: false }), P({ state: 'ready' })])).toBe('ready');
     expect(groupStatus([P({ status: 'filled' })])).toBe('filled');
+    expect(groupStatus([P({ state: 'scheduled' }), P({ state: 'posted' })])).toBe('scheduled');
+    expect(groupStatus([P({ state: 'uploaded' }), P({ state: 'scheduled' })])).toBe('uploaded');
+    expect(groupStatus([P({ state: 'ready' }), P({ state: 'scheduled' })])).toBe('ready');
   });
 
   it('queue grouped by project in order', () => {

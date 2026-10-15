@@ -5,7 +5,7 @@ import type { CalendarPost, PostWarning, QueueClip } from '../../../shared/v04';
 import { xWeightedLength } from '../../../shared/publish/postCopy';
 import { PLATFORM_IDS } from '../../../shared/platforms';
 
-export type GroupStatus = 'draft' | 'ready' | 'filled' | 'posted';
+export type GroupStatus = 'draft' | 'ready' | 'filled' | 'uploaded' | 'scheduled' | 'posted';
 
 export interface PostGroup {
   key: string;
@@ -68,7 +68,7 @@ export function postStatus(p: CalendarPost): GroupStatus {
   return p.state === 'planned' ? 'draft' : (p.state as GroupStatus);
 }
 
-const RANK: Record<GroupStatus, number> = { draft: 0, ready: 1, filled: 2, posted: 3 };
+const RANK: Record<GroupStatus, number> = { draft: 0, ready: 1, filled: 2, uploaded: 3, scheduled: 4, posted: 5 };
 
 /** One calm status for a card: all posted -> posted; one filled form waiting -> "press publish"; all ready -> ready. */
 export function groupStatus(posts: CalendarPost[]): GroupStatus {
@@ -77,7 +77,7 @@ export function groupStatus(posts: CalendarPost[]): GroupStatus {
   const st = on.map(postStatus);
   if (st.every((s) => s === 'posted')) return 'posted';
   if (st.some((s) => s === 'filled')) return 'filled';
-  return st.reduce((a, b) => (RANK[b] < RANK[a] ? b : a), 'posted' as GroupStatus) === 'draft' ? 'draft' : 'ready';
+  return st.reduce((a, b) => (RANK[b] < RANK[a] ? b : a), 'posted' as GroupStatus);
 }
 
 export function groupPosts(posts: CalendarPost[], platformOrder: string[] = []): PostGroup[] {

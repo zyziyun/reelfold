@@ -44,8 +44,13 @@ empty history. A manual request cannot start another upload while the scheduler 
 requests reuse the saved provider result, including after restart. Changing the local time or account of an
 already uploaded post cannot insert another remote video; make changes on the platform or create a separate
 post. A failed manual upload is not retried by the automatic scheduler with different visibility or audience
-defaults; the creator retries from the form. Remote scheduled/private/public status reconciliation still needs
-the same audit.
+defaults; the creator retries from the form. The calendar stores the platform response and distinguishes uploaded (private, unlisted, or visibility not
+confirmed), scheduled on the platform, and publicly posted. A requested visibility or a passed schedule time
+is not confirmation of public visibility. Receipt cards survive reopening the page. The existing receipt journal
+can repair earlier rows incorrectly marked posted when it contains a private or scheduled result; older history
+without a provider receipt cannot establish remote visibility. Delivered rows cannot change their time, video,
+account or copy locally: open their platform link to edit them. Periodic remote status refresh remains separate
+work; these labels describe the last confirmed response.
 
 ## Length per platform
 
