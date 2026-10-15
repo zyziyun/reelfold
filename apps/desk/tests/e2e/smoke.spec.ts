@@ -46,6 +46,7 @@ test('the app is Reelfold: name, About panel, menu', async () => {
   expect(id.name).toBe('Reelfold');
   expect(id.labels).toContain('About Reelfold');
   expect(id.labels).toContain('Reelfold on GitHub');
+  expect(id.labels).toContain('Privacy Policy');
   expect([...id.top, ...id.labels].join('|')).not.toMatch(/Electron|video-studio/);
 });
 

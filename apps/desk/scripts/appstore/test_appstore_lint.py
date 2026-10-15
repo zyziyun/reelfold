@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -199,6 +200,22 @@ class MachOTest(unittest.TestCase):
         self.assertEqual(L.check_quarantine(self.d, log=lambda m: None), [])
         subprocess.run(["xattr", "-w", "com.apple.quarantine", "0081;00000000;test;", f], check=True)
         self.assertEqual([p for p, _ in L.check_quarantine(self.d, log=lambda m: None)], [f])
+
+
+class ScanFailureTest(unittest.TestCase):
+    def test_symbol_tool_failure_cannot_report_clean(self):
+        with mock.patch.object(L, 'walk_files', return_value=['broken']), mock.patch.object(L, 'is_macho', return_value=True), mock.patch.object(L.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'unreadable')):
+            self.assertIn('nm failed', str(L.check_symbols('root', DENY, lambda m: None)))
+
+    def test_failed_architecture_enumeration_is_an_error(self):
+        with mock.patch.object(L.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'bad slice')):
+            with self.assertRaisesRegex(ValueError, 'cannot enumerate architectures'):
+                L.archs('broken')
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS xattrs')
+    def test_failed_quarantine_scan_is_an_error(self):
+        with mock.patch.object(L.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'denied')):
+            self.assertIn('quarantine scan failed', str(L.check_quarantine('root', lambda m: None)))
 
 
 class BundleTest(unittest.TestCase):

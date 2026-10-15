@@ -139,7 +139,7 @@ on October 15, 2026. Automated lint covers observable bundle facts, not an appro
 - **2.1/2.3:** review notes must describe the new build's actual functionality, first-run downloads,
   hardware/OS requirements and a working path without an AI key. Check all listing/support URLs,
   screenshots and age/privacy answers against this exact candidate. Do not copy old claims blindly.
-- **5.1.1/5.1.2(i):** verify the in-app privacy-policy link and App Store Connect Privacy Policy URL,
+- **5.1.1/5.1.2(i):** Help → Privacy Policy opens the policy in the system browser. Verify this link and the App Store Connect Privacy Policy URL,
   and explicit permission before personal data is shared with third-party AI. A configured API key or
   a general privacy paragraph alone is not evidence of explicit sharing consent. Audit text, contact
   sheets/images, cloud ASR audio, provider fallback and custom endpoints, plus the privacy label.
