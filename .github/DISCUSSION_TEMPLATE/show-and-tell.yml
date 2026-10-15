@@ -1,0 +1,32 @@
+title: "[Workflow] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a real workflow: what you started with, what you made, and what you changed.
+        English and Chinese are welcome. Only share media you have permission to publish.
+        Remove API keys, private paths, account details and other people's personal information.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What did you want to make?
+      placeholder: "A week of Shorts from one lesson, with readable slides."
+    validations:
+      required: true
+  - type: textarea
+    id: process
+    attributes:
+      label: What worked, and what did you change?
+      description: Describe the source material, your prompt or manual edits, and the result. Mention any steps in other tools.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result or example (optional)
+      description: A public video link or a screenshot helps. Source footage and raw project files are not required.
+  - type: input
+    id: setup
+    attributes:
+      label: App version, system and AI setup (optional)
+      placeholder: "macOS, Apple Silicon, Reelfold version, local model or provider name (no keys)"

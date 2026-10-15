@@ -1,0 +1,26 @@
+title: "[Help] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask in English or Chinese. See [Getting started](https://reelfold.com/docs/start/what-is-reelfold/)
+        and [Troubleshooting](https://reelfold.com/docs/help/troubleshooting/) for common questions.
+        For reproducible failures, use a [bug report](https://github.com/zyziyun/reelfold/issues/new?template=bug_report.yml).
+        Never share credentials, private footage or unredacted logs.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried, and where are you stuck?
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: App version, system and AI setup
+      description: Provider or local model name only; no keys or account details.
