@@ -76,3 +76,6 @@
 .vsw-post p { margin: 0; color: var(--text-muted); line-height: 1.45; }
 /* the player's badge (another language's version playing) stays over its cover */
 .pl .pposter ~ .pbadge { z-index: 2; }
+
+.ci-render-wrap { display: inline-flex; flex-direction: column; gap: 5px; max-width: 300px; min-width: 0; }
+.ci-render-wrap small { white-space: normal; overflow-wrap: anywhere; }

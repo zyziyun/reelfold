@@ -465,9 +465,16 @@ function ProjectCopyRewrite({ item, clip, onDone }: { item: string; clip: string
 
 // ---------------------------------------------------------------- the background render
 export function RenderPill({ s, onRetry }: { s: RenderState; onRetry?: () => void }) {
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    if (s.phase !== 'running') return;
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [s.phase]);
   if (s.phase === 'idle') return null;
+  const stage = s.stage ? t(`ci.render.${['splice','canvas','timeline','audio','final','frames','cover'].includes(s.stage) ? s.stage : 'prepare'}` as MessageKey) : t('ci.render.prepare');
   return (
-    <span className={`ci-render ${s.phase}`} data-testid="ci-render" data-phase={s.phase}>
+    <span className="ci-render-wrap"><span className={`ci-render ${s.phase}`} data-testid="ci-render" data-phase={s.phase}>
       {s.phase === 'done' ? <Check className="ico" /> : s.phase === 'failed' ? <AlertTriangle className="ico" /> : <Loader2 className="ico spin" />}
       {s.phase === 'waiting' && t('ci.r.waiting')}
       {s.phase === 'running' && t('ci.r.running', { p: Math.round(s.progress * 100) })}
@@ -480,6 +487,9 @@ export function RenderPill({ s, onRetry }: { s: RenderState; onRetry?: () => voi
         </button>
       )}
       {s.phase === 'running' && <i className="ci-bar" style={{ width: `${Math.round(s.progress * 100)}%` }} />}
+    </span>
+    {s.phase === 'running' && <small className="muted" data-testid="ci-render-detail">{stage} · {t('ci.render.version', {n:s.targetIndex ?? 1, total:s.targets ?? 1})} · {Math.max(0, Math.floor((clock - (s.started ?? clock)) / 1000))}s</small>}
+    {s.phase === 'failed' && s.error && <small className="muted">{s.error}</small>}
     </span>
   );
 }

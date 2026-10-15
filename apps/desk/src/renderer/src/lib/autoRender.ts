@@ -11,6 +11,11 @@ export interface RenderState {
   /** 0..1 over every target of the render */
   progress: number;
   error?: string;
+  stage?: string;
+  target?: string;
+  targetIndex?: number;
+  targets?: number;
+  started?: number;
 }
 
 /** The clip's edit as it stands (every step, undone or not): when it changes, the clip is rendered again. */
@@ -46,6 +51,7 @@ export interface RenderEvent {
   target?: string;
   stage?: string;
   progress?: number;
+  stage_progress?: number;
   error?: string;
 }
 
@@ -102,7 +108,7 @@ export class RenderQueue {
     this.again = false;
     this.done = new Set();
     this.cur = 0;
-    this.set({ phase: 'running', progress: 0.02 });
+    this.set({ phase: 'running', progress: 0.02, started: Date.now() });
     try {
       const r = await this.o.start();
       if (!r) return this.set({ phase: 'idle', progress: 0 });
@@ -118,13 +124,14 @@ export class RenderQueue {
   event(e: RenderEvent) {
     if (!this.job || e.job !== this.job) return;
     if (e.event === 'target-start') this.cur = 0.03;
-    else if (e.event === 'stage-done') this.cur = e.progress ?? (STAGES.indexOf(e.stage ?? '') + 1) / STAGES.length;
+    else if (e.event === 'stage-progress' && typeof e.stage_progress === 'number') this.cur = Math.max(this.cur, 0.75 + Math.min(1, Math.max(0, e.stage_progress)) * 0.24);
+    else if (e.event === 'stage-done') this.cur = Math.max(this.cur, e.progress ?? (STAGES.indexOf(e.stage === 'frames' ? 'final' : e.stage ?? '') + 1) / STAGES.length);
     else if (e.event === 'target-done' && e.target) {
       this.done.add(e.target);
       this.cur = 0;
     }
     const end = e.event === 'render-done' || e.event === 'failed' || e.event === 'stopped';
-    if (!end) return this.set({ phase: 'running', progress: Math.min(0.99, (this.done.size + this.cur) / this.n) });
+    if (!end) return this.set({ phase: 'running', progress: Math.min(0.99, (this.done.size + this.cur) / this.n), stage: e.stage ?? (e.event === 'target-start' ? undefined : this.state.stage), target: e.target ?? this.state.target, targetIndex: Math.min(this.n, this.done.size + 1), targets: this.n, started: this.state.started });
     this.job = null;
     if (this.again) {
       this.again = false;

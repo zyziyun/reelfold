@@ -97,3 +97,17 @@ describe('unrendered', () => {
     expect(unrendered({ exports: [], renders: [r('2026-10-13T12:04:19')], steps: [st('s4', '2026-10-13T12:53:33', true)] })).toBe(false);
   });
 });
+
+it('reports the active stage, version number and real frame progress without moving backward', async () => {
+ const h = harness(); h.q.request(); await h.fire();
+ h.q.event({job:'j1', event:'target-start', target:'primary'});
+ h.q.event({job:'j1', event:'stage-start', target:'primary', stage:'audio'});
+ expect(h.last()).toMatchObject({stage:'audio', target:'primary', targetIndex:1, targets:2});
+ h.q.event({job:'j1', event:'stage-progress', target:'primary', stage:'frames', stage_progress:0.5});
+ expect(h.last().progress).toBeCloseTo(0.435);
+ h.q.event({job:'j1', event:'stage-done', target:'primary', stage:'cover'});
+ expect(h.last().progress).toBeCloseTo(0.435);
+ h.q.event({job:'j1', event:'target-done', target:'primary'});
+ h.q.event({job:'j1', event:'target-start', target:'xiaohongshu:vertical'});
+ expect(h.last()).toMatchObject({targetIndex:2, targets:2});
+});

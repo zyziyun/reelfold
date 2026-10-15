@@ -579,7 +579,10 @@ class Status:
         self.prev = LS._read_raw(rec["owner"])
         self.label = rec["id"]
 
-    def beat(self, stage, progress=None, message=None):
+    def beat(self, stage, progress=None, message=None, stage_progress=None):
+        if getattr(self, "on_event", None):
+            self.on_event(dict(event="stage-progress" if progress is not None else "stage-start", stage=stage,
+                               **({"stage_progress": stage_progress if stage_progress is not None else progress} if progress is not None else {})))
         for d in self.dirs:
             self.LS.write(d, "running", stage=f"output-edit:{stage}", progress=progress,
                           message=message or self.label, by="output-edit")
@@ -1284,6 +1287,7 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
     ok = False
     try:
         for n_t, tg in enumerate(tgs):
+            status.on_event = lambda ev, target=tg["target"]: emit(dict(ev, target=target))
             emit(dict(event="target-start", target=tg["target"], quality=quality))
             p = plan(rec, doc, st, tg, quality, watermark=watermark)
             stages, warns = [], []
@@ -1325,7 +1329,7 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
                         run_remux(rec["file"], o, w)
                     elif p["final"]["op"] == "frames":
                         frame_pass(s, o, w, p["final"]["visual"], tg, fps, quality, p["final"]["encode"],
-                                   lambda prog: status.beat("frames", progress=round((n_t + prog) / len(tgs), 3)))
+                                   lambda prog: status.beat("frames", progress=round((n_t + prog) / len(tgs), 3), stage_progress=round(prog, 3)))
                     else:
                         run_encode(s, o, w, quality, p["final"]["encode"], tg, wm=p["final"]["visual"].get("watermark"))
                     return o

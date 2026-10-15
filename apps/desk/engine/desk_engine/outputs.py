@@ -1425,7 +1425,7 @@ class Outputs:
             if self.bus:
                 self.bus.publish("output-render", item=item_id, clip=clip_id, job=job,
                                  **{k: v for k, v in ev.items() if k in ("event", "target", "stage", "progress", "file",
-                                                                       "duration", "cached", "error", "simulated")})
+                                                                       "duration", "cached", "error", "simulated", "stage_progress")})
         lk = self._render_lock(item_id, clip_id)
         lk.acquire()                                       # one render of a clip at a time: a background render and
         try:                                               # her Export queue up instead of writing the same stages

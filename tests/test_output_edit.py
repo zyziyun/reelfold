@@ -658,7 +658,10 @@ def test_cover_aspect_changes_cover_only(tmp_path):
     O.edit(str(w), oid, [dict(op="cover", t=0, text="Landscape", aspect="3:4")])
     state = O.show(str(w), oid)["state"]
     assert state["exports"] == [] and state["cover"]["aspect"] == "3:4"
-    r = R.render(str(w), oid, quality="preview", targets=["primary"])
+    events = []
+    r = R.render(str(w), oid, quality="preview", targets=["primary"], on_event=events.append)
+    assert any(e.get("event") == "stage-start" and e.get("stage") == "final" for e in events)
+    assert any(e.get("event") == "stage-start" and e.get("stage") == "cover" for e in events)
     assert len(r["targets"]) == 1
     target = r["targets"][0]
     assert target["canvas"][0] / target["canvas"][1] == pytest.approx(16 / 9)
