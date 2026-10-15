@@ -83,9 +83,11 @@ const dur = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-show
 
 test('dropped finished videos -> Import to edit -> the editor opens on the clip, on its words', async () => {
   test.setTimeout(300000);
-  // what she dropped on Home (the composer keeps its files in the session draft)
-  await page.evaluate((files) => sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: '', files })), [fx.out, fx.raw]);
-  await page.evaluate(() => (location.hash = '#/home'));
+  // Seed the dropped files before React mounts. Navigating an already-mounted empty composer can overwrite them.
+  await page.addInitScript((files) => {
+    sessionStorage.setItem('v4.composer', JSON.stringify({ prompt: '', files }));
+    location.hash = '#/home';
+  }, [fx.out, fx.raw]);
   await page.reload();
   const hint = page.getByTestId('composer-import-hint');
   await expect(hint).toBeVisible({ timeout: 60000 });
