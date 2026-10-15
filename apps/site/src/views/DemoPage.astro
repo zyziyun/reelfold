@@ -1,0 +1,23 @@
+---
+import Base from '../layouts/Base.astro';
+import PromoVideo from '../components/home/PromoVideo.astro';
+import Ctas from '../components/Ctas.astro';
+import { promo } from '../lib/promo';
+import { breadcrumbs, videoObject } from '../lib/schema';
+import { DOCS_PATH } from '../config';
+import type { Lang } from '../i18n';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const film = promo(lang);
+---
+<Base {lang} page="demo" title={film.title} description={film.description} jsonld={[breadcrumbs(lang, [[film.link, 'demo']]), ...(film.available ? [videoObject(lang)] : [])]}>
+  <section class="wrap demo-intro"><p class="kick">Reelfold · {film.language}</p><h1>{film.heading}</h1><p class="lede">{film.description}</p></section>
+  <PromoVideo {lang} watchPage />
+  <section class="wrap demo-guide"><h2>{film.guide}</h2><ol>{film.steps.map(step => <li>{step}</li>)}</ol><p><a href={`${DOCS_PATH[lang]}guides/several-videos/`}>{film.next} →</a></p><Ctas {lang} /></section>
+</Base>
+<style>
+  .demo-intro { padding-top: clamp(3rem, 5vw, 5rem); padding-bottom: 0; }
+  h1 { max-width: 30ch; font-size: clamp(2.5rem, 5vw, 4.8rem); }
+  .demo-guide { padding-block: 3rem 5rem; }
+  ol { padding-left: 1.3rem; line-height: 1.8; margin-block: 1.5rem; }
+</style>

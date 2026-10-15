@@ -75,3 +75,18 @@ says so. Per-language SRT / VTT tracks are written for YouTube / B站 uploads.
 `--mask sticker|blur` hides the tracked face (call-clips' cat sticker) in the picture (`all`), the camera
 tile (`camera`) or the screen (`screen`); `report.json` warns when a face was found on under half of a
 part's frames. Look at the frames before publishing. Pinyin / IPA lines are not drawn (gap).
+
+## Screen and slide evidence
+
+The shared clip renderer samples the selected source ranges locally. When the source looks like slides or
+screen content, preserve the complete source picture: body title/term/role cards must not cover code, diagrams,
+controls or the embedded speaker. The opening title remains; deferred overlays and the source geometry are
+recorded in the render report, and key terms remain available in study notes. A separate camera is docked outside
+the source. Burned captions get a separate rail, including on YouTube until the app supports caption-file upload;
+SRT/VTT remain available. Monolingual mode does not draw the other language's glosses in cards.
+
+Intake prefers the source orientation for detected screen lessons where the target offers it; an explicitly
+requested aspect remains an explicit recomposition task. Review text at the actual output size, especially
+portrait requests: keeping every source pixel does not by itself prove that small code is readable on a phone.
+Local visual classification is a heuristic, recorded as such, not OCR or a semantic proof that a slide is correct.
+Do not treat a green media check as proof that technical names in ASR or an explanation's boundaries are correct.

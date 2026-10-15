@@ -38,22 +38,32 @@ Every command that reports something accepts `--json` for one machine-readable d
 Say what you want and point at files: inventory, plan, revise, apply.
 
 ```text
-usage: python -m vstudio.intake [-h] {analyze,plan,revise,apply,schema} ...
+usage: python -m vstudio.intake [-h]
+                                {analyze,plan,revise,apply,goal,goal-edit,goal-more,schema} ...
 
-python -m vstudio.intake analyze | plan | revise | apply | schema (every command: --json -> one
-document). plan / revise --json-events: one JSON event per line on stdout while it works (logs ->
-stderr), the progress the desk's plan card shows: {event: stage | progress, stage: scan | probe |
-listen | faces | transcribe | model | write, ...} (``inventory`` / ``plan.make_plan`` list the
-fields), then {event: done, plan} - or {event: error, error} and a non-zero exit.
+python -m vstudio.intake analyze | plan | revise | apply | goal | goal-edit | goal-more | schema
+(every command: --json -> one document). goal: one goal-style request ("make as many videos as you
+can from this card") -> a survey of the footage (stories by time + place + light) and a plan of
+several videos, each with the request its own ``plan`` starts from (goal.py). goal-edit: her edits
+on that plan card (drop / rename / kind / length / merge / platforms). goal-more: more videos for
+a group already made - new plan cards cut from the clips no video of it plays yet. plan / revise
+--json-events: one JSON event per line on stdout while it works (logs -> stderr), the progress the
+desk's plan card shows: {event: stage | progress, stage: scan | probe | listen | faces |
+transcribe | model | write, ...} (``inventory`` / ``plan.make_plan`` list the fields), then
+{event: done, plan} - or {event: error, error} and a non-zero exit.
 
 positional arguments:
-  {analyze,plan,revise,apply,schema}
+  {analyze,plan,revise,apply,goal,goal-edit,goal-more,schema}
     analyze             inventory files / folders (video, audio, images, pdf / docx / pptx / md /
                         srt)
     plan                natural-language request + materials -> plan JSON
     revise              update a plan from a follow-up instruction
     apply               create the project(s) from a plan (a series when mixed); pilot run
                         optional
+    goal                a goal-style request (several videos from a folder / card) -> survey + a
+                        plan of videos
+    goal-edit           apply plan-card edits to a goal JSON (rebuilds each video's request)
+    goal-more           more videos for a made group: new plan cards from the clips no video plays
     schema              the plan JSON Schema
 
 options:
@@ -66,13 +76,13 @@ Every workflow as a recipe; projects, runs, checkpoints, inbox, outputs, calenda
 
 ```text
 usage: python -m vstudio.project [-h]
-                                 {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,reopen,checkpoint,remake,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
+                                 {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,model,reopen,checkpoint,remake,set,export,list,import,import-copy,import-match,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
                                  ...
 
 python -m vstudio.project - every workflow as a recipe; projects of N items (N=1 = one video). See
 
 positional arguments:
-  {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,reopen,checkpoint,remake,set,export,list,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
+  {recipes,new,plan-items,show,status,preview,context,refresh,run,resume,decisions,autopilot,model,reopen,checkpoint,remake,set,export,list,import,import-copy,import-match,adopt,touch,output,ai,series,inbox,calendar,share,feedback}
     recipes             list recipe manifests
     new                 create a project
     plan-items          planner recipes: draft the items (segments of a recording)
@@ -85,6 +95,7 @@ positional arguments:
     resume              run until done or a checkpoint
     decisions           autopilot: the decisions in force (+ --history: every one, with blockers)
     autopilot           autopilot on / off for a project (no run; the next run follows it)
+    model               the project's AI: show / switch it (every AI step from the next one on)
     reopen              autopilot: take one decision back - the checkpoint waits for you on the
                         next run
     checkpoint          pending checkpoints / answer one
@@ -93,6 +104,9 @@ positional arguments:
     set                 edit params
     export              collect final files
     list                registered projects (+ adopted work folders, series)
+    import              finished videos (+ footage) -> a work folder for second-pass editing
+    import-copy         an imported clip's post copy written again for every platform
+    import-match        match an imported clip's shots to its footage
     adopt               an existing folder made with the skill -> work record + registry
     touch               register a job folder + report its live status (desk 进行中 lane)
     output              second-pass edit of a finished output (references/OUTPUT_EDIT.md)
@@ -122,6 +136,9 @@ references/PROJECTS.md.
                                                       judge + rules and recorded; only blockers wait (autopilot.py)
   autopilot --dir P [--on | --off] [--spend-cap N] [--judge | --no-judge] [--lang L]   switch it (no run)
   decisions --dir P [--history] [--json]              autopilot: what it decided, by whom, why
+  model --dir P [--provider X [--model M] | --clear] [--by you|chat|group] [--json]   the project's AI (project.yaml
+                                                      ``ai``): every AI step uses it, a running one from its next
+                                                      AI step; a switch goes into the decisions log
   reopen --dir P --id X [--item I]                    autopilot: take a decision back (the next run asks you)
   checkpoint --dir P [--id X] [--item I | --items a,b] [--answer JSON | --answer-file F | --default] [--run]
                                                       list pending payloads / record an answer
@@ -136,12 +153,20 @@ references/PROJECTS.md.
                                                       folders (kind work) + series
   adopt DIR [--recipe guess|NAME] [--title T] [--client C]   a plain folder made with the skill (final/, REPORT.md,
                                                       post.md, ...) -> DIR/.vstudio/work.json + registry (works.py)
+  import PATH... [--sources DIR]... [--title T] [--dest D] [--check] [--match] [--json | --json-events]
+                                                      finished videos made anywhere (+ their footage) -> a work
+                                                      folder for second-pass editing (imports.py); --check: only
+                                                      say what is finished / footage; --match: shot-match the
+                                                      footage right away; import-copy --dir D --clip C rewrites a
+                                                      clip's post copy; import-match --dir D [--clip C] [--all]
   touch DIR [--status running|waiting|done|failed] [--stage S] [--progress 0..1] [--message M] [--eta S]
       [--needs-you] [--recipe R] [--title T] [--outputs a,b]   register a job folder + its live status (heartbeat);
                                                       a recipe project folder gets only its status (row untouched)
-  output list | show | edit | preview-edl | render | undo | redo | revert | ai | chat | effects  --project P --output O   2nd-pass edit of
+  output list | show | edit | preview-edl | render | undo | redo | revert | ai | chat | effects | kit  --project P --output O   2nd-pass edit of
       one finished output (references/OUTPUT_EDIT.md): edit --ops JSON | --op NAME --param k=v | --op ai
       --instruction T [--apply]; render [--quality preview|final] [--targets primary,douyin:vertical|all] [--watermark on|off]
+      a launch-kit film: ai answers look / pacing / feature requests with kit.patch (no ops); kit --set PATCH writes it
+      into launch.config.yaml (then resume re-renders through the kit)
   ai --project P --instruction T [--outputs all|a,b] [--context JSON] [--timeout 120] [--json | --json-events]
                                                       project-level AI edit: one model call for every output ->
                                                       grouped changes per output, or needs_rerender (burned-in text
@@ -257,8 +282,9 @@ One clean master into a file, cover and post stub per platform.
 
 ```text
 usage: python -m vstudio.export [-h] [--platforms PLATFORMS] [--out OUT] [--cues CUES]
-                                [--cover COVER] [--no-captions] [--title TITLE] [--post POST]
-                                [--lang LANG] [--bilingual] [--account ACCOUNT]
+                                [--captions {both,burn,sidecar}] [--cover COVER]
+                                [--cover-ab COVER_AB] [--no-captions] [--title TITLE]
+                                [--post POST] [--lang LANG] [--bilingual] [--account ACCOUNT]
                                 [--mode {face,subject,center,pad-blur,letterbox,follow,blur}]
                                 [--shots SHOTS] [--fallback {subject,center,pad-blur,letterbox}]
                                 [--start START] [--dur DUR] [--encoder ENCODER] [--preset PRESET]
@@ -289,10 +315,19 @@ options:
                         zhihu:vertical, dailymotion:horizontal, dailymotion:vertical,
                         kwai:vertical
   --out OUT
-  --cues CUES           cues.json (subs.Cue dicts) or .srt to burn per platform
+  --cues CUES           cues.json (subs.Cue dicts) or .srt to burn per platform; repeatable as
+                        lang=path, one track per language (--cues en=cues.en.json --cues
+                        zh=cues.zh.json): each platform takes the track in its language (YouTube
+                        English, 小红书 / B站 / 抖音 Chinese)
+  --captions {both,burn,sidecar}
+                        both (default): burn + a <target>.<lang>.srt where the platform takes a
+                        caption upload (YouTube, X, Facebook, LinkedIn); sidecar: no burn there
+                        (clean video + SRT), still burned elsewhere; burn: burn only, no SRT
   --cover COVER         cover image(s): a path (closest aspect wins; another aspect is fitted on a
                         blurred pad) or platform[:orientation]=path for one target, e.g. --cover
                         xiaohongshu=c34.png
+  --cover-ab COVER_AB   thumbnail A/B pack for one target: platform=a.jpg,b.jpg,c.jpg (YouTube
+                        Test & Compare) -> <target>.cover.ab1..3.jpg + a note in its post
   --no-captions         do not burn --cues (the master already carries its captions)
   --title TITLE         post title (checked against each platform's limit)
   --post POST           post.json {title, hook, body, chapters, links, tags} -> <target>.post.md
@@ -443,15 +478,16 @@ options:
 AI providers on this machine: list, route, auth, test.
 
 ```text
-usage: python -m vstudio.llm [-h] {providers,route,auth,test} ...
+usage: python -m vstudio.llm [-h] {providers,route,auth,models,test} ...
 
 LLM / ASR / TTS providers on this machine
 
 positional arguments:
-  {providers,route,auth,test}
+  {providers,route,auth,models,test}
     providers           list LLM, ASR and TTS providers and whether they work here
     route               show which provider each task would use
     auth                auth status | login | logout (see vstudio.llm_auth)
+    models              the models each provider can use here (see vstudio.llm_models)
     test                one tiny JSON round-trip
 
 options:

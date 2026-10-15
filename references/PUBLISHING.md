@@ -51,8 +51,8 @@ fill until then); **assisted** = no official upload API she can use.
 
 | platform | official upload API | auth model | review / approval | cost | limits | desk path |
 |---|---|---|---|---|---|---|
-| YouTube (long-form + Shorts) | Data API v3 `videos.insert` (resumable), `thumbnails.set`, `playlistItems.insert` [S: https://developers.google.com/youtube/v3/docs/videos/insert] | OAuth 2.0 for installed apps, PKCE + loopback, system browser [S: https://developers.google.com/identity/protocols/oauth2/native-app] | YouTube scopes are sensitive: an app used by others needs **Google OAuth verification** (until then: "unverified app" screen, 100-user cap). Uploads from projects that have not passed the **YouTube API audit** are locked to private [S] | free | 10,000 quota units / day per project; an upload costs ~1,600 units [S: https://developers.google.com/youtube/v3/determine_quota_cost] | **API** |
-| TikTok | Content Posting API (direct post / upload to inbox) [S: https://developers.tiktok.com/doc/content-posting-api-get-started] | OAuth 2.0 (Login Kit), PKCE for desktop | app review per product; unaudited clients post only `SELF_ONLY` from a private account [S] | free | per-creator daily post cap; file or verified-domain URL | API later |
+| YouTube (long-form + Shorts) | Data API v3 `videos.insert` (resumable), `thumbnails.set`, `playlistItems.insert` [S: https://developers.google.com/youtube/v3/docs/videos/insert] | OAuth 2.0 for installed apps, PKCE + loopback, system browser [S: https://developers.google.com/identity/protocols/oauth2/native-app] | YouTube scopes are sensitive: an app used by others needs **Google OAuth verification** (until then: "unverified app" screen, 100-user cap). The current `videos.insert` reference says unverified API projects are not automatically restricted to private; account restrictions still apply [S] | free | Current default: 100 `videos.insert` calls/day in its own bucket; other endpoints share 10,000 units/day. Check the project console [S: https://developers.google.com/youtube/v3/determine_quota_cost] | **API** |
+| TikTok | Content Posting API (direct post / upload to inbox) [S: https://developers.tiktok.com/doc/content-posting-api-get-started] | OAuth 2.0 (Login Kit), PKCE for desktop | app review per product; unaudited client posts are private; explicit privacy choice and current creator-info required [S] | free | per-creator daily post cap; file or verified-domain URL | API later |
 | Instagram (Reels / feed) | Graph API Content Publishing [S: https://developers.facebook.com/docs/instagram-platform/content-publishing] | Instagram Login or Facebook Login (OAuth, registered redirect, app secret) | Professional (Business / Creator) account + Meta **App Review** for `instagram_business_content_publish` | free | rolling 24 h publishing cap; the video must be at a **public URL** | API later |
 | Facebook | Graph API Reels / video publishing, **Pages only** [S: https://developers.facebook.com/docs/video-api/guides/reels-publishing] | Facebook Login, Page access token | App Review (`pages_manage_posts`); personal profiles: no API | free | 30 API Reels / 24 h per Page | API later (Pages) |
 | Threads | Threads API `threads_content_publish` [S: https://developers.facebook.com/docs/threads/posts/] | Threads OAuth (registered redirect, app secret) | App Review to post for accounts other than the app's testers | free | 250 posts / 24 h; video at a public URL | API later |
@@ -85,7 +85,7 @@ the refusal pages (also inside sign-in popups), hides them and says so.
   encrypted with Electron safeStorage (macOS Keychain); nothing reaches the renderer, the engine or a log.
 - Publish: on a YouTube post, the form takes title, description, tags, category, visibility, now or a time
   (private + `publishAt`), Made for kids (she must answer), altered / synthetic content, Short (vertical or square,
-  60 s or less; `#Shorts` added), the cover as thumbnail, a playlist. The upload is resumable, in 8 MiB chunks; a
+  3 min or less; `#Shorts` added (YouTube decides classification)), the cover as thumbnail, a playlist. The upload is resumable, in 8 MiB chunks; a
   dropped connection or a 5xx asks the session how much arrived and resumes (exponential backoff, 6 tries per chunk).
   A refused thumbnail (channel not verified) or playlist is reported as a note; the video stays up.
 - The Mac App Store (Lite) build has no loopback port (no `network.server` entitlement), so it cannot sign in:
@@ -97,10 +97,8 @@ the refusal pages (also inside sign-in popups), hides them and says so.
    in the release environment (`apps/desk/scripts/build.mjs`); **never committed**. A desktop client's secret is not
    confidential by Google's own rules, PKCE protects the code. Until the maintainer completes Google's OAuth app
    verification for the YouTube scopes (privacy policy + homepage on a verified domain, a demo video of the consent
-   flow, the scope justification) and the YouTube API Services audit, users see the "unverified app" screen, at
-   most 100 users can sign in, and uploads stay private.
-2. **Her own Google Cloud client** (no shared caps; her uploads stay private until her own project passes the audit,
-   which matters only for public uploads). The same steps are in the app (Settings › Publishing accounts › My own
+   flow, the scope justification) users may see the "unverified app" screen and be subject to the OAuth user cap. Upload visibility is reported from the API response; do not infer its cause.
+2. **Her own Google Cloud client** (using her own project quotas and OAuth configuration). The same steps are in the app (Settings › Publishing accounts › My own
    Google Cloud client):
 
 **English**
@@ -167,7 +165,7 @@ detection on first use. Platform-specific notes:
   board and the topics.
 - **Snapchat**: 5-60 s, 9:16, no watermarks. Story and Spotlight cannot be posted together from the web.
 - **YouTube**: one channel, two formats. The desk marks an upload as a Short (`#Shorts`) only when it is vertical or
-  square and ≤ 60 s; YouTube itself accepts Shorts up to 3 min. Long-form from a vertical-only clip is flagged at
+  square and ≤ 3 min, matching the shared platform registry. Long-form from a vertical-only clip is flagged at
   packaging time.
 - **AI label**: every Chinese platform has a 内容由 AI 生成 / 作者声明 toggle (labeling rules in force since
   2025-09-01). YouTube has "Altered or synthetic content", TikTok "AI-generated content", Meta "AI info". The creator
@@ -175,3 +173,9 @@ detection on first use. Platform-specific notes:
 
 The ai-video workflow's own notes (series packages, the API audit rules, the confirm step) are in
 `workflows/ai-video/references/PUBLISHING.md`.
+
+### Policy recheck (2026-10-15)
+
+YouTube Shorts are square or taller and at most three minutes for new uploads: https://support.google.com/youtube/answer/15424877 . The publish form uses the same duration limit as the platform registry. Invalid/unknown media metadata cannot establish eligibility; this does not guarantee YouTube classification, processing or rights clearance.
+
+TikTok Direct Post requires current creator-info, explicit privacy selection, user-selected interaction settings, app review and confidential client credentials. A desktop app must not embed a confidential client secret; a compliant confidential component is still needed before this adapter can be marked available. See https://developers.tiktok.com/docs/en/content-sharing-guidelines and https://developers.tiktok.com/docs/en/content-posting-api-get-started . Autopilot must honor each platform’s required choices.

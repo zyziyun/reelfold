@@ -4,6 +4,8 @@
 // platforms with no official upload API she can use, and, until their API is wired, the ones marked 'api-later'.
 // Nothing is ever published without her click (Publish / Schedule), or a scheduled-posting switch she turned on.
 // The audit behind this table: references/PUBLISHING.md.
+import { YOUTUBE_FORMATS } from '../platforms';
+
 export type ApiId = 'youtube' | 'tiktok' | 'x' | 'instagram';
 
 export interface ApiPlatform {
@@ -165,10 +167,10 @@ export interface PostPackageMsg {
   uploadUrl: string | null;
 }
 
-/** A YouTube Short: vertical or square and at most 60 s (unknown size / length: not claimed). */
+/** Current YouTube uploads: square or taller, at most three minutes. Source: YouTube Help 15424877. */
 export function shortsFit(f: { w?: number | null; h?: number | null; duration?: number | null }): { ok: boolean; why?: 'not-vertical' | 'too-long' | 'unknown' } {
-  if (!f.w || !f.h || !f.duration) return { ok: false, why: 'unknown' };
+  if (!f.w || !f.h || !f.duration || ![f.w, f.h, f.duration].every((n) => Number.isFinite(n) && n > 0)) return { ok: false, why: 'unknown' };
   if (f.h < f.w) return { ok: false, why: 'not-vertical' };
-  if (f.duration > 60.5) return { ok: false, why: 'too-long' };
+  if (f.duration > YOUTUBE_FORMATS[1].maxSeconds) return { ok: false, why: 'too-long' };
   return { ok: true };
 }

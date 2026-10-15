@@ -1,9 +1,9 @@
 ---
 title: Privacy
-description: Reelfold is local-first. Your media, transcription and rendering stay on your Mac; only short pieces of text go to the AI provider you choose, or nothing.
+description: Learn what Reelfold processes locally and what configured AI providers receive, including transcripts, reference frames and optional hosted transcription audio.
 ---
 
-Reelfold runs on your Mac. Your footage is read, transcribed, cut and rendered locally. The only things that leave are the pieces of text a step needs from an AI model (a transcript, captions, titles), and they go only to the provider you picked. With a local model, nothing leaves at all.
+Reelfold runs on your Mac, where it edits and renders your footage. Transcription and free narration can also run locally. A configured cloud AI step receives the inputs it needs: text and, for visual planning, reference frames or contact sheets. If you select hosted transcription, the audio track is sent to that transcription service. Hosted generation receives its requested script and reference inputs.
 
 ## Why it matters
 
@@ -11,7 +11,7 @@ Your recordings hold faces, voices, names, client material and things said off t
 
 ## What stays on your Mac
 
-- **Your media.** Source files are read in place, never copied off the machine. Intake only reads them; nothing is written next to your files.
+- **Your media.** Source files are read in place for local editing and rendering. Cloud services receive the inputs described below when those services are used. Intake only reads the source; nothing is written next to your files.
 - **Transcription.** Whisper runs locally by default (on Apple Silicon). A hosted transcription API is used only if you choose it.
 - **Rendering.** Cuts, captions, effects, covers and exports are all made on your machine.
 - **Keys.** In the Mac app, API keys go into the macOS keychain; the interface only shows whether a key is set. In the skill, configs name an environment variable instead of holding the key, and a client config refuses key or token fields.
@@ -27,6 +27,7 @@ Only to the provider you route each task to:
 |---|---|---|
 | Intake | Your request, a summary of the materials (file names, durations, short excerpts, document headings); a transcript when you ask to pick content from a recording | Audio, video, full documents |
 | Segment planning | The transcript with timestamps | Audio, video, file paths |
+| Visual story and performance planning | Contact sheets or reference frames, source descriptions and any relevant transcript | The full source video |
 | Caption proofreading and glossary | Caption text and transcript text, your term list | Audio, video |
 | Output edits | Your instruction, the clip's captions or transcript, its edit state | Audio, video |
 | Project and clip chat, autopilot decisions | Your message or the question, the clip's transcript and settings, the options | Audio, video |
@@ -36,7 +37,7 @@ Only to the provider you route each task to:
 | Hosted voice (only if chosen) | The narration text | Anything else |
 | Video generation, such as an AI presenter (only with your key, after you approve the spend) | What that shot needs: its prompt, and the picture or voice it animates | Your other footage |
 
-A local model, local whisper, the free Kokoro voice or your cloned voice sends nothing. Transcripts can contain names and private details of the people recorded; for client work, prefer a local model or a provider whose data terms your client accepts.
+To keep AI processing local, configure local models for every task and its fallback, use local transcription and voices, and leave hosted generation off. A custom or OpenAI-compatible endpoint is local only if the server itself runs locally; a remote endpoint still receives the task inputs. Downloads, update checks and publishing are separate network operations. Transcripts can contain names and private details of the people recorded; for client work, prefer a local model or a provider whose data terms your client accepts.
 
 ## Logs on your Mac
 
@@ -52,7 +53,7 @@ The Mac app has one optional, opt-in feature that sends anonymous usage counts (
 
 ## Guests and other people in the frame
 
-For calls, interviews and podcasts, you choose whose face to hide. A face-tracking sticker covers each chosen guest, with a coverage check that the face never shows, and the call app's name labels are blurred by default. The call-clips recipe also stops at a consent checkpoint, confirming the people shown agreed, which is never answered automatically.
+For calls, interviews and podcasts, you choose whose face to hide. A face-tracking sticker covers each chosen guest, with a coverage check that flags incomplete tracking, and the call app's name labels are blurred by default. The call-clips recipe also stops at a consent checkpoint, confirming the people shown agreed, which is never answered automatically. Review the rendered masks before sharing a clip.
 
 Reelfold never deletes your own recordings. Source cleanup for client batches is off by default, lists exact files first, and needs a confirm code.
 

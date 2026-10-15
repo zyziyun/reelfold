@@ -134,3 +134,25 @@ def test_screen_recording_composes_camera_at_bottom_right(home):
     inset = pixels.crop((500, 260, 620, 340))
     assert len(inset.getcolors(100000)) > 10  # camera test pattern, not the blue screen
     assert os.path.isfile(screen) and os.path.isfile(os.path.join(d, "camera.webm"))
+
+
+@needs_ffmpeg
+def test_screen_recording_without_webm_duration_tags_is_playable(home):
+    """MediaRecorder's streaming WebM is complete but lacks seek/duration metadata; preserve its actual frames."""
+    from vstudio import media
+    d = session(str(home), [], seconds=1.5)
+    screen = os.path.join(d, "screen.webm")
+    _webm(screen, 1.5)
+    for name in ("camera", "screen", "mic"):
+        src = os.path.join(d, name + ".webm")
+        streamed = os.path.join(d, name + ".stream.webm")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-c", "copy", "-live", "1", streamed], check=True)
+        os.replace(streamed, src)
+        assert RE.duration(src) == 0
+    sess = store.read_json(os.path.join(d, "session.json"))
+    sess["tracks"]["screen"] = dict(file="screen.webm", start_ms=1000)
+    movie = RE.mux(d, sess, os.path.join(d, "screen-stream.mp4"))
+    info = media.probe(movie)
+    assert info["w"] and info["h"] and info["has_audio"]
+    assert 1.3 < media.duration(movie) < 1.8
+    assert RE.duration(os.path.join(d, "camera.webm")) == 0  # raw tracks are not rewritten

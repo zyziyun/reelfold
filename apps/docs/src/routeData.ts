@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineRouteMiddleware } from '@astrojs/starlight/route-data';
 import ZH_SERIF from './assets/fonts/noto-serif-sc-sub.woff2?url';
 import NEWSREADER from './assets/fonts/newsreader-normal.woff2?url';
@@ -32,6 +34,16 @@ export const onRequest = defineRouteMiddleware((context) => {
     head.push({ tag: 'meta', attrs: { name: 'robots', content: 'noindex, follow' }, content: '' });
     const canonical = head.find((h) => h.tag === 'link' && h.attrs?.rel === 'canonical');
     if (canonical?.attrs?.href) canonical.attrs.href = String(canonical.attrs.href).replace(/\/docs\/(zh|fr|es)\//, '/docs/');
+  }
+  // Starlight advertises fallback locales too. Only genuine translations belong in hreflang;
+  // linking to a noindex English fallback sends conflicting indexing signals.
+  for (let i = head.length - 1; i >= 0; i--) {
+    const h = head[i];
+    if (h.tag !== 'link' || h.attrs?.rel !== 'alternate' || !h.attrs?.hreflang) continue;
+    const target = new URL(String(h.attrs.href), site).pathname.replace(/^\/docs\/?/, '').replace(/\/$/, '');
+    const base = join(process.cwd(), 'src/content/docs', target);
+    const translated = ['.md', '.mdx', '/index.md', '/index.mdx'].some(ext => existsSync(base + ext));
+    if (route.isFallback || !translated) head.splice(i, 1);
   }
   // BreadcrumbList: Reelfold (site home) > Docs (locale home) > this page; translated pages only (fallbacks are noindex)
   if (!route.isFallback) {

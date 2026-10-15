@@ -17,6 +17,58 @@ the project notes.
 
 The rules cover product promos, vlogs and talking-heads. Audio rules live in [SOUND.md](/docs/reference/engine/sound/).
 
+## Premium by default (footage films: drone, travel, landscape, history over aerials)
+
+The 2026-10-12 review of six DJI films: "有点俗气，不够高端大气", "屏闪有点厉害", "中文的语音太难听". What a premium
+travel / documentary film looks like, and what the engine now does by default (each one configurable):
+
+**P1. No flicker, ever.** No white flashes, dips through black, light leaks, glitches or whips between shots;
+dissolves (0.8 s on aerials) or hard cuts on the beat. Captions crossfade from cue to cue and never cut out for a
+frame; the shade behind them eases in and out. Every render is measured by `vstudio.flicker` (flash / blink /
+max luma jump) and fails on a flicker (`qc.flicker: fail | warn | off`, persona or recipe config).
+*Engine:* vlog `transition` dips -> fade (`allow_dips` to keep), fun reel `transitions: clean` (default; `expressive`
+restores flash / leak / glitch / whip), photo-story `LOOK = "cinema"` maps every transition to fade / cut.
+
+**P2. Even motion.** A clip plays at a speed whose frame cadence is even: 60p at 1x or 0.5x, 30p at 1x
+(`ffmpeg_filters.retime`; any other speed is resampled with frame blending, never nearest-frame drops that judder an
+aerial pan). Default calm speed is 1.0 (was 1.2 / 1.3).
+
+**P3. Matched, restrained grade.** Contrast 1.04, saturation 1.04, no sharpen (a sharpened 4K -> 1080 downscale
+makes city lights and water shimmer), `deflicker` evens out the drone's exposure pumping inside a clip, and each
+segment's brightness is pulled 60 % toward the film's median (max +-0.06) so no cut jumps in exposure
+(`match_exposure`), and each shot's colour (white balance, tint, saturation) 60 % toward the film's reference shot
+(`vstudio.colormatch`: MKL chroma + Reinhard luma, capped, one LUT per shot). A film look at 35 % at most
+(`cinema-neutral` by default in the cinema look; `kodak-2383-soft`, `portra-warm`, `fuji-cool`, `mono-silver`,
+`bleach-soft`). No orange-and-teal push, no vignette.
+
+**P4. Cinematic pacing.** Hold the beautiful aerials: 7-14 s windows (10-14 s on the best ones), motivated cuts on
+the music's bars, wide -> closer, the light changing from shot to shot. Fewer, longer shots beat many short ones.
+Never a long dissolve between two framings of the same subject (it shows it twice, a ghosted double exposure): a
+cut, or a 0.3 s dissolve when it moved little (`vstudio.dissolve`).
+
+**P5. Restrained typography.** One font pair: Noto Serif SC (titles, chapter names, quotes) + Noto Sans SC Regular
+(subtitles, labels). Generous letter spacing on small labels (0.14-0.22 em), small sizes, near-white type on a soft
+shadow - no boxes, no white quote cards, no thick strokes, no emoji, no saturated colour; one quiet champagne accent
+(#C9B48A) for hairlines. Theme `cinema` (`style.footage_theme`, default for vlog / photo-story outputs; her
+`style.theme` keeps applying to talking-head work).
+
+**P6. Few words on screen.** A beautiful-footage film gets music and 2-5 refined on-screen lines (or place / time
+captions), not a voice-over. History pieces narrate in English (YouTube) with Chinese on-screen subtitles for
+Xiaohongshu / Bilibili unless a natural Chinese voice is here: the free Qwen3-TTS voice once downloaded (Settings >
+Voice; the plan card offers the download), an OpenAI key, her own voice. Kokoro's robotic Mandarin is opt-in only
+(Settings > Voice switch, persona `tts.zh_local`) and never used once Qwen3-TTS is downloaded.
+
+**P7. Title and end.** The film's title sits once over the opening shot, centred, in the serif, a short hairline
+and the other language small and spaced under it (an English film shows English only); it fades in over 0.9 s
+and out after ~5 s. The end fades to black over 1.5-1.8 s; no "Thanks for watching" card.
+
+**P8. Covers like a travel / documentary thumbnail.** The single best frame full-bleed (no collage, no polaroids,
+no blurred pad), a quiet gradient at the bottom, the title in the serif with generous spacing, a small spaced
+place line. No stickers, no arrows, no heavy boxes.
+
+**P9. YouTube is English.** Title, on-screen lines, captions, narration and post copy on YouTube / Shorts are
+English whatever the request's language; Chinese versions go to Xiaohongshu / Bilibili.
+
 ## Rhythm
 
 **A1. Hold key information for at least 1 s.** A title, place name, price, number or logo must
@@ -41,7 +93,7 @@ along?
 
 **A4. Beat sync sets timing, not size. ≤ 3 full-frame hits per video, ≥ 16 beats apart.** A
 full-frame hit is anything that moves the whole frame or camera at once: frame-wide scale pump,
-shake, flash frame, invert frame. Treat each as a big slam. Each one goes on a strong hit from
+shake, flash frame, invert frame (flash frames only in an `expressive` reel; see P1). Treat each as a big slam. Each one goes on a strong hit from
 `b.hits`. Other on-beat motion moves only the subject layer: a card, a title, a sticker. Kick
 detections are a pool of candidates, not triggers. Count one technique use as one slot, even if it
 flashes several times inside.

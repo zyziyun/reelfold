@@ -3,3 +3,4 @@ Allow: /
 
 Sitemap: https://reelfold.com/sitemap-index.xml
 Sitemap: https://reelfold.com/docs/sitemap-index.xml
+Sitemap: https://reelfold.com/video-sitemap.xml

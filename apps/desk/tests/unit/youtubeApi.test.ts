@@ -375,10 +375,14 @@ describe('resumable upload (fake API)', () => {
 });
 
 describe('metadata', () => {
-  it('Shorts: vertical or square and <= 60 s, marked #Shorts; made for kids and visibility as she chose', () => {
+  it('Shorts: vertical or square and <= 180 s, marked #Shorts; made for kids and visibility as she chose', () => {
     expect(shortsFit({ w: 1080, h: 1920, duration: 59 })).toEqual({ ok: true });
     expect(shortsFit({ w: 1920, h: 1080, duration: 30 })).toEqual({ ok: false, why: 'not-vertical' });
-    expect(shortsFit({ w: 1080, h: 1920, duration: 75 })).toEqual({ ok: false, why: 'too-long' });
+    expect(shortsFit({ w: 1080, h: 1920, duration: 75 })).toEqual({ ok: true });
+    expect(shortsFit({ w: 1080, h: 1080, duration: 180 })).toEqual({ ok: true });
+    expect(shortsFit({ w: 1080, h: 1920, duration: 180.01 })).toEqual({ ok: false, why: 'too-long' });
+    for (const duration of [0, -1, NaN, Infinity]) expect(shortsFit({ w: 1080, h: 1920, duration })).toEqual({ ok: false, why: 'unknown' });
+    expect(shortsFit({ w: -1080, h: 1920, duration: 75 })).toEqual({ ok: false, why: 'unknown' });
     expect(shortsFit({ w: null, h: null, duration: null }).ok).toBe(false);
     const m = ytMeta({ title: 'Tip', description: 'd', tags: [], publishAt: null, short: true, madeForKids: true, privacy: 'unlisted', categoryId: '999' });
     expect(m.snippet).toMatchObject({ title: 'Tip #Shorts', categoryId: '22' });

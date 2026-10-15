@@ -53,7 +53,7 @@ description: "千剪（Reelfold）是开源自媒体工作者工作台：一句�
 
 转写、剪辑、特效、渲染和质检都在你的 Mac 上完成。免费配音也在本机：英文 Kokoro，中文 Qwen3-TTS（Apple 芯片）。AI 用你自己的：已登录的 Claude Code 或 Codex CLI（不需要 API key）、通过 ACP 接入的其他编程助手（Gemini CLI、Cursor CLI、GitHub Copilot CLI、OpenCode、Qwen Code、Kimi CLI、CodeBuddy、iFlow CLI）、API key（Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、豆包、OpenRouter、Gemini、ElevenLabs；通义千问、Kimi、GLM、豆包可选国内或国际接入点），或者本地模型（Ollama、LM Studio、vLLM、llama.cpp、本地 whisper）。每个请求、项目或对话都能单独选 AI 和模型（`/model`）。
 
-用到 AI 时，发给模型的是文字（逐字稿、字幕、标题、你的讲稿），有些步骤还会发静帧拼图（contact sheet）；不会上传视频或音频文件。内部测试里，一节 72 分钟的课剪成 24 条、每条 4 个平台，共 96 个文件，AI API 费用 0.73 美元，平均每条约 0.03 美元。详见 [AI 服务](/docs/zh/concepts/ai-providers/) 和 [隐私](/docs/zh/concepts/privacy/)。
+用到 AI 时，发给模型的是文字（逐字稿、字幕、标题、你的讲稿），视觉规划还会发静帧拼图（contact sheet）。选择云端转写时会发送音轨，云端生成则接收该次需要的参考输入。内部测试里，一节 72 分钟的课剪成 24 条、每条 4 个平台，共 96 个文件，AI API 费用 0.73 美元，平均每条约 0.03 美元。详见 [AI 服务](/docs/zh/concepts/ai-providers/) 和 [隐私](/docs/zh/concepts/privacy/)。
 
 ## 以前叫 video-studio 和日剪
 

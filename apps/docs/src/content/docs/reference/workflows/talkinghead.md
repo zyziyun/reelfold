@@ -33,7 +33,18 @@ Prereqs: `ffmpeg`, Python with `numpy opencv-python pillow soundfile mediapipe`,
 `./install.sh` for fonts + face model. Both tracks are built on `lib/vstudio` (cutting, dissolves, loudness,
 ASR, overlays, covers, publish copy); only the V-track per-frame animation engine and the cut-list logic are local.
 
+For a premium / 强剪辑 request, including a personal story excerpted from a long finished video, read
+[SPOKEN_EDITING](https://github.com/zyziyun/reelfold/blob/main/references/SPOKEN_EDITING.md) before choosing the H/V track. It adds an argument edit,
+source-aware layout/caption decision, semantic beat sheet and sound/visual finishing. Do not equate the
+basic talking-head batch's completion with completion of that premium editorial work.
+
 ## Step 0: pick the track and the style
+
+For an already finished film, automatic intake selects `pipeline: fast`, retains its baked captions and original
+aspect, and avoids the legacy V-track portrait master. The fast pipeline can still run source-grounded editorial
+finishing. `preserve_source_aspect: true` is an export invariant, not a label on a padded portrait movie; incompatible
+platform shapes stop with an actionable error. An explicit aspect request overrides this default, but still needs
+source-aware recomposition and visual acceptance. It is not proof that a padded result is acceptable.
 
 **Track**
 - **V track (main engine)**: raw clips without subtitles: vertical phone clips (usually 1080x1920 HLG HDR,
@@ -57,11 +68,12 @@ On the V track the style is just the `STYLE` dict in the config, so switching la
 
 ## Shared rules (both tracks)
 
-- **Hooks are the highest-leverage choice, so the creator picks them.**
+- **Hooks follow the chosen working mode.**
   - Scan the transcript and present a numbered menu of about 12 candidates: text, a type tag
     (核心观点 / 反差 / 吐槽 / 共鸣 / 金句 / 悬念) and length at the hook speed. Suggest 2-3 combos.
-  - The creator picks the set and the order. Half-sentences are allowed. Never pick or insert hooks yourself: with no
-    answer there is no hook montage (recipe `hook_default: -1`); promo-style pieces open on her own first line.
+  - In Ask mode the creator picks the set and order. In Autopilot select from verified source sentences using the
+    brief and persona; do not add another approval step. Half-sentences are allowed only when independently
+    understandable. A finished film or strong existing opening does not need an unsolicited hook montage.
   - Re-check the cut with ASR at normal speed (`atempo=1/HOOK_SPEED`).
 - **Disfluency (去气口 / filler / 重复 / 口误).** One shared tool for every speech workflow: `vstudio.cleanup`
   (`references/CLEANUP.md`, `python -m vstudio.cleanup analyze | review | apply | verify`). Fillers, stutters, repeats,

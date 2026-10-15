@@ -13,9 +13,11 @@
 千剪：一句话，把你的素材批量剪成多平台、中英双语、可直接发布的成片，开源免费，全在本地。</p>
 
 <p align="center">
+  <a href="https://reelfold.com/zh/demo/">观看演示</a> ·
   <a href="https://reelfold.com/docs/zh/">使用文档</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">下载 macOS 版</a> ·
   <a href="https://reelfold.com/zh/">官网</a> ·
+  <a href="docs/PRESS_KIT.md">媒体资料</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 

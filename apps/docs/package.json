@@ -4,7 +4,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Reelfold documentation (reelfold.com/docs): Astro Starlight, EN / 中文 / FR / ES.",
+  "description": "Reelfold documentation (reelfold.com/docs): Astro Starlight, EN / \u4e2d\u6587 / FR / ES.",
   "repository": {
     "type": "git",
     "url": "https://github.com/zyziyun/reelfold.git",
@@ -15,7 +15,8 @@
     "gen": "python3 scripts/gen_reference.py && python3 scripts/subset_fonts.py",
     "build": "ASTRO_TELEMETRY_DISABLED=1 astro build",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview",
-    "check:links": "node scripts/check-links.mjs"
+    "check:links": "node scripts/check-links.mjs",
+    "check:seo": "node scripts/check-seo.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",

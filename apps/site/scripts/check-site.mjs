@@ -86,6 +86,28 @@ for (const [url, { f, html }] of pages) {
     try { JSON.parse(m[1]); } catch (e) { err(f, `JSON-LD does not parse: ${e.message}`); }
   }
 
+  // Every player must resolve locally, stay user-initiated and have an accessible name.
+  for (const m of body.matchAll(/<video\b[^>]*>([\s\S]*?)<\/video>/g)) {
+    const tag = m[0].slice(0, m[0].indexOf('>') + 1);
+    if (!/\bcontrols\b/.test(tag) || /\bautoplay\b/.test(tag)) err(f, 'video must use controls without autoplay');
+    if (attr(tag, 'preload') !== 'none') err(f, 'video must not preload on page load');
+    if (!attr(tag, 'aria-label')) err(f, 'video needs an accessible name');
+    const poster = attr(tag, 'poster');
+    if (!poster || !resolve(poster)) err(f, 'video poster missing');
+    for (const src of [...m[1].matchAll(/<source[^>]*src="([^"]+)"/g)].map(x => x[1])) {
+      const file = resolve(src);
+      if (!file) err(f, `video source missing: ${src}`);
+      else if (statSync(file).size > 25 * 1024 * 1024) err(f, `video exceeds Cloudflare static asset limit: ${src}`);
+    }
+  }
+  for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
+    let data; try { data = JSON.parse(m[1]); } catch { continue; }
+    if (data['@type'] !== 'VideoObject') continue;
+    if (!data.name || !data.description || !data.uploadDate || !data.duration) err(f, 'video structured data missing metadata');
+    if (!html.includes(`src="${data.contentUrl?.replace(SITE, '')}"`)) err(f, 'VideoObject does not match visible player');
+    if (!resolve(data.thumbnailUrl?.replace(SITE, '') ?? '')) err(f, 'VideoObject thumbnail missing');
+  }
+
   // images
   for (const m of body.matchAll(/<img\b[^>]*>/g)) {
     const tag = m[0];

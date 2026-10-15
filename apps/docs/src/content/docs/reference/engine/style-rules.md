@@ -21,6 +21,7 @@ add an effect, write a workflow script, or pick colours by hand. Report them lik
 
 | id | 中文 | Look | Use for |
 |---|---|---|---|
+| `cinema` (footage default) | 电影感 | No cards over the picture: near-white type on a soft shadow, Noto Serif SC titles + Noto Sans SC Regular, wide letter spacing, one champagne hairline accent `#C9B48A`, slow 0.6 s fades | Drone / travel / landscape films, history over aerials (vlog and photo-story outputs, via `style.footage_theme`) |
 | `editorial` (default) | 编辑感 | Warm paper `#F5F1EA`, deep ink, one terracotta accent `#A84F2D`; titles and quotes in Noto Serif SC; keywords get a soft marker band | Most 口播 / 复盘 / 干货. The safe premium choice |
 | `mono` | 黑白灰 | Neutral paper, near-black ink, a pale yellow marker, no colour accent | Opinion / tech / 干货 where colour would distract |
 | `soft` | 低饱和柔和 | Stone white, sage green accent, bigger radius, lighter shadow | Lifestyle, gentle sharing |
@@ -29,13 +30,17 @@ add an effect, write a workflow script, or pick colours by hand. Report them lik
 | `classic` | 旧版 | The pre-theme look (red title half, black notes card with red header, slamming stamps) | Only to reproduce old videos; never offered as a new look |
 
 Choosing a theme (first that is set wins): output edit `theme` op → `$VSTUDIO_THEME` → recipe / project param
-`theme` → client `theme` (client.yaml) → persona `style.theme` → legacy (persona `brand.accent` set and no theme
+`theme` → client `theme` (client.yaml) → for footage recipes (vlog, photo-story) persona `style.footage_theme`
+(default `cinema`) → persona `style.theme` → legacy (persona `brand.accent` set and no theme
 anywhere = `classic`, so old setups do not change under the creator) → `editorial`. A layer may tint tokens:
 `style: {theme: editorial, accent: "#3E5C76"}`. Explicit per-element colours (an effect's `color`, a caption
 style's `color` / `highlight`, a title's `color` / `band_color`) always win; the `theme` op clears them
 (`restyle: false` keeps them).
 
-Fonts are OFL only: Noto Sans SC / Noto Serif SC (Source Han). Never ship GPL or non-commercial fonts.
+Fonts are OFL only: Noto Sans SC / Noto Serif SC (Source Han), plus the typography kit - Smiley Sans 得意黑
+(`display-zh`, headlines), LXGW WenKai 霞鹜文楷 (`zh-humanist`, quotes), Instrument Serif (`serif-display`, English
+titles). Each theme names its pair in `theme.PAIRS`; `theme.type_scale(w, h)` gives the sizes, tracking, line height
+and characters per line for a canvas. Never ship GPL or non-commercial fonts.
 
 ## Rules
 
@@ -63,7 +68,8 @@ A pop word is white with a soft shadow and a thin accent bar, no thick stroke, n
 
 **S7. Motion: 200–350 ms, ease-out, small distances.** Overlays fade and rise 1–2 % of the frame (`rise`) over
 the theme's `motion.in_s` (≈ 0.28 s, cubic ease-out) and leave in ≈ 0.2 s. No overshoot unless the theme sets
-`motion.overshoot`. Stage segments push 60 px, not 80+.
+`motion.overshoot`. Stage segments push 60 px, not 80+. Exception: the `cinema` theme (footage films) fades over
+0.6 s in / 0.5 s out with a 0.6 % rise - slow, quiet, no card (AESTHETICS.md P1-P5).
 
 **S8. Grid and margins.** Keep text inside the platform safe box; align cards and labels to one left margin per
 layout (≈ 40 px at 1080 wide); one radius per theme; one shadow per theme (soft, low alpha).
@@ -85,4 +91,6 @@ explicit `color` param for one-off overrides, default `None` = theme.
   `quote_block`, `stamp`, `progress_line`, `marker_line`, `chapter_rule`, `counter`, `lower_third`),
   `draw.emph_layer` (theme-aware text with marker / colour / underline emphasis).
 - Output edit: `{"op": "theme", "theme": "editorial"}` ("换成更高级的配色", "换成黑白", "夜间模式").
-- Tests: `tests/test_theme.py`.
+- Text lint: `lib/vstudio/textlint.py` (words per line, 避头尾, text area, > 2 type styles, stacked stroke + shadow
+  + colour, emoji, doubled punctuation, a line in the wrong language for the platform); firstpass runs it on the cues.
+- Tests: `tests/test_theme.py`, `tests/test_typography.py`.

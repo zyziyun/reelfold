@@ -17,7 +17,7 @@ Solo cuando tú lo dices. YouTube va por su API oficial (Data API): inicias sesi
 
 ## ¿Qué sale de mi Mac?
 
-Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: texto, como la transcripción, los subtítulos y los títulos, y en algunos pasos hojas de fotogramas fijos. Con un modelo local, no sale nada. Hay dos excepciones que activas tú: el motor de transcripción de OpenAI envía el audio y la narración de OpenAI envía el texto del guion (las voces gratis Kokoro y Qwen3-TTS funcionan en tu Mac). Consulta [Privacidad](/docs/es/concepts/privacy/).
+Tu video y tu audio se quedan en tu Mac: la transcripción y el renderizado se ejecutan en local. Al proveedor de IA que elegiste solo va lo que necesita cada paso de IA: texto, como la transcripción, los subtítulos y los títulos, y en algunos pasos hojas de fotogramas fijos. La transcripción alojada recibe audio y la narración alojada recibe el guion. Para mantener el procesamiento de IA local, usa modelos locales en todas las tareas y sus alternativas, transcripción y voces locales, sin generación alojada. Las descargas, actualizaciones y publicaciones son operaciones de red separadas. Consulta [Privacidad](/docs/es/concepts/privacy/).
 
 ## ¿Qué IA necesito?
 

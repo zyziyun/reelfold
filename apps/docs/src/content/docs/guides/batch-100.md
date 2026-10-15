@@ -8,7 +8,7 @@ You get a hundred or more finished shorts from one long recording or a folder of
 ## Before you start
 
 - **The source**: one long recording (a lecture, a webinar, a podcast) or a folder of clips.
-- **Time, disk space and an AI route.** Transcription and rendering run locally. Only planning, proofreading and post copy call your AI provider, and only with text. In an internal test, a 72-minute lecture became 24 clips × 4 platforms = 96 files for $0.73 of AI API cost, about $0.03 a clip.
+- **Time, disk space and an AI route.** Rendering runs locally, as does transcription with a local backend. AI planning may send text and reference frames to the routed provider; hosted transcription sends the audio track. See [Privacy](/docs/concepts/privacy/) for local routes and fallbacks. In an internal test, a 72-minute lecture became 24 clips × 4 platforms = 96 files for $0.73 of AI API cost, about $0.03 a clip.
 - **A rough idea of the clips**: how many, how long, which platforms. You can let Reelfold propose the list.
 
 ## How a big batch runs

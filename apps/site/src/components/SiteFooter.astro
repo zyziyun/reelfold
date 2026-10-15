@@ -4,6 +4,7 @@ import { t, pathFor, LANGS, HREFLANG, HTML_LANG, LANG_NAME, type Lang } from '..
 import { USE_CASES, useCase } from '../content/usecases';
 import { COMPARE, compare } from '../content/compare';
 import Logo from './Logo.astro';
+import { promo } from '../lib/promo';
 interface Props { lang: Lang; page: string }
 const { lang, page } = Astro.props;
 const c = t(lang);
@@ -13,6 +14,7 @@ const cols: { h: string; items: [string, string][] }[] = [
   { h: f.product, items: [
     SITE.downloadReady ? [c.cta.download, SITE.downloadUrl] : [c.cta.source, `${SITE.githubUrl}#install`],
     [c.nav.docs, DOCS_PATH[lang]],
+    [promo(lang).link, p('demo')],
     [f.skill, `${p('')}#open-source`],
     [f.releases, releasesUrl],
     [f.specs, p('platforms')],
