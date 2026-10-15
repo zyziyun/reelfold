@@ -76,6 +76,8 @@ class Workspace(unittest.TestCase):
         with mock.patch('desk_engine.pilot.spawn') as spawn:
             res=self.api.edit(d['id'])
             self.assertTrue(res['ok']);self.assertIn('outline,montage',spawn.call_args.kwargs['args'])
+            from desk_engine.common import batch_id
+            self.assertEqual(res['id'],batch_id(os.path.join(res['dir'],'state')))
         from desk_engine.common import read_json
         montage=read_json(os.path.join(res['dir'],'items/main/work/montage.json'))
         self.assertEqual([s['point'] for s in montage['segments']],['Original claim','My interpretation'])

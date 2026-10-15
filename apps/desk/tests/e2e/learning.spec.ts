@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { closeApp } from './closeApp';
+test.describe.configure({ mode: 'serial' });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reelfold-learning-'));
 let app: ElectronApplication;
 let page: Page;
@@ -100,6 +101,7 @@ test('my ordered draft makes a real demo which opens in the existing editor', as
   await page.reload();
   await expect(page.getByTestId('learning-block')).toHaveCount(2);
   await page.getByTestId('learning-make-demo').click();
+  await expect(page.getByTestId('learning-workspace')).toHaveCount(0);
   let item = '';
   let clip = '';
   await expect.poll(async () => {
@@ -108,7 +110,8 @@ test('my ordered draft makes a real demo which opens in the existing editor', as
     if (!entry) return false;
     item = entry.id;
     const out = await api('GET', `/api/outputs/${item}`);
-    clip = out.clips?.[0]?.id ?? '';
+    const ready = out.clips?.find((x: { id: string; files: unknown[] }) => x.files?.length);
+    clip = ready?.id ?? '';
     return !!clip;
   }, { timeout: 120000 }).toBe(true);
   await page.evaluate((url) => { location.hash = url; }, `#/p/${item}/clip/${encodeURIComponent(clip)}`);
@@ -125,4 +128,62 @@ test('an optional AI demo uses only thoughts I select and keeps my original note
   await expect.poll(async () => (await api('GET', `/api/create/learning/${workspaceId}`)).tool_jobs?.length ?? 0, { timeout: 30000 }).toBe(1);
   const doc = await api('GET', `/api/create/learning/${workspaceId}`);
   expect(doc.notes[0].text).toBe('My own perspective, kept in my own words.');
+});
+
+
+test('a book page with my recording becomes a real editable video and workspaces keep thoughts separate', async () => {
+  test.setTimeout(180000);
+  const book = path.join(tmp, 'book-page-12.png');
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=green:s=360x540', '-frames:v', '1', book]);
+  const take = path.join(tmp, 'my-reading.mp4');
+  fs.copyFileSync(source, take);
+  const d = await api('POST', '/api/create/learning', { idea: 'Read a page and explain my understanding', files: [book] });
+  const bookId = Object.keys(d.sources)[0];
+  let doc = await api('POST', `/api/create/learning/${d.id}`, { action: 'take', files: [take] });
+  const myVoice = Object.keys(doc.sources).find((x) => doc.sources[x].role === 'commentary')!;
+  await api('POST', `/api/create/learning/${d.id}`, { action: 'credit', source: bookId, credit: { title: 'A synthetic book page', creator: 'Test author', locator: 'Test edition, page 12' } });
+  // Same mounted route, distinct workspace. An unsaved thought cannot leak into another project.
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, workspaceId);
+  await expect(page.getByTestId('learning-workspace')).toBeVisible();
+  await page.getByTestId('learning-thought').fill('Unsaved thought belonging to the interview');
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, d.id);
+  await expect(page.getByRole('heading', { name: 'Read a page and explain my understanding' })).toBeVisible();
+  await expect(page.getByTestId('learning-thought')).toHaveValue('');
+  await expect(page.getByRole('img', { name: 'Source page' })).toBeVisible();
+  await expect(page.getByTestId('learning-source-select')).toHaveValue(bookId);
+  await page.getByLabel('My recording for this page').selectOption(myVoice);
+  await page.getByTestId('learning-thought').fill('My own reading and practical interpretation.');
+  await page.getByTestId('learning-save-thought').click();
+  await page.getByRole('button', { name: 'Add page with my voice', exact: true }).click();
+  await expect(page.getByTestId('learning-block')).toHaveCount(1);
+  doc = await api('GET', `/api/create/learning/${d.id}`);
+  expect(doc.blocks[0]).toMatchObject({ source: bookId, voice: myVoice, start: 0, voice_start: 0 });
+  expect(doc.notes[0]).toMatchObject({ source: bookId, at: null, text: 'My own reading and practical interpretation.' });
+  await page.getByTestId('learning-make-demo').click();
+  await expect(page.getByTestId('learning-workspace')).toHaveCount(0);
+  let item = '', clip = '';
+  await expect.poll(async () => {
+    const history = await api('GET', '/api/history');
+    const row = history.items.find((x: { dir: string }) => x.dir.endsWith(`learning-${d.id}`));
+    if (!row) return false;
+    item = row.id;
+    clip = (await api('GET', `/api/outputs/${item}`)).clips?.find((x: { id: string; files: unknown[] }) => x.files?.length)?.id ?? '';
+    return !!clip;
+  }, { timeout: 120000 }).toBe(true);
+  await page.evaluate((url) => { location.hash = url; }, `#/p/${item}/clip/${encodeURIComponent(clip)}`);
+  await expect(page.getByTestId('editor-player')).toBeVisible({ timeout: 30000 });
+  const file = await page.getByTestId('editor-player').getByTestId('player-video').evaluate((v: HTMLVideoElement) => v.currentSrc || v.src);
+  expect(file).toBeTruthy();
+  // Decode the actual file selected by the editor; do not count a montage manifest as a rendered result.
+  await expect.poll(() => page.getByTestId('editor-player').getByTestId('player-video').evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
+  expect(new URL(file).protocol).toBe('vsmedia:');
+  const movie = decodeURIComponent(new URL(file).pathname.slice(1));
+  expect(movie.startsWith(tmp + path.sep)).toBe(true);
+  const green = execFileSync('ffmpeg', ['-v', 'error', '-i', movie, '-vf', 'crop=2:2:iw/2:ih/2,scale=1:1', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+  expect(green[1]).toBeGreaterThan(green[0] + 50);
+  expect(green[1]).toBeGreaterThan(green[2] + 50);
+  const pcm = execFileSync('ffmpeg', ['-v', 'error', '-i', movie, '-vn', '-ac', '1', '-ar', '8000', '-f', 's16le', '-']);
+  let real = 0, imag = 0; const count = pcm.length / 2;
+  for (let n = 0; n < count; n++) { const x = pcm.readInt16LE(n * 2) / 32768; real += x * Math.cos(2 * Math.PI * 500 * n / 8000); imag += x * Math.sin(2 * Math.PI * 500 * n / 8000); }
+  expect(2 * Math.hypot(real, imag) / count).toBeGreaterThan(0.06);
 });

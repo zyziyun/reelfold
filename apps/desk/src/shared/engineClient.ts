@@ -813,7 +813,7 @@ export class EngineClient {
     return this.req<{ workspaces: { id: string; title: string; updated: number }[] }>('GET', '/api/create/learning');
   }
   editLearning(id: string) {
-    return this.req<{ ok: boolean }>('POST', `/api/create/learning/${bid(id)}/edit`, {});
+    return this.req<{ ok: boolean; id: string }>('POST', `/api/create/learning/${bid(id)}/edit`, {});
   }
   captureLearning(id: string, session_dir: string) {
     return this.req<LearningWorkspace>('POST', `/api/create/learning/${bid(id)}/capture`, { session_dir });

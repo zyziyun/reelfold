@@ -44,6 +44,10 @@ export function LearningCreate() {
   useEffect(() => {
     if (!client) return;
     let active = true;
+    // A workspace owns its unsaved thought and material position. Never carry them into another one.
+    setDoc(null); setSource(''); setTime(0); setTimeKnown(false); setMark(null); setSeek(null);
+    setThought(''); setEditingNote(null); setVoiceAudio(null); setPicked([]); setPageVoice(''); setPost('');
+    anchor.current = null;
     if (query.id) void client.learningWorkspace(query.id).then((d) => { if (active) { setDoc(d); setPost(d.post ?? ''); } }).catch((e) => ui.toast(errText(e), { error: true }));
     else { setDoc(null); void client.learningWorkspaces().then((r) => { if (active) setRecent(r.workspaces); }).catch(() => undefined); }
     return () => { active = false; };
@@ -137,7 +141,7 @@ export function LearningCreate() {
     </div>
     <section className="learning-panel" style={{ marginTop: 20 }}><h2>{t('learning.draft')}</h2><p className="muted small">{t('learning.draftHint')}</p>
       <div className="col" style={{ gap: 8 }}>{doc.blocks.map((b, i) => <div className="ux-opt row" key={b.id} style={{ gap: 12 }} data-testid="learning-block"><span style={{ flex: 1 }}>{i + 1}. {doc.sources[b.source]?.role === 'commentary' ? t('learning.myTake') : t('learning.sourceQuote')} · {fmtClock(b.start)}–{fmtClock(b.end)} · {b.point}</span>{([-1, 1] as const).map((delta) => <button key={delta} className="btn ghost sm" disabled={busy || (delta < 0 ? i === 0 : i === doc.blocks.length - 1)} aria-label={t(delta < 0 ? 'learning.up' : 'learning.down')} onClick={() => void act(() => change({ action: 'move', block: b.id, delta }))}>{delta < 0 ? '↑' : '↓'}</button>)}<button className="btn ghost sm" disabled={busy} onClick={() => void act(() => change({ action: 'remove', block: b.id }))}>{t('learning.removeFromDraft')}</button></div>)}</div>
-      <div className="row" style={{ gap: 12, marginTop: 16 }}><button className="btn primary" disabled={busy || doc.blocks.length < 1} onClick={() => void act(async () => { if (client) { await client.editLearning(doc.id); location.hash = '#/inbox'; } })} data-testid="learning-make-demo">{t('learning.makeDemo')}</button><button className="btn" disabled={busy || !picked.length} onClick={() => void act(async () => {
+      <div className="row" style={{ gap: 12, marginTop: 16 }}><button className="btn primary" disabled={busy || doc.blocks.length < 1} onClick={() => void act(async () => { if (client) { const result = await client.editLearning(doc.id); location.hash = selHref(result.id); } })} data-testid="learning-make-demo">{t('learning.makeDemo')}</button><button className="btn" disabled={busy || !picked.length} onClick={() => void act(async () => {
         if (!client) return;
         const thoughts = doc.notes.filter((n) => picked.includes(n.id) && n.kind === 'thought').map((n) => n.text).join('\n\n');
         if (thoughts.length > 1600) throw new Error(t('learning.demoTooLong'));

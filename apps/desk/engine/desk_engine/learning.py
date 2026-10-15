@@ -203,7 +203,8 @@ class Learning:
             pilot.spawn(r.python,r.env,p.dir,bus=self.inbox.bus,args=[r.python,'-m','vstudio.project','run','--dir',p.dir,
                         '--auto','outline,montage','--json-events'])
             self.inbox._forget_engine()
-            return dict(ok=True,dir=p.dir)
+            from .common import batch_id
+            return dict(ok=True,dir=p.dir,id=batch_id(os.path.join(p.dir,'state')))
 
     def dictate(self, ident, session_dir):
         """Local ASR only, on the mic session the user explicitly recorded; no rewrite of their words."""
