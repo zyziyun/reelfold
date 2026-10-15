@@ -79,6 +79,17 @@ class HistoryTest(unittest.TestCase):
             os.rename(movie, movie + ".moved")
             self.assertTrue(WK.summarize(d)["missing_outputs"])
 
+    def test_remake_sources_reads_inputs_instead_of_generated_work_files(self):
+        d = os.path.join(self.root, "source-project")
+        os.makedirs(os.path.join(d, "work", "tts"))
+        original = os.path.join(self.root, "original.mp4")
+        open(original, "wb").write(b"source")
+        open(os.path.join(d, "work", "tts", "generated.wav"), "wb").write(b"generated")
+        with open(os.path.join(d, "project.yaml"), "w") as f:
+            f.write("inputs:\n  clips:\n    - " + original + "\n")
+        with mock.patch.object(self.h, "find", return_value=dict(dir=d)):
+            self.assertEqual(self.h.remake_sources("a" * 12)["inputs"], [original])
+
     def test_stopped_dead_pilot_does_not_block_deletion_on_stale_status(self):
         d = tempfile.mkdtemp(dir=self.root)
         with mock.patch.object(HI, "pilot_stopped", return_value=100), mock.patch.object(HI, "pilot_running", return_value=None), mock.patch.object(HI, "live_status", return_value={"state": "running", "started": 90, "heartbeat": 101}):

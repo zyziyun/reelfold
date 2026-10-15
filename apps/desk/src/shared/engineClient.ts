@@ -586,7 +586,10 @@ export class EngineClient {
    * request became a goal (its id is the goal's). */
   /** ``opts.ai``: the composer's AI for this request (absent = the app's default): its planning and every project it
    * becomes use it */
-  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string; goal?: boolean; ai?: ProjectAi | null } = {}) {
+  remakeSources(id: string) {
+    return this.req<{inputs:string[]}>('GET', `/api/history/item/${bid(id)}/remake-sources`);
+  }
+  startIntake(prompt: string, inputs: string[], platforms?: string[], lang?: string, opts: { mode?: 'autopilot' | 'ask'; sampleName?: string; recipe?: string; goal?: boolean; ai?: ProjectAi | null; originItem?: string } = {}) {
     return this.req<{ id: string; goal?: boolean }>('POST', '/api/intake', {
       prompt: prompt.slice(0, 2000),
       inputs,
@@ -597,6 +600,7 @@ export class EngineClient {
       ...(opts.recipe ? { recipe: opts.recipe } : {}),
       ...(opts.goal !== undefined ? { goal: opts.goal } : {}),
       ...(opts.ai ? { ai: opts.ai } : {}),
+      ...(opts.originItem ? { origin_item: bid(opts.originItem) } : {}),
     });
   }
   /** a request's AI (planning: from its next AI call; once made, its projects') - null = the app's default */

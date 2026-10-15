@@ -111,7 +111,7 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   const { data: hist, reload: reloadHist } = useHistory();
   const draft = useMemo(() => {
     try {
-      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown };
+      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown; originItem?: string };
     } catch {
       return {};
     }
@@ -132,6 +132,7 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   const [auto, setAuto] = useState(true); // Settings › New projects: autopilot (default) or ask me first
   const [many, setMany] = useState(false); // 「Several videos」: a goal (survey + a group of videos)
   // this request's AI (the composer's AI chip; null = her default from Settings › AI), back to the default once sent
+  const [originItem, setOriginItem] = useState<string | undefined>(draft.originItem);
   const [ai, setAi] = useState<ProjectAi | null>(() => cleanAi(draft.ai));
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const { data: recent } = useLoad((c) => c.recentPrompts(), [sent]);
@@ -141,8 +142,8 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   const wp = useWeekPlan();
 
   useEffect(() => {
-    sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, ...(ai ? { ai } : {}) }));
-  }, [prompt, files, ai]);
+    sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, originItem, ...(ai ? { ai } : {}) }));
+  }, [prompt, files, ai, originItem]);
   useEffect(() => {
     void window.desk.getSettings().then((s) => {
       // her choice, else her accounts' platforms, else the international pair - international first (Create agrees)
@@ -158,6 +159,7 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   useEffect(() => {
     if (ui.prefill) {
       setPrompt(ui.prefill);
+      setOriginItem(ui.prefillOrigin ?? undefined);
       ui.setPrefill(null);
       setTimeout(() => ta.current?.focus(), 30);
     }
@@ -170,6 +172,7 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
     const r = await wp.actions.start(files, prompt.trim());
     if (r) {
       setPrompt('');
+      setOriginItem(undefined);
       setFiles([]);
     }
   };
@@ -200,11 +203,13 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
             recipe: p.sample || FIXED_STARTS.some((k) => t(k) === p.prompt.trim()) ? 'talkinghead' : undefined,
             ...(many && !p.sample ? { goal: true } : {}),
             ...(pickedAi && !p.sample ? { ai: pickedAi } : {}),
+        ...(originItem ? { originItem, goal: false } : {}),
           });
           // the request is a project now (All projects lists it): Home is free for the next one
           const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');
           sessionStorage.removeItem(DRAFT);
           setPrompt('');
+      setOriginItem(undefined);
           setFiles([]);
           setSent((n) => n + 1);
           setMany(false);

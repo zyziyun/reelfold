@@ -49,11 +49,12 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   const wp = useWeekPlan();
   const draft = (() => {
     try {
-      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown; reviewPlan?: boolean };
+      return JSON.parse(sessionStorage.getItem(DRAFT) ?? '{}') as { prompt?: string; files?: string[]; ai?: unknown; reviewPlan?: boolean; originItem?: string };
     } catch {
       return {};
     }
   })();
+  const [originItem, setOriginItem] = useState<string | undefined>(draft.originItem);
   const [prompt, setPrompt] = useState(draft.prompt ?? '');
   const [reviewPlan, setReviewPlan] = useState(draft.reviewPlan ?? false);
   const [files, setFiles] = useState<string[]>(draft.files ?? []);
@@ -65,7 +66,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
   // this request's AI (null = her default from Settings › AI); back to the default after it is sent
   const [ai, setAi] = useState<ProjectAi | null>(cleanAi(draft.ai));
   const ta = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, reviewPlan, ...(ai ? { ai } : {}) })), [prompt, files, ai, reviewPlan]);
+  useEffect(() => sessionStorage.setItem(DRAFT, JSON.stringify({ prompt, files, reviewPlan, originItem, ...(ai ? { ai } : {}) })), [prompt, files, ai, reviewPlan, originItem]);
   useEffect(() => {
     // her choice, else her accounts' platforms, else the international pair - international first (as on Home)
     void window.desk.getSettings().then((s) => {
@@ -85,6 +86,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     if (ui.prefill) {
       setPrompt(ui.prefill);
       setReviewPlan(ui.prefillReview);
+      setOriginItem(ui.prefillOrigin ?? undefined);
       ui.setPrefill(null);
     }
   }, [ui.prefill, ui]);
@@ -101,6 +103,7 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     if (!p.sample && p.files.length && WEEK_WORDS.test(p.prompt)) {
       if (await wp.actions.start(p.files, p.prompt)) {
         setPrompt('');
+      setOriginItem(undefined);
         setFiles([]);
       }
       return;
@@ -117,9 +120,11 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
         recipe: p.sample ? 'talkinghead' : undefined,
         ...(many && !p.sample ? { goal: true } : {}),
         ...(pickedAi && !p.sample ? { ai: pickedAi } : {}),
+        ...(originItem ? { originItem, goal: false } : {}),
       });
       sessionStorage.removeItem(DRAFT);
       setPrompt('');
+      setOriginItem(undefined);
       setReviewPlan(false);
       setFiles([]);
       setMany(false);

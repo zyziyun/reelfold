@@ -234,9 +234,9 @@ export function surveyLine(g: Pick<Goal, 'progress'>): string {
 }
 
 /** Where a video opens: its project once it has one, else the goal's page with the video picked. */
-export function videoHref(gid: string, v: Pick<GoalVideo, 'id' | 'projects' | 'versions'>): string {
+export function videoHref(gid: string, v: Pick<GoalVideo, 'id' | 'projects' | 'versions' | 'intake'>): string {
   const item = v.versions?.find((x) => x.state === 'made' && x.item)?.item ?? v.projects?.[0]?.item;
-  return item ? `#/studio/${item}` : goalHref(gid, v.id);
+  return item ? `#/studio/${item}` : v.intake ? `#/studio?sel=${v.intake}` : goalHref(gid, v.id);
 }
 
 export function goalHref(gid: string, vid?: string): string {

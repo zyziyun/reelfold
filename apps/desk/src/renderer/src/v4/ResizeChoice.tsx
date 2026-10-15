@@ -19,11 +19,11 @@ export function useResizeChoice(doc: OutputDoc, edit: Edit) {
     if (!client || !aspect) return;
     setBusy(true);
     try {
-      const owner = await client.historyItem(doc.item);
+      const source = await client.remakeSources(doc.item);
       location.hash = '#/studio';
       newVideo();
-      ui.setDropped([owner.dir]);
-      ui.setPrefill(t('resize.brief', { title: doc.title, aspect }), true);
+      ui.setDropped(source.inputs);
+      ui.setPrefill(t('resize.brief', { title: doc.title, aspect }), true, doc.item);
       setTarget(null);
     } catch (e) { ui.toast(errText(e), { error: true }); }
     finally { setBusy(false); }

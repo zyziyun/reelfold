@@ -886,6 +886,17 @@ class History:
         out = WK.adopt(r["dir"], recipe=recipe, title=title, home=vstudio_home())
         return dict(out, id=item_id)
 
+    def remake_sources(self, item_id):
+        """Original input references only; never recursively rescan a generated project folder."""
+        row = self.find(item_id)
+        paths = _project_sources(row["dir"])
+        if not paths:
+            rec = read_json(os.path.join(row["dir"], ".vstudio", "import.json"), {}) or read_json(WK.record_path(row["dir"]), {}) or {}
+            paths = [x.get("path") if isinstance(x, dict) else x for x in rec.get("sources") or []]
+        paths = [p for p in paths if isinstance(p, str) and os.path.exists(p)]
+        need(paths, "original materials were not found; reconnect the source files before remaking")
+        return dict(inputs=list(dict.fromkeys(paths)))
+
     def relink(self, item_id, paths):
         """Reconnect finished movies without moving, copying or overwriting them."""
         r = self.find(item_id)

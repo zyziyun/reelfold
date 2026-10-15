@@ -258,7 +258,9 @@ test('new canvas offers a remake draft or cover-only adaptation instead of paddi
   await choice.getByTestId('resize-remake').click();
   const composer = page.getByTestId('composer');
   await expect(composer).toBeVisible();
-  await expect(composer.getByTestId('composer-file')).toHaveCount(1);
+  const sources = await api<{inputs:string[]}>(`/api/history/item/${done}/remake-sources`);
+  await expect(composer.getByTestId('composer-file')).toHaveCount(sources.inputs.length);
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('v4.composer') ?? '{}').originItem)).toBe(done);
   await expect(composer.getByTestId('composer-input')).toHaveValue(/3:4/);
   await expect(composer.getByTestId('make-plan')).toHaveText('Plan the new version');
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('v4.composer') ?? '{}').reviewPlan)).toBe(true);

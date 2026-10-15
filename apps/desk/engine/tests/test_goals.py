@@ -116,6 +116,34 @@ class Base(unittest.TestCase):
 
 
 class PlanToGroup(Base):
+    def test_resize_request_belongs_to_source_goal_and_waits_for_approval(self):
+        G = self.goals()
+        gid = G.start("make several videos", [self.tmp], mode="ask")["id"]
+        self.wait(G, gid, "planned")
+        d = self.proj("original")
+        G.goals[gid]["videos"][0].update(projects=[dict(dir=d, item="a" * 12)], state="made")
+        rid = self.intake.start("Remake in 3:4", [], mode="ask")["id"]
+        self.intake.jobs[rid].update(state="done", plan={"projects": []})
+        linked = G.link_remake(d, rid, "Remake in 3:4")
+        self.assertEqual(linked["goal"], gid)
+        G.tick(gid)
+        remake = G._video(gid, linked["video"])
+        self.assertEqual(remake["state"], "you")
+        self.assertNotIn(("apply", rid), self.intake.calls)
+        row = G.mark([dict(id=rid)], "id")[0]
+        self.assertEqual(row["goal"], gid)
+
+    def test_old_remake_draft_is_reassociated_only_by_exact_source_folder(self):
+        G = self.goals()
+        gid = G.start("make several videos", [self.tmp], mode="ask")["id"]
+        self.wait(G, gid, "planned")
+        d = self.proj("source")
+        G.goals[gid]["videos"][0].update(projects=[dict(dir=d, item="a" * 12)], state="made")
+        rid = self.intake.start('Remake “Original” in 3:4', [d], mode="ask")["id"]
+        G._adopt()
+        G._adopt()
+        self.assertEqual(sum(v.get("intake") == rid for v in G.goals[gid]["videos"]), 1)
+
     def test_survey_plan_card_edits_and_approve(self):
         G = self.goals()
         with self.assertRaises(BadRequest):

@@ -270,6 +270,17 @@ class Goals:
             if changed:
                 self._save(g, quiet=True)
 
+        # Older size-remake drafts carried only the exact source-project folder, not origin_item.
+        # Recover that unambiguous relationship; never infer ownership from similar titles or footage.
+        reqs, dirs = self.owned()
+        for rid, job in list(jobs.items()):
+            inputs = (job or {}).get("inputs") or []
+            prompt = (job or {}).get("prompt") or ""
+            if rid in reqs or len(inputs) != 1 or not re.match(r"^(?:Remake [“\"]|用这个目录的原始素材|Recréez «)", prompt):
+                continue
+            if os.path.realpath(inputs[0]) in dirs:
+                self.link_remake(inputs[0], rid, prompt)
+
     def _all(self):
         with self._lock:
             return [dict(g) for g in self.goals.values()]
@@ -645,7 +656,7 @@ class Goals:
                  attempts=(v.get("attempts") or 0) + 1)
 
     def _follow(self, g, v, now):
-        if v["state"] == "planning":
+        if v["state"] == "planning" or (v.get("manual_plan") and not v.get("projects")):
             j = (self.intake.jobs.get(v.get("intake")) or {}) if v.get("intake") else {}
             if not j:
                 return self._failed(g, v, "lost", now)
@@ -678,6 +689,9 @@ class Goals:
                 v["seen"] = now
                 return None
             if st == "done" and j.get("plan") and not j.get("applied"):
+                if v.get("manual_plan") and j.get("mode") == "ask":
+                    v.update(state="you", seen=now)
+                    return None
                 try:
                     self.intake.apply(v["intake"], run=True)
                 except Exception as e:  # noqa: BLE001
@@ -1408,6 +1422,27 @@ class Goals:
     def _video(self, gid, vid):
         g = self.goals.get(gid) or {}
         return next((v for v in g.get("videos") or [] if v.get("id") == vid), None) or {}
+
+    def link_remake(self, source_dir, request_id, prompt):
+        """A separately planned size remake remains in the source collection, awaiting her approval."""
+        hit = self.owned()[1].get(os.path.realpath(source_dir))
+        if not hit:
+            return None
+        gid, vid = hit
+        with self._lock:
+            g = self._get(gid)
+            source = self._video(gid, vid)
+            shape = re.search(r"\b\d{1,2}:\d{1,2}\b", prompt)
+            title = (source.get("title") or "Remake") + (" — " + shape[0] if shape else " — Remake")
+            row = dict(id="remake-" + request_id, title=title, kind=source.get("kind") or "film",
+                       theme=source.get("theme"), length_s=source.get("length_s") or 60,
+                       state="planning", intake=request_id, request=prompt, inputs=[], projects=[],
+                       attempts=1, started=time.time(), seen=time.time(), manual_plan=True)
+            g["videos"].append(row)
+            g.update(state="running", step="running")
+            self._save(g)
+        self._ensure_ticker()
+        return dict(goal=gid, video=row["id"])
 
     def mark(self, rows, key):
         """Put ``goal`` / ``goal_video`` on rows of the lists (``key``: "id" for requests, "dir" for projects)."""

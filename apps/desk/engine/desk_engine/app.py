@@ -764,9 +764,13 @@ class Api:
                                          "ask" if b.get("mode") == "ask" else "autopilot",
                                          **({"ai": b["ai"]} if b.get("ai") else {}))
                     return dict(id=g["id"], goal=True)
-                return self.intake.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"), b.get("mode"),
+                origin = self.history.find(b["origin_item"]) if b.get("origin_item") else None
+                res = self.intake.start(prompt.strip(), inputs, b.get("platforms"), b.get("lang"), b.get("mode"),
                                          b.get("sample_name"), **({"recipe": b["recipe"]} if b.get("recipe") else {}),
                                          **({"ai": b["ai"]} if b.get("ai") else {}))
+                if origin:
+                    self.goals.link_remake(origin["dir"], res["id"], prompt)
+                return res
             if parts == ["intake", "recent"] and method == "GET":
                 return self.intake.recent()
             if parts == ["intake", "open"] and method == "GET":
@@ -1063,6 +1067,8 @@ class Api:
                         from . import pilot
                         return pilot.stop(e["dir"], self.bus)
                     return self.intake.resume_pilot(e["dir"])
+                if parts[3:] == ["remake-sources"] and method == "GET":
+                    return h.remake_sources(parts[2])
                 if parts[3:] == ["relink"] and method == "POST":
                     r = h.relink(parts[2], (body or {}).get("paths"))
                     self.bus.publish("batches")

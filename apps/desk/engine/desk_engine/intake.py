@@ -112,7 +112,7 @@ def _on_autopilot(d):
 def review_first(prompt):
     """A request for a proposal first must not start production on autopilot."""
     return bool(re.search(r"先.{0,12}(?:选段|剪辑|分镜|修改|制作)?方案|(?:等|待).{0,6}确认.{0,6}(?:再|后)|"
-                          r"(?:plan|proposal|storyboard) first|before (?:making|rendering)|wait for my (?:approval|confirmation)",
+                          r"(?:plan|proposal|storyboard) first|attend.{0,12}confirmation|before (?:making|rendering)|wait for my (?:approval|confirmation)",
                           prompt or "", re.I))
 
 
