@@ -23,7 +23,7 @@ ZH47R7RVKB. Store texts, review notes and screenshots for the listing are kept o
 | Updates | electron-updater (GitHub Releases) | the Mac App Store | Guideline 2.4.5(vii) |
 | First-run downloads | speech models, fonts, face models, optional Chromium | the same minus Chromium (data only) | Guideline 2.4.5(iv) / 2.5.2: no downloaded executables |
 | HTML covers / slides | headless Chrome (installed or downloaded) | rendered by the app's own Chromium (offscreen window) | no second browser binary in the sandbox |
-| Usage counts (opt-in) | yes | none ("Data Not Collected") | simpler privacy label |
+| Usage counts (opt-in) | yes | none | optional cloud AI content is disclosed separately |
 | Publishing | built-in browser (assisted fill, she presses Publish), YouTube API | built-in browser for every platform, YouTube included | Google's desktop OAuth redirects to a loopback port: a listening socket, which Lite does not have (no `network.server`) |
 | Local services | engine sidecar + (Lite) HTML renderer on Unix domain sockets | same | nothing listens on a network port in either edition (Windows: 127.0.0.1, CPython has no AF_UNIX there) |
 
@@ -223,3 +223,13 @@ substitute. Upload and Submit for Review remain separate actions.
   https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications
 - Age ratings (4+/9+/13+/16+/18+, Unrestricted Web Access) - https://developer.apple.com/news/?id=ks775ehf ,
   https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions
+
+### Explicit AI sharing permission (5.1.2(i))
+
+The MAS build gates outgoing AI content through main-process native permission dialogs. Each dialog identifies the actual HTTP(S) origin and one use: analysis (text/transcripts/reference images), transcription (audio), speech (narration text), or generation (prompts/reference media). Allow is explicit; cancel/default is denial. Grants are remembered per origin and use in the app container. Help > Reset AI Sharing Permissions clears them and invalidates an open dialog. Already transmitted requests cannot be recalled. Local loopback models require no remote-sharing grant; private LAN/custom endpoints do. API key storage, paid-generation approval and OS device permissions remain separate decisions.
+
+A per-launch authenticated Unix socket carries only the origin and fixed use, never content or keys. Missing/broken permission service denies remote content requests. AI permission refusal is terminal through LLM retries/fallback. HTTP/SDK content calls refuse redirects in MAS, so an approved service cannot forward user content to an unapproved destination. Edge's unofficial voice transport is unavailable in MAS; use local/system voices or API voice services. Full/CLI editions retain their existing behavior.
+
+Manual checks before submission: launch the exact sandbox candidate with a fresh temporary profile; verify native Allow/Don’t Allow, new-origin/new-use prompts, persistence and Help reset. Do not use private footage to test remote AI without the creator's express approval. Reconcile the live privacy policy and App Store Connect privacy disclosures with optional cloud audio, reference images and generation input sharing; a no-telemetry flag is not proof of “Data Not Collected”. The website policy source is prepared locally; deployment requires the creator's confirmation.
+
+The privacy manifest conservatively declares Photos or Videos, Audio Data and Other User Content, linked to the user (provider API accounts), for App Functionality, without tracking. This covers optional cloud AI input; local-only usage does not transmit these inputs. Before uploading, update App Store Connect's privacy label to match and review the configured providers' retention terms. Do not keep the historical “Data Not Collected” response. Apple defines collection as off-device access beyond real-time servicing: https://developer.apple.com/app-store/app-privacy-details/ . The manifest is not a replacement for the App Store Connect questionnaire.

@@ -74,6 +74,7 @@ const api: DeskApi = {
     postedLog: (batchId) => call('publish:postedLog', { batchId }),
     due: () => call('publish:due'),
     fillPost: (postId, account) => call('publish:fillPost', account ? { postId, account } : { postId }),
+    controlFill: (postId, action) => call('publish:controlFill', { postId, action }),
     capture: () => call('publish:capture'),
     postPackage: (postId) => call('publish:postPackage', { postId }),
     api: {

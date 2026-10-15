@@ -91,7 +91,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-from . import acp, agentlog
+from . import acp, agentlog, ai_consent
 
 _live = threading.local()          # the live transcript's turn of the call running on this thread (agentlog)
 
@@ -470,10 +470,11 @@ def _anthropic_http(kw, timeout):
     if not key:
         raise LLMError("provider anthropic needs ANTHROPIC_API_KEY")
     base = (os.environ.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com").rstrip("/")
+    ai_consent.require(base, "analysis")
     req = urllib.request.Request(f"{base}/v1/messages", data=json.dumps(kw).encode(), method="POST", headers={
         "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout or 600) as r:
+        with ai_consent.urlopen(req, timeout=timeout or 600) as r:
             doc = json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         try:
@@ -509,7 +510,8 @@ def _anthropic(system, prompt, model, schema, max_tokens, timeout, opts):
         import anthropic
     except ImportError:
         return _anthropic_http(kw, timeout)
-    client = anthropic.Anthropic(timeout=timeout) if timeout else anthropic.Anthropic()
+    ai_consent.require(os.environ.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com", "analysis")
+    client = anthropic.Anthropic(**dict(ai_consent.sdk_transport(), **({"timeout": timeout} if timeout else {})))
     try:
         try:                                      # server-side refusal fallback (beta) when the SDK knows it
             resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
@@ -540,7 +542,8 @@ def _openai_chat(system, prompt, model, schema, max_tokens, timeout, opts, base_
         kw["base_url"] = base_url
     if timeout:
         kw["timeout"] = timeout
-    client = OpenAI(api_key=api_key, **kw)
+    ai_consent.require(base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1", "analysis")
+    client = OpenAI(api_key=api_key, **kw, **ai_consent.sdk_transport())
     req = dict(model=model, messages=([{"role": "system", "content": system}] if system else []) +
                [{"role": "user", "content": prompt}])
     if official:
@@ -629,7 +632,11 @@ def _gemini(system, prompt, model, schema, max_tokens, timeout, opts):
     key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not key:
         raise LLMError("provider gemini needs GEMINI_API_KEY (or GOOGLE_API_KEY)")
-    client = genai.Client(api_key=key)
+    base = os.environ.get("GOOGLE_GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com"
+    ai_consent.require(base, "analysis")
+    http_options = {"vertexai": False, "http_options": types.HttpOptions(base_url=base, client_args={"follow_redirects": False})} \
+        if ai_consent.required() else {}
+    client = genai.Client(api_key=key, **http_options)
     cfg = dict(system_instruction=system or None, max_output_tokens=max_tokens)
     if schema:
         cfg["response_mime_type"] = "application/json"
@@ -1309,6 +1316,8 @@ def _complete(task, system, prompt, schema=None, provider=None, model=None, max_
                 last = e
                 if k < retries:
                     _sleep(min(30.0, 2.0 * (2 ** k)))
+            except ai_consent.ConsentDenied:
+                raise
             except LLMError:
                 raise
             except Exception as e:  # noqa: BLE001

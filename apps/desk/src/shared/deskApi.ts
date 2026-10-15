@@ -27,7 +27,7 @@ export interface PublishStateMsg {
 export interface FillStepMsg {
   field: string;
   kind: string;
-  status: 'ok' | 'not-found' | 'error';
+  status: 'running' | 'ok' | 'not-found' | 'error';
   detail?: string;
 }
 
@@ -43,7 +43,7 @@ export interface DueMsg {
 
 export type PostFillMsg =
   | { ok: true; postId: string; adapterId: string; account: string; results: FillStepMsg[]; video: string; cover: string | null }
-  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api'; detail?: string; adapterId?: string; account?: string };
+  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api' | 'cancelled'; detail?: string; adapterId?: string; account?: string };
 
 export interface PostedEntryMsg {
   batchId: string;
@@ -217,6 +217,7 @@ export interface DeskApi {
     due(): Promise<DueMsg>;
     /** open the upload page of a scheduled post in its account's session and fill it (never presses Publish) */
     fillPost(postId: string, account?: string): Promise<PostFillMsg>;
+    controlFill(postId: string, action: 'pause' | 'resume' | 'cancel'): Promise<boolean>;
     /** redacted snapshot of the page open in the built-in browser -> a local file (selector tuning) */
     capture(): Promise<{ file: string; nodes: number }>;
     /** a post's file made for its platform, cover and copy */

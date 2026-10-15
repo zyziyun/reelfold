@@ -1,3 +1,4 @@
+import type { FillControl } from './fillControl';
 // "Time to post" for one 发布 board row: open the platform's upload page in the account's own session, set the
 // rendered file made for that platform, type the title / text / tags, outline the Publish button - and then watch
 // the page: when she has pressed Publish herself (a success URL or text from the adapter), the row becomes
@@ -23,6 +24,7 @@ export type PostFillOutcome =
 
 export interface PostFillDeps {
   client: EngineClient;
+  control?: FillControl;
   adapters: Adapter[];
   browser: PublishBrowser;
   accounts: Record<string, string[]>;
@@ -101,6 +103,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   const copy = copyForPost(post, adapter.fields.title !== null, [clip.title, clip.post?.title ?? ''].filter(Boolean));
 
   if (post.account !== account) await deps.client.updatePost(post.id, { account });
+  await deps.control?.checkpoint();
   const entry = deps.browser.open(adapter, account, 'upload');
   const wc = entry.view.webContents;
   await waitLoaded(wc);
@@ -115,6 +118,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   }
   if (!onUploadPage(wc.getURL(), adapter)) return { ok: false, reason: 'page-failed', detail: wc.getURL(), adapterId: adapter.id, account };
 
+  await deps.control?.checkpoint();
   const steps = planFill(adapter, { videoPath: file.path, coverPath: cover, copy });
   const dbg = wc.debugger;
   let attachedHere = false;
@@ -128,10 +132,11 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   }
   let results: StepResult[];
   try {
-    results = await runFill((method, params) => dbg.sendCommand(method, params), steps, { onStep: (r) => deps.onStep?.({ ...r, postId: post.id }) });
+    results = await runFill((method, params) => dbg.sendCommand(method, params), steps, { onStep: (r) => deps.onStep?.({ ...r, postId: post.id }), control: deps.control });
   } finally {
     if (attachedHere && dbg.isAttached()) dbg.detach();
   }
+  await deps.control?.checkpoint();
   if (results.some((r) => r.field === 'file' && r.status === 'ok')) {
     await deps.client.updatePost(post.id, { state: 'filled' });
     watchPosted(wc, adapter, (url) => {

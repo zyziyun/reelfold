@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { FillControl, FillRuns } from '../../src/main/publish/fillControl';
+import { validateIpc } from '../../src/shared/ipc';
 import { guardedSend, runFill, type Send } from '../../src/main/publish/cdpFill';
 import { parseAdapter, type Adapter } from '../../src/shared/publish/adapterSchema';
 import { planFill } from '../../src/shared/publish/fillPlan';
@@ -131,4 +133,108 @@ describe('CDP executor', () => {
     const res = await runFill(page.send, steps, { sleep: async () => undefined });
     expect(res[0].status).toBe('ok');
   });
+});
+
+describe('assisted browser takeover', () => {
+  it('accepts only a real post identifier and a defined control action', () => {
+    expect(validateIpc('publish:controlFill', { postId: 'a'.repeat(12), action: 'pause' })).toEqual({ postId: 'a'.repeat(12), action: 'pause' });
+    expect(() => validateIpc('publish:controlFill', { postId: '*', action: 'cancel' })).toThrow();
+    expect(() => validateIpc('publish:controlFill', { postId: 'a'.repeat(12), action: 'execute' })).toThrow();
+  });
+  const readyPage = () => fakePage({
+    'input[type="file"][accept*="video"]': { file: true },
+    'div.public-DraftEditor-content[contenteditable="true"]': {},
+    'button[data-e2e="post_video_button"]': {},
+  });
+  it('pauses after the file, issues no further commands, resumes without repeating the file', async () => {
+    const page = readyPage();
+    const control = new FillControl();
+    let reached!: () => void;
+    const paused = new Promise<void>((resolve) => { reached = resolve; });
+    const events: string[] = [];
+    const job = runFill(page.send, planFill(load('tiktok.json'), { videoPath: '/p/v.mp4', copy }), {
+      control, sleep: async () => undefined, onStep: (r) => {
+        events.push(`${r.field}:${r.status}`);
+        if (r.field === 'file' && r.status === 'ok') { control.pause(); reached(); }
+      },
+    });
+    await paused;
+    const count = page.calls.length;
+    await new Promise((r) => setTimeout(r, 15));
+    expect(page.calls).toHaveLength(count);
+    expect(page.calls.some((c) => c.method === 'Input.insertText')).toBe(false);
+    control.resume();
+    expect((await job).every((r) => r.status === 'ok')).toBe(true);
+    expect(page.calls.filter((c) => c.method === 'DOM.setFileInputFiles')).toHaveLength(1);
+    expect(events.slice(0, 4)).toEqual(['file:running', 'file:ok', 'description:running', 'description:ok']);
+  });
+  it('cancels a paused run without writing text, and rejects a different post’s control request', async () => {
+    const runs = new FillRuns();
+    const page = readyPage();
+    let reached!: () => void;
+    const paused = new Promise<void>((resolve) => { reached = resolve; });
+    const job = runs.run('post-a', (control) => runFill(page.send, planFill(load('tiktok.json'), { videoPath: '/p/v.mp4', copy }), {
+      control, onStep: (r) => { if (r.field === 'file' && r.status === 'ok') { control.pause(); reached(); } },
+    }));
+    await paused;
+    expect(runs.command('post-b', 'cancel')).toBe(false);
+    expect(runs.command('post-a', 'cancel')).toBe(true);
+    expect(await job).toEqual({ ok: false, reason: 'cancelled' });
+    expect(page.calls.some((c) => c.method === 'Input.insertText')).toBe(false);
+    expect(page.calls.at(-1)).toEqual({ method: 'Emulation.setFocusEmulationEnabled', params: { enabled: false } });
+  });
+  it('a superseded run cannot clear the newer run’s controls', async () => {
+    const runs = new FillRuns();
+    const old = runs.run('old', async (c) => { c.pause(); await c.checkpoint(); return 'old'; });
+    let reached!: () => void;
+    const nextPaused = new Promise<void>((r) => { reached = r; });
+    const next = runs.run('next', async (c) => { c.pause(); reached(); await c.checkpoint(); return 'next'; });
+    expect(await old).toEqual({ ok: false, reason: 'cancelled' });
+    await nextPaused;
+    expect(runs.command('next', 'resume')).toBe(true);
+    expect(await next).toBe('next');
+    expect(runs.command('next', 'pause')).toBe(false);
+  });
+  it('time spent checking the page while paused consumes no selector timeout', () => {
+    let now = 100;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const c = new FillControl();
+      c.pause(); now += 60_000;
+      expect(c.now()).toBe(100);
+      c.resume(); now += 10;
+      expect(c.now()).toBe(110);
+    } finally { clock.mockRestore(); }
+  });
+  it('a late completion after takeover cannot report a successful automatic fill', async () => {
+    const runs = new FillRuns();
+    let entered!: () => void, finish!: () => void;
+    const started = new Promise<void>((r) => { entered = r; });
+    const pending = new Promise<void>((r) => { finish = r; });
+    const job = runs.run('post', async () => { entered(); await pending; return { ok: true }; });
+    await started;
+    runs.command('post', 'cancel');
+    finish();
+    expect(await job).toEqual({ ok: false, reason: 'cancelled' });
+  });
+});
+
+it('waits for a cancelled browser run to detach before starting its replacement', async () => {
+  const runs = new FillRuns();
+  let entered!: () => void;
+  const started = new Promise<void>((r) => { entered = r; });
+  let detached!: () => void;
+  const cleanup = new Promise<void>((r) => { detached = r; });
+  const old = runs.run('old', async (c) => {
+    c.pause(); entered();
+    try { await c.checkpoint(); } finally { await cleanup; }
+  });
+  await started;
+  let replacementStarted = false;
+  const next = runs.run('next', async () => { replacementStarted = true; return 'ready'; });
+  await new Promise((r) => setTimeout(r, 10));
+  expect(replacementStarted).toBe(false);
+  detached();
+  expect(await old).toEqual({ ok: false, reason: 'cancelled' });
+  expect(await next).toBe('ready');
 });

@@ -276,6 +276,24 @@ class BundleTest(unittest.TestCase):
         self.assertIn('privacy manifest', messages)
         self.assertIn('node-pty', messages)
 
+    def test_ai_content_cannot_be_declared_as_no_collection(self):
+        manifest = os.path.join(self.res, 'PrivacyInfo.xcprivacy')
+        with open(manifest, 'rb') as f:
+            data = plistlib.load(f)
+        data['NSPrivacyCollectedDataTypes'] = []
+        with open(manifest, 'wb') as f:
+            plistlib.dump(data, f)
+        self.assertIn('optional cloud AI', str(self.check()))
+
+    def test_ai_content_requires_linkage_functionality_and_no_tracking(self):
+        manifest = os.path.join(self.res, 'PrivacyInfo.xcprivacy')
+        with open(manifest, 'rb') as f:
+            data = plistlib.load(f)
+        data['NSPrivacyCollectedDataTypes'][0]['NSPrivacyCollectedDataTypeTracking'] = True
+        with open(manifest, 'wb') as f:
+            plistlib.dump(data, f)
+        self.assertIn('account linkage', str(self.check()))
+
     def test_sparse_archive_cannot_pass(self):
         AsarTest.write_asar(os.path.join(self.res, 'app.asar'), ['out', 'package.json'])
         self.assertIn('missing out/main/index.cjs', str(self.check()))

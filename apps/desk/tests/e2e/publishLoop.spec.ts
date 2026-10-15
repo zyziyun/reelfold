@@ -61,7 +61,9 @@ test.beforeAll(async () => {
       const u = new URL(req.url);
       if (u.hostname !== 'creator.xiaohongshu.com') return new Response('offline in tests', { status: 404 });
       const file = u.pathname.endsWith('_common.js') ? '_common.js' : 'xiaohongshu.html';
-      return new Response(fsm.readFileSync(pathm.join(mocks, file)), { headers: { 'content-type': file.endsWith('.js') ? 'text/javascript' : 'text/html; charset=utf-8' } });
+      let body = fsm.readFileSync(pathm.join(mocks, file), 'utf8');
+      if (file === '_common.js' && (globalThis as unknown as { __holdUploadForm?: boolean }).__holdUploadForm) body = body.replace(', 300)', ', 60000)');
+      return new Response(body, { headers: { 'content-type': file.endsWith('.js') ? 'text/javascript' : 'text/html; charset=utf-8' } });
     });
     const dy = session.fromPartition('persist:douyin-main');
     dy.protocol.handle('https', () => new Response('offline in tests', { status: 404 }));
@@ -340,4 +342,81 @@ test('multiple accounts require a choice; selected session persists and removal 
   await expect(page.getByTestId('post-now')).toContainText('发布账号');
   await expect(page.getByTestId('post-account')).toHaveValue('main');
   await page.screenshot({ path: path.join(SHOTS, 'post-account-removed.png') });
+});
+
+
+// Browser actions remain real CDP commands; only the upload website is held at its processing screen.
+test('visible steps pause and resume, manual takeover and navigation stop further filling', async () => {
+  test.setTimeout(120000);
+  const hist = await api<{ items: { id: string; dir: string }[] }>('/api/history');
+  const itemId = hist.items.find((i) => i.dir === work)!.id;
+  await page.evaluate(() => window.desk.setSettings({ lang: 'en' }));
+  await page.reload();
+  await app.evaluate(async ({ session }) => {
+    (globalThis as unknown as { __holdUploadForm: boolean }).__holdUploadForm = true;
+    await session.fromPartition('persist:xiaohongshu-main').cookies.set({ url: 'https://creator.xiaohongshu.com', name: 'galaxy_creator_session_id', value: 'control-test', domain: '.xiaohongshu.com', expirationDate: Date.now() / 1000 + 86400 });
+  });
+  const platform = async (script: string) => app.evaluate(async ({ session, webContents }, code) => {
+    const ses = session.fromPartition('persist:xiaohongshu-main');
+    const wc = webContents.getAllWebContents().find((w) => w.session === ses && w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    return wc && !wc.isLoading() ? wc.executeJavaScript(code) : null;
+  }, script);
+  const start = async (minute: number) => {
+    await hash('#/publish');
+    await page.evaluate(async () => {
+      await window.desk.publish.open('xiaohongshu', 'main', 'upload');
+      await window.desk.publish.navigate('upload');
+    });
+    await expect.poll(() => platform('document.readyState')).toBe('complete');
+    const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item: itemId, clip: 'B_自媒体', platform: 'xiaohongshu', at: at(new Date(Date.now() + minute * 60000)) }] });
+    expect(r.ids, JSON.stringify(r)).toHaveLength(1);
+    await api(`/api/calendar/${r.ids[0]}`, { account: 'main' });
+    await hash(`#/publish/post/${r.ids[0]}?go=1`);
+    await expect(page.locator('[data-testid="post-steps"] li[data-field="title"]')).toHaveAttribute('data-status', 'running');
+    return r.ids[0];
+  };
+  const first = await start(60);
+  await page.getByTestId('post-pause').click();
+  await expect(page.getByTestId('post-filling')).toHaveAttribute('data-paused', 'true');
+  await page.getByTestId('post-manual').click();
+  await page.getByTestId('post-manual-url').fill('not-a-post-link');
+  await page.getByTestId('post-manual-ok').click();
+  await expect(page.getByTestId('post-filling')).toHaveAttribute('data-paused', 'true');
+  await platform("document.getElementById('form').style.display='block'");
+  await page.waitForTimeout(550); // longer than the executor's selector polling interval
+  expect((await platform('window.__state()')).title).toBe('');
+  await page.screenshot({ path: path.join(SHOTS, 'publish-paused.png') });
+  const view = await app.evaluate(async ({ session, webContents, BrowserWindow }) => {
+    const ses = session.fromPartition('persist:xiaohongshu-main');
+    const wc = webContents.getAllWebContents().find((w) => w.session === ses && w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    const child = BrowserWindow.getAllWindows()[0].contentView.children.find((v) => 'webContents' in v && v.webContents === wc)!;
+    return { visible: child.getVisible(), bounds: child.getBounds(), png: (await wc.capturePage()).toPNG().toString('base64') };
+  });
+  expect(view.visible).toBe(true);
+  expect(view.bounds.width).toBeGreaterThan(400);
+  expect(view.bounds.height).toBeGreaterThan(400);
+  fs.writeFileSync(path.join(SHOTS, 'publish-paused-platform.png'), Buffer.from(view.png, 'base64'));
+  await page.getByTestId('post-pause').click();
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'filled');
+  await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(4);
+  expect((await rows()).find((p) => p.id === first)?.state).toBe('filled');
+  expect((await platform('window.__state()')).clicked).toBe(false);
+
+  const second = await start(61);
+  await page.getByTestId('post-takeover').click();
+  await expect(page.getByTestId('post-failed')).toHaveAttribute('data-reason', 'cancelled');
+  await platform("document.getElementById('form').style.display='block'; document.querySelector('#form input').value='My own title'");
+  await page.waitForTimeout(550);
+  expect(await platform('window.__state()')).toMatchObject({ file: 'B_自媒体.mp4', title: 'My own title', clicked: false });
+  expect((await rows()).find((p) => p.id === second)?.state).toBe('planned');
+  await page.screenshot({ path: path.join(SHOTS, 'publish-takeover.png') });
+
+  const third = await start(62);
+  await page.getByTestId('post-pause').click();
+  await expect(page.getByTestId('post-filling')).toHaveAttribute('data-paused', 'true');
+  await hash('#/publish');
+  await expect.poll(() => page.evaluate((pid) => window.desk.publish.controlFill(pid, 'resume'), third)).toBe(false);
+  await platform("document.getElementById('form').style.display='block'");
+  await page.waitForTimeout(550);
+  expect((await platform('window.__state()')).title).toBe('');
 });

@@ -157,6 +157,7 @@ export const ipcSchemas = {
   // the publish loop: due posts (ticks the scheduler), fill one scheduled post, capture the open page, official APIs
   'publish:due': z.undefined(),
   'publish:fillPost': z.strictObject({ postId: z.string().regex(/^[0-9a-f]{12}$/), account: accountName.optional() }),
+  'publish:controlFill': z.strictObject({ postId: z.string().regex(/^[0-9a-f]{12}$/), action: z.enum(['pause', 'resume', 'cancel']) }),
   'publish:capture': z.undefined(),
   'publish:apiStatus': z.undefined(),
   // her own Google Cloud OAuth client (the secret is optional: Desktop-app clients show one, Google wants it)

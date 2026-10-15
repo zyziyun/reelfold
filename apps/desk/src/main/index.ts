@@ -28,6 +28,7 @@ import { shortsFit, YouTubeApi } from './publish/api/youtube';
 import { CAPTURE_JS, saveCapture, type CaptureResult } from './publish/capture';
 import { probeLogin } from './publish/loginProbe';
 import { fillScheduledPost } from './publish/postFill';
+import { FillRuns } from './publish/fillControl';
 import { PublishScheduler } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
@@ -51,6 +52,7 @@ import { devOnly, setPackaged, tempOnly, testSwitch } from './testHooks';
 import { openFeedback, recordProblem, registerSupportIpc } from './support';
 import { AccessStore, commonFolder } from './access';
 import { HtmlRenderService } from './htmlRender';
+import { AiConsentService, AI_DATA } from './aiConsent';
 import { CAPS, EDITION, IS_LITE } from '../shared/edition';
 
 protocol.registerSchemesAsPrivileged([
@@ -115,6 +117,7 @@ let win: BrowserWindow | null = null;
 let engine: EngineProcess | null = null;
 let client: EngineClient | null = null;
 let browser: PublishBrowser | null = null;
+const fillRuns = new FillRuns();
 let settings: SettingsStore;
 let pstore: PublishStore;
 let adapters: { adapters: Adapter[]; errors: { file: string; error: string }[] } = { adapters: [], errors: [] };
@@ -131,6 +134,7 @@ let tray: AppTray | null = null;
 let access: AccessStore;
 /** Lite build: HTML covers / slides rendered by this app's Chromium for the engine (no Chromium download) */
 let htmlRender: HtmlRenderService | null = null;
+let aiConsent: AiConsentService | null = null;
 /** started by the OS at login: stay in the menu bar until she opens the window */
 const HIDDEN_START = startedHidden();
 
@@ -178,6 +182,9 @@ function resolvedConfig() {
 function editionEnv(): Record<string, string> {
   if (!IS_LITE) return {};
   return {
+    VSTUDIO_AI_CONSENT_REQUIRED: '1',
+    VSTUDIO_AI_CONSENT_SOCKET: aiConsent?.socketPath ?? '',
+    VSTUDIO_AI_CONSENT_TOKEN: aiConsent?.token ?? '',
     VSTUDIO_LLM_NO_CLI: '1',
     DESK_HISTORY_WATCH: '',
     VSTUDIO_NO_CHROME: '1',
@@ -548,6 +555,7 @@ function createWindow(route?: string, show = true) {
       mainLog(`[main] first page load failed: ${String((e as Error)?.message ?? e)}`);
     });
   win.on('closed', () => {
+    fillRuns.cancel();
     browser?.destroy();
     browser = null;
     win = null;
@@ -920,6 +928,7 @@ function registerIpc() {
     return channelList();
   });
   handle('publish:removeAccount', async (p) => {
+    if (browser?.active?.adapter.id === p.adapterId && browser.active.account === p.account) fillRuns.cancel();
     const st = settings.get();
     const acc = { ...st.accounts, [p.adapterId]: (st.accounts[p.adapterId] ?? []).filter((x) => x !== p.account) };
     if (!acc[p.adapterId].length) delete acc[p.adapterId];
@@ -935,13 +944,15 @@ function registerIpc() {
     return channelList();
   });
   handle('publish:open', async (p) => {
+    fillRuns.cancel();
     const acc = settings.get().accounts[p.adapterId] ?? [];
     if (!acc.includes(p.account)) throw new Error('add the account first');
     browser!.open(adapterById(p.adapterId), p.account, p.page);
   });
   handle('publish:setBounds', async (p) => browser?.setBounds(p));
-  handle('publish:hide', async () => browser?.hide());
-  handle('publish:navigate', async (p) => browser?.navigate(p.action));
+  handle('publish:hide', async () => { fillRuns.cancel(); browser?.hide(); });
+  handle('publish:navigate', async (p) => { fillRuns.cancel(); browser?.navigate(p.action); });
+  handle('publish:controlFill', async (p) => fillRuns.command(p.postId, p.action));
   handle('publish:confirmPackage', async (p) => {
     const m = await needClient().manifest(p.batchId);
     if (!m.manifest || !m.verify.ok || m.manifest.confirmation_code !== p.code) {
@@ -953,8 +964,9 @@ function registerIpc() {
   handle('publish:fill', async (p) => {
     const acc = settings.get().accounts[p.adapterId] ?? [];
     if (!acc.includes(p.account)) throw new Error('unknown account');
-    return assistedFill(
+    return fillRuns.run(`batch:${p.batchId}:${p.job}`, (control) => assistedFill(
       {
+        control,
         client: needClient(),
         store: pstore,
         adapters: adapters.adapters,
@@ -962,7 +974,7 @@ function registerIpc() {
         onStep: (r) => win?.webContents.send('publish:fillStep', r),
       },
       p,
-    );
+    ));
   });
   handle('publish:markPosted', async (p) => {
     const m = await needClient().manifest(p.batchId);
@@ -989,8 +1001,9 @@ function registerIpc() {
     return { ids: r.due.map((p) => p.id), api: Object.fromEntries(r.due.map((p) => [p.id, scheduler?.apiState(p.id) ?? null])) };
   });
   handle('publish:fillPost', async (p) => {
-    const out = await fillScheduledPost(
+    const out = await fillRuns.run(p.postId, (control) => fillScheduledPost(
       {
+        control,
         client: needClient(),
         adapters: adapters.adapters,
         browser: browser!,
@@ -1003,7 +1016,7 @@ function registerIpc() {
         log: mainLog,
       },
       p,
-    );
+    ));
     if (!out.ok) mainLog(`[publish] fill ${p.postId}: ${out.reason}${out.detail ? ` (${out.detail})` : ''}`);
     return out;
   });
@@ -1072,7 +1085,7 @@ function registerIpc() {
       publishAt = localDate(p.publishAt);
       if (publishAt.getTime() < Date.now() + 5 * 60_000) throw new Error('pick a time at least a few minutes ahead, or publish now');
     }
-    if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 60 seconds or less');
+    if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 3 minutes or less');
     let last = 0;
     const r = await youtube.upload(
       p.account,
@@ -1195,7 +1208,7 @@ async function reportMigratedProfile() {
 }
 
 function menu() {
-  installAppMenu({ onOpenMain: () => openRoute(), lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
+  installAppMenu({ onResetAiConsent: IS_LITE ? () => aiConsent?.reset() : undefined, onOpenMain: () => openRoute(), lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
 }
 
 /** File › Import Finished Video…: pick finished videos (files or folders) -> the renderer's import dialog. */
@@ -1276,6 +1289,24 @@ if (!app.requestSingleInstanceLock()) {
     hardenDefaultSession();
     registerProtocols();
     if (IS_LITE) {
+      aiConsent = new AiConsentService({
+        file: path.join(app.getPath('userData'), 'ai-sharing-permissions.json'),
+        ask: async ({ origin, purpose }) => {
+          const lang = settings.get().lang;
+          const copy = {
+            en: { title: 'Allow sharing with this AI service?', allow: 'Allow', deny: 'Don’t Allow', note: 'The service handles this data under its own privacy policy. Allow only if you trust this destination. Permission is remembered for this address and use. Revoke future sharing in Help › Reset AI Sharing Permissions. Requests already sent cannot be recalled.' },
+            'zh-CN': { title: '允许与这个 AI 服务分享数据？', allow: '允许', deny: '不允许', note: '该服务按其隐私政策处理数据，请仅允许你信任的地址。此地址和用途的许可会被记住。可在帮助 › 重置 AI 数据分享许可中撤销后续分享；已发送的请求无法收回。' },
+            fr: { title: 'Autoriser le partage avec ce service IA ?', allow: 'Autoriser', deny: 'Refuser', note: 'Ce service traite les données selon sa propre politique de confidentialité. Autorisez uniquement une destination de confiance. Cette adresse et cet usage seront mémorisés. Révoquez les partages futurs dans Aide › Réinitialiser les autorisations IA. Les requêtes déjà envoyées ne peuvent pas être rappelées.' },
+          }[lang];
+          const options = { type: 'question' as const, title: 'Reelfold', message: copy.title,
+            detail: `${origin}\n\n${AI_DATA[purpose][lang]}\n\n${copy.note}`,
+            buttons: [copy.deny, copy.allow], defaultId: 0, cancelId: 0, noLink: true };
+          openRoute();
+          const result = await (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+          return result.response === 1;
+        },
+      });
+      await aiConsent.start().catch((e) => mainLog(`[privacy] permission service unavailable: ${(e as Error).message}`));
       htmlRender = new HtmlRenderService({ log: mainLog, readable: (f) => access.covers(f, ownDirs()) });
       await htmlRender.start().catch((e) => mainLog(`[html] render service: ${(e as Error).message}`));
     }
@@ -1340,6 +1371,7 @@ if (!app.requestSingleInstanceLock()) {
     recorder?.closeAll();
     scheduler?.stop();
     htmlRender?.stop();
+    aiConsent?.stop();
     void engine?.stop()?.finally(() => access?.stopAll());
   });
 }

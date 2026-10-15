@@ -1,6 +1,7 @@
 // Executes a fill plan over the Chrome DevTools Protocol (webContents.debugger). Element lookups run in an
 // isolated world per frame (page scripts cannot see or tamper with them); files go through
 // DOM.setFileInputFiles; text is typed with Input.insertText like a keyboard would. Nothing is ever clicked.
+import type { FillControl } from './fillControl';
 import type { FillStep } from '../../shared/publish/fillPlan';
 import { findJs } from '../../shared/publish/selectors';
 
@@ -9,7 +10,7 @@ export type Send = (method: string, params?: Record<string, unknown>) => Promise
 export interface StepResult {
   field: string;
   kind: FillStep['kind'];
-  status: 'ok' | 'not-found' | 'error';
+  status: 'running' | 'ok' | 'not-found' | 'error';
   detail?: string;
 }
 
@@ -89,11 +90,11 @@ export async function findElement(send: Send, selectors: string[], visible = fal
   return null;
 }
 
-async function waitFor(send: Send, selectors: string[], visible: boolean, timeoutMs: number, sleep: (ms: number) => Promise<void>): Promise<string | null> {
-  const t0 = Date.now();
+async function waitFor(send: Send, selectors: string[], visible: boolean, timeoutMs: number, sleep: (ms: number) => Promise<void>, now = Date.now): Promise<string | null> {
+  const t0 = now();
   for (;;) {
     const id = await findElement(send, selectors, visible);
-    if (id || Date.now() - t0 >= timeoutMs) return id;
+    if (id || now() - t0 >= timeoutMs) return id;
     await sleep(400);
   }
 }
@@ -126,9 +127,13 @@ async function typeText(send: Send, text: string, editable: 'input' | 'contented
 export async function runFill(
   rawSend: Send,
   steps: FillStep[],
-  opts: { sleep?: (ms: number) => Promise<void>; onStep?: (r: StepResult) => void } = {},
+  opts: { sleep?: (ms: number) => Promise<void>; onStep?: (r: StepResult) => void; control?: FillControl } = {},
 ): Promise<StepResult[]> {
-  const send = guardedSend(rawSend);
+  const raw = guardedSend(rawSend);
+  const send: Send = async (method, params) => {
+    await opts.control?.checkpoint();
+    return raw(method, params);
+  };
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const out: StepResult[] = [];
   const push = (r: StepResult) => {
@@ -138,43 +143,49 @@ export async function runFill(
   // the platform view usually does not have keyboard focus (the creator just clicked in the desk UI):
   // emulate focus so element.focus() + Input.insertText land in the field
   await send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => undefined);
-  for (const step of steps) {
-    try {
-      const id = await waitFor(send, step.selectors, step.kind !== 'files', step.timeoutMs, sleep);
-      if (!id) {
-        push({ field: step.field, kind: step.kind, status: 'not-found', detail: step.selectors[0] });
-        if (step.field === 'file') break; // nothing else appears before the upload starts
-        continue;
-      }
-      if (step.kind === 'files') {
-        if (!(await call(send, id, IS_FILE_INPUT_FN))) {
-          push({ field: step.field, kind: step.kind, status: 'error', detail: 'selector is not a file input' });
-          if (step.field === 'file') break;
+  try {
+    for (const step of steps) {
+      await opts.control?.checkpoint();
+      opts.onStep?.({ field: step.field, kind: step.kind, status: 'running' });
+      try {
+        const id = await waitFor(send, step.selectors, step.kind !== 'files', step.timeoutMs, sleep, opts.control?.now);
+        if (!id) {
+          push({ field: step.field, kind: step.kind, status: 'not-found', detail: step.selectors[0] });
+          if (step.field === 'file') break; // nothing else appears before the upload starts
           continue;
         }
-        await send('DOM.setFileInputFiles', { files: step.paths, objectId: id });
-      } else if (step.kind === 'text') {
-        await call(send, id, FOCUS_FN, [step.clear]);
-        if (step.items) {
-          for (const it of step.items) {
-            await send('Input.insertText', { text: it.replace(/\s+/g, ' ') });
-            await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
-            await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-            await sleep(150);
+        if (step.kind === 'files') {
+          if (!(await call(send, id, IS_FILE_INPUT_FN))) {
+            push({ field: step.field, kind: step.kind, status: 'error', detail: 'selector is not a file input' });
+            if (step.field === 'file') break;
+            continue;
+          }
+          await send('DOM.setFileInputFiles', { files: step.paths, objectId: id });
+        } else if (step.kind === 'text') {
+          await call(send, id, FOCUS_FN, [step.clear]);
+          if (step.items) {
+            for (const it of step.items) {
+              await send('Input.insertText', { text: it.replace(/\s+/g, ' ') });
+              await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+              await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+              await sleep(150);
+            }
+          } else {
+            await typeText(send, step.text, step.editable);
           }
         } else {
-          await typeText(send, step.text, step.editable);
+          await call(send, id, HIGHLIGHT_FN);
         }
-      } else {
-        await call(send, id, HIGHLIGHT_FN);
+        await send('Runtime.releaseObject', { objectId: id }).catch(() => undefined);
+        push({ field: step.field, kind: step.kind, status: 'ok' });
+      } catch (e) {
+        if (opts.control?.signal.aborted) throw e;
+        push({ field: step.field, kind: step.kind, status: 'error', detail: (e as Error).message });
+        if (step.field === 'file') break;
       }
-      await send('Runtime.releaseObject', { objectId: id }).catch(() => undefined);
-      push({ field: step.field, kind: step.kind, status: 'ok' });
-    } catch (e) {
-      push({ field: step.field, kind: step.kind, status: 'error', detail: (e as Error).message });
-      if (step.field === 'file') break;
     }
+  } finally {
+    await raw('Emulation.setFocusEmulationEnabled', { enabled: false }).catch(() => undefined);
   }
-  await send('Emulation.setFocusEmulationEnabled', { enabled: false }).catch(() => undefined);
   return out;
 }
