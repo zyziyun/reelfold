@@ -37,6 +37,8 @@ def make_sub(C, en, zh):
         en, zh = C.sub_pair(en, zh)
     zh = (zh or "").rstrip("，。、：；")
     en = en or ""
+    if (getattr(C.spec, "LAYOUT", {}) or {}).get("caption_style") == "label":
+        return make_process_label(C, en, zh)
     if C.prof is not None or getattr(C, "cinema", False):
         if C.prof is None:          # legacy canvas: the caption box is the subtitle band
             C.CAP = getattr(C, "CAP", (C.t(70), C.SUB_Y0, C.W - C.t(70), C.H))
@@ -61,6 +63,43 @@ def make_sub(C, en, zh):
         for ln in lines:
             draw_runs(C, d, (C.W - d.textlength(strip_markup(ln), font=f)) / 2, y, ln, f, col, stroke)
             y += lh
+    return to_arr(lay)
+
+
+def make_process_label(C, en, zh):
+    """A readable local lower third for short process/role labels on moving footage.
+
+    One measured plate, inside the platform safe width; the rest of the footage
+    remains visible. Long/bilingual labels wrap and fit the same bounded region.
+    """
+    x0, _, x1, _ = C.CAP
+    pad = max(8, int(min(C.W, C.H) * 0.018))
+    maxw = max(1, x1 - x0 - pad * 2)
+    maxh = max(1, C.SUB_H - pad * 2)
+    size = max(16, int(min(C.W * 0.07, C.H * 0.06)))
+    while True:
+        fe = font_for(en, size, "sans-bold", "cjk-bold")
+        fz = font("cjk-bold", size)
+        blocks = [(en, fe), (zh, fz)]
+        if getattr(C, "ZH_LEAD", False):
+            blocks.reverse()
+        rows = [(line, face) for text, face in blocks if text for line in bwrap(_D, text, face, maxw)]
+        step = int(size * 1.35)
+        if (len(rows) * step <= maxh and all(_D.textlength(strip_markup(line), font=f) <= maxw
+                                            for line, f in rows)) or size <= 10:
+            break
+        size -= 1
+    lay = layer(C.W, C.SUB_H)
+    if not rows:
+        return to_arr(lay)
+    d = ImageDraw.Draw(lay)
+    width = min(x1 - x0, math.ceil(max(_D.textlength(strip_markup(line), font=f) for line, f in rows)) + pad * 2)
+    height = min(C.SUB_H, step * len(rows) + pad * 2)
+    top = (C.SUB_H - height) // 2
+    d.rounded_rectangle((x0, top, x0 + width, top + height - 1), radius=max(3, pad // 2), fill=(13, 23, 31, 235))
+    d.rectangle((x0, top + pad, x0 + max(2, pad // 4), top + height - pad), fill=C.GOLD + (255,))
+    for i, (line, face) in enumerate(rows):
+        d.text((x0 + pad, top + pad + i * step), strip_markup(line), font=face, fill=(246, 248, 250, 255))
     return to_arr(lay)
 
 

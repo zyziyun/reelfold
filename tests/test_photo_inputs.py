@@ -136,13 +136,19 @@ def test_macos_heic_preview_preserves_the_original(tmp_path):
     assert PI.caption_ink([str(heic)], str(tmp_path / "work")) is not None
 
 
-def test_product_cover_preserves_whole_source_and_its_colours(tmp_path, monkeypatch):
+@pytest.mark.parametrize("subtitle", [None, "Stock footage / editing study"])
+def test_product_cover_preserves_whole_source_and_its_colours(tmp_path, monkeypatch, subtitle):
     import importlib.util
     import sys
     from pathlib import Path
     from types import SimpleNamespace
     import numpy as np
     monkeypatch.setenv("VSTUDIO_DEFAULT_PERSONA", "1")
+    from vstudio import config
+    fonts = os.path.expanduser("~/.cache/video-studio/fonts")
+    if not os.path.isfile(os.path.join(fonts, "NotoSansSC-Regular.otf")):
+        pytest.skip("requires installed OFL font fixtures")
+    monkeypatch.setattr(config, "FONT_DIR", fonts)
     scripts = Path(__file__).resolve().parents[1] / "workflows/photo-story/scripts"
     sys.path.insert(0, str(scripts))
     module = importlib.util.spec_from_file_location("photo_cover_test", scripts / "photostory/cover.py")
@@ -156,13 +162,23 @@ def test_product_cover_preserves_whole_source_and_its_colours(tmp_path, monkeypa
     im.save(src)
     ctx = SimpleNamespace(_readable=lambda p: p, find_image=lambda _: str(src),
                           TITLE_EN="A real product", TITLE_ZH="", SUBS="en")
+    from PIL import ImageDraw
+    drawn = []
+    original_text = ImageDraw.ImageDraw.text
+    def text_spy(self, xy, text, *args, **kwargs):
+        drawn.append((xy, text))
+        return original_text(self, xy, text, *args, **kwargs)
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", text_spy)
     for w, h in ((480, 270), (270, 480), (360, 480)):
         out = tmp_path / f"cover-{w}-{h}.png"
-        cover.product_cover(SimpleNamespace(), ctx, dict(hero=dict(src="source")), w, h, str(out))
+        cover.product_cover(SimpleNamespace(), ctx, dict(hero=dict(src="source"), subtitle=subtitle), w, h, str(out))
         frame = np.asarray(Image.open(out)).astype(int)
         assert frame.shape == (h, w, 3)
         for colour in colours:
             assert np.any(np.all(np.abs(frame - colour) < 3, axis=2))
+
+    if subtitle:
+        assert any(subtitle == text for _, text in drawn)
 
 
 @pytest.mark.parametrize("prompt,heading", [
@@ -183,3 +199,52 @@ def test_non_teaching_scripts_receive_their_own_structure(tmp_path, monkeypatch,
     assert f"## {heading}" in seen["template_text"]
     assert "## INSIGHT" not in seen["template_text"]
     assert "shot/action" in seen["cp"]["author"]["format"]
+
+
+def test_company_process_defaults_do_not_inherit_scenic_chapters(tmp_path, monkeypatch):
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    image = tmp_path / "factory.png"; Image.new("RGB", (640, 360), (50, 80, 100)).save(image)
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(photos=[str(image)]),
+                 _item_dir=str(tmp_path / "item"), mode="music", platforms=["youtube"]), "photo-story")
+    ctx.request_text = "Create a corporate film from the supplied factory view; no voice-over"
+    path = str(tmp_path / "item/work/spec.py")
+    def model(*a, **kw):
+        return dict(provider="test", json=dict(content=(
+            'TITLE_EN="Process"\nSCRIPT=[(0,[("The equipment", "设备")],[("p0001",1,"still",None)])]\n'
+            'MEDIA=dict(images="frames")\nCOVER=dict(hero=dict(src="p0001"))\n')))
+    PS.draft_spec(ctx, dict(id="story", author={}), path, complete=model)
+    text = open(path).read()
+    assert PS._spec_value(text, "TITLE_CARD") is False
+    assert PS._spec_value(text, "CHAPTER_CARD") == 0
+    assert PS._spec_value(text, "PRESERVE_COLOUR") is True
+    assert PS._spec_value(text, "LAYOUT")["caption_style"] == "label"
+    assert PS._spec_value(text, "PACING")["end_fade"] == 0.4
+
+
+@pytest.mark.parametrize("platform,en,zh", [("youtube", "Manual loading", "人工装载"),
+    ("tiktok", "A longer process label that needs a second line", ""),
+    ("xiaohongshu:vertical", "", "逐一确认设备与物料的位置")])
+def test_process_labels_render_inside_safe_width_on_each_canvas(tmp_path, monkeypatch, platform, en, zh):
+    import sys, types
+    import numpy as np
+    root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(root, "workflows", "photo-story", "scripts"))
+    from photostory.ctx import Ctx
+    from photostory.subtitles import make_sub
+    from vstudio import config
+    fonts = os.path.expanduser("~/.cache/video-studio/fonts")
+    if not os.path.isfile(os.path.join(fonts, "NotoSansSC-Bold.otf")):
+        pytest.skip("requires installed OFL font fixtures")
+    monkeypatch.setattr(config, "FONT_DIR", fonts)
+    monkeypatch.setenv("VSTUDIO_DEFAULT_PERSONA", "1")
+    spec = types.SimpleNamespace(__file__=str(tmp_path / "spec.py"), PLATFORM=platform,
+        TITLE_EN="Process", SECTIONS=["Process"], SCRIPT=[],
+        LAYOUT=dict(caption_style="label", caption_y=0.68, sub=0.18))
+    c = Ctx(spec)
+    a = make_sub(c, en, zh)
+    ys, xs = np.where(a[:, :, 3] > 0)
+    assert xs.size and xs.min() >= c.CAP[0] and xs.max() <= c.CAP[2]
+    assert ys.min() >= 0 and ys.max() < c.SUB_H
+    # A high-contrast plate and legible foreground, rather than a bare thin caption.
+    assert ((a[:, :, 0] < 30) & (a[:, :, 3] > 200)).sum() > 500
+    assert ((a[:, :, :3].min(axis=2) > 235) & (a[:, :, 3] > 250)).sum() > 100

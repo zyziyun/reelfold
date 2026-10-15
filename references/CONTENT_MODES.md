@@ -50,6 +50,15 @@ separate title area, rather than shading the product to carry a headline. Planni
 candidates. These defaults cannot establish that a detail is legible, a shot proves its line, or the text avoids
 the product: inspect those at actual phone size and revise the plan/layout when they fail.
 
+Company process films use measured, high-contrast lower-third labels by default in music mode, without
+floating scenic title/chapter cards, automatic scenic grading or grain. Explicit spec layout and colour choices
+remain available. The label plate stays within each target's safe width; inspect its position against equipment,
+faces and source text. Corporate footage is not evidence of certifications, throughput or client identity.
+
+Both narrated and music timelines give the final shot only its visible closing hold. Do not inflate that duration
+to keep it active after playback: motion interpolation and source preparation also consume the same duration.
+A closing move must complete visibly, and source preparation must not decode unused extra footage.
+
 ## Acceptance by purpose
 
 Audit source fidelity, editorial sequence, type/contrast, subject visibility, motion, audio, timing, output shape

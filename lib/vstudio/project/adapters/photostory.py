@@ -291,7 +291,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         media["images"] = ["source_photos", "frames", "../inputs"]
         media.setdefault("videos", "../inputs")
         text = _set_global(text, "MEDIA", media)
-    if purpose_kind == "product":
+    if purpose_kind in ("product", "company"):
         # Product identity is evidence. Scenic grading/grain and floating film
         # chapters are inappropriate defaults for the supplied product itself.
         for name, value in (("GRADE_LOOK", None), ("COLOR_MATCH", 0), ("PRESERVE_COLOUR", True),
@@ -311,6 +311,17 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         pace = dict(_spec_value(text, "PACING") or {})
         pace.setdefault("end_fade", 0.4)
         text = _set_global(text, "PACING", pace)
+    if purpose_kind == "company" and music_mode:
+        # Short process labels need hierarchy and contrast, not a second set of
+        # scenic chapters. Explicit authored layout/palette choices still win.
+        layout = dict(_spec_value(text, "LAYOUT") or {})
+        for key, value in (("caption_style", "label"), ("caption_y", 0.68), ("sub", 0.18)):
+            layout.setdefault(key, value)
+        text = _set_global(text, "LAYOUT", layout)
+        palette = dict(_spec_value(text, "PALETTE") or {})
+        palette.setdefault("accent", "#27899A")
+        text = _set_global(text, "PALETTE", palette)
+        text = _set_global(text, "SUB_BACKDROP", False)
     steered = []
     if doc:                                  # the plan's joins / label places (her changes always), still plain data
         text, steered = BST.photo_fix(text, doc, by_id)

@@ -313,19 +313,28 @@ def product_cover(spec, C, cfg, W, H, out):
     ink = max((theme.rgb(palette, "ink"), theme.rgb(palette, "paper")),
               key=lambda c: theme.contrast(c, paper))
     image = Image.new("RGB", (W, H), paper)
-    margin, title_h = round(min(W, H) * .06), round(H * .22)
+    subtitle = str(cfg.get("subtitle") or "").strip()
+    margin, title_h = round(min(W, H) * .06), round(H * (.30 if subtitle else .22))
+    small_size = max(12, round(min(W, H) * .034))
+    subfont = font_for(subtitle, small_size) if subtitle else None
+    sublines = subs.balanced_wrap(subtitle, W - 2 * margin, measure=subfont.getlength) if subtitle else []
+    sub_h = len(sublines) * small_size * 1.35 + (small_size * .45 if subtitle else 0)
     title = str(cfg.get("title") or (C.TITLE_EN if C.SUBS == "en" else C.TITLE_ZH) or C.TITLE_EN or "")
     size = round(min(W, H) * .075)
     while True:
         font = font_for(title, size)
         measure = lambda s: font.getlength(s)
         lines = subs.balanced_wrap(title, W - 2 * margin, measure=measure)
-        if (len(lines) <= 2 and len(lines) * size * 1.25 <= title_h - 2 * margin) or size <= 16:
+        if (len(lines) <= 2 and len(lines) * size * 1.25 <= title_h - 2 * margin - sub_h) or size <= 16:
             break
         size -= 2
     draw = ImageDraw.Draw(image)
     for n, line in enumerate(lines):
         draw.text((margin, margin + n * size * 1.25), line, font=font, fill=ink)
+    y = margin + len(lines) * size * 1.25 + small_size * .45
+    for line in sublines:
+        draw.text((margin, y), line, font=subfont, fill=ink)
+        y += small_size * 1.35
     picture = ImageOps.contain(source, (W - 2 * margin, H - title_h - margin), Image.Resampling.LANCZOS)
     image.paste(picture, ((W - picture.width) // 2, title_h + (H - title_h - margin - picture.height) // 2))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

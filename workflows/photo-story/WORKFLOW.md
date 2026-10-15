@@ -28,6 +28,13 @@ contact sheets and binds their `pNNNN` IDs to `work/source_photos/`. Product def
 film chapters/title cards and use source-aware contrasting captions. `fit="contain"` on a photo keeps its whole
 frame; inspect each canvas rather than resizing a completed movie.
 
+For company/process films, music-mode drafting defaults to `LAYOUT.caption_style="label"`: a measured
+lower-third plate with clear bold text, rather than a second scenic chapter title floating over the process.
+The title/chapter cards and scenic colour/grain defaults are off unless explicitly authored; keep supplied
+identity and inspect labels against the actual machinery/people at phone size. This is a shared purpose-based
+layout, not a sample-specific title, source path or timestamp. Match the first label to the action visible now;
+cover/post text must disclose stock reference footage where appropriate.
+
 1. **Gather media.** Put photos in `my_photos/` (names are the shot ids: `photo07.jpg` → `"photo07"`), clips in
    `my_clips/` (`IMG_1234.MOV` can be referenced as `"v1234"`). Still frames from a clip: extract them to
    `my_photos/` with ffmpeg and use them as photos.
