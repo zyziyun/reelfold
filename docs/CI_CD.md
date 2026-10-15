@@ -191,6 +191,11 @@ the job's permissions and a final step `gh workflow run deploy-web.yml --ref mai
 
 ## Windows
 
+Full Desk CI runs core engine pytest in four independent Windows jobs, separate from desktop checks. Sorted
+`tests/test_*.py` files are partitioned once across the jobs, with two pytest workers per job to bound media/model
+memory. No slow tests are excluded. Each shard retains its verbose log and JUnit report as `windows-engine-N`;
+native calls lasting five minutes also emit a thread dump. The `Windows` gate requires every engine and e2e shard.
+
 The *windows* job in `desk-release.yml` builds the **unsigned** Windows x64 NSIS installer on every tag push (and on a
 manual run with *windows* ticked). It does not block the macOS files: the mac job never waits for it. When both are
 done, the *windows-release* job checks the files (`latest.yml` must point at the `.exe` with the right sha512) and

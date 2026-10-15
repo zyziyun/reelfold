@@ -12,7 +12,7 @@
 #                         name: the release automation waits on Desk CI's job named `test`.
 #   e2e report (merged)   merges the shards' blob reports into one HTML report artifact (desk-e2e-report)
 #   Windows checks        lint, unit, build, app start, the picked sidecar engine tests on windows-latest (every run)
-#   full tier             + engine pytest on Windows and the Windows e2e suite in 4 shards. Runs nightly, on tags (v*),
+#   full tier             + Windows engine pytest in 4 file shards and Windows e2e in 4 shards. Runs nightly, on tags (v*),
 #                         release/** branches, manual runs (tier=full, the default) and when CI / lockfile / packaging
 #                         files change. `Windows` rolls the Windows jobs up; it fails the run but is not part of `test`.
 # Concurrency: per ref. A newer push supersedes an older run of a PR / feature branch; runs of main and release/** queue
@@ -224,10 +224,45 @@ jobs:
         if: (success() || failure()) && needs.changes.outputs.sidecar != 'none'
         env: { TESTS: '${{ needs.changes.outputs.sidecar_tests }}', SEL: '${{ needs.changes.outputs.sidecar }}' }
         run: if [ "$SEL" = all ]; then python -m unittest discover -s engine/tests; else cd engine/tests && python -m unittest $TESTS; fi
-      - name: Engine pytest (full tier; parallel, pytest-xdist)
-        if: (success() || failure()) && needs.changes.outputs.full == 'true'
-        working-directory: .
-        run: python -m pytest -q -p no:cacheprovider -n auto
+
+  windows-engine:
+    name: Windows engine (${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/desk-setup
+        with: { engine-deps: tests }
+      - name: Engine pytest shard ${{ matrix.shard }}/4
+        env: { SHARD: '${{ matrix.shard }}' }
+        run: |
+          # Disjoint file partitions include every test; keep real renders in the full tier.
+          files=$(python -c 'import os; from pathlib import Path; fs=sorted(Path("tests").glob("test_*.py")); print(" ".join(str(p) for p in fs[int(os.environ["SHARD"])-1::4]))')
+          [ -n "$files" ] || { echo '::error::empty engine shard'; exit 1; }
+          echo "Engine test files: $files"
+          # Two workers bound media/model memory. Names + stack dumps identify a hung native call.
+          python -m pytest -vv -p no:cacheprovider -n 2 --dist worksteal -o faulthandler_timeout=300 --durations=20 --junitxml=windows-engine.xml $files 2>&1 | tee windows-engine.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: windows-engine-${{ matrix.shard }}
+          path: |
+            windows-engine.log
+            windows-engine.xml
+          retention-days: 7
 
   windows-e2e:
     name: Windows e2e (${{ matrix.shard }}/4)
@@ -269,7 +304,7 @@ jobs:
   windows:
     # one status for every Windows job; a failure here fails the run (but not `test`, which only covers macOS)
     name: Windows
-    needs: [changes, windows-checks, windows-e2e]
+    needs: [changes, windows-checks, windows-engine, windows-e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -281,10 +316,11 @@ jobs:
           FULL: ${{ needs.changes.outputs.full }}
           RELEVANT: ${{ needs.changes.outputs.relevant }}
           CHECKS: ${{ needs.windows-checks.result }}
+          ENGINE: ${{ needs.windows-engine.result }}
           E2E: ${{ needs.windows-e2e.result }}
         run: |
           echo "changes: $CHANGES (run: $RUN, full: $FULL), windows checks: $CHECKS, e2e shards: $E2E"
           [ "$CHANGES" = success ] || exit 1
           if [ "$RUN" = false ] || [ "$RELEVANT" = false ]; then echo "no desk changes (or docs only): nothing to test"; exit 0; fi
           [ "$CHECKS" = success ] || exit 1
-          if [ "$FULL" = true ]; then [ "$E2E" = success ]; else echo "quick tier: Windows e2e runs nightly / on tags"; fi
+          if [ "$FULL" = true ]; then [ "$ENGINE" = success ] && [ "$E2E" = success ]; else echo "quick tier: full Windows engine/e2e runs nightly / on tags"; fi
