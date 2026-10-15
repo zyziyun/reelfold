@@ -1,19 +1,22 @@
 ---
-// The promo film slot. To publish or swap the film: put the file at public/media/reelfold-promo.mp4 (H.264, 16:9)
-// and a poster frame at public/media/reelfold-promo.jpg, then rebuild. Nothing renders while the mp4 is missing.
-import fs from 'node:fs';
-import path from 'node:path';
-import { t, type Lang } from '../../i18n';
-interface Props { lang: Lang }
-const { lang } = Astro.props;
-const c = t(lang);
-export const PROMO = { src: '/media/reelfold-promo.mp4', poster: '/media/reelfold-promo.jpg' };
-const pub = (p: string) => path.join(process.cwd(), 'public', p); // the build runs in apps/site
-const has = fs.existsSync(pub(PROMO.src));
-const poster = has && fs.existsSync(pub(PROMO.poster)) ? PROMO.poster : undefined;
+import { pathFor, type Lang } from '../../i18n';
+import { promo } from '../../lib/promo';
+interface Props { lang: Lang; watchPage?: boolean }
+const { lang, watchPage = false } = Astro.props;
+const film = promo(lang);
 ---
-{has && (
-  <section class="wrap film" aria-label={c.film.label}>
-    <div class="print"><video controls playsinline preload="none" poster={poster} width="1920" height="1080" aria-label={c.film.label}><source src={PROMO.src} type="video/mp4" /></video></div>
+{film.available && (
+  <section class="wrap film" aria-label={film.title}>
+    <figure>
+      <div class="print"><video controls playsinline preload="none" poster={film.poster} width="1920" height="1080" aria-label={film.title} aria-describedby="demo-note"><source src={film.src} type="video/mp4" /><a href={film.src}>{film.link}</a></video></div>
+      <figcaption id="demo-note">{film.language}. {film.note} {!watchPage && <a href={pathFor(lang, 'demo')}>{film.link} →</a>}</figcaption>
+    </figure>
   </section>
 )}
+<style>
+  section.film { margin: 32px auto 0; padding-top: 0; }
+  figure { margin: 0; }
+  video { display: block; width: 100%; height: auto; }
+  figcaption { margin-top: .8rem; max-width: 80ch; color: var(--ink3); font-size: .875rem; line-height: 1.6; }
+  figcaption a { white-space: nowrap; }
+</style>

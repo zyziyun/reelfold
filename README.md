@@ -15,6 +15,7 @@ Open source, free, and all on your Mac.<br>
 千剪：一句话，把你的素材批量剪成多平台、中英双语、可直接发布的成片，开源免费，全在本地。</p>
 
 <p align="center">
+  <a href="https://reelfold.com/demo/">Watch the demo</a> ·
   <a href="https://reelfold.com/docs/">Docs</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">Download for macOS</a> ·
   <a href="https://reelfold.com">reelfold.com</a> ·

@@ -1,5 +1,6 @@
 // JSON-LD builders (schema.org). Visible text and structured data come from the same arrays.
 import { SITE, site } from '../config';
+import { promo } from './promo';
 import { t, pathFor, HTML_LANG, type Lang } from '../i18n';
 
 export const softwareApp = (lang: Lang) => ({
@@ -53,3 +54,16 @@ export const breadcrumbs = (lang: Lang, trail: [string, string | null][]) => ({
     item: `${site}${pathFor(lang, page!)}`,
   })),
 });
+
+/** Only emitted on a watch page with the matching visible, playable film. */
+export const videoObject = (lang: Lang) => {
+  const film = promo(lang);
+  return {
+    '@context': 'https://schema.org', '@type': 'VideoObject',
+    name: film.title, description: film.description,
+    thumbnailUrl: `${site}${film.poster}`, contentUrl: `${site}${film.src}`,
+    uploadDate: film.uploadDate, duration: film.duration,
+    inLanguage: film.mediaLang, url: `${site}${pathFor(lang, 'demo')}`,
+    publisher: { '@type': 'Organization', name: SITE.name, url: `${site}/` },
+  };
+};

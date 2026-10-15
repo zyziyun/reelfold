@@ -14,6 +14,7 @@ Una frase convierte tu material en una serie de vídeos listos para publicar en 
 Código abierto, gratis y todo en tu Mac.</p>
 
 <p align="center">
+  <a href="https://reelfold.com/es/demo/">Ver la demo</a> ·
   <a href="https://reelfold.com/docs/es/">Documentación</a> ·
   <a href="https://github.com/zyziyun/reelfold/releases/latest">Descargar para macOS</a> ·
   <a href="https://reelfold.com">reelfold.com</a> ·

@@ -7,6 +7,9 @@ renders/
 node_modules/
 *.mp4
 !apps/desk/packaging/sample/reelfold-sample.mp4
+# Reviewed, compressed distribution assets for the official website.
+!apps/site/public/media/reelfold-demo-en.mp4
+!apps/site/public/media/reelfold-demo-zh.mp4
 *.wav
 assets/fonts/
 .env
