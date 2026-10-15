@@ -31,6 +31,18 @@
 The selectors of every assisted-fill page are marked **unverified** until someone checks them against the live page
 with a logged-in account. The desk keeps the adapter files.
 
+## Automatic upload recovery
+
+The desktop scheduler saves an attempt before starting an official API upload. If this record cannot be saved,
+it does not upload. A successful API response is saved separately before updating the local calendar; failure
+to update the calendar retries that update, including after restart, without uploading the video again.
+Reconciliation continues outside the upload time window and after automatic uploads are switched off.
+
+An interrupted upload with no confirmed result is not automatically repeated: the platform may already have it.
+A corrupt receipt journal is preserved and automatic uploads stop; it must not be silently replaced with an
+empty history. These guarantees currently cover the scheduler path; the manual upload handler and remote
+scheduled/private/public status reconciliation still need the same audit.
+
 ## Length per platform
 
 Not every platform gets the same video length. Each platform's version is cut to that platform's habits for the kind

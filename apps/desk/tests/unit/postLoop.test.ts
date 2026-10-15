@@ -144,6 +144,84 @@ describe('scheduler', () => {
     expect(m.s.apiState('y2')).toMatchObject({ status: 'failed', tries: 3, detail: 'quotaExceeded' });
   });
 
+  it('recovers a durable upload after calendar failure and restart without uploading again', async () => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+    const file = path.join(tmp(), 's.json');
+    const publish = vi.fn(async () => ({ ok: true as const, url: 'https://youtu.be/receipt', account: 'brand' }));
+    const failedCalendar = vi.fn(async () => { throw new Error('engine unavailable'); });
+    const first = mk([p], clock, { stateFile: file, api: { wants: () => true, publish }, markPosted: failedCalendar });
+    await first.s.tick();
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).api.y1).toMatchObject({ status: 'done', calendarSynced: false, url: 'https://youtu.be/receipt' });
+    // Recover beyond the upload grace window, even after auto-upload is switched off.
+    clock.t = new Date(2026, 9, 9, 12);
+    const markPosted = vi.fn(async () => undefined);
+    const restarted = mk([p], clock, { stateFile: file, api: { wants: () => false, publish }, markPosted });
+    await restarted.s.tick();
+    await restarted.s.tick();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(markPosted).toHaveBeenCalledExactlyOnceWith({ ...p, account: 'brand' }, 'https://youtu.be/receipt', 'api');
+    expect(restarted.s.apiState('y1')).toMatchObject({ status: 'done', calendarSynced: true });
+  });
+
+  it('does not upload when its attempt cannot be saved', async () => {
+    const file = path.join(tmp(), 's.json');
+    const publish = vi.fn();
+    const { s } = mk([post('y1', '2026-10-07T20:00', { platform: 'youtube' })], { t: new Date(2026, 9, 7, 19, 30) }, { stateFile: file, api: { wants: () => true, publish } });
+    // The journal's directory was replaced after startup.
+    fs.writeFileSync(file, 'keep');
+    fs.mkdirSync(file + '.tmp');
+    await s.tick();
+    expect(publish).not.toHaveBeenCalled();
+    expect(s.apiState('y1')).toBeUndefined();
+    expect(fs.readFileSync(file, 'utf8')).toBe('keep');
+  });
+
+  it.each(['{incomplete receipt', '[]', '{"api":{"y1":null}}', '{"notified":7}'])('preserves corrupt receipts and stops automatic uploads: %s', async (contents) => {
+    const file = path.join(tmp(), 's.json');
+    fs.writeFileSync(file, contents);
+    const publish = vi.fn();
+    const { s } = mk([post('y1', '2026-10-07T20:00', { platform: 'youtube' })], { t: new Date(2026, 9, 7, 20, 30) }, { stateFile: file, api: { wants: () => true, publish } });
+    await s.tick();
+    expect(publish).not.toHaveBeenCalled();
+    expect(fs.readFileSync(file, 'utf8')).toBe(contents);
+  });
+
+  it('keeps remote success when saving its receipt fails and retries only persistence', async () => {
+    const file = path.join(tmp(), 's.json');
+    const rename = fs.renameSync;
+    let fail = false;
+    const save = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (fail && to === file) throw new Error('disk full');
+      rename(from, to);
+    });
+    try {
+      const publish = vi.fn(async () => { fail = true; return { ok: true as const, url: 'https://youtu.be/receipt' }; });
+      const markPosted = vi.fn(async () => undefined);
+      const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });
+      const { s } = mk([p], { t: new Date(2026, 9, 7, 19, 30) }, { stateFile: file, api: { wants: () => true, publish }, markPosted });
+      await s.tick();
+      expect(s.apiState('y1')?.status).toBe('done');
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).api.y1.status).toBe('uploading');
+      expect(markPosted).not.toHaveBeenCalled();
+      fail = false;
+      await s.tick();
+      expect(publish).toHaveBeenCalledTimes(1);
+      expect(markPosted).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).api.y1.calendarSynced).toBe(true);
+    } finally { save.mockRestore(); }
+  });
+
+  it('does not repeat an interrupted upload with an unknown remote outcome', async () => {
+    const file = path.join(tmp(), 's.json');
+    fs.writeFileSync(file, JSON.stringify({ api: { y1: { at: '2026-10-07T20:00', status: 'uploading', tries: 1, lastTry: 0 } } }));
+    const publish = vi.fn();
+    const { s } = mk([post('y1', '2026-10-07T20:00', { platform: 'youtube' })], { t: new Date(2026, 9, 7, 20, 30) }, { stateFile: file, api: { wants: () => true, publish } });
+    await s.tick();
+    expect(publish).not.toHaveBeenCalled();
+    expect(s.apiState('y1')?.status).toBe('uploading');
+  });
+
   it('more than apiGraceMs late: no automatic upload, she decides', async () => {
     const clock = { t: new Date(2026, 9, 8, 18, 0) };
     const publish = vi.fn();
