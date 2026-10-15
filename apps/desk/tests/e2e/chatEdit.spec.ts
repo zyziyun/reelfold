@@ -306,7 +306,7 @@ test('a request shows its real progress: the step, step x of 4, the AI’s own l
     await expect(page.getByTestId('edit-log-line').filter({ hasText: 'Looking at where the pauses are.' })).toBeVisible();
     await expect(page.locator('[data-testid=edit-log-line][data-kind=tool]')).toBeVisible();
     const shown = await page.getByTestId('edit-log').innerText();
-    expect(shown).toContain('clip/transcript.json');
+    expect(shown.replace(/\\/g, '/')).toContain('clip/transcript.json');
     expect(shown).not.toContain(os.homedir()); // the home folder never shows (redacted to ~ by the engine)
     await expect(page.getByTestId('chat-stop')).toBeVisible();
     await noMissingKeys();
