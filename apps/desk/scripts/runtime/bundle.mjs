@@ -164,17 +164,33 @@ async function buildFfmpeg() {
     fs.mkdirSync(path.join(dst, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(dst, 'lib'), { recursive: true });
     for (const b of ['ffmpeg', 'ffprobe']) fs.copyFileSync(path.join(prefix, 'bin', b), path.join(dst, 'bin', b));
-    closure = machoClosure(prefix, ['bin/ffmpeg', 'bin/ffprobe']);
+    closure = machoClosure(prefix, ['bin/ffmpeg', 'bin/ffprobe', 'lib/libfribidi.0.dylib']);
     for (const rel of closure) fs.copyFileSync(fs.realpathSync(path.join(prefix, rel)), path.join(dst, 'lib', path.basename(rel)));
+    // Pillow's wheel dlopens "libfribidi.dylib". Preloading the versioned file works only when
+    // its install ID matches that name. Keep the existing file/dependency paths and licence inventory.
+    const bidi = path.join(dst, 'lib', 'libfribidi.0.dylib');
+    run('install_name_tool', ['-id', 'libfribidi.dylib', bidi]);
+    run('codesign', ['--force', '--sign', '-', bidi]); // final app signing replaces this signature
     for (const b of ['ffmpeg', 'ffprobe']) fs.chmodSync(path.join(dst, 'bin', b), 0o755);
   } else {
     fs.mkdirSync(path.join(dst, 'bin'), { recursive: true });
     const bin = path.join(prefix, 'Library', 'bin');
-    closure = peClosure(bin, ['ffmpeg.exe', 'ffprobe.exe']);
+    const bidi = fs.readdirSync(bin).find((f) => /^(?:lib)?fribidi(?:-0)?\.dll$/i.test(f));
+    if (!bidi) throw new Error('locked FFmpeg prefix has no FriBiDi DLL for Pillow shaping');
+    closure = peClosure(bin, ['ffmpeg.exe', 'ffprobe.exe', bidi]);
     for (const f of closure) fs.copyFileSync(path.join(bin, f), path.join(dst, 'bin', f));
     closure = closure.map((f) => `Library/bin/${f}`);
   }
   ffmpegLicenses(prefix, closure, isMac ? ['bin/ffmpeg', 'bin/ffprobe'] : []);
+}
+
+function installTextLayout() {
+  const lib = isWin ? path.join(OUT, 'python', 'Lib') : path.join(OUT, 'python', 'lib', `python${lock.python.version.split('.').slice(0, 2).join('.')}`);
+  const dest = path.join(lib, 'site-packages', 'sitecustomize.py');
+  fs.copyFileSync(path.join(ROOT, 'scripts', 'runtime', 'runtime_sitecustomize.py'), dest);
+  // A previous partial runtime build may have compiled the old startup module.
+  const cache = path.join(path.dirname(dest), '__pycache__');
+  if (fs.existsSync(cache)) for (const f of fs.readdirSync(cache)) if (/^sitecustomize\..*\.pyc$/.test(f)) fs.rmSync(path.join(cache, f));
 }
 
 function ffmpegLicenses(prefix, files, extraRoots) {
@@ -225,6 +241,7 @@ async function verify() {
   const sysPath = Object.entries(process.env).find(([k]) => k.toUpperCase() === 'PATH')?.[1] ?? '';
   Object.assign(env, { PYTHONPATH: path.join(OUT, 'vstudio', 'lib'), PYTHONNOUSERSITE: '1', PYTHONDONTWRITEBYTECODE: '1',
     PATH: [path.join(OUT, 'ffmpeg', 'bin'), sysPath].join(path.delimiter), VSTUDIO_CACHE: path.join(CACHE, 'vstudio-cache-check') });
+  run(pyExe(), ['-c', 'from PIL import features; assert features.check("raqm"), "Pillow complex text shaping is unavailable"; print("Raqm/HarfBuzz/FriBiDi ok")'], { env });
   const asr = isMac && target.endsWith('arm64') ? 'mlx_whisper' : 'faster_whisper';
   run(pyExe(), ['-c', `import numpy, cv2, mediapipe, soundfile, yaml, PIL, fontTools, openai, ${asr}, vstudio.batch, vstudio.media as m; ` +
     `import shutil; ff = m.ffmpeg_bin(); assert ff.startswith(${JSON.stringify(path.join(OUT, 'ffmpeg'))}), ff; print('ok', ff, '${asr}')`], { env });
@@ -359,6 +376,7 @@ function manifest() {
 if (!skip.has('vstudio')) await buildVstudio();
 if (!skip.has('python')) await buildPython();
 if (!skip.has('ffmpeg')) await buildFfmpeg();
+installTextLayout();
 manifest();
 if (!skip.has('verify')) await verify();
 log(`runtime ready: ${OUT}`);

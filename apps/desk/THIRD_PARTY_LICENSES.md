@@ -61,7 +61,11 @@ checksum in `recipe/meta.yaml`). On request we will provide the exact sources fo
 H.264 encoding uses the operating system (VideoToolbox / Media Foundation) or OpenH264 (BSD-2-Clause, built from
 source; note that Cisco's patent licence covers only Cisco's own binaries).
 
-Packages in the locked ffmpeg environments (only the libraries ffmpeg actually loads are shipped; the per-build list
+Pillow's existing Raqm/HarfBuzz text layout also uses the same dynamically loaded FriBiDi (LGPL-2.1-or-later).
+The macOS library's install ID is adjusted for Pillow's loader; no FriBiDi source is changed. The library stays
+replaceable in the same runtime folder, with its licence and corresponding source listed below.
+
+Packages in the locked ffmpeg environments (only the libraries FFmpeg and Pillow load are shipped; the per-build list
 is `resources/runtime/licenses/ffmpeg-components.json`):
 
 | Package | Version | Licence | Targets | Source |

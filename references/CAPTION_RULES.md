@@ -63,6 +63,10 @@ scripts without spaces.
 Word-preserving text is not proof of correct glyphs or reading order. Review the rendered result with the
 actual font and backend. The libass writer selects whole-line shaping and automatic base direction for RTL
 dialogue (`Encoding=-1`); an ASS sidecar for legacy VSFilter must explicitly select `encoding=1` and be checked
-in that player. Pillow needs appropriate font coverage and complex-text shaping (Raqm); a successful draw
+in that player. The bundled Python loads its pinned FriBiDi before Pillow, enabling the wheel's existing
+Raqm/HarfBuzz; both runtime build verification and packaged tests check availability. Source installations
+must provide FriBiDi themselves ([Pillow installation](https://pillow.readthedocs.io/en/stable/installation/basic-installation.html)).
+Pillow still needs appropriate font coverage; enabling Raqm alone does not add missing glyphs or make
+separately drawn highlight runs into a correct mixed-direction paragraph. A successful draw
 call alone does not prove Arabic or Indic text is readable. Do not reverse strings or transliterate them to
 hide a renderer limitation.

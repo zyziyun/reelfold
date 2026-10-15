@@ -402,6 +402,16 @@ test('every package in the engine requirements.txt is in the bundled runtime and
   for (const n of ['babel', 'pypinyin', 'jsonschema', 'numpy', 'mediapipe', 'openai']) expect(rows.map((r) => r.name)).toContain(n);
 });
 
+test('bundled Pillow enables Raqm, HarfBuzz and FriBiDi before engine imports', async () => {
+  const { py, env } = bundledPython();
+  const code = 'from PIL import features; ' +
+    'assert features.check("raqm"), "complex text shaping is unavailable"; ' +
+    'print("Raqm/HarfBuzz/FriBiDi ready")';
+  const out = spawnSync(py, ['-c', code], { env, encoding: 'utf8', timeout: 30000 });
+  expect(out.status, out.stderr).toBe(0);
+  expect(out.stdout).toContain('Raqm/HarfBuzz/FriBiDi ready');
+});
+
 // the CLDR entity check really runs: 宏都拉斯 -> 洪都拉斯 needs babel (CLDR names) + pypinyin (sound-alike)
 test('the named-entity check runs on the bundled engine (宏都拉斯 -> 洪都拉斯 from CLDR)', async () => {
   const { py, env } = bundledPython();
