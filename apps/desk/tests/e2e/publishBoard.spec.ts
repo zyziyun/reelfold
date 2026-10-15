@@ -58,6 +58,9 @@ test.beforeAll(async () => {
     // the board shows the platforms she chose (Platforms for new projects)
     await window.desk.setSettings({ defaultPlatforms: ['xiaohongshu:full', 'douyin', 'x'] });
   });
+  // The Store edition disables implicit watched folders. Explicitly opt in this test-owned fixture folder.
+  const config = await api<{ watch: string[] }>('/api/history/config', { watch: [watch] });
+  expect(config.watch).toEqual([watch]);
   await page.reload();
   await page.waitForURL(/^app:\/\/desk\//);
 });
@@ -67,11 +70,11 @@ test.afterAll(async () => {
 });
 
 const hash = (h: string) => page.evaluate((x) => (location.hash = x), h);
-const api = <T,>(p: string) =>
-  page.evaluate(async (u) => {
+const api = <T,>(p: string, body?: unknown) =>
+  page.evaluate(async ([u, b]) => {
     const info = await window.desk.engineInfo();
-    return (await fetch(info.baseUrl + u, { headers: { Authorization: `Bearer ${info.token}` } })).json();
-  }, p) as Promise<T>;
+    return (await fetch(info.baseUrl + u, { method: b === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${info.token}`, 'Content-Type': 'application/json' }, body: b === undefined ? undefined : JSON.stringify(b) })).json();
+  }, [p, body] as const) as Promise<T>;
 type Row = { id: string; clip: string; platform: string; at: string; state: string; caption?: string; enabled?: boolean; video_path?: string; platform_title?: string; account?: string };
 const rows = async () => (await api<{ posts: Row[] }>('/api/calendar')).posts;
 const card = (clip: string) => page.locator(`[data-testid="pub-post"][data-clip="${clip}"]`);
