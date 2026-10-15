@@ -151,9 +151,11 @@ def mux(d, sess, out):
             args += ["-itsoffset", f"{off:.3f}", "-i", mic]
         graph = (f"[0:v]scale={w}:{h},setsar=1[screen];"
                  f"[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
-                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:eof_action=repeat[v]")
+                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:shortest=1[v]")
         args += ["-filter_complex", graph, "-map", "[v]", "-map", "2:a:0" if has_mic else "1:a?",
-                 "-t", str(duration(cam)), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                 # Browser MediaRecorder WebMs often have no duration tag even after a normal Stop. Bound the
+                 # mux by the real tracks, not a zero metadata duration that creates an audio-only empty clip.
+                 "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                  "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", out]
         _run(args)
         return out
