@@ -234,6 +234,8 @@ def config_file(p, spec, has_face, hooks=None, notes=None, punch=None, broll=Non
 # --------------------------------------------------------------------------- stages
 def run_prep(ctx):
     p = ctx.params
+    if p.get("preserve_source_aspect"):
+        raise ValueError("Keep source aspect requires pipeline=fast; the legacy vtrack creates a portrait master")
     o = ST._asr_opts(ctx.job, ctx.spec)
     env = {"PLATFORM": (list(p.get("platforms") or ["xiaohongshu:full"])[0]).split(":")[0]}
     if o.get("prompt"):

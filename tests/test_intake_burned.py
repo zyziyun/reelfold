@@ -1,5 +1,5 @@
 """Finished-source captions stay intact by default; a designed crop/band is an explicit preference.
-The talkinghead platform default still requests 3:4; these planning tests do not prove aspect recomposition.
+Finished landscape sources stay landscape; these planning tests do not prove deliberate aspect recomposition.
 """
 import pytest
 
@@ -26,7 +26,8 @@ def test_finished_edit_keeps_baked_captions_without_automatic_band_crop(tmp_path
     p = _th(plan)
     pr = p["params"]
     assert pr.get("layout") != "band" and "crop_bottom" not in pr and pr["captions"] is False
-    assert pr["platforms"] == ["xiaohongshu:vertical"]                      # 3:4
+    assert pr["platforms"] == ["xiaohongshu:horizontal"]
+    assert pr["preserve_source_aspect"] is True and pr["pipeline"] == "fast"
     assert pr["speed"] == 1.0 and pr["cleanup_profile"] == "gentle"
     assert "保留原字幕" in plan["summary_zh"] and "裁掉旧字幕" not in plan["summary_zh"]
     assert PL.validate(plan) == []

@@ -24,7 +24,7 @@ items:
   from_input: video
   per_item: [title, body, tags, range, cleanup_reply, hook, cover]
   shared: [pipeline, edit_style, smooth_cuts, theme, platforms, speed, hook_speed, cleanup_profile, layout, language, keywords, subtitles,
-           subtitle_lang]
+           subtitle_lang, preserve_source_aspect, finishing]
   variants: [platform, hook, language]
   share_cache: [probe, extract, asr, glossary]
 engine:
@@ -35,6 +35,16 @@ engine:
 params:
   type: object
   properties:
+    preserve_source_aspect:
+      type: boolean
+      default: false
+      title: Keep source aspect on platforms that support it (fast pipeline)
+      x-zh: 保留原画幅（快速引擎，目标平台需支持）
+    finishing:
+      enum: [assembly, editorial]
+      default: assembly
+      title: Visual finishing (fast pipeline)
+      x-zh: 视觉编排（快速引擎）
     pipeline:
       enum: [fast, vtrack]
       x-format: engine
@@ -216,6 +226,8 @@ stages:
   - {id: verify, resource: asr, from_batch: true, produces: [heard.json]}
   - {id: glossary, resource: cpu, from_batch: true, produces: [glossary.json (shared)]}
   - {id: proofread, resource: cpu, from_batch: true, produces: [proofread.json, cues.json]}
+  - {id: finish, resource: cpu, from_batch: true, labels: {zh: "视觉编排", en: "Visual finishing"},
+     produces: [spoken-beats.json, effects]}
   - {id: copy, resource: cpu, from_batch: true, produces: [copy.json (post title + body drafted from the final captions when not given)],
      preview: {kind: json, path: "out:copy"}}
   - {id: export, resource: cpu-render, from_batch: true, produces: ["exports/<platform>-<orientation>.mp4 + cover + post.md"],
@@ -306,7 +318,7 @@ checkpoints:
       required: [approve]
     auto: default
 outputs:
-  platforms: ["xiaohongshu:full", "xiaohongshu:vertical", douyin, tiktok, youtube-shorts, youtube, bilibili]
+  platforms: [youtube, youtube-shorts, tiktok, "xiaohongshu:full", "xiaohongshu:vertical", "xiaohongshu:horizontal", douyin, bilibili]
   collect: vstudio.project.adapters.common:collect_batch_exports
 agent:
   workflow_md: workflows/talkinghead/WORKFLOW.md

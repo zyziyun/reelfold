@@ -521,6 +521,22 @@ def normalize_project(raw, idx, analysis, intent, ctx, warn):
             fixed = [d for d in (props["platforms"].get("default") or [])][:1] or (m["outputs"].get("platforms") or [])[:1]
             sources["platforms"] = "recipe"
         params["platforms"] = fixed
+        if params.get("preserve_source_aspect"):
+            if intent.get("shape") or intent.get("orientation") or params.get("layout") == "band":
+                params["preserve_source_aspect"], sources["preserve_source_aspect"] = False, "prompt"
+            else:
+                src = _src_file(ins, analysis)
+                if src and src.get("width") and src.get("height"):
+                    from vstudio import platform as PF
+                    aspect = src["width"] / src["height"]
+                    params["platforms"] = [f"{x.split(':')[0]}:{PF.best_orientation(x.split(':')[0], aspect)}"
+                                           for x in fixed]
+                    sources["platforms"] = "material"
+            if rid == "talkinghead" and "finishing" not in params:
+                from vstudio.content_kind import detect
+                src = _src_file(ins, analysis)
+                if src and src.get("talking_head") and detect(intent.get("text")) != "sketch":
+                    params["finishing"], sources["finishing"] = "editorial", "material"
     if items.get("count") and "count" in props and method in ("planner", "focus"):
         params.setdefault("count", items["count"])
         sources.setdefault("count", "prompt" if intent.get("count") else "planner")
@@ -708,6 +724,13 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
             params["captions"], sources["captions"] = True, "material"   # band = old captions cropped: new ones
         if "speed" not in params:
             params["speed"], sources["speed"] = 1.0, "material"
+        if params.get("layout") != "band" and params.get("preserve_source_aspect") is not False:
+            params["preserve_source_aspect"], sources["preserve_source_aspect"] = True, "material"
+            # The legacy vtrack composes a portrait master before export. Use the
+            # native-frame speech pipeline so source preservation is real.
+            params["pipeline"], sources["pipeline"] = "fast", "material"
+            params["note_cards"], sources["note_cards"] = False, "material"
+            params["hook_speed"], sources["hook_speed"] = 1.0, "material"
     if "language" in props and "language" not in params:
         lang = (src or {}).get("language") or ctx["language"]
         if lang in (props["language"].get("enum") or [lang]):

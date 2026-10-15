@@ -38,6 +38,11 @@ For a complete product/artwork photo, `opts=dict(fit="contain")` preserves the w
 from its edge colours. This is photo composition, not permission to pad an already finished movie for a new ratio.
 Recompose each requested canvas and inspect the product, label and copy there.
 
+For finished speech films, automatic talkinghead and longform slicing retain the source aspect and baked captions.
+The talkinghead route uses the native-frame fast pipeline, with optional editorial finishing, rather than first
+creating a portrait V-track master. Explicit requested shapes override the default; inspect their recomposition
+separately. A horizontal source exported unchanged for a platform that supports landscape is a valid deliverable.
+
 Product defaults disable scenic grading/grain and floating film title/chapter cards. Source-photo captions use
 a contrasting theme ink in the upper safe area; a short explicit end fade is respected. These defaults are
 editable in the spec. `PRESERVE_COLOUR` also gives the designed cover an ungraded, uncropped source with a
