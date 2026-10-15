@@ -4,6 +4,8 @@
 import { reviewEn, reviewFr, reviewZh } from './review';
 
 export const sessionFixesEn = {
+  'issue.flicker': "The picture flashes or flickers",
+  'issue.do.flicker': "Review the flagged moments and their source shots. Correct exposure changes or transitions, then render and check again.",
   'fail.reason.stage-gpu-stream': "Slow-motion rendering failed in the graphics worker. Update Reelfold before retrying.",
   'fail.reason.stage-flicker': "The video did not pass the flicker check. Its transitions need correction before retrying.",
   'fail.reason.stage-spec-invalid': "The video plan contains invalid timing settings. The plan needs correction before rendering.",
@@ -105,6 +107,8 @@ export const sessionFixesEn = {
 };
 
 export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
+  'issue.flicker': "画面出现闪光或闪烁",
+  'issue.do.flicker': "检查标记的时间点及对应原素材，修正曝光变化或转场后，重新渲染并检查。",
   'fail.reason.stage-gpu-stream': "慢动作渲染的图形处理线程出错，请更新千剪后再重试。",
   'fail.reason.stage-flicker': "视频未通过闪烁检查，需要修正转场后再重试。",
   'fail.reason.stage-spec-invalid': "视频计划中的时间设置无效，需要修正计划后再渲染。",
@@ -195,6 +199,8 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
 };
 
 export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
+  'issue.flicker': "L’image présente des flashs ou scintille",
+  'issue.do.flicker': "Examinez les instants signalés et leurs plans sources. Corrigez les changements d’exposition ou les transitions, puis refaites le rendu et le contrôle.",
   'fail.reason.stage-gpu-stream': "Le rendu du ralenti a échoué dans le traitement graphique. Mettez Reelfold à jour avant de réessayer.",
   'fail.reason.stage-flicker': "La vidéo échoue au contrôle de scintillement. Corrigez les transitions avant de réessayer.",
   'fail.reason.stage-spec-invalid': "Le plan vidéo contient des réglages temporels invalides. Corrigez le plan avant le rendu.",

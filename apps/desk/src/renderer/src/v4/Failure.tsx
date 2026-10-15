@@ -13,6 +13,7 @@ import { errText } from './msg';
 import { CHINESE_VOICE_GROUP, ensureFreeVoice } from '../lib/freeVoice';
 import { openReport } from '../support/Support';
 import { useUi } from './ui';
+import { redactClip } from '../../../shared/redact';
 
 const AI = new Set(['ai-login', 'ai-quota', 'ai-timeout', 'ai-missing', 'ai-region', 'ai-needs-model']);
 
@@ -50,6 +51,32 @@ export function failureReason(f: PilotFailure): string {
   if (!fix) return reason;
   const how = has(`fail.fix.${fix}`) ? tk(`fail.fix.${fix}`) : /\s/.test(fix) || fix.includes('/') ? tk('fail.fix.cmd', { fix }) : '';
   return how ? `${reason} ${how}` : reason;
+}
+
+/** Diagnostic text stays behind an explicit disclosure and is safe to copy into a report. */
+export function failureDetails(f: PilotFailure): string {
+  return redactClip(f.error?.trim() ?? '', 4000);
+}
+
+export function FailureDetails({ failure }: { failure: PilotFailure }) {
+  const ui = useUi();
+  const detail = failureDetails(failure);
+  if (!detail) return null;
+  const copy = async () => {
+    try {
+      await window.desk.copyText(detail);
+      ui.toast(t('c.copied'));
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    }
+  };
+  return (
+    <details className="muted small" data-testid="failure-details" style={{ minWidth: 0, maxWidth: '100%' }}>
+      <summary>{t('plan.details')}</summary>
+      <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{detail}</pre>
+      <button className="btn" onClick={() => void copy()} data-testid="failure-copy">{t('c.copy')}</button>
+    </details>
+  );
 }
 
 /** Where Settings › AI shows the key a failure needs (the OpenAI row for "No OpenAI key"). */

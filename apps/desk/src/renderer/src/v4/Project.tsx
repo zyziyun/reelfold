@@ -26,7 +26,7 @@ import { liveLine, liveStep, liveText, pendingFor } from '../lib/liveStatus';
 import { clipHref, inboxHref, selHref } from '../lib/nav';
 import { goalHref } from '../lib/goals';
 import { Elapsed, Empty, More, SkGrid, StatusPill, Thumb } from './kit';
-import { FailureActions, failureReason } from './Failure';
+import { FailureActions, FailureDetails, failureReason } from './Failure';
 import { PlayerOverlay } from './Player';
 import { ShareButton, ShareDialog } from './ShareDialog';
 import { NleDialog } from './NleDialog';
@@ -288,6 +288,7 @@ export function Project({ id, tab: asked }: { id: string; tab: ProjectTab }) {
               <div className="sp">
                 <b>{t('fail.title')}</b>
                 <span className="muted">{failureReason(failure)}</span>
+                <FailureDetails failure={failure} />
               </div>
               <div className="acts">
                 <FailureActions item={item.id} failure={failure} />

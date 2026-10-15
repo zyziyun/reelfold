@@ -15,7 +15,7 @@ import { clipHref, itemTarget, projectHref, startTriage, triageStep, useTriageSt
 import { go, useRouteQuery } from '../lib/router';
 import { Empty, media, Sk, Thumb } from './kit';
 import { FeedbackLink } from '../support/Support';
-import { FailureActions, failureReason, keyFocus } from './Failure';
+import { FailureActions, FailureDetails, failureReason, keyFocus } from './Failure';
 import { emsg, errText } from './msg';
 import { TriageBar } from './TriageBar';
 import { ImportFeedback } from './ShareDialog';
@@ -355,6 +355,7 @@ export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?
           {x.failure ? (
             <div className="ux-opt">
               <div className="ux-optt">{failureReason(x.failure)}</div>
+              <FailureDetails failure={x.failure} />
             </div>
           ) : noKey ? (
             <div className="ux-opt" data-testid="inbox-no-key">
