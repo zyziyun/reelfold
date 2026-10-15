@@ -521,6 +521,12 @@ def normalize_project(raw, idx, analysis, intent, ctx, warn):
             fixed = [d for d in (props["platforms"].get("default") or [])][:1] or (m["outputs"].get("platforms") or [])[:1]
             sources["platforms"] = "recipe"
         params["platforms"] = fixed
+        src = _src_file(ins, analysis)
+        if (m["id"] in ("lesson-clips", "interview-qa") and src and src.get("screen_share")
+                and src.get("width") and src.get("height") and not intent.get("shape") and not intent.get("orientation")):
+            from vstudio import platform as PF
+            aspect = src["width"] / src["height"]
+            params["platforms"] = [f"{x.split(':')[0]}:{PF.best_orientation(x.split(':')[0], aspect)}" for x in fixed]
         if params.get("preserve_source_aspect"):
             if intent.get("shape") or intent.get("orientation") or params.get("layout") == "band":
                 params["preserve_source_aspect"], sources["preserve_source_aspect"] = False, "prompt"

@@ -439,8 +439,26 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
     layout = spec.get("layout") or ("pip" if cam else "screen")
     if layout not in LAYOUTS:
         raise ValueError(f"layout {layout!r}: {' | '.join(LAYOUTS)}")
-    hdr = spec.get("header")
+    protected = bool(spec.get("protect_content"))
+    hdr = None if protected else spec.get("header")
     geo = geometry(canvas, layout, src_wh, cam_wh if cam else None, header=bool(hdr))
+    if protected:
+        # Slides/code are the evidence: do not put new cards over their pixels.
+        rail = int(H * .22) if spec.get("_caption_rail") else 0
+        available_w, available_h = W, H - rail
+        camera_box = None
+        if cam:
+            cw = int(W * (.23 if W > H else .34)) // 2 * 2
+            ch = int(cw * cam_wh[1] / cam_wh[0]) // 2 * 2
+            if W > H:
+                available_w = W - cw - int(W * .04)
+                camera_box = (W - cw - int(W * .02), max(0, H - rail - ch), cw, ch)
+            else:
+                available_h -= ch + int(H * .02)
+                camera_box = (W - cw - int(W * .02), H - rail - ch, cw, ch)
+        mw, mh = _fit(*src_wh, available_w, available_h)
+        geo.update(main=((available_w - mw) // 2, (available_h - mh) // 2, mw, mh),
+                   header=None, camera=camera_box, camera_crop=(camera_box[2:] if camera_box else None))
     spec = dict(spec, _src_wh=src_wh)
     header_png = None
     if hdr and geo.get("header"):
@@ -490,8 +508,14 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
             if seg["kind"] == "src" and seg["a"] - 0.01 <= ts <= seg["b"] + 0.01:
                 return seg["t0"] + (ts - seg["a"]) / seg["speed"]
         return None
+    if protected:
+        for seg in timeline:
+            if seg["kind"] == "src":
+                keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=list(geo["main"]), kind="source-content"))
+                if geo.get("camera"):
+                    keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=list(geo["camera"]), kind="camera"))
     tx, ty, tw = geo["terms"]
-    for i, tm in enumerate(spec.get("terms") or []):
+    for i, tm in enumerate([] if protected else (spec.get("terms") or [])):
         t0 = to_final(float(tm["t"]))
         if t0 is None:
             continue
@@ -502,7 +526,7 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
         ovs.append((png, tx, ty, t0, t1))
         keepouts.append(dict(t0=round(t0, 3), t1=round(t1, 3), box=[tx, ty, im.size[0], im.size[1]], kind="term"))
     lx, ly = geo["labels"]
-    for i, lb in enumerate(spec.get("labels") or []):
+    for i, lb in enumerate([] if protected else (spec.get("labels") or [])):
         t0, t1 = to_final(float(lb["a"])), to_final(float(lb["b"]))
         if t0 is None:
             continue
@@ -547,7 +571,9 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
             except OSError:
                 pass
     return dict(master=master, cues=cues, keepouts=keepouts, timeline=timeline, duration=round(t, 3),
-                size=[W, H], mask_report=mrep, cover=cover, geometry={k: v for k, v in geo.items()})
+                size=[W, H], mask_report=mrep, cover=cover, geometry={k: v for k, v in geo.items()},
+                content_policy="unobstructed-source" if protected else "presenter-overlays",
+                deferred_overlays=([k for k in ("header", "terms", "labels") if spec.get(k)] if protected else []))
 
 
 # --------------------------------------------------------------------------- delivery
@@ -625,10 +651,13 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
     os.makedirs(out_dir, exist_ok=True)
     workdir = workdir or os.path.join(out_dir, "work")
     report = dict(id=spec["id"], exports=[], warnings=[], tracks={}, firstpass=[], masters=[],
-                  layout=spec.get("layout"), layout_why=spec.get("layout_why"))
+                  layout=spec.get("layout"), layout_why=spec.get("layout_why"),
+                  protect_content=bool(spec.get("protect_content")), content_why=spec.get("content_why"))
     tr_info = None
     for (W, H), keys in canvases(platforms).items():
-        res = render_clip(spec, words, (W, H), os.path.join(workdir, f"{W}x{H}"))
+        burn_required = not captions.get("off")
+        render_spec = dict(spec, _caption_rail=burn_required)
+        res = render_clip(render_spec, words, (W, H), os.path.join(workdir, f"{W}x{H}"))
         cues = res["cues"]
         if captions.get("mode") in ("bilingual", "translated") and cues:
             fn = translate or (lambda cs, s, t: BL.translate_cues(cs, s, t, captions.get("glossary"),
@@ -654,7 +683,8 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         man = EX.export(res["master"], keys, out_dir, cues=None if captions.get("off") else cj, covers=covers,
                         post=post)
         report["masters"].append(dict(size=[W, H], master=res["master"], duration=res["duration"],
-                                      mask_report=res["mask_report"], cues=cj))
+                                      mask_report=res["mask_report"], cues=cj, content_policy=res["content_policy"],
+                                      deferred_overlays=res["deferred_overlays"], geometry=res["geometry"]))
         man = _prefix_exports(man, out_dir, spec["id"])
         for e in man["exports"]:
             e = dict(e, file=os.path.join(out_dir, e["file"]),
@@ -708,10 +738,40 @@ def blank_share(src, a, b, n=5, luma=0.04, tmpdir=None):
             shutil.rmtree(td, ignore_errors=True)
 
 
+def screen_content(src, ranges, n=5):
+    """Local whole-range visual evidence, not a filename/topic guess; no face model or cloud call."""
+    import tempfile
+    import cv2
+    from .intake.inventory import frame_stats, visual_facts
+    if not ranges or sum(b - a for a, b in ranges) <= 0:
+        return False
+    stats = []
+    with tempfile.TemporaryDirectory(prefix="vscreen-") as td:
+        total = sum(b - a for a, b in ranges)
+        for i in range(n):
+            pos = total * (i + .5) / n
+            for a, b in ranges:
+                if pos <= b - a:
+                    t = a + pos
+                    break
+                pos -= b - a
+            path = os.path.join(td, "frame.png")
+            media.grab_frame(src, t, path, vf="scale=640:-2")
+            img = cv2.imread(path)
+            if img is not None:
+                stats.append(frame_stats(img, detect_faces=False))
+    return bool(stats and visual_facts(stats, 1, 1).get("screen_share"))
+
+
 def auto_layouts(specs, default="pip"):
     """layout None + a camera file: ``camera`` for a clip whose screen share is blank, else ``default``; the
     choice is written into the spec (``layout_why``) and so into the report."""
     for sp in specs:
+        ranges = [(p["a"], p["b"]) for p in sp["parts"] if p["kind"] == "src"]
+        if "protect_content" not in sp and ranges:
+            sp["protect_content"] = screen_content(sp["source"], ranges)
+            if sp["protect_content"]:
+                sp["content_why"] = "sampled slides or screen content; keep source pixels clear of added cards"
         if sp.get("camera") and not sp.get("layout"):
             srcs = [(p["a"], p["b"]) for p in sp["parts"] if p["kind"] == "src"]
             blank = all(blank_share(sp["source"], a, b) for a, b in srcs) if srcs else False

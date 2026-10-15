@@ -4,6 +4,7 @@ only (tone-burst "speech" on generated video, transcripts written here); transla
 in by the test - the code paths are the real ones."""
 import json
 import os
+import re
 import shutil
 
 import numpy as np
@@ -553,3 +554,84 @@ def test_face_mask_stays_inside_its_picture(tmp_path, monkeypatch):
     a = np.asarray(Image.open(png).convert("RGB")).astype(int)
     assert np.abs(a[:195] - 128).max() <= 6                  # above the box: untouched grey
     assert np.abs(a[200:380] - 128).max() > 40               # inside: the sticker
+
+
+def test_monolingual_lesson_graphics_and_posts_use_source_language():
+    plan = L.plan_points(L.sentences(transcript(LESSON)), lang="en", min_s=8, max_s=35)
+    for point in plan["points"]:
+        point["gloss"] = "中文释义"
+        for term in point["terms"]:
+            term["gloss"] = "中文释义"
+    specs = L.clip_specs(plan, "source.mp4", mode="mono")
+    for spec in specs:
+        assert all(not part.get("sub") for part in spec["parts"] if part["kind"] == "card")
+        assert not (spec.get("header") or {}).get("sub")
+        assert all(not term.get("gloss") for term in spec["terms"])
+        assert not re.search(r"[\u4e00-\u9fff]", L.post_for(spec, "en")["title"])
+
+
+@media
+def test_local_slide_detection_and_unobstructed_body(tmp_path, monkeypatch):
+    import subprocess
+    from PIL import Image, ImageDraw
+    from vstudio import clipkit as CK, media as MD
+    from vstudio.intake import inventory
+    png = tmp_path / "slide.png"
+    im = Image.new("RGB", (640, 360), "white")
+    d = ImageDraw.Draw(im)
+    d.text((35, 35), "def process(frame):", fill="black")
+    d.text((35, 65), "    return frame", fill="black")
+    colours = [(220, 35, 35), (35, 210, 35), (35, 35, 220), (200, 35, 200)]
+    corners = [(0, 0, 30, 30), (610, 0, 640, 30), (0, 330, 30, 360), (610, 330, 640, 360)]
+    for box, colour in zip(corners, colours):
+        im.paste(colour, box)
+    im.save(png)
+    source = str(tmp_path / "slides.mp4")
+    MD.run(["ffmpeg", "-y", "-loop", "1", "-i", str(png), "-t", "2", "-r", "30",
+            *MD.delivery_args(preset="ultrafast", audio=False, encoder="libx264"), source])
+    monkeypatch.setattr(inventory, "_face_areas", lambda img: pytest.fail("Layout analysis must not need a face model"))
+    spec = dict(id="slide", kind="concept", source=source, layout="screen", parts=[dict(kind="src", a=0, b=2)],
+                header=dict(title="This must not hide the source code"),
+                terms=[dict(t=.1, term="A card over the source")], labels=[])
+    CK.auto_layouts([spec])
+    assert spec["protect_content"] is True
+    result = CK.render_clip(spec, canvas=(640, 360), workdir=str(tmp_path / "work"))
+    raw = subprocess.check_output([MD.ffmpeg_bin(), "-v", "error", "-ss", "1", "-i", result["master"],
+                                   "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+    frame = np.frombuffer(raw, np.uint8).reshape(360, 640, 3)
+    assert result["geometry"]["main"] == (0, 0, 640, 360)
+    assert result["geometry"]["header"] is None
+    assert result["deferred_overlays"] == ["header", "terms"]
+    for (x0, y0, x1, y1), colour in zip(corners, colours):
+        actual = np.median(frame[y0+5:y1-5, x0+5:x1-5], axis=(0, 1))
+        assert np.max(np.abs(actual - colour)) < 15
+    assert frame[12, 100].min() > 230  # previous opaque header would occupy this clean source area
+
+
+@media
+@pytest.mark.parametrize("canvas", [(640, 360), (360, 640)])
+def test_protected_lesson_camera_and_caption_rail_do_not_cover_slides(tmp_path, canvas):
+    from vstudio import clipkit as CK, media as MD
+    from PIL import Image
+    source, camera = (str(tmp_path / name) for name in ("slides.mp4", "camera.mp4"))
+    for path, size, colour in [(source, "640x360", "white"), (camera, "320x240", "red")]:
+        MD.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c={colour}:s={size}:r=30:d=1",
+                *MD.delivery_args(preset="ultrafast", audio=False, encoder="libx264"), path])
+    spec = dict(id="separate-camera", source=source, camera=camera, layout="pip", protect_content=True,
+                _caption_rail=True, parts=[dict(kind="src", a=0, b=1)])
+    result = CK.render_clip(spec, canvas=canvas, workdir=str(tmp_path / "work"))
+    main, cam = result["geometry"]["main"], result["geometry"]["camera"]
+    W, H = canvas
+    rail_top = H - int(H * .22)
+    assert main[0] + main[2] <= cam[0] or main[1] + main[3] <= cam[1]
+    for x, y, w, h in (main, cam):
+        assert x >= 0 and y >= 0 and x + w <= W and y + h <= rail_top
+    assert abs(main[2] / main[3] - 640 / 360) < .02
+    png = str(tmp_path / "frame.png")
+    MD.grab_frame(result["master"], .5, png)
+    frame = np.asarray(Image.open(png).convert("RGB"))
+    x, y, w, h = main
+    assert frame[y+h//2, x+w//2].min() > 230
+    x, y, w, h = cam
+    assert frame[y+h//2, x+w//2, 0] > 230 and frame[y+h//2, x+w//2, 1] < 20
+    assert {k["kind"] for k in result["keepouts"]} == {"source-content", "camera"}

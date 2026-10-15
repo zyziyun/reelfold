@@ -549,8 +549,8 @@ def clip_specs(plan, source, camera=None, offset=0.0, layout=None, mode="bilingu
                 speed=float(speed or 1.0))
     for p in plan["points"]:
         k = kicker(p["kind"], src_lang, bi)
-        sub = p.get("gloss") or (subs.get(p["title"]) if bi else None)
-        terms = [dict(t=t["t"], term=t["term"], gloss=t.get("gloss") or (subs.get(t["term"]) if bi else None),
+        sub = (p.get("gloss") or subs.get(p["title"])) if bi else None
+        terms = [dict(t=t["t"], term=t["term"], gloss=(t.get("gloss") or subs.get(t["term"])) if bi else None,
                       label=LABELS["term"]["en"] if src_lang == "en" else LABELS["term"]["zh"])
                  for t in (p.get("terms") or []) if t.get("t") is not None][:3]
         specs.append(dict(base, id=p["id"], kind=p["kind"], title=p["title"],
@@ -567,7 +567,7 @@ def clip_specs(plan, source, camera=None, offset=0.0, layout=None, mode="bilingu
                       sub=None, dur=card_s)]
         for r in rc["parts"]:
             parts.append(dict(kind="card", kicker=kicker(r["kind"], src_lang, bi), title=r["title"],
-                              sub=r.get("gloss") or (subs.get(r["title"]) if bi else None), dur=1.6))
+                              sub=(r.get("gloss") or subs.get(r["title"])) if bi else None, dur=1.6))
             parts.append(dict(kind="src", a=r["range"][0], b=r["range"][1]))
         specs.append(dict(base, id="recap", kind="recap", title=LABELS["recap"]["en" if src_lang == "en" else "zh"],
                           parts=parts, header=None, terms=[],
@@ -577,9 +577,9 @@ def clip_specs(plan, source, camera=None, offset=0.0, layout=None, mode="bilingu
 
 def post_for(spec, src_lang="en"):
     lab = LABELS.get(spec.get("kind"), LABELS["concept"])
-    title = f"{lab['zh']}｜{spec['title']}" if src_lang == "en" else f"{lab['zh']}｜{spec['title']}"
+    title = f"{lab['en']}: {spec['title']}" if src_lang == "en" else f"{lab['zh']}｜{spec['title']}"
     body = "\n".join(x for x in [spec.get("gloss"), spec.get("summary")] if x)
-    return dict(title=title[:40], body=body, tags=None)
+    return dict(title=title, body=body, tags=None)
 
 
 def render(plan, source, out_dir, platforms, camera=None, offset=None, layout=None, mode="bilingual", mask=None,

@@ -201,14 +201,14 @@ def _face_areas(img):
                   reverse=True)
 
 
-def frame_stats(img):
+def frame_stats(img, detect_faces=True):
     """Per-frame numbers the heuristics use: faces, edge density, saturation, flatness, caption-band scores
     (bright text pixels touching a dark outline / shadow, per mille, in the lower, middle and top bands)."""
     import cv2
     import numpy as np
     h, w = img.shape[:2]
     try:
-        areas = _face_areas(img)
+        areas = _face_areas(img) if detect_faces else None
     except Exception:  # noqa: BLE001 - no mediapipe / model: faces unknown
         areas = None
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)

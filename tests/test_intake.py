@@ -710,3 +710,14 @@ def test_mixed_spoken_and_silent_comedy_keep_independent_sources(tmp_path):
         # Same input contract consumed by the author and actual compose stage.
         ctx = drafts.Ctx(project.dir, row["id"], dict(_inputs=row["inputs"], **row["params"]), "performance-edit")
         assert _source(ctx).endswith("dialogue.mp4" if ctx.params["speech"] else "silent.mp4")
+
+
+@pytest.mark.parametrize("shape,expected", [("", "xiaohongshu:horizontal"), (" 9:16", "xiaohongshu:full")])
+def test_screen_lesson_preserves_readable_canvas_unless_shape_is_explicit(tmp_path, shape, expected):
+    m = Mat(tmp_path)
+    m.video("recording.mp4", 600, speech=True, screen_share=True, width=1920, height=1080, language="en")
+    plan = PL.make_plan("把这节技术课按知识点切片发小红书" + shape, analysis=m.analysis(), asr="off")
+    assert PL.validate(plan) == []
+    p = plan["projects"][0]
+    assert p["recipe"] == "lesson-clips"
+    assert p["params"]["platforms"] == [expected]
