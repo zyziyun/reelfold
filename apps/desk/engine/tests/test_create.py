@@ -177,7 +177,7 @@ class CreateRealModeTest(unittest.TestCase):
         self.home = tempfile.mkdtemp()
         env = runner_env(os.path.abspath(os.path.join(LIB, "..")))
         env.update(VSTUDIO_HOME=self.home, VSTUDIO_CREATE_NO_LLM="1")
-        for k in ("KLING_MCP_TOKEN", "MINIMAX_API_KEY", "GEMINI_API_KEY", "ARK_API_KEY", "VSTUDIO_CREATE_FAKE"):
+        for k in ("KLING_MCP_TOKEN", "MINIMAX_API_KEY", "GEMINI_API_KEY", "ARK_API_KEY", "HEDRA_API_KEY", "VSTUDIO_CREATE_FAKE"):
             env.pop(k, None)
         self.api = CreateApi(tempfile.mkdtemp(), EventBus(), CliRunner(sys.executable, env), "real")
 

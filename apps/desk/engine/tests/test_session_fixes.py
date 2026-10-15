@@ -25,7 +25,7 @@ class _Hist:
         self.items = list(items)
         self.allowed = []
 
-    def list(self):
+    def list(self, archived=False):
         return dict(items=self.items)
 
     def allow_media(self, paths):
