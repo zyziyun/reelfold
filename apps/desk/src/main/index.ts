@@ -37,7 +37,7 @@ import { API_PLATFORMS, apiOnly, BROWSER_UPLOAD_URL, type ApiStatusMsg, type Pos
 import { PLATFORMS } from '../shared/platforms';
 import type { CalendarPost } from '../shared/v04';
 import { findBundledRuntime, runtimeEnv, type BundledRuntime } from './runtime';
-import { buildCsp, isAppUrl, isSafeExternal } from './security';
+import { youtubeEmbedIdentity, buildCsp, isAppUrl, isSafeExternal } from './security';
 import { installDisplayMedia, installMediaPermissions, registerRecorderIpc, ScreenPick, type Recorder } from './recorder';
 import { createFlagFrom, studioFlagFrom } from '../shared/recIpc';
 import { SettingsStore } from './settings';
@@ -477,6 +477,10 @@ function hardenDefaultSession() {
   // while it is off. Tests (fake devices) share the app's own window.
   installDisplayMedia(ses, { flag: createOn, pick: screenPick, fakeMedia: FAKE_MEDIA });
   ses.on('will-download', (e) => e.preventDefault());
+  ses.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (details, callback) => {
+    const referer = createOn() ? youtubeEmbedIdentity(details.url, details.resourceType) : null;
+    callback({ requestHeaders: referer ? { ...details.requestHeaders, Referer: referer } : details.requestHeaders });
+  });
   if (IS_DEV) {
     ses.webRequest.onHeadersReceived((d, cb) => {
       const headers = { ...d.responseHeaders };

@@ -1,0 +1,118 @@
+import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { closeApp } from './closeApp';
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reelfold-learning-'));
+let app: ElectronApplication;
+let page: Page;
+let workspaceId = '';
+const source = path.join(tmp, 'source.mp4');
+const env = { ...process.env, DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), VSTUDIO_CACHE: path.join(tmp, 'cache'), VSTUDIO_DEFAULT_PERSONA: '1', VSTUDIO_BATCH_BENCH: path.join(tmp, 'bench.json'), DESK_HISTORY_WATCH: '', DESK_ENGINE_MOCK: '', DESK_CREATE: '1', DESK_STUDIO: '1', DESK_HIDE_WINDOW: '1', DESK_E2E_FAKE_MEDIA: '1', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '', ...Object.fromEntries(['', '_INTAKE', '_SEGMENT_PLAN', '_PLANNER', '_COPY'].map((k) => [`VSTUDIO_LLM${k}_PROVIDER`, 'none'])) };
+test.beforeAll(async () => {
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=red:s=640x360:r=30:d=6', '-f', 'lavfi', '-i', 'sine=frequency=500:duration=6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', source]);
+  app = await electron.launch({ args: [path.resolve(import.meta.dirname, '../..')], env });
+  page = await app.firstWindow();
+  await page.waitForURL(/^app:\/\/desk\//);
+  await page.evaluate(async () => { await window.desk.setSettings({ lang: 'en' }); });
+  await page.reload();
+});
+test.afterAll(async () => { await closeApp(app); });
+async function api(method: string, route: string, body?: unknown) {
+  return page.evaluate(async ({ method, route, body }) => {
+    const info = await window.desk.engineInfo();
+    const result = await fetch(info.baseUrl + route, { method, headers: { Authorization: `Bearer ${info.token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    if (!result.ok) throw new Error(await result.text());
+    return result.json();
+  }, { method, route, body });
+}
+test('human thoughts persist with source times and become an editable post without an AI call', async () => {
+  test.setTimeout(120000);
+  await page.evaluate(() => { location.hash = '#/create/learning'; });
+  await expect(page.getByTestId('learning-create')).toBeVisible();
+  await page.getByTestId('learning-idea').fill('A creator thinks before making a post');
+  await page.getByTestId('learning-start').click();
+  await expect(page.getByTestId('learning-workspace')).toBeVisible();
+  const id = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('id'));
+  expect(id).toMatch(/^[0-9a-f]{12}$/); workspaceId = id!;
+  const made = await api('POST', `/api/create/learning/${id}`, { action: 'files', files: [source] });
+  const sid = Object.keys(made.sources)[0];
+  await page.reload();
+  const video = page.getByTestId('learning-source-video');
+  await expect(video).toBeVisible();
+  await video.evaluate(async (v: HTMLVideoElement) => { await v.play(); });
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
+  await page.getByTestId('learning-thought').fill('My own perspective, kept in my own words.');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
+  await page.getByTestId('learning-save-thought').click();
+  await expect(page.getByTestId('learning-notes')).toContainText('My own perspective, kept in my own words.');
+  const state = await api('GET', `/api/create/learning/${id}`);
+  expect(state.notes[0].source).toBe(sid);
+  await page.reload();
+  await expect(page.getByTestId('learning-notes')).toContainText('My own perspective, kept in my own words.');
+  await page.getByTestId('learning-time-edit').click();
+  await page.getByTestId('learning-source-time').fill('1');
+  await page.getByTestId('learning-mark-start').click();
+  await page.getByTestId('learning-source-time').fill('2');
+  await page.getByTestId('learning-keep-range').click();
+  await expect(page.getByTestId('learning-block')).toHaveCount(1);
+  await page.getByTestId('learning-post').click();
+  await expect(page.getByRole('textbox', { name: 'Editable post draft' })).toHaveValue('My own perspective, kept in my own words.');
+  const doc = await api('GET', `/api/create/learning/${id}`);
+  expect(doc.blocks[0].start).toBe(1);
+  expect(doc.blocks[0].end).toBe(2);
+});
+test('camera and screen sharing stay beside the material; a new take remains editable', async () => {
+  test.setTimeout(120000);
+  await page.getByTestId('learning-camera-open').click();
+  await expect(page.getByTestId('learning-camera-preview')).toBeVisible();
+  await page.getByTestId('learning-screen').click();
+  await page.getByTestId('rec-screen-toggle').click();
+  const first = page.getByTestId('rec-screen-source').first();
+  await expect(first).toBeVisible(); await first.click();
+  await page.getByTestId('learning-camera-record').click();
+  await expect(page.getByTestId('learning-camera-record')).toContainText('Stop');
+  await page.waitForTimeout(1800);
+  await page.getByTestId('learning-camera-record').click();
+  await expect(page.getByTestId('learning-camera-record')).toContainText('Record my explanation', { timeout: 30000 });
+  await expect(page.getByTestId('learning-source-select')).toContainText('My recorded contribution');
+});
+test('my ordered draft makes a real demo which opens in the existing editor', async () => {
+  test.setTimeout(180000);
+  const id = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('id'));
+  let d = await api('GET', `/api/create/learning/${id}`);
+  const reference = Object.keys(d.sources).find((s) => d.sources[s].role === 'reference')!;
+  const take = Object.keys(d.sources).find((s) => d.sources[s].role === 'commentary')!;
+  expect(take).toBeTruthy();
+  await api('POST', `/api/create/learning/${id}`, { action: 'credit', source: reference, credit: { title: 'Synthetic test source', creator: 'Test fixture', locator: 'Synthetic local media, not a real interview' } });
+  d = await api('POST', `/api/create/learning/${id}`, { action: 'block', block: { source: take, start: 0, end: Math.min(1, d.sources[take].duration), point: 'My recorded demonstration' } });
+  await page.reload();
+  await expect(page.getByTestId('learning-block')).toHaveCount(2);
+  await page.getByTestId('learning-make-demo').click();
+  let item = '';
+  let clip = '';
+  await expect.poll(async () => {
+    const h = await api('GET', '/api/history');
+    const entry = h.items.find((x: { dir: string }) => x.dir.endsWith(`learning-${id}`));
+    if (!entry) return false;
+    item = entry.id;
+    const out = await api('GET', `/api/outputs/${item}`);
+    clip = out.clips?.[0]?.id ?? '';
+    return !!clip;
+  }, { timeout: 120000 }).toBe(true);
+  await page.evaluate((url) => { location.hash = url; }, `#/p/${item}/clip/${encodeURIComponent(clip)}`);
+  await expect(page.getByTestId('editor')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId('editor-player')).toBeVisible();
+});
+
+test('an optional AI demo uses only thoughts I select and keeps my original notes', async () => {
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, workspaceId);
+  await expect(page.getByTestId('learning-workspace')).toBeVisible();
+  await expect(page.getByTestId('learning-ai-demo')).toBeDisabled();
+  await page.getByLabel('Use this thought for an AI demo').first().check();
+  await page.getByTestId('learning-ai-demo').click();
+  await expect.poll(async () => (await api('GET', `/api/create/learning/${workspaceId}`)).tool_jobs?.length ?? 0, { timeout: 30000 }).toBe(1);
+  const doc = await api('GET', `/api/create/learning/${workspaceId}`);
+  expect(doc.notes[0].text).toBe('My own perspective, kept in my own words.');
+});

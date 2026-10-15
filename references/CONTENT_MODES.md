@@ -6,6 +6,7 @@ Mode recognition is not evidence that its final film has passed a quality audit.
 
 | Purpose / actual material | Execution | What the edit must prove |
 |---|---|---|
+| Interviews/courses/books plus your own explanations | learning-commentary | Source excerpt → your real commentary → experience/application; source citations and recording gaps stay explicit |
 | Travel / observational footage | vlog / photo-story | A coherent route or observation, meaningful selection and paced shots; not every clip's opening seconds |
 | Personal / expert speech | talkinghead / longform-to-short | Source-faithful argument, actual cleanup and visual explanation; see SPOKEN_EDITING.md |
 | Presenter plus screenshots / product inserts | promo-recut | The spoken point and its visible demonstration stay aligned |

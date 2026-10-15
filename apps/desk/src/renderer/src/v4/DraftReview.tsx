@@ -9,6 +9,7 @@ import type { DraftReview, DraftSegment, InboxAuthor } from '../../../shared/v04
 import { fmtClock, t, type MessageKey } from '../i18n';
 import { providerName } from '../../../shared/aiRoutes';
 import { go } from '../lib/router';
+import { createHref } from '../create/routes';
 import { draftSummary, keptOf, keptSeconds, mmss } from '../lib/inboxView';
 import { useEngine } from '../lib/engine';
 import { useInbox } from '../lib/inbox';
@@ -63,6 +64,7 @@ export function DraftPane({ itemKey, a, edits, onEdits }: { itemKey: string; a: 
   const nm = a.drafting ? null : needsModelText(a);
   return (
     <div className="col ux-draft" style={{ gap: 12, minWidth: 0 }} data-testid="inbox-draft" data-state={a.drafting ? 'drafting' : a.state ?? ''}>
+      {a.recipe === 'learning-commentary' && a.checkpoint === 'montage' && <LearningTake itemKey={itemKey} disabled={!!a.drafting} />}
       {nm && <NeedsModel itemKey={itemKey} text={nm} />}
       {a.drafting ? (
         <div className="ux-opt" data-testid="draft-drafting">
@@ -101,6 +103,36 @@ export function DraftPane({ itemKey, a, edits, onEdits }: { itemKey: string; a: 
       <Advanced itemKey={itemKey} a={a} />
     </div>
   );
+}
+
+function LearningTake({ itemKey, disabled }: { itemKey: string; disabled: boolean }) {
+  const { client } = useEngine();
+  const { reload } = useInbox();
+  const ui = useUi();
+  const [busy, setBusy] = useState(false);
+  const attach = async () => {
+    if (!client || busy) return;
+    setBusy(true);
+    try {
+      const files = await window.desk.openFiles('video');
+      if (!files[0]) return;
+      await client.attachLearningTake(itemKey, files[0]);
+      reload();
+      ui.toast(t('learning.takeAdded'));
+    } catch (e) {
+      ui.toast(errText(e), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <div className="ux-opt" data-testid="learning-recording">
+    <div className="ux-optt">{t('learning.yourPerspective')}</div>
+    <p className="muted">{t('learning.recordHint')}</p>
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <button className="btn" disabled={disabled || busy} onClick={() => void attach()} data-testid="learning-add-take">{t('learning.addTake')}</button>
+      <a className="btn ghost" href={`${createHref({ screen: 'record' })}?learning=${encodeURIComponent(itemKey)}`} data-testid="learning-record">{t('learning.record')}</a>
+    </div>
+  </div>;
 }
 
 function DraftLines({ rv }: { rv: DraftReview }) {

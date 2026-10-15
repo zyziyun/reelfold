@@ -332,12 +332,12 @@ def _cues_of_job(rows, params):
     pr = (rows.get("proofread") or {}).get("out") or {}
     cm = (rows.get("compose") or {}).get("out") or {}
     path = pr.get("cues") if pr.get("cues") and os.path.exists(pr["cues"]) else cm.get("cues")
-    d = read_json(path, {}) or {}
+    d = (read_json(path, {}) or {}) if path else {}
     cues = d.get("cues") if isinstance(d, dict) else d
     cues = list(cues or [])
     if params.get("caption_overrides"):
         from vstudio.batch.edits import apply_caption_overrides
-        a = read_json(cm.get("cues"), {}) or {}
+        a = (read_json(cm["cues"], {}) or {}) if cm.get("cues") else {}
         cues, _, _ = apply_caption_overrides(cues, params["caption_overrides"],
                                              asr_cues=a.get("cues") if isinstance(a, dict) else a)
     return [dict(start=float(c["start"]), end=float(c["end"]), text=str(c.get("text") or ""),

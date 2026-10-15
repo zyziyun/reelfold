@@ -56,7 +56,7 @@ class PlanError(ValueError):
 FOOTAGE_RECIPES = ("talkinghead", "longform-to-short", "call-clips", "lesson-clips", "interview-qa", "promo-recut",
                    "polish", "vlog", "longform-course", "photo-story", "cover")
 # recipes that make a video from words alone (a topic, notes, a script): what a request with no files becomes
-WORDS_RECIPES = ("explainer", "preproduction", "ai-video", "slides", "launch-kit")
+WORDS_RECIPES = ("learning-commentary", "explainer", "preproduction", "ai-video", "slides", "launch-kit")
 # the request asks to cut / edit recordings (not to make something from a topic)
 _EDIT_VERBS = re.compile(r"剪|切|拆条|去气口|去口癖|精剪|粗剪|recut|\bcut\b|\btrim|\bedit\b|clips? from|"
                          r"my (recording|video|footage|talk|podcast|interview)|这条|这段|这个视频|录像|录屏|素材", re.I)
@@ -139,6 +139,10 @@ Rules:
   A recorded sketch uses performance-edit, with or without dialogue; preserve original speed, sound, setup,
   payoff and reaction pauses. Do not send silent physical comedy through speech cleanup. An unrecorded comedy idea uses preproduction to write
   its script; ai-video only when the creator asks for generated footage. Never infer paid generation from "ad".
+- Learning commentary uses learning-commentary: source interview/course excerpts or book pages plus the creator's
+  recorded explanations and experiences. Assign originals to references, book/source images to pages, personal
+  recordings to takes and source details/thoughts to notes. Never infer personal testimony from another speaker.
+  Missing takes remain a recording task; do not replace them with TTS or fabricated experiences.
 - A target aspect requires original-source recomposition of shots, titles and captions. Never meet a ratio
   request by adding empty borders. If source reconstruction is unavailable, retain the video canvas and
   propose a cover-only adaptation with a viewing-orientation hint; report missing sources.

@@ -87,6 +87,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
       return n;
     });
   const query = useRouteQuery();
+  const learning = query.learning && /^[0-9a-f]{16}$/.test(query.learning) ? query.learning : null;
   const [group] = useState(() => (query.group && GROUP_RE.test(query.group) ? query.group : newGroup()));
   // the script of this visit survives a trip to the editor and back (Record another take)
   const scriptKey = `rec.script.${group}`;
@@ -103,6 +104,18 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   useEffect(() => {
     if (fromEpisode && !touched.current) setEditing(false);
   }, [fromEpisode]);
+  useEffect(() => {
+    if (!learning || !client || touched.current) return;
+    let active = true;
+    void client.learningScript(learning).then(({ script }) => {
+      if (active && !touched.current && script) {
+        setTextS(script);
+        sessionStorage.setItem(scriptKey, script);
+        setEditing(false);
+      }
+    }).catch((e) => { if (active) setErr(errText(e)); });
+    return () => { active = false; };
+  }, [learning, client, scriptKey]);
   const [panel, setPanel] = useState(true);
   const useScript = prefs.script;
   const lines = useMemo(() => (useScript ? scriptLines(text) : []), [text, useScript]);
@@ -257,7 +270,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
       };
       setTakes((x) => [tk, ...x]);
       setChosen(tk.id);
-      if (!(eid && shot)) void edit(tk); // straight to the second pass
+      if (!(eid && shot) && !learning) void edit(tk); // straight to the second pass
     } catch (e) {
       setErr(errText(e));
     }
@@ -361,6 +374,13 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
         const { job } = await client.create.ingest(tk.dir, 'assembled', series);
         const res = await waitJob<Ingested>(client.create, job);
         if (!res.assembled) throw new Error('no assembled file');
+        if (learning) {
+          await client.attachLearningTake(learning, res.assembled);
+          history.reload();
+          ui.toast(t('learning.takeAdded'));
+          location.hash = `#/inbox?item=${encodeURIComponent(learning)}`;
+          return;
+        }
         if (!modelsRef.current) {
           setStage('models');
           while (!modelsRef.current) await new Promise((r) => setTimeout(r, 1000));
@@ -702,9 +722,9 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
             </div>
           ) : (
             <>
-              {!(eid && shot) && <textarea className="rs-ask" rows={2} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={t('rec.askPh')} disabled={finishing.busy} data-testid="rec-ask" />}
+              {!learning && !(eid && shot) && <textarea className="rs-ask" rows={2} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={t('rec.askPh')} disabled={finishing.busy} data-testid="rec-ask" />}
               <button type="button" className="btn primary lg rs-go" disabled={!using || live || finishing.busy} onClick={finish} data-testid="rec-finish">
-                {eid && shot ? t('rec.finishShot', { no: shot }) : t('rec.finish')}
+                {learning ? t('learning.useRecording') : eid && shot ? t('rec.finishShot', { no: shot }) : t('rec.finish')}
               </button>
               <div className="rs-note" data-testid="rec-finish-note">
                 {stage === 'editing' ? t('rec.preparing') : stage === 'working' ? t('rec.working', { n: using?.n ?? 1 }) : stage === 'models' ? t('rec.waitModels') : !using ? t('rec.finishNeedTake') : <FinishNote />}

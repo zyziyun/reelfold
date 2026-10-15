@@ -14,6 +14,7 @@ export const EPISODE_TABS: EpisodeTab[] = ['script', 'storyboard', 'takes', 'edi
 
 export type CreateRoute =
   | { screen: 'home' }
+  | { screen: 'learning' }
   | { screen: 'new'; format?: FormatId }
   | { screen: 'series'; sid: string; tab: SeriesTab }
   | { screen: 'episode'; eid: string; tab: EpisodeTab }
@@ -32,6 +33,7 @@ export function parseCreate(path: string[]): CreateRoute {
     if (b === 's' && c && ID.test(c)) return { screen: 'record', sid: c };
     return { screen: 'record' };
   }
+  if (a === 'learning') return { screen: 'learning' };
   if (a === 'settings') return { screen: 'settings' };
   if (a === 'new') return FORMAT_IDS.includes(b as FormatId) && b !== 'record' ? { screen: 'new', format: b as FormatId } : { screen: 'new' };
   return { screen: 'home' };
@@ -46,6 +48,8 @@ export function createPath(r: CreateRoute): string[] {
     case 'record':
       if (r.eid) return r.shot ? ['record', 'e', r.eid, r.shot] : ['record', 'e', r.eid];
       return r.sid ? ['record', 's', r.sid] : ['record'];
+    case 'learning':
+      return ['learning'];
     case 'settings':
       return ['settings'];
     case 'new':
