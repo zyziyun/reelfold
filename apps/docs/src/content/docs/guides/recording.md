@@ -16,6 +16,8 @@ On **Home**, choose **Record yourself** under the starting points. You can speak
 
 Press the record button or **Space**. **P** pauses or resumes. With a script, use **↑ / ↓** to move between lines and **⌘R** to mark that you are saying a line again. Stop to save the take, then open it in the editor. You can keep several takes and choose which one to use.
 
+If the shared window closes or screen sharing ends, Reelfold pauses the whole take, including the camera and microphone. Save that take before choosing another window and recording again. The take list shows **Paused** or **Saving** while those actions are in progress.
+
 If you need to change the shared window, save the current take first and start another. Before a long lesson, make a short test and check that picture and sound are present.
 
 ## Edit and finish
