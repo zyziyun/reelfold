@@ -46,7 +46,7 @@ test.beforeAll(async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
   const fin = path.join(work, 'final');
   fs.mkdirSync(fin, { recursive: true });
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=180x320:rate=30:duration=3', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', path.join(fin, 'A_tip.mp4')]);
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=180x320:rate=30:duration=90', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=90', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', path.join(fin, 'A_tip.mp4')]);
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', path.join(fin, 'A_tip.mp4'), '-frames:v', '1', path.join(fin, 'A_tip_cover.jpg')]);
   fs.writeFileSync(path.join(fin, 'post.md'), '# Posts\n\n## A_tip.mp4  ·  cover A_tip_cover.jpg\n\nOne tip a day\n\nThe body text.\n\n#tips #creator\n');
   const env: Record<string, string> = { ...(process.env as Record<string, string>), DESK_ENGINE_MOCK: '1', DESK_USER_DATA: path.join(tmp, 'profile'), VSTUDIO_HOME: path.join(tmp, 'vhome'), DESK_HISTORY_WATCH: watch, DESK_STUDIO: '0', DESK_HIDE_WINDOW: '1', DESK_SHARED_CACHE: path.join(tmp, 'cache'), DESK_HF_HUB: '', DESK_SKIP_FIRST_RUN: '1', VITE_DEV_SERVER_URL: '' };
@@ -219,6 +219,7 @@ test('a YouTube Short: the form, Schedule after Made for kids, uploaded through 
   await expect(page.getByTestId('post-path')).toHaveAttribute('data-path', 'api');
   await expect(page.getByTestId('post-fill')).toHaveCount(0); // no built-in browser fill for YouTube
   await expect(page.getByTestId('ytp-title')).toHaveValue('One tip a day');
+  await expect(page.getByTestId('ytp-short')).toBeChecked(); // a real 90s file passes the same UI + main eligibility check
   await expect(page.getByTestId('ytp-at')).toBeChecked(); // its time is ahead: scheduled
   await expect(page.getByTestId('ytp-publish')).toBeDisabled(); // Made for kids is hers to answer
   await expect(page.getByTestId('ytp-publish')).toHaveText(/Schedule/);
@@ -230,6 +231,7 @@ test('a YouTube Short: the form, Schedule after Made for kids, uploaded through 
   await expect(page.getByTestId('ytp-done')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('ytp-done')).toContainText('Scheduled');
   const m = (await rec()).meta!;
+  expect(m.snippet.title).toContain('#Shorts');
   expect(m.snippet.categoryId).toBe('27');
   expect(m.status).toMatchObject({ privacyStatus: 'private', selfDeclaredMadeForKids: false, publishAt: new Date(`${at(when)}:00`).toISOString() });
   const row = (await api<{ posts: Row[] }>('/api/calendar')).posts.find((x) => x.id === id)!;

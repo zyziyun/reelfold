@@ -1085,7 +1085,7 @@ function registerIpc() {
       publishAt = localDate(p.publishAt);
       if (publishAt.getTime() < Date.now() + 5 * 60_000) throw new Error('pick a time at least a few minutes ahead, or publish now');
     }
-    if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 60 seconds or less');
+    if (p.short && !shortsFit(pkg).ok) throw new Error('a Short has to be vertical (or square) and 3 minutes or less');
     let last = 0;
     const r = await youtube.upload(
       p.account,
