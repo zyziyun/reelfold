@@ -653,7 +653,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
             <div className="rs-take live">
               <span className="th rec" />
               <div className="tx">
-                <div className="t1">{t('rec.takeNow', { n: takeNo.current + 1 })}</div>
+                <div className="t1">{rec.state === 'recording' ? t('rec.takeNow', { n: takeNo.current + 1 }) : `${t('rec.take', { n: takeNo.current + 1 })} · ${rec.state === 'paused' ? t('rec.paused', { t: fmtClock(rec.elapsed) }) : t('rec.saving')}`}</div>
                 <div className="t2">{useScript && lines.length ? t('rec.takePart', { n: tp.cur + 1, total: lines.length }) : t('rec.takeFree')}</div>
               </div>
             </div>

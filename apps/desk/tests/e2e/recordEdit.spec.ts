@@ -285,6 +285,7 @@ test.describe('shared window ends during a take', () => {
     await page.evaluate(() => (window as unknown as { endSharedWindow: () => void }).endSharedWindow());
     await expect(page.getByTestId('create-rec-live')).toContainText('Paused');
     await expect(page.getByTestId('rec-screen-interrupted')).toContainText('Stop to save this take');
+    await expect(page.getByTestId('rec-takes')).toContainText('Paused');
     await expect(page.getByTestId('rec-pause')).toBeDisabled();
     await shot(page, 'R7-screen-ended-paused');
     const clock = await page.getByTestId('create-rec-live').textContent();
