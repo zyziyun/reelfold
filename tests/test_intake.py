@@ -644,6 +644,14 @@ def test_burned_caption_layout_is_an_explicit_preference():
     assert PL._burned_defaults(source, dict(burned="band")) == dict(layout="band", crop_bottom=0.28, captions=True)
 
 
+def test_spoken_slices_get_real_finishing_and_do_not_double_baked_captions(tmp_path):
+    plan = PL.make_plan("把长视频剪成四条口播切片", analysis=build("finished", tmp_path), asr="off")
+    project = next(p for p in plan["projects"] if p["recipe"] == "longform-to-short")
+    assert project["params"]["finishing"] == "editorial"
+    assert project["params"]["captions"] is False
+    assert project["params"]["preserve_source_aspect"] is True
+
+
 def test_focus_topics_without_verified_ranges_never_repeat_the_whole_video():
     p = dict(id="p1", recipe="talkinghead", params={}, inputs={}, items=dict(method="focus", rows=[dict(id="topic", inputs={}, params=dict(title="A topic"))]))
     with pytest.raises(AP.ApplyError, match="verified source times"):

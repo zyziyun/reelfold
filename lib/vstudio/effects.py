@@ -363,6 +363,11 @@ _add("chapter-card", "Chapter card", "text", "Full-frame '02 / 05 + title' card"
      "`overlays.py:chapter_card`; `longform-to-short/scripts/make_assets.py`; photo-story `subtitles.make_chapter`",
      [("cards.dur", 1.6, "< 1.2 s and the title cannot be read")], "Chapter boundaries in long videos", "med", "1.6 s",
      "1 per chapter", ["Pair with card_sting.wav"], "tests/test_visual.py", "Render as a PNG and insert as a `-loop 1` still")
+_add("explanation-card", "Argument card", "text", "Source-grounded comparison, causal chain or takeaway", [PIL],
+     {PIL: ["vstudio.project.outfx:ExplanationCard"]}, "`project/outfx.py:ExplanationCard`",
+     [("kind", "chain", "contrast / chain / takeaway")], "Spoken-video visual explanations", "low", "2–5 s",
+     "At a relevant spoken argument", ["Never fabricate supporting evidence"], "tests/test_spoken.py",
+     "A timed explanation-card effect on the edited timeline")
 _add("running-header", "Running header", "text", "Section names, per-section progress, titles", [PIL],
      {PIL: [PS + "subtitles.py:Header"]}, "`photostory/subtitles.py:Header`", [("SECTIONS", "spec", "<= 6 sections or labels crowd")],
      "Photo stories with sections", "low", "whole video", "always on", [], "no", "photo-story")

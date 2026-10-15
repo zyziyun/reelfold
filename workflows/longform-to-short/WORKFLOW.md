@@ -24,9 +24,14 @@ card stinger).
 If the source is long but the deliverable is a polished solo talking-head story, use this workflow to find
 source-verified segments, then follow [SPOKEN_EDITING](../../references/SPOKEN_EDITING.md). Do not apply the
 lecture assumptions (fixed title band, code zooms, blanket speed-up) to personal stories. Inspect burned
-subtitles before adding any; a second caption system is a delivery failure. A basic `longform-slices` batch
-only assembles cleaned ranges and exports; it currently has no semantic graphic/beat finishing stage. Use a
-supported finishing pass for premium requests and report the actual execution, not just a proposed plan.
+subtitles before adding any; a second caption system is a delivery failure. `finishing: assembly` performs
+basic range assembly. `finishing: editorial` additionally plans source-grounded comparison, causal-chain and
+takeaway cards from the proofread captions (`finish/editorial-plan.json`) and draws them at the actual edited
+times after each platform's reframe. Intake selects editorial for identified solo talking-head recordings.
+`captions: false` retains baked source subtitles without adding another track; `preserve_source_aspect: true`
+selects the platform's matching original shape instead of manufacturing a vertical version with padding.
+An incompatible platform needs a real remake. Argument-level recutting, contextual B-roll and final listening
+still require the editorial passes in the reference; cards alone do not establish premium quality.
 
 ## Setup
 

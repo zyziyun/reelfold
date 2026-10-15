@@ -46,9 +46,14 @@ batch renderer cannot express a planned visual, add a supported finishing pass o
 never silently replace the requested treatment with an unadorned range export. Every intended beat must
 resolve to a real rendered operation or an explicitly explained omission.
 
-The App's basic `longform-slices` implementation currently concatenates cleaned ranges and exports captions;
-it does not itself execute an editorial beat sheet. This reference describes the required premium workflow,
-not a claim that that runtime capability already exists. Engine integration needs its own tested change.
+`longform-slices` now has an optional `finishing: editorial` pass after caption proofreading. It uses the
+routed `edit` model to anchor short comparison, causal-chain and takeaway cards to actual edited caption
+indices, stores `finish/editorial-plan.json`, and renders the cards after each target's reframe. The clean
+master and baseline effects remain available to second-pass edits, including removing individual cards.
+Intake selects this pass for identified talking-head recordings; screen-share courses retain their own layout.
+Finished sources keep their existing captions and, where the platform supports it, their original aspect.
+This does not yet perform argument-level EDL restructuring, acquire contextual B-roll or audit the final audio
+by listening. Those remain separate editorial passes; argument cards alone are not proof of premium quality.
 
 ## Delivery checks
 

@@ -377,6 +377,7 @@ def resolve(d, output):
             master = cm["master"]
             cues = _cues_of_job(o["_rows"], o["_params"])
             rec["captions_on"] = bool(o["_params"].get("captions", True))
+            rec["baseline_effects"] = (((o.get("_rows") or {}).get("finish") or {}).get("out") or {}).get("effects") or []
         else:
             rec["reason"] = msg("no-master", "the recipe kept no clean master for this output: edits go on top of "
                                 "the finished file", "这个成片没有保留干净母版：在成片上叠加编辑")
@@ -506,6 +507,9 @@ class Doc:
 
     def state(self, steps=None):
         st = empty_state()
+        # Recipe finishing is part of the original edit, so later chat edits must not erase it.
+        if self.rec["mode"] == "pipeline":
+            st["effects"] = copy.deepcopy(self.rec.get("baseline_effects") or [])
         act = active_steps(self.d["steps"] if steps is None else steps)
         resets = [(i, o["key"]) for i, s in enumerate(act) for o in s["ops"] if o["op"] == "override_reset"]
         for i, s in enumerate(act):
@@ -514,6 +518,8 @@ class Doc:
                 op = _without_keys(op, later) if later and not op.get("derived") else op
                 if op is not None:
                     st = fold(st, op)
+                    if op["op"] == "reset" and self.rec["mode"] == "pipeline":
+                        st["effects"] = copy.deepcopy(self.rec.get("baseline_effects") or [])
         if st["captions"]["enabled"] is None:
             st["captions"]["enabled"] = bool(self.rec.get("captions_on"))
         # ids stay unique across reverted steps too (a revert can itself be undone)

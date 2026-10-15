@@ -33,7 +33,7 @@ items:
   sources: [segments, csv]
   planner: vstudio.project.adapters.longform:plan_items
   per_item: [range, title, chapter, hook, notes, tags, cuts, body, cleanup_reply]
-  shared: [layout_mode, platforms, series_name, speed, cleanup_profile, privacy_exclude, subtitles, subtitle_lang]
+  shared: [layout_mode, platforms, series_name, speed, cleanup_profile, privacy_exclude, subtitles, subtitle_lang, captions, finishing, preserve_source_aspect]
   variants: [platform, hook]
   share_cache: [probe, extract, asr, geometry, glossary]
 engine:
@@ -44,6 +44,21 @@ engine:
 params:
   type: object
   properties:
+    preserve_source_aspect:
+      type: boolean
+      default: false
+      title: Keep source aspect on platforms that support it
+      x-zh: 保留原画幅（目标平台需支持）
+    finishing:
+      enum: [assembly, editorial]
+      default: assembly
+      title: Visual finishing (editorial = source-grounded argument cards)
+      x-zh: 视觉编排（editorial 按原话生成观点图解）
+    captions:
+      type: boolean
+      default: true
+      title: Add captions (off when retaining subtitles baked into the source)
+      x-zh: 添加字幕（保留原片烧录字幕时关闭）
     layout_mode:
       enum: [split, reframe]
       default: split
@@ -142,6 +157,8 @@ stages:
   - {id: glossary, resource: cpu, from_batch: true, produces: [caption glossary (shared)]}
   - {id: verify, resource: asr, from_batch: true, produces: [re-ASR]}
   - {id: proofread, resource: cpu, from_batch: true, produces: [proofread captions]}
+  - {id: finish, resource: cpu, from_batch: true, labels: {zh: "视觉编排", en: "Visual finishing"},
+     produces: [source-grounded editorial-plan.json]}
   - {id: export, resource: cpu-render, from_batch: true, produces: ["<platform>-<orientation>.mp4 + cover + post"]}
   - {id: qc, resource: cpu, from_batch: true, produces: [qc.json], preview: {kind: json, path: "out:report"}}
   - {id: preview, resource: cpu-render, from_batch: true, produces: [sheet.jpg, snippet.mp4],

@@ -116,6 +116,13 @@ SPECS = {
                                                           "default": [], "x-zh": "要点"},
                     theme=THEME, width=_num(0.8, 0.4, 0.95, "宽度"), anim=ANIM, **_pos(0.5, 0.3)),
         sample=dict(title="三个要点", bullets=["先定目标", "再拆步骤", "【每天复盘】"])),
+    "explanation-card": dict(
+        zh="观点图解", en="Argument card", kind="fullframe", stage="frame", default_dur=4.0,
+        what_zh="按原话编排的对比、因果链或结论卡；保留原声，不伪造证据",
+        params=dict(title=_str("", "标题", True),
+                    kind=_str("takeaway", "图解形式", enum=("contrast", "chain", "takeaway")),
+                    items={"type": "array", "items": {"type": "string"}, "default": [], "x-zh": "观点"}),
+        sample=dict(title="副业带来的变化", kind="chain", items=["走进新圈子", "交流更深入", "思路更开阔"])),
     "overlay-images": dict(
         zh="贴纸 / 标签", en="Sticker / label", kind="overlay", stage="frame", default_dur=2.0, anim="pop",
         what_zh="图片贴纸，或文字标签（chip / badge / tag）",
@@ -401,6 +408,16 @@ def validate(eid, params, partial=False):
             raise ValueError(f"overlay-images: style image needs an existing image file, got {clean.get('image')!r}")
         if k == "overlay-images" and not clean.get("image") and not clean.get("text"):
             raise ValueError("overlay-images: text or image is required")
+        if k == "explanation-card":
+            items = clean.get("items") or []
+            if not 1 <= len(items) <= 3 or any(not isinstance(x, str) or not x.strip() or len(x) > 54 for x in items):
+                raise ValueError("explanation-card: use 1–3 short statements (at most 54 characters each)")
+            if len(clean["title"]) > 44:
+                raise ValueError("explanation-card: shorten the heading to at most 44 characters")
+            if clean.get("kind") == "contrast" and len(items) != 2:
+                raise ValueError("explanation-card: a contrast needs exactly two sides")
+            if clean.get("kind") == "chain" and len(items) < 2:
+                raise ValueError("explanation-card: a chain needs at least two steps")
     return clean, warns
 
 
@@ -631,6 +648,86 @@ class Notes(ImageLayer):
         if TH.is_classic():
             return D.shadow(im, blur=max(1, int(12 * self.u)), offset=(0, int(8 * self.u)))[0]
         return _shadow(im, self.u)
+
+
+class ExplanationCard(Layer):
+    """A short conceptual cutaway; staggered nodes, explicit links, no stock claims."""
+
+    def setup(self):
+        self.background = Image.new("RGB", (self.W, self.H), (244, 241, 233))
+        look = TH.resolve("editorial") if TH.is_classic() else TH.current()
+        self.accent = TH.rgba(look, "accent")
+        x0, y0, x1, y1 = self.safe
+        self.left, self.right = int(x0), int(x1)
+        self.top = int(y0 + (y1 - y0) * 0.1)
+        self.bottom = int(min(y1, self.H * 0.75))   # captions retain their own bottom safe band
+        self.short = min(self.W, self.H)
+        self.heading = D.text_layer(self.p["title"], D.load_font("cjk-bold", max(20, int(self.short * 0.085))),
+                                    fill=(35, 42, 40, 255), max_w=self.right - self.left, align="left",
+                                    pad=0, stroke=0, shadow_alpha=0)
+        self.items = list(self.p.get("items") or [])[:3]
+        if not self.items:
+            raise ValueError("explanation-card: at least one statement is required")
+        horizontal = self.W > self.H and len(self.items) > 1
+        self.boxes, self.texts = [], []
+        y = max(self.top + self.heading.height + int(self.short * 0.07), int(self.H * 0.34))
+        gap = int(self.short * 0.045)
+        n = len(self.items)
+        if horizontal:
+            bw = int((self.right - self.left - gap * (n - 1)) / n)
+            bh = self.bottom - y
+        else:
+            bw = self.right - self.left
+            bh = int((self.bottom - y - gap * (n - 1)) / n)
+        for i, text in enumerate(self.items):
+            bx, by = (self.left + i * (bw + gap), y) if horizontal else (self.left, y + i * (bh + gap))
+            pad = int(self.short * 0.025)
+            size = max(16, int(self.short * (0.1 if n == 1 else 0.07)))
+            while True:
+                txt = D.text_layer(text, D.load_font("cjk-bold", size), fill=(35, 42, 40, 255),
+                                   max_w=max(20, bw - 2 * pad), align="left", pad=0, stroke=0, shadow_alpha=0)
+                if txt.height <= bh - 2 * pad or size <= 16:
+                    break
+                size -= 1
+            if txt.height > bh - 2 * pad:
+                raise ValueError("explanation-card: text does not fit; shorten the statement")
+            self.boxes.append((bx, by, bw, bh))
+            self.texts.append(txt)
+
+    def draw(self, img, t, dur):
+        if not hasattr(self, "background"):
+            self.setup()
+        frame = self.background.copy()
+        dr = ImageDraw.Draw(frame)
+        dr.rectangle((self.left, self.top - int(self.short * 0.025), self.left + int(self.short * 0.07), self.top),
+                     fill=self.accent)
+        frame.paste(self.heading, (self.left, self.top + int(self.short * 0.025)), self.heading)
+        for i, ((x, y, w, h), txt) in enumerate(zip(self.boxes, self.texts)):
+            q = ease_in_out(min(1, max(0, (t - 0.28 - i * 0.18) / 0.45)))
+            lift = int((1 - q) * self.short * 0.025)
+            tile = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            td = ImageDraw.Draw(tile)
+            td.rounded_rectangle((0, 0, w - 1, h - 1), radius=max(8, int(self.short * 0.02)),
+                                 fill=(255, 255, 255, 255), outline=(214, 221, 215, 255), width=max(1, int(self.u)))
+            td.rectangle((0, int(h * 0.18), max(3, int(self.short * 0.005)), int(h * 0.82)), fill=self.accent)
+            tile.alpha_composite(txt, (int(self.short * 0.025), max(0, (h - txt.height) // 2)))
+            tile.putalpha(tile.getchannel("A").point(lambda a: int(a * q)))
+            frame.paste(tile, (x, y + lift), tile)
+            if i and self.p.get("kind") == "chain" and q > 0:
+                px, py, pw, ph = self.boxes[i - 1]
+                if x > px:
+                    aa, bb = (px + pw, py + ph // 2), (x, y + h // 2)
+                else:
+                    aa, bb = (px + pw // 2, py + ph), (x + w // 2, y)
+                dr.line((aa, bb), fill=self.accent, width=max(2, int(self.short * 0.004)))
+                tip = max(3, int(self.short * 0.012))
+                if x > px:
+                    dr.polygon((bb, (bb[0] - tip, bb[1] - tip // 2), (bb[0] - tip, bb[1] + tip // 2)), fill=self.accent)
+                else:
+                    dr.polygon((bb, (bb[0] - tip // 2, bb[1] - tip), (bb[0] + tip // 2, bb[1] - tip)), fill=self.accent)
+        opacity = ease_in_out(min(1, t / 0.45, (dur - t) / 0.45))
+        arr = np.asarray(frame)[:, :, ::-1]
+        img[:] = np.clip(img.astype(np.float32) * (1 - opacity) + arr * opacity, 0, 255).astype(np.uint8)
 
 
 class Sticker(ImageLayer):
@@ -864,7 +961,7 @@ class LowerThird(ImageLayer):
 
 
 LAYERS = {"pop-words": PopWords, "stacking-stamps": Stamp, "quote-card": QuoteCard, "callout-bubble": Callout,
-          "notes-panel": Notes, "overlay-images": Sticker, "badge": Badge, "red-box": RedBox,
+          "notes-panel": Notes, "explanation-card": ExplanationCard, "overlay-images": Sticker, "badge": Badge, "red-box": RedBox,
           "chapter-card": ChapterCard, "punch-in": PunchIn, "progress-bar-pil": Progress,
           "marker-sweep": MarkerSweep, "chapter-rule": ChapterRule, "number-counter": NumberCounter,
           "lower-third": LowerThird, "portrait-retouch": SkinSmooth}

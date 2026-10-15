@@ -19,6 +19,7 @@ frame would show the excluded participant tiles). Screen-share lectures: recipe 
 text-following screen crop, chapter card, 记笔记 panel, hook, captions, cover, post) and honours the excludes.
 """
 import glob
+import math
 import os
 
 from . import spec as S
@@ -381,6 +382,26 @@ def run_copy(ctx):
     return dict(d, copy=path, files=[path])
 
 
+def run_finish(ctx):
+    """A real visual beat plan from final/proofread captions, never arbitrary timestamps."""
+    from vstudio import spoken
+    c = ctx.inputs["compose"]
+    path = caption_cues(ctx)
+    data = read_json(path, {})
+    cues = data.get("cues", []) if isinstance(data, dict) else data
+    result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "")
+    dest = write_json(ctx.path("editorial-plan.json"), result)
+    ctx.log(f"spoken finishing: {len(result['effects'])} source-grounded visual beats")
+    return dict(plan=dest, effects=result["effects"], files=[dest])
+
+
+def _finish_params(job, spec):
+    from vstudio import llm
+    route = llm.route("edit")
+    return dict(_keyp("finishing", "title", "caption_overrides", "subtitles", "subtitle_lang")(job, spec),
+                provider=route.provider, model=route.model)
+
+
 def run_export(ctx):
     from vstudio import export as X
     p, c = ctx.params, ctx.inputs["compose"]
@@ -407,10 +428,23 @@ def run_export(ctx):
     covers = p.get("cover")
     if isinstance(covers, dict):                      # `job edit --op cover`: {t, text, file}
         covers = [covers["file"]] if covers.get("file") else None
-    man = X.export(c["master"], _plats(ctx.job), out_dir=ctx.path("exports"),
+    targets = _plats(ctx.job)
+    if p.get("preserve_source_aspect"):
+        from vstudio import media, platform
+        info = media.probe(c["master"])
+        aspect = info["display_w"] / info["display_h"]
+        targets = [f"{x.split(':')[0]}:{platform.best_orientation(x.split(':')[0], aspect)}" for x in targets]
+        for target in targets:
+            profile = platform.parse_targets([target])[0]
+            if abs(math.log(profile.w / profile.h / aspect)) > 0.1:
+                raise ValueError(f"{target}: this platform has no matching source aspect; make a real reframed "
+                                 "version or choose a platform that supports the original shape")
+        ctx.log(f"retaining source aspect: {', '.join(targets)}")
+    man = X.export(c["master"], targets, out_dir=ctx.path("exports"),
                    cues=cues_path, covers=covers, post=post,
                    mode=p.get("layout") or "pad-blur", preset=p.get("preset") or "medium",
                    captions=bool(p.get("captions", True)),
+                   effects=(ctx.inputs.get("finish") or {}).get("effects"),
                    watermark=p.get("watermark") if p.get("watermark") is not None else ctx.spec.get("watermark"),
                    **({"crop_bottom": float(p.get("crop_bottom", 0.28))} if p.get("layout") == "band" else {}))
     files = [ctx.path("exports", e["file"]) for e in man["exports"]]
@@ -844,6 +878,8 @@ def _smooth_key(fn):
 def _export_params(job, spec):
     d = dict(_keyp("platforms", "layout", "crop_bottom", "captions", "cover", "preset", "trims")(job, spec),
              max_len=_p(job).get("max_len") or spec.get("max_len"))
+    if _p(job).get("preserve_source_aspect"):
+        d["preserve_source_aspect"] = True
     for k in ("subtitles", "subtitle_lang"):          # only when set: older batches keep their keys
         if _p(job).get(k) not in (None, "auto", "mono"):
             d[k] = _p(job)[k]
@@ -891,7 +927,7 @@ def copy_stage():
 
 def speech_stages(copy=False):
     """The speech pipeline; ``copy`` = the talking-head recipes: drafted post copy (copy_stage) feeds export."""
-    exp_deps = ("compose", "proofread", "copy") if copy else ("compose", "proofread")
+    exp_deps = ("compose", "proofread", "finish", "copy") if copy else ("compose", "proofread", "finish")
     st = [
         Stage("probe", "io", probe, shared=True, params=_stat_params, units=lambda j, s: 1.0, retries=1),
         Stage("extract", "io", extract, deps=("probe",), shared=True, params=lambda j, s: dict(sr=16000),
@@ -913,6 +949,10 @@ def speech_stages(copy=False):
         Stage("proofread", _proofread_resource, run_proofread, deps=("compose", "verify", "glossary"),
               params=_proofread_params, enabled=_proofread_on, units=lambda j, s: 1.0, version=2,
               cost=lambda j, s: 0.02 if proofread_opts(s)["provider"] != "none" else 0.0),
+        Stage("finish", "cpu", run_finish, deps=("compose", "proofread"),
+              enabled=lambda j, s: _p(j).get("finishing") == "editorial",
+              params=_finish_params,
+              units=lambda j, s: 1.0, retries=0),
         Stage("export", _export_resource, run_export, deps=exp_deps,
               params=_export_params,
               units=lambda j, s: _dur(j, s) * max(1, len(_plats(j))), purge=("exports/*.mp4", "exports/*.mov")),

@@ -217,6 +217,10 @@ def run_gates(job, spec, ins, extra=()):
                                   o["title_required"], label))   # the creator's, else the drafted one
         checks += check_safe_zone(e, prof, label)
         checks += check_black_frozen(f, o, label, (ins.get("compose") or {}).get("cards") or ())
+        if p.get("finishing") == "editorial":
+            from vstudio import flicker
+            report = flicker.analyze(f)
+            checks.append(_c("flicker", report["ok"], report, flicker.describe(report), target=label))
         for w in e.get("warnings") or []:
             if not any(k in w for k in ("overlap", "caption too long", "loudness", "true peak", "duration", "title")):
                 checks.append(_c("export-warning", False, None, w, severity="warn", target=label))

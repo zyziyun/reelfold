@@ -715,6 +715,14 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
             sources.pop("tts_engine", None)
     if m["id"] == "longform-to-short" and "layout_mode" not in params and src:
         params["layout_mode"], sources["layout_mode"] = ("split" if src.get("screen_share") else "reframe"), "material"
+    if m["id"] == "longform-to-short" and src and not src.get("screen_share"):
+        if "finishing" not in params and src.get("talking_head"):
+            params["finishing"], sources["finishing"] = "editorial", "material"
+        if finished:
+            # Retained baked captions must not acquire a second subtitle track at export.
+            params["captions"], sources["captions"] = False, "material"
+            if "preserve_source_aspect" not in params:
+                params["preserve_source_aspect"], sources["preserve_source_aspect"] = True, "material"
 
 
 def zh_voice_line(ctx=None):

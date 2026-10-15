@@ -726,7 +726,7 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
-               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, **reframe_opts):
+               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
@@ -780,6 +780,16 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     cap_report = {}
     pl_geo = pl
     overlay = caption_overlay(prof, cue_list, pl["fps"], keepouts=kos, plan=pl_geo, report=cap_report) if cue_list else None
+    if effects:
+        from . import spoken
+        fx = [dict(e, start=e["start"] - start, end=e["end"] - start) for e in effects
+              if e["end"] > start and (dur is None or e["start"] < start + dur)]
+        draw_effects = spoken.overlay(fx, prof.w, prof.h, P.safe_box(prof))
+        draw_captions = overlay
+
+        def overlay(i, t, img, _f=draw_effects, _c=draw_captions):
+            picture = _f(i, t, img)
+            return _c(i, t, picture) if _c else picture
     for c in cue_list:
         fit = P.fit_text_size(prof, c.text.replace("\n", " "))
         if not fit["fits"]:
@@ -805,7 +815,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     has_a = info["has_audio"]
     tmpd = workdir or tempfile.mkdtemp(prefix="vexport-")
     try:
-        fast = same_aspect and (overlay is None or (wm_cfg and not cue_list)) and not info.get("hdr")
+        fast = same_aspect and not effects and (overlay is None or (wm_cfg and not cue_list)) and not info.get("hdr")
         wm_png = WM.write_png(wm_cfg, prof.w, prof.h, prof, os.path.join(tmpd, stem + ".wm.png")) \
             if (fast and wm_cfg) else None
         if has_a:
