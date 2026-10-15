@@ -253,7 +253,7 @@ jobs:
           [ -n "$files" ] || { echo '::error::empty engine shard'; exit 1; }
           echo "Engine test files: $files"
           # Two workers bound media/model memory. Names + stack dumps identify a hung native call.
-          python -m pytest -vv -p no:cacheprovider -n 2 --dist worksteal -o faulthandler_timeout=300 --durations=20 --junitxml=windows-engine.xml $files 2>&1 | tee windows-engine.log
+          python -m pytest -vv -p no:cacheprovider -n 2 --dist worksteal --timeout=300 --timeout-method=thread -o faulthandler_timeout=240 --durations=20 --junitxml=windows-engine.xml $files 2>&1 | tee windows-engine.log
       - uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true

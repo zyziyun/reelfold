@@ -6,4 +6,5 @@ pytest
 PyYAML
 jsonschema
 pytest-xdist
+pytest-timeout  # bound a stuck native call before the Windows runner discards its diagnostics
 regex       # vstudio.qwen_bpe (the Qwen3-TTS tokenizer; its runtime is Apple Silicon) is tested everywhere
