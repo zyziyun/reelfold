@@ -190,8 +190,8 @@ test('while a vlog is made its pieces show up as they appear; the chat pauses it
   // Stop is acknowledged before the worker exits. Wait for safe shutdown before resuming.
   await expect.poll(async () => {
     const item = (await api<Hist>('/api/history')).items.find((i) => i.id === fresh);
-    return !!item?.stopped && !item.pilot && !item.queued && item.live?.state !== 'running';
-  }, { timeout: 30000 }).toBe(true);
+    return { stopped: !!item?.stopped, pilot: !!item?.pilot, queued: !!item?.queued, liveRunning: item?.live?.state === 'running' };
+  }, { timeout: 30000 }).toEqual({ stopped: true, pilot: false, queued: false, liveRunning: false });
   await shot('P6-chat-paused');
   // ... and run it on
   await input.fill('继续');
