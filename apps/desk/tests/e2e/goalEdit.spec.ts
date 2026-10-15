@@ -179,6 +179,22 @@ test('a failed language keeps the made version and offers its own retry', async 
 
 test('a version waiting for confirmation opens its checkpoint without retrying', async () => {
   const goalPath = path.join(tmp, 'profile', 'engine-data', 'goals', `${fx.goal}.json`);
+  const prior = JSON.parse(fs.readFileSync(goalPath, 'utf8')).videos[0].projects[1];
+  // The preceding retry is real and may still be writing its stage state on a slow runner.
+  await page.evaluate(async (id) => {
+    const info = await window.desk.engineInfo();
+    const response = await fetch(`${info.baseUrl}/api/history/item/${id}/stop`, {
+      method: 'POST', headers: { Authorization: `Bearer ${info.token}`, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    if (!response.ok) throw new Error(`stop fixture run: ${response.status}`);
+  }, prior.item);
+  await expect.poll(() => page.evaluate(async (id) => {
+    const info = await window.desk.engineInfo();
+    const response = await fetch(`${info.baseUrl}/api/history/item/${id}/progress`, { headers: { Authorization: `Bearer ${info.token}` } });
+    if (!response.ok) throw new Error(`fixture progress: ${response.status}`);
+    return (await response.json() as { running: boolean }).running;
+  }, prior.item), { timeout: 30000 }).toBe(false);
+  await closeApp(app);
   const g = JSON.parse(fs.readFileSync(goalPath, 'utf8'));
   const v = g.videos[0];
   const waiting = v.projects[1];
@@ -188,6 +204,8 @@ import json, pathlib, sys
 from vstudio.project.core import Project
 from vstudio.batch.store import Store
 p = Project(sys.argv[1])
+p.data['answers'].pop('story', None)
+p.save()
 st = Store(p.state_dir)
 try:
     job = st.jobs()[0]['id']
@@ -202,12 +220,12 @@ pay = dict(id='story', kind='media-selection', scope='item', item=job, recipe='p
 dest = pathlib.Path(p.state_dir) / 'checkpoints' / job / 'story.json'
 dest.parent.mkdir(parents=True, exist_ok=True)
 dest.write_text(json.dumps(pay))
+assert any(x['id'] == 'story' for x in p.pending()), 'fixture checkpoint must be unanswered'
 `, waiting.dir], { env: { ...process.env, ...engineEnv, PYTHONPATH: path.join(REPO, 'lib') } });
   v.state = 'you';
   v.versions[1].state = 'you';
   g.state = 'done';
   fs.writeFileSync(goalPath, JSON.stringify(g));
-  await closeApp(app);
   app = await electron.launch({ args: [path.resolve(import.meta.dirname, '../..')], env: {
     ...process.env, ...engineEnv, PYTHONPATH: '', DESK_STUDIO: '1', DESK_ENGINE_MOCK: '',
     DESK_USER_DATA: path.join(tmp, 'profile'), DESK_HISTORY_WATCH: '', DESK_HIDE_WINDOW: '1',
