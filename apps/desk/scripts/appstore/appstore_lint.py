@@ -341,8 +341,20 @@ def check_bundle(root, unsigned, mac_dir, log):
             privacy = plistlib.load(f)
         if privacy.get("NSPrivacyTracking") is not False or privacy.get("NSPrivacyTrackingDomains") != []:
             fail(privacy_path, "Lite must declare no tracking and no tracking domains")
-        if privacy.get("NSPrivacyCollectedDataTypes") != []:
-            fail(privacy_path, "Lite privacy manifest changed: reconcile App Store privacy disclosures before shipping")
+        # Optional cloud AI is still a data flow. Do not equate disabled telemetry with no collection.
+        expected_types = {"NSPrivacyCollectedDataTypePhotosorVideos", "NSPrivacyCollectedDataTypeAudioData",
+                          "NSPrivacyCollectedDataTypeOtherUserContent"}
+        data_types = privacy.get("NSPrivacyCollectedDataTypes")
+        if not isinstance(data_types, list) or len(data_types) != len(expected_types) or \
+                any(not isinstance(d, dict) for d in data_types) or \
+                {str(d.get("NSPrivacyCollectedDataType")) for d in data_types} != expected_types:
+            fail(privacy_path, "privacy manifest must disclose optional cloud AI photos/videos, audio and other user content")
+        else:
+            for item in data_types:
+                if item.get("NSPrivacyCollectedDataTypeTracking") is not False or \
+                        item.get("NSPrivacyCollectedDataTypeLinked") is not True or \
+                        item.get("NSPrivacyCollectedDataTypePurposes") != ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]:
+                    fail(privacy_path, "AI content must declare account linkage, app functionality and no tracking")
         if not isinstance(privacy.get("NSPrivacyAccessedAPITypes"), list):
             fail(privacy_path, "missing required-reason API declarations")
     except (OSError, ValueError, plistlib.InvalidFileException) as e:
