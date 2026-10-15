@@ -142,7 +142,7 @@ done < <(find "$APP/Contents" -type f -perm -u+x -print0)
 # what App Review rejected or is known to reject: Tcl/Tk and non-public Accelerate BLAS symbols in any Mach-O (2.5.1),
 # "itms-services" in Python files, entitlements of every executable and architecture slice, quarantine flags
 say "App Store lint"
-python3 scripts/appstore/appstore_lint.py "$APP" || die "App Store lint failed (see above): App Review would reject this build"
+python3 scripts/appstore/appstore_lint.py "$APP" || die "App Store lint failed (see above): automated bundle checks did not pass"
 pkgutil --check-signature "$PKG" | grep -E "3rd Party Mac Developer Installer|Mac Installer Distribution" ||
   die "the pkg is not signed with the installer identity"
 plutil -p "$APP/Contents/Info.plist" | grep -E 'CFBundleVersion|CFBundleShortVersionString|ITSAppUsesNonExemptEncryption|LSMinimumSystemVersion'

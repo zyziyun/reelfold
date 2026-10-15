@@ -56,6 +56,7 @@ e2e_real_smoke:
 
 # Specs for code the trace cannot follow (main process, engine). Added to what the trace finds.
 e2e:
+  apps/desk/src/main/appMenu.ts: [windowMenu.spec.ts, smoke.spec.ts]
   apps/desk/src/main/publish/**: [publish.spec.ts, publishBoard.spec.ts, publishLoop.spec.ts, cdp.spec.ts, cdpAll.spec.ts]
   apps/desk/src/shared/publish/**: [publish.spec.ts, publishBoard.spec.ts, publishLoop.spec.ts, cdp.spec.ts, cdpAll.spec.ts]
   apps/desk/adapters/**: [cdpAll.spec.ts, publish.spec.ts]

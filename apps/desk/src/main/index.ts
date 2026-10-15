@@ -1195,7 +1195,7 @@ async function reportMigratedProfile() {
 }
 
 function menu() {
-  installAppMenu({ lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
+  installAppMenu({ onOpenMain: () => openRoute(), lang: settings?.get().lang ?? 'en', res: RES, win: () => win, iconPath: brandIcon(ICON_256), onFeedback: () => openFeedback(win), onImport: () => void importFinished() });
 }
 
 /** File › Import Finished Video…: pick finished videos (files or folders) -> the renderer's import dialog. */

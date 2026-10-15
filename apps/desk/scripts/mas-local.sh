@@ -23,8 +23,7 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
   BUILD_EDITION=mas npm run build
   say "package the mas target (unsigned)"
   rm -rf dist/mas-arm64
-  # electron-builder stops at the signing step without an Apple Distribution identity; the .app is complete by then
-  CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --config electron-builder.config.cjs --mac mas --arm64 --publish never -c.mas.identity=null || true
+  CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/appstore/package-unsigned.mjs
 fi
 [ -d "$APP" ] || { echo "no $APP"; exit 1; }
 

@@ -19,6 +19,7 @@ const L = {
     edit: 'Edit',
     view: 'View',
     window: 'Window',
+    openMain: 'Open Reelfold',
     help: 'Help',
     feedback: 'Send Feedback…',
     services: 'Services',
@@ -49,6 +50,7 @@ const L = {
     edit: '编辑',
     view: '显示',
     window: '窗口',
+    openMain: '打开千剪',
     help: '帮助',
     feedback: '发送反馈…',
     services: '服务',
@@ -79,6 +81,7 @@ const L = {
     edit: 'Édition',
     view: 'Présentation',
     window: 'Fenêtre',
+    openMain: 'Ouvrir Reelfold',
     help: 'Aide',
     feedback: 'Envoyer un avis…',
     services: 'Services',
@@ -111,6 +114,8 @@ export interface MenuDeps {
   onFeedback?: () => void;
   /** File › Import Finished Video… (pick finished videos; the renderer's import dialog takes them) */
   onImport?: () => void;
+  /** Recreate the main window, or restore and focus it when hidden/minimized. */
+  onOpenMain: () => void;
 }
 
 function licencesFile(res: string): string | null {
@@ -246,6 +251,8 @@ export function installAppMenu(d: MenuDeps) {
       label: t.window,
       role: 'window',
       submenu: [
+        { id: 'open-main-window', label: t.openMain, accelerator: 'CmdOrCtrl+0', click: () => d.onOpenMain() },
+        { type: 'separator' },
         { label: t.minimize, role: 'minimize' },
         { label: t.zoom, role: 'zoom' },
         ...(mac ? ([{ type: 'separator' }, { label: t.front, role: 'front' }] as MenuItemConstructorOptions[]) : [{ label: t.close, role: 'close' as const }]),

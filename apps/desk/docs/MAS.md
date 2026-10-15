@@ -119,6 +119,52 @@ imports `fileport_makeport` / `fileport_makefd` (`sys/fileport.h` is in the publ
 Not checkable without her certificates: TestFlight / store signature, the provisioning profile, `altool` validation,
 and the open panel itself (a real click; the bookmark path is unit-tested and the grant mechanism was tested above).
 
+## October 15 rejection and resubmission gate
+
+Reviewed against Apple's live [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
+on October 15, 2026. Automated lint covers observable bundle facts, not an approval guarantee.
+
+- **2.4.5(i), camera/microphone:** the rejected binary was 0.2.3 (20261008.2350.0).
+  Newer source has Home → Record (`composer-record`, route `#/create/record`), enabled by default.
+  The camera records the presenter; the microphone records speech. Both are opt-in in the recorder,
+  and the recording is saved locally. Confirm this in the exact new signed MAS build before citing it
+  to App Review. `recordEdit.spec.ts` checks permission denial and actual recording with synthetic
+  browser tracks; it does not prove hardware permission prompts in a distribution-signed MAS app.
+  Keep sandbox `device.camera` + `device.microphone`. Remove redundant hardened-runtime
+  `device.audio-input` from MAS (MAS has hardenedRuntime=false); full-download entitlements are separate.
+- **Guideline 4, window lifecycle:** Window → Open Reelfold (⌘0) is always enabled, recreates a closed
+  main window and restores/focuses an existing one. English, Chinese and French labels are provided.
+  `windowMenu.spec.ts` closes the actual test window and invokes the native menu entry, then verifies
+  the new Home window and that repeated use creates no duplicates. Repeat with the signed store app.
+- **2.1/2.3:** review notes must describe the new build's actual functionality, first-run downloads,
+  hardware/OS requirements and a working path without an AI key. Check all listing/support URLs,
+  screenshots and age/privacy answers against this exact candidate. Do not copy old claims blindly.
+- **5.1.1/5.1.2(i):** verify the in-app privacy-policy link and App Store Connect Privacy Policy URL,
+  and explicit permission before personal data is shared with third-party AI. A configured API key or
+  a general privacy paragraph alone is not evidence of explicit sharing consent. Audit text, contact
+  sheets/images, cloud ASR audio, provider fallback and custom endpoints, plus the privacy label.
+  A no-tracking manifest does not establish that no user data ever reaches a provider.
+- **2.4.5(iv)/2.5.2:** verify model/asset downloads contain data only, not Python/JavaScript/plugins or
+  executables that add features. **2.4.5(iii):** verify engine/render processes stop on ordinary Quit.
+- **5.2:** review rights for bundled voices/models/music/fonts and terms of publishing integrations.
+  The automated symbol denylist is not a complete private-API or licensing audit.
+
+Unsigned packaging uses `node scripts/appstore/package-unsigned.mjs`: a real JavaScript `null` signing
+identity. The CLI spelling `-c.mas.identity=null` becomes the string "null" in the installed builder,
+which causes an expected signing failure. No build error is now swallowed with `|| true`.
+`beforePack` reads `context.packager.appInfo.version`, the real hook context; `context.appInfo` does not exist.
+
+The `bundle` lint check requires valid store Info.plist/version/team/export metadata, purpose strings
+for enabled hardware permissions, the privacy manifest, complete built app entries inside app.asar,
+no Squirrel updater framework and no node-pty (including unpacked files). It runs on signed and unsigned
+apps; runtime-only scans skip bundle metadata. Failed symbol/quarantine scans also fail closed.
+Unknown `--only` check names are errors rather than silent clean reports.
+
+Before upload: run the expanded signed-bundle lint and strict signature/pkg checks, exercise window
+reopening and recorder access in the exact MAS candidate, and complete the manual privacy/metadata
+checks above. Apple server validation requires an App Store Connect API key; local checks are not a
+substitute. Upload and Submit for Review remain separate actions.
+
 ## Review risks
 
 - **Built-in publishing browser** (Guidelines 2.5.6, 5.1.1, 5.2): it loads platform sites in embedded Chromium

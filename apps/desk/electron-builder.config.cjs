@@ -51,7 +51,7 @@ const MAS_PROFILE = env.MAS_PROVISIONING_PROFILE || path.join(__dirname, 'packag
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   beforePack: async (context) => {
-    const version = context.packager.config.extraMetadata?.version || context.appInfo.version;
+    const version = context.packager.appInfo.version;
     const { default: semver } = await import('semver');
     if (!semver.valid(version)) {
       throw new Error(`Invalid app version: ${version}. For local builds use 0.2.9-local.g<commit> (prefix the hash with g).`);

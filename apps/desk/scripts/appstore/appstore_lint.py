@@ -121,6 +121,8 @@ def check_symbols(root, deny, log):
 
     def one(p):
         r = subprocess.run(["nm", "-m", "-u", p], capture_output=True, text=True)
+        if r.returncode:
+            return p, [f"nm failed: {r.stderr.strip()}"], []
         return (p,) + symbol_problems(parse_nm(r.stdout), deny)
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as ex:
         scanned = list(ex.map(one, files))
@@ -163,14 +165,17 @@ APP_ALLOWED = {
     "com.apple.security.app-sandbox", "com.apple.security.application-groups",
     "com.apple.security.files.user-selected.read-write", "com.apple.security.files.bookmarks.app-scope",
     "com.apple.security.network.client", "com.apple.security.device.camera", "com.apple.security.device.microphone",
-    "com.apple.security.device.audio-input", "com.apple.security.cs.allow-jit",
+    "com.apple.security.cs.allow-jit",
     # added by @electron/osx-sign from the provisioning profile
     "com.apple.application-identifier", "com.apple.developer.team-identifier",
 }
 CHILD_EXACT = {"com.apple.security.app-sandbox", "com.apple.security.inherit"}
 LOGIN_ALLOWED = {"com.apple.security.app-sandbox", "com.apple.security.application-groups",
                  "com.apple.application-identifier", "com.apple.developer.team-identifier"}
-NEVER = {"com.apple.security.network.server": "listening sockets (App Review 2.4.5: no matching functionality)"}
+NEVER = {
+    "com.apple.security.network.server": "listening sockets (App Review 2.4.5: no matching functionality)",
+    "com.apple.security.device.audio-input": "hardened-runtime entitlement; MAS uses device.microphone without hardened runtime",
+}
 
 
 def entitlement_problems(ent, role):
@@ -204,12 +209,17 @@ def signed_entitlements(path, arch=None):
     if r.returncode != 0:
         return None, r.stderr.decode(errors="replace").strip()
     xml = r.stdout.strip()
-    return (plistlib.loads(xml) if xml else {}), None
+    try:
+        return (plistlib.loads(xml) if xml else {}), None
+    except (ValueError, plistlib.InvalidFileException) as e:
+        return None, f"invalid entitlement plist: {e}"
 
 
 def archs(path):
     r = subprocess.run(["lipo", "-archs", path], capture_output=True, text=True)
-    return r.stdout.split() if r.returncode == 0 else [None]
+    if r.returncode or not r.stdout.strip():
+        raise ValueError(f"cannot enumerate architectures: {r.stderr.strip()}")
+    return r.stdout.split()
 
 
 def check_signed_entitlements(app, log):
@@ -220,7 +230,12 @@ def check_signed_entitlements(app, log):
             continue
         n += 1
         role = role_of(p, app)
-        for arch in archs(p):
+        try:
+            slices = archs(p)
+        except ValueError as e:
+            problems.append((p, [str(e)]))
+            continue
+        for arch in slices:
             ent, err = signed_entitlements(p, arch)
             if ent is None:
                 problems.append((p, [f"{arch or ''} unsigned or unreadable signature: {err}"]))
@@ -256,6 +271,8 @@ def check_quarantine(root, log):
     r = subprocess.run(["find", root, "-xattrname", "com.apple.quarantine"], capture_output=True, text=True, errors="replace")
     hits = sorted(line for line in r.stdout.splitlines() if line)
     log(f"[quarantine] {len(hits)} quarantined files")
+    if r.returncode:
+        return [(root, [f"quarantine scan failed: {r.stderr.strip()}"])]
     return [(h, ["com.apple.quarantine extended attribute (xattr -cr before signing; ITMS-91109)"]) for h in hits]
 
 
@@ -263,11 +280,92 @@ def check_quarantine(root, log):
 ASAR_TOP = {"out", "package.json", "node_modules"}
 
 
-def asar_top_level(path):
+def asar_header(path):
     """Top-level entries of an Electron app.asar (header: 4 uint32 sizes, then the JSON file tree)."""
     with open(path, "rb") as f:
         _, _, _, n = struct.unpack("<4I", f.read(16))
-        return sorted(json.loads(f.read(n))["files"])
+        return json.loads(f.read(n))["files"]
+
+
+def asar_top_level(path):
+    return sorted(asar_header(path))
+
+
+def asar_paths(tree, prefix=""):
+    for name, entry in tree.items():
+        path = prefix + name
+        yield path
+        if "files" in entry:
+            yield from asar_paths(entry["files"], path + "/")
+
+
+def check_bundle(root, unsigned, mac_dir, log):
+    """Check shipped metadata and edition boundaries; behavioural checks live in windowMenu/recordEdit e2e."""
+    if not root.rstrip("/").endswith(".app"):
+        return []
+    problems = []
+    def fail(path, message):
+        problems.append((path, [message]))
+    info_path = os.path.join(root, "Contents", "Info.plist")
+    try:
+        with open(info_path, "rb") as f:
+            info = plistlib.load(f)
+    except (OSError, ValueError, plistlib.InvalidFileException) as e:
+        return [(info_path, [f"missing or invalid Info.plist: {e}"])]
+    for key, expected in {"CFBundleIdentifier": "app.reelfold.desk", "ElectronTeamID": "ZH47R7RVKB",
+                          "ITSAppUsesNonExemptEncryption": False}.items():
+        if key not in info or info[key] != expected:
+            fail(info_path, f"{key} must be {expected!r}")
+    for key in ("CFBundleShortVersionString", "CFBundleVersion"):
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", str(info.get(key, ""))):
+            fail(info_path, f"{key} must have three numeric components (no local prerelease)")
+    ent_path = os.path.join(mac_dir, "entitlements.mas.plist") if unsigned else root
+    try:
+        if unsigned:
+            with open(ent_path, "rb") as f:
+                ent = plistlib.load(f)
+        else:
+            ent, err = signed_entitlements(root)
+            if err:
+                fail(root, f"cannot read main entitlements: {err}")
+        for capability, usage in (("camera", "NSCameraUsageDescription"), ("microphone", "NSMicrophoneUsageDescription")):
+            if (ent or {}).get("com.apple.security.device." + capability) is True:
+                purpose = info.get(usage)
+                if not isinstance(purpose, str) or len(purpose.strip()) < 15:
+                    fail(info_path, f"{usage} must explain the recording feature for the enabled {capability} entitlement")
+    except (OSError, ValueError) as e:
+        fail(ent_path, f"cannot read entitlements: {e}")
+    privacy_path = os.path.join(root, "Contents", "Resources", "PrivacyInfo.xcprivacy")
+    try:
+        with open(privacy_path, "rb") as f:
+            privacy = plistlib.load(f)
+        if privacy.get("NSPrivacyTracking") is not False or privacy.get("NSPrivacyTrackingDomains") != []:
+            fail(privacy_path, "Lite must declare no tracking and no tracking domains")
+        if privacy.get("NSPrivacyCollectedDataTypes") != []:
+            fail(privacy_path, "Lite privacy manifest changed: reconcile App Store privacy disclosures before shipping")
+        if not isinstance(privacy.get("NSPrivacyAccessedAPITypes"), list):
+            fail(privacy_path, "missing required-reason API declarations")
+    except (OSError, ValueError, plistlib.InvalidFileException) as e:
+        fail(privacy_path, f"missing or invalid privacy manifest: {e}")
+    for item in ("Squirrel.framework", "Mantle.framework", "ReactiveObjC.framework"):
+        path = os.path.join(root, "Contents", "Frameworks", item)
+        if os.path.exists(path):
+            fail(path, "non-MAS updater framework in the store bundle [2.4.5(vii)]")
+    archive = os.path.join(root, "Contents", "Resources", "app.asar")
+    try:
+        paths = set(asar_paths(asar_header(archive)))
+        for required in ("package.json", "out/main/index.cjs", "out/preload/index.cjs", "out/renderer/index.html"):
+            if required not in paths:
+                fail(archive, f"incomplete app archive: missing {required}")
+        if any(p == "node_modules/node-pty" or p.startswith("node_modules/node-pty/") for p in paths):
+            fail(archive, "node-pty terminal is not allowed in the MAS edition")
+    except (OSError, ValueError, KeyError, struct.error) as e:
+        fail(archive, f"missing or invalid app archive: {e}")
+    unpacked = os.path.join(root, "Contents", "Resources", "app.asar.unpacked", "node_modules", "node-pty")
+    if os.path.exists(unpacked):
+        fail(unpacked, "unpacked node-pty terminal is not allowed in the MAS edition")
+    log("[bundle] store metadata, permission descriptions, privacy manifest, MAS frameworks and archive completeness")
+    return problems
 
 
 def check_asar(root, log):
@@ -290,7 +388,7 @@ def rel(p, root):
 
 
 def lint(root, unsigned=False, mac_dir=os.path.join(DESK, "packaging", "mac"), checks=None, log=print):
-    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar"}
+    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle"}
     deny = load_denylist()
     problems = []
     if "symbols" in checks:
@@ -306,6 +404,8 @@ def lint(root, unsigned=False, mac_dir=os.path.join(DESK, "packaging", "mac"), c
         problems += check_quarantine(root, log)
     if "asar" in checks:
         problems += check_asar(root, log)
+    if "bundle" in checks:
+        problems += check_bundle(root, unsigned, mac_dir, log)
     return problems
 
 
@@ -313,13 +413,15 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="App Store lint for the Mac App Store (Lite) build")
     ap.add_argument("path", help="Reelfold.app or a runtime folder")
     ap.add_argument("--unsigned", action="store_true", help="check packaging/mac/entitlements.mas*.plist, not signatures")
-    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar")
+    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar,bundle")
     ap.add_argument("--entitlements-dir", default=os.path.join(DESK, "packaging", "mac"))
     a = ap.parse_args(argv)
     if not os.path.exists(a.path):
         print(f"[appstore-lint] no such path: {a.path}")
         return 2
     checks = {c for c in a.only.split(",") if c} or None
+    if checks and checks - {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle"}:
+        ap.error("unknown check name in --only")
     problems = lint(a.path, unsigned=a.unsigned, mac_dir=a.entitlements_dir, checks=checks)
     if not problems:
         print(f"[appstore-lint] {a.path}: clean")

@@ -201,5 +201,77 @@ class MachOTest(unittest.TestCase):
         self.assertEqual([p for p, _ in L.check_quarantine(self.d, log=lambda m: None)], [f])
 
 
+class BundleTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.app = os.path.join(self.tmp.name, 'Reelfold.app')
+        self.res = os.path.join(self.app, 'Contents', 'Resources')
+        os.makedirs(self.res)
+        self.info_path = os.path.join(self.app, 'Contents', 'Info.plist')
+        self.info = dict(CFBundleIdentifier='app.reelfold.desk', ElectronTeamID='ZH47R7RVKB',
+                         CFBundleShortVersionString='0.2.9', CFBundleVersion='20261015.1200.0',
+                         ITSAppUsesNonExemptEncryption=False,
+                         NSCameraUsageDescription='Record a video with your camera in Home > Record.',
+                         NSMicrophoneUsageDescription='Record your voice with the microphone in Home > Record.')
+        self.write_info()
+        shutil.copy(os.path.join(L.DESK, 'packaging/mac/PrivacyInfo.xcprivacy'), self.res)
+        # Real archive header shape, including the required nested files.
+        tree = {'package.json': {'size': 0, 'offset': '0'}, 'out': {'files': {
+            'main': {'files': {'index.cjs': {'size': 0, 'offset': '0'}}},
+            'preload': {'files': {'index.cjs': {'size': 0, 'offset': '0'}}},
+            'renderer': {'files': {'index.html': {'size': 0, 'offset': '0'}}}}}}
+        raw = json.dumps({'files': tree}).encode()
+        with open(os.path.join(self.res, 'app.asar'), 'wb') as f:
+            f.write(struct.pack('<4I', 4, len(raw) + 8, len(raw) + 4, len(raw)) + raw)
+
+    def write_info(self):
+        with open(self.info_path, 'wb') as f:
+            plistlib.dump(self.info, f)
+
+    def check(self):
+        return L.check_bundle(self.app, True, os.path.join(L.DESK, 'packaging/mac'), lambda m: None)
+
+    def test_complete_store_bundle(self):
+        self.assertEqual(self.check(), [])
+
+    def test_enabled_permissions_need_specific_purpose_strings(self):
+        self.info.pop('NSCameraUsageDescription')
+        self.info['NSMicrophoneUsageDescription'] = 'TODO'
+        self.write_info()
+        messages = str(self.check())
+        self.assertIn('NSCameraUsageDescription', messages)
+        self.assertIn('NSMicrophoneUsageDescription', messages)
+
+    def test_incomplete_build_and_wrong_edition_fail(self):
+        os.remove(os.path.join(self.res, 'app.asar'))
+        os.makedirs(os.path.join(self.app, 'Contents/Frameworks/Squirrel.framework'))
+        self.info['CFBundleVersion'] = '0.2.9-local.g123'
+        self.write_info()
+        messages = str(self.check())
+        for expected in ('missing or invalid app archive', 'Squirrel.framework', 'CFBundleVersion'):
+            self.assertIn(expected, messages)
+
+    def test_missing_manifest_and_terminal_fail(self):
+        os.remove(os.path.join(self.res, 'PrivacyInfo.xcprivacy'))
+        os.makedirs(os.path.join(self.res, 'app.asar.unpacked/node_modules/node-pty'))
+        messages = str(self.check())
+        self.assertIn('privacy manifest', messages)
+        self.assertIn('node-pty', messages)
+
+    def test_sparse_archive_cannot_pass(self):
+        AsarTest.write_asar(os.path.join(self.res, 'app.asar'), ['out', 'package.json'])
+        self.assertIn('missing out/main/index.cjs', str(self.check()))
+
+    def test_hardened_runtime_mic_entitlement_is_redundant_in_mas(self):
+        ent = {'com.apple.security.app-sandbox': True, 'com.apple.security.device.audio-input': True}
+        self.assertIn('hardened-runtime', str(L.entitlement_problems(ent, 'app')))
+
+    def test_unknown_check_name_is_an_error(self):
+        with self.assertRaises(SystemExit) as cm:
+            L.main([self.app, '--only', 'bundel'])
+        self.assertEqual(cm.exception.code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

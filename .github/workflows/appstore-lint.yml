@@ -83,10 +83,13 @@ jobs:
       - name: App (BUILD_EDITION=mas), unsigned mas package
         run: |
           BUILD_EDITION=mas npm run build
-          # electron-builder stops at the signing step without an Apple Distribution identity; the .app is complete then
-          CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --config electron-builder.config.cjs --mac mas --arm64 --publish never -c.mas.identity=null || true
+          CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/appstore/package-unsigned.mjs
           test -d dist/mas-arm64/Reelfold.app
-      - name: App Store lint (symbols, strings, entitlement files, quarantine)
+      - name: Window menu regression (MAS edition, isolated profile)
+        env:
+          DESK_PYTHON: ${{ github.workspace }}/apps/desk/build/runtime/darwin-arm64/python/bin/python3
+        run: npx playwright test tests/e2e/windowMenu.spec.ts
+      - name: App Store lint (symbols, strings, entitlement files, quarantine, bundle)
         run: python3 scripts/appstore/appstore_lint.py dist/mas-arm64/Reelfold.app --unsigned
 
   validate:
