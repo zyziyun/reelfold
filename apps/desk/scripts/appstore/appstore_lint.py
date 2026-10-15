@@ -12,6 +12,7 @@ Checks (each failure names the file and the reason; exit 1 if any):
                 clapack_* / name_). Tcl/Tk files (_tkinter*.so, libtcl*, libtk*) are refused by name.   [2.5.1]
   strings       "itms-services" in bundled Python files (CPython <= 3.12's urllib.parse lists that scheme; App Review
                 rejects binaries containing it - CPython 3.13 added --with-app-store-compliance for this).
+  telemetry     audited MediaPipe wheel + absence of its known metrics uploader in native files. [5.1.1]
   entitlements  signed: every executable Mach-O, every architecture slice (`codesign -d --entitlements - --arch`) is
                 sandboxed: the app has app-sandbox and only allowed keys (never network.server), nested executables
                 exactly app-sandbox + inherit, the login helper app-sandbox (+ the identifiers signing adds).
@@ -135,6 +136,44 @@ def check_symbols(root, deny, log):
             log(f"  note: {rel(p, root)} uses the documented legacy BLAS/LAPACK interface ({len(legacy)}: "
                 f"{', '.join(legacy[:4])}{', ...' if len(legacy) > 4 else ''})")
     log(f"[symbols] {len(files)} Mach-O files")
+    return problems
+
+
+# --------------------------------------------------------------------------- known third-party telemetry in the runtime
+TELEMETRY_MARKERS = (b"portable_clearcut_uploader", b"play.googleapis.com")
+
+
+def check_telemetry(root, log):
+    """The Store promises no usage counts, including the vision SDK's own metrics collector."""
+    problems, versions, n = [], [], 0
+    for p in walk_files(root):
+        parent = os.path.basename(os.path.dirname(p)).lower()
+        metadata = parent.startswith("mediapipe-") and parent.endswith(".dist-info") and os.path.basename(p) == "METADATA"
+        binary = f"{os.sep}mediapipe{os.sep}" in p and p.endswith((".so", ".dylib", ".pyd", ".dll"))
+        if not metadata and not binary:
+            continue
+        try:
+            with open(p, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            problems.append((p, [f"cannot inspect vision SDK privacy: {e}"]))
+            continue
+        if metadata:
+            version = next((line.split(":", 1)[1].strip() for line in data.decode("utf-8", "replace").splitlines()
+                            if line.startswith("Version:")), "unknown")
+            versions.append(version)
+            if version != "0.10.21":
+                problems.append((p, [f"MediaPipe {version} is not the audited telemetry-free 0.10.21 wheel"]))
+        if binary:
+            n += 1
+            hits = [s.decode() for s in TELEMETRY_MARKERS if s in data.lower()]
+            if hits:
+                problems.append((p, [f"vision SDK contains a metrics uploader: {', '.join(hits)}"]))
+    if not versions:
+        problems.append((root, ["missing bundled MediaPipe SDK privacy metadata"]))
+    if not n:
+        problems.append((root, ["missing bundled MediaPipe native binaries"]))
+    log(f"[telemetry] MediaPipe {', '.join(versions) or 'missing'}; {n} native files inspected")
     return problems
 
 
@@ -400,11 +439,13 @@ def rel(p, root):
 
 
 def lint(root, unsigned=False, mac_dir=os.path.join(DESK, "packaging", "mac"), checks=None, log=print):
-    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle"}
+    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry"}
     deny = load_denylist()
     problems = []
     if "symbols" in checks:
         problems += check_symbols(root, deny, log)
+    if "telemetry" in checks:
+        problems += check_telemetry(root, log)
     if "strings" in checks:
         problems += check_strings(root, log)
     if "entitlements" in checks:
@@ -425,14 +466,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="App Store lint for the Mac App Store (Lite) build")
     ap.add_argument("path", help="Reelfold.app or a runtime folder")
     ap.add_argument("--unsigned", action="store_true", help="check packaging/mac/entitlements.mas*.plist, not signatures")
-    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar,bundle")
+    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar,bundle,telemetry")
     ap.add_argument("--entitlements-dir", default=os.path.join(DESK, "packaging", "mac"))
     a = ap.parse_args(argv)
     if not os.path.exists(a.path):
         print(f"[appstore-lint] no such path: {a.path}")
         return 2
     checks = {c for c in a.only.split(",") if c} or None
-    if checks and checks - {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle"}:
+    if checks and checks - {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry"}:
         ap.error("unknown check name in --only")
     problems = lint(a.path, unsigned=a.unsigned, mac_dir=a.entitlements_dir, checks=checks)
     if not problems:

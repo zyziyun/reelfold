@@ -12,7 +12,7 @@ import sys
 
 from packaging.requirements import Requirement
 
-IMPORTS = {"opencv-python": "cv2", "pillow": "PIL", "pyyaml": "yaml", "fonttools": "fontTools"}
+IMPORTS = {"opencv-python": "cv2", "opencv-contrib-python": "cv2", "pillow": "PIL", "pyyaml": "yaml", "fonttools": "fontTools"}
 
 
 def check(text):
@@ -27,7 +27,14 @@ def check(text):
         name = r.name.lower()
         row = dict(req=line, name=name)
         try:
-            row["version"] = md.version(name)
+            try:
+                row["version"] = md.version(name)
+            except md.PackageNotFoundError:
+                if name != "opencv-python":
+                    raise
+                # The contrib wheel is an API superset supplying the same cv2 extension. Install only one.
+                row["version"] = md.version("opencv-contrib-python")
+                row["distribution"] = "opencv-contrib-python"
             importlib.import_module(IMPORTS.get(name, name.replace("-", "_")))
             for extra in sorted(r.extras):
                 for dep in md.requires(name) or []:
