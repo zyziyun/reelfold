@@ -36,7 +36,8 @@ def test_ai_sticker_survives_url_and_replays_as_local_image(tmp_path, monkeypatc
     assert A.prepare(SimpleNamespace(dir=str(tmp_path)), op)['params']['image'] == str(path)
 
 
-@pytest.mark.parametrize('raw', [b'<html>not an image</html>', b'x' * (A.MAX_BYTES + 1)])
+@pytest.mark.parametrize('raw', [b'<html>not an image</html>', b'x' * (A.MAX_BYTES + 1)],
+                         ids=['invalid-image', 'oversized-image'])
 def test_bad_or_oversized_download_is_specific_error(tmp_path, monkeypatch, raw):
     server(monkeypatch, raw)
     with pytest.raises(OutputError) as e:
