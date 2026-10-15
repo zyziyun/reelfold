@@ -54,6 +54,25 @@ Each segment: `clip`, `start` (sec), `dur` (SOURCE seconds), optional `speed` (b
 `kind` (`"subject"` default or `"empty"` for 空镜 / establishing), `bright` (added to
 `grade.brightness`), `stabilize`. Legacy key `deer_speed` is still read as `default_speed`.
 
+
+For a requested face mask in a **continuous source shot**, add
+`"face_mask": {"target": "center", "style": "mosaic"}` to that segment. Targets are `left`, `center`,
+`right`, or a `point: [x,y]` inside the selected face (normalized picture coordinates); styles are
+`mosaic`, `blur`, `cat`, `dog`, with optional `margin` >= 1.5 (default 1.65). Inspect the source first:
+positions select a face within this shot, not a person's identity across unrelated shots.
+
+Download the optional pinned local detector with `python -m vstudio.assets fetch face-tracking`
+(or Settings > Downloads). The calm builder masks each fitted/retimed shot **before** assembling its
+transitions, including both pictures of the selected person during a dissolve. It writes
+`clips/seg_NN.mp4.face-mask.json` with the selected seed, per-frame track, input/output hashes and any
+uncertain ranges. Lost/ambiguous tracking stops this build; it does not silently pass an unmasked frame or
+replace the picture with black and call that success. Review actual masked frames and transitions.
+
+This source-shot pass does not add a finished-output chat operation or automatic identity matching across
+shots. A flattened movie with existing dissolves needs its original shots or a separate, reviewed multi-track
+mask; a single moving sticker on that movie is insufficient. The fun builder rejects `face_mask` instead of
+silently ignoring it: mask its source shots first, then use those files in the beat edit.
+
 The opener has **no fade-in** by design, so the first frame is a usable poster. The end fades to black.
 
 ## Worked example

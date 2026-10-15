@@ -395,6 +395,8 @@ def main(argv=None):
     base = os.path.realpath(os.path.dirname(os.path.abspath(a.config)))     # as probe.py made its paths
     with open(a.config) as f:
         cfg = json.load(f)
+    if any("face_mask" in shot for shot in (cfg.get("shots") or []) + (cfg.get("segments") or [])):
+        ap.error("Mask source shots before using the fun builder; face_mask is supported by the calm source-shot pass")
     if a.no_asr:
         cfg["asr"] = False
     if a.reframe_fallback and "reframe_fallback" not in cfg:     # her edit.json wins

@@ -175,6 +175,30 @@ groups.push({
 log('cover models');
 // first run: the subject cutout every cover uses (onnxruntime on every target) and, on Apple silicon (MLX), the
 // upscaler for small cover crops; optional: the frame-aesthetics model (covers rank frames without it)
+// Optional source-shot face masking; pinned YuNet model and its MIT licence.
+groups.push({
+  "id": "face-tracking",
+  "required": false,
+  "root": "models/face-tracking",
+  "env": {
+    "VSTUDIO_YUNET_MODEL": "yunet.onnx"
+  },
+  "licence": "YuNet, MIT (Shiqi Yu / OpenCV Zoo). Source-shot face masking.",
+  "files": [
+    {
+      "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
+      "dest": "yunet.onnx",
+      "size": 229738,
+      "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet/LICENSE",
+      "dest": "LICENSE.YuNet",
+      "size": 1085,
+      "sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958"
+    }
+  ]
+});
 groups.push({
   id: 'matte-birefnet',
   required: true,

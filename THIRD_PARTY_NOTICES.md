@@ -109,3 +109,35 @@ be wrongly claimed by a third party on YouTube: dispute it with the track's lice
 | Chopin: Nocturne Op. 72 No. 1 in E minor | Frédéric Chopin (perf. Musopen) | piano / story | free | CC0 1.0 | [Musopen / Internet Archive](https://archive.org/details/musopen-chopin) |
 | Chopin: Waltz Op. 64 No. 2 | Frédéric Chopin (perf. Musopen) | piano / calm | free | CC0 1.0 | [Musopen / Internet Archive](https://archive.org/details/musopen-chopin) |
 | Chopin: Waltz in A minor (op. posth.) | Frédéric Chopin (perf. Musopen) | piano / story | free | CC0 1.0 | [Musopen / Internet Archive](https://archive.org/details/musopen-chopin) |
+
+
+## YuNet (optional face-tracking download)
+
+The native source-shot masking pass uses OpenCV FaceDetectorYN with the YuNet model from
+[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet).
+The model is downloaded separately with its licence; its SHA256 is pinned in the asset registry.
+No ViTTrack or SFace model is bundled by this feature.
+
+```
+MIT License
+
+Copyright (c) 2020 Shiqi Yu <shiqi.yu@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

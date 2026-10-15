@@ -196,6 +196,21 @@ def _lut_filter(path):
     return CM.lut3d_filter(path)
 
 
+def _mask_segment(dst, seg, i, dry):
+    if "face_mask" in seg:
+        if dry:
+            print(f"  face mask on source shot {i:02d}, before transition assembly")
+        else:
+            from vstudio import face_privacy
+            masked = dst + ".masked.mp4"
+            try:
+                face_privacy.mask_shot(dst, masked, seg["face_mask"], report=dst + ".face-mask.json")
+            except (ValueError, RuntimeError) as e:
+                raise RenderError(f"segment {i:02d}: {e}") from e
+            os.replace(masked, dst)
+    return dst
+
+
 def render_seg(args):
     i, cfg, seg, segdir, dry = args
     src = seg.get("_src") or os.path.join(cfg["_src_dir"], cfg["clips"][seg["clip"]])
@@ -216,7 +231,8 @@ def render_seg(args):
         # true slow motion: the span graded / fitted at its own frame rate, then RIFE in-betweens at the output size
         print(f"[seg {i:02d}] {seg['clip']} {seg['start']}-{seg['start'] + seg['dur']}s x{speed:g} RIFE slow motion "
               f"-> {os.path.basename(dst)} ({eff:.2f}s)", flush=True)
-        return _render_rife(i, cfg, seg, src, base, speed, out_fps, dst, eff), eff
+        dst = _render_rife(i, cfg, seg, src, base, speed, out_fps, dst, eff)
+        return _mask_segment(dst, seg, i, dry), eff
     vf = base + "," + FF.retime(src_fps, speed, out_fps)
     # -t BEFORE -i limits how much SOURCE is read, so the output length is dur/speed for
     # speed-ups AND slow-mo. After -i it would cap the OUTPUT and truncate slow-mo.
@@ -245,7 +261,7 @@ def render_seg(args):
         print("  " + " ".join(cmd))
     else:
         run_ffmpeg(cmd, f"segment {i:02d} ({os.path.basename(src)})")
-    return dst, eff
+    return _mask_segment(dst, seg, i, dry), eff
 
 
 def seg_luma(src, start, dur, n=5):
@@ -364,7 +380,8 @@ def write_edl(cfg, out, starts, durs, jd, total, one):
                           src_in=round(float(seg["start"]), 3), src_out=round(float(seg["start"]) + float(seg["dur"]), 3),
                           speed=seg_speed(cfg, seg), join=None if k == 0 else ("dissolve" if jd[k] > 1.5 * one else "cut"),
                           join_s=0.0 if k == 0 else round(jd[k], 3), brain=seg.get("brain"), ai=bool(seg.get("ai")),
-                          stabilize=bool(seg.get("stabilize", cfg.get("stabilize", False)))))
+                          stabilize=bool(seg.get("stabilize", cfg.get("stabilize", False))),
+                          **({"face_mask": seg["face_mask"]} if "face_mask" in seg else {})))
     with open(os.path.splitext(out)[0] + ".edl.json", "w", encoding="utf-8") as f:
         json.dump(dict(version=1, builder="calm", duration=round(total, 3), shots=shots), f, ensure_ascii=False,
                   indent=1)

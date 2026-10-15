@@ -98,6 +98,12 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
    the cleaned clip; EDL + review sheet in `<out dir>/clips/cleanup/`. Needs `"ambient_audio": true`; transcript
    from the segment's `words`, `<clip>.words.json`, else ASR.
 
+   **Requested face privacy:** inspect each continuous source shot, then use its segment `face_mask`
+   (schema in `references/recipes.md`). The native calm builder tracks and masks the selected face before
+   dissolving shots together. Select the intended person in every affected shot; a middle position does not
+   establish identity across different groups. Keep uncertainty failures visible and check the actual output,
+   including both images of a person during a dissolve. Do not substitute a fixed sticker on a flattened movie.
+
 6. **Design the cover from the material.** In a recipe project, use its cover decision (shared cover engine).
    For a standalone edit, compare a clean hero frame with a collage at phone size. Keep the main subject clear
    and use a short, source-faithful title if it helps. A collage is an option for a travel scrapbook, not a
