@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -239,7 +240,7 @@ def test_rewrite_copy_keeps_the_original(footage):
 
 def test_cli_check_and_import(footage, tmp_path):
     env = dict(os.environ, PYTHONPATH=os.path.join(os.path.dirname(__file__), "..", "lib"))
-    run = lambda *a: subprocess.run(["python3", "-m", "vstudio.project", *a, "--json"], capture_output=True,  # noqa
+    run = lambda *a: subprocess.run([sys.executable, "-m", "vstudio.project", *a, "--json"], capture_output=True,  # noqa
                                     text=True, env=env, check=True)
     chk = json.loads(run("import", str(footage["out"]), "--sources", str(footage["raw"]), "--check").stdout)
     assert chk["verdict"] == "mixed" and chk["counts"]["clips"] == 1
