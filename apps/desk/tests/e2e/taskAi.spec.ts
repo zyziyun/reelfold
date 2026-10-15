@@ -249,3 +249,19 @@ test('/model kimi in the projectâ€™s chat switches this project only, says so; â
   await expect.poll(() => routes().default.provider).toBe('kimi');
   await noMissing();
 });
+
+test('the composer default is saved for this request even when the intake task has an older route', async () => {
+  test.setTimeout(180000);
+  await page.evaluate(async () => {
+    const doc = await window.desk.ai.routes();
+    await window.desk.ai.setRoutes({...doc.routes, default:{provider:'claude-code', fallback:[]}, tasks:{...doc.routes.tasks, plan:{provider:'none', fallback:[]}}});
+  });
+  await hash('#/');
+  await page.evaluate(f => sessionStorage.setItem('v4.composer', JSON.stringify({prompt:'Plan first: cut this talk into a short clip', files:[f]})), path.join(tmp,'media','talk.mp4'));
+  await page.reload();
+  await expect(page.getByTestId('composer-ai')).toHaveAttribute('data-provider','claude-code');
+  const before = claudeCalls().filter(x=>x.intake).length;
+  await page.getByTestId('make-plan').click();
+  await expect.poll(()=>claudeCalls().filter(x=>x.intake).length, {timeout:120000}).toBeGreaterThan(before);
+  await expect.poll(async () => (await api<{items:{ai?:{provider:string}; prompt:string}[]}>('/api/intake/open')).items.some(x=>x.prompt.startsWith('Plan first:') && x.ai?.provider==='claude-code')).toBe(true);
+});

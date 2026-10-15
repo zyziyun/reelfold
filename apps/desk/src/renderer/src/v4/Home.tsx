@@ -49,7 +49,8 @@ import { itemPipeline } from '../lib/pipeline';
 import { keyHint } from '../lib/keys';
 import { goalHref, useGoals } from '../lib/goals';
 import { AiPickChip, AiTag } from './AiPick';
-import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
+import { useAi } from '../lib/ai';
+import { cleanAi, effectiveAi, type ProjectAi } from '../../../shared/projectAi';
 import { ManyToggle } from './ManyToggle';
 import { useCreateEnabled } from '../create/flag';
 import { HomeKeepCreating, HomeStartFrom } from './HomeCreate';
@@ -100,6 +101,7 @@ const DRAFT = 'v4.composer';
 /** ``startFrom``: opened as #/create (Create's landing is Home's Start from row) - scroll to it. */
 export function Home({ startFrom }: { startFrom?: boolean } = {}) {
   const { client } = useEngine();
+  const { routes: aiRoutes } = useAi();
   const latest = useRef(client); // the engine restarts onto new models with a new client: retries use the newest
   useEffect(() => {
     latest.current = client;
@@ -187,6 +189,8 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
     const tries = req ? 12 : 1;
     try {
       const auto = (await window.desk.getSettings()).autopilot !== false;
+      const chosenRoutes = aiRoutes ?? await window.desk.ai.routes();
+      const pickedAi = cleanAi(effectiveAi(ai, chosenRoutes.routes));
       for (let i = 0; ; i++) {
         try {
           const r = await (latest.current ?? client).startIntake(p.prompt, p.files, platforms ?? undefined, getLang(), {
@@ -195,7 +199,7 @@ export function Home({ startFrom }: { startFrom?: boolean } = {}) {
             // a fixed intent (the sample, the talking-head start as written): no ~2 min planning call
             recipe: p.sample || FIXED_STARTS.some((k) => t(k) === p.prompt.trim()) ? 'talkinghead' : undefined,
             ...(many && !p.sample ? { goal: true } : {}),
-            ...(ai && !p.sample ? { ai } : {}),
+            ...(pickedAi && !p.sample ? { ai: pickedAi } : {}),
           });
           // the request is a project now (All projects lists it): Home is free for the next one
           const name = p.prompt.trim() ? p.prompt.trim().slice(0, 40) + (p.prompt.trim().length > 40 ? '…' : '') : base(p.files[0] ?? '');

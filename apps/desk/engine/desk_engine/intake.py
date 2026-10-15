@@ -109,6 +109,13 @@ def _on_autopilot(d):
     return bool(summarize_project(d).get("autopilot"))
 
 
+def review_first(prompt):
+    """A request for a proposal first must not start production on autopilot."""
+    return bool(re.search(r"先.{0,12}(?:选段|剪辑|分镜|修改|制作)?方案|(?:等|待).{0,6}确认.{0,6}(?:再|后)|"
+                          r"(?:plan|proposal|storyboard) first|before (?:making|rendering)|wait for my (?:approval|confirmation)",
+                          prompt or "", re.I))
+
+
 class Unavailable(RuntimeError):
     """The engine's intake (``python -m vstudio.intake``) did not answer: nothing is planned or applied."""
 
@@ -421,6 +428,8 @@ class Intake:
         it: a goal's videos get different music)."""
         from .aichoice import clean
         ai = clean(ai)
+        if review_first(prompt):
+            mode = "ask"
         lang = ui_lang(lang)
         need(recipe is None or (isinstance(recipe, str) and re.match(r"^[a-z][a-z0-9-]{1,40}$", recipe)), "recipe: id")
         need(mode in (None, "autopilot", "ask"), "mode: autopilot | ask")

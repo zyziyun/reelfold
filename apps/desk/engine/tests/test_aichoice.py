@@ -45,6 +45,12 @@ def real_runner(tmp):
 
 
 class Clean(unittest.TestCase):
+    def test_review_request_is_not_autopilot(self):
+        from desk_engine.intake import review_first
+        for prompt in ("保留原声，先给选段方案；另建项目", "Plan first, wait for my approval"):
+            self.assertTrue(review_first(prompt))
+        self.assertFalse(review_first("现在直接制作这条视频"))
+
     def test_clean(self):
         self.assertEqual(AC.clean(KIMI), KIMI)
         self.assertEqual(AC.clean({"provider": "kimi"}), {"provider": "kimi"})
@@ -156,6 +162,12 @@ class RequestAi(unittest.TestCase):
         self.it.set_ai(pid, {"provider": "deepseek"})
         sets = [r[2] for r in self.runner.rec if r[0] == "json" and r[2][0] == "model"]
         self.assertIn("deepseek", sets[-1])
+
+    def test_plan_first_words_override_autopilot(self):
+        pid = self.it.start("先给选段方案", [], mode="autopilot", ai=KIMI)["id"]
+        j = self.wait(pid)
+        self.assertEqual(j["mode"], "ask")
+        self.assertFalse(j.get("applied"))
 
     def test_no_ai_no_env_and_switch_while_planning(self):
         pid = self.it.start("cut my talk", [], mode="ask")["id"]

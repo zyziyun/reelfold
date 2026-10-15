@@ -18,7 +18,8 @@ import { useWeekPlan } from '../weekplan/useWeekPlan';
 import { PlatformChip } from './Home';
 import { ManyToggle } from './ManyToggle';
 import { AiPickChip } from './AiPick';
-import { cleanAi, type ProjectAi } from '../../../shared/projectAi';
+import { useAi } from '../lib/ai';
+import { cleanAi, effectiveAi, type ProjectAi } from '../../../shared/projectAi';
 import { errText } from './msg';
 import { useUi } from './ui';
 import { useComposerSlash } from './ComposerSlash';
@@ -41,6 +42,7 @@ const DRAFT = 'v4.composer';
 
 export function Composer({ compact = false, autoFocus = false, onSent, onClose }: { compact?: boolean; autoFocus?: boolean; onSent?: (id: string, goal?: boolean) => void; onClose?: () => void }) {
   const { client } = useEngine();
+  const { routes: aiRoutes } = useAi();
   const ui = useUi();
   const { reload: reloadHist } = useHistory();
   const createOn = useCreateEnabled();
@@ -106,13 +108,15 @@ export function Composer({ compact = false, autoFocus = false, onSent, onClose }
     setBusy(true);
     try {
       const auto = (await window.desk.getSettings()).autopilot !== false && !reviewPlan;
+      const chosenRoutes = aiRoutes ?? await window.desk.ai.routes();
+      const pickedAi = cleanAi(effectiveAi(ai, chosenRoutes.routes));
       const r = await client.startIntake(p.prompt, p.files, platforms ?? undefined, getLang(), {
         mode: auto ? 'autopilot' : 'ask',
         sampleName: p.sample ? t('sample.projectName') : undefined,
         // a fixed intent (the sample): no planning call
         recipe: p.sample ? 'talkinghead' : undefined,
         ...(many && !p.sample ? { goal: true } : {}),
-        ...(ai && !p.sample ? { ai } : {}),
+        ...(pickedAi && !p.sample ? { ai: pickedAi } : {}),
       });
       sessionStorage.removeItem(DRAFT);
       setPrompt('');

@@ -300,6 +300,9 @@ class Goals:
         """``ai``: the composer's AI for the group ({provider, model}; aichoice): the survey and every video use it."""
         from .aichoice import clean
         ai = clean(ai)
+        from .intake import review_first
+        if review_first(prompt):
+            mode = "ask"
         need(isinstance(prompt, str) and len(prompt) <= 2000, "prompt: max 2000 chars")
         need(mode in ("autopilot", "ask"), "mode: autopilot | ask")
         named = [p for p in paths_in(prompt) if p not in (inputs or [])]
