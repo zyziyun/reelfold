@@ -47,6 +47,22 @@ FALLBACK_LIMITS = {"xiaohongshu": 1000, "douyin": 1000, "tiktok": 4000, "youtube
                    "snapchat": 160, "dailymotion": 3000, "kwai": 500, "reddit": 40000}
 
 
+def video_path(value, clip):
+    """An explicit rendition must belong to this clip and still be available."""
+    if value is None:
+        return None
+    need(isinstance(value, str), "video_path: a finished clip file")
+    need(any(f.get("path") == value for f in clip.get("files", [])) and os.path.isfile(value),
+         "the selected finished video is unavailable; choose another version")
+    return value
+
+
+def post_title(value, key):
+    need(value is None or (isinstance(value, str) and 0 < len(value.strip()) <= MAX_TITLE and "\n" not in value),
+         f"{key}: 1-{MAX_TITLE} chars, one line")
+    return value.strip() if value is not None else None
+
+
 def api_result(value):
     """Persist only the bounded platform receipt, never infer public from requested visibility."""
     need(isinstance(value, dict), "api_result: platform response")
@@ -294,6 +310,10 @@ class Calendar:
                    at=b["at"], state="planned")
         if cap is not None:
             row["caption"] = cap
+        if b.get("video_path") is not None:
+            row["video_path"] = video_path(b["video_path"], clip)
+        if b.get("platform_title") is not None:
+            row["platform_title"] = post_title(b["platform_title"], "platform_title")
         if b.get("account") is not None:
             need(isinstance(b["account"], str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", b["account"]), "account: session label")
             row["account"] = b["account"]
@@ -447,11 +467,8 @@ class Calendar:
                     if chosen is None:
                         row.pop("video_path", None)
                     else:
-                        need(isinstance(chosen, str), "video_path: a finished clip file")
                         clip = self._clips({}, row["item"]).get(row["clip"]) or {}
-                        need(any(f.get("path") == chosen for f in clip.get("files", [])) and os.path.isfile(chosen),
-                             "the selected finished video is unavailable; choose another version")
-                        row["video_path"] = chosen
+                        row["video_path"] = video_path(chosen, clip)
                     if row.get("state") == "filled":
                         row["state"] = "planned"
                 if b.get("at") is not None:
@@ -486,9 +503,7 @@ class Calendar:
                 for key in ("title", "platform_title"):
                     if key not in b:
                         continue
-                    tt = b[key]
-                    need(tt is None or (isinstance(tt, str) and 0 < len(tt.strip()) <= MAX_TITLE and "\n" not in tt),
-                         f"{key}: 1-{MAX_TITLE} chars, one line")
+                    tt = post_title(b[key], key)
                     if key == "title":
                         # the card's title is the clip's title (one title per clip): renaming it renames the clip,
                         # so the editor header and every card of the clip follow; None = back to the AI's title

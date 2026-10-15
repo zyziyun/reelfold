@@ -78,6 +78,41 @@ class Board(unittest.TestCase):
         with self.assertRaises(BadRequest):
             self.cal.update(pid, dict(account="brand"))
 
+    def test_new_draft_preserves_selected_rendition_and_copy_across_restart_and_undo(self):
+        file = self.o.clips(self.item)["clips"][0]["files"][0]["path"]
+        p = self.cal.add_many([dict(item=self.item, clip=A, platform="xiaohongshu", account="brand",
+                                   at="2026-10-07T20:00", video_path=file, caption="", platform_title="  自选标题  ",
+                                   state="posted", url="https://example.com/old", stats=dict(views=99),
+                                   api_result=dict(privacy="public"))])["posts"][0]
+        row = next(r for r in Calendar(os.path.join(self.root, "desk"), self.h, self.o).list()["posts"] if r["id"] == p["id"])
+        self.assertEqual(row["video_path"], file)
+        self.assertEqual(row["platform_title"], "自选标题")
+        self.assertEqual(row["account"], "brand")
+        self.assertEqual(row["caption"], "")
+        self.assertTrue(row["caption_custom"])
+        self.assertEqual(row["state"], "planned")
+        for key in ("url", "stats", "api_result", "posted_at"):
+            self.assertNotIn(key, row)
+        gone = self.cal.remove_many([p["id"]])["removed"]
+        self.cal.restore(gone)
+        self.assertEqual(self.posts()[0]["video_path"], file)
+        self.assertEqual(self.posts()[0]["platform_title"], "自选标题")
+
+    def test_invalid_explicit_file_or_title_rejects_entire_new_batch(self):
+        valid = dict(item=self.item, clip=A, platform="xiaohongshu", at="2026-10-07T20:00")
+        foreign = next(c for c in self.o.clips(self.item)["clips"] if c["id"] == B)["files"][0]["path"]
+        self.assertTrue(os.path.isfile(foreign))
+        for patch in (dict(video_path="/not/a/clip.mp4"), dict(video_path=foreign), dict(video_path=42),
+                      dict(platform_title=""), dict(platform_title="bad\nline"), dict(platform_title=42)):
+            with self.assertRaises(BadRequest):
+                self.cal.add_many([valid, dict(valid, **patch)])
+            self.assertEqual(self.posts(), [])
+        file = self.o.clips(self.item)["clips"][0]["files"][0]["path"]
+        with mock.patch("desk_engine.calendar.os.path.isfile", return_value=False):
+            with self.assertRaises(BadRequest):
+                self.cal.add(dict(valid, video_path=file))
+        self.assertEqual(self.posts(), [])
+
     def test_api_delivery_receipt_survives_restart_restore_and_blocks_local_remote_edits(self):
         p = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
         result = dict(url="https://youtu.be/example", privacy="private", publishAt="2026-10-09T03:00:00Z",

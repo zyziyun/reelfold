@@ -1052,6 +1052,8 @@ export interface QueueClip {
 
 export interface NewPost {
   account?: string | null;
+  video_path?: string | null;
+  platform_title?: string;
   item: string;
   clip: string;
   platform: string;

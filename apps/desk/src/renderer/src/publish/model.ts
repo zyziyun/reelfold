@@ -1,7 +1,7 @@
 // Publish board model (ux/publish-redesign direction A). The engine keeps one row per clip x platform x time; the
 // board shows ONE card per clip per day: its platforms, the earliest time, one calm status and the first problem.
 // Pure functions only (unit-tested in tests/unit/publishBoard.test.ts).
-import type { CalendarPost, PostWarning, QueueClip } from '../../../shared/v04';
+import type { CalendarPost, NewPost, PostWarning, QueueClip } from '../../../shared/v04';
 import { xWeightedLength } from '../../../shared/publish/postCopy';
 import { PLATFORM_IDS } from '../../../shared/platforms';
 
@@ -32,6 +32,17 @@ export interface PostGroup {
 export const pad = (n: number) => String(n).padStart(2, '0');
 export const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const base = (pf: string) => pf.split(':')[0];
+
+/** A new draft keeps her per-platform choices, never the old upload receipt or delivery state. */
+export function duplicatePosts(g: PostGroup, days: number): NewPost[] {
+  return g.on.map((p) => ({
+    item: p.item, clip: p.clip, platform: p.platform, account: p.account,
+    at: `${iso(addDays(dayOf(p.at), days))}${p.at.slice(10)}`,
+    ...(p.video_path ? { video_path: p.video_path } : {}),
+    ...(p.caption_custom !== false && p.caption != null ? { caption: p.caption } : {}),
+    ...(p.title_custom !== false && p.platform_title != null ? { platform_title: p.platform_title } : {}),
+  }));
+}
 
 /** Platform ids in the shared registry order: international first, then Chinese, then other languages (unknown
  * ids last, as given). Never insertion or click order. */

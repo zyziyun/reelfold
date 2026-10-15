@@ -14,7 +14,7 @@ import { ClipThumbLink, PostLink } from '../v4/kit';
 import { clipHref } from '../lib/nav';
 import { useUi } from '../v4/ui';
 import { StatusMark } from './Board';
-import { addDays, base, dayOf, iso, parseWhen, sortIds, type PostGroup } from './model';
+import { addDays, base, dayOf, duplicatePosts, parseWhen, sortIds, type PostGroup } from './model';
 import type { Accounts } from './usePublish';
 import { firstTab, PostCopy, TitleEdit, titleLimitsOf, type Actions, type Shorten } from './PostCopy';
 
@@ -81,8 +81,8 @@ export function PostDrawer({
   };
   const dup = (e: React.MouseEvent) =>
     ui.menu(e, [
-      { label: t('pb.d.dupTomorrow'), run: () => actions.add(g.on.map((p) => ({ item: g.item, clip: g.clip, platform: p.platform, account: p.account, at: `${iso(addDays(dayOf(p.at), 1))}${p.at.slice(10)}` })), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 1)) })), testId: 'pb-dup-tomorrow' },
-      { label: t('pb.d.dupNextWeek'), run: () => actions.add(g.on.map((p) => ({ item: g.item, clip: g.clip, platform: p.platform, account: p.account, at: `${iso(addDays(dayOf(p.at), 7))}${p.at.slice(10)}` })), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 7)) })), testId: 'pb-dup-week' },
+      { label: t('pb.d.dupTomorrow'), run: () => actions.add(duplicatePosts(g, 1), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 1)) })), testId: 'pb-dup-tomorrow' },
+      { label: t('pb.d.dupNextWeek'), run: () => actions.add(duplicatePosts(g, 7), t('pb.t.duplicated', { date: fmtDate(addDays(dayOf(g.day), 7)) })), testId: 'pb-dup-week' },
       ...accounts.connected
         .filter((pf) => !g.platforms.includes(pf))
         .map((pf) => ({ label: t('pb.d.dupOn', { pf: platformName(pf) }), icon: <PlatformIcon id={pf} size={14} />, run: () => actions.togglePlatform(g, pf, true, `${g.day}T${accounts.timeOf(pf)}`, platformName(pf)) })),

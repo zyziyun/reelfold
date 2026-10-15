@@ -72,7 +72,7 @@ const api = <T,>(p: string) =>
     const info = await window.desk.engineInfo();
     return (await fetch(info.baseUrl + u, { headers: { Authorization: `Bearer ${info.token}` } })).json();
   }, p) as Promise<T>;
-type Row = { id: string; clip: string; platform: string; at: string; state: string; caption?: string; enabled?: boolean };
+type Row = { id: string; clip: string; platform: string; at: string; state: string; caption?: string; enabled?: boolean; video_path?: string; platform_title?: string; account?: string };
 const rows = async () => (await api<{ posts: Row[] }>('/api/calendar')).posts;
 const card = (clip: string) => page.locator(`[data-testid="pub-post"][data-clip="${clip}"]`);
 const day = (d: string) => page.locator(`[data-testid="pub-day"][data-day="${d}"]`);
@@ -160,6 +160,47 @@ test('the drawer: time, platform off / on, caption with the counter, Shorten for
   expect(x.caption!.startsWith('再小的博主也是博主。')).toBe(true);
   await d.getByTestId('pb-done').click();
   await expect(d).toHaveCount(0);
+});
+
+test('duplicate tomorrow or next week keeps each platform’s chosen video and custom copy', async () => {
+  await card('B_自媒体').locator('.pc-top').click();
+  const d = page.getByTestId('pb-drawer');
+  await d.locator('[data-testid="pb-ctab"][data-pf="xiaohongshu"]').click();
+  const video = d.locator('[data-testid=pb-video]:visible');
+  await expect(video).toBeEnabled();
+  const file = await video.locator('option').nth(1).getAttribute('value');
+  await video.selectOption(file!);
+  await d.getByTestId('pb-caption').fill('为这个平台保留的发布文案');
+  await d.getByTestId('pb-post-title').fill('我选择的横屏版本');
+  await d.getByTestId('pb-post-title').press('Tab');
+  await expect.poll(async () => (await rows()).find(p => p.clip === 'B_自媒体' && p.platform === 'xiaohongshu')).toMatchObject({
+    video_path: file, caption: '为这个平台保留的发布文案', platform_title: '我选择的横屏版本',
+  });
+  const before = (await rows()).filter(p => p.clip === 'B_自媒体');
+  const ids = new Set((await rows()).map(p => p.id));
+  for (const [menu, days] of [['pb-dup-tomorrow', 1], ['pb-dup-week', 7]] as const) {
+    await d.getByTestId('pb-dup').click();
+    await page.getByTestId(menu).click();
+    await expect.poll(async () => (await rows()).filter(p => !ids.has(p.id)).length).toBe(before.length);
+    for (const source of before) {
+      const copy = (await rows()).find(p => !ids.has(p.id) && p.platform === source.platform)!;
+      const expected = new Date(`${source.at.slice(0, 10)}T12:00`);
+      expected.setDate(expected.getDate() + days);
+      expect(copy.at).toBe(`${iso(expected)}${source.at.slice(10)}`);
+      expect(copy.state).toBe('planned');
+      expect(copy.video_path).toBe(source.video_path);
+      expect(copy.caption).toBe(source.caption);
+      expect(copy.platform_title).toBe(source.platform_title);
+      expect(copy.account).toBe(source.account);
+    }
+    await page.getByTestId('toast-undo').last().click();
+    await expect.poll(async () => (await rows()).filter(p => !ids.has(p.id)).length).toBe(0);
+  }
+  await page.reload();
+  await expect(page.getByTestId('pub-week')).toBeVisible();
+  await page.getByTestId('pb-next').click(); // Reload starts at this week; the source card is next week.
+  await expect(card('B_自媒体')).toBeVisible();
+  expect((await rows()).find(p => p.clip === 'B_自媒体' && p.platform === 'xiaohongshu')?.video_path).toBe(file);
 });
 
 test('delete: back to queue from the drawer (files untouched) + undo; drag a card back to the queue', async () => {

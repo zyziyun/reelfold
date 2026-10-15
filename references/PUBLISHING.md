@@ -31,6 +31,13 @@
 The selectors of every assisted-fill page are marked **unverified** until someone checks them against the live page
 with a logged-in account. The desk keeps the adapter files.
 
+## Duplicate a post
+
+Duplicating a calendar card to tomorrow or next week creates new drafts. Each enabled platform keeps its selected
+finished video, account and custom title/caption. Inherited copy stays inherited. Old upload receipts, public URLs
+and statistics are not copied. A selected file that is no longer available stops the copy instead of silently
+switching to a default rendition. The whole card is copied atomically and can be undone together.
+
 ## Automatic upload recovery
 
 Manual and scheduled official API uploads share one desktop execution gate. It saves an attempt before starting an official API upload. If this record cannot be saved,
