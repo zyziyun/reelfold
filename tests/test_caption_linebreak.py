@@ -69,6 +69,20 @@ def test_join_caption_seams():
     assert S.join_caption(["我们用", "Claude Code", "做了视频"]) == "我们用Claude Code做了视频"
     assert S.join_caption(["Claude", "Code做了"]) == "Claude Code做了"
     assert S.join_caption(["hello", ", world"]) == "hello, world"
+    assert S.join_caption(['3', '.', '5']) == '3.5'
+    assert S.join_caption(['1,', '000']) == '1,000'
+    assert S.join_caption(['well-', 'known']) == 'well-known'
+    assert S.join_caption(['안녕하세요', '여러분']) == '안녕하세요 여러분'
+
+
+def test_asr_cues_share_unicode_spacing_and_numeric_seams():
+    for parts, expected in [(['مرحبا', 'بالعالم.'], 'مرحبا بالعالم.'),
+                            (['Привет', 'мир.'], 'Привет мир.'),
+                            (['안녕하세요', '여러분.'], '안녕하세요 여러분.'),
+                            (['value', '3', '.', '5', 'and', '1,', '000'], 'value 3.5 and 1,000'),
+                            (['你好', '世界。'], '你好世界。')]:
+        words = [dict(w=w, t=i*.4, te=(i+1)*.4) for i, w in enumerate(parts)]
+        assert S.join_caption(c.text for c in S.cues_from_words(words, fixes=False)) == expected
 
 
 @pytest.mark.parametrize('text', [
@@ -79,6 +93,8 @@ def test_join_caption_seams():
     'Αυτό είναι το πρώτο βίντεο.',
     'cafe\u0301 cre\u0300me avant publication.',
     'ﺍﺣﺘﻔﻆ ﺑﺼﻮﺗﻚ',
+    '안녕하세요 여러분 다시 만나요.',
+    '다시 만나요 네',
 ])
 def test_wrapping_keeps_unicode_words_and_combining_marks(text):
     # Even a word wider than the box stays whole: the caller can shrink its font, never split a name.

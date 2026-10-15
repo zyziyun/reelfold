@@ -142,14 +142,15 @@ _LATIN = re.compile(r"[A-Za-z0-9\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u1E00-\u
 def word_end(text, start=0):
     """End of a space-delimited word run, preserving Unicode letters and combining marks.
 
-    East Asian characters retain their existing per-character wrapping. This is not dictionary
+    Chinese/Japanese characters retain per-character wrapping; Korean keeps its spaced words.
+    This is not dictionary
     segmentation for scripts without spaces, such as Thai; do not split their combining marks.
     """
     match = _LATIN.match(text, start)
     end = match.end() if match else start
     while end < len(text):
         ch = text[end]
-        if not _cjk(ch) and unicodedata.category(ch)[0] in "LMN":
+        if (not _cjk(ch) or unicodedata.name(ch, "").startswith("HANGUL")) and unicodedata.category(ch)[0] in "LMN":
             end += 1
         elif end > start and ch in "'’\u200c\u200d":
             end += 1
@@ -425,8 +426,14 @@ def _seam_space(a, b):
     """True when caption pieces ``a`` + ``b`` join with a space: latin on both sides of the seam ("the" +
     "word", "Claude" + "Code做"), never next to CJK or before closing / after opening punctuation."""
     x, y = strip_markup(a).rstrip(), strip_markup(b).lstrip()
-    if not x or not y or _cjk(x[-1]) or _cjk(y[0]):
+    if not x or not y:
         return False
+    if (_cjk(x[-1]) and not _word(x[-1])) or (_cjk(y[0]) and not _word(y[0])):
+        return False
+    if x[-1] in "-'’/‐‑_" or y[0] in "-/‐‑_":
+        return False
+    if len(x) > 1 and x[-2].isdigit() and x[-1] in ",." and y[0].isdigit():
+        return False                         # decimal / thousands pieces: 3 + . + 5, 1, + 000
     return y[0] not in _CLOSE and x[-1] not in _OPEN
 
 
@@ -742,7 +749,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ------------------------------------------------------------------ building / timing
 def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None):
     """Draft cues from ASR words: a new cue at a gap > max_gap or when the line would exceed
-    max_chars (CJK width); latin words keep a space between them (also after latin punctuation,
+    max_chars (CJK width); spaced-script words keep a space between them (also after punctuation,
     "everyone, welcome"; CJK punctuation and "3.5" / "1,000" stay tight); each cue lingers up to ``linger``
     s into the following pause. fixes: passed to ``asr.apply_term_fixes`` (None = persona+generic,
     False = none). Words: {"w","t","te"} or whisper {"word","start","end"}.
@@ -759,15 +766,7 @@ def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None)
     cues, cur = [], []
 
     def join(items):
-        s = ""
-        for t, _, _ in items:
-            t = t.strip()
-            if s and re.match(r"[\"“‘(]?[A-Za-z0-9]", t[:2]) and (
-                    re.match(r"[A-Za-z0-9%]", s[-1])
-                    or (s[-1] in ",.!?;:)]" and not (len(s) > 1 and s[-2].isdigit() and s[-1] in ",." and t[:1].isdigit()))):
-                s += " "                      # latin words (also after latin punctuation: "everyone, welcome")
-            s += t
-        return s
+        return join_caption(t for t, _, _ in items)
 
     for w in ws:
         if not w[0].strip():

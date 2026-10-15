@@ -215,7 +215,7 @@ def fits(lines, f, max_w) -> bool:
 def _is_orphan(line_toks) -> bool:
     s = plain("".join(line_toks)).strip()
     core = "".join(c for c in s if c not in NO_LINE_START and c not in NO_LINE_END)
-    return len(core) == 1 and is_cjk(core)
+    return len(core) == 1 and is_cjk(core) and word_end(core) == 0
 
 
 def _balance_markup(lines):

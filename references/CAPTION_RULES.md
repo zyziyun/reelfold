@@ -46,6 +46,12 @@ speech sync. Inspect unmatched phrases and cue boundaries against the recording,
 scripts and words the recognizer omitted. Do not replace the authored script with ASR errors just to obtain
 a match. For original speech, retain the corrected transcript and follow the source-fidelity rules above.
 
+If a transcription service returns segment times without word times, the shared ASR path preserves the
+original Unicode text and marks evenly spread word estimates as `approx_words`. These are not measured
+word boundaries: do not describe them as forced alignment or use their mere existence as proof of accurate
+word-level edits. Old estimated caches are repaired locally on read; verified word times remain unchanged.
+Invalid cached segment times must surface for review, not silently trigger another upload or paid call.
+
 ## 3. Preserve words and verify the actual renderer
 
 Use the shared `subs.balanced_wrap` / `draw.wrap` for caption and card lines. In space-delimited scripts,

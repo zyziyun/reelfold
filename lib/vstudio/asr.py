@@ -36,6 +36,7 @@ Unified from talkinghead ``asr.transcribe``, promo-recut ``common.transcribe/wor
 import difflib
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -44,6 +45,7 @@ import types
 import unicodedata
 
 from . import media
+from .subs import NO_LINE_END, join_caption, word_end
 
 MLX_REPO = os.environ.get("VSTUDIO_WHISPER_MLX", "mlx-community/whisper-large-v3-turbo")
 FW_MODEL = os.environ.get("VSTUDIO_WHISPER_FW", "large-v3-turbo")
@@ -385,14 +387,30 @@ def _g(o, k, d=None):
 
 
 def _spread_words(seg):
-    """Evenly timed words for a segment a server returned without word timestamps (CJK per character)."""
-    toks = re.findall(r"[A-Za-z0-9'’\-]+|[⺀-鿿豈-﫿]|[^\sA-Za-z0-9⺀-鿿豈-﫿]+", seg["text"] or "")
-    toks = [t for t in toks if re.search(r"[A-Za-z0-9⺀-鿿豈-﫿]", t)]
+    """Estimated, evenly spread words for segment-only responses; never acoustic alignment.
+    Preserve Unicode text and punctuation; Chinese/Japanese use character units, Korean keeps spaced words.
+    """
+    text = seg.get("text") or ""
+    toks, pending, i = [], "", 0
+    while i < len(text):
+        end = word_end(text, i)
+        token = text[i:end] if end > i else text[i]
+        if any(unicodedata.category(ch)[0] in "LMN" for ch in token):
+            toks.append(pending + token)
+            pending = ""
+        elif toks and not pending and token not in NO_LINE_END and not token.isspace():
+            toks[-1] += token
+        else:
+            pending += token
+        i = end if end > i else i + 1
     if not toks:
         return []
+    toks[-1] += pending
     a, b = float(seg["start"]), float(seg["end"])
+    if not math.isfinite(a) or not math.isfinite(b) or a < 0 or b <= a:
+        raise ValueError("Cannot estimate word times: the transcription segment has invalid start/end times")
     step = (b - a) / len(toks)
-    return [dict(word=(" " + t if re.match(r"[A-Za-z0-9]", t) else t), start=round(a + k * step, 3),
+    return [dict(word=t, start=round(a + k * step, 3),
                  end=round(a + (k + 1) * step, 3)) for k, t in enumerate(toks)]
 
 
@@ -687,10 +705,12 @@ def transcribe(path, language=None, prompt=None, word_timestamps=True, model=Non
             try:
                 with open(cp, encoding="utf-8") as f:
                     store = json.load(f)
-                if key in store:
-                    return _finish(store[key], term_fixes, fix_terms, drop_hallucinated)
             except (OSError, ValueError):
-                pass
+                store = {}
+            if isinstance(store, dict) and key in store:
+                # A valid cached response with invalid timing is a data error, not a reason to
+                # silently send the recording to the provider again.
+                return _finish(store[key], term_fixes, fix_terms, drop_hallucinated)
     global _PROGRESS
     prev, _PROGRESS = _PROGRESS, progress
     try:
@@ -737,6 +757,10 @@ def transcribe(path, language=None, prompt=None, word_timestamps=True, model=Non
 def _finish(raw, term_fixes, fix_terms, drop_hallucinated=False):
     segs = json.loads(json.dumps(raw["segments"]))
     for s in segs:
+        if s.get("approx_words"):
+            # Repair old segment-only caches locally; do not pay for or upload the recording again.
+            # Verified word timestamps are never regenerated this way.
+            s["words"] = _spread_words(s)
         ws, keep = s.get("words") or [], []
         for k, w in enumerate(ws):
             if k and w["end"] - w["start"] < 0.02 and w["word"] == ws[k - 1]["word"]:
@@ -749,7 +773,7 @@ def _finish(raw, term_fixes, fix_terms, drop_hallucinated=False):
                 lead = " " if w["word"][:1].isspace() else ""
                 w["word"] = lead + apply_term_fixes(w["word"], term_fixes)
     out = dict(raw, segments=segs)
-    out["text"] = "".join(s["text"] for s in segs).strip()
+    out["text"] = join_caption(s["text"] for s in segs)
     out["words"] = words_of(out)
     return drop_hallucinations(out, duration=raw.get("duration")) if drop_hallucinated else out
 
@@ -863,7 +887,7 @@ def drop_hallucinations(transcript, phrases=None, no_speech=0.6, logprob=-1.0, c
     if not isinstance(transcript, dict):
         return keep
     out = dict(transcript, segments=keep)
-    out["text"] = "".join(s.get("text", "") for s in keep).strip()
+    out["text"] = join_caption(s.get("text", "") for s in keep)
     out["words"] = words_of(out)
     out["dropped"] = list(transcript.get("dropped") or []) + dropped
     return out
