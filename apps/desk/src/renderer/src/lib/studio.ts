@@ -306,3 +306,16 @@ export function timeLeft(rows: StudioRow[]): number | null {
   }
   return n || null;
 }
+
+/** Projects created by one intake series stay together across languages and states. */
+export function seriesGroups(rows: StudioRow[]): {id: string; name: string; rows: StudioRow[]}[] {
+  const groups = new Map<string, {id: string; name: string; rows: StudioRow[]}>();
+  for (const r of rows) {
+    const id = r.i?.series;
+    if (!id || r.header) continue;
+    let g = groups.get(id);
+    if (!g) { g = {id, name: r.i?.series_name || r.i?.name || id, rows: []}; groups.set(id, g); }
+    g.rows.push(r);
+  }
+  return [...groups.values()].filter(g => g.rows.length > 1);
+}

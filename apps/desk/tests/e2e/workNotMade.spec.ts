@@ -24,6 +24,11 @@ test.beforeAll(async () => {
   for (const n of ['01-home-landing', '02-request-drop-folder']) {
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=320x200:rate=30:duration=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(promo, 'raw', `${n}.mp4`)]);
   }
+  for (const lang of ['en', 'zh']) {
+    const d = path.join(watch, `series-${lang}`);
+    fs.mkdirSync(d, {recursive:true});
+    fs.writeFileSync(path.join(d, 'project.yaml'), `name: Series ${lang}\nrecipe: talkinghead\nseries: side-hustle\n`);
+  }
   const missing = path.join(watch, 'missing-movies');
   fs.mkdirSync(path.join(missing, '.vstudio'), { recursive: true });
   fs.writeFileSync(path.join(missing, '.vstudio', 'work.json'), JSON.stringify({ title: 'Missing movies', outputs: ['out/moved.mp4'] }));
@@ -89,4 +94,15 @@ test('"Make a video from this folder" hands the folder to the composer; sent, a 
   await expect(page.getByTestId('hub-files-missing')).toBeVisible();
   await expect(page.getByTestId('hub-relink')).toHaveText('Reconnect video files…');
   await expect(page.getByTestId('hub-state-line')).toHaveText('Finished files not found');
+});
+
+test('related projects share a collapsible series instead of loose rows', async () => {
+ await page.evaluate(() => (location.hash = '#/studio'));
+ const series = page.locator('[data-testid="studio-series"][data-series="side-hustle"]');
+ await expect(series).toBeVisible();
+ await expect(series.getByTestId('studio-row')).toHaveCount(0);
+ await series.locator('button').first().click();
+ await expect(series.getByTestId('studio-row')).toHaveCount(2);
+ await series.getByTestId('studio-row').first().click();
+ await expect(page.getByTestId('hub-project')).toBeVisible();
 });

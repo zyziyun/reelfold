@@ -17,7 +17,7 @@ import { href, routeQuery } from '../lib/router';
 import { goalActive, groupVideos, useGoals } from '../lib/goals';
 import { GoalGroup, GoalPage } from './GoalView';
 import { VIDEO_STATUS_KEY } from '../../../shared/videoStatus';
-import { STUDIO_FILTERS, grouped, needsYou, notMadeYet, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
+import { STUDIO_FILTERS, grouped, seriesGroups, needsYou, notMadeYet, screenPieces, timeLeft, type ListPiece, type StudioFilter, type StudioGroup, type StudioRow } from '../lib/studio';
 import { rowHref, useStudioData } from '../lib/studioData';
 import { setStudioView } from '../lib/studioView';
 import { platformName } from './Home';
@@ -183,10 +183,15 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   }, [inArchive, wantArchived]);
   const order: StudioGroup[] = inArchive ? [] : filter === 'all' ? ['you', 'run', 'draft', 'ready', 'scheduled'] : [filter];
   // a project with several videos is one header with its videos under it (its question as the header's badge)
-  const listRows = freeRows;
+  const collections = useMemo(() => seriesGroups(freeRows), [freeRows]);
+  const collectionKeys = new Set(collections.flatMap(g => g.rows.map(r => r.key)));
+  const listRows = freeRows.filter(r => !collectionKeys.has(r.key));
+  const [openSeries, setOpenSeries] = useState<Set<string>>(new Set());
+  const shownSeries = collections.filter(g => filter === 'all' || g.rows.some(r => r.group === filter));
   const pieces = useMemo(() => screenPieces(listRows, order), [listRows, order.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownGoals = inArchive || finding(dfind) ? [] : goals.filter((g) => filter === 'all' || (filter === 'run' && goalActive(g) && g.state !== 'planned') || (filter === 'you' && (g.state === 'planned' || g.state === 'failed' || g.counts.you > 0)) || (filter === 'ready' && g.state === 'done'));
-  const list = pieces.flatMap((x) => x.pieces.flatMap((pc) => (pc.kind === 'row' ? [pc.r] : pc.r ? [pc.r] : [])));
+  const ordinaryList = pieces.flatMap((x) => x.pieces.flatMap((pc) => (pc.kind === 'row' ? [pc.r] : pc.r ? [pc.r] : [])));
+  const list = [...shownSeries.filter(g => openSeries.has(g.id)).flatMap(g => g.rows), ...ordinaryList];
   // the Archived filter: archived requests and projects, each with Restore (nothing in it counts anywhere else)
   const archived = useMemo(() => archivedTargets(archDoc?.items ?? [], archivedRequests), [archDoc, archivedRequests]);
   const nArchived = (archDoc ? archDoc.items.length : typeof hist?.archived === 'number' ? hist.archived : 0) + nArchivedRequests;
@@ -486,6 +491,17 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           ))}
           {inArchive && (archDoc ? !archived.length : !nArchived) && <p className="st-empty muted">{t('ra.archivedEmpty')}</p>}
           {inArchive && archived.map((x) => <ArchivedRow key={x.key} x={x} picked={picked.has(x.key)} onPick={pick} onMenu={menuAt} ra={ra} />)}
+          {!inArchive && shownSeries.map(g => {
+            const open = openSeries.has(g.id);
+            const made = g.rows.filter(r => r.video && (r.group === 'ready' || r.group === 'scheduled')).length;
+            return <section key={g.id} className="st-series" data-testid="studio-series" data-series={g.id}>
+              <button className="st-series-head" aria-expanded={open} onClick={() => setOpenSeries(prev => { const n = new Set(prev); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n; })}>
+                {open ? <ChevronDown className="ico" /> : <ChevronRight className="ico" />}
+                <span><b className="clamp2">{g.name}</b><small className="muted">{t('st.series.progress', {n: g.rows.length, made})}</small></span>
+              </button>
+              {open && g.rows.map(r => <StudioListRow key={r.key} r={r} nested on={cur?.key === r.key} n={list.indexOf(r) + 1} picked={picked.has(r.key)} onPick={pick} onMenu={menuAt} />)}
+            </section>;
+          })}
           {shownGoals.map((g) => (
             <GoalGroup key={g.id} g={g} on={goalSel === g.id && !q.v} vid={goalSel === g.id ? q.v : undefined} item={id} />
           ))}

@@ -1,7 +1,7 @@
 // The Studio list model (lib/studio): one row per video across projects, grouped needs you / in progress / ready /
 // scheduled; a question about a clip lands on that clip, one about the project on the project's own row.
 import { describe, expect, it } from 'vitest';
-import { grouped, listPieces, needsYou, notMadeYet, screenPieces, screenRows, studioRows, studioSettled, visible } from '../../src/renderer/src/lib/studio';
+import { grouped, seriesGroups, listPieces, needsYou, notMadeYet, screenPieces, screenRows, studioRows, studioSettled, visible } from '../../src/renderer/src/lib/studio';
 import type { HistoryItem } from '../../src/shared/v02';
 import type { CalendarPost, Clip, InboxItem, OpenRequest } from '../../src/shared/v04';
 
@@ -170,3 +170,9 @@ describe('a project whose run still goes (her DJI goal, 2026-10-13)', () => {
    expect(rows.find(r => r.item === idle.id)?.group).toBe('draft');
    expect(rows.find(r => r.item === 'eeeeeeeeeeee')?.group).toBe('run');
  });
+
+it('a series keeps related language projects together across states', () => {
+ const items = [item('aaaaaaaaaaaa', {series: 'side-hustle', series_name: '副业切片'}), item('bbbbbbbbbbbb', {series: 'side-hustle', series_name: '副业切片', status: 'in-progress'})];
+ const rows = studioRows(items, [], {aaaaaaaaaaaa:[clip('zh')], bbbbbbbbbbbb:[clip('en', {state:'running', files:[]})]}, [], [], NOW);
+ expect(seriesGroups(rows)).toMatchObject([{id:'side-hustle', name:'副业切片', rows:[{clip:'zh'}, {clip:'en'}]}]);
+});
