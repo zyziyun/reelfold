@@ -50,7 +50,7 @@ async function launch(extra: Record<string, string> = {}): Promise<App> {
   fs.mkdirSync(CTMP, { recursive: true });
   const userData = fs.mkdtempSync(path.join(CTMP, 'mas-test-'));
   // a scrubbed environment: nothing from this shell may point the app elsewhere
-  const env = { HOME: os.homedir(), PATH: '/usr/bin:/bin', TMPDIR: CTMP + '/', DESK_USER_DATA: userData, DESK_HIDE_WINDOW: '1', DESK_SKIP_FIRST_RUN: '1', DESK_DISABLE_UPDATES: '1', ...extra };
+  const env = { HOME: os.homedir(), PATH: '/usr/bin:/bin', TMPDIR: CTMP + '/', DESK_USER_DATA: userData, VSTUDIO_HOME: path.join(userData, 'vstudio-home'), DESK_SHARED_CACHE: path.join(userData, 'cache'), DESK_HF_HUB: '', DESK_HIDE_WINDOW: '1', DESK_SKIP_FIRST_RUN: '1', DESK_DISABLE_UPDATES: '1', ...extra };
   const piped = await spawnWithCdpPipe(EXE, ['--use-mock-keychain'], env);
   const proc = piped.proc;
   // ONE connection: the pipe is one CDP session for the app's lifetime, so a retried connect would receive the answers
@@ -183,6 +183,18 @@ test('the real engine runs sandboxed from the bundle; Lite AI, downloads and upd
   }
 });
 
+test('Home exposes the recorder and its permission controls without an AI key', async () => {
+  const app = await launch();
+  try {
+    await app.page.getByTestId('composer-record').click();
+    await expect(app.page).toHaveURL(/#\/create\/record/);
+    await expect(app.page.getByTestId('create-record')).toBeVisible();
+    await expect(app.page.getByTestId('create-rec-allow')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
 test('first run in Lite: API keys and local models, no subscription sign-in', async () => {
   const app = await launch({ DESK_SKIP_FIRST_RUN: '0' });
   try {
@@ -213,7 +225,7 @@ test('the sample, end to end in the sandbox (speech model download, ASR, cleanup
       .toBe(2);
     // the pilot clip is rendered and waits for her review (the publish checkpoint): judged on what THIS run writes to the
     // projects' desk-pilot.log files (the container keeps projects from earlier runs)
-    const projects = path.join(CONTAINER, '.config', 'vstudio', 'projects');
+    const projects = path.join(app.userData, 'vstudio-home', 'projects');
     const pilotLogs = () => (fs.existsSync(projects) ? fs.readdirSync(projects).flatMap((d) => fs.readdirSync(path.join(projects, d)).map((p) => path.join(projects, d, p, 'desk-pilot.log'))).filter((f) => fs.existsSync(f)) : []);
     const before = new Map(pilotLogs().map((f) => [f, fs.statSync(f).size]));
     await page.evaluate(() => (location.hash = '#/'));
