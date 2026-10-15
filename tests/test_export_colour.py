@@ -57,11 +57,12 @@ def sources(tmp_path_factory):
 
 @pytest.mark.parametrize("kind", ["untagged", "601", "709", "full709"])
 @pytest.mark.parametrize("captioned", [False, True], ids=["scale-only", "caption-compositor"])
-def test_source_and_export_agree_through_colour_aware_decoder(tmp_path, sources, kind, captioned):
+@pytest.mark.parametrize("size", [(960, 540), (1920, 1080)], ids=["sd", "hd"])
+def test_source_and_export_agree_through_colour_aware_decoder(tmp_path, sources, kind, captioned, size):
     source = sources[kind]
     cues = tmp_path / "cues.json"
     cues.write_text(json.dumps(dict(cues=[dict(start=0, end=1, text="Colour check")])))
-    prof = platform.profile("youtube", "horizontal", overrides=dict(w=960, h=540))
+    prof = platform.profile("youtube", "horizontal", overrides=dict(w=size[0], h=size[1]))
     result = export.export_one(str(source), prof, str(tmp_path), captions=captioned,
                                cues=str(cues), watermark=False, encoder="libx264", preset="ultrafast")
     before = patch_colours(rgb_frame(source))

@@ -709,7 +709,10 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
     """Same-aspect fast path: one ffmpeg scale + encode (no Python frame pipe, no face tracking). ``wm_png``:
     (path, x, y) of the scaled watermark, laid over in the same pass."""
     win = (["-ss", f"{start:.3f}"] if start else []) + (["-t", f"{dur:.3f}"] if dur else [])
-    vf = f"scale={prof.w}:{prof.h}:flags=lanczos,setsar=1"
+    # Convert the pixels to the delivery matrix, as well as tagging them. Older
+    # FFmpeg releases otherwise preserve an untagged SD input's 601 coefficients
+    # while delivery_args labels the HD output 709 (a visible saturated-colour shift).
+    vf = f"scale={prof.w}:{prof.h}:flags=lanczos:out_color_matrix=bt709:out_range=tv,setsar=1"
     if wm_png:
         from . import watermark as WM
         cmd = [media.ffmpeg_bin(), "-y", "-v", "error", *win, "-i", master, "-i", wm_png[0], "-filter_complex",
