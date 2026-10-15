@@ -80,3 +80,12 @@ quality or competitive superiority. Test note durability/source anchoring, one e
 tracks, ordering, revision, draft persistence and original-media preservation. Validate YouTube playback on the
 actual source/network; source-parser tests do not prove it. Synthetic devices prove integration without accessing
 the creator's live devices. Existing editing regressions remain part of the affected checks.
+
+## Learn while using it
+
+Keep the first view focused on the material and the creator's thoughts. Link entry, passage selection and optional
+AI tools disclose only when requested. A newly recorded take offers a preview and an explicit add-to-video action
+right beside it; do not make the creator locate an internal file. Show video arrangement after a passage exists.
+When a video needs the creator's own explanation or source credits, offer contextual guidance and take the user
+to the needed fields. Credit text remains a draft until saved; do not enable generation based on unsaved fields.
+Posts are available once the creator has thoughts; quotes stay separate. Keep existing editing accessible.

@@ -38,7 +38,6 @@ export function SourcePlayer({ source, reading, link, browserTime, onTime, seek,
   if (source) return <video ref={video} src={media(source.path)} controls playsInline onTimeUpdate={(e) => onTime(e.currentTarget.currentTime)} style={{ width: '100%', maxHeight: 480 }} data-testid="learning-source-video" />;
   if (yt) return <div>
     <iframe ref={iframe} key={yt.id} src={yt.embed} title={t('learning.youtubePlayer')} allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{ width: '100%', aspectRatio: '16/9', minHeight: 240, border: 0 }} data-testid="learning-youtube" onLoad={() => iframe.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 'reelfold-learning' }), 'https://www.youtube-nocookie.com')} />
-    <p className="small muted">{t('learning.youtubeHint')}</p>
     <button className="btn" data-testid="learning-youtube-browser" onClick={() => {
       setBrowserError('');
       void window.desk.openExternal(youtubeBrowserUrl(link!, browserTime)!).catch((e) => setBrowserError(errText(e)));

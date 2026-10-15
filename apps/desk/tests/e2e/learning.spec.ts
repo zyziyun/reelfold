@@ -54,6 +54,7 @@ test('human thoughts persist with source times and become an editable post witho
   await expect(page.getByTestId('learning-notes')).toContainText('My own perspective, kept in my own words.');
   await page.getByTestId('learning-time-edit').click();
   await page.getByTestId('learning-source-time').fill('1');
+  await page.getByTestId('learning-excerpt-tools').click();
   await page.getByTestId('learning-mark-start').click();
   await page.getByTestId('learning-source-time').fill('2');
   await page.getByTestId('learning-keep-range').click();
@@ -80,6 +81,9 @@ test('camera and screen sharing stay beside the material; a new take remains edi
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Record my explanation', { timeout: 30000 });
   await expect(page.getByTestId('learning-source-select')).toContainText('My recorded contribution');
+  await expect(page.getByTestId('learning-fresh-take')).toBeVisible();
+  await page.getByTestId('learning-add-recorded-take').click();
+  await expect(page.getByTestId('learning-add-recorded-take')).toBeDisabled();
   await page.getByTestId('learning-source-video').evaluate((v: HTMLVideoElement) => v.pause());
   const doc = await api('GET', `/api/create/learning/${workspaceId}`);
   const take = (Object.values(doc.sources) as { role: string; path: string }[]).find((x) => x.role === 'commentary')!;
@@ -92,12 +96,17 @@ test('camera and screen sharing stay beside the material; a new take remains edi
 test('my ordered draft makes a real demo which opens in the existing editor', async () => {
   test.setTimeout(180000);
   const id = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('id'));
-  let d = await api('GET', `/api/create/learning/${id}`);
-  const reference = Object.keys(d.sources).find((s) => d.sources[s].role === 'reference')!;
+  const d = await api('GET', `/api/create/learning/${id}`);
   const take = Object.keys(d.sources).find((s) => d.sources[s].role === 'commentary')!;
   expect(take).toBeTruthy();
-  await api('POST', `/api/create/learning/${id}`, { action: 'credit', source: reference, credit: { title: 'Synthetic test source', creator: 'Test fixture', locator: 'Synthetic local media, not a real interview' } });
-  d = await api('POST', `/api/create/learning/${id}`, { action: 'block', block: { source: take, start: 0, end: Math.min(1, d.sources[take].duration), point: 'My recorded demonstration' } });
+  await expect(page.getByTestId('learning-make-demo')).toBeDisabled();
+  await page.getByTestId('learning-fill-credit').click();
+  await page.getByLabel('Title', { exact: true }).fill('Synthetic test source');
+  await page.getByLabel('Author or speaker', { exact: true }).fill('Test fixture');
+  await page.getByLabel('Link or edition/page', { exact: true }).fill('Synthetic local media, not a real interview');
+  await expect(page.getByTestId('learning-make-demo')).toBeDisabled();
+  await page.getByRole('button', { name: 'Save source details', exact: true }).click();
+  await expect(page.getByTestId('learning-make-demo')).toBeEnabled();
   await page.reload();
   await expect(page.getByTestId('learning-block')).toHaveCount(2);
   await page.getByTestId('learning-make-demo').click();
@@ -122,6 +131,8 @@ test('my ordered draft makes a real demo which opens in the existing editor', as
 test('an optional AI demo uses only thoughts I select and keeps my original notes', async () => {
   await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, workspaceId);
   await expect(page.getByTestId('learning-workspace')).toBeVisible();
+  await expect(page.getByTestId('learning-ai-demo')).not.toBeVisible();
+  await page.getByTestId('learning-tools').click();
   await expect(page.getByTestId('learning-ai-demo')).toBeDisabled();
   await page.getByLabel('Use this thought for an AI demo').first().check();
   await page.getByTestId('learning-ai-demo').click();
