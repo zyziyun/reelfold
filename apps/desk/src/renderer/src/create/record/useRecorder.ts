@@ -76,6 +76,7 @@ export function useRecorder() {
   const [cameraId, setCameraId] = useState<string | null>(null);
   const [micId, setMicId] = useState<string | null>(null);
   const [screenOn, setScreenOn] = useState(false);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const sess = useRef<Session | null>(null);
   const screen = useRef<MediaStream | null>(null);
   const raf = useRef<number | null>(null);
@@ -173,6 +174,7 @@ export function useRecorder() {
     stopStream(screen.current);
     screen.current = null;
     setScreenOn(false);
+    setScreenStream(null);
   }, [stopStream]);
 
   /** Share the screen / window she picked (rec:screens -> id). Never silent: -> 'on' | 'denied' (Screen Recording
@@ -188,13 +190,16 @@ export function useRecorder() {
           if (screen.current === st) {
             screen.current = null;
             setScreenOn(false);
+            setScreenStream(null);
           }
         });
         setScreenOn(true);
+        setScreenStream(st);
         return 'on';
       } catch (e) {
         screen.current = null;
         setScreenOn(false);
+        setScreenStream(null);
         return screenFailure(e);
       }
     },
@@ -296,5 +301,5 @@ export function useRecorder() {
     return { ...out, sessionId: s.id, secs };
   }, []);
 
-  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
+  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
 }

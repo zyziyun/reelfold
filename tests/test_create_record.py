@@ -113,3 +113,24 @@ def test_ffmpeg_never_reads_the_callers_stdin(monkeypatch):
     monkeypatch.setattr(RE.subprocess, "run", fake_run)
     RE._run(["ffmpeg", "-version"])
     assert seen.get("stdin") is subprocess.DEVNULL
+
+@needs_ffmpeg
+def test_screen_recording_composes_camera_at_bottom_right(home):
+    from PIL import Image
+    from vstudio import media
+    d = session(str(home), [], seconds=1)
+    screen = os.path.join(d, "screen.webm")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=blue:size=640x360:rate=24:duration=1", "-c:v", "libvpx-vp9", "-deadline", "realtime", screen], check=True)
+    sess = store.read_json(os.path.join(d, "session.json"))
+    sess["tracks"]["screen"] = dict(file="screen.webm", start_ms=1000)
+    movie = RE.mux(d, sess, os.path.join(d, "screen-pip.mp4"))
+    info = media.probe(movie)
+    assert (info["w"], info["h"]) == (640, 360)
+    image = os.path.join(d, "frame.png")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", movie, "-frames:v", "1", image], check=True)
+    pixels = Image.open(image).convert("RGB")
+    center = pixels.getpixel((320, 180))
+    assert center[2] > 180 and center[0] < 50
+    inset = pixels.crop((500, 260, 620, 340))
+    assert len(inset.getcolors(100000)) > 10  # camera test pattern, not the blue screen
+    assert os.path.isfile(screen) and os.path.isfile(os.path.join(d, "camera.webm"))

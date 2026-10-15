@@ -143,3 +143,7 @@
 .rs-done .btn { align-self: flex-start; }
 .rs-err { color: var(--danger); font-size: 13px; line-height: 1.5; }
 .rs-preparing { font-size: 17px; font-weight: 500; text-align: center; padding: 24px; background: rgba(0, 0, 0, 0.62); text-shadow: none; line-height: 1.5; }
+
+.rs-cam.sharing { aspect-ratio: 16 / 9; width: 100%; height: auto; }
+.rs-cam.sharing .rs-screen-main { width: 100%; height: 100%; object-fit: contain; }
+.rs-cam.sharing .rs-camera-pip { position: absolute; width: 22%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; right: 1.5%; bottom: 1.5%; border-radius: 10px; box-shadow: 0 2px 15px #0006; }

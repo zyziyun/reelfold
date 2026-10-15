@@ -84,6 +84,17 @@ test.describe('screen sharing with Screen Recording off', () => {
     ({ app, page } = await launch('denied', { DESK_E2E_SCREEN: 'denied' }));
     expect((await page.evaluate(() => window.desk.engineInfo())).mode).toBe('real');
     await page.evaluate(() => (location.hash = '#/create/record'));
+    // Synthetic browser tracks avoid a CoreAudio fake-device hang on headless macOS runners.
+    await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=360;
+      const ctx = canvas.getContext('2d')!; ctx.fillStyle='#238b82'; ctx.fillRect(0,0,640,360);
+      setInterval(() => ctx.fillRect(0,0,640,360), 40);
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {configurable:true, value:async()=>{
+        const audio = new AudioContext(); const tone=audio.createOscillator(); const dest=audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        return new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+      }});
+    });
     await page.getByTestId('create-rec-allow').click();
     await expect(page.getByTestId('create-rec-preview')).toBeVisible({ timeout: 20000 });
     await page.getByTestId('create-rec-screen').click();
@@ -106,6 +117,17 @@ test.describe('record -> edit -> pickup', () => {
     test.setTimeout(120000);
     ({ app, page } = await launch('main'));
     await page.evaluate(() => (location.hash = '#/create/record'));
+    // Synthetic browser tracks avoid a CoreAudio fake-device hang on headless macOS runners.
+    await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=360;
+      const ctx = canvas.getContext('2d')!; ctx.fillStyle='#238b82'; ctx.fillRect(0,0,640,360);
+      setInterval(() => ctx.fillRect(0,0,640,360), 40);
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {configurable:true, value:async()=>{
+        const audio = new AudioContext(); const tone=audio.createOscillator(); const dest=audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        return new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+      }});
+    });
     await page.getByTestId('create-rec-allow').click();
     await expect(page.getByTestId('create-rec-preview')).toBeVisible({ timeout: 20000 });
     await page.getByTestId('create-rec-screen').click();
@@ -114,9 +136,12 @@ test.describe('record -> edit -> pickup', () => {
     await shot(page, 'R1-screen-picker');
     await page.getByTestId('rec-screen-source').click();
     await expect(page.getByTestId('create-rec-screen')).toContainText('Sharing', { timeout: 15000 });
+    await expect(page.getByTestId('rec-screen-preview')).toBeVisible();
+    await expect(page.getByTestId('create-rec-preview')).toHaveClass(/rs-camera-pip/);
     await page.getByTestId('create-rec-screen').click();
     await page.getByTestId('rec-screen-toggle').click();
     await expect(page.getByTestId('create-rec-screen')).not.toContainText('Sharing');
+    await expect(page.getByTestId('rec-screen-preview')).toHaveCount(0);
   });
 
   test('stop -> the clip editor with the transcript and the automatic cleanup', async () => {

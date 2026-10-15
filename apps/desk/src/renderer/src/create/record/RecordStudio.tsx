@@ -146,6 +146,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const [shotDone, setShotDone] = useState<Ingested | null>(null);
   const finishing = useAction();
   const video = useRef<HTMLVideoElement | null>(null);
+  const screenVideo = useRef<HTMLVideoElement | null>(null);
 
   const live = rec.state === 'recording' || rec.state === 'paused' || rec.state === 'stopping';
   const off = !rec.stream || rec.state === 'idle' || rec.state === 'asking' || rec.state === 'denied' || rec.state === 'error';
@@ -159,6 +160,10 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   useEffect(() => {
     if (video.current && rec.stream) video.current.srcObject = rec.stream;
   }, [rec.stream, phase]);
+
+  useEffect(() => {
+    if (screenVideo.current) screenVideo.current.srcObject = rec.screenStream;
+  }, [rec.screenStream, phase]);
 
   // the prompter scrolls at a steady pace while recording (not while paused)
   useEffect(() => {
@@ -502,8 +507,9 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
           </div>
         ) : (
           <>
-            <div className="rs-cam">
-              <video ref={video} autoPlay muted playsInline className={prefs.mirrorPreview ? 'mirror' : ''} data-testid="create-rec-preview" />
+            <div className={`rs-cam ${rec.screenOn ? 'sharing' : ''}`} data-testid="rec-composition">
+              {rec.screenOn && <video ref={screenVideo} autoPlay muted playsInline className="rs-screen-main" data-testid="rec-screen-preview" />}
+              <video ref={video} autoPlay muted playsInline className={`${prefs.mirrorPreview ? 'mirror' : ''} ${rec.screenOn ? 'rs-camera-pip' : ''}`} data-testid="create-rec-preview" />
               {useScript && lines.length > 0 && <Teleprompter lines={lines} cur={tp.cur} progress={tp.progress} size={SIZE_PX[prefs.size]} mirror={prefs.mirrorText} />}
               {(phase === 'recording' || phase === 'paused') && (
                 <span className={`rs-badge ${phase}`} data-testid="create-rec-live">

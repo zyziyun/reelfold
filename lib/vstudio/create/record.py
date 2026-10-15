@@ -132,6 +132,31 @@ def mux(d, sess, out):
     mic = os.path.join(d, (tracks.get("mic") or {}).get("file") or "mic.webm")
     if not os.path.exists(cam):
         raise CreateError("not-found", status=404, what="camera track", id=os.path.basename(d))
+    screen = os.path.join(d, (tracks.get("screen") or {}).get("file") or "screen.webm")
+    if tracks.get("screen"):
+        if not os.path.isfile(screen) or os.path.getsize(screen) == 0:
+            raise CreateError("not-found", status=404, what="screen track", id=os.path.basename(d))
+        from vstudio import media
+        info = media.probe(screen)
+        w, h = int(info["w"]), int(info["h"])
+        factor = min(1, 1920 / max(w, h))
+        w, h = max(2, int(w * factor) // 2 * 2), max(2, int(h * factor) // 2 * 2)
+        pw = max(2, int(w * .22) // 2 * 2)
+        ph = max(2, int(pw * .75) // 2 * 2)
+        gap = max(8, round(w * .015))
+        args = [_ff(), "-v", "error", "-y", "-i", screen, "-i", cam]
+        has_mic = os.path.exists(mic) and os.path.getsize(mic) > 0
+        if has_mic:
+            off = ((tracks.get("mic") or {}).get("start_ms", 0) - (tracks.get("screen") or {}).get("start_ms", 0)) / 1000
+            args += ["-itsoffset", f"{off:.3f}", "-i", mic]
+        graph = (f"[0:v]scale={w}:{h},setsar=1[screen];"
+                 f"[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
+                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:eof_action=repeat[v]")
+        args += ["-filter_complex", graph, "-map", "[v]", "-map", "2:a:0" if has_mic else "1:a?",
+                 "-t", str(duration(cam)), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", out]
+        _run(args)
+        return out
     args = [_ff(), "-v", "error", "-y", "-i", cam]
     has_mic = os.path.exists(mic) and os.path.getsize(mic) > 0
     if has_mic:
