@@ -3,6 +3,7 @@
 The planner selects cue indices, never invents timestamps. Its effects are drawn by
 the shared export/output-edit renderer after reframing, so cards fit every canvas.
 """
+import json
 import math
 import re
 
@@ -28,6 +29,8 @@ def validate(doc, cues, duration):
         raise ValueError("spoken finishing: too many visual beats for this clip")
     effects, end = [], 0.0
     for i, b in enumerate(beats):
+        if not isinstance(b, dict):
+            raise ValueError("spoken finishing: each beat must be an object")
         a, z = b.get("from"), b.get("to")
         if type(a) is not int or type(z) is not int or not 0 <= a <= z < len(cues):
             raise ValueError("spoken finishing: a beat names an invalid caption index")
@@ -65,7 +68,8 @@ def validate(doc, cues, duration):
 def plan(cues, duration, title="", complete=None):
     from vstudio import llm
     system = (
-        "You edit a spoken personal-story/expert video. Create visual explanations of its actual argument, "
+        "You edit spoken videos: lessons, interviews, demos and personal or expert stories. "
+        "Infer the purpose from the speech. Create visual explanations of its actual argument, "
         "not decoration. Preserve the speaker's meaning, qualifications and first-person perspective. "
         "Choose only moments that benefit from a contrast, causal chain or takeaway. Return beats with from/to "
         "CAPTION INDICES, kind (contrast/chain/takeaway), a short title, 1–3 short items and evidence quoted "
@@ -73,17 +77,34 @@ def plan(cues, duration, title="", complete=None):
         "testimonials, receipts, or added call to action. Use the speech's language. Each beat starts after "
         "2.5 seconds, spans 2–5 seconds (choose suitable caption boundaries), and leaves at least 1.5 seconds "
         "of speaker between beats. Graphics occupy at most 40% of the clip; fewer well-placed beats are better "
-        "than a quota. Preserve the opening and natural ending. Max 44 characters for titles and 54 per item; "
+        "than a quota. Caption boundaries may split words or sentences: read the WHOLE argument, including "
+        "later qualifications or corrections, before summarizing a selected span. A personal experience is "
+        "not a universal promise. These rules apply across subjects; do not impose a personal-story narrative "
+        "on a lesson, interview, demo or company presentation. Preserve the opening and natural ending. "
+        "Max 44 characters for titles and 54 per item; "
         "prefer much shorter phrases. [] is valid only if no visual explanation helps. JSON only."
     )
     prompt = f"TITLE (context only): {title}\nDURATION: {duration:.3f}s\nCAPTIONS:\n" + "\n".join(
         f"[{i}] {c['start']:.3f}–{c['end']:.3f} {c['text']}" for i, c in enumerate(cues))
-    result = (complete or llm.complete)("edit", system, prompt, schema=SCHEMA, max_tokens=3500)
-    doc = (result or {}).get("json")
-    effects = validate(doc, cues, duration)
-    return dict(version=1, effects=effects, beats=doc["beats"], provider=(result or {}).get("provider"),
-                model=(result or {}).get("model"), duration=duration,
-                note="Conceptual summaries of the speaker's words; no generated evidence or replacement speech.")
+    call = complete or llm.complete
+    repairs = []
+    for attempt in range(2):
+        result = call("edit", system, prompt, schema=SCHEMA, max_tokens=3500)
+        doc = (result or {}).get("json")
+        try:
+            effects = validate(doc, cues, duration)
+        except ValueError as error:
+            if attempt:
+                raise ValueError(f"spoken finishing: visual plan still invalid after one repair: {error}") from error
+            repairs.append(str(error))
+            prompt += ("\nPREVIOUS PLAN FAILED VALIDATION:\n" + json.dumps(doc, ensure_ascii=False)
+                       + "\nVALIDATION ERROR: " + str(error)
+                       + "\nReturn a corrected full plan using the SAME source captions. "
+                         "Do not remove source evidence or invent timing to pass validation.")
+            continue
+        return dict(version=1, effects=effects, beats=doc["beats"], provider=(result or {}).get("provider"),
+                    model=(result or {}).get("model"), duration=duration, repairs=repairs,
+                    note="Conceptual summaries of the speaker's words; no generated evidence or replacement speech.")
 
 
 def overlay(effects, width, height, safe):

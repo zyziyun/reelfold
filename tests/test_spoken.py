@@ -131,3 +131,50 @@ def test_real_export_draws_graphics_even_with_captions_off_and_watermark_on(tmp_
                        dict(qc=dict(verify=False)), dict(compose=dict(cues=str(cues)),
                        export=dict(manifest=str(man), exports=[dict(result, file=str(out / result["file"]))])))
     assert next(c for c in report["checks"] if c["name"] == "flicker")["ok"]
+
+
+def test_invalid_external_plan_is_repaired_with_original_caption_context():
+    calls = []
+    def model(task, system, prompt, **kw):
+        calls.append(prompt)
+        return dict(json=dict(beats=[dict(BEAT, **({"from": 0} if len(calls) == 1 else {}))]),
+                    provider="test", model="test")
+    result = spoken.plan(CUES, 12, complete=model)
+    assert result["effects"][0]["start"] == 3
+    assert len(calls) == 2 and result["repairs"]
+    assert "VALIDATION ERROR" in calls[1] and "[3] 3.000–4.000" in calls[1]
+
+
+def test_invalid_plan_never_counts_as_applied_after_repair_limit():
+    calls = []
+    def model(*a, **kw):
+        calls.append(a)
+        return dict(json=dict(beats=["bad beat"]))
+    with pytest.raises(ValueError, match="still invalid after one repair"):
+        spoken.plan(CUES, 12, complete=model)
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("texts,kind,title,items", [
+    (["Start with the request.", "Then the server responds."], "chain", "Request / response", ["Request", "Response"]),
+    (["录课先讲输入", "再演示输出"], "chain", "输入与输出", ["输入", "输出"]),
+    (["The demo shows a saved draft.", "It does not show a published post."], "contrast", "What is demonstrated", ["Saved draft", "Publishing unverified"]),
+    (["这是我的面试经历", "不代表每个人都一样"], "takeaway", "个人经历", ["结果因人而异"]),
+])
+def test_same_contract_accepts_different_topics_and_supplied_qualifiers(texts, kind, title, items):
+    cues = [dict(start=0, end=3, text="Opening"), dict(start=3, end=5, text=texts[0]),
+            dict(start=5, end=7, text=texts[1]), dict(start=7, end=10, text="Ending")]
+    beat = dict(**{"from": 1, "to": 2}, kind=kind, title=title, items=items, evidence=texts[0])
+    result = spoken.plan(cues, 10, complete=lambda *a, **kw: dict(json=dict(beats=[beat])))
+    assert result["effects"][0]["params"]["items"] == items
+    assert result["repairs"] == []
+
+
+def test_provider_failure_does_not_trigger_a_plan_repair():
+    calls = []
+    def model(*a, **kw):
+        calls.append(a)
+        raise RuntimeError("AI login expired")
+    with pytest.raises(RuntimeError, match="AI login expired"):
+        spoken.plan(CUES, 12, complete=model)
+    assert len(calls) == 1

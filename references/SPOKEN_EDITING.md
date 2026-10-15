@@ -52,6 +52,13 @@ indices, stores `finish/editorial-plan.json`, and renders the cards after each t
 master and baseline effects remain available to second-pass edits, including removing individual cards.
 Intake selects this pass for identified talking-head recordings; screen-share courses retain their own layout.
 Finished sources keep their existing captions and, where the platform supports it, their original aspect.
+The planner is shared by supported spoken modes, not tied to a sample title, language, source path or timestamp.
+Read the complete argument even when caption boundaries split a sentence; retain later corrections and personal
+qualifications. Validate model output before applying it. An invalid plan gets one correction with the original
+captions and the exact validation error; a second invalid result fails visibly. Save the correction history in the
+plan. Provider/authentication errors retain their own recovery flow. Cross-topic fixtures test the contract, while
+actual model replays and rendered playback are required to assess semantic and visual quality.
+
 This does not yet perform argument-level EDL restructuring, acquire contextual B-roll or audit the final audio
 by listening. Those remain separate editorial passes; argument cards alone are not proof of premium quality.
 
