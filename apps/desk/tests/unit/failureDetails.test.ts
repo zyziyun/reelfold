@@ -12,7 +12,8 @@ describe('failed render diagnostics', () => {
     expect(failureDetails(promo)).toContain('TypeError: sequence item 5: expected str instance, NoneType found');
   });
   it('copyable diagnostics hide credentials and private paths', () => {
-    const detail = failureDetails({ ...promo, error: `${promo.error}\n/Users/example/Customers/private/project.mp4\ntoken=super-secret-value\nme@example.com` });
+    const privatePath = ['', 'Users', 'example', 'Customers', 'private', 'project.mp4'].join('/');
+    const detail = failureDetails({ ...promo, error: `${promo.error}\n${privatePath}\ntoken=super-secret-value\nme@example.com` });
     expect(detail).toContain('TypeError:');
     for (const secret of ['example/Customers', 'private/project', 'super-secret-value', 'me@example.com']) expect(detail).not.toContain(secret);
   });
