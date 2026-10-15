@@ -30,6 +30,8 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   const { data, reload } = useLoad((c) => c.pieces(item).catch(() => null), [item]);
   const [big, setBig] = useState<string | null>(null); // the open piece's path
   const [pausing, setPausing] = useState(false);
+  const [expanded, setExpanded] = useState(open);
+  useEffect(() => setExpanded(open), [open]);
   const pieces = useMemo(() => data?.pieces ?? [], [data]);
   const live = running || pieces.some((p) => p.state === 'running');
   // updates by itself: every 2.5 s while it runs, and when the run says something moved
@@ -61,7 +63,7 @@ export function WorkPieces({ item, running, open = true, onPaused }: { item: str
   const shown = at >= 0 ? pieces[at] : null;
   return (
     <>
-      <details className="wp" open={open} data-testid="work-pieces" data-n={pieces.length} data-live={live ? '1' : '0'}>
+      <details className="wp" open={expanded} onToggle={(e) => setExpanded(e.currentTarget.open)} data-testid="work-pieces" data-n={pieces.length} data-live={live ? '1' : '0'}>
         <summary className="wp-hd">
           <ChevronRight className="ico wp-chev" />
           <b>{live ? t('wp.title') : t('wp.titleDone')}</b>
