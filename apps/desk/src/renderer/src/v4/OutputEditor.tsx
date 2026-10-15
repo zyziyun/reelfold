@@ -1055,7 +1055,7 @@ export function OutputEditor({ id, clip, layout = 'classic', ask = null, place =
     <PinnedQuestion
       key={pinItem.key}
       item={pinItem}
-      primary={primary === 'export'}
+      primary={primary === 'export' || (studio ? !ai.open : split.collapsed)}
       items={inbox.items}
       clip={clip}
       seek={(x) => {

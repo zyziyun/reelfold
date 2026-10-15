@@ -244,7 +244,9 @@ assert any(x['id'] == 'story' for x in p.pending()), 'fixture checkpoint must be
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/studio/${waiting.item}`));
   await expect(page.getByTestId('pinned-question')).toBeVisible({ timeout: 30000 });
-  await expect(page.getByRole('button', { name: 'Confirm ↵', exact: true })).toBeVisible();
+  await expect(page.getByTestId('pin-confirm')).toBeVisible();
+  await expect(page.getByTestId('pin-confirm')).toHaveClass(/primary/);
+  await expect(page.locator('.btn.primary:visible')).toHaveCount(1);
   expect(fs.existsSync(pilot) ? fs.readFileSync(pilot, 'utf8') : null).toBe(before);
   await shot('E6-waiting-review');
 });
