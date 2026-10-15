@@ -15,6 +15,11 @@ test('Window > Open Reelfold restores and recreates the main window', async () =
   try {
     const page = await app.firstWindow();
     await page.waitForURL(/^app:\/\/desk\//);
+    if (process.env.DESK_EXPECT_EDITION) {
+      expect((await page.evaluate(() => window.desk.getSettings())).edition).toBe(process.env.DESK_EXPECT_EDITION);
+    }
+    await page.getByTestId('composer-record').click();
+    await expect(page.getByTestId('create-rec-allow')).toBeVisible();
     const original = await app.evaluate(({ BrowserWindow, Menu }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().startsWith('app://desk/'))!;
       const item = Menu.getApplicationMenu()!.getMenuItemById('open-main-window')!;
@@ -25,7 +30,8 @@ test('Window > Open Reelfold restores and recreates the main window', async () =
     });
     expect(original.visible).toBe(true);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().startsWith('app://desk/'))!.close());
-    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().startsWith('app://desk/')).length)).toBe(0);
+    // During native close, a window may briefly remain enumerable after its WebContents is destroyed.
+    await expect.poll(() => app.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id) !== null, original.id)).toBe(false);
     const reopened = app.waitForEvent('window');
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.getMenuItemById('open-main-window')!.click());
     const fresh = await reopened;

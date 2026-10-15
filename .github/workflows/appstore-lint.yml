@@ -87,6 +87,7 @@ jobs:
           test -d dist/mas-arm64/Reelfold.app
       - name: Window menu regression (MAS edition, isolated profile)
         env:
+          DESK_EXPECT_EDITION: mas
           DESK_PYTHON: ${{ github.workspace }}/apps/desk/build/runtime/darwin-arm64/python/bin/python3
         run: npx playwright test tests/e2e/windowMenu.spec.ts
       - name: App Store lint (symbols, strings, entitlement files, quarantine, bundle)
