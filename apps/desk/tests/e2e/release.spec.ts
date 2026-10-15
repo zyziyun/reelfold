@@ -88,7 +88,8 @@ test('a failed pilot is visible: project, inbox, all projects; retry with Codex 
   const banner = page.getByTestId('project-failed');
   await expect(banner).toBeVisible({ timeout: 30000 });
   await expect(banner).toContainText(/signed out|login expired|登录过期/i);
-  await expect(banner).not.toContainText(/401|API Error|\/Users\//);
+  await expect.poll(() => banner.innerText()).not.toMatch(/401|API Error|\/Users\//);
+  await expect(banner.getByTestId('failure-details')).not.toHaveAttribute('open', '');
   await expect(page.locator('.ph [data-testid="status"]')).toHaveAttribute('data-status', 'error');
   await expect(banner.getByTestId('fail-login')).toBeVisible();
   await expect(banner.getByTestId('fail-retry-other')).toContainText('Codex');
