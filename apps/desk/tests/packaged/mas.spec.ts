@@ -195,6 +195,20 @@ test('Home exposes the recorder and its permission controls without an AI key', 
   }
 });
 
+test('AI sharing permission service listens privately inside the sandbox', async () => {
+  await ensureContainer();
+  fs.mkdirSync(CTMP, { recursive: true });
+  const before = new Set(fs.readdirSync(CTMP));
+  const app = await launch();
+  try {
+    const fresh = fs.readdirSync(CTMP).filter((f) => !before.has(f) && /^rf-consent-[a-f0-9]+\.sock$/.test(f));
+    expect(fresh).toHaveLength(1);
+    const socket = fs.statSync(path.join(CTMP, fresh[0]));
+    expect(socket.isSocket()).toBe(true);
+    expect(socket.mode & 0o777).toBe(0o600);
+  } finally { await app.close(); }
+});
+
 test('first run in Lite: API keys and local models, no subscription sign-in', async () => {
   const app = await launch({ DESK_SKIP_FIRST_RUN: '0' });
   try {
