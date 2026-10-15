@@ -31,6 +31,20 @@ shared screen following the content below, captions in the platform's caption bo
 Not in scope: writing a script (the recording exists), music beds (tested and rejected for lectures — only a
 card stinger).
 
+## Personal-story and expert shorts
+
+If the source is long but the deliverable is a polished solo talking-head story, use this workflow to find
+source-verified segments, then follow [SPOKEN_EDITING](https://github.com/zyziyun/reelfold/blob/main/references/SPOKEN_EDITING.md). Do not apply the
+lecture assumptions (fixed title band, code zooms, blanket speed-up) to personal stories. Inspect burned
+subtitles before adding any; a second caption system is a delivery failure. `finishing: assembly` performs
+basic range assembly. `finishing: editorial` additionally plans source-grounded comparison, causal-chain and
+takeaway cards from the proofread captions (`finish/editorial-plan.json`) and draws them at the actual edited
+times after each platform's reframe. Intake selects editorial for identified solo talking-head recordings.
+`captions: false` retains baked source subtitles without adding another track; `preserve_source_aspect: true`
+selects the platform's matching original shape instead of manufacturing a vertical version with padding.
+An incompatible platform needs a real remake. Argument-level recutting, contextual B-roll and final listening
+still require the editorial passes in the reference; cards alone do not establish premium quality.
+
 ## Setup
 
 ```bash

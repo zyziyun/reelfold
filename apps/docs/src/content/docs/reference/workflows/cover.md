@@ -62,7 +62,9 @@ follow YouTube's own conventions (big face, 3–5 words); `--platform youtube` o
    (`--preset none|natural|daily|glam` for makeup, `--faces all` for group shots; see `references/RETOUCH.md`)
    (`PYTHONPATH=$VSTUDIO/lib` if vstudio isn't pip-installed).
 4. Matte: `python3 $VSTUDIO/workflows/cover/scripts/matte.py work/cover_src/face_src.png work/cover_face.png --trim --preview`
-   - default engine: MediaPipe selfie segmenter + guided-filter edge refinement (Apache-2.0, fast, CPU).
+   - default engine `auto`: BiRefNet-lite (MIT, onnxruntime; any subject, clean hair) when downloaded
+     (`python -m vstudio.assets fetch matte-birefnet`; the app downloads it on first run), else MediaPipe.
+   - `--engine mediapipe`: selfie segmenter + guided-filter edge refinement (Apache-2.0, fast, CPU, people only).
    - `--engine rvm`: Robust Video Matting, cleaner hair. **GPL-3.0**, not vendored: `torch.hub` downloads it at
      runtime under its own licence. Needs torch; uses MPS/CUDA when available; warm-up passes are built in
      (RVM is recurrent, a single cold pass gives a soft alpha).
@@ -90,6 +92,33 @@ follow YouTube's own conventions (big face, 3–5 words); `--platform youtube` o
 4. `python3 $VSTUDIO/workflows/cover/scripts/split_cover.py work/split_cover.json [--platforms xiaohongshu:horizontal,xiaohongshu,douyin,youtube]`
 5. Look at both sizes. 小红书 shows a centre crop of horizontal covers in the feed, so keep the face and the first
    title line inside the middle ~75 %. Title length rules: `persona.platforms.<platform>.title_max`.
+
+## Designed covers (cover engine 2.0, `vstudio.cover_engine`)
+What the vlog / talking-head cover pick does now, and what you can call on any frame:
+```python
+from vstudio import cover_engine as CE
+CE.make_covers("frame.jpg", {"en": "Golden Hour | Elliott Bay", "zh": "黄金时刻 | 艾略特湾"},
+               ["youtube", "bilibili", "xiaohongshu"], "work/covers")
+```
+- **Frame:** `vstudio.cover.score_frames` ranks frames by sharpness, exposure, a clear subject (saliency), the face
+  expression when the video has faces, and the LAION aesthetic v2 score (Apache-2.0, on CLIP ViT-L/14; optional
+  download `cover-aesthetic`). Crossfades are skipped.
+- **One language per platform:** YouTube / Shorts English, 小红书 / B站 Chinese (`platform.lang_for`); a bilingual text
+  is split, never stacked. Title short (YouTube: ≤ 5 words), the rest becomes a small tracked kicker.
+- **Placement:** the title goes in the emptiest part of the title-safe box: saliency, faces and the BiRefNet subject
+  matte are kept clear, and so are the platform keep-outs (`cover.keepouts`: YouTube's duration badge bottom right,
+  B站's play-count band, 小红书's video mark). No stroke, no box: a feathered local scrim only as dark as contrast 4.5
+  needs.
+- **Upscale:** a crop smaller than the canvas goes through Real-ESRGAN (BSD-3, MLX on Apple silicon, 60 / 40 with
+  bicubic; Lanczos without the download `upscale-esrgan`).
+- **YouTube A/B pack:** three variants (scene / subject close-up, the title possibly behind the subject / text-led)
+  → `youtube-horizontal.cover.ab1..3.jpg` + a "Test & Compare" note in the YouTube post; the best is the cover.
+- **Legibility:** each variant is rendered at 168×94 and 320×180; the headline must be ≥ 6 % of the height with
+  contrast ≥ 3, else it is rejected (never the default while a legible one exists).
+- Fonts: the theme's `font_title` / `font_strong` (OFL Noto Serif / Sans SC); `persona style.cover: cinema` or `bold`
+  brings back the older centred cover.
+- Not done: generative outpainting (9:16 → 16:9). Qwen-Image-Edit-2511 is Apache-2.0 but a 20B-parameter model (~40 GB bf16,
+  ~11 GB at 4-bit with mflux) and minutes per image on a laptop - too heavy for a first-run download; covers crop instead.
 
 ## Platforms
 Cover sizes come from `vstudio.platform.cover_size` (PLATFORMS.md):

@@ -34,6 +34,19 @@ Songti is the Black face). If no serif is found the titles fall back to `cjk-bol
 
 ## Pipeline
 
+For product/ecommerce or company footage, first read `references/CONTENT_MODES.md`; do not apply a scenic essay
+structure merely because this renderer owns the photos. Automatic project drafting supplies labelled real-photo
+contact sheets and binds their `pNNNN` IDs to `work/source_photos/`. Product defaults preserve colour, omit floating
+film chapters/title cards and use source-aware contrasting captions. `fit="contain"` on a photo keeps its whole
+frame; inspect each canvas rather than resizing a completed movie.
+
+For company/process films, music-mode drafting defaults to `LAYOUT.caption_style="label"`: a measured
+lower-third plate with clear bold text, rather than a second scenic chapter title floating over the process.
+The title/chapter cards and scenic colour/grain defaults are off unless explicitly authored; keep supplied
+identity and inspect labels against the actual machinery/people at phone size. This is a shared purpose-based
+layout, not a sample-specific title, source path or timestamp. Match the first label to the action visible now;
+cover/post text must disclose stock reference footage where appropriate.
+
 1. **Gather media.** Put photos in `my_photos/` (names are the shot ids: `photo07.jpg` → `"photo07"`), clips in
    `my_clips/` (`IMG_1234.MOV` can be referenced as `"v1234"`). Still frames from a clip: extract them to
    `my_photos/` with ffmpeg and use them as photos.
@@ -236,3 +249,5 @@ Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zo
 - Landscape: the medal ring is shrunk and centred above the overlaid subtitles; the header puts the title left and the
   section progress right.
 - Editing a line's cue count invalidates that unit's timing. Render falls back to an estimate for that unit and prints a warning. Re-run `tts.py <i>`.
+
+Music timing: `MUSIC.grid="seconds"` uses each shot weight as seconds (at 0.1-second resolution); `per` scales those seconds. `SECTIONS=[]` hides chapter labels while preserving internal section slots from SCRIPT. Other grids remain `bar`, `beat`, `half`, or a numeric beat count.

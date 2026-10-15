@@ -3,7 +3,7 @@ title: Lesson to knowledge-point clips
 description: Cut a class recording into one clip per teaching point (a phrase, a word, a rule, a common mistake), each with a "Today's phrase" title card, key-term cards and bilingual captions, plus a recap clip and study notes.
 ---
 
-For teachers, tutors and coaches who record the same kind of session every week. You hand over a 60-minute lesson and get one short clip per **teaching point** instead of clips cut by length: "Today's phrase: break the ice", "Common mistake: I am agree → I agree", "Word of the day: reluctant". Each clip opens on a title card, keeps the teacher's own explanation and examples, shows the key term on a card when it is first said, and carries captions in the lesson's language with a translation under it. A recap clip strings every point together, and the lesson's study notes come as Markdown and PDF.
+For teachers, tutors and coaches who record the same kind of session every week. You hand over a 60-minute lesson and get one short clip per **teaching point** instead of clips cut by length: "Today's phrase: break the ice", "Common mistake: I am agree → I agree", "Word of the day: reluctant". Each clip keeps the teacher's explanation and examples. Language lessons can use title cards, key-term cards and bilingual captions. Screen-recorded lessons prioritize readable code and slides. A recap clip strings every point together, and the lesson's study notes come as Markdown and PDF.
 
 ## Before you start
 
@@ -76,3 +76,7 @@ If the two recordings cannot be lined up by sound, the run stops and asks for th
 - [Interview to Q&A clips](/docs/guides/interview-qa/)
 - [Course slicing](/docs/guides/course-slicing/) (a course master and episodes instead of points)
 - [lesson-clips workflow reference](/docs/reference/workflows/lesson-clips/)
+
+## Screen recordings, code and slides
+
+For screen lessons, Reelfold preserves the source picture and puts burned-in captions in a separate rail, clear of the screen and camera. Added cards that would obstruct the lesson are deferred or omitted. Mono captions and added labels follow the source language. Where the platform allows it, the source orientation is retained unless you ask for another shape. Review technical terms and small-screen readability before publishing.

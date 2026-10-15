@@ -18,12 +18,12 @@ gallery stills and an OG image, post copy per platform in English and 中文, an
 a talking-head promo of something you made (that is `promo-recut`) or a concept explainer (`explainer`).
 
 **Inputs → Outputs.** A product (name, one-liner, site), release notes (a CHANGELOG section, a git range of
-Conventional Commits, or pasted notes), the product itself to record (a URL or an Electron app, plus a shot list),
-or screenshots / recordings you already have, and the brand (logo, icon, colours, fonts) → `kit/`:
+Conventional Commits, or pasted notes) or a brief with the on-screen lines, the product itself to record (a URL or
+an Electron app, plus a shot list), or screenshots / recordings you already have (`capture.clips`), and the brand (logo, icon, colours, fonts) → `kit/`:
 
 | Folder | What |
 |---|---|
-| `demo/` | `demo-<lang>-16x9 / 9x16 / 1x1.mp4`, 30–60 s: title card, one scene per feature (kinetic caption + the product window, the camera punching in on each click and typed field), logo end card, a soft music bed; a `.cover.jpg` per video |
+| `demo/` | `demo-<lang>-16x9 / 9x16 / 1x1.mp4`, 30–60 s: a product film with a varied rhythm (full-bleed UI with the camera pushing onto the action, 2.5–4× detail cuts, split screens, the window floating with a small lower third, short type beats between sequences, chapter cards, a logo end card), cut on the beats of a soft music bed; a `.cover.jpg` per video |
 | `readme/` | `loop-<lang>.mp4` + `.gif`, 15 s, seamless (the last frame crossfades into the first) |
 | `clips/` | `<feature>-<lang>-1x1 / 9x16.mp4`, 10–20 s each, one feature + end card |
 | `stills/` | `ph-gallery-1-hero.png`, `ph-gallery-N-<feature>.png` (1270×760), `og-1200x630.png` |
@@ -60,15 +60,44 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    `capture.images` with a focus box; the camera then makes a slow move to it.
 3. **Build + render.**
    ```bash
-   $LK build launch.config.yaml && (cd kit/build/demo-en-16x9 && npx hyperframes lint)
+   $LK build launch.config.yaml && (cd kit/build/demo-en-16x9 && npx hyperframes check)
    $LK render launch.config.yaml [--only demo|loop|clip|<feature>] [--quality draft]
    ```
    One HyperFrames project per cut × language × canvas (`kit/build/<name>/index.html`, `plan.json`, `cues.json`).
    Layout per canvas keeps every caption inside the safe area of every platform that canvas is posted to
    (`vstudio.platform` safe boxes: 16:9 X / LinkedIn / YouTube / B站, 9:16 TikTok / Shorts / Reels / 小红书 / 抖音, 1:1).
-   The look is the brand on top of a `vstudio.theme` preset (editorial by default: paper, ink, one accent, a marker
-   sweep under the highlighted word); fonts are the brand's Latin fonts, Chinese uses Noto Serif / Sans SC subset to
-   the characters on screen. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.
+   The look is a product film, not one template per feature (`story.rhythm`, `film` in the config). Features are
+   grouped into short sequences; a sequence opens on a **type beat** (its first line, set large in Inter 560 / Noto
+   Sans SC Medium on a soft gradient field, the words fading up out of a blur), its lead feature gets a **full-bleed**
+   establishing shot (the UI fills the frame, no text, the camera gliding onto the action) and a **detail** cut
+   (2.5–4× on the one element that changes, the take continuing across the cut), and the rest rotate through a
+   **floating window** with a small lower-third caption, a **split** (two moments side by side / stacked, small
+   labels) and full-bleed shots. A feature with `chapter:` opens a section on a chapter card; a first line that is
+   the product's name becomes a cold open + the name card. No two adjacent scenes share a layout, and words are on
+   screen at most `film.text` (0.4) of the runtime: lower thirds, then type beats are dropped from the end until it
+   fits. `film.variety` calm | balanced | lively, `film.captions` auto | type | lower | none, `type.scale` /
+   `type.weight`, and per feature `layout:` full | macro | split | float pin it. Gradient fields only behind type;
+   footage sits on a flat light field (`brand.backdrop`: studio = light, default; deep; paper - never black; a dark
+   recording is lifted a little). Hand-overs follow the layouts: a hard cut into a detail, cut / push / rise between
+   footage, a zoom-through out of a type beat, a blur dissolve into a card - each centred on a beat.
+   `film.arc: launch` tells the product's positioning as a launch film (studied from OpenFilm's promo; see
+   `lib/vstudio/launch/story.py`): a cold open on the product, a **brand card** (`product.tagline` as the kicker, the
+   wordmark slammed in letter by letter with a spring, `product.badges` snapping in), a **reel** (one window, a hard
+   cut on every beat through a moment of each feature, a filmstrip running under a fixed playhead, `product.promise`
+   above it), then the chapters (`chapter:` per act; the title slams in; `chips: [...] | platforms` fan out under it),
+   floating windows that swing in from a 3D angle and split panes angled like an open book, the camera eased in log
+   space (a push reads even, the target never swims), a zoom-through from footage into each card, quiet code-made
+   foley (swish per moving transition, tick per badge / chip / reel cut; `motion.sfx: false` = off), and an end card
+   with the badges. `film.blocks` picks the opening (default brand card + reel): a **waterfall** (hundreds of real
+   video thumbnails, `film.waterfall.thumbs`, pour down and land as the tiles of the wordmark, which resolves into the
+   solid name in heavy type), a **lift** (the platforms' own marks rise and lift "Create · Edit · Publish" / "做 · 剪 ·
+   发" in heavy type) or a **hook** (one heavy line, for a short); `brand.backdrop: cream` is a warm light stage,
+   `type.heavy` (700-900) the blocks' weight and `type.titles: heavy` sets chapter titles in it too.
+   **A set from one config:** `films: [{id, shots, renders, <sections to override>}]` + `make: [films]` renders every
+   film to `films/<id>-<lang>-<canvas>.mp4` with a cover and a contact sheet, and an `index.html` to review the set.
+   Chinese is broken after its punctuation and subset to the characters on screen (Noto Sans SC Medium from
+   ./install.sh; without it Regular with a hairline stroke),
+   and an end card that animates the mark (`brand.mark`), the name, the call to action and the site. Delivery: BT.709 tags + faststart; loudness to −14 LUFS only when there is audio.
    Render one draft first and look at frames mid-scene and mid-transition before the full set.
 4. **Stills, copy, schedule, check.**
    ```bash
@@ -83,6 +112,29 @@ Everything content-specific lives in ONE file, `launch.config.yaml`; start from
    model routed the step fails instead of inventing text. `--apply` adds the schedule to the publish calendar
    (`vstudio.project.pubcal`) as **planned** posts for the accounts in `schedule.accounts`. Nothing is ever posted.
    `$LK all launch.config.yaml` runs steps 3–4.
+
+## From recordings you already have + a brief (no changelog)
+
+Hand over the takes and a `BRIEF.md` and nothing is recorded: the config's `capture.clips` lists the takes (id = the
+file name without its extension), and the config checkpoint is drafted by the engine before any step reads it
+(`vstudio.project.adapters.launchkit`): the brief's shot table (a markdown table with the take file, a `0:04–0:08`
+range, the on-screen line in English and a 中文 column) becomes the features in order, one scene each (two files in a
+row = two shots under one caption, shown side by side in a split scene); the request sets the canvases
+("16:9, 9:16 and 1:1" → `demo.renders` per language), the pace ("1.1×" → `pace`), the length, the transitions ("fast
+smooth animated transitions" → `motion: {transition: mix, seconds: 0.3}`: push (with motion blur), zoom-through and
+rise and hard cuts chosen from the layouts on both sides, ~9 frames, each centred on a beat of the music bed), the opening ("no hook" / "open on Home" → `demo.title_card: false`), the built-in music mood ("tech") and
+the look ("dark" → the night theme, "teal" → the accent), and `make: [demo]` for a promo. A release source is only
+written when one is really there; without one, `features` lists the config's features (or the brief's table).
+
+On a supplied take the camera finds the action itself (`timing.motion`: where the screen changes between low-res
+frames): an establishing frame, a fast eased push to 1.6-3× onto it so the UI text reads, a calm follow when the
+action moves, a slow creep to the cut (`motion.camera: push`, `story.push_camera`); a take longer than
+its scene plays the stretch that fills the scene at the cut's pace, preferring the one that ends on the take's
+result (the opening take plays from its first frame). Caches (idle spans, motion, posters) go under
+`<out>/capture/`, never next to her files.
+
+A step that fails prints one plain line (`launch-kit config: …` → failure code `stage-launch-config`, or
+`launch-kit <step> failed: …`), never a Python traceback (`VSTUDIO_DEBUG=1` shows it).
 
 ## Defaults and rules
 
@@ -119,7 +171,26 @@ whole screen. Events closer than 0.6 s share one move. Translations are clamped 
   with JPEG frame extraction or Playwright's default recorder.
 - HyperFrames: never put a CSS `transform` on an element GSAP moves (`gsap_css_transform_conflict`); the camera's
   first pose is a `tl.set` at 0. Overlay start states are `opacity: 0` in CSS.
+- Media clips own their absolute `data-start`/`data-duration`. A scene containing timed videos is an untimed
+  visual container animated by the main GSAP timeline; never put a second media clock on its parent.
+- Platform glyphs need staged local fonts too, including Chinese marks in English films. Do not rely on an
+  undeclared system-font fallback. Clear lint errors before treating a browser layout check as executed.
+- A reel preview shows a result window at the requested pace, not a whole operation accelerated to fit a tiny
+  slot. When a feature has multiple supplied views, the planner prefers exposure continuity without reordering
+  features; the intended result remains preferred when exposures are similar. Posters cannot establish motion
+  safety: rerender and check the final file, particularly dark examples surrounded by light UI.
+- Inspect what each recording actually shows. A filename such as “watch all” may contain a debug log rather
+  than a creator-facing workflow. Use another verified source and narrow the claim, or omit the unsupported
+  promise. Pair an actual editor/input view with its result when that explains the feature better than a lone
+  dark example. Never manufacture a result or change its colours merely to make a check pass.
 - A loop needs its last frame to be its first: the last scene crossfades into a still of the first scene's opening
   frame, and the first scene has no entrance animation.
 - Fit captions by measuring the actual font (PIL on the woff2), not by character counts: Newsreader and Noto Serif
   SC differ by 40 % in width at the same size.
+
+### Imported recordings in an App project
+
+The prepare stage links supplied media under the item's `inputs/` directory. In `capture.clips` and
+`capture.images[].file`, use those paths (for example `inputs/01-home.mp4`), not bare filenames relative to
+`launch.config.yaml`. The loader accepts an older bare filename only when that exact file exists in `inputs/`;
+explicit paths keep their meaning and genuinely missing files still stop before capture/render.

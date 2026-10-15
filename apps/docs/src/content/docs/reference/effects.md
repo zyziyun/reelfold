@@ -157,6 +157,7 @@ if the block is stale. To add an effect or port one to another engine, see [ADDI
 | Dissolve joins (xfade) <sub>`xfade-joins`</sub> | Any ffmpeg xfade between pieces, with acrossfade and mute pads | ffmpeg | `lib/vstudio/cut.py:xfade_assemble`; vlog `build_vlog.py` (`transition`, `xfade=.8`) | `xfade=0.3`, `transition=fade` | Joining pieces in any ffmpeg workflow | low | 0.15-0.8 s | unlimited for plain fades | `cut.xfade_assemble(pieces, xfade=0.3, transition="fadeblack")` | `test_core.py` |
 | Hook montage <sub>`hook-montage`</sub> | Sped-up hooks with crossfades into the body | ffmpeg | `workflows/talkinghead/scripts/montage.py:Montage` | `hook_speed=1.3`, `body_speed=1.1` | Cold open of a short | high | 3-8 s | 1 per video | `Montage(...)` is importable; use `.graph` | - |
 | Speed ramps <sub>`speed-ramps`</sub> | Per-segment setpts (+ atempo) | ffmpeg | `vlog/build_vlog.py:seg_speed`; `media.atempo_chain` | `speed=1.2` | Tightening or energy ramps | med | per segment | ramps as an effect: 1 star use | `setpts=PTS/s` + `media.atempo_chain(s)` | `test_core.py` |
+| Morph cut (smooth jump cuts) <sub>`morph-cuts`</sub> | Talking-head jump cuts where the face barely moved bridged by 3-6 RIFE frames (length-neutral) | ffmpeg | `lib/vstudio/morphcut.py`; `cut.xfade_assemble(transition="morph")`; cleanup.apply(smooth=True) | `max_move=0.06`, `frames=3-6` | Talking head / 口播 after filler and pause removal | low | 0.1-0.2 s per cut | every small-move jump cut | `morphcut.smooth(body, out, joints)` | `test_morphcut.py` |
 | End fade (no fade-in) <sub>`end-fade`</sub> | fade=t=out + afade; never a black first frame | ffmpeg | `vlog/build_vlog.py` | `fade_out=1.5` | Last pass of any video | low | 1.5 s | 1 per video | Use in any final pass | - |
 
 ### Transition coverage across engines (`vstudio.xfade`)
@@ -234,7 +235,7 @@ exact = same look; near = same idea, small visual difference; approx = closest s
 | Photo-story cover <sub>`photo-story-cover`</sub> | Title zone + hero split polaroid + taped polaroid row with red circles | PIL | `photostory/cover.py` | `COVER=spec` | Photo stories | n/a | still | 1 | `polaroid()`, `circled()` | - |
 | Frame scoring <sub>`frame-scoring`</sub> | Picks smiling, eyes-open, centred frames | PIL | `cover.py:score_frames`, `contact_sheet` | `top_n=6`, `min_gap=2.0` | Choosing a cover frame | n/a | - | - | Run on any talking video | `test_visual.py` |
 
-**Count**: 92 registry entries in 11 sections (197 counting named variants). By engine: PIL 44, ffmpeg 20, HF 26, HTML 5, audio 7. Parameter feel, pitfalls and entry points: `python -m vstudio.effects --show <id>`.
+**Count**: 93 registry entries in 11 sections (198 counting named variants). By engine: PIL 44, ffmpeg 21, HF 26, HTML 5, audio 7. Parameter feel, pitfalls and entry points: `python -m vstudio.effects --show <id>`.
 
 <!-- END GENERATED: effects registry -->
 

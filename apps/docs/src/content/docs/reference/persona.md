@@ -28,7 +28,7 @@ The Mac app keeps the same settings under **Settings**; the skill reads `persona
 | [`speed`](#speed) | Playback rates used when you just say "speed it up" (hook, body, B-roll). | `hook`, `body`, `fast_hook`, `fast_body`, `b_roll`, `cjk_max_intelligible` |
 | [`audio`](#audio) | Delivery loudness, narration and music levels, pause squeezing. | `loudness_lufs`, `voice_lufs`, `music_lufs`, `pause_squeeze`, `pause_threshold` |
 | [`export`](#export) | Frame rate, quality, audio bitrate, colour tags and the H.264 encoder. | `fps`, `crf`, `audio_bitrate`, `colour` |
-| [`style`](#style) | The design theme every overlay, card and caption uses. | `theme` |
+| [`style`](#style) | The design theme every overlay, card and caption uses. | `footage_theme`, `look`, `theme` |
 | [`brand`](#brand) | Your ink and ground colours. | `ink`, `ground` |
 | [`watermark`](#watermark) | your mark on every export (python -m vstudio.watermark; the desk: Settings › Watermark, | `kind`, `text`, `image`, `style`, `color`, `position`, `size`, `opacity`, `margin`, `default`, `platforms` |
 | [`fonts`](#fonts) | Your own font files per role (cjk, cjk-bold, cjk-serif, serif, mono…), including one face of a .ttc. |  |
@@ -113,6 +113,11 @@ export:
 
 ```yaml
 style:
+  footage_theme: cinema    # vlog / photo-story (drone, travel, history over aerials): no cards, serif + sans, soft
+                           # shadows (references/AESTHETICS.md P1-P9); any theme id here, e.g. editorial
+  look: cinema             # photo-story LOOK: cinema (full-bleed, no header) | classic (header + chapter band)
+  # cover: designed        # designed (default: cover engine 2.0, per platform) | cinema (centred serif title) |
+                           # bold (heavy stroked title) | scrapbook (photo-story's paper + polaroid collage)
   theme: editorial         # editorial | mono | soft | night | xhs-pop (classic = the old red look); see
                            # references/STYLE_RULES.md. Tokens can be tinted here, e.g. accent: "#3E5C76"
                            # Per client: client.yaml theme; per recipe: the project's theme param; per output:
@@ -190,15 +195,16 @@ publish:
   tag_sets: {}             # named alternatives picked per post with tag_set:, e.g. {art: [看展, 艺术]}
                            # a post/spec can also set use_persona_tags: false to use only its own tags
   chapter_line: "时间线在下面，按需跳👇"
-  copy_lang: {intl: en}    # drafted post copy (vlog / travel): intl = YouTube / TikTok / X / Instagram; cn = 小红书 /
-                           # 抖音 / B站 (default: your request's language); or one platform, e.g. {tiktok: zh}
+  copy_lang: {intl: en}    # drafted post copy (vlog / travel): intl = TikTok / X / Instagram; cn = 小红书 /
+                           # 抖音 / B站 (default Chinese); or one platform, e.g. {tiktok: zh}. YouTube / Shorts is
+                           # always English (no setting changes it)
 ```
 
 ### `intake`
 
 ```yaml
 intake:                    # one sentence + materials -> plan (python -m vstudio.intake)
-  burned_captions: band    # a finished edit with burned-in captions, cut again: band = crop the old captions off,
+  burned_captions: keep    # a finished edit with burned-in captions, cut again: band = crop the old captions off,
                            # picture in a band, new captions below; keep = leave the old captions, add none
 ```
 

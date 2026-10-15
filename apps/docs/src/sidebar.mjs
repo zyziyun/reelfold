@@ -37,6 +37,9 @@ export const sidebar = [
     'concepts/usage-counts',
   ]),
   g('Guides', '使用指南', 'Guides', 'Guías', [
+    'guides/recording',
+    'guides/several-videos',
+    'guides/voiceover',
     'guides/talking-head',
     'guides/long-video-to-clips',
     'guides/podcast-clips',

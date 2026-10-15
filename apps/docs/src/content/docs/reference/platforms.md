@@ -75,8 +75,8 @@ Publishing is assisted by default: the app opens the platform's own upload page,
 
 | Platform | Upload page (assisted) | Official API (opt-in only) |
 |---|---|---|
-| `youtube` | <https://www.youtube.com/upload> | YouTube Data API v3 videos.insert (OAuth; unaudited projects are locked to private) |
-| `youtube-shorts` | <https://www.youtube.com/upload> | same as youtube (vertical, <= 3 min) |
+| `youtube` | <https://studio.youtube.com/> | YouTube Data API v3 videos.insert (OAuth in the system browser; unaudited projects are locked to private) |
+| `youtube-shorts` | <https://studio.youtube.com/> | same as youtube (vertical, <= 3 min; the desk marks #Shorts at <= 60 s) |
 | `tiktok` | <https://www.tiktok.com/tiktokstudio/upload> | Content Posting API (unaudited: SELF_ONLY, private account) |
 | `instagram` | <https://www.instagram.com/> | Content Publishing API (Professional account, reviewed Meta app, public video URL) |
 | `x` | <https://x.com/compose/post> | X API v2 media upload + POST /2/tweets (paid credits, OAuth 2.0 user token) |
@@ -118,6 +118,12 @@ uses `platform.ORDER`: **English / global** (YouTube, Shorts, TikTok, Instagram,
 Reddit, Pinterest, Snapchat), then **Chinese** (小红书, 抖音, 视频号, B站, 快手, 微博, 知乎), then **other languages**
 (Dailymotion, Kwai). `platform.ordered(names, connected=[...])` puts platforms with a connected account first
 *within* their group. `PLATFORMS` (the dict) keeps its old insertion order so lookups that scan it are unchanged.
+
+**Language per platform.** `platform.lang_for(name)`: YouTube and YouTube Shorts are **always English** (`FIXED_LANG`;
+no persona `publish.copy_lang` changes it) - title, captions, on-screen lines, narration, cover title, post copy; the
+Chinese platforms are Chinese; the other ones English by default. `split_by_lang(names)` groups a version's platforms
+(international first). The intake planner makes a YouTube version and a Chinese version separate projects; `export`
+burns English-only captions on YouTube; `publish.localize_post` never posts Chinese copy there.
 
 **YouTube = one channel, two formats.** `youtube` (long-form, 16:9) and `youtube-shorts` (vertical or square,
 ≤ 3 min [S: https://support.google.com/youtube/answer/15424877]) stay two export targets but share one account:
@@ -183,6 +189,45 @@ horizontal 44-60 px, 22 CJK / 48 latin. 小红书 9:16 band centred on y ≈ 152
 | wechat-channels | 15-120 | 28800 | phone 3 s-60 min, computer (视频号助手) up to 8 h [S: 视频号 help centre via search, page ~2 y old]; sweet [C] |
 | x | 15-90 | 140 (standard) | 140 s / 512 MB [3P, all agree]; **Premium**: sources disagree (2 h vs 4 h, 8 vs 16 GB; Android 10 min) → profile tiers `premium` 7200 s / 8 GB, `premium_plus` 14400 s / 16 GB [3P, unverified: help.x.com blocked automated reads] |
 | instagram | 15-90 | 1200 | 20 min Reels since 2025 [3P, several]; **> 3 min is not recommended to non-followers** (`reach_max` 180, warned) [3P citing the IG Help Center]; min 3 s; 4 GB [3P] |
+
+### Length habits per kind (`references/platforms/<name>.md`)
+
+The table above is what a platform **allows**; how long a video **should** be there depends on the kind of video and
+lives in one editable file per platform: `references/platforms/<name>.md`, YAML front matter (`form` long / short,
+`lengths` per kind as `[min, target, max]` seconds, `chapters`, `aspects`, `captions` style / density, `title`, `hook`,
+`hashtags`, `cover`, `posting`) plus prose for people. `vstudio.platform_habits` reads it; persona
+`platforms.<name>.lengths` / `.limits` (`{min_s, max_s}`) and Settings › Publishing › Video length
+(`$VSTUDIO_HOME/platforms.json`) override it, and every band is clamped to the hard limits above. A beat-cut reel is
+never under 20 s where the platform allows it. These are conventions [C]: change the file when a platform's habits
+change. Defaults (min-max, target in brackets):
+
+| platform | form | chapters | history | film | reel | vlog | talking head | course |
+|---|---|---|---|---|---|---|---|---|
+| youtube | long | yes | 4 min-12 min (8 min) | 2 min-8 min (4 min) | 60 s-4 min (2 min) | 4 min-15 min (8 min) | 4 min-15 min (8 min) | 5 min-20 min (10 min) |
+| youtube-shorts | short | no | 30 s-3 min (50 s) | 20 s-2 min (40 s) | 20 s-60 s (30 s) | 25 s-3 min (45 s) | 30 s-3 min (50 s) | 30 s-3 min (60 s) |
+| tiktok | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| instagram | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| x | short | no | 30 s-2.5 min (60 s) | 15 s-2 min (40 s) | 20 s-45 s (25 s) | 20 s-2.5 min (45 s) | 30 s-2.5 min (60 s) | 45 s-2.5 min (90 s) |
+| facebook | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| linkedin | short | no | 45 s-3 min (90 s) | 30 s-2 min (60 s) | 20 s-60 s (30 s) | 45 s-3 min (90 s) | 45 s-3 min (90 s) | 60 s-3 min (2 min) |
+| threads | short | no | 30 s-2 min (60 s) | 15 s-90 s (30 s) | 20 s-45 s (25 s) | 20 s-2 min (45 s) | 30 s-2 min (60 s) | 45 s-2 min (75 s) |
+| reddit | short | no | 45 s-5 min (90 s) | 20 s-2 min (45 s) | 20 s-60 s (30 s) | 30 s-3 min (75 s) | 45 s-5 min (90 s) | 60 s-10 min (3 min) |
+| pinterest | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+| snapchat | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+| xiaohongshu | short | no | 45 s-3 min (90 s) | 30 s-2 min (60 s) | 20 s-60 s (30 s) | 45 s-3 min (90 s) | 45 s-3 min (90 s) | 60 s-3 min (2.5 min) |
+| douyin | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| wechat-channels | short | no | 45 s-3 min (90 s) | 20 s-2 min (45 s) | 20 s-45 s (25 s) | 30 s-3 min (60 s) | 45 s-3 min (90 s) | 60 s-3 min (2 min) |
+| bilibili | long | yes | 3 min-15 min (7 min) | 2 min-10 min (4 min) | 60 s-4 min (90 s) | 3 min-15 min (7 min) | 3 min-15 min (7 min) | 5 min-30 min (12 min) |
+| kuaishou | short | no | 30 s-90 s (60 s) | 15 s-60 s (30 s) | 20 s-45 s (25 s) | 20 s-90 s (45 s) | 30 s-90 s (60 s) | 45 s-90 s (75 s) |
+| weibo | short | no | 60 s-5 min (2 min) | 30 s-3 min (60 s) | 20 s-60 s (30 s) | 45 s-5 min (2 min) | 60 s-5 min (2 min) | 2 min-10 min (4 min) |
+| zhihu | long | yes | 2 min-15 min (5 min) | 60 s-5 min (2 min) | 60 s-2 min (60 s) | 2 min-10 min (4 min) | 2 min-15 min (5 min) | 5 min-30 min (10 min) |
+| dailymotion | long | yes | 3 min-15 min (6 min) | 90 s-8 min (3 min) | 60 s-4 min (90 s) | 3 min-15 min (6 min) | 3 min-15 min (6 min) | 5 min-30 min (10 min) |
+| kwai | short | no | 20 s-60 s (40 s) | 10 s-60 s (25 s) | 20 s-45 s (25 s) | 15 s-60 s (30 s) | 20 s-60 s (40 s) | 30 s-60 s (45 s) |
+
+`H.lengths(platforms, kind, footage_max=...)` gives each platform its target, capped by what the footage carries; the
+short platforms share one length when their bands overlap (one render, not three), and so do the long ones.
+`H.cuts(...)` groups the platforms by length into the renders a video needs: a **long cut** (YouTube / B站: chapters,
+the full story) and a **short cut** (Shorts / 小红书 / TikTok ...).
 
 ### Loudness, fps, encode
 
@@ -273,6 +318,14 @@ A master of the same aspect is a plain ffmpeg scale (no face tracking; manifest 
   px (or 0..1 fractions), final seconds. Each box is mapped through the reframe and the caption moves above /
   below it while it is on screen (`captions_moved_frames` in the manifest; a warning if there is no free spot).
   `--no-captions` skips burning when the master already has its captions.
+- **One caption language per platform** (AESTHETICS P9): `--cues en=cues.en.json --cues zh=cues.zh.json` gives a
+  track per language; YouTube / Shorts take `en`, 小红书 / B站 / 抖音 take `zh` (`platform.lang_for`). A bare
+  `--cues cues.json` is one track for all, the cue line in the platform's language picked per cue. A platform with
+  no track in its language gets another one and a warning.
+- **Caption files**: platforms with `caption_upload` in the registry (YouTube / Shorts, X, Facebook, LinkedIn) get
+  `<platform>-<orientation>.<lang>.srt` per caption language (manifest `sidecars`, a note under post.md where the
+  text limit leaves room). `--captions both` (default) burns and writes them; `sidecar` leaves those videos clean
+  (still burned on 小红书 / 抖音 ...); `burn` writes no files.
 - **Keyword colour** survives re-burning: 【kw】 markup in cue text, or per cue `"hl": ["kw", ...]` / `[[i, j]]`
   char spans, and `"style": {"fill": "#fff", "highlight": "#FFD60A"}`.
 - **Covers**: `--cover xiaohongshu=cover_3x4.png --cover douyin=cover_9x16.png` gives each target its own cover.

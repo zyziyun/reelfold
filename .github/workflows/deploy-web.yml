@@ -82,7 +82,9 @@ jobs:
       - name: Site checks (copy rules, SEO, links, privacy)
         run: npm run check -w apps/site
       - name: Docs internal links
-        run: npm run check:links -w apps/docs
+        run: |
+          npm run check:links -w apps/docs
+          npm run check:seo -w apps/docs
 
       - uses: actions/upload-artifact@v7
         with: { name: web-dist, path: apps/site/dist, retention-days: 3, if-no-files-found: error }

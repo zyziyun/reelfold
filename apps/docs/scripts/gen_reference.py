@@ -45,6 +45,7 @@ WORKFLOWS = {  # name -> (sidebar order, short description)
     "batch": (13, "Many shorts at once: plan, pilot, parallel runs, QC, review, packages."),
     "lesson-clips": (14, "A lesson into one clip per teaching point, a recap and study notes, with bilingual captions."),
     "interview-qa": (15, "An interview or podcast into Q&A clips that open on the question."),
+    "performance-edit": (17, "Edit filmed comedy and silent performances while preserving setup, payoff and reactions."),
     "launch-kit": (16, "Your product + release notes into a demo, README GIF, feature clips, stills and copy."),
 }
 

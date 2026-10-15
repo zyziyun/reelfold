@@ -32,6 +32,8 @@ Code: `lib/vstudio/intake/` (inventory, docs, rules, plan, estimate, apply, cli)
 | `plan --prompt "..." --inputs PATH... [--client C] [--provider P] [--asr auto] [--auto hook,cover] [--out plan.json]` | the plan (section 3); `--analysis analysis.json` instead of `--inputs` |
 | `revise --plan plan.json --prompt "只要小红书" [--in-place \| --out new.json]` | the plan updated from a follow-up instruction; the history is kept in `revisions` |
 | `apply --plan plan.json [--out DIR] [--dry-run] [--run] [--autopilot]` | creates the project folders (a series when the plan has several), returns ids, dirs and the pilot run commands; `--run` starts each pilot; `--autopilot` creates them on autopilot (no pilot, the engine decides every checkpoint and records why: references/PROJECTS.md §3) and the run commands say `--autopilot`; exit 5 on an invalid plan |
+| `goal --prompt "..." [--inputs DIR...] [--platforms P...] [--ui-lang en\|zh\|fr] [--out goal.json] [--json-events]` | a goal-style request (several videos from one folder / SD card): the survey + a plan of videos (section 8); folders named in the prompt (`/Volumes/dji/DCIM`) are read too |
+| `goal-edit --goal goal.json --ops JSON [--in-place]` | the plan card's edits (`drop` / `restore` / `rename` / `kind` / `length` / `merge` / `platforms`); each touched video's `request` is rebuilt |
 | `schema` | the plan JSON Schema |
 
 ## 2. Inventory (`analyze`)
@@ -180,3 +182,117 @@ provider codex): role finished-edit detected (talking head, burned captions, fin
 for the focus, plan = talkinghead x 3 focus rows (301-363 s and 450-535 s: 副业 / 跨行业 感悟; 535-610 s: 自媒体), captions
 kept (`captions: false`), gentle cleanup, 1.0x, `xiaohongshu:full`, about 2 min wall, $0 (subscription CLI), in
 about 70 s end to end on first analysis.
+
+## 8. Goals: several videos from one folder (`goal`)
+
+"在 /Volumes/dji/DCIM 做多个视频，每个主题不同，可以并行" is not one plan but a **goal**: `goal.py` surveys the folder and
+proposes several videos, each of which then starts as an ordinary request (`plan --prompt <video.request> --inputs
+<its clips>`). `is_goal(prompt, inputs)` recognises one (several / as many as possible videos + a folder dropped or
+named in the words); the desk sends it there (its composer also has 「Several videos」).
+
+* **Survey** (read-only: nothing is written next to the footage, so an SD card stays untouched): the walk follows
+  symlinked files; DJI `PANORAMA/<nnn_nnnn>` tile folders count as one panorama each. Per clip `vstudio.footage.facts`
+  (length, shape, the `.SRT` flight log: time + GPS, the nearest well-known city from `vstudio.places`) and one small
+  keyframe (cached under the intake cache by path + size + mtime); per photo its EXIF time + GPS (cached).
+* **Stories**: items in time order; a new story after a 3 h pause, a move of more than 5 km or a new day, then a
+  split where the light jumps (mean brightness by 0.2+) across a pause of 15+ min (golden hour -> night). One
+  contact sheet per story is what the model looks at.
+* **Plan**: the routed model (task `intake`) proposes up to 8 videos: `title` / `title_zh`, `kind` (`history` - the
+  place has a story; the request asks for well-known, verifiable facts only; `film` - just beautiful: music and a few
+  short lines; `reel` - action, cut on the beat, vertical first; `vlog` - a trip across stories; `essay` - a
+  reflective voice-over; `photos`), its stories, a one-line English `brief`, and the plan card's `theme` / `why` in
+  the UI language. The model does not set lengths. No model (or no usable answer): one music film per
+  story with enough footage (`planner.fallback`). YouTube is always English, Xiaohongshu / Bilibili / Douyin Chinese:
+  each `request` names the languages per platform.
+* **Lengths per platform**: every video gets `lengths` {platform: seconds} from each platform's habit for its kind
+  (`vstudio.platform_habits`, references/platforms/<name>.md; her own range from Settings › Publishing), capped by
+  what its footage carries, and `cuts`: the platforms grouped by length (a long cut for YouTube / B站 with chapters,
+  a short cut for Shorts / 小红书 / TikTok). `length_s` is the longest. Her words ("按 90-120 秒讲解") set every
+  platform's length (hard limits only clamp them). The request carries them as `Cuts: 300 s for YouTube and Bilibili
+  (long cut, chapters); 60 s for Xiaohongshu (short cut).` Plan-card edits: `{op: length, video, length_s, platform?
+  | cut?}` (her numbers are kept in `lengths_own` and survive a change of kind).
+* **What the footage carries** (`footage_max`, shown as "about 4 min possible"): every usable moment of the story's
+  clips (`vstudio.shots` moments with score >= 0.35 when the clip was analysed before - cache only, no decode at
+  survey time - else one moment per 12 s of the clip minus take-off and tail) held for its kind (film 8 s, history 9 s
+  x 1.6 reuse under a voice, reel 1.6 s x 2), little variety (under four moments) x 0.8. No cut is cut shorter than
+  15 s (a reel: 20 s); a length she sets above it is marked `over_footage`.
+* **One project, a long and a short cut**: `rules.cut_lengths` reads the per-platform lengths back out of the request
+  (also her own pairs: "YouTube 5 min, 小红书 60 秒"); `plan.split_by_cut` (after the language split) gives a
+  photo-story / explainer / vlog project one item per length: `items.rows` `long` / `short` with params
+  `{platforms, length_s, cut}`. Each item is drafted for its own length and cut (the drafter is told "LONG cut ...
+  chapters" / "SHORT cut ... hook in 2 s", `platform_habits.cut_note`) and rendered on its own - never one length
+  reframed. One length: the project's `length_s`.
+* **Script top-up** (`vstudio.topup`): a drafted photo-story spec or explainer script more than 15 % shorter than its
+  target is sent back to the model to extend it (more beats, verified facts only) up to two rounds; the fact guard
+  runs on the final text; the draft record keeps `length` {target_s, first_s, final_s, rounds, short} and the review
+  says when it is still short. **Beat shorts**: at least 20 s - the drafter pads the body to the beat budget with more
+  moments (then longer holds), and a render that still comes out short is re-cut once (`recut` / `short` in the
+  render result).
+* The desk keeps the goal (desk `engine/desk_engine/goals.py`): a group whose videos run a few at a time on
+  autopilot; a failure or a stall is retried once, then the video is dropped with its reason; the goal is done when
+  every video is made or dropped, and the unfinished ones can be cleared.
+
+
+## 9. The editor brain (`vstudio.brain`): template, shot treatment, generation proposals
+
+Three judgements an editor makes, each recorded with who made it (`rules` | `her` | `ai`) and a reason in English
+and Chinese, each changeable by her (desk: the project page's "How it's cut" section; CLI: `python -m vstudio.brain`).
+
+* **Template** (`brain/template.py`, templates in `brain/presets.py`): the inputs' signals (speech share, talking
+  head / several people / screen recording, a DJI flight log, motion from `shots`, photos vs clips, music, length,
+  evening / night) + the request's words (en / zh) -> a template = recipe + params + a shot policy: `travel-calm`,
+  `beat-short`, `trip-vlog`, `history-explainer`, `documentary`, `essay`, `photo-story`, `th-refined` (口播精剪),
+  `lecture-shorts`, `conversation-clips`, `concept-explainer`, `product-promo`, `launch-film`, `ai-short`. Her words
+  win (`by: her`) but only for templates the materials can make (口播 over silent drone footage stays a footage
+  film); a close call may go to the routed AI (`--ai`), else the rules' pick says it was close. The plan carries it
+  per sub-project (`projects[].template`, the plan card's "Cut as … · why"); `apply` keeps it in project.yaml
+  (`brain.template`); a vlog without a style takes the template's (English "fast cuts on the beat" -> `fun`). Goal
+  kinds map onto templates (`goal.RECIPE` comes from `presets.for_goal_kind`). "A history explainer from these drone
+  shots" is a narrated photo-story, not the 3b1b explainer.
+* **Shot treatment** (`brain/treat.py` over `brain/tiles.py`): every shot tile (`vstudio.shots` moments when the
+  engine has them, else one tile per clip) gets hold length, speed (1x | slow motion only where the cadence stays even:
+  60p at 0.5x or RIFE frames | one speed ramp in a beat short), reframe (follow face / subject / steady centre for a
+  wide view, when the output aspect differs), the join (cut | beat cut | dissolve where the light / place / time of
+  day changes | match cut | a morph for a jump cut inside one take, a small punch-in without RIFE | continuous),
+  exposure / colour match against the film's median and hero shot, deflicker for a pumping drone, where text may
+  sit, stabilise; each used shot names the effect-catalogue entries it is made with (`effects`: `xfade-joins`,
+  `morph-cuts` (`vstudio.morphcut` / `vstudio.rife` when the RIFE model is downloaded), `punch-in`, `speed-ramps`,
+  `stabilize`). Quality and darkness are measured against the film's own light (a night film keeps its night
+  shots). Each choice keeps its candidates with a 0-1 fit (`choices`) so "why this effect" can say "dissolve .95 vs
+  cut .55"; close ones go to the AI judge when asked; her changes (`brain shot --set transition=cut`) win.
+* **Generation proposals** (`brain/genplan.py`): by stage (`planned` -> `cut` -> `review`): an establishing shot
+  when the film opens close, extra shots when the usable footage is well under the asked length, a cover background
+  when no frame is clean, a first+last-frame bridge across a place / time jump in a narrated piece, a steady
+  image-to-video take of a moment whose only shot is too dark / shaky, one illustrative shot after 25 s of talking
+  head alone. Each is a brief (mode, prompt, source still, seconds) with a price from the Create rate cards (Kling
+  first). **Nothing is spent**: autopilot only proposes; her Approve carries the proposal's confirm code (this price,
+  `brain decide --approve --code`), is recorded in project.yaml (`brain.gen`), and the generation itself goes through
+  the Create spend gate. Generated shots are labelled AI.
+
+* **Steering the builders** (`brain/steer.py`): the plan (her per-shot changes in it) is each builder's own edit
+  decisions. Calm vlog (build_vlog): segments with the window, `xfade` = the join into it (a dissolve's seconds, 0 = a
+  hard cut), `speed: 0.5` where slow motion is planned, `stabilize`, `brain` = the shot id. Beat short (build_fun):
+  beat-aligned holds (1 / 2 / 4 beats), the one speed ramp (`ramp: fast-slow-fast`, 4 beats), `ramp: slowmo` where
+  planned (RIFE in-betweens under 50p). Photo story: the drafter gets the moments with their in-points, joins and the
+  text-safe third, plus the stills worth cutting for the cover; the drafted spec's video shots get `tr` (fade | cut)
+  and `label_at` (upper | lower) where the drafter left them open - always where she chose. Talking head: each jump
+  cut of the cleaned body is smoothed as the plan of its span says - `morph` (RIFE) | `punch` (a small punch-in, compose
+  `PUNCH`) | `cut` - and her placed B-roll is a cut-away at its sentence (compose `BROLL`); the stage keys carry them.
+  The AI drafter's own windows get the plan's treatment where they overlap (`steer.annotate`); her change of a shot
+  reaches the drafted edit files at once (`steer.restyle`) and the desk re-renders.
+* **Per-shot edit list**: every builder writes `<master>.edl.json` (talking head: the compose stage's `edl.json`):
+  `shots [{i, t0, t1, src, src_in, src_out, join, speed, role, brain}]`. `brain shots --dir P --output <id>` joins it
+  with the plan (why, choices, her changes; a generated take with its proposal) - the clip timeline's Shots lane.
+* **Generating a proposal** (`brain/generate.py` over `vstudio.create.oneoff`, the Create spend gate for one job
+  outside an episode): `brain estimate` prices it (rate card, the month cap, the service ready, its credits, its own
+  quote) with an 8-hex confirm code that expires in 15 min - nothing is sent; her click in the gate runs `brain
+  generate --estimate --confirm --max-cny --code`: her approval at this price, ONE submit (never retried; a timeout
+  after the request left is `unknown-charge` in `state/brain/gen/spend.jsonl`, counted in the month), poll, download
+  to `state/brain/gen/`, then `place`: a calm / fun vlog's edit.json gets an `ai: true` segment / shot at the anchor
+  (the opening, after the shot a bridge leaves, where the weak shot was, the end), a photo story's spec a video shot,
+  a talking head a cut-away; the render watches those files. `brain place --undo` takes it out again (the paid take
+  is kept; a generated proposal cannot be "undone" like an idea). Only her click calls `generate`; the autopilot,
+  `show` and every stage never do. Tests use Create's provider stand-ins (`tests/create_fake.py`).
+
+`python -m vstudio.brain show --dir <project> [--refresh] --json` computes what is missing (tiles, signals, plan,
+proposals: `state/brain/`, the tile stills in `state/brain/thumbs/`) and returns the doc the desk shows.

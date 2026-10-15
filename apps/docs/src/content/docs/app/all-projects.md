@@ -13,13 +13,17 @@ Videos are grouped by where they are, each with its current step, progress and t
 
 | Group | What is in it |
 |---|---|
-| **Needs you** | A question, a review or a run that stopped. The same items are in the Inbox |
+| **Needs you** | A question, a review or a run that stopped. Questions and reviews are collected here |
 | **In progress** | Planning, waiting its turn, or being made |
 | **Ready to post** | Finished, not scheduled yet |
 | **Scheduled** | On the publish calendar |
 | **Posted** | Out, with a link to the post |
 
 A project with several clips shows them under its name; a project's question sits on the clip it is about, so there is one row per video. Groups fold, the list folds to a strip (⌘B), and every divider can be dragged (double-click resets it).
+
+## Collections and individual retries
+
+A request for several videos opens as one collection. Expand a video to see its language and platform versions, their progress, and any specific failure. **Open** selects a completed version when one is available. **Try again** on a failed version preserves the versions already made. [Make several videos](/docs/guides/several-videos/).
 
 ## Search and filters
 
