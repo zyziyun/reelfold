@@ -25,6 +25,7 @@ let page: Page;
 const files: Record<string, Buffer> = {};
 let closed = false;
 let requests = 0;
+let limited = false;
 let launchEnv: Record<string, string> = {};
 
 /** A fake bundled runtime: the system Python (mock engine) + the folder layout findBundledRuntime() checks. */
@@ -32,7 +33,7 @@ function fakeRuntime(): string {
   const rt = tmp('vsdesk-rt-');
   fs.mkdirSync(path.join(rt, 'vstudio', 'lib', 'vstudio'), { recursive: true });
   fs.mkdirSync(path.join(rt, 'ffmpeg', 'bin'), { recursive: true });
-  const py = execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', 'import sys; print(sys.executable)']).toString().trim();
+  const py = execFileSync(process.env.DESK_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'), ['-c', 'import sys; print(sys.executable)']).toString().trim();
   if (process.platform === 'win32') {
     // the bundle layout is python\python.exe: a junction to the real install keeps python.exe next to its DLLs
     fs.symlinkSync(path.dirname(py), path.join(rt, 'python'), 'junction');
@@ -62,6 +63,10 @@ test.beforeAll(async () => {
 
   server = http.createServer((req, res) => {
     requests++;
+    if (req.url === '/big' && !limited) {
+      limited = true;
+      return void res.writeHead(429, { 'retry-after': '1' }).end();
+    }
     const b = files[(req.url ?? '/').slice(1)];
     if (!b) return void res.writeHead(404).end();
     res.writeHead(200, { 'content-length': b.length });
@@ -144,6 +149,7 @@ test('the wizard starts the required downloads by itself; they never move her, c
   await expect.poll(async () => page.evaluate(async () => (await window.desk.engineInfo()).token), { timeout: 30000 }).not.toBe(tokenBefore);
   expect(await page.evaluate(() => (window as unknown as { __marker?: number }).__marker)).toBe(42);
   const st = await page.evaluate(() => window.desk.assets.status());
+  expect(limited).toBe(true); // the real main-process downloader recovered from the first HTTP 429
   expect(st.busy).toBe(false);
   expect(st.restartNeeded).toBe(false);
   await expect(steps).toHaveText(/AI|IA/);
