@@ -642,3 +642,9 @@ def test_burned_caption_layout_is_an_explicit_preference():
     assert PL._burned_defaults(source, {}) == dict(captions=False)
     assert PL._burned_defaults(source, dict(burned="keep")) == dict(captions=False)
     assert PL._burned_defaults(source, dict(burned="band")) == dict(layout="band", crop_bottom=0.28, captions=True)
+
+
+def test_focus_topics_without_verified_ranges_never_repeat_the_whole_video():
+    p = dict(id="p1", recipe="talkinghead", params={}, inputs={}, items=dict(method="focus", rows=[dict(id="topic", inputs={}, params=dict(title="A topic"))]))
+    with pytest.raises(AP.ApplyError, match="verified source times"):
+        AP._create_kwargs(p, {})

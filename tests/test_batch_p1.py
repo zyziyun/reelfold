@@ -213,3 +213,13 @@ def test_talkinghead_folder_end_to_end_with_fake_scripts(tmp_path, monkeypatch):
     assert cl["confirm"] == 1 and cl["sentences"] == 2
     strict = open(os.path.join(r["batch_dir"], "jobs", "c2", "cleanup", "strict.py"), encoding="utf-8").read()
     assert "确认 1" in strict
+
+
+def test_multiple_clips_from_one_source_are_not_overwritten(tmp_path, monkeypatch):
+    from vstudio.batch import stages as S
+    source = str(tmp_path / "source.mp4")
+    monkeypatch.setattr(S, "_probe_dur", lambda p: 650)
+    rows = [dict(id=name, file="source.mp4", range=[k*60, k*60+45]) for k,name in enumerate(["circle","creator","confidence","day-job"])]
+    items = S.expand_clips(dict(inputs=dict(clips=[source]), defaults={}), rows)
+    assert [i["item"] for i in items] == [r["id"] for r in rows]
+    assert [i["params"]["_dur"] for i in items] == [45]*4

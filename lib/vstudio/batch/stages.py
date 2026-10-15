@@ -984,21 +984,22 @@ def expand_clips(spec, rows):
     by = {}
     for r in rows:
         key = r.get("file") or r["id"]
-        by[os.path.splitext(os.path.basename(str(key)))[0]] = r
+        by.setdefault(os.path.splitext(os.path.basename(str(key)))[0], []).append(r)
     items = []
     for c in clips:
         stem = os.path.splitext(os.path.basename(c))[0]
-        r = by.get(stem) or by.get(slug(stem)) or {"id": slug(stem), "_auto_id": True}
-        if r.get("skip"):
-            continue
-        p = S.with_defaults(spec, r)
-        p.pop("file", None), p.pop("_auto_id", None)
-        p["source"] = os.path.abspath(c)
-        d = _probe_dur(c)
-        rng = p.get("range")
-        p["_dur"] = round((rng[1] - rng[0]) if rng else d, 3)
-        p["_src_dur"] = round(d, 3)
-        items.append(dict(item=slug(stem) if r.get("_auto_id") else r["id"], params=p))
+        candidates = by.get(stem) or by.get(slug(stem)) or [{"id": slug(stem), "_auto_id": True}]
+        for r in candidates:
+            if r.get("skip"):
+                continue
+            p = S.with_defaults(spec, r)
+            p.pop("file", None), p.pop("_auto_id", None)
+            p["source"] = os.path.abspath(c)
+            d = _probe_dur(c)
+            rng = p.get("range")
+            p["_dur"] = round((rng[1] - rng[0]) if rng else d, 3)
+            p["_src_dur"] = round(d, 3)
+            items.append(dict(item=slug(stem) if r.get("_auto_id") else r["id"], params=p))
     return items
 
 

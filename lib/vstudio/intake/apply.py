@@ -62,6 +62,8 @@ def _create_kwargs(p, plan):
     kw = dict(recipe=p["recipe"], name=p.get("name"), params=dict(p.get("params") or {}), client=plan.get("client"),
               auto=list(p.get("auto") or (plan.get("run") or {}).get("auto") or []))
     if rows:
+        if items.get("method") == "focus" and any(not r["params"].get("range") for r in rows):
+            raise ApplyError("Some selected topics have no verified source times. Review their start/end times before making the clips.")
         if fi and fi in ins and all(fi in r["inputs"] for r in rows):
             ins.pop(fi)
         kw["items"] = rows

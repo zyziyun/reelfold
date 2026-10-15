@@ -479,7 +479,7 @@ def normalize_project(raw, idx, analysis, intent, ctx, warn):
     if rows:
         items["rows"] = rows
         items["count"] = len(rows)
-    if method == "focus" and not rows:
+    if method == "focus" and (not rows or any(not (r.get("params") or {}).get("range") for r in rows)):
         items["unresolved"] = True              # apply finds the ranges (full transcript + the focus)
     # ---- params: recipe default < persona / client < materials (raw rules) < model < prompt
     params, sources = {}, {}
@@ -1294,7 +1294,7 @@ def _transcripts(analysis):
 def resolve_focus(p, analysis, intent, warn):
     """A focus sub-project without rows + a transcript of its source -> rows from the rule matcher."""
     it = p["items"]
-    if it["method"] != "focus" or it.get("rows"):
+    if it["method"] != "focus" or (it.get("rows") and all((r.get("params") or {}).get("range") for r in it["rows"])):
         return p
     m = M.get(p["recipe"])
     fi = m["items"].get("from_input") or "source"
@@ -1304,6 +1304,20 @@ def resolve_focus(p, analysis, intent, warn):
     if not tr:
         return p
     mx = p["params"].get("max_s") or it.get("max_s") or 150
+    if it.get("rows"):
+        for row in it["rows"]:
+            params = row.setdefault("params", {})
+            if params.get("range"):
+                continue
+            title = params.get("title") or row.get("id") or ""
+            terms = [title] + re.findall(r"[一-鿿]{2,8}|[A-Za-z]{3,}", title)
+            picks = R.focus_ranges(tr["sentences"], f.get("duration"), [dict(topic=title, terms=terms, where=None)],
+                                   count=1, min_s=min(20, mx / 2), max_s=mx)
+            if picks:
+                params["range"] = [round(picks[0]["start"], 2), round(picks[0]["end"], 2)]
+        if all((r.get("params") or {}).get("range") for r in it["rows"]):
+            it.pop("unresolved", None)
+        return p
     picks = R.focus_ranges(tr["sentences"], f.get("duration"), intent.get("focus") or
                            [dict(topic=it.get("focus") or "", terms=[it.get("focus") or ""], where=None)],
                            count=it.get("count"), min_s=min(20, mx / 2), max_s=mx)
