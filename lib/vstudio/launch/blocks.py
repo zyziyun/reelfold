@@ -19,6 +19,7 @@ import random
 
 from . import brand as B
 from . import config as C
+from ..oscompat import relpath
 
 # the product's own platform marks (a short glyph on its colour; not the platforms' trademarked logos), as in the
 # desk's registry (apps/desk/src/shared/platforms.ts)
@@ -74,7 +75,7 @@ def stage_thumbs(cfg, shots, proj, size, n=THUMBS_MAX):
                     ImageOps.fit(im.convert("RGB"), size, Image.LANCZOS).save(dst, quality=84)
             except OSError:
                 continue
-        out.append(os.path.relpath(dst, proj))
+        out.append(relpath(dst, proj))
     return out
 
 
@@ -167,7 +168,7 @@ def waterfall_html(ctx, sid, s, land, st, du, js, sfx):
                      f'width:{_r(cw - 1.5)}px; height:{_r(ch - 1.5)}px">'
                      + (f'<img src="{img}" alt="">' if img else "") + "</div>")
     html.append(f'<div class="full" id="{sid}m">' + "".join(tiles) + "</div>")
-    html.append(f'<img class="mark" id="{sid}w" src="{os.path.relpath(wpath, proj)}" alt="" style="left:{word["x"]}px; '
+    html.append(f'<img class="mark" id="{sid}w" src="{relpath(wpath, proj)}" alt="" style="left:{word["x"]}px; '
                 f'top:{word["y"]}px; width:{word["w"]}px; height:{word["h"]}px">')
     # the pour: a sweep from left to right with some chaos; tiles fall big (they read as videos) and land small. They
     # start as the scene starts (under the transition) from just above the frame and enter at once, so the stage is

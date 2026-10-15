@@ -1041,6 +1041,7 @@ def test_blocks_build_waterfall_lift_hook_on_a_cream_stage(cfg, shots, tmp_path)
     CO.build(hero, S.plan(hero, shots, "demo", "en", "16:9"), proj, quiet=True)
     html = open(os.path.join(proj, "index.html"), encoding="utf-8").read()
     assert html.count('class="tile"') > 150 and "assets/thumbs/t000-" in html
+    assert 'src="assets/brand/wordmark-1920x1080.png"' in html
     assert os.path.exists(os.path.join(proj, "assets", "brand", "wordmark-1920x1080.png"))
     assert 'class="pmark"' in html and html.count('class="pm"') == 9 and ">Publish<" in html
     assert 'font-family: "LK-zh-heavy"' in html   # Chinese platform marks have a staged face in the English film
