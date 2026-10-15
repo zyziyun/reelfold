@@ -14,7 +14,7 @@ Mode recognition is not evidence that its final film has passed a quality audit.
 | Company / corporate footage, no presenter | photo-story with the company brief | Real place/team → actual process → visible result → supplied CTA; coherent identity |
 | Company / product introduction with a presenter | promo-recut | Keep the original voice; insert genuine proof, not unrelated stock |
 | Product/company brief with no visual sources | preproduction | A shootable script and source list; do not pretend a finished film exists |
-| Recorded comedy | talkinghead, 1.0x, gentle cleanup, no notes/morphs by default | Setup → escalation → payoff → reaction; pauses and deliberate repeats can carry the joke |
+| Recorded comedy, including silent physical comedy | performance-edit, original speed/audio/frame, no speech-cleanup prerequisite | Setup → escalation → payoff → reaction; pauses and deliberate repeats can carry the joke |
 | Unrecorded comedy idea | preproduction | Separate shot/action notes and character dialogue; no compulsory educational insight paragraph |
 | Explicit AIGC / generated sketch | ai-video | Consistent characters, visible action and verified shot continuity; generation remains subject to provider/budget approval |
 

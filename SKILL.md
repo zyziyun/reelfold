@@ -41,6 +41,7 @@ HyperFrames workflows (explainer, promo-recut, launch-kit) also need Node 18+ an
 | Call / interview / **podcast** (Zoom, Meet) → clips, guest faces hidden — even when she says 切片 | `workflows/call-clips` |
 | A **lesson** (teacher / tutor / coach; screen share and / or camera) → one clip per teaching point (今日短语 / 知识点), recap, study notes, 中英字幕 | `workflows/lesson-clips` |
 | Interview / podcast / coaching → **Q&A clips** (一问一答: opens on the question, answer cut tight, role labels) | `workflows/interview-qa` |
+| Filmed comedy / sketch, with or without dialogue → source-grounded cuts preserving setup, payoff and reactions | `workflows/performance-edit` |
 | Her own voice-over + clips / photos → vlog (`calm` or `fun` 卡点) | `workflows/vlog` |
 | Photos / clips + narration or music → 文艺片 / photo story | `workflows/photo-story` |
 | A topic → 3b1b-style explainer (AI voice, bilingual captions) | `workflows/explainer` |

@@ -325,7 +325,7 @@ def test_parse_prompt():
     ("公司宣传片，用这段口播介绍我们的产品", "talk", "promo-recut"),
     ("做一个两个同事互相误解的搞笑段子", None, "preproduction"),
     ("Make a comedy skit about a coffee machine", None, "preproduction"),
-    ("剪这个已经拍好的双人段子，保留铺垫与笑点", "sketch", "talkinghead"),
+    ("剪这个已经拍好的双人段子，保留铺垫与笑点", "sketch", "performance-edit"),
     ("Generate an AI skit about a coffee machine", None, "ai-video"),
     ("用录屏做产品发布视频", "screen", "launch-kit"),
 ])
@@ -342,9 +342,9 @@ def test_content_purpose_and_materials_choose_executable_workflows(tmp_path, pro
     if expected == "photo-story":
         assert plan["projects"][0]["params"]["mode"] == "music"
     if material == "sketch":
-        p = plan["projects"][0]["params"]
-        assert p["speed"] == 1 and p["cleanup_profile"] == "gentle"
-        assert p["note_cards"] is False and p["smooth_cuts"] is False
+        project = plan["projects"][0]
+        assert project["params"]["speech"] is True
+        assert project["items"]["rows"][0]["params"]["speech"] is True
 
 
 def test_focus_ranges_respect_position():
@@ -686,3 +686,27 @@ def test_focus_topics_without_verified_ranges_never_repeat_the_whole_video():
     p = dict(id="p1", recipe="talkinghead", params={}, inputs={}, items=dict(method="focus", rows=[dict(id="topic", inputs={}, params=dict(title="A topic"))]))
     with pytest.raises(AP.ApplyError, match="verified source times"):
         AP._create_kwargs(p, {})
+
+
+def test_mixed_spoken_and_silent_comedy_keep_independent_sources(tmp_path):
+    from vstudio.intake.apply import _create_kwargs
+    from vstudio.project.core import Project
+    from vstudio.project import drafts
+    from vstudio.project.adapters.performance import _source
+    mat = Mat(tmp_path)
+    mat.video("silent.mp4", 40, speech=False, talking_head=False)
+    mat.video("dialogue.mp4", 55, speech=True, talking_head=False, multi_person=True)
+    plan = PL.make_plan("Edit these filmed comedy performances, preserving setup and reactions", analysis=mat.analysis(), asr="off")
+    assert PL.validate(plan) == []
+    p = plan["projects"][0]
+    assert p["recipe"] == "performance-edit" and len(p["items"]["rows"]) == 2
+    kw = _create_kwargs(p, plan)
+    assert kw["inputs"] == {}
+    project = Project.create(str(tmp_path / "created"), **kw)
+    items = project.data["items"]
+    assert len(items) == 2
+    assert {row["params"]["speech"] for row in items} == {False, True}
+    for row in items:
+        # Same input contract consumed by the author and actual compose stage.
+        ctx = drafts.Ctx(project.dir, row["id"], dict(_inputs=row["inputs"], **row["params"]), "performance-edit")
+        assert _source(ctx).endswith("dialogue.mp4" if ctx.params["speech"] else "silent.mp4")

@@ -185,9 +185,10 @@ def line(fid, f):
     return "; ".join(bits)
 
 
-def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True):
+def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, every=6.0):
     """Clips -> (text: one facts line per clip, images: one contact sheet per clip, [facts]). Sheets that fail are
-    left out (the facts line stays). With ``shots`` each facts dict also carries ``moments`` (vstudio.shots)."""
+    left out (the facts line stays). With ``shots`` each facts dict also carries ``moments`` (vstudio.shots).
+    ``every`` controls periodic sampling when shot sheets are disabled (or unavailable); tiles remain capped at 20."""
     vids = [p for p in paths if is_video(p)][:max_clips]
     ids = list(ids or [os.path.splitext(os.path.basename(p))[0] for p in vids])
     lines, images, all_facts = [], [], []
@@ -211,7 +212,7 @@ def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True):
                 if echo:
                     echo(f"footage: shots of {os.path.basename(p)} failed ({e}); whole-clip sheet")
         try:
-            img = sheet(p, img)
+            img = sheet(p, img, every=every)
         except Exception as e:  # noqa: BLE001
             return k, f, None, str(e)
         return k, f, img, None

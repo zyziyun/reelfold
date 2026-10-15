@@ -143,13 +143,13 @@ FORMATS = {
         cover=dict(aspect="video", style="frames", retouch=False, min_luma=0.35, text="designed"),
         rules=["铺垫 → 升级 → 笑点 → 反应；不把喜剧改成教学总结", "未拍素材先写可拍脚本，生成视频需明确要求与预算"]),
     "sketch-edit": dict(
-        labels=dict(zh="已拍摄段子剪辑", en="Recorded sketch edit"), workflow="talkinghead",
-        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="gentle", tag_set="", engine="fast",
+        labels=dict(zh="已拍摄段子剪辑", en="Recorded sketch edit"), workflow="performance-edit", audio="optional",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="off", tag_set="",
         cover=dict(aspect="video", style="frames", retouch=False, min_luma=0.35, text="designed"),
         rules=["保留铺垫、笑点与反应停顿，不统一加速", "保留原声与连续性，不用教学笔记面板替代表演"]),
 }
 # recipe / workflow id -> format (intake.rules recipe ids and workflow folder names)
-BY_RECIPE = {"talkinghead": "talking-head", "promo-recut": "promo", "call-clips": "call-clips",
+BY_RECIPE = {"performance-edit": "sketch-edit", "talkinghead": "talking-head", "promo-recut": "promo", "call-clips": "call-clips",
              "longform-to-short": "lecture-slices", "longform-course": "lecture-slices", "batch": "lecture-slices",
              "vlog": "vlog", "explainer": "explainer", "photo-story": "photo-story", "ai-video": "ai-skit",
              "lesson-clips": "lesson-points", "interview-qa": "interview-qa", "launch-kit": "launch"}

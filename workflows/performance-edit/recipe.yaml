@@ -1,0 +1,96 @@
+id: performance-edit
+version: 1
+workflow: performance-edit
+format: sketch-edit
+labels: {en: Performance edit, zh: 表演剪辑}
+description:
+  en: Filmed comedy, with or without dialogue, cut around setup, payoff and reactions; original frame, timing and sound retained.
+  zh: 已拍段子（有对白或无对白）按铺垫、笑点和反应选段，保留原画面、原速与原声。
+category: edit
+inputs:
+  - key: video
+    kind: video
+    labels: {en: Filmed performance, zh: 表演素材}
+    required: true
+    multiple: true
+    accept: [.mp4, .mov, .m4v, .webm, .mkv]
+    scope: item
+items:
+  sources: [single, files, folder]
+  from_input: video
+  per_item: [title, speech]
+  shared: [platforms, preset]
+params:
+  type: object
+  properties:
+    title: {type: string, default: "", title: Title, x-zh: 标题}
+    speech: {type: boolean, default: false, title: Include dialogue transcript, x-zh: 结合对白转写}
+    platforms:
+      type: array
+      items: {type: string}
+      default: [youtube]
+      title: Platforms
+      x-zh: 发布平台
+    preset: {enum: [ultrafast, fast, medium, slow], default: medium, title: Encoding preset, x-zh: 编码速度}
+stages:
+  - id: probe
+    resource: io
+    fn: vstudio.project.adapters.performance:probe
+    keys: [speech]
+    produces: [source geometry and sound]
+  - id: compose
+    resource: cpu-render
+    deps: [probe]
+    fn: vstudio.project.adapters.performance:compose
+    keys: [preset]
+    watch: ["{item_dir}/work/edit.json"]
+    produces: [original-frame performance master]
+    preview: {kind: video, path: "out:master"}
+  - id: export
+    resource: cpu-render
+    deps: [compose]
+    fn: vstudio.project.adapters.performance:export
+    keys: [platforms, preset]
+    produces: [exports/manifest.json and native-frame platform videos]
+  - id: qc
+    resource: cpu
+    deps: [compose, export]
+    fn: vstudio.project.adapters.performance:qc
+    keys: []
+    produces: [work/quality.json]
+checkpoints:
+  - id: edit
+    kind: author
+    scope: item
+    after: probe
+    blocks: [compose]
+    labels: {en: Story and timing, zh: 剧情与节奏}
+    author:
+      file: "{item_dir}/work/edit.json"
+      format: JSON kept source ranges and protected performance beats
+      doc: workflows/performance-edit/WORKFLOW.md
+    payload: vstudio.project.adapters.common:author_payload
+    apply: vstudio.project.adapters.common:author_apply
+    answer:
+      type: object
+      properties: {done: {type: boolean}, content: {type: string}}
+    auto: default
+  - id: publish
+    kind: publish
+    scope: item
+    after: qc
+    labels: {en: Check the performance, zh: 检查表演成片}
+    payload: vstudio.project.adapters.common:publish_payload
+    apply: vstudio.project.adapters.common:publish_apply
+    answer:
+      type: object
+      properties: {approve: {type: boolean}, reason: {type: string}}
+      required: [approve]
+    auto: default
+outputs:
+  platforms: [youtube, youtube-shorts, tiktok, xiaohongshu, douyin, bilibili]
+  collect: vstudio.project.adapters.common:collect_vstudio_exports
+agent:
+  workflow_md: workflows/performance-edit/WORKFLOW.md
+  notes: Preserve setup, payoff, reaction pauses and original audio. Silent sources need no ASR. Quality failures require review, not blind retry.
+capabilities: [source-grounded-selection, protected-story-beats, original-audio, native-frame, multi-platform]

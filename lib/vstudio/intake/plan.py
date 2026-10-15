@@ -1021,7 +1021,7 @@ def _out_seconds(p, analysis):
         if isinstance(d, dict):
             d = d.get(params.get("mode") or "long", 120)
         out = d * (items.get("count") or 1)
-        if p["recipe"] == "polish":
+        if p["recipe"] in ("polish", "performance-edit"):
             out = src
     return src, out
 

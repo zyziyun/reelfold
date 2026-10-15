@@ -413,7 +413,7 @@ def choose_recipes(intent, analysis):
         # Explicit launch and AI requests still own their specialised workflows.
         if kind and not (set(sc) & {"launch-kit", "ai-video", "preproduction"}):
             if kind == "sketch":
-                picked = "talkinghead" if _by_kind(analysis, "video") else "preproduction"
+                picked = "performance-edit" if _by_kind(analysis, "video") else "preproduction"
             elif present & {"talking-head", "finished-edit"}:
                 picked = "promo-recut"
             elif present & {"photo", "footage"}:
@@ -495,7 +495,8 @@ def material_recipes(analysis):
 
 EDU_SOURCE = {"lesson-clips": ("lecture", "screen-recording", "talking-head", "finished-edit", "call"),
               "interview-qa": ("call", "talking-head", "lecture", "screen-recording", "finished-edit")}
-FILE_INPUT = {"talkinghead": ("video", ("talking-head", "finished-edit")),
+FILE_INPUT = {"performance-edit": ("video", ("footage", "talking-head", "finished-edit")),
+              "talkinghead": ("video", ("talking-head", "finished-edit")),
               "polish": ("video", ("finished-edit", "talking-head")),
               "cover": ("video", ("finished-edit", "talking-head")),
               "promo-recut": ("talk", ("talking-head", "finished-edit")),
@@ -540,9 +541,6 @@ def rule_projects(intent, analysis, ctx):
         ctext = (clause or {}).get("text") or ""
         from vstudio.content_kind import detect
         kind = detect(ctext or intent["text"])
-        if kind == "sketch" and rid == "talkinghead":
-            p["params"].update(speed=1.0, hook_speed=1.0, cleanup_profile="gentle", note_cards=False,
-                               smooth_cuts=False, engine="fast")
         cnt = (clause or {}).get("count") or (intent.get("count") if len(chosen) == 1 else None)
         if rid in EDU_SOURCE:
             src, cam = _pick_source(analysis, EDU_SOURCE[rid]), None
@@ -604,11 +602,13 @@ def rule_projects(intent, analysis, ctx):
         elif rid in FILE_INPUT:
             key, prefs = FILE_INPUT[rid]
             fs = [f for f in analysis["files"] if rmap[f["id"]] in prefs and f["id"] not in used]
-            if not fs:
+            if rid == "performance-edit" or not fs:
                 fs = [f for f in _by_kind(analysis, "video") if f["id"] not in used]
             if not fs:
                 risks.append(MSG.cs("intake.risk.no-video", L, recipe=rid))
                 continue
+            if rid == "performance-edit":
+                p["params"]["speech"] = any(f.get("speech") is True for f in fs)
             if rid == "longform-course":
                 fs = fs[:8]
             used |= {f["id"] for f in fs}
@@ -624,6 +624,9 @@ def rule_projects(intent, analysis, ctx):
                 p["why"] = f"从 {src['rel']}（{_fmt_dur(src.get('duration'))}）里截出你说的内容，每段一条"
             else:
                 p["items"] = dict(method="per-file", count=len(fs))
+                if rid == "performance-edit":
+                    p["items"] = dict(method="list", count=len(fs), rows=[dict(id=f["id"],
+                        inputs={"video": [f["path"]]}, params=dict(speech=f.get("speech") is True)) for f in fs])
                 p["why"] = f"{len(fs)} 条{_role_zh(rmap[fs[0]['id']])}，每条一个视频"
         elif rid in ("explainer", "preproduction", "slides"):
             docs = [f for f in analysis["files"] if rmap[f["id"]] in ("doc", "slides", "notes", "script") and f["id"] not in used]

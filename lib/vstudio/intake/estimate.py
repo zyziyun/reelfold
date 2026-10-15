@@ -14,9 +14,9 @@ EXTRA = {
     "longform-course": [("geometry", "src")],
 }
 # seconds of machine time per output second for render-heavy recipes (no bench rows for these yet)
-RENDER_S_PER_OUT = {"explainer": 6.0, "photo-story": 2.0, "vlog": 1.5, "promo-recut": 4.0, "slides": 0.5,
+RENDER_S_PER_OUT = {"performance-edit": 1.0, "explainer": 6.0, "photo-story": 2.0, "vlog": 1.5, "promo-recut": 4.0, "slides": 0.5,
                     "cover": 0.0, "preproduction": 0.0, "ai-video": 1.0}
-DEFAULT_OUT_S = {"explainer": {"short": 60, "long": 300}, "photo-story": 75, "vlog": 90, "ai-video": 60,
+DEFAULT_OUT_S = {"performance-edit": 60, "explainer": {"short": 60, "long": 300}, "photo-story": 75, "vlog": 90, "ai-video": 60,
                  "promo-recut": 120, "slides": 45}
 TTS_USD_PER_MIN = 0.015          # gpt-4o-mini-tts, about
 LLM_USD_PER_SOURCE_MIN = 0.01    # plan-segments + proofread + glossary on an API model, about
@@ -74,6 +74,9 @@ def project(p, src_s, out_s, n_items, n_platforms, client_cfg=None):
     if rid in SPEECH_RECIPES and _paid_llm(("segment_plan", "proofread", "glossary"), client_cfg):
         api += LLM_USD_PER_SOURCE_MIN * src_s / 60
         paid.append("LLM（选段 / 字幕校对）")
+    if rid == "performance-edit" and _paid_llm(("segment_plan",), client_cfg):
+        api += LLM_USD_PER_SOURCE_MIN * src_s / 60
+        paid.append("LLM (performance selection)")
     params = p.get("params") or {}
     if rid == "explainer" and _explainer_engine(params) == "openai":
         api += TTS_USD_PER_MIN * out_s / 60
