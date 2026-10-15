@@ -86,7 +86,8 @@ const routes = () => JSON.parse(fs.readFileSync(path.join(tmp, 'profile', 'llm-r
 let projDir = '';
 // the project's own AI (project.yaml `ai`), as the engine reads it on each AI step
 const projAi = () => {
-  const m = /\nai:\n((?: {2}.*\n)+)/.exec(fs.readFileSync(path.join(projDir, 'project.yaml'), 'utf8'));
+  const yaml = fs.readFileSync(path.join(projDir, 'project.yaml'), 'utf8').replace(/\r\n/g, '\n');
+  const m = /\nai:\n((?: {2}.*\n)+)/.exec(yaml);
   return m ? Object.fromEntries(m[1].trim().split('\n').map((l) => l.trim().split(': ').map((x) => x.replace(/^'|'$/g, '')))) : null;
 };
 
