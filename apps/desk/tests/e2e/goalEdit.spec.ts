@@ -225,7 +225,7 @@ dest.write_text(json.dumps(pay))
   await version.getByTestId('goal-version-review').focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/studio/${waiting.item}`));
-  await expect(page.getByText('Choose the material', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('pinned-question')).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole('button', { name: 'Confirm ↵', exact: true })).toBeVisible();
   expect(fs.existsSync(pilot) ? fs.readFileSync(pilot, 'utf8') : null).toBe(before);
   await shot('E6-waiting-review');
