@@ -870,7 +870,7 @@ function registerIpc() {
     if (p.python && !fs.existsSync(p.python)) throw new Error('python not found');
     const before = settings.get();
     const next = settings.set(p);
-    if (p.zhVoice !== undefined || p.zhLocal !== undefined) writeTtsPrefs(app.getPath('userData'), next); // the next take uses it, no restart
+    if (p.zhVoice !== undefined || p.zhLocal !== undefined || p.zhEngine !== undefined || p.systemZhVoice !== undefined) writeTtsPrefs(app.getPath('userData'), next); // the next take uses it, no restart
     if (next.lang !== before.lang) menu();
     if (p.usagePings !== undefined && p.usagePings !== before.usagePings) usage?.consentChanged(p.usagePings === 'on');
     if (p.openAtLogin !== undefined && p.openAtLogin !== before.openAtLogin) {

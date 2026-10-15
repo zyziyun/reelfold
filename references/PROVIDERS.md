@@ -353,3 +353,9 @@ API calls are costed from `vstudio.llm.PRICES` (USD per million tokens; persona 
 or the batch spec `prices.proofread_in / proofread_out` override it; unknown API models are estimated at 2.5 / 10
 and flagged `cost_estimated`). Local servers and subscription CLIs are booked at 0 (the CLI's own notional figure
 is kept in `usage.notional_cost_usd`). Whisper API minutes use `prices.openai_whisper_min`.
+
+### macOS system Chinese narration
+
+Settings → Voice → Chinese narration uses → macOS system voices selects an installed Chinese voice for new narration. The preference is shared by intake planning, second edits, photo stories and explainers; it is not a prompt instruction. Read the installed list with `vstudio.system_voice.chinese_voices()`; refresh after installing more voices in macOS Accessibility → Read & Speak. Only voices returned by `/usr/bin/say -v ?` are offered, including installed Premium voices. No automatic voice downloads or system preference changes. Siri voices not exposed by macOS for file synthesis are not promised.
+
+`tts.synth(text, engine="system", voice=<installed name>)` exports through macOS, then uses the shared 48 kHz mono WAV/cache pipeline. The chosen voice is recorded in `VSTUDIO_TTS_PREFS` (`zh_engine: system`, `system_voice`). No API key or extra model is needed. An unavailable chosen voice fails explicitly instead of switching language or silently choosing a different speaker. Existing rendered audio remains unchanged.

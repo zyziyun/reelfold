@@ -678,6 +678,17 @@ class Api:
         """v0.4: outputs (player + second-pass editor), intake (composer -> plan card), inbox. None = not mine."""
         from urllib.parse import unquote
         b = body if isinstance(body, dict) else {}
+        if parts == ["system-voices"] and method == "GET":
+            from vstudio.system_voice import chinese_voices
+            return {"voices": chinese_voices()}
+        if parts == ["system-voices", "preview"] and method == "POST":
+            from vstudio import tts
+            from vstudio.system_voice import chinese_voices
+            voice = b.get("voice")
+            need(isinstance(voice, str) and voice in {v["id"] for v in chinese_voices()}, "Choose an installed Chinese system voice")
+            path = tts.synth("你好，这是系统中文配音。把你的想法，变成有故事的视频。", engine="system", voice=voice)
+            self.history.allow_media([path])
+            return {"path": path}
         if parts[:1] == ["effects"] and method == "GET":
             return self.outputs.effects()
         if parts[:1] == ["delete"]:

@@ -80,6 +80,8 @@ export const ipcSchemas = {
     openAtLogin: z.boolean().optional(),
     zhVoice: z.enum(ZH_VOICES).optional(),
     zhLocal: z.boolean().optional(),
+    zhEngine: z.enum(['qwen', 'system']).optional(),
+    systemZhVoice: z.string().min(1).max(200).optional(),
   }),
   // opt-in anonymous usage counts (main/usage.ts): small integers only, never text
   'usage:status': z.undefined(),

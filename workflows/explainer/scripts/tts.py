@@ -37,7 +37,7 @@ ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("lines", nargs="*", help="only these line numbers")
 ap.add_argument("--project", "-C", default=".", help="project dir (default: current dir)")
 ap.add_argument("--engine", default="auto",
-                choices=["openai", "openai-compatible", "elevenlabs", "kokoro", "edge", "clone", "auto"],
+                choices=["openai", "openai-compatible", "elevenlabs", "kokoro", "edge", "clone", "system", "auto"],
                 help="auto (default: persona tts.engine, else openai with its key, else the free local voice) | "
                      "openai (per-line delivery direction) | openai-compatible (your own /v1/audio/speech "
                      "server: VSTUDIO_TTS_BASE_URL) | elevenlabs | kokoro | edge | clone (local Qwen3-TTS, "

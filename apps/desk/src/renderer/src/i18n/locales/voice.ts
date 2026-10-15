@@ -1,6 +1,18 @@
 // Settings › Voice: the free voices that narrate videos on this Mac (shared/voices.ts).
 
 export const voiceEn = {
+  "vo.source": "Chinese narration uses",
+  "vo.source.hint": "Applies to new Chinese narration. Existing audio stays as it is.",
+  "vo.system": "macOS system voices",
+  "vo.system.hint": "Use Chinese voices installed in System Settings → Accessibility → Read & Speak. Download more there, then refresh. No extra model download in Reelfold.",
+  "vo.refresh": "Refresh voices",
+  "vo.loading": "Reading installed voices…",
+  "vo.system.empty": "No Chinese system voices available. Install one in macOS settings, then refresh. System voices are available on Mac.",
+  "vo.system.error": "Could not read system voices. Try refreshing.",
+  "vo.system.pick": "System voice",
+  "vo.system.missing": "{name} (not installed)",
+  "vo.system.preview": "Preview",
+
   'vo.nav': 'Voice',
   'vo.lead': 'The free voices that narrate your videos. They run on this computer, offline, at no cost.',
   'vo.zh.title': 'Chinese voice',
@@ -43,6 +55,18 @@ export const voiceEn = {
 };
 
 export const voiceZh: Record<keyof typeof voiceEn, string> = {
+  "vo.source": "中文旁白使用",
+  "vo.source.hint": "用于新生成的中文旁白，已有音频保持原样。",
+  "vo.system": "macOS 系统声音",
+  "vo.system.hint": "使用「系统设置 → 辅助功能 → 朗读与语音」里已安装的中文声音。下载更多声音后点刷新，Reelfold 无需额外下载模型。",
+  "vo.refresh": "刷新声音",
+  "vo.loading": "正在读取已安装声音…",
+  "vo.system.empty": "没有可用的中文系统声音。请在 macOS 设置中安装后刷新，系统声音仅适用于 Mac。",
+  "vo.system.error": "无法读取系统声音，请尝试刷新。",
+  "vo.system.pick": "系统声音",
+  "vo.system.missing": "{name}（未安装）",
+  "vo.system.preview": "试听",
+
   'vo.nav': '配音',
   'vo.lead': '给视频配旁白的免费声音。在这台电脑上离线运行，不花钱。',
   'vo.zh.title': '中文配音',
@@ -85,6 +109,18 @@ export const voiceZh: Record<keyof typeof voiceEn, string> = {
 };
 
 export const voiceFr: Record<keyof typeof voiceEn, string> = {
+  "vo.source": "Narration chinoise",
+  "vo.source.hint": "Pour les nouvelles narrations chinoises. Les pistes existantes restent inchangées.",
+  "vo.system": "Voix système macOS",
+  "vo.system.hint": "Utilisez les voix chinoises installées dans Réglages Système → Accessibilité → Lecture et parole. Téléchargez-en là, puis actualisez. Aucun modèle supplémentaire dans Reelfold.",
+  "vo.refresh": "Actualiser les voix",
+  "vo.loading": "Lecture des voix installées…",
+  "vo.system.empty": "Aucune voix chinoise système disponible. Installez-en dans les réglages macOS, puis actualisez. Disponible sur Mac.",
+  "vo.system.error": "Impossible de lire les voix. Réessayez.",
+  "vo.system.pick": "Voix système",
+  "vo.system.missing": "{name} (non installée)",
+  "vo.system.preview": "Écouter",
+
   'vo.nav': 'Voix',
   'vo.lead': 'Les voix gratuites qui narrent vos vidéos. Elles tournent sur cet ordinateur, hors ligne, sans frais.',
   'vo.zh.title': 'Voix chinoise',

@@ -103,6 +103,9 @@ export function clipId(id: string): string {
 }
 
 export class EngineClient {
+  systemVoices() { return this.req<{voices: import('./voices').SystemVoice[]}>('GET', '/api/system-voices'); }
+  systemVoicePreview(voice: string) { return this.req<{path: string}>('POST', '/api/system-voices/preview', {voice}); }
+
   constructor(
     private baseUrl: string,
     private token: string,

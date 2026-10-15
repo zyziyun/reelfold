@@ -5,6 +5,9 @@
 // before downloading. The choice applies to the next take (main/v02.ts writes the engine's prefs file).
 import { useEffect, useRef, useState } from 'react';
 import { Check, Pause, Play } from 'lucide-react';
+import type { SystemVoice } from '../../../shared/voices';
+import { useEngine } from '../lib/engine';
+import { media } from '../v4/kit';
 import { EN_VOICE_GROUP, ZH_VOICE_GROUP, ZH_VOICES, zhVoiceOf, type ZhVoice } from '../../../shared/voices';
 import type { AssetGroupStatus } from '../../../shared/assets';
 import { useAssets } from '../components/assets';
@@ -32,15 +35,23 @@ export const VOICE_SAMPLES: Record<ZhVoice | 'en', string> = {
 /** One shared player: a new sample stops the one playing; the same button again stops it. */
 function useSample() {
   const audio = useRef<HTMLAudioElement | null>(null);
+  const serial = useRef(0);
+  const ui = useUi();
   const [playing, setPlaying] = useState<string | null>(null);
-  useEffect(() => () => audio.current?.pause(), []);
-  const toggle = (id: string) => {
+  useEffect(() => () => { serial.current++; audio.current?.pause(); }, []);
+  const toggle = async (id: string, resolve?: () => Promise<string>) => {
+    const ticket = ++serial.current;
     audio.current?.pause();
     if (playing === id) {
       setPlaying(null);
       return;
     }
-    const a = new Audio(VOICE_SAMPLES[id as keyof typeof VOICE_SAMPLES]);
+    setPlaying(id);
+    let url: string;
+    try { url = resolve ? await resolve() : VOICE_SAMPLES[id as keyof typeof VOICE_SAMPLES]; }
+    catch (e) { if (ticket === serial.current) { setPlaying(null); ui.toast(errText(e), {error: true}); } return; }
+    if (ticket !== serial.current) return;
+    const a = new Audio(url);
     a.onended = () => setPlaying((p) => (p === id ? null : p));
     audio.current = a;
     setPlaying(id);
@@ -91,6 +102,20 @@ export function DownloadState({ g, testId }: { g: AssetGroupStatus; testId: stri
 
 export function VoiceSection({ settings: s, save }: SettingsCtx) {
   const assets = useAssets();
+  const { client } = useEngine();
+  const [system, setSystem] = useState<SystemVoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (!client) return;
+    let alive = true;
+    setLoading(true); setLoadError(false);
+    client.systemVoices().then(r => { if (alive) setSystem(r.voices); })
+      .catch(() => { if (alive) setLoadError(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [client, refresh]);
   const ui = useUi();
   const sample = useSample();
   const zh = assets?.groups.find((g) => g.id === ZH_VOICE_GROUP);
@@ -108,8 +133,34 @@ export function VoiceSection({ settings: s, save }: SettingsCtx) {
       .catch((e) => ui.toast(errText(e), { error: true }));
   return (
     <Page title={t('vo.nav')} lead={t('vo.lead')} testId="settings-voice">
-      {assets && !zh && !en && <div className="s2-note">{t('vo.noMac')}</div>}
-      <Group title={t('vo.zh.title')} testId="voice-zh">
+      {assets && !zh && !en && !system.length && <div className="s2-note">{t('vo.noMac')}</div>}
+      <Group title={t('vo.zh.title')} testId="voice-source">
+        <Row label={t('vo.source')} hint={t('vo.source.hint')}>
+          <select value={s.zhEngine ?? 'qwen'} data-testid="voice-source-pick" onChange={e => {
+            const zhEngine = e.target.value as 'qwen' | 'system';
+            void save({zhEngine, ...(zhEngine === 'system' && !s.systemZhVoice && system[0] ? {systemZhVoice: system[0].id} : {})})
+              .catch(e => ui.toast(errText(e), {error: true}));
+          }}>
+            <option value="qwen">{t('vo.zh.engine')}</option>
+            <option value="system" disabled={!system.length && s.zhEngine !== 'system'}>{t('vo.system')}</option>
+          </select>
+        </Row>
+        <Row label={t('vo.system')} hint={t('vo.system.hint')}>
+          <button className="s2-link" onClick={() => setRefresh(n => n + 1)} data-testid="voice-system-refresh">{t('vo.refresh')}</button>
+        </Row>
+        {loading ? <p className="s2-note">{t('vo.loading')}</p> : !system.length || loadError ? <p className="s2-note">{t(loadError ? 'vo.system.error' : 'vo.system.empty')}</p> : null}
+        {s.zhEngine === 'system' && <Row label={t('vo.system.pick')}>
+          <select value={s.systemZhVoice ?? ''} data-testid="voice-system-pick" onChange={e => void save({systemZhVoice: e.target.value}).catch(e => ui.toast(errText(e), {error: true}))}>
+            {!system.some(v => v.id === s.systemZhVoice) && <option value={s.systemZhVoice ?? ''} disabled>{s.systemZhVoice ? t('vo.system.missing', {name: s.systemZhVoice}) : t('vo.system.pick')}</option>}
+            {system.map(v => <option key={v.id} value={v.id}>{v.name} · {v.lang}</option>)}
+          </select>
+          <button className="s2-link" disabled={!client || !system.some(v => v.id === s.systemZhVoice)} data-testid="voice-system-play"
+            onClick={() => void sample.toggle('system', async () => media((await client!.systemVoicePreview(s.systemZhVoice!)).path))}>
+            {sample.playing === 'system' ? <Pause className="ico" /> : <Play className="ico" />}{t(sample.playing === 'system' ? 'vo.stop' : 'vo.system.preview')}
+          </button>
+        </Row>}
+      </Group>
+      {s.zhEngine !== 'system' && <Group title={t('vo.zh.title')} testId="voice-zh">
         <Row label={t('vo.zh.engine')} hint={t('vo.zh.engineHint')}>
           {zh ? <DownloadState g={zh} testId="voice-zh" /> : null}
         </Row>
@@ -130,11 +181,11 @@ export function VoiceSection({ settings: s, save }: SettingsCtx) {
             </Row>
           ))}
         </div>
-      </Group>
-      <p className="s2-lead" style={{ marginTop: -4 }}>
+      </Group>}
+      {s.zhEngine !== 'system' && <p className="s2-lead" style={{ marginTop: -4 }}>
         {t('vo.pickHint')}
-      </p>
-      {zh && !zh.installed && (
+      </p>}
+      {s.zhEngine !== 'system' && zh && !zh.installed && (
         <Group testId="voice-zh-local">
           <Row label={t('vo.local.label')} hint={t('vo.local.hint')}>
             <Toggle checked={s.zhLocal === true} onChange={setLocal} label={t('vo.local.label')} testId="voice-zh-local-toggle" />
@@ -149,7 +200,7 @@ export function VoiceSection({ settings: s, save }: SettingsCtx) {
           <PlayButton id="en" name={t('vo.en.sample')} sample={sample} />
         </Row>
       </Group>
-      <p className="s2-lead">{t('vo.keyNote')}</p>
+      {s.zhEngine !== 'system' && <p className="s2-lead">{t('vo.keyNote')}</p>}
     </Page>
   );
 }

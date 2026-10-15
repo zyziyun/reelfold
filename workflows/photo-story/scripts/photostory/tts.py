@@ -94,7 +94,7 @@ def main():
     ap.add_argument("--speaker", help="the cast voice (vstudio.voicecast: a Qwen3-TTS / Kokoro speaker); wins over --voice")
     ap.add_argument("--style", help="the cast delivery instruction (Qwen3-TTS instruct; Kokoro has none)")
     ap.add_argument("--sample", action="store_true", help="synthesise one line in several voices")
-    ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "qwen", "clone"],
+    ap.add_argument("--engine", choices=["auto", "openai", "kokoro", "qwen", "clone", "system"],
                     help="override VOICE/TTS engine (auto: OpenAI with its key, else the free local voice)")
     a = ap.parse_args()
 
@@ -110,6 +110,8 @@ def main():
     engine = a.engine if a.engine and a.engine != "auto" else cfg.get("engine") or "auto"
     if engine == "auto":
         engine = vtts.available_engine()
+    if cfg["language"] == "zh" and vtts.prefs().get("zh_engine") == "system" and not (a.voice or a.speaker):
+        engine = "system"
     clone = engine == "clone"
     local = engine not in ("openai", "clone")
     if clone:
@@ -133,6 +135,8 @@ def main():
         print("note: " + vtts.ZH_LOCAL_NOTE["en"], flush=True)
         cfg["language"] = "en"
     voice = a.voice or cfg["voice"]
+    if engine == "system" and not (a.voice or a.speaker):
+        voice = vtts.zh_voice(engine)
     if engine == "qwen" and str(voice or "").lower() not in vtts.QWEN_ZH_VOICES:
         voice = None                          # a Kokoro / OpenAI voice name means nothing to the Chinese voice
     if local and (not voice or voice in OPENAI_VOICES):   # an OpenAI voice name means nothing to the local voice

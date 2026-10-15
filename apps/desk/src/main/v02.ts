@@ -56,7 +56,7 @@ export function ttsPrefsPath(userData: string): string {
 
 /** Write the engine's voice prefs file from the settings (atomic); returns its path. A read-only profile keeps the
  * old file (the engine falls back to its defaults when there is none). */
-export function writeTtsPrefs(userData: string, s: Pick<Settings, 'zhVoice' | 'zhLocal'>): string {
+export function writeTtsPrefs(userData: string, s: Pick<Settings, 'zhVoice' | 'zhLocal' | 'zhEngine' | 'systemZhVoice'>): string {
   const f = ttsPrefsPath(userData);
   try {
     const tmp = `${f}.tmp`;

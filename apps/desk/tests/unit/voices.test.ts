@@ -84,6 +84,14 @@ describe('the Chinese speakers', () => {
   });
 });
 
+describe('system Chinese voice preference', () => {
+  it('persists an explicit source and its exact installed voice name', () => {
+    expect(ttsPrefsOf({zhEngine: 'system', systemZhVoice: 'Lili (Premium)'})).toMatchObject({zh_engine: 'system', system_voice: 'Lili (Premium)'});
+    expect(ipcSchemas['settings:set'].safeParse({zhEngine: 'system', systemZhVoice: 'Lili (Premium)'}).success).toBe(true);
+    expect(ipcSchemas['settings:set'].safeParse({zhEngine: 'unknown'}).success).toBe(false);
+  });
+});
+
 describe('before the Chinese voice is downloaded', () => {
   const st = (over: Partial<AssetsStatusMsg['groups'][0]> = {}): AssetsStatusMsg & { bundled: boolean } => ({
     bundled: true,

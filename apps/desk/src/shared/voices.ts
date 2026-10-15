@@ -14,6 +14,8 @@ export function zhVoiceOf(v: unknown): ZhVoice {
 
 /** The engine's prefs file content for settings `zhVoice` / `zhLocal` (vstudio.tts.prefs: the speaker, and
  * whether Kokoro's robotic Mandarin may narrate a Chinese version while Qwen3-TTS is not downloaded). */
-export function ttsPrefsOf(s: { zhVoice?: string; zhLocal?: boolean }): { zh_voice: ZhVoice; zh_local: boolean } {
-  return { zh_voice: zhVoiceOf(s.zhVoice), zh_local: s.zhLocal === true };
+export function ttsPrefsOf(s: { zhVoice?: string; zhLocal?: boolean; zhEngine?: 'qwen' | 'system'; systemZhVoice?: string }): { zh_voice: ZhVoice; zh_local: boolean; zh_engine?: 'qwen' | 'system'; system_voice?: string } {
+  return { zh_voice: zhVoiceOf(s.zhVoice), zh_local: s.zhLocal === true, ...(s.zhEngine ? { zh_engine: s.zhEngine, system_voice: s.systemZhVoice } : {}) };
 }
+
+export interface SystemVoice { id: string; name: string; lang: string }

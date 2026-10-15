@@ -76,18 +76,18 @@ import urllib.request
 from . import media
 
 DEFAULT_VOICE = {"openai": "cedar", "kokoro": "af_heart", "edge": "en-US-AriaNeural", "clone": "ref",
-                 "openai-compatible": "af_heart", "elevenlabs": "21m00Tcm4TlvDq8ikWAM", "qwen": "serena"}
+                 "openai-compatible": "af_heart", "elevenlabs": "21m00Tcm4TlvDq8ikWAM", "qwen": "serena", "system": "Tingting"}
 DEFAULT_MODEL = {"openai": "gpt-4o-mini-tts", "kokoro": "mlx-community/Kokoro-82M-bf16", "edge": None,
                  "qwen": "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
                  "clone": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16", "openai-compatible": "kokoro",
-                 "elevenlabs": "eleven_multilingual_v2"}
+                 "elevenlabs": "eleven_multilingual_v2", "system": None}
 # Chinese voices (中文讲解); openai's voices are multilingual, clone speaks like its reference
 ZH_VOICE = {"kokoro": "zf_xiaobei", "edge": "zh-CN-XiaoxiaoNeural", "openai": "cedar", "openai-compatible": None,
-            "elevenlabs": None, "clone": None, "qwen": "serena"}
+            "elevenlabs": None, "clone": None, "qwen": "serena", "system": "Tingting"}
 # the free Chinese voice's Mandarin speakers (Settings > Voice; samples in apps/desk resources)
 QWEN_ZH_VOICES = ("serena", "vivian", "uncle_fu", "dylan", "eric")
 KOKORO_LANGS = "abefhijpz"          # Kokoro's lang codes = the first letter of its voice ids
-ENGINES = ("openai", "kokoro", "qwen", "edge", "clone", "openai-compatible", "elevenlabs")
+ENGINES = ("openai", "kokoro", "qwen", "edge", "clone", "openai-compatible", "elevenlabs", "system")
 ALIASES = {"compatible": "openai-compatible", "tts-server": "openai-compatible", "eleven": "elevenlabs",
            "11labs": "elevenlabs", "edge-tts": "edge", "qwen3-clone": "clone", "qwen3": "qwen", "qwen3-tts": "qwen",
            "qwen-tts": "qwen"}
@@ -195,6 +195,9 @@ def installed(engine):
     if engine in ("kokoro", "clone", "qwen"):
         return platform.system() == "Darwin" and platform.machine() == "arm64" and \
             bool(importlib.util.find_spec("mlx_audio"))
+    if engine == "system":
+        from .system_voice import chinese_voices
+        return bool(chinese_voices())
     if engine == "edge":
         return bool(importlib.util.find_spec("edge_tts") or shutil.which("edge-tts"))
     return True
@@ -223,6 +226,8 @@ def zh_engine(engine):
     """The engine that says a Chinese line meant for ``engine``: the free voice (kokoro) -> qwen when it is ready here
     (Kokoro's Mandarin sounds robotic); any other engine speaks Chinese itself."""
     e = ALIASES.get(str(engine or "").lower(), str(engine or "").lower())
+    if prefs().get("zh_engine") == "system":
+        return "system"
     return "qwen" if e == "kokoro" and qwen_ready() else e
 
 
@@ -268,6 +273,8 @@ def providers(probe=True):
                  detail=("mlx-audio Qwen3-TTS; " if mac_arm and mlx else "needs mlx-audio (Apple Silicon); ") + clone_d),
             dict(provider="elevenlabs", kind="api", ready=bool(os.environ.get("ELEVENLABS_API_KEY")),
                  detail="key set" if os.environ.get("ELEVENLABS_API_KEY") else "needs ELEVENLABS_API_KEY (optional)")]
+    rows.append(dict(provider="system", kind="local", ready=installed("system"),
+                     detail="Installed macOS Chinese voices (offline)"))
     sc = server_config()
     if sc["base_url"]:
         up = False
@@ -333,6 +340,8 @@ def zh_voice_engine(engine="auto"):
     its reference, a TTS server, Microsoft's online voices (edge) -> that engine. An engine that cannot run here (no
     key, no reference, the Chinese voice not downloaded) -> None."""
     e = available_engine(engine)
+    if prefs().get("zh_engine") == "system":
+        return "system"  # explicit choice: an unavailable voice must fail clearly, never switch language
     if e in ("kokoro", "qwen"):
         if qwen_ready():
             return "qwen"
@@ -370,6 +379,8 @@ def prefs():
 def zh_voice(engine):
     """The Chinese voice of ``engine``: for qwen the app's choice (``prefs()["zh_voice"]``, one of QWEN_ZH_VOICES)
     first; then persona tts.<engine>_voice_zh, else ZH_VOICE; None = the engine's default."""
+    if engine == "system":
+        return prefs().get("system_voice") or ZH_VOICE["system"]
     if engine == "qwen":
         v = str(prefs().get("zh_voice") or "").lower()
         if v in QWEN_ZH_VOICES:
@@ -406,6 +417,8 @@ def kokoro_lang(voice):
 def _voice(engine, voice):
     if voice:
         return voice
+    if engine == "system":
+        return zh_voice("system")
     try:
         from .config import persona
         v = (persona().get("tts") or {}).get(f"{engine}_voice")
@@ -586,8 +599,8 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
           ref_wav=None, ref_text=None, language=None, seed=None):
     """Synthesise ``text`` -> 48 kHz mono wav; returns the wav path (``out`` if given, else the cache file).
 
-    Args: engine "openai" | "kokoro" | "qwen" | "edge" | "clone" | "openai-compatible" | "elevenlabs" | "auto"; voice
-    (default persona tts.<engine>_voice); speed (1.0 = normal; openai 0.25-4, edge as +-% rate, qwen by ffmpeg atempo;
+    Args: engine "openai" | "kokoro" | "qwen" | "system" | "edge" | "clone" | "openai-compatible" | "elevenlabs" | "auto"; voice
+    (default persona tts.<engine>_voice); speed (1.0 = normal; openai 0.25-4, edge as +-% rate, qwen/system by ffmpeg atempo;
     ignored by clone); instructions = delivery direction (openai gpt-4o-*, qwen: a style line); model overrides DEFAULT_MODEL; cache=False forces a new take (still cached after).
     clone only: ref_wav / ref_text / language (default persona tts.clone.*), seed (reproducible take; part
     of the cache key).
@@ -624,12 +637,15 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
                 _kokoro(text, voice, speed, model, raw, tmp)
             elif engine == "qwen":
                 _qwen(text, voice, model, raw, tmp, instructions)
+            elif engine == "system":
+                from .system_voice import synth as system_synth
+                system_synth(text, voice, raw, tmp)
             elif engine == "clone":
                 _clone(text, ccfg, raw, seed)
             else:
                 _edge(text, voice, speed, raw)
             part = cpath + ".part.wav"
-            tempo = ["-af", f"atempo={max(0.5, min(2.0, float(speed))):.4f}"] if engine == "qwen" and \
+            tempo = ["-af", f"atempo={max(0.5, min(2.0, float(speed))):.4f}"] if engine in ("qwen", "system") and \
                 abs(float(speed) - 1.0) > 1e-3 else []          # Qwen3-TTS has no speed of its own
             media.run(["ffmpeg", "-y", "-i", raw, *tempo, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", part])
             os.replace(part, cpath)

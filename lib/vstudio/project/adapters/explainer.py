@@ -105,6 +105,10 @@ def voice_payload(env, cp):
     v = voice_engine(env.params)
     engine = v["engine"]
     cur = env.params.get("voice") or "cedar"
+    from vstudio import tts
+    if lang == "zh" and tts.prefs().get("zh_engine") == "system" and cur in VOICES:
+        engine = "system"
+        v = dict(v, engine=engine, need=None, service=None, env=None)
     derived = None
     if engine and engine != "openai" and cur in VOICES:   # OpenAI's voices: show the voice that will really speak
         from vstudio import tts
