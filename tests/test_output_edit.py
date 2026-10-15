@@ -667,3 +667,29 @@ def test_cover_aspect_changes_cover_only(tmp_path):
     assert target["canvas"][0] / target["canvas"][1] == pytest.approx(16 / 9)
     assert Image.open(target["cover"]).size == (1080, 1440)
     assert file.exists()
+
+
+@media
+def test_ai_remote_sticker_is_local_before_apply_and_render(tmp_path, synth, monkeypatch):
+    from vstudio.project import outassets
+    w, oid = _work(tmp_path, synth)
+    monkeypatch.setenv('VSTUDIO_LLM_OUTPUT_EDIT_PROVIDER', 'claude-code')
+    def local_image(url, directory):
+        assert url == 'https://example.com/cat.png'
+        os.makedirs(os.path.join(directory, 'assets'), exist_ok=True)
+        path = os.path.join(directory, 'assets', 'cat.png')
+        shutil.copy(synth['sticker'], path)
+        return path
+    monkeypatch.setattr(outassets, 'image', local_image)
+    monkeypatch.setattr(llm, 'complete', lambda *a, **k: dict(
+        json=dict(summary='Sticker', ops=[dict(op='effect_add', effect='sticker', start=1, end=3,
+                  params=dict(image='https://example.com/cat.png', x=.5, y=.4))]),
+        provider='claude-code', model='test', cost_usd=0))
+    result = O.ai(w, oid, 'add the cat sticker at the specified position', apply=True)
+    assert result['applied'] and not result['dropped']
+    state = O.show(w, oid)['state']
+    assert os.path.isfile(state['effects'][0]['params']['image'])
+    # Replay / rendering only sees a local file. No live URL is needed after applying.
+    monkeypatch.setattr(outassets, 'image', lambda *a: pytest.fail('replay must not fetch again'))
+    rendered = R.render(w, oid, quality='preview')
+    assert rendered['ok'] and rendered['targets']

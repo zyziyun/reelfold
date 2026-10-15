@@ -2660,6 +2660,10 @@ Rules:
   ...); each version shows its own language. Premium look: few words, no exclamation marks, no emoji.
 - Respect the capability flags (e.g. a flattened output cannot restyle or edit burned-in captions).
 - Prefer few, purposeful ops; do not repeat existing effects.
+- Sticker images may use direct public HTTPS raster image URLs; the engine downloads and saves them locally.
+  Do not use an HTML library page as an image. Finding a sticker does not locate a face.
+- Privacy masking needs verified target positions throughout the requested interval. Never guess coordinates
+  or claim a fixed sticker tracks a face. If positions/tracking are unavailable, explain that no masking was applied.
 - A different video aspect needs source-based recomposition, not padding the finished movie. Never silently
   use band/letterbox to satisfy a size request. If source layout cannot be rebuilt here, explain the need to
   remake from original materials, or offer only a cover with a new aspect while retaining the video canvas.
@@ -3031,6 +3035,8 @@ def ai(d, output, instruction, apply=False, provider=None, model=None, use_asr=T
             continue
         clean = {k: v for k, v in op.items() if k not in ("why", "reason", "description")}
         try:
+            from .outassets import prepare
+            clean = prepare(doc, clean)
             n, v_, w = normalize(doc, cur, clean)
         except OutputError as e:
             dropped.append(dict(op=op, error=e.info))

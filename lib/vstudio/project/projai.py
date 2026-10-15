@@ -323,6 +323,8 @@ def _validate(doc, st, raw_ops, instruction=None, guard=True):
             continue
         clean = {k: v for k, v in op.items() if k not in ("why", "reason", "description", "output")}
         try:
+            from .outassets import prepare
+            clean = prepare(doc, clean)
             n, _, w = O.normalize(doc, cur, clean)
         except O.OutputError as e:
             dropped.append(dict(op=op, error=e.info))

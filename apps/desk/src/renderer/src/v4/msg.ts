@@ -21,6 +21,10 @@ const TIME_KEYS = new Set(['start', 'end', 't', 'at']);
 export function emsg(m: EngineMsg | string | null | undefined): string {
   if (!m) return '';
   if (typeof m === 'string') return m;
+  // Parameter errors contain the actual rejected field; a generic translation hides the remedy.
+  if (m.code === 'bad-param' && (m.message || m.message_zh)) {
+    return (getLang() === 'zh-CN' ? m.message_zh || m.message : m.message || m.message_zh)!;
+  }
   const key = `em.${m.code}`;
   if (has(key)) {
     const vars: Record<string, string | number> = {};

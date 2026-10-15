@@ -328,3 +328,8 @@ com.lveditor.draft`, Windows: `%LOCALAPPDATA%`). `--media copy` clones (APFS) / 
 ### Aspect changes versus cover adaptation
 
 A platform ratio is a recommendation, not permission to pad a finished movie. For a new aspect, rebuild from available original shots and the source composition; redesign titles, captions and safe areas, preserving story and audio. If the output editor cannot reconstruct that source layout, open a separate source-based remake draft and report missing sources before rendering. Alternatively keep the original video and make a new-ratio cover (`cover` with `aspect`); do not add an export or claim that a new-ratio video was made. A viewing-orientation hint can go on the cover. Use `layout: band` only when the creator explicitly asks to keep the whole frame in that designed layout.
+
+Remote sticker images in AI edits use direct public HTTPS raster URLs. The engine downloads, checks and saves
+an RGBA PNG under the output edit assets before proposing the operation; replay does not depend on the URL.
+A sticker is a fixed overlay, not person tracking. Privacy requests require verified target positions across
+the full interval; never guess a face position or claim a person has been anonymized without checking coverage.

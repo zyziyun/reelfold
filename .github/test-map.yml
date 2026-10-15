@@ -106,6 +106,7 @@ e2e:
   apps/desk/engine/tests/fixtures/desk_mock/**: [smoke.spec.ts, studio.spec.ts, create.spec.ts, runView.spec.ts]
   lib/vstudio/project/**: [projectPage.spec.ts, homeReal.spec.ts, inboxReal.spec.ts]
   lib/vstudio/project/outputs.py: [chatEdit.spec.ts]
+  lib/vstudio/project/outassets.py: [chatEdit.spec.ts]
   lib/vstudio/batch/**: [studioReal.spec.ts, homeReal.spec.ts, tryAgain.spec.ts]
   lib/vstudio/llm*.py: [modelSwitch.spec.ts, aiAccounts.spec.ts]
   lib/vstudio/create/**: [create.spec.ts, recordEdit.spec.ts, explainerVisuals.spec.ts]
