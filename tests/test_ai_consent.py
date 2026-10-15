@@ -65,7 +65,7 @@ def test_remote_or_lan_is_not_implicitly_local(monkeypatch, url):
 def test_non_mas_unchanged(monkeypatch):
     monkeypatch.delenv('VSTUDIO_AI_CONSENT_REQUIRED', raising=False)
     C.require('https://api.openai.com', 'analysis')
-    assert C.sdk_transport() == {}
+    assert C.sdk_transport("openai") == {}
 
 
 def test_refusal_blocks_real_http_tts(tmp_path, monkeypatch):
@@ -118,9 +118,12 @@ def test_cloud_asr_refusal_precedes_audio_preparation(tmp_path, monkeypatch):
 def test_redirects_never_forward_approved_content(monkeypatch):
     monkeypatch.setenv('VSTUDIO_AI_CONSENT_REQUIRED', '1')
     assert C._NoRedirect().redirect_request(None, None, 307, '', {}, 'https://other.example') is None
-    client = C.sdk_transport()['http_client']
+    client = C.sdk_transport("openai")['http_client']
     assert client.follow_redirects is False
-    client.close()
+    # SDK construction must accept its own transport (OpenAI 3 uses httpx2, not httpx).
+    from openai import OpenAI
+    sdk = OpenAI(api_key="test-only", http_client=client)
+    sdk.close()
 
 
 def test_standalone_ai_video_keeps_shared_consent_import_without_pythonpath(monkeypatch):
@@ -142,3 +145,30 @@ assert providers._http('https://test.invalid', b'{}')[0] == b'{}'
     env.pop('VSTUDIO_AI_CONSENT_REQUIRED', None)
     subprocess.run([sys.executable, '-I', '-c', code, str(root / 'workflows/ai-video/scripts')],
                    env=env, check=True, capture_output=True)
+
+
+def test_mas_openai_transport_sends_to_a_real_local_api(monkeypatch):
+    from vstudio import llm
+    seen = []
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            seen.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+            body = json.dumps(dict(id='test', object='chat.completion', created=0, model='test-model',
+                                   choices=[dict(index=0, message=dict(role='assistant', content='Allowed local reply'),
+                                                 finish_reason='stop')])).encode()
+            self.send_response(200); self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+        def log_message(self, *args):
+            pass
+    server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+    t = threading.Thread(target=server.serve_forever, daemon=True); t.start()
+    monkeypatch.setenv('VSTUDIO_AI_CONSENT_REQUIRED', '1')
+    monkeypatch.setenv('NO_PROXY', '127.0.0.1,localhost')
+    monkeypatch.setenv('no_proxy', '127.0.0.1,localhost')
+    try:
+        text, _, _ = llm._openai_chat('', 'Public test text', 'test-model', None, 10, 10, {},
+                                     base_url=f'http://127.0.0.1:{server.server_port}/v1', api_key='test-only')
+        assert text == 'Allowed local reply'
+        assert seen[0]['messages'][-1]['content'] == 'Public test text'
+    finally:
+        server.shutdown(); server.server_close(); t.join()

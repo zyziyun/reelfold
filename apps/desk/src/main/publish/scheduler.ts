@@ -20,6 +20,9 @@ export interface ApiAttempt {
   detail?: string;
   url?: string;
   lastTry: number;
+  /** The upload receipt is durable independently of the local calendar update. */
+  calendarSynced?: boolean;
+  resolvedAccount?: string;
 }
 
 interface State {
@@ -59,6 +62,7 @@ export class PublishScheduler {
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
   private last: CalendarPost[] = [];
+  private stateReadable = true;
 
   constructor(private deps: SchedulerDeps) {
     this.state = this.read();
@@ -67,20 +71,34 @@ export class PublishScheduler {
   private read(): State {
     try {
       const s = JSON.parse(fs.readFileSync(this.deps.stateFile, 'utf8')) as State;
+      const record = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+      if (!record(s) || (s.notified !== undefined && (!record(s.notified) || Object.values(s.notified).some((at) => typeof at !== 'string'))) ||
+        (s.api !== undefined && (!record(s.api) || Object.values(s.api).some((a) =>
+        !record(a) || typeof a.at !== 'string' || !['uploading', 'done', 'failed'].includes(a.status) ||
+        !Number.isInteger(a.tries) || a.tries < 1 || !Number.isFinite(a.lastTry))))) {
+        throw new Error('Invalid upload receipt journal');
+      }
       return { notified: s.notified ?? {}, api: s.api ?? {} };
-    } catch {
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+        this.stateReadable = false;
+        this.deps.log?.(`[scheduler] state unreadable; automatic uploads stopped: ${(e as Error).message}`);
+      }
       return { notified: {}, api: {} };
     }
   }
 
-  private write() {
+  private write(): boolean {
+    if (!this.stateReadable) return false;
     try {
       fs.mkdirSync(path.dirname(this.deps.stateFile), { recursive: true });
       const tmp = this.deps.stateFile + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(this.state, null, 1));
       fs.renameSync(tmp, this.deps.stateFile);
+      return true;
     } catch (e) {
       this.deps.log?.(`[scheduler] could not save state: ${(e as Error).message}`);
+      return false;
     }
   }
 
@@ -141,7 +159,15 @@ export class PublishScheduler {
 
   private async runApi(posts: CalendarPost[], now: Date): Promise<string[]> {
     const api = this.deps.api;
-    if (!api) return [];
+    if (!api || !this.stateReadable) return [];
+    // Reconcile receipts even outside the upload window or after auto-upload is switched off.
+    // A remote success must never become a new upload because the local calendar was unavailable.
+    for (const p of posts) {
+      const receipt = this.state.api[p.id];
+      if (receipt?.status === 'done' && !receipt.calendarSynced && receipt.at === p.at && (receipt.account ?? null) === (p.account ?? null)) {
+        await this.syncReceipt(p, receipt);
+      }
+    }
     const lead = this.deps.leadMs ?? 60 * 60_000;
     const grace = this.deps.apiGraceMs ?? 6 * 3600_000;
     const t = now.getTime();
@@ -161,13 +187,18 @@ export class PublishScheduler {
       const publishAt = at.getTime() - t > 15 * 60_000 ? at : null;
       const rec: ApiAttempt = { at: p.at, account: p.account, status: 'uploading', tries: (same ? prev.tries : 0) + 1, lastTry: t };
       this.state.api[p.id] = rec;
-      this.write();
+      if (!this.write()) {
+        if (prev) this.state.api[p.id] = prev;
+        else delete this.state.api[p.id];
+        continue; // Do not make an external change without a durable attempt record.
+      }
       ran.push(p.id);
       try {
         const r = await api.publish(p, publishAt);
         if (r.ok) {
-          this.state.api[p.id] = { ...rec, status: 'done', ...(r.url ? { url: r.url } : {}) };
-          await this.deps.markPosted(r.account ? { ...p, account: r.account } : p, r.url, 'api');
+          const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}) };
+          this.state.api[p.id] = receipt;
+          await this.syncReceipt(p, receipt);
         } else {
           this.state.api[p.id] = { ...rec, status: 'failed', detail: r.error };
           this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
@@ -179,5 +210,20 @@ export class PublishScheduler {
       this.write();
     }
     return ran;
+  }
+
+  private async syncReceipt(p: CalendarPost, receipt: ApiAttempt): Promise<void> {
+    // Save remote success before touching the calendar. Keep it in memory on disk errors,
+    // while the previous durable 'uploading' record prevents a restart from re-uploading.
+    if (!this.write()) return;
+    try {
+      if (p.state !== 'posted') {
+        await this.deps.markPosted(receipt.resolvedAccount ? { ...p, account: receipt.resolvedAccount } : p, receipt.url ?? null, 'api');
+      }
+      receipt.calendarSynced = true;
+      this.write();
+    } catch (e) {
+      this.deps.log?.(`[scheduler] API post ${p.id} uploaded; calendar sync pending: ${(e as Error).message}`);
+    }
   }
 }

@@ -511,7 +511,7 @@ def _anthropic(system, prompt, model, schema, max_tokens, timeout, opts):
     except ImportError:
         return _anthropic_http(kw, timeout)
     ai_consent.require(os.environ.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com", "analysis")
-    client = anthropic.Anthropic(**dict(ai_consent.sdk_transport(), **({"timeout": timeout} if timeout else {})))
+    client = anthropic.Anthropic(**dict(ai_consent.sdk_transport("anthropic"), **({"timeout": timeout} if timeout else {})))
     try:
         try:                                      # server-side refusal fallback (beta) when the SDK knows it
             resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
@@ -543,7 +543,7 @@ def _openai_chat(system, prompt, model, schema, max_tokens, timeout, opts, base_
     if timeout:
         kw["timeout"] = timeout
     ai_consent.require(base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1", "analysis")
-    client = OpenAI(api_key=api_key, **kw, **ai_consent.sdk_transport())
+    client = OpenAI(api_key=api_key, **kw, **ai_consent.sdk_transport("openai"))
     req = dict(model=model, messages=([{"role": "system", "content": system}] if system else []) +
                [{"role": "user", "content": prompt}])
     if official:

@@ -228,15 +228,18 @@ test('first run in Lite: API keys and local models, no subscription sign-in', as
 });
 
 test('the sample, end to end in the sandbox (speech model download, ASR, cleanup, render, QC)', async () => {
-  test.skip(process.env.DESK_TEST_SAMPLE !== '1', 'set DESK_TEST_SAMPLE=1 (downloads ~0.5 GB of models, ~5 min)');
+  test.skip(process.env.DESK_TEST_SAMPLE !== '1', 'set DESK_TEST_SAMPLE=1 (downloads ~1.2 GB of required assets)');
   test.setTimeout(20 * 60_000);
   const app = await launch();
   try {
     const page = app.page;
-    await page.evaluate(() => window.desk.assets.install(['core', 'asr-mlx-fast']));
+    await page.evaluate(() => window.desk.assets.install());
     await expect
-      .poll(async () => (await page.evaluate(() => window.desk.assets.status())).groups.filter((g) => ['core', 'asr-mlx-fast'].includes(g.id) && g.installed).length, { timeout: 10 * 60_000, intervals: [5000] })
-      .toBe(2);
+      .poll(async () => {
+        const status = await page.evaluate(() => window.desk.assets.status());
+        return status.groups.every((g) => !g.required || g.installed) && !status.restartNeeded;
+      }, { timeout: 10 * 60_000, intervals: [5000] })
+      .toBe(true);
     // the pilot clip is rendered and waits for her review (the publish checkpoint): judged on what THIS run writes to the
     // projects' desk-pilot.log files (the container keeps projects from earlier runs)
     const projects = path.join(app.userData, 'vstudio-home', 'projects');
@@ -252,7 +255,8 @@ test('the sample, end to end in the sandbox (speech model download, ASR, cleanup
       await more.click();
       await page.getByTestId('idea-sample').click();
     }
-    await page.getByText(/^Start/).first().click({ timeout: 120000 });
+    // A fresh profile uses Autopilot: clicking the sample starts its real job at once.
+    // A text match for /^Start/ used to click the unrelated ‘Start from’ section label.
     await expect
       .poll(
         () => {
