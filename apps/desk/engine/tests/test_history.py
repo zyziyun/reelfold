@@ -79,6 +79,13 @@ class HistoryTest(unittest.TestCase):
             os.rename(movie, movie + ".moved")
             self.assertTrue(WK.summarize(d)["missing_outputs"])
 
+    def test_stopped_dead_pilot_does_not_block_deletion_on_stale_status(self):
+        d = tempfile.mkdtemp(dir=self.root)
+        with mock.patch.object(HI, "pilot_stopped", return_value=100), mock.patch.object(HI, "pilot_running", return_value=None), mock.patch.object(HI, "live_status", return_value={"state": "running", "started": 90, "heartbeat": 101}):
+            self.assertIsNone(self.h._busy(d))
+        with mock.patch.object(HI, "pilot_stopped", return_value=100), mock.patch.object(HI, "pilot_running", return_value={"started": 90}), mock.patch.object(HI, "live_status", return_value={"state": "running", "started": 90}):
+            self.assertIsNotNone(self.h._busy(d))
+
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="hist-")
         self.data = os.path.join(self.root, "desk")

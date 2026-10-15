@@ -400,9 +400,11 @@ class History:
         """Why ``path`` cannot be archived now (a run is going) -> a short reason, else None. Never stops a run."""
         d = os.path.abspath(path)
         store = os.path.join(d, "state") if os.path.exists(os.path.join(d, "project.yaml")) else d
+        halted = pilot_stopped(d)
+        active = pilot_running(d)
         for x in dict.fromkeys((d, store)):
             live = live_status(x)
-            if live and live.get("state") == "running":
+            if live and live.get("state") == "running" and not (halted and not active and (live.get("started") or 0) <= halted):
                 return live.get("message") or live.get("stage") or "running"
         if pilot_running(d):
             return "pilot running"
@@ -742,14 +744,16 @@ class History:
             run = None if kind_ == "batch" or fail else pilot_running(d)
             if run:
                 info["pilot"] = run
+                if pilot_stopped(d):
+                    info["stopped"] = pilot_stopped(d)
             in_line = None if kind_ == "batch" or run else pilot_queued(d)
             if in_line:
                 info["queued"] = in_line                 # waits for a free run slot (pilot.RunQueue): 1 = next
             halted = None if kind_ == "batch" or run or in_line or fail else pilot_stopped(d)
             if halted and not (live and live.get("state") in ("running", "waiting") and
-                               (live.get("heartbeat") or 0) > halted + 30):
+                               (live.get("started") or 0) > halted):
                 info["stopped"] = halted                 # she stopped its run (pilot.stop): Try again goes on
-                if live and live.get("state") in ("running", "interrupted", "failed"):
+                if live and live.get("state") in ("running", "waiting", "interrupted", "failed"):
                     live = dict(live, state="stopped")
             if fail and fail.get("remake"):
                 # a remake that stopped (a redo of the visuals no model drew): the video it had stands - Ready with a

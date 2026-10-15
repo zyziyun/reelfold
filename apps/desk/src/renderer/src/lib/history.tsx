@@ -153,13 +153,14 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     window.desk.watchHistory?.(roots).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, !!data]);
-  const anyLive = live.some((i) => i.live?.state === 'running' || i.live?.state === 'waiting');
+  const stopping = (data?.items ?? []).some(i => !!i.stopped && !!i.pilot);
+  const anyLive = stopping || live.some((i) => i.live?.state === 'running' || i.live?.state === 'waiting');
   useEffect(() => {
     if (!anyLive) return;
-    const tm = setInterval(reload, 60_000);
+    const tm = setInterval(reload, stopping ? 2_000 : 60_000);
     return () => clearInterval(tm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyLive]);
+  }, [anyLive, stopping]);
 
   const requests = useMemo(() => reqs.data?.items ?? [], [reqs.data]);
   const archivedRequests = useMemo(() => archReqs.data?.items ?? [], [archReqs.data]);
