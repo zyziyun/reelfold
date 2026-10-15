@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { youtubeSource, youtubeTime } from '../../src/renderer/src/create/learning/source';
+import { youtubeBrowserUrl, youtubeSource, youtubeTime } from '../../src/renderer/src/create/learning/source';
 import { youtubeEmbedIdentity, buildCsp } from '../../src/main/security';
 import { createHref, parseCreate } from '../../src/renderer/src/create/routes';
 
@@ -17,6 +17,13 @@ describe('a human creation workspace', () => {
     expect(new URL(source!.embed).hostname).toBe('www.youtube-nocookie.com');
     expect(youtubeSource('https://youtu.be/6WaeGfLnRvc?t=1h2m3s')?.start).toBe(3723);
     for (const u of ['https://youtube.com.evil.test/watch?v=6WaeGfLnRvc', 'javascript:alert(1)', 'http://youtube.com/watch?v=6WaeGfLnRvc', 'https://www.youtube.com/watch?v=wrong']) expect(youtubeSource(u)).toBeNull();
+  });
+  it('opens the official browser playback page at the current known position', () => {
+    const source = 'https://youtu.be/6WaeGfLnRvc?t=3198s';
+    expect(youtubeBrowserUrl(source)).toBe('https://www.youtube.com/watch?v=6WaeGfLnRvc&t=3198s');
+    expect(youtubeBrowserUrl(source, 3201.9)).toBe('https://www.youtube.com/watch?v=6WaeGfLnRvc&t=3201s');
+    expect(youtubeBrowserUrl(source, NaN)).toBe(youtubeBrowserUrl(source));
+    expect(youtubeBrowserUrl('https://youtube.com.evil.test/watch?v=6WaeGfLnRvc')).toBeNull();
   });
   it('rejects malformed time messages instead of treating them as current source time', () => {
     expect(youtubeTime('{')).toBeNull();

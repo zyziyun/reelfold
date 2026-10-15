@@ -91,6 +91,32 @@ class Workspace(unittest.TestCase):
         self.assertEqual(len(d['blocks']),0)
         self.assertTrue(os.path.isfile(self.source))
 
+    def test_source_text_is_readable_bounded_and_never_becomes_personal_testimony(self):
+        path=os.path.join(self.root,'book-notes.md')
+        text='\ufeff# Source passage\n原文观点。<img src=x onerror=alert(1)>\n'
+        with open(path,'w',encoding='utf-8') as f:f.write(text)
+        with mock.patch('vstudio.llm.complete',side_effect=AssertionError('No AI for reading')):
+            d=self.api.create(dict(idea='Reading and thinking',files=[path]))
+            self.assertFalse(d['sources'])
+            sid=next(iter(d['readings']))
+            self.assertEqual(d['readings'][sid]['text'],text.lstrip('\ufeff'))
+            self.assertEqual(d['script'],'')
+            quote=self.api.update(d['id'],dict(action='note',text='原文观点。',source=sid,at=None,kind='quote'))
+            self.assertEqual(quote['notes'][0]['source'],sid)
+            self.assertEqual(quote['script'],'')
+            own=self.api.update(d['id'],dict(action='note',text='This is my interpretation.',source=sid,at=None))
+            self.assertEqual(own['script'],'This is my interpretation.')
+            self.assertEqual(self.api.get(d['id'])['readings'][sid]['text'],text.lstrip('\ufeff'))
+            with self.assertRaises(BadRequest):self.api.update(d['id'],dict(action='note',text='x',source=sid,at=1))
+            with self.assertRaises(BadRequest):self.api.update(d['id'],dict(action='block',block=dict(source=sid,start=0,end=1)))
+        with open(path,'w',encoding='utf-8') as f:f.write('文'*100001)
+        read=self.api.get(d['id'])['readings'][sid]
+        self.assertEqual(len(read['text']),100000);self.assertTrue(read['truncated'])
+        self.assertEqual(os.path.getsize(path),300003)
+        os.rename(path,path+'.moved')
+        self.assertTrue(self.api.get(d['id'])['readings'][sid]['unavailable'])
+        self.assertEqual(len(self.api.get(d['id'])['notes']),2)
+
     def test_local_only_dictation_never_falls_through_to_cloud(self):
         from vstudio.create import store
         d=self.create();rec=os.path.join(store.recordings_root(),'thought');os.makedirs(rec)

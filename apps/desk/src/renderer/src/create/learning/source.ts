@@ -19,3 +19,11 @@ export function youtubeTime(data: unknown): number | null {
     return msg?.event === 'infoDelivery' && typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
   } catch { return null; }
 }
+
+/** Hand off playback/login to the user's normal browser at the chosen source position. */
+export function youtubeBrowserUrl(value: string, at?: number): string | null {
+  const source = youtubeSource(value);
+  if (!source) return null;
+  const time = typeof at === 'number' && Number.isFinite(at) && at >= 0 ? Math.floor(at) : source.start;
+  return `https://www.youtube.com/watch?v=${source.id}&t=${time}s`;
+}

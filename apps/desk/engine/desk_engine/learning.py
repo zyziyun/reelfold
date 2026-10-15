@@ -1,4 +1,5 @@
 """Human-led creation workspace. Reading, notes and material ordering never invoke an AI planner."""
+import hashlib
 import math
 import os
 import re
@@ -44,6 +45,22 @@ class Learning:
             old = inputs.get(key) or []
             inputs[key] = list(dict.fromkeys((old if isinstance(old, list) else [old]) + [path]))
         return inputs
+
+    def _readings(self, inputs):
+        """Local source notes are readable material, never silently promoted to the creator's ideas."""
+        rows = {}
+        paths = inputs.get('notes') or []
+        for path in paths if isinstance(paths, list) else [paths]:
+            ident = 'reading-' + hashlib.sha256(os.fsencode(os.path.abspath(path))).hexdigest()[:12]
+            row = dict(id=ident, path=path, text='', truncated=False)
+            try:
+                with open(path, encoding='utf-8-sig') as f:
+                    text = f.read(100001)
+                row.update(text=text[:100000], truncated=len(text) > 100000)
+            except (OSError, UnicodeError):
+                row['unavailable'] = True
+            rows[ident] = row
+        return rows
 
     def list(self):
         from vstudio.batch.clients import home
@@ -95,7 +112,7 @@ class Learning:
         doc = read_json(os.path.join(p.dir, 'learning.json'), {})
         sources = learning.catalog(p.data.get('inputs') or {})
         self.inbox.history.allow_media([s['path'] for s in sources.values()] + [v['audio'] for v in doc.get('voice_notes',[])])
-        return dict(doc, sources=sources, script='\n\n'.join(n['text'] for n in doc['notes'] if n.get('kind') == 'thought'))
+        return dict(doc, sources=sources, readings=self._readings(p.data.get('inputs') or {}), script='\n\n'.join(n['text'] for n in doc['notes'] if n.get('kind') == 'thought'))
 
     def update(self, ident, b):
         from vstudio import learning, media
@@ -118,7 +135,9 @@ class Learning:
             elif action == 'note':
                 text, source, at = b.get('text'), b.get('source'), b.get('at')
                 need(isinstance(text, str) and 0 < len(text.strip()) <= 20000, 'say or write your thought')
-                need(source is None or source in sources or source in doc['links'], 'choose an attached source')
+                readings = self._readings(p.data.get('inputs') or {})
+                need(source is None or source in sources or source in readings or source in doc['links'], 'choose an attached source')
+                need(source not in readings or at is None, 'text notes do not have a playback time')
                 need(at is None or (isinstance(at, (int,float)) and not isinstance(at,bool) and math.isfinite(at) and at >= 0), 'choose a valid source time')
                 if source in sources and at is not None:
                     duration = sources[source].get('duration')

@@ -54,7 +54,7 @@ export function LearningCreate() {
   }, [client, query.id, ui]);
   useEffect(() => {
     if (!doc || source) return;
-    const first = Object.keys(doc.sources)[0] ?? doc.links[0] ?? '';
+    const first = Object.keys(doc.sources)[0] ?? Object.keys(doc.readings ?? {})[0] ?? doc.links[0] ?? '';
     setSource(first); setTime(youtubeSource(first)?.start ?? 0);
   }, [doc, source]);
   const act = async (fn: () => Promise<void>) => {
@@ -87,11 +87,12 @@ export function LearningCreate() {
     {!!recent.length && <div className="col" style={{ gap: 10, marginTop: 24 }}><h3>{t('learning.resume')}</h3>{recent.map((r) => <a className="btn ghost" key={r.id} href={`#/create/learning?id=${r.id}`}>{r.title}</a>)}</div>}
   </div>;
   const current = doc.sources[source];
+  const reading = doc.readings?.[source];
   const takes = Object.values(doc.sources).filter((s) => s.role === 'commentary');
   const sourceName = (s: LearningSource) => s.role === 'commentary' ? `${t('learning.myTake')} ${takes.findIndex((x) => x.id === s.id) + 1} · ${fmtClock(s.duration ?? 0)}` : s.path.split(/[\\/]/).pop();
   const credit = doc.credits[source] ?? { title: current?.path.split(/[\\/]/).pop() ?? '', creator: '', locator: '' };
   const saveThought = () => void act(async () => {
-    const pos = anchor.current ?? { source: source || null, at: source && !current?.image && timeKnown ? time : null };
+    const pos = anchor.current ?? { source: source || null, at: source && !reading && !current?.image && timeKnown ? time : null };
     await change(editingNote ? { action: 'revise-note', note: editingNote, text: thought } : { action: 'note', text: thought, kind, ...pos, ...(voiceAudio ? { voice_audio: voiceAudio } : {}) });
     setThought(''); setEditingNote(null); setVoiceAudio(null); anchor.current = null;
   });
@@ -103,16 +104,16 @@ export function LearningCreate() {
       <section className="learning-panel">
         <h2>{t('learning.materials')}</h2>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <select value={source} onChange={(e) => select(e.target.value)} aria-label={t('learning.materials')} data-testid="learning-source-select"><option value="">{t('learning.pickSource')}</option>{Object.values(doc.sources).map((s) => <option value={s.id} key={s.id}>{sourceName(s)}</option>)}{doc.links.map((u) => <option value={u} key={u}>{youtubeSource(u) ? `${t('learning.youtubePlayer')} · ${fmtClock(youtubeSource(u)!.start)}` : u}</option>)}</select>
+          <select value={source} onChange={(e) => select(e.target.value)} aria-label={t('learning.materials')} data-testid="learning-source-select"><option value="">{t('learning.pickSource')}</option>{Object.values(doc.sources).map((s) => <option value={s.id} key={s.id}>{sourceName(s)}</option>)} {Object.values(doc.readings ?? {}).map((r) => <option value={r.id} key={r.id}>{r.path.split(/[\\/]/).pop()}</option>)}{doc.links.map((u) => <option value={u} key={u}>{youtubeSource(u) ? `${t('learning.youtubePlayer')} · ${fmtClock(youtubeSource(u)!.start)}` : u}</option>)}</select>
           <button className="btn sm" disabled={busy} onClick={pick}>{t('learning.sources')}</button>
         </div>
         <div className="row" style={{ gap: 8, margin: '12px 0' }}><input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder={t('learning.linkHint')} aria-label={t('learning.linkHint')} data-testid="learning-link" /><button className="btn sm" disabled={busy || !link.trim()} onClick={() => void act(async () => { await change({ action: 'link', url: link.trim() }); select(link.trim()); setLink(''); })}>{t('learning.addLink')}</button></div>
-        <SourcePlayer source={current} link={!current ? source : undefined} onTime={onTime} seek={seek} pause={pause} />
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <SourcePlayer source={current} reading={reading} browserTime={timeKnown ? time : undefined} link={!current && !reading ? source : undefined} onTime={onTime} seek={seek} pause={pause} />
+        {!reading && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           <span className="small">{fmtClock(time)}</span><details><summary data-testid="learning-time-edit">{t('learning.timeEdit')}</summary><label className="small">{t('learning.sourceTime')} <input type="number" min={0} step={0.1} value={Math.round(time * 10) / 10} onChange={(e) => { setTime(Number(e.target.value)); setTimeKnown(true); }} style={{ width: 90 }} data-testid="learning-source-time" /></label></details>
           {current && !current.image && <><button className="btn sm" onClick={() => setMark(time)} data-testid="learning-mark-start">{mark === null ? t('learning.markStart') : fmtClock(mark)}</button><button className="btn sm" disabled={busy || mark === null || time <= mark} onClick={() => void act(async () => { await change({ action: 'block', block: { source, start: mark, end: time, point: thought.trim() || doc.title } }); setMark(null); })} data-testid="learning-keep-range">{t('learning.addPassage')}</button></>}
           {current?.role === 'commentary' && <button className="btn sm" disabled={busy} onClick={() => void act(() => change({ action: 'block', block: { source, start: 0, end: current.duration, point: t('learning.myTake') } }))} data-testid="learning-use-take">{t('learning.useWholeTake')}</button>}
-        </div>
+        </div>}
         {!current && youtubeSource(source) && !timeKnown && <p className="small muted">{t('learning.timeNotKnown')}</p>}
         {current?.image && <div className="row" style={{ gap: 8, marginTop: 12 }}>
           <select value={pageVoice} onChange={(e) => setPageVoice(e.target.value)} aria-label={t('learning.pageVoice')}><option value="">{t('learning.pageVoice')}</option>{Object.values(doc.sources).filter((s) => s.role === 'commentary').map((s) => <option key={s.id} value={s.id}>{sourceName(s)}</option>)}</select>
@@ -124,12 +125,12 @@ export function LearningCreate() {
       <section className="learning-panel">
         <h2>{t('learning.thinking')}</h2><p className="muted small">{t('learning.dictationHint')}</p>
         <div className="row" style={{ gap: 8 }}><button className={`btn sm ${kind === 'thought' ? 'primary' : ''}`} onClick={() => setKind('thought')}>{t('learning.myThought')}</button><button className={`btn sm ${kind === 'quote' ? 'primary' : ''}`} onClick={() => setKind('quote')}>{t('learning.sourceQuote')}</button></div>
-        <textarea value={thought} onFocus={() => { setPause((n) => n + 1); anchor.current ??= { source: source || null, at: source && !current?.image && timeKnown ? time : null }; }} onChange={(e) => setThought(e.target.value)} placeholder={t('learning.thoughtsHint')} style={{ width: '100%', minHeight: 140, margin: '12px 0' }} data-testid="learning-thought" />
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><VoiceNote id={doc.id} disabled={busy} onStart={() => { setPause((n) => n + 1); anchor.current = { source: source || null, at: source && !current?.image && timeKnown ? time : null }; }} onText={(text, audio) => { setThought((old) => old ? old + '\n' + text : text); setVoiceAudio(audio); }} /><button className="btn primary" disabled={busy || !thought.trim()} onClick={saveThought} data-testid="learning-save-thought">{t('learning.saveThought')}</button>{editingNote && <button className="btn ghost" onClick={() => { setEditingNote(null); setThought(''); anchor.current = null; }}>{t('learning.newThought')}</button>}</div>
+        <textarea value={thought} onFocus={() => { setPause((n) => n + 1); anchor.current ??= { source: source || null, at: source && !reading && !current?.image && timeKnown ? time : null }; }} onChange={(e) => setThought(e.target.value)} placeholder={t('learning.thoughtsHint')} style={{ width: '100%', minHeight: 140, margin: '12px 0' }} data-testid="learning-thought" />
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><VoiceNote id={doc.id} disabled={busy} onStart={() => { setPause((n) => n + 1); anchor.current = { source: source || null, at: source && !reading && !current?.image && timeKnown ? time : null }; }} onText={(text, audio) => { setThought((old) => old ? old + '\n' + text : text); setVoiceAudio(audio); }} /><button className="btn primary" disabled={busy || !thought.trim()} onClick={saveThought} data-testid="learning-save-thought">{t('learning.saveThought')}</button>{editingNote && <button className="btn ghost" onClick={() => { setEditingNote(null); setThought(''); anchor.current = null; }}>{t('learning.newThought')}</button>}</div>
         <div className="col" style={{ gap: 10, marginTop: 16 }} data-testid="learning-notes">
           {doc.notes.map((n) => <article key={n.id} className="ux-opt">
             <div className="learning-notehead">
-              <small>{n.kind === 'thought' ? t('learning.myThought') : t('learning.sourceQuote')} {n.at !== null && <button className="btn ghost sm" onClick={() => { if (n.source) select(n.source); setSeek(n.at); }}>{fmtClock(n.at)}</button>}</small>
+              <small>{n.kind === 'thought' ? t('learning.myThought') : t('learning.sourceQuote')} {n.at !== null && <button className="btn ghost sm" onClick={() => { if (n.source) select(n.source); setSeek(n.at); }}>{fmtClock(n.at)}</button>}{n.at === null && n.source && <button className="btn ghost sm" onClick={() => { if (n.source) select(n.source); }}>{t('learning.backToSource')}</button>}</small>
               <button className="btn ghost sm" onClick={() => { setThought(n.text); setKind(n.kind); setEditingNote(n.id); anchor.current = { source: n.source, at: n.at }; }}>{t('learning.reviseThought')}</button>
             </div>
             <p style={{ whiteSpace: 'pre-wrap' }}>{n.text}</p>

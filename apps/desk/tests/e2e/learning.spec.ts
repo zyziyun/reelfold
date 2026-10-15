@@ -187,3 +187,60 @@ test('a book page with my recording becomes a real editable video and workspaces
   for (let n = 0; n < count; n++) { const x = pcm.readInt16LE(n * 2) / 32768; real += x * Math.cos(2 * Math.PI * 500 * n / 8000); imag += x * Math.sin(2 * Math.PI * 500 * n / 8000); }
   expect(2 * Math.hypot(real, imag) / count).toBeGreaterThan(0.06);
 });
+
+
+test('read attached text, quote it, then add my own thought without executing the source', async () => {
+  const notes = path.join(tmp, 'source-notes.md');
+  fs.writeFileSync(notes, '# A source passage\n原文观点。<img src=x onerror="window.sourceExecuted=true">');
+  const d = await api('POST', '/api/create/learning', { idea: 'Read source notes and think', files: [notes] });
+  const sid = Object.keys(d.readings)[0];
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, d.id);
+  const reading = page.getByTestId('learning-source-reading');
+  await expect(reading).toContainText('原文观点。<img');
+  await expect(page.getByTestId('learning-source-select')).toHaveValue(sid);
+  expect(await page.evaluate(() => 'sourceExecuted' in window)).toBe(false);
+  await page.getByRole('button', { name: 'Source excerpt', exact: true }).click();
+  await page.getByTestId('learning-thought').fill('原文观点。');
+  await page.getByTestId('learning-save-thought').click();
+  let doc = await api('GET', `/api/create/learning/${d.id}`);
+  expect(doc.notes[0]).toMatchObject({ source: sid, at: null, kind: 'quote' });
+  expect(doc.script).toBe('');
+  await page.getByRole('button', { name: 'My thought', exact: true }).click();
+  await page.getByTestId('learning-thought').fill('My interpretation stays separate from the quoted text.');
+  await page.getByTestId('learning-save-thought').click();
+  await page.getByTestId('learning-post').click();
+  await expect(page.getByRole('textbox', { name: 'Editable post draft' })).toHaveValue('My interpretation stays separate from the quoted text.');
+  await page.reload();
+  await expect(reading).toContainText('原文观点。');
+  doc = await api('GET', `/api/create/learning/${d.id}`);
+  expect(doc.notes).toHaveLength(2);
+  expect(fs.readFileSync(notes, 'utf8')).toContain('# A source passage');
+});
+
+
+test('YouTube login hands playback to the normal browser at my chosen time and keeps my thoughts', async () => {
+  const d = await api('POST', '/api/create/learning', { idea: 'Think alongside this interview https://www.youtube.com/watch?v=6WaeGfLnRvc&t=3198s', files: [] });
+  await page.route('https://www.youtube-nocookie.com/embed/**', (route) => route.fulfill({ contentType: 'text/html', body: '<p>Test player: sign in to continue</p>' }));
+  await app.evaluate(({ shell }) => {
+    const state = globalThis as unknown as { originalBrowserOpen: typeof shell.openExternal; browserUrls: string[] };
+    state.originalBrowserOpen = shell.openExternal; state.browserUrls = [];
+    shell.openExternal = async (url) => { state.browserUrls.push(url); };
+  });
+  try {
+    await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, d.id);
+    await expect(page.getByTestId('learning-youtube-browser')).toBeVisible();
+    await page.getByTestId('learning-thought').fill('My idea before signing in.');
+    await page.getByTestId('learning-save-thought').click();
+    await page.getByTestId('learning-time-edit').click();
+    await page.getByTestId('learning-source-time').fill('3201');
+    await page.getByTestId('learning-youtube-browser').click();
+    expect(await app.evaluate(() => (globalThis as unknown as { browserUrls: string[] }).browserUrls)).toEqual(['https://www.youtube.com/watch?v=6WaeGfLnRvc&t=3201s']);
+    await expect(page.getByTestId('learning-workspace')).toBeVisible();
+    await expect(page.getByTestId('learning-notes')).toContainText('My idea before signing in.');
+    await page.reload();
+    await expect(page.getByTestId('learning-notes')).toContainText('My idea before signing in.');
+  } finally {
+    await app.evaluate(({ shell }) => { shell.openExternal = (globalThis as unknown as { originalBrowserOpen: typeof shell.openExternal }).originalBrowserOpen; });
+    await page.unroute('https://www.youtube-nocookie.com/embed/**');
+  }
+});

@@ -28,6 +28,20 @@ local/player source. Text fields accept ordinary input, system dictation and too
 special SDK or a claim of a Typeless partnership. Built-in microphone dictation uses installed local ASR,
 returns editable text and never falls back to a cloud provider. Accuracy depends on the actual local model.
 
+When YouTube asks for login/verification, offer **Sign in and play in browser**. Open the canonical official
+watch page in the user's normal system browser, preserving the last known/manual source time (or original link
+start). The creator completes Google's login/verification there and keeps playing there while using this
+workspace. Do not claim browser login transfers into the embedded player, automatically sync external playback,
+or detect completed login. External-browser notes use manual time calibration. Do not collect passwords/cookies
+or route Google account login through a privileged embedded view. A successful handoff is not proof that the
+user completed verification or that online playback passed.
+
+Attached `.md` / `.txt` source notes are readable as plain text in the material panel, with stable source IDs for
+thoughts and quotations. Reading does not turn them into first-person testimony or invoke a model. A bounded
+preview shows an explicit notice past 100,000 characters; missing or non-UTF-8 sources show a visible error.
+Raw files are unchanged. Text source notes are reading material, not automatically rendered video passages;
+record a personal explanation or attach a visual page to make a demo from them.
+
 Camera/mic capture and the existing user-picked screen/window capture stay beside the source. Raw camera,
 microphone and screen tracks remain in the recording session; a muxed derivative becomes a personal material.
 Screen capture offers an explicit, default-off option to include materials playing inside Reelfold. This captures
