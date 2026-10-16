@@ -8,6 +8,19 @@ App releases are tagged `v*`; engine-only releases are tagged `engine-v*`.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-16
+
+### Added
+
+- **Learning and commentary workspace**: keep source materials beside your own thoughts, record camera or screen commentary, and turn selected notes and takes into an editable video.
+- **Native multilingual text layout**: shaped paragraphs and language-aware line breaks for captions and covers.
+
+### Fixed
+
+- Save the final recording data after a device disconnects, release capture devices when leaving, and keep Stop stable while the recording clock advances.
+- Reopen the main window from the Window menu; explain camera and microphone usage and request consent before sending content to cloud AI.
+- Download public-domain music from the verified mirror; preserve cover framing and detect missing publish titles.
+
 ### Added
 
 - **A length per platform**: each platform's version of a video now has its own length, from that platform's habits
@@ -570,7 +583,9 @@ in the commit log (formerly `video-studio` and `Daycut`).
 - API keys in the OS keychain; every IPC call validated; the local engine needs a per-session token.
 - No silent mock engine or demo mode in the product: a packaged app always runs the real engine.
 
-[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/zyziyun/reelfold/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/zyziyun/reelfold/compare/v0.2.8...v0.2.9
+[0.2.8]: https://github.com/zyziyun/reelfold/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/zyziyun/reelfold/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/zyziyun/reelfold/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/zyziyun/reelfold/compare/v0.2.4...v0.2.5
