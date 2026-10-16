@@ -195,10 +195,12 @@ def _tokens(text):
     parts = [(substring, highlighted)]: a glued punctuation mark keeps its OWN highlight state, so
     ``**里**，`` never becomes ``**里，**``."""
     raw = []
+    from .textbreak import dictionary_words
     for seg, hi in parse_highlight(text):
+        dictionary = dictionary_words(seg)
         i = 0
         while i < len(seg):
-            end = word_end(seg, i)
+            end = dictionary.get(i) or word_end(seg, i)
             if end > i:
                 raw.append((seg[i:end], hi)); i = end
             else:
@@ -427,6 +429,9 @@ def _seam_space(a, b):
     "word", "Claude" + "Code做"), never next to CJK or before closing / after opening punctuation."""
     x, y = strip_markup(a).rstrip(), strip_markup(b).lstrip()
     if not x or not y:
+        return False
+    from .textbreak import dictionary_script
+    if dictionary_script(x[-1]) and dictionary_script(y[0]):
         return False
     if (_cjk(x[-1]) and not _word(x[-1])) or (_cjk(y[0]) and not _word(y[0])):
         return False

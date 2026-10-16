@@ -198,3 +198,31 @@ def test_wrapped_overlay_composites_without_losing_target_image(native_font):
     assert 20 < y < 300
     assert np.any(np.asarray(image) != original)
     np.testing.assert_array_equal(np.asarray(image)[-1], original[-1])
+
+
+def test_unspaced_thai_uses_dictionary_breaks_and_keeps_every_character(native_font):
+    text = 'การตัดต่อวิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจและแบ่งปันความรู้กับผู้ชมได้อย่างชัดเจน'
+    lines = D.wrap(text, native_font, 430, balance=True)
+    assert len(lines) > 1
+    assert ''.join(lines) == text
+    assert all(D.text_width(line, native_font) <= 430 for line in lines)
+    assert any('วิดีโอ' in line for line in lines)
+    assert any('เรื่องราว' in line for line in lines)
+
+
+def test_dictionary_wrapping_preserves_emphasis_across_line_boundaries(native_font):
+    text = 'การตัดต่อ【วิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจ】และแบ่งปันความรู้'
+    lines = D.wrap(text, native_font, 300)
+    assert ''.join(D.plain(line) for line in lines) == D.plain(text)
+    assert all(line.count('【') == line.count('】') for line in lines)
+    highlighted = ''.join(t for line in lines for t, h in D.runs(line) if h)
+    assert highlighted == 'วิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจ'
+
+
+def test_dictionary_indexes_preserve_non_bmp_characters_and_no_spaced_script_dependency():
+    from vstudio.textbreak import dictionary_words
+    assert dictionary_words('مرحبا Reelfold 안녕하세요') == {}
+    text = '🎥การตัดต่อวิดีโอ 🎞️'
+    spans = dictionary_words(text)
+    assert [text[a:b] for a, b in spans.items()] == ['การ', 'ตัด', 'ต่อ', 'วิดีโอ']
+    assert all(0 < a < b <= len(text) for a, b in spans.items())

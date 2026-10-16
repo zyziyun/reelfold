@@ -57,8 +57,13 @@ Invalid cached segment times must surface for review, not silently trigger anoth
 Use the shared `subs.balanced_wrap` / `draw.wrap` for caption and card lines. In space-delimited scripts,
 keep the complete Unicode word and its combining marks together, including highlighted words. A word wider
 than the box needs a smaller font or a different layout, never an arbitrary letter break. Keep Arabic and
-Indic closing punctuation with the preceding word. This is not dictionary segmentation for Thai or other
-scripts without spaces.
+Indic closing punctuation with the preceding word. For Thai, Lao, Khmer and Myanmar scripts, the shared
+caption and card tokenizers use ICU's dictionary word boundaries instead of treating an entire unspaced
+sentence as one word. ICU's UTF-16 offsets are mapped to the original text without changing characters;
+highlight markup and no-break punctuation retain their existing behavior. This reuses the native ICU
+already locked with the app (MIT/Unicode licence); source installations need ICU as well. Test the actual
+bundled libraries: a developer's Pango may include LibThai while the packaged build does not. Korean's
+space-delimited words still stay whole; a too-wide indivisible word triggers fitting, not syllable splitting.
 
 Word-preserving text is not proof of correct glyphs or reading order. Review the rendered result with the
 actual font and backend. The libass writer selects whole-line shaping and automatic base direction for RTL

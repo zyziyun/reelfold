@@ -149,9 +149,11 @@ def tokens(text: str, keep_phrases: bool = None):
     punctuation / markup to the token after it."""
     if keep_phrases is None:
         keep_phrases = has_cjk(text)
+    from .textbreak import dictionary_words
+    dictionary = dictionary_words(text)
     raw, i = [], 0
     while i < len(text):
-        end = word_end(text, i)
+        end = dictionary.get(i) or word_end(text, i)
         if end > i:
             raw.append(text[i:end]); i = end
         elif text[i].isspace():

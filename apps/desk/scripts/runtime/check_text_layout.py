@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from PIL import ImageFont
 
 from vstudio.textlayout import Layout, Run
+from vstudio.textbreak import dictionary_words
 
 
 def main():
@@ -21,7 +22,10 @@ def main():
             actual = layout.image()
             assert actual.size == expected.size
             assert actual.tobytes() == expected.tobytes(), 'Styled runs changed paragraph shaping'
-    print('Pango/Cairo paragraph rendering and selected font registration ok')
+    text = '🎥การตัดต่อวิดีโอ'
+    words = dictionary_words(text)
+    assert [text[a:b] for a, b in words.items()] == ['การ', 'ตัด', 'ต่อ', 'วิดีโอ'], 'ICU dictionary data is unavailable'
+    print('Pango/Cairo paragraph rendering, selected font registration and ICU dictionary ok')
 
 
 if __name__ == '__main__':
