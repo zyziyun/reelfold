@@ -2,6 +2,8 @@
 from functools import lru_cache
 from types import SimpleNamespace
 from unittest.mock import Mock
+import ctypes.util
+import sys
 import threading
 
 import numpy as np
@@ -167,13 +169,22 @@ def test_windows_uses_the_font_backend_supported_by_locked_harfbuzz(monkeypatch)
 
 @lru_cache(maxsize=1)
 def _native_debug_api():
-    ffi, _, pa, _, go = T._libraries()
+    ffi, _, pa, _, _ = T._libraries()
     ffi.cdef('''
         void *pango_layout_serialize(void *layout, int flags);
         const void *g_bytes_get_data(void *bytes, size_t *size);
         void g_bytes_unref(void *bytes);
     ''')
-    return ffi, pa, go
+    # GBytes belongs to GLib. Windows DLL symbol lookup does not search the
+    # dependencies of GObject, unlike the transitive lookup on Unix systems.
+    root = T._library_directory()
+    if root is not None and sys.platform in ('darwin', 'win32'):
+        names = ('libglib-2.0.0.dylib',) if sys.platform == 'darwin' else ('glib-2.0-0.dll', 'libglib-2.0-0.dll')
+        library = next((str(root / name) for name in names if (root / name).is_file()), None)
+    else:
+        library = ctypes.util.find_library('glib-2.0')
+    assert library, 'Native layout diagnostics require the existing GLib library'
+    return ffi, pa, ffi.dlopen(library)
 
 
 def _native_debug(layout):
