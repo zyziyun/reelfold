@@ -3,6 +3,7 @@
 // noise suppression). Mark times and the clock leave out paused time (MediaRecorder leaves it out of the file too).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../../i18n';
+import { recorderLifecycle } from './recorderLifecycle';
 
 export type RecTrack = 'camera' | 'mic' | 'screen';
 export type RecState = 'idle' | 'asking' | 'denied' | 'ready' | 'recording' | 'paused' | 'stopping' | 'error';
@@ -25,6 +26,8 @@ interface Session {
   dir: string;
   t0: number;
   recorders: MediaRecorder[];
+  stops: (() => Promise<void>)[];
+  saving?: Promise<{ dir: string; tracks: string[]; marks: number; sessionId: string; secs: number }>;
   chains: Promise<unknown>[];
   /** paused time so far (ms) and when the current pause began */
   pausedMs: number;
@@ -139,7 +142,7 @@ export function useRecorder() {
       }
       return;
     }
-    if (interrupted.current) return;
+    if (interrupted.current || s.saving) return;
     if (s.pausedAt === null) s.pausedAt = performance.now();
     for (const r of s.recorders) if (r.state === 'recording') r.pause();
     interrupted.current = true;
@@ -296,7 +299,7 @@ export function useRecorder() {
       const screenMime = screen.current?.getAudioTracks().length ? pickMime(SCREEN_AUDIO_TYPES) : vMime;
       const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
       const { sessionId, dir } = await window.desk.rec.begin({ ...req, tracks, mime: { camera: vMime ?? '', mic: aMime ?? '', ...(screen.current ? { screen: screenMime ?? '' } : {}) } });
-      const s: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], chains: [], pausedMs: 0, pausedAt: null };
+      const s: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], stops: [], chains: [], pausedMs: 0, pausedAt: null };
       const add = (track: RecTrack, ms: MediaStream, mime?: string) => {
         const r = new MediaRecorder(ms, mime ? { mimeType: mime } : undefined);
         let seq = 0;
@@ -313,7 +316,9 @@ export function useRecorder() {
           });
           s.chains[i] = chain.catch((e) => setError(String((e as Error).message)));
         };
-        r.start(1000);
+        const lifecycle = recorderLifecycle(r);
+        lifecycle.start(1000);
+        s.stops.push(lifecycle.stop);
         s.recorders.push(r);
       };
       add('camera', new MediaStream(stream.getVideoTracks()), vMime);
@@ -334,7 +339,7 @@ export function useRecorder() {
 
   const pause = useCallback(() => {
     const s = sess.current;
-    if (!s || s.pausedAt !== null) return;
+    if (!s || s.saving || s.pausedAt !== null) return;
     for (const r of s.recorders) if (r.state === 'recording') r.pause();
     s.pausedAt = performance.now();
     setElapsed(recordedSeconds(s, s.pausedAt));
@@ -343,7 +348,7 @@ export function useRecorder() {
 
   const resume = useCallback(() => {
     const s = sess.current;
-    if (!s || s.pausedAt === null || interrupted.current) return;
+    if (!s || s.saving || s.pausedAt === null || interrupted.current) return;
     s.pausedMs += performance.now() - s.pausedAt;
     s.pausedAt = null;
     for (const r of s.recorders) if (r.state === 'paused') r.resume();
@@ -360,37 +365,31 @@ export function useRecorder() {
   const stop = useCallback(async () => {
     const s = sess.current;
     if (!s) return null;
+    if (s.saving) return s.saving;
     if (s.pausedAt !== null) {
       s.pausedMs += performance.now() - s.pausedAt;
       s.pausedAt = null;
     }
     const secs = recordedSeconds(s, performance.now());
     setState('stopping');
-    await Promise.all(
-      s.recorders.map(
-        (r) =>
-          new Promise<void>((res) => {
-            if (r.state === 'inactive') return res();
-            r.addEventListener('stop', () => res(), { once: true });
-            r.stop();
-          }),
-      ),
-    );
-    await new Promise((r) => setTimeout(r, 50));
-    await Promise.all(s.chains);
-    const out = await window.desk.rec.end(s.id, secs);
-    sess.current = null;
-    const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
-      camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
-    setState(missing ? 'error' : 'ready');
-    if (missing) {
-      stopScreen();
-      releaseCamera();
-      setStream(null);
-      setLevel(0);
-      setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
-    }
-    return { ...out, sessionId: s.id, secs };
+    s.saving = (async () => {
+      await Promise.all(s.stops.map((stop) => stop()));
+      await Promise.all(s.chains);
+      const out = await window.desk.rec.end(s.id, secs);
+      sess.current = null;
+      const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
+        camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
+      setState(missing ? 'error' : 'ready');
+      if (missing) {
+        stopScreen();
+        releaseCamera();
+        setStream(null);
+        setLevel(0);
+        setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
+      }
+      return { ...out, sessionId: s.id, secs };
+    })();
+    return s.saving;
   }, [releaseCamera, stopScreen]);
 
   const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
