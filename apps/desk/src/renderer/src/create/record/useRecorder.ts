@@ -78,7 +78,7 @@ export function useRecorder() {
   const [micId, setMicId] = useState<string | null>(null);
   const [screenOn, setScreenOn] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [screenInterrupted, setScreenInterrupted] = useState(false);
+  const [interruption, setInterruption] = useState<RecTrack | null>(null);
   const interrupted = useRef(false);
   const sess = useRef<Session | null>(null);
   const screen = useRef<MediaStream | null>(null);
@@ -92,6 +92,14 @@ export function useRecorder() {
   const camera = useRef<MediaStream | null>(null);
 
   const stopStream = useCallback((s: MediaStream | null) => s?.getTracks().forEach((tr) => tr.stop()), []);
+  const releaseCamera = useCallback(() => {
+    if (raf.current) cancelAnimationFrame(raf.current);
+    raf.current = null;
+    void actx.current?.close().catch(() => undefined);
+    actx.current = null;
+    stopStream(camera.current);
+    camera.current = null;
+  }, [stopStream]);
 
   useEffect(
     () => {
@@ -100,15 +108,34 @@ export function useRecorder() {
         mounted.current = false;
         openRequest.current++;
         screenRequest.current++;
-        if (raf.current) cancelAnimationFrame(raf.current);
-        void actx.current?.close().catch(() => undefined);
-        stopStream(camera.current);
+        releaseCamera();
         stopStream(screen.current);
       };
     },
-    [stopStream],
+    [stopStream, releaseCamera],
   );
   useEffect(() => () => stopStream(stream), [stream, stopStream]);
+
+  const interruptCapture = useCallback((track: RecTrack) => {
+    const s = sess.current;
+    if (!s) {
+      if (track !== 'screen') {
+        releaseCamera();
+        setStream(null);
+        setLevel(0);
+        setState('error');
+        setError(t(track === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
+      }
+      return;
+    }
+    if (interrupted.current) return;
+    if (s.pausedAt === null) s.pausedAt = performance.now();
+    for (const r of s.recorders) if (r.state === 'recording') r.pause();
+    interrupted.current = true;
+    setInterruption(track);
+    setElapsed(recordedSeconds(s, s.pausedAt));
+    setState('paused');
+  }, [releaseCamera]);
 
   const listDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
@@ -156,6 +183,11 @@ export function useRecorder() {
         return;
       }
       camera.current = s;
+      for (const track of s.getTracks()) {
+        track.addEventListener('ended', () => {
+          if (mounted.current && camera.current === s) interruptCapture(track.kind === 'video' ? 'camera' : 'mic');
+        }, { once: true });
+      }
       setStream(s);
       const cam = s.getVideoTracks()[0]?.getSettings().deviceId ?? want.cam ?? null;
       const mic = s.getAudioTracks()[0]?.getSettings().deviceId ?? want.mic ?? null;
@@ -186,7 +218,7 @@ export function useRecorder() {
       setState(name === 'NotAllowedError' ? 'denied' : 'error');
       setError((e as Error).message);
     }
-  }, [listDevices, stopStream]);
+  }, [listDevices, stopStream, interruptCapture]);
 
   /** Switch the camera or the microphone (not while recording). */
   const switchDevice = useCallback(
@@ -226,17 +258,9 @@ export function useRecorder() {
         screen.current = st;
         st.getVideoTracks()[0]?.addEventListener('ended', () => {
           if (screen.current === st) {
-            const s = sess.current;
-            if (s) {
-              // A closed window can end only the screen recorder while camera/mic keep running. Pause them
-              // together immediately; restarting this track mid-take would make the saved tracks misaligned.
-              if (s.pausedAt === null) s.pausedAt = performance.now();
-              for (const r of s.recorders) if (r.state === 'recording') r.pause();
-              interrupted.current = true;
-              setScreenInterrupted(true);
-              setElapsed(recordedSeconds(s, s.pausedAt));
-              setState('paused');
-            }
+            // Any lost input pauses the surviving tracks together. Replacing a
+            // recorder mid-take would make their saved timelines disagree.
+            interruptCapture('screen');
             screen.current = null;
             setScreenOn(false);
             setScreenStream(null);
@@ -253,14 +277,14 @@ export function useRecorder() {
         return screenFailure(e);
       }
     },
-    [stopScreen, stopStream],
+    [stopScreen, stopStream, interruptCapture],
   );
 
   const start = useCallback(
     async (req: { slug: string; title?: string; script: string[]; series?: string; episode?: string; shot?: string; studio?: boolean; group?: string; pickup?: boolean }) => {
       if (!stream || sess.current) return;
       interrupted.current = false;
-      setScreenInterrupted(false);
+      setInterruption(null);
       const vMime = pickMime(VIDEO_TYPES);
       const aMime = pickMime(AUDIO_TYPES);
       const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
@@ -349,9 +373,18 @@ export function useRecorder() {
     await Promise.all(s.chains);
     const out = await window.desk.rec.end(s.id, secs);
     sess.current = null;
-    setState('ready');
+    const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
+      camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
+    setState(missing ? 'error' : 'ready');
+    if (missing) {
+      releaseCamera();
+      setStream(null);
+      setLevel(0);
+      setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
+    }
     return { ...out, sessionId: s.id, secs };
-  }, []);
+  }, [releaseCamera]);
 
-  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, screenInterrupted, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
+  const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
+  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, interruption, interruptionMessage, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
 }

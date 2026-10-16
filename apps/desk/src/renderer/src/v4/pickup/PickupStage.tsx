@@ -154,7 +154,7 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
         {phase === 'recording' && (
           <span className="rs-badge" data-testid="pickup-live">
             <i />
-            {t('rec.live', { t: fmtClock(rec.elapsed) })}
+            {t(rec.state === 'paused' ? 'rec.paused' : 'rec.live', { t: fmtClock(rec.elapsed) })}
           </span>
         )}
         {phase === 'countdown' && <div className="rs-count">{count}</div>}
@@ -165,6 +165,7 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
         )}
         {phase === 'opening' && <div className="rs-count rs-preparing">{t('pk.opening')}</div>}
       </div>
+      {phase === 'recording' && rec.interruption && <div className="pk-err" role="alert" data-testid="pickup-interrupted">{rec.interruptionMessage}</div>}
       {phase === 'failed' && (
         <div className="pk-err" role="alert" data-testid="pickup-error">
           {rec.state === 'denied' ? (
@@ -186,14 +187,15 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
         </span>
         <button
           type="button"
-          className={`rs-rec ${phase === 'recording' || phase === 'countdown' ? 'stop' : 'start'}`}
+          className={`rs-rec ${phase === 'recording' || phase === 'countdown' ? 'stop' : 'start'}${phase === 'recording' && rec.interruption ? ' save-take' : ''}`}
           disabled={busy || phase === 'opening' || (!rec.stream && phase === 'failed')}
           onClick={main}
-          aria-label={phase === 'recording' ? t('pk.stop') : t('pk.record')}
-          title={`${phase === 'recording' ? t('pk.stop') : t('pk.record')} (Space)`}
+          aria-label={phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')}
+          title={`${phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')} (Space)`}
           data-testid={phase === 'recording' ? 'pickup-stop' : 'pickup-record'}
         >
           <i />
+          {phase === 'recording' && rec.interruption && <span>{t('rec.saveTake')}</span>}
         </button>
         <span className="muted small pk-hint">{phase === 'recording' ? t('pk.hintRec') : phase === 'failed' && rec.stream ? t('pk.hintRetry') : t('pk.hintReady')}</span>
       </div>

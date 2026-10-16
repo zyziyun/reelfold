@@ -76,6 +76,8 @@
 .rs-rec:hover:not(:disabled) { transform: scale(1.05); }
 .rs-rec i { width: 46px; height: 46px; border-radius: 50%; background: var(--rec); transition: all 0.18s ease; }
 .rs-rec.stop i { width: 24px; height: 24px; border-radius: 6px; }
+.rs-rec.save-take { width: auto; min-width: 64px; padding: 0 18px; gap: 12px; border-radius: 16px; color: var(--stage-text); font-family: inherit; font-size: 15px; font-weight: 500; }
+.rs-rec.save-take i { flex: none; }
 .rs-rec:disabled { opacity: 0.35; cursor: not-allowed; }
 .rs-rec:focus-visible, .rs-ctl:focus-visible { outline: 2px solid #7fd6c8; outline-offset: 2px; }
 .rs-hint { color: var(--stage-muted); font-size: 13px; min-height: 20px; text-align: center; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; }

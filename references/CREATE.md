@@ -21,6 +21,19 @@ python -m vstudio.create record ingest DIR --target project:talkinghead --json
 Global flags: `--home DIR` (another store root), `--fake` (fake services, no model calls - tests and demos).
 Errors are `{"error": {"code": "create.<code>", "params": {...}}}` with exit code 2 (codes: `create/i18n.py`).
 
+## Interrupted recordings
+
+The desktop recorder keeps camera, microphone and optional screen tracks separately, with pause-adjusted
+timing. The same capture hook serves in-place pickups. If a camera, microphone or shared window ends during
+a take, pause the surviving recorders together: do not silently continue with one missing input, resume a
+partial set, or replace an input mid-take. The UI identifies the lost input and offers **Save this take**;
+the creator can save the recorded part, reconnect or choose the input, and start another take.
+
+An input lost before recording is a setup error, not a saved take. Release the other camera/microphone
+tracks and reopen the devices after reconnection. A permission request that completes after navigation
+must release its returned stream rather than keeping the device on in a closed view. Do not describe
+these browser-track checks as verification of physical-device or OS permission handling.
+
 ## Ladder (cheap first)
 
 | Stage | Cost | What |
@@ -72,7 +85,7 @@ $VSTUDIO_HOME/series/<sid>/spend.jsonl       append-only ledger
 $VSTUDIO_HOME/series/<sid>/episodes/<eid>/create.yaml   script, shots, routes, ladder, estimates, takes, picks, run
 $VSTUDIO_HOME/series/<sid>/episodes/<eid>/work/ai/      ai-video project.yaml, takes/, state.json, stills/, sheets/
 $VSTUDIO_HOME/series/<sid>/delivered/<eid>/  the hand-off work folder (final/<clip>.mp4, .srt per language, post.md)
-$VSTUDIO_HOME/recordings/<ts>-<slug>/        recorder sessions (session.json, camera.webm, mic.webm, takes.json)
+$VSTUDIO_HOME/recordings/<ts>-<slug>/        recorder sessions (session.json, camera.webm, mic.webm, optional screen.webm, takes.json)
 ```
 
 ## Prices
