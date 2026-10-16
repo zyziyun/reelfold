@@ -97,6 +97,18 @@ runs:
         fi
         # the app would otherwise pick the runner's own python3 (no engine deps) before this one
         echo "DESK_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+    - name: Cache pinned engine fonts
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/video-studio/fonts
+        key: engine-fonts-${{ hashFiles('apps/desk/packaging/assets.json') }}
+    - name: Engine fonts and native paragraph smoke check
+      shell: bash
+      env:
+        PYTHONPATH: lib
+      run: |
+        node apps/desk/scripts/runtime/ensure-fonts.mjs
+        python -B apps/desk/scripts/runtime/check_text_layout.py
     - name: npm ci
       shell: bash
       run: npm ci
