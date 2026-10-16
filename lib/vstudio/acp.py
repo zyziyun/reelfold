@@ -187,8 +187,9 @@ class Connection:
         self._lock = threading.Lock()
         self._wlock = threading.Lock()
         self._closed = threading.Event()
+        self._stderr_thread = threading.Thread(target=self._read_err, daemon=True)
+        self._stderr_thread.start()
         threading.Thread(target=self._read_out, daemon=True).start()
-        threading.Thread(target=self._read_err, daemon=True).start()
 
     # -- transport
     def _send(self, msg):
@@ -198,6 +199,9 @@ class Connection:
                 self.p.stdin.write(data)
                 self.p.stdin.flush()
             except (OSError, ValueError) as e:
+                if self.p.poll() is not None:
+                    self._stderr_thread.join(timeout=1)
+                    raise AcpError(self._exit_words(), code="exited", data=self.stderr) from e
                 raise AcpError(f"the agent stopped reading ({e})") from e
 
     def _read_err(self):
@@ -219,6 +223,10 @@ class Connection:
                 except Exception:  # noqa: BLE001 - one odd message never stops the reader
                     pass
         self.p.wait()
+        # stdout EOF can win the race against stderr, even after process exit.
+        # Drain its reader before waking requests; bound the wait in case a
+        # descendant inherited stderr and keeps the pipe open.
+        self._stderr_thread.join(timeout=1)
         self._closed.set()
         with self._lock:
             pending, self._pending = self._pending, {}
