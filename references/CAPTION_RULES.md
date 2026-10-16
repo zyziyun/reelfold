@@ -70,3 +70,12 @@ Pillow still needs appropriate font coverage; enabling Raqm alone does not add m
 separately drawn highlight runs into a correct mixed-direction paragraph. A successful draw
 call alone does not prove Arabic or Indic text is readable. Do not reverse strings or transliterate them to
 hide a renderer limitation.
+
+For complex scripts or glyphs absent from the chosen face, the shared drawing helpers use
+`textlayout.Layout`: one Pango paragraph with style attributes, rather than independently painted logical
+runs. Measurements, fallback glyphs and emphasis positions come from the same layout; marker/underline,
+stroke and shadow remain available. Missing glyphs are errors, not successful boxes. Font registration is
+process-local. The engine uses the existing dynamic Pango/Cairo stack and CFFI, not a second wheel's native
+libraries. Source environments currently need Pango 1.56 or newer; shipped runtimes already pin 1.58.2.
+This does not prove coverage on every OS: exercise the actual installed/downloaded fonts and review the
+output. Paragraph drawing rejects unsupported low-level Pillow keyword options instead of ignoring them.

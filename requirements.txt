@@ -12,6 +12,7 @@ jsonschema
 babel
 pypinyin
 fonttools[woff]
+cffi  # ABI bridge to the existing Pango/Cairo stack for multilingual styled text
 openai
 httpx  # explicit transport for the AI consent redirect policy
 # local whisper (ASR): MLX on Apple silicon, CTranslate2 elsewhere (vstudio.asr picks what is installed)

@@ -119,6 +119,7 @@ e2e:
   lib/vstudio/postcopy.py: [vlogRefresh.spec.ts, publishLoop.spec.ts]
   lib/vstudio/reframe.py: [vlogFraming.spec.ts]
   lib/vstudio/face_privacy.py: [vlogFraming.spec.ts, vlogRefresh.spec.ts]
+  lib/vstudio/textlayout.py: [vlogFraming.spec.ts, explainerVisuals.spec.ts, studioReal.spec.ts]
   lib/vstudio/platform.py: [publish.spec.ts, vlogFraming.spec.ts]
   lib/vstudio/tts.py: [voiceKey.spec.ts, explainerVisuals.spec.ts, systemVoice.spec.ts]
   lib/vstudio/system_voice.py: [systemVoice.spec.ts]
