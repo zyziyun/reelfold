@@ -75,6 +75,77 @@ const probe = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-sh
 
 test.describe.configure({ mode: 'serial' });
 
+test.describe('recording device interruption', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+  for (const [kind, lang, message, recording] of [['camera', 'en', 'The camera disconnected', true], ['mic', 'zh-CN', '麦克风已断开', true], ['camera', 'fr', 'La caméra a été déconnectée', true], ['camera', 'en', 'The camera disconnected', false]] as const) {
+    test(`pauses and saves when ${kind} disconnects (${lang})${recording ? '' : ' before recording'}`, async () => {
+      test.setTimeout(180000);
+      const launched = await launch(`lost-${kind}-${lang}-${recording}`, { DESK_STUDIO: '1' });
+      app = launched.app;
+      const page = launched.page;
+      if (lang !== 'en') {
+        await page.evaluate((value) => window.desk.setSettings({ lang: value }), lang);
+        await page.reload();
+      }
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.evaluate(() => (location.hash = '#/create/record'));
+      await page.evaluate((input) => {
+        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+          const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+          const context = canvas.getContext('2d')!;
+          const paint = () => { context.fillStyle = '#238b82'; context.fillRect(0, 0, 640, 360); };
+          paint(); setInterval(paint, 40);
+          const audio = new AudioContext(); const oscillator = audio.createOscillator(); const destination = audio.createMediaStreamDestination();
+          oscillator.connect(destination); oscillator.start();
+          const stream = new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...destination.stream.getAudioTracks()]);
+          (window as unknown as { inputTracks: MediaStreamTrack[] }).inputTracks = stream.getTracks();
+          (window as unknown as { disconnectInput: () => void }).disconnectInput = () => {
+            const track = input === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+            track.stop(); track.dispatchEvent(new Event('ended'));
+          };
+          return stream;
+        } });
+      }, kind);
+      await page.getByTestId('create-rec-allow').click();
+      await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+      if (recording) {
+        await page.getByTestId('create-rec-start').click();
+        await page.waitForTimeout(3500);
+      }
+      await page.evaluate(() => (window as unknown as { disconnectInput: () => void }).disconnectInput());
+      if (!recording) {
+        await expect(page.getByTestId('create-rec-allow')).toBeVisible();
+        await expect(page.getByTestId('rec-error')).toContainText(message);
+        expect(await page.evaluate(() => (window as unknown as { inputTracks: MediaStreamTrack[] }).inputTracks.map((track) => track.readyState))).toEqual(['ended', 'ended']);
+        expect(errors).toEqual([]);
+        return;
+      }
+      await expect(page.getByTestId('rec-input-interrupted')).toContainText(message);
+      await expect(page.getByTestId('create-rec-stop')).toContainText(lang === 'zh-CN' ? '保存当前片段' : lang === 'fr' ? 'Sauvegarder la prise' : 'Save this take');
+      await expect(page.getByTestId('rec-pause')).toBeDisabled();
+      const clock = await page.getByTestId('create-rec-live').textContent();
+      await page.keyboard.press('p');
+      await page.waitForTimeout(1500);
+      await expect(page.getByTestId('create-rec-live')).toHaveText(clock!);
+      await shot(page, `device-${kind}-${lang}-paused`);
+      const group = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('group')!);
+      await page.getByTestId('create-rec-stop').click();
+      await expect(page.getByTestId('editor')).toBeVisible({ timeout: 120000 });
+      const takes = await page.evaluate((value) => window.desk.rec.list(value), group);
+      expect(takes).toHaveLength(1);
+      const session = JSON.parse(fs.readFileSync(path.join(takes[0].dir, 'session.json'), 'utf8'));
+      for (const track of ['camera', 'mic']) expect(fs.statSync(path.join(takes[0].dir, session.tracks[track].file)).size).toBeGreaterThan(0);
+      const duration = probe(path.join(takes[0].dir, 'final', 'recording.mp4'));
+      expect(duration).toBeGreaterThan(2);
+      expect(duration).toBeLessThan(6);
+      expect(errors).toEqual([]);
+      await shot(page, `device-${kind}-${lang}-saved`);
+    });
+  }
+});
+
 test.describe('recording permission lifecycle', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
