@@ -4,6 +4,8 @@ import os
 import stat
 import sys
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -220,3 +222,31 @@ def test_issue_is_one_calm_word():
     assert acp.issue("region-blocked", "User location is not supported") == "region"
     assert acp.issue("timeout") == "timeout"
     assert acp.issue("error", "segfault") == "error"
+
+
+def test_crash_retains_stderr_when_its_reader_finishes_after_stdout(agents, monkeypatch):
+    agents.install("iflow", "crash")
+    arrived = threading.Event()
+    release = threading.Event()
+    connections = []
+    read_err = acp.Connection._read_err
+
+    def held_stderr(connection):
+        connections.append(connection)
+        arrived.set()
+        assert release.wait(5), "test did not release the stderr reader"
+        read_err(connection)
+
+    monkeypatch.setattr(acp.Connection, "_read_err", held_stderr)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        result = pool.submit(llm.complete, "copy", "s", "p", provider="iflow", retries=0)
+        try:
+            assert arrived.wait(3)
+            connection = connections[0]
+            assert connection.p.wait(timeout=3) == 3
+            # Exercise stdout EOF while the independent error stream has not drained.
+            connection._closed.wait(.2)
+        finally:
+            release.set()
+        with pytest.raises(llm.LLMError, match="something broke"):
+            result.result(timeout=3)

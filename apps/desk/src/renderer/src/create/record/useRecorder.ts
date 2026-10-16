@@ -116,10 +116,20 @@ export function useRecorder() {
   );
   useEffect(() => () => stopStream(stream), [stream, stopStream]);
 
+  /** Stop sharing the screen. */
+  const stopScreen = useCallback(() => {
+    screenRequest.current++;
+    stopStream(screen.current);
+    screen.current = null;
+    setScreenOn(false);
+    setScreenStream(null);
+  }, [stopStream]);
+
   const interruptCapture = useCallback((track: RecTrack) => {
     const s = sess.current;
     if (!s) {
       if (track !== 'screen') {
+        stopScreen();
         releaseCamera();
         setStream(null);
         setLevel(0);
@@ -135,7 +145,7 @@ export function useRecorder() {
     setInterruption(track);
     setElapsed(recordedSeconds(s, s.pausedAt));
     setState('paused');
-  }, [releaseCamera]);
+  }, [releaseCamera, stopScreen]);
 
   const listDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
@@ -229,15 +239,6 @@ export function useRecorder() {
     },
     [open, stream, stopStream, cameraId, micId],
   );
-
-  /** Stop sharing the screen. */
-  const stopScreen = useCallback(() => {
-    screenRequest.current++;
-    stopStream(screen.current);
-    screen.current = null;
-    setScreenOn(false);
-    setScreenStream(null);
-  }, [stopStream]);
 
   /** Share the screen / window she picked (rec:screens -> id). Never silent: -> 'on' | 'denied' (Screen Recording
    * is off for the app) | an error message. */
@@ -377,13 +378,14 @@ export function useRecorder() {
       camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
     setState(missing ? 'error' : 'ready');
     if (missing) {
+      stopScreen();
       releaseCamera();
       setStream(null);
       setLevel(0);
       setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
     }
     return { ...out, sessionId: s.id, secs };
-  }, [releaseCamera]);
+  }, [releaseCamera, stopScreen]);
 
   const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
   return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, interruption, interruptionMessage, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };

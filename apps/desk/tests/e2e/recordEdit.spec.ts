@@ -110,6 +110,23 @@ test.describe('recording device interruption', () => {
       }, kind);
       await page.getByTestId('create-rec-allow').click();
       await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+      // Sharing must end too when the camera/mic setup is no longer usable.
+      if (kind === 'camera' && lang === 'en') {
+        await page.evaluate(() => {
+          Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
+            const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+            const paint = () => canvas.getContext('2d')!.fillRect(0, 0, 640, 360);
+            paint(); setInterval(paint, 40);
+            const stream = canvas.captureStream(24);
+            (window as unknown as { sharedTracks: MediaStreamTrack[] }).sharedTracks = stream.getTracks();
+            return stream;
+          } });
+        });
+        await page.getByTestId('create-rec-screen').click();
+        await page.getByTestId('rec-screen-toggle').click();
+        await page.getByTestId('rec-screen-source').click();
+        await expect(page.getByTestId('rec-screen-preview')).toBeVisible();
+      }
       if (recording) {
         await page.getByTestId('create-rec-start').click();
         await page.waitForTimeout(3500);
@@ -119,6 +136,7 @@ test.describe('recording device interruption', () => {
         await expect(page.getByTestId('create-rec-allow')).toBeVisible();
         await expect(page.getByTestId('rec-error')).toContainText(message);
         expect(await page.evaluate(() => (window as unknown as { inputTracks: MediaStreamTrack[] }).inputTracks.map((track) => track.readyState))).toEqual(['ended', 'ended']);
+        expect(await page.evaluate(() => (window as unknown as { sharedTracks: MediaStreamTrack[] }).sharedTracks.map((track) => track.readyState))).toEqual(['ended']);
         expect(errors).toEqual([]);
         return;
       }
@@ -140,6 +158,9 @@ test.describe('recording device interruption', () => {
       const duration = probe(path.join(takes[0].dir, 'final', 'recording.mp4'));
       expect(duration).toBeGreaterThan(2);
       expect(duration).toBeLessThan(6);
+      if (kind === 'camera' && lang === 'en') {
+        expect(await page.evaluate(() => (window as unknown as { sharedTracks: MediaStreamTrack[] }).sharedTracks.map((track) => track.readyState))).toEqual(['ended']);
+      }
       expect(errors).toEqual([]);
       await shot(page, `device-${kind}-${lang}-saved`);
     });
