@@ -84,14 +84,27 @@ export function useRecorder() {
   const screen = useRef<MediaStream | null>(null);
   const raf = useRef<number | null>(null);
   const actx = useRef<AudioContext | null>(null);
+  // Permission requests may resolve after navigation. Own each stream before
+  // React commits state, and invalidate pending requests when this view closes.
+  const mounted = useRef(false);
+  const openRequest = useRef(0);
+  const screenRequest = useRef(0);
+  const camera = useRef<MediaStream | null>(null);
 
   const stopStream = useCallback((s: MediaStream | null) => s?.getTracks().forEach((tr) => tr.stop()), []);
 
   useEffect(
-    () => () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-      void actx.current?.close().catch(() => undefined);
-      stopStream(screen.current);
+    () => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        openRequest.current++;
+        screenRequest.current++;
+        if (raf.current) cancelAnimationFrame(raf.current);
+        void actx.current?.close().catch(() => undefined);
+        stopStream(camera.current);
+        stopStream(screen.current);
+      };
     },
     [stopStream],
   );
@@ -99,6 +112,7 @@ export function useRecorder() {
 
   const listDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
+    if (!mounted.current) return;
     const name = (d: MediaDeviceInfo, i: number, kind: string) => d.label || `${kind} ${i + 1}`;
     setCameras(all.filter((d) => d.kind === 'videoinput').map((d, i) => ({ id: d.deviceId, label: name(d, i, 'Camera') })));
     setMics(all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d, i) => ({ id: d.deviceId, label: name(d, i, 'Microphone') })));
@@ -106,13 +120,18 @@ export function useRecorder() {
 
   /** Ask (macOS) and open the camera + mic (``cam`` / ``mic``: a device id, else the system default). */
   const open = useCallback(async (want: { cam?: string | null; mic?: string | null } = {}) => {
+    const request = ++openRequest.current;
+    const active = () => mounted.current && openRequest.current === request;
     setState('asking');
     setError(null);
     try {
       const st = await window.desk.rec.status();
+      if (!active()) return;
       if (st.camera !== 'granted' || st.microphone !== 'granted') {
         const cam = st.camera === 'granted' || (await window.desk.rec.ask('camera'));
+        if (!active()) return;
         const mic = st.microphone === 'granted' || (await window.desk.rec.ask('microphone'));
+        if (!active()) return;
         if (!cam || !mic) {
           setState('denied');
           return;
@@ -127,10 +146,16 @@ export function useRecorder() {
       try {
         s = await ask(want.cam, want.mic);
       } catch (e) {
+        if (!active()) return;
         // the camera / mic used last time is gone (unplugged): the system default instead
         if (!(want.cam || want.mic) || !['OverconstrainedError', 'NotFoundError'].includes((e as Error).name)) throw e;
         s = await ask(null, null);
       }
+      if (!active()) {
+        stopStream(s);
+        return;
+      }
+      camera.current = s;
       setStream(s);
       const cam = s.getVideoTracks()[0]?.getSettings().deviceId ?? want.cam ?? null;
       const mic = s.getAudioTracks()[0]?.getSettings().deviceId ?? want.mic ?? null;
@@ -156,11 +181,12 @@ export function useRecorder() {
       tick();
       setState('ready');
     } catch (e) {
+      if (!active()) return;
       const name = (e as Error).name;
       setState(name === 'NotAllowedError' ? 'denied' : 'error');
       setError((e as Error).message);
     }
-  }, [listDevices]);
+  }, [listDevices, stopStream]);
 
   /** Switch the camera or the microphone (not while recording). */
   const switchDevice = useCallback(
@@ -174,6 +200,7 @@ export function useRecorder() {
 
   /** Stop sharing the screen. */
   const stopScreen = useCallback(() => {
+    screenRequest.current++;
     stopStream(screen.current);
     screen.current = null;
     setScreenOn(false);
@@ -186,9 +213,16 @@ export function useRecorder() {
     async (id: string): Promise<ScreenResult> => {
       if (sess.current) return { error: t('rec.screenFinishTake') };
       stopScreen();
+      const request = screenRequest.current;
+      const active = () => mounted.current && screenRequest.current === request;
       try {
         await window.desk.rec.screenPick(id);
+        if (!active()) return { error: t('rec.screenFinishTake') };
         const st = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        if (!active()) {
+          stopStream(st);
+          return { error: t('rec.screenFinishTake') };
+        }
         screen.current = st;
         st.getVideoTracks()[0]?.addEventListener('ended', () => {
           if (screen.current === st) {
@@ -212,13 +246,14 @@ export function useRecorder() {
         setScreenStream(st);
         return 'on';
       } catch (e) {
+        if (!active()) return screenFailure(e);
         screen.current = null;
         setScreenOn(false);
         setScreenStream(null);
         return screenFailure(e);
       }
     },
-    [stopScreen],
+    [stopScreen, stopStream],
   );
 
   const start = useCallback(

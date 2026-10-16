@@ -75,6 +75,54 @@ const probe = (f: string) => Number(execFileSync('ffprobe', ['-v', 'error', '-sh
 
 test.describe.configure({ mode: 'serial' });
 
+test.describe('recording permission lifecycle', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+  for (const capture of ['camera', 'screen'] as const) {
+    test(`releases a late ${capture} stream after leaving the recording page`, async () => {
+      const launched = await launch(`late-${capture}`, { DESK_STUDIO: '1' });
+      app = launched.app;
+      const page = launched.page;
+      await page.evaluate(() => (location.hash = '#/create/record'));
+      await page.evaluate((kind) => {
+        const state = window as unknown as { finishCapture?: () => void; lateTracks?: MediaStreamTrack[]; capturePending?: boolean };
+        const makeStream = (audio: boolean) => {
+          const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+          const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#238b82'; ctx.fillRect(0, 0, 640, 360);
+          const tracks = canvas.captureStream(24).getVideoTracks();
+          if (audio) {
+            const context = new AudioContext(); const oscillator = context.createOscillator(); const destination = context.createMediaStreamDestination();
+            oscillator.connect(destination); oscillator.start(); tracks.push(...destination.stream.getAudioTracks());
+          }
+          return new MediaStream(tracks);
+        };
+        const late = () => new Promise<MediaStream>((resolve) => {
+          state.capturePending = true;
+          state.finishCapture = () => {
+            const stream = makeStream(kind === 'camera');
+            state.lateTracks = stream.getTracks();
+            resolve(stream);
+          };
+        });
+        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: kind === 'camera' ? late : async () => makeStream(true) });
+        Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: late });
+      }, capture);
+      await page.getByTestId('create-rec-allow').click();
+      if (capture === 'screen') {
+        await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+        await page.getByTestId('create-rec-screen').click();
+        await page.getByTestId('rec-screen-toggle').click();
+        await page.getByTestId('rec-screen-source').click();
+      }
+      await expect.poll(() => page.evaluate(() => !!(window as unknown as { capturePending?: boolean }).capturePending)).toBe(true);
+      await page.evaluate(() => (location.hash = '#/'));
+      await expect(page.getByTestId('create-rec-allow')).toHaveCount(0);
+      await page.evaluate(() => (window as unknown as { finishCapture: () => void }).finishCapture());
+      await expect.poll(() => page.evaluate(() => (window as unknown as { lateTracks: MediaStreamTrack[] }).lateTracks?.map((t) => t.readyState))).toEqual(capture === 'camera' ? ['ended', 'ended'] : ['ended']);
+    });
+  }
+});
+
 test.describe('screen sharing with Screen Recording off', () => {
   let app: ElectronApplication;
   let page: Page;
