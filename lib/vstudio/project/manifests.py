@@ -314,6 +314,8 @@ def resolved_params(m, persona_formats=None):
     out = {}
     for k, v in props.items():
         if "x-format" in v:
+            if "default" in v:
+                raise ValueError(f"params.{k}: both x-format and a default are not allowed")
             try:
                 v = dict(v, default=_format_value(f, v["x-format"]))
             except KeyError:

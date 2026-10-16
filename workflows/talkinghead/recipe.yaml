@@ -104,6 +104,11 @@ params:
       x-format: cleanup
       title: Pause / filler cleanup
       x-zh: 去气口力度
+    cover_canvas:
+      enum: [video, platform]
+      x-format: cover.aspect
+      title: Cover canvas
+      x-zh: 封面尺寸
     layout:
       enum: [face, center, pad-blur, letterbox, band]
       default: pad-blur

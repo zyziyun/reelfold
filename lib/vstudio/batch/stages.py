@@ -443,7 +443,7 @@ def run_export(ctx):
     man = X.export(c["master"], targets, out_dir=ctx.path("exports"),
                    cues=cues_path, covers=covers, post=post,
                    mode=p.get("layout") or "pad-blur", preset=p.get("preset") or "medium",
-                   captions=bool(p.get("captions", True)),
+                   captions=bool(p.get("captions", True)), cover_canvas=p.get("cover_canvas") or "platform",
                    effects=(ctx.inputs.get("finish") or {}).get("effects"),
                    watermark=p.get("watermark") if p.get("watermark") is not None else ctx.spec.get("watermark"),
                    **({"crop_bottom": float(p.get("crop_bottom", 0.28))} if p.get("layout") == "band" else {}))
@@ -878,6 +878,8 @@ def _smooth_key(fn):
 def _export_params(job, spec):
     d = dict(_keyp("platforms", "layout", "crop_bottom", "captions", "cover", "preset", "trims")(job, spec),
              max_len=_p(job).get("max_len") or spec.get("max_len"))
+    if _p(job).get("cover_canvas") is not None:
+        d["cover_canvas"] = _p(job)["cover_canvas"]
     if _p(job).get("preserve_source_aspect"):
         d["preserve_source_aspect"] = True
     for k in ("subtitles", "subtitle_lang"):          # only when set: older batches keep their keys

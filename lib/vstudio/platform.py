@@ -41,7 +41,7 @@ canvas; applied to the 1920-tall orientation).
 """
 import copy
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 ALIASES = {"fb": "facebook", "facebook-reels": "facebook", "meta": "facebook", "脸书": "facebook",
            "li": "linkedin", "领英": "linkedin", "threads.net": "threads", "threads.com": "threads",
@@ -968,6 +968,23 @@ def caption_box(p: Profile):
 
 def cover_size(p: Profile):
     return int(p.cover["w"]), int(p.cover["h"])
+
+
+def video_canvas_cover(p: Profile):
+    """``p`` with its cover on the video canvas (a format's ``cover.aspect: video``): xiaohongshu:full exports
+    a 1080x1920 cover instead of the 3:4 upload size. The platform's own cover shape becomes the feed crop
+    (previewed + checked by vstudio.export), and its title-safe rect moves into that centre crop."""
+    if abs(p.cover["w"] / p.cover["h"] - p.w / p.h) < 1e-3:
+        return p
+    W, H = p.w, p.h
+    c0, d0, c1, d1 = crop_box(W, H, f"{p.cover['w']}:{p.cover['h']}")
+    k = (c1 - c0) / p.cover["w"]
+    x0, y0, x1, y1 = p.cover.get("title_safe") or (0, 0, p.cover["w"], p.cover["h"])
+    crops = [a for a in [p.cover.get("feed_crop")] + list(p.cover.get("crops") or []) if a]
+    cover = dict(p.cover, w=W, h=H, aspect=p.aspect, feed_crop=p.cover_aspect, crops=crops,
+                 title_safe=[int(c0 + x0 * k), int(d0 + y0 * k), int(c0 + x1 * k), int(d0 + y1 * k)])
+    return replace(p, cover=cover, cover_aspect=p.aspect)
+
 
 
 def cover_crops(p: Profile):

@@ -729,13 +729,14 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
-               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, **reframe_opts):
+               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
     them) - see the module doc, step 7. cover_targets: {target: path}
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
-    never drawn when none is set up)."""
+    never drawn when none is set up). cover_canvas="video" keeps the cover on the video canvas,
+    with a preview of the platform feed crop."""
     from . import audio
     mode = MODE_ALIASES.get(mode, mode)
     info = media.probe(master)
@@ -867,7 +868,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         warnings.append(f"{prof.name}: {capr.get('reason', 'burned captions recommended')} "
                         + ("(--captions sidecar: only the caption file, which viewers must switch on)" if sidecars
                            else "(pass --cues)"))
-    cover_path, notes = make_cover(prof, covers, out_mp4, os.path.join(out_dir, stem + ".cover.jpg"),
+    cprof = P.video_canvas_cover(prof) if cover_canvas == "video" else prof
+    cover_path, notes = make_cover(cprof, covers, out_mp4, os.path.join(out_dir, stem + ".cover.jpg"),
                                    per_target=cover_targets, warnings=warnings)
     entry = dict(platform=prof.name, orientation=prof.orientation, label=prof.label, file=os.path.basename(out_mp4),
                  w=oinfo["w"], h=oinfo["h"], fps=round(oinfo["fps"], 3), duration=round(oinfo["duration"], 3),
@@ -877,7 +879,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                      switches=pl.get("switches"), stats=pl.get("stats"), plan=os.path.basename(crop_json),
                      **({"band": band} if band else {}), **({"shots": shot_summary(pl)} if pl.get("shots") else {})),
                  captions=len(cue_list), captions_mode=cmode, keepouts=len(kos), captions_moved_frames=cap_report.get("moved", 0),
-                 cover=os.path.basename(cover_path), cover_size=list(P.cover_size(prof)),
+                 cover=os.path.basename(cover_path), cover_size=list(P.cover_size(cprof)),
                  notes=notes, safe_box=list(P.safe_box(prof)), caption_box=list(P.caption_box(prof)),
                  watermark=dict(WM.summary(wm_cfg), box=list(WM.box(wm_cfg, prof.w, prof.h, prof))) if wm_cfg else None)
     if track_lang:
@@ -891,7 +893,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                               f"{list(P.feed_crop_box(prof))}: keep faces and captions inside it")
     ab = _cover_for(prof, cover_ab) if cover_ab else None
     if ab:
-        entry["cover_ab"] = write_cover_ab(prof, [x for x in str(ab).split(",") if x.strip()], out_dir, stem)
+        entry["cover_ab"] = write_cover_ab(cprof, [x for x in str(ab).split(",") if x.strip()], out_dir, stem)
     if post:
         src_cues = cue_list or shown or (load_cues(src) if src is not None else [])
         own = _lang_base(track_lang) if (track_lang and not track_warn) else None   # the copy follows the track
@@ -1063,6 +1065,8 @@ def main(argv=None):
     ap.add_argument("--cover", action="append", default=[],
                     help="cover image(s): a path (closest aspect wins; another aspect is fitted on a blurred pad) "
                          "or platform[:orientation]=path for one target, e.g. --cover xiaohongshu=c34.png")
+    ap.add_argument("--cover-canvas", default="platform", choices=["platform", "video"],
+                    help="cover on the platform canvas or on the exported video canvas")
     ap.add_argument("--cover-ab", action="append", default=[],
                     help="thumbnail A/B pack for one target: platform=a.jpg,b.jpg,c.jpg (YouTube Test & Compare) "
                          "-> <target>.cover.ab1..3.jpg + a note in its post")
@@ -1106,7 +1110,7 @@ def main(argv=None):
     man = export(a.master, targets, a.out, cues=parse_cues_arg(a.cues), covers=a.cover, post=post, account=a.account,
                  mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
                  start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions="off" if a.no_captions else a.captions,
-                 watermark=None if a.watermark == "auto" else a.watermark == "on", cover_ab=a.cover_ab or None)
+                 watermark=None if a.watermark == "auto" else a.watermark == "on", cover_ab=a.cover_ab or None, cover_canvas=a.cover_canvas)
     for e in man["exports"]:
         print(f"{e['file']:32s} {e['w']}x{e['h']} {e['duration']:.1f}s "
               f"{(e['loudness'] or {}).get('i', '-')} LUFS  reframe={e['reframe']['mode_used']}")

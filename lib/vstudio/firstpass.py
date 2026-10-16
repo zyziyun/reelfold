@@ -246,11 +246,11 @@ def check_cover(cover, info, fmt=None):
     return out
 
 
-def check_post(title, text, prof, fmt=None):
+def check_post(title, text, prof, fmt=None, post_given=False):
     out = []
-    if not title and text and prof.title_max and fmt is not None:
+    if not title and text and prof.title_max and (fmt is not None or post_given):
         out.append(_item("title", False, f"有标题（{prof.name} 的发布页要填标题）", f"a title for {prof.name}",
-                         severity="warn", fix_zh="post.json 写 title，或让导出按字幕起草（≤ 平台上限）"))
+                         severity="red" if post_given else "warn", fix_zh="post.json 写 title，或让导出按字幕起草（≤ 平台上限）"))
     if title:
         from vstudio import publish
         ok, n, hints = publish.check_title(title, "youtube" if prof.name == "youtube-shorts" else prof.name)
@@ -360,7 +360,7 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     items += check_text(load_cues(cues), prof)
     items += check_cover(cover, info, f)
     t, txt = load_post(post)
-    items += check_post(title or t, txt, prof, f)
+    items += check_post(title or t, txt, prof, f, post_given=bool(post or title))
     items += check_caption_lang(load_cues(cues), prof, title or t, txt)
     items += check_style(f, hook_seconds)
     if look is None and hf and os.environ.get("VSTUDIO_LOOK", "1") != "0" and os.path.isdir(hf):
