@@ -19,6 +19,7 @@ import unicodedata
 
 _LOCK = threading.RLock()
 _REGISTERED = set()
+_DLL_HANDLES = []
 
 
 @lru_cache(maxsize=32)
@@ -67,6 +68,9 @@ int pango_version(void);
 int pango_cairo_font_map_get_font_type(void *fontmap);
 void *pango_font_map_create_context(void *fontmap);
 int pango_font_map_add_font_file(void *fontmap, const char *filename, void *error);
+void pango_font_map_changed(void *fontmap);
+void *FcConfigGetCurrent(void);
+int FcConfigAppFontAddFile(void *config, const unsigned char *filename);
 void *pango_layout_new(void *context);
 void pango_layout_set_markup(void *layout, const char *markup, int length);
 void pango_layout_get_pixel_extents(void *layout, PangoRectangle *ink, PangoRectangle *logical);
@@ -88,37 +92,54 @@ unsigned char CTFontManagerRegisterFontsForURL(void *url, int scope, void **erro
 '''
 
 
+_NAMES = {
+    'darwin': ('libcairo.2.dylib', 'libpango-1.0.0.dylib', 'libpangocairo-1.0.0.dylib', 'libgobject-2.0.0.dylib'),
+    'win32': ('cairo-2.dll', 'pango-1.0-0.dll', 'pangocairo-1.0-0.dll', 'gobject-2.0-0.dll'),
+}
+
+
+def _library_directory():
+    """Bundled libraries always win. Source/CI installs may name their native-library folder."""
+    root = Path(sys.prefix).resolve().parent / 'ffmpeg' / ('bin' if sys.platform == 'win32' else 'lib')
+    if root.is_dir():
+        return root
+    configured = os.environ.get('VSTUDIO_TEXT_LAYOUT_DIR')
+    if configured:
+        root = Path(configured)
+        if not root.is_absolute() or not root.is_dir():
+            raise RuntimeError('The configured text library folder must be an existing absolute path')
+        return root.resolve()
+    if sys.platform == 'darwin':
+        # Source installations: standard package-manager library folders, not the cwd or arbitrary PATH entries.
+        return next((p for p in (Path(sys.prefix) / 'lib', Path('/opt/homebrew/lib'), Path('/usr/local/lib'))
+                     if all((p / n).is_file() for n in _NAMES['darwin'])), None)
+    return None
+
+
 @lru_cache(maxsize=1)
 def _libraries():
     from cffi import FFI
     ffi = FFI()
     ffi.cdef(_API)
-    names = {
-        'darwin': ('libcairo.2.dylib', 'libpango-1.0.0.dylib', 'libpangocairo-1.0.0.dylib', 'libgobject-2.0.0.dylib'),
-        'win32': ('cairo-2.dll', 'pango-1.0-0.dll', 'pangocairo-1.0-0.dll', 'gobject-2.0-0.dll'),
-    }
-    root = Path(sys.prefix).resolve().parent / 'ffmpeg' / ('bin' if sys.platform == 'win32' else 'lib')
-    bundled = root.is_dir()
-    if not bundled and sys.platform == 'darwin':
-        # Source installations: standard package-manager library folders, not the cwd or arbitrary PATH entries.
-        root = next((p for p in (Path(sys.prefix) / 'lib', Path('/opt/homebrew/lib'), Path('/usr/local/lib'))
-                     if all((p / n).is_file() for n in names['darwin'])), root)
+    root = _library_directory()
+    if root is not None and sys.platform == 'win32':
+        _DLL_HANDLES.append(os.add_dll_directory(str(root)))
     libraries = []
     for i, system_name in enumerate(('cairo', 'pango-1.0', 'pangocairo-1.0', 'gobject-2.0')):
-        if root.is_dir() and sys.platform in names:
-            base = names[sys.platform][i]
+        if root is not None and sys.platform in _NAMES:
+            base = _NAMES[sys.platform][i]
             candidates = (root / base, root / ('lib' + base)) if sys.platform == 'win32' else (root / base,)
             file = next((str(p) for p in candidates if p.is_file()), None)
         else:
             file = ctypes.util.find_library(system_name)
         if not file:
-            raise RuntimeError('Complex text layout requires Pango/Cairo; use the bundled app or install Pango 1.56 or newer')
+            raise RuntimeError('Complex text layout requires Pango/Cairo; use the bundled app or install Pango 1.44 or newer')
         try:
             libraries.append(ffi.dlopen(file))
         except OSError as exc:
             raise RuntimeError('The text layout library could not load; repair the engine runtime') from exc
-    if libraries[1].pango_version() < 15600:
-        raise RuntimeError('Complex text layout requires Pango 1.56 or newer')
+    if libraries[1].pango_version() < 14400:
+        raise RuntimeError('Complex text layout requires Pango 1.44 or newer')
     return ffi, *libraries
 
 
@@ -129,6 +150,21 @@ def _fontmap():
     if fontmap == ffi.NULL:
         raise RuntimeError('Could not allocate the font map')
     return ffi.gc(fontmap, go.g_object_unref)
+
+
+@lru_cache(maxsize=1)
+def _fontconfig():
+    ffi, *_ = _libraries()
+    root = _library_directory()
+    if root is not None:
+        names = {'darwin': ('libfontconfig.1.dylib',), 'win32': ('fontconfig-1.dll', 'libfontconfig-1.dll')}
+        candidates = names.get(sys.platform, ('libfontconfig.so.1', 'libfontconfig.so'))
+        file = next((str(root / n) for n in candidates if (root / n).is_file()), None)
+    else:
+        file = ctypes.util.find_library('fontconfig')
+    if not file:
+        raise RuntimeError('The font configuration library could not load')
+    return ffi.dlopen(file)
 
 
 def _register(path, fontmap):
@@ -152,8 +188,16 @@ def _register(path, fontmap):
             if error[0] != ffi.NULL:
                 cf.CFRelease(error[0])
             cf.CFRelease(url)
-    else:
+    elif pc.pango_cairo_font_map_get_font_type(fontmap) == 1:
+        # Fontconfig's process-local application fonts work on older distro Pango too.
+        fc = _fontconfig()
+        ok = bool(fc.FcConfigAppFontAddFile(fc.FcConfigGetCurrent(), os.fsencode(path)))
+        if ok:
+            pa.pango_font_map_changed(fontmap)
+    elif pa.pango_version() >= 15600:
         ok = bool(pa.pango_font_map_add_font_file(fontmap, os.fsencode(path), ffi.NULL))
+    else:
+        raise RuntimeError('This font backend requires Pango 1.56 or newer to load selected fonts')
     if not ok:
         raise RuntimeError('The selected font could not be loaded for paragraph layout')
     _REGISTERED.add(path)

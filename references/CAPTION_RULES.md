@@ -76,6 +76,8 @@ For complex scripts or glyphs absent from the chosen face, the shared drawing he
 runs. Measurements, fallback glyphs and emphasis positions come from the same layout; marker/underline,
 stroke and shadow remain available. Missing glyphs are errors, not successful boxes. Font registration is
 process-local. The engine uses the existing dynamic Pango/Cairo stack and CFFI, not a second wheel's native
-libraries. Source environments currently need Pango 1.56 or newer; shipped runtimes already pin 1.58.2.
+libraries. Source environments need Pango 1.44 or newer (1.56 for the Windows font backend); shipped
+runtimes already pin 1.58.2. A source installation with native libraries outside standard system folders
+can set `VSTUDIO_TEXT_LAYOUT_DIR` to their absolute directory. Bundled runtimes always use their own libraries.
 This does not prove coverage on every OS: exercise the actual installed/downloaded fonts and review the
 output. Paragraph drawing rejects unsupported low-level Pillow keyword options instead of ignoring them.

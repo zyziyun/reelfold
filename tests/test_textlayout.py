@@ -1,5 +1,6 @@
 """Paragraph shaping, fallback and shared styled drawing; no character reversal or second native stack."""
 from types import SimpleNamespace
+from unittest.mock import Mock
 import threading
 
 import numpy as np
@@ -7,6 +8,41 @@ import pytest
 from PIL import Image, ImageDraw
 
 from vstudio import draw as D, textlayout as T
+
+
+def test_bundled_libraries_take_precedence_over_external_folder(tmp_path, monkeypatch):
+    prefix = tmp_path / 'runtime/python'
+    native = tmp_path / 'runtime/ffmpeg/lib'
+    native.mkdir(parents=True)
+    monkeypatch.setattr(T.sys, 'prefix', str(prefix))
+    monkeypatch.setattr(T.sys, 'platform', 'darwin')
+    monkeypatch.setenv('VSTUDIO_TEXT_LAYOUT_DIR', str(tmp_path / 'external'))
+    assert T._library_directory() == native
+
+
+def test_source_native_folder_is_explicit_and_absolute(tmp_path, monkeypatch):
+    monkeypatch.setattr(T.sys, 'prefix', str(tmp_path / 'other/python'))
+    monkeypatch.setenv('VSTUDIO_TEXT_LAYOUT_DIR', str(tmp_path))
+    assert T._library_directory() == tmp_path
+    monkeypatch.setenv('VSTUDIO_TEXT_LAYOUT_DIR', 'relative/native')
+    with pytest.raises(RuntimeError, match='absolute path'):
+        T._library_directory()
+
+
+def test_older_fontconfig_backend_keeps_selected_custom_font(monkeypatch):
+    ffi = SimpleNamespace(NULL=None)
+    pango = SimpleNamespace(pango_version=lambda: 15200, pango_font_map_changed=Mock(),
+                            pango_font_map_add_font_file=Mock(side_effect=AssertionError('requires newer Pango')))
+    cairo = SimpleNamespace(pango_cairo_font_map_get_font_type=lambda _: 1)
+    fc = SimpleNamespace(FcConfigGetCurrent=lambda: 'process-config', FcConfigAppFontAddFile=Mock(return_value=1))
+    monkeypatch.setattr(T, '_libraries', lambda: (ffi, None, pango, cairo, None))
+    monkeypatch.setattr(T, '_fontconfig', lambda: fc)
+    monkeypatch.setattr(T, '_REGISTERED', set())
+    T._register('/fonts/selected.otf', 'fontmap')
+    fc.FcConfigAppFontAddFile.assert_called_once_with('process-config', b'/fonts/selected.otf')
+    pango.pango_font_map_changed.assert_called_once_with('fontmap')
+    T._register('/fonts/selected.otf', 'fontmap')
+    assert fc.FcConfigAppFontAddFile.call_count == 1
 
 
 def test_covered_latin_and_cjk_stay_on_the_existing_renderer(monkeypatch):
@@ -70,11 +106,25 @@ def test_failed_library_load_releases_the_render_lock(monkeypatch):
 
 @pytest.fixture
 def native_font():
-    try:
-        T._libraries()
-    except RuntimeError as exc:
-        pytest.skip(str(exc))
+    # Native layout is a product dependency. Missing CI libraries must fail here,
+    # rather than turning every actual rendering check into a green skipped suite.
+    T._libraries()
     return D.load_font('cjk-bold', 48)
+
+
+def test_real_fontconfig_registration_loads_selected_font(native_font, monkeypatch):
+    ffi, _, _, pc, go = T._libraries()
+    ffi.cdef('void *pango_cairo_font_map_new_for_font_type(int fonttype);')
+    fontmap = pc.pango_cairo_font_map_new_for_font_type(1)  # CAIRO_FONT_TYPE_FT
+    if fontmap == ffi.NULL:
+        pytest.skip('This Pango build has no FreeType backend')
+    fontmap = ffi.gc(fontmap, go.g_object_unref)
+    monkeypatch.setattr(T, '_REGISTERED', set())
+    monkeypatch.setattr(T, '_fontmap', lambda: fontmap)
+    with T.Layout([T.Run('مرحبا Reelfold 2026')], native_font) as layout:
+        assert layout.width > 100
+        assert layout.image().getbbox()
+    assert str(native_font.path) in T._REGISTERED
 
 
 def test_plain_and_equivalent_styled_runs_keep_the_same_shaped_glyphs(native_font):
