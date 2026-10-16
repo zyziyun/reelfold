@@ -64,6 +64,7 @@ int cairo_surface_write_to_png_stream(void *surface, int (*write)(void*, const u
 void cairo_destroy(void *cr);
 void cairo_surface_destroy(void *surface);
 void *pango_cairo_font_map_new(void);
+void *pango_cairo_font_map_new_for_font_type(int fonttype);
 int pango_version(void);
 int pango_cairo_font_map_get_font_type(void *fontmap);
 void *pango_font_map_create_context(void *fontmap);
@@ -71,6 +72,8 @@ int pango_font_map_add_font_file(void *fontmap, const char *filename, void *erro
 void pango_font_map_changed(void *fontmap);
 void *FcConfigGetCurrent(void);
 int FcConfigAppFontAddFile(void *config, const unsigned char *filename);
+int FcConfigParseAndLoadFromMemory(void *config, const unsigned char *buffer, int complain);
+int FcConfigBuildFonts(void *config);
 void *pango_layout_new(void *context);
 void pango_layout_set_markup(void *layout, const char *markup, int length);
 void pango_layout_get_pixel_extents(void *layout, PangoRectangle *ink, PangoRectangle *logical);
@@ -148,7 +151,10 @@ def _libraries():
 @lru_cache(maxsize=1)
 def _fontmap():
     ffi, _, _, pc, go = _libraries()
-    fontmap = pc.pango_cairo_font_map_new()
+    # Our locked Windows HarfBuzz has no DirectWrite integration. Use the
+    # shipped Fontconfig/FreeType stack rather than Pango's default DirectWrite
+    # backend, whose own warning says custom fonts may render incorrectly.
+    fontmap = pc.pango_cairo_font_map_new_for_font_type(1) if sys.platform == 'win32' else pc.pango_cairo_font_map_new()
     if fontmap == ffi.NULL:
         raise RuntimeError('Could not allocate the font map')
     return ffi.gc(fontmap, go.g_object_unref)
@@ -166,7 +172,16 @@ def _fontconfig():
         file = ctypes.util.find_library('fontconfig')
     if not file:
         raise RuntimeError('The font configuration library could not load')
-    return ffi.dlopen(file)
+    library = ffi.dlopen(file)
+    # Apple's placeholder face advertises all codepoints, including unassigned
+    # ones, so Pango's unknown-glyph count alone cannot detect its boxes. Reject
+    # it through Fontconfig's process-local selection rules, never OS config.
+    config = library.FcConfigGetCurrent()
+    rules = (b'<fontconfig><selectfont><rejectfont><pattern><patelt name="family">'
+             b'<string>.LastResort</string></patelt></pattern></rejectfont></selectfont></fontconfig>')
+    if not library.FcConfigParseAndLoadFromMemory(config, rules, 1) or not library.FcConfigBuildFonts(config):
+        raise RuntimeError('The font fallback configuration could not load')
+    return library
 
 
 def _register(path, fontmap):

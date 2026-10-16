@@ -136,7 +136,6 @@ def native_font():
 
 def test_real_fontconfig_registration_loads_selected_font(native_font, monkeypatch):
     ffi, _, _, pc, go = T._libraries()
-    ffi.cdef('void *pango_cairo_font_map_new_for_font_type(int fonttype);')
     fontmap = pc.pango_cairo_font_map_new_for_font_type(1)  # CAIRO_FONT_TYPE_FT
     if fontmap == ffi.NULL:
         pytest.skip('This Pango build has no FreeType backend')
@@ -147,6 +146,21 @@ def test_real_fontconfig_registration_loads_selected_font(native_font, monkeypat
         assert layout.width > 100
         assert layout.image().getbbox()
     assert str(native_font.path) in T._REGISTERED
+
+
+def test_windows_uses_the_font_backend_supported_by_locked_harfbuzz(monkeypatch):
+    pc = SimpleNamespace(pango_cairo_font_map_new_for_font_type=Mock(return_value='freetype'),
+                         pango_cairo_font_map_new=Mock(side_effect=AssertionError('DirectWrite is unsupported')))
+    ffi = SimpleNamespace(NULL=None, gc=lambda obj, cleanup: obj)
+    with monkeypatch.context() as patch:
+        patch.setattr(T.sys, 'platform', 'win32')
+        patch.setattr(T, '_libraries', lambda: (ffi, None, None, pc, SimpleNamespace(g_object_unref=Mock())))
+        T._fontmap.cache_clear()
+        try:
+            assert T._fontmap() == 'freetype'
+            pc.pango_cairo_font_map_new_for_font_type.assert_called_once_with(1)
+        finally:
+            T._fontmap.cache_clear()
 
 
 def test_plain_and_equivalent_styled_runs_keep_the_same_shaped_glyphs(native_font):
@@ -207,7 +221,12 @@ def test_unspaced_thai_uses_dictionary_breaks_and_keeps_every_character(native_f
     assert ''.join(lines) == text
     assert all(D.text_width(line, native_font) <= 430 for line in lines)
     assert any('วิดีโอ' in line for line in lines)
-    assert any('เรื่องราว' in line for line in lines)
+    from vstudio.textbreak import dictionary_words
+    boundaries = set(dictionary_words(text).values())
+    end = 0
+    for line in lines:
+        end += len(line)
+        assert end in boundaries  # only break at dictionary boundaries, independent of fallback font metrics
 
 
 def test_dictionary_wrapping_preserves_emphasis_across_line_boundaries(native_font):
