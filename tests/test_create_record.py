@@ -156,3 +156,32 @@ def test_screen_recording_without_webm_duration_tags_is_playable(home):
     assert info["w"] and info["h"] and info["has_audio"]
     assert 1.3 < media.duration(movie) < 1.8
     assert RE.duration(os.path.join(d, "camera.webm")) == 0  # raw tracks are not rewritten
+
+
+@pytest.mark.parametrize("microphone", [True, False])
+def test_screen_playback_audio_survives_mux_with_separate_microphone(home, microphone):
+    """500 Hz app playback + 440 Hz mic remain audible; raw sources stay byte-identical."""
+    import hashlib
+    import numpy as np
+    d = session(home, [], seconds=1.5)
+    sess = json.load(open(os.path.join(d, "session.json")))
+    screen = os.path.join(d, "screen.webm")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "color=blue:size=640x360:rate=24:duration=1.5", "-f", "lavfi", "-i",
+                    "sine=frequency=500:duration=1.5", "-c:v", "libvpx-vp9", "-deadline", "realtime",
+                    "-c:a", "libopus", screen], check=True)
+    sess["tracks"]["screen"] = dict(file="screen.webm", start_ms=1000)
+    if not microphone:
+        os.rename(os.path.join(d, "mic.webm"), os.path.join(d, "mic-original.webm"))
+        del sess["tracks"]["mic"]
+    originals = {f: hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest()
+                 for f in os.listdir(d) if f.endswith(".webm")}
+    movie = RE.mux(d, sess, os.path.join(d, "with-material-sound.mp4"))
+    pcm = subprocess.check_output(["ffmpeg", "-v", "error", "-i", movie, "-vn", "-ac", "1", "-ar", "8000", "-f", "s16le", "-"])
+    samples = np.frombuffer(pcm, dtype="<i2").astype(float) / 32768
+    clock = np.arange(len(samples)) / 8000
+    def magnitude(hz):
+        return abs(np.sum(samples * np.exp(-2j * np.pi * hz * clock))) * 2 / len(samples)
+    assert magnitude(500) > 0.06
+    assert (magnitude(440) > 0.06) if microphone else (magnitude(440) < 0.01)
+    assert all(hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest() == sha for f, sha in originals.items())

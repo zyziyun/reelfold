@@ -3,6 +3,7 @@
 // Everything else (routes, api, screens, copy, css) lives under create/.
 import './create.css';
 import type { SettingsMsg } from '../../../shared/deskApi';
+import { LearningCreate } from './LearningCreate';
 import { CreatePlan } from './CreatePlan';
 import { EpisodeScreen } from './episode/EpisodeScreen';
 import { RecordStudio } from './record/RecordStudio';
@@ -21,6 +22,8 @@ export function isCreateLanding(path: string[]): boolean {
 export function CreateScreen({ path, onSettings }: { path: string[]; onSettings?: (s: SettingsMsg) => void }) {
   const r = parseCreate(path);
   switch (r.screen) {
+    case 'learning':
+      return <div className="scroll"><LearningCreate /></div>;
     case 'series':
       return (
         <div className="scroll">

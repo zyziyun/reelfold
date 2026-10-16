@@ -148,9 +148,10 @@ def is_template(path, template=None):
 def format_check(recipe, cp_id):
     """The format a checkpoint's file must have before it can be locked (None: any text): the explainer's script is
     '## Line N' blocks - her lecture notes in that file are "notes", drafted into lines, never locked as they are."""
-    from .adapters import explainer, performance
+    from .adapters import explainer, performance, learning
     return {("explainer", "script"): explainer.script_format_ok,
-            ("performance-edit", "edit"): performance.format_ok}.get((recipe, cp_id))
+            ("performance-edit", "edit"): performance.format_ok,
+            ("learning-commentary", "montage"): learning.format_ok}.get((recipe, cp_id))
 
 
 def state(path, template=None, cp=None, recipe=None):
@@ -219,8 +220,10 @@ def _part_present(recipe, cp_id):
 
 # --------------------------------------------------------------------------- drafting
 def _drafter(recipe, cp_id):
-    from .adapters import explainer, launchkit, photostory, preproduction, promo, vlog, performance
-    return {("performance-edit", "edit"): performance.draft_edit,
+    from .adapters import explainer, launchkit, photostory, preproduction, promo, vlog, performance, learning
+    return {("learning-commentary", "outline"): learning.draft_outline,
+            ("learning-commentary", "montage"): learning.draft_montage,
+            ("performance-edit", "edit"): performance.draft_edit,
             ("launch-kit", "config"): launchkit.draft_config, ("vlog", "edit"): vlog.draft_edit,
             ("photo-story", "story"): photostory.draft_spec, ("promo-recut", "keep"): promo.draft_keep, ("promo-recut", "package"): promo.draft_package,
             ("preproduction", "lock"): preproduction.draft_script, ("explainer", "cues"): explainer.draft_cues,
@@ -229,8 +232,9 @@ def _drafter(recipe, cp_id):
 
 
 def _reviewer(recipe, cp_id):
-    from .adapters import promo, performance
-    return {("performance-edit", "edit"): performance.review_edit,
+    from .adapters import promo, performance, learning
+    return {("learning-commentary", "montage"): learning.review_montage,
+            ("performance-edit", "edit"): performance.review_edit,
             ("promo-recut", "keep"): promo.review_keep, ("promo-recut", "package"): promo.review_package}.get(
         (recipe, cp_id))
 

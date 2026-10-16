@@ -276,6 +276,7 @@ export interface DeskApi {
   };
   /** Create recorder (main refuses while the Create flag is off) */
   rec: {
+    browserCapture(lang: 'en' | 'zh' | 'fr', sourceUrl?: string): Promise<void>;
     status(): Promise<{ camera: string; microphone: string; screen: string; platform: string; release: string }>;
     ask(kind: 'camera' | 'microphone'): Promise<boolean>;
     openPrivacy(pane: 'camera' | 'microphone' | 'screen'): Promise<void>;
@@ -291,7 +292,7 @@ export interface DeskApi {
     /** what she can share; access 'denied' = macOS Screen Recording is off for Reelfold (asks once) */
     screens(): Promise<ScreensReply>;
     /** the source the next getDisplayMedia shares */
-    screenPick(id: string): Promise<{ ok: boolean }>;
+    screenPick(id: string, appAudio?: boolean): Promise<{ ok: boolean }>;
   };
   confirmCleanup(batchId: string): Promise<{ confirmed: boolean; trashed: string[]; failed: string[]; outside: string[] }>;
   /** Delete › Move to Trash, step 2: the engine's pending delete ``id`` goes to the Trash (main/trash.ts) */

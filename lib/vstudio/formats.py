@@ -54,6 +54,11 @@ _COMMON = dict(theme="editorial", series_labels=False, captions="zh", tag_set=No
                smooth_cuts=False)
 
 FORMATS = {
+    "learning-commentary": dict(
+        labels=dict(en="Learn and share", zh="学习分享"), workflow="learning-commentary",
+        speed=dict(body=1.0, hook=1.0, inserts=1.0), hooks="none", cleanup="gentle", tag_set="",
+        cover=dict(aspect="video", style="title-card", retouch=False, min_luma=0.42, text="designed"),
+        rules=["原片与自己的讲解交替，保留出处与原声", "不编造个人经历；缺口播先补录"]),
     "talking-head": dict(
         labels=dict(zh="口播", en="Talking head"), workflow="talkinghead",
         speed=dict(body=1.25, hook=1.5, inserts=1.1), hooks="menu", cleanup="tight", notes=True,
@@ -151,7 +156,7 @@ FORMATS = {
         rules=["保留铺垫、笑点与反应停顿，不统一加速", "保留原声与连续性，不用教学笔记面板替代表演"]),
 }
 # recipe / workflow id -> format (intake.rules recipe ids and workflow folder names)
-BY_RECIPE = {"performance-edit": "sketch-edit", "talkinghead": "talking-head", "promo-recut": "promo", "call-clips": "call-clips",
+BY_RECIPE = {"learning-commentary": "learning-commentary", "performance-edit": "sketch-edit", "talkinghead": "talking-head", "promo-recut": "promo", "call-clips": "call-clips",
              "longform-to-short": "lecture-slices", "longform-course": "lecture-slices", "batch": "lecture-slices",
              "vlog": "vlog", "explainer": "explainer", "photo-story": "photo-story", "ai-video": "ai-skit",
              "lesson-clips": "lesson-points", "interview-qa": "interview-qa", "launch-kit": "launch"}

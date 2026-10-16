@@ -5,6 +5,7 @@ acrossfade
 adelay
 afade
 aformat
+alimiter
 amix
 anull
 anullsrc

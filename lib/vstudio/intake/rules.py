@@ -17,6 +17,8 @@ from . import inventory as I
 # --------------------------------------------------------------------------- phrase table (SKILL.md section 1)
 # (recipe, phrases, weight). Longer / more specific phrases first; weights break ties between recipes.
 PHRASES = [
+    ("learning-commentary", ["学习分享", "边学边讲", "边学习边介绍", "读书分享", "读书感想", "原片加讲解",
+        "访谈加口播", "播客加感想", "learn and share", "learning commentary", "book commentary", "reaction video"], 5),
     ("ai-video", ["ai短剧", "ai 短剧", "短剧", "aigc", "ai生成", "ai 生成", "可灵", "即梦", "seedance", "海螺", "定妆照", "分镜prompt",
                   "积分", "连载", "ai skit", "ai-generated", "ai generated", "ai short", "text-to-video"], 3),
     ("explainer", ["讲解视频", "讲解短视频", "讲解", "3b1b", "3blue1brown", "解释一个概念", "原理讲解", "科普", "explainer"], 2),
@@ -428,7 +430,7 @@ def choose_recipes(intent, analysis):
         if r and r not in [x for x, _ in out]:
             out.append((r, c))
     if intent["extract"] and not any(r in ("talkinghead", "longform-to-short", "call-clips", "lesson-clips",
-                                           "interview-qa") for r, _ in out):
+                                           "interview-qa", "learning-commentary") for r, _ in out):
         r = _extract_recipe(present)
         if r and r not in excl:
             out = [x for x in out if x[0] != "talkinghead"]
@@ -542,7 +544,22 @@ def rule_projects(intent, analysis, ctx):
         from vstudio.content_kind import detect
         kind = detect(ctext or intent["text"])
         cnt = (clause or {}).get("count") or (intent.get("count") if len(chosen) == 1 else None)
-        if rid in EDU_SOURCE:
+        if rid == "learning-commentary":
+            files = [f for f in analysis["files"] if f["id"] not in used]
+            # Do not guess which speaker is the creator: the agent assigns takes explicitly at review.
+            refs = [f for f in files if f.get("kind") == "video"]
+            pages = [f for f in files if f.get("kind") == "image"]
+            notes = [f for f in files if os.path.splitext(f["path"])[1].lower() in (".md", ".txt")]
+            for key, rows in (("references", refs), ("pages", pages), ("notes", notes)):
+                if rows:
+                    p["inputs"][key] = [f["path"] for f in rows]
+            p["materials"] = [f["id"] for f in refs + pages + notes]
+            used.update(p["materials"])
+            p["items"] = dict(method="single", count=1)
+            p["why"] = {"zh": "原片或书页 → 我的理解、真实经历与应用；缺口播先补录",
+                        "fr": "Extraits ou pages → votre point de vue et expérience ; ajoutez votre prise"}.get(
+                            L, "Source excerpts or pages → your understanding, experience and application; add your take")
+        elif rid in EDU_SOURCE:
             src, cam = _pick_source(analysis, EDU_SOURCE[rid]), None
             if rid == "lesson-clips":                  # a screen share + a camera of the same lesson: one project
                 src, cam = _screen_and_camera(analysis, used) or (src, None)
