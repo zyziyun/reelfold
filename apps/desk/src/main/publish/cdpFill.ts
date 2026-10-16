@@ -1,6 +1,7 @@
 // Executes a fill plan over the Chrome DevTools Protocol (webContents.debugger). Element lookups run in an
 // isolated world per frame (page scripts cannot see or tamper with them); files go through
-// DOM.setFileInputFiles; text is typed with Input.insertText like a keyboard would. Nothing is ever clicked.
+// DOM.setFileInputFiles; text is typed with Input.insertText like a keyboard would. Only fixed cover-dialog controls may be clicked; Publish is never clicked.
+import { coverAction } from './coverFill';
 import type { FillControl } from './fillControl';
 import type { FillStep } from '../../shared/publish/fillPlan';
 import { findJs } from '../../shared/publish/selectors';
@@ -124,6 +125,34 @@ async function typeText(send: Send, text: string, editable: 'input' | 'contented
   }
 }
 
+async function fillCover(send: Send, step: Extract<FillStep, { kind: 'files' }>, sleep: (ms: number) => Promise<void>, now = Date.now) {
+  const { frameTree } = await send('Page.getFrameTree');
+  const { executionContextId } = await send('Page.createIsolatedWorld', { frameId: frameTree.frame.id, worldName: WORLD });
+  const evaluate = async (action: Parameters<typeof coverAction>[0]) => {
+    const r = await send('Runtime.evaluate', { expression: coverAction(action), contextId: executionContextId, returnByValue: action !== 'input' });
+    if (r.exceptionDetails) throw new Error('Could not access the cover dialog');
+    return action === 'input' ? r.result?.objectId : r.result?.value;
+  };
+  const wait = async (action: Parameters<typeof coverAction>[0]) => {
+    const start = now();
+    for (;;) {
+      const result = await evaluate(action);
+      if (result) return result;
+      if (now() - start >= step.timeoutMs) throw new Error(`Cover ${action} was not ready. Check the cover dialog and try again.`);
+      await sleep(400);
+    }
+  };
+  await wait('open');
+  await wait('upload');
+  const id = await wait('input');
+  try {
+    if (!(await call(send, id, IS_FILE_INPUT_FN))) throw new Error('Cover input is not a file input');
+    await send('DOM.setFileInputFiles', { files: step.paths, objectId: id });
+  } finally { await send('Runtime.releaseObject', { objectId: id }).catch(() => undefined); }
+  await wait('confirm');
+  await wait('closed');
+}
+
 export async function runFill(
   rawSend: Send,
   steps: FillStep[],
@@ -148,6 +177,11 @@ export async function runFill(
       await opts.control?.checkpoint();
       opts.onStep?.({ field: step.field, kind: step.kind, status: 'running' });
       try {
+        if (step.kind === 'files' && step.field === 'cover' && step.coverFlow === 'xiaohongshu') {
+          await fillCover(send, step, sleep, opts.control?.now);
+          push({ field: 'cover', kind: 'files', status: 'ok' });
+          continue;
+        }
         const id = await waitFor(send, step.selectors, step.kind !== 'files', step.timeoutMs, sleep, opts.control?.now);
         if (!id) {
           push({ field: step.field, kind: step.kind, status: 'not-found', detail: step.selectors[0] });

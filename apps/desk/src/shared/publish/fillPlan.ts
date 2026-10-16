@@ -1,11 +1,11 @@
 // Assisted fill = a list of steps executed over the Chrome DevTools Protocol in the platform page.
 // Step kinds are closed: set files on a file input, type text into a field, outline the publish button.
-// There is no click step - publishing is always the creator's own click.
+// No arbitrary click step: the fixed cover dialog flow may confirm a cover; publishing is always the creator's own click.
 import type { Adapter } from './adapterSchema';
 import { formatTags, type PostCopy } from './postCopy';
 
 export type FillStep =
-  | { kind: 'files'; field: 'file' | 'cover'; selectors: string[]; paths: string[]; timeoutMs: number }
+  | { kind: 'files'; field: 'file' | 'cover'; selectors: string[]; paths: string[]; timeoutMs: number; coverFlow?: 'xiaohongshu' }
   | {
       kind: 'text';
       field: 'title' | 'description' | 'tags';
@@ -84,7 +84,7 @@ export function planFill(a: Adapter, p: FillPayload): FillStep[] {
     else steps.push(step);
   }
   if (f.cover && p.coverPath) {
-    steps.push({ kind: 'files', field: 'cover', selectors: f.cover.selectors, paths: [p.coverPath], timeoutMs: f.cover.timeoutMs ?? 5000 });
+    steps.push({ kind: 'files', field: 'cover', selectors: f.cover.selectors, paths: [p.coverPath], timeoutMs: f.cover.timeoutMs ?? 5000, ...(a.id === 'xiaohongshu' ? { coverFlow: 'xiaohongshu' as const } : {}) });
   }
   if (a.publishButton) {
     steps.push({ kind: 'highlight', field: 'publish', selectors: a.publishButton.selectors, timeoutMs: 3000 });

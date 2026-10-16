@@ -1,5 +1,5 @@
 // Per-platform "assisted fill" adapter files (adapters/*.json). Strict schema: there is deliberately no way to
-// express a click - the app only sets the video file and types text; the creator presses publish herself.
+// express an arbitrary click. The fixed cover flow may confirm an image; the creator presses publish herself.
 import { z } from 'zod';
 import { selectorError } from './selectors';
 
