@@ -173,7 +173,13 @@ def _native_debug_api():
         const void *g_bytes_get_data(void *bytes, size_t *size);
         void g_bytes_unref(void *bytes);
     ''')
+    # GBytes belongs to GLib; Windows GObject does not re-export its dependencies.
+    if T.sys.platform == 'win32':
+        root = T._library_directory()
+        name = next(p for p in (root / 'glib-2.0-0.dll', root / 'libglib-2.0-0.dll') if p.is_file())
+        return ffi, pa, ffi.dlopen(str(name))
     return ffi, pa, go
+
 
 
 def _native_debug(layout):
