@@ -19,6 +19,16 @@ ZH = "我们用这个模型做了一个非常长的测试，然后把结果发�
 MIX = "今天我们用Claude Code和HyperFrames做了一个讲解视频，整个流程只用了十分钟，而且export也很快"
 
 
+def test_thai_caption_chunks_use_dictionary_words_without_inserting_spaces():
+    text = 'การตัดต่อวิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจและแบ่งปันความรู้กับผู้ชมได้อย่างชัดเจน'
+    for width in (8, 12, 20):
+        chunks = S.caption_chunks(text, width, max_lines=2)
+        assert len(chunks) > 1
+        assert S.join_caption(chunks) == text
+        assert any('วิดีโอ' in chunk for chunk in chunks)
+        assert any('เรื่องราว' in chunk for chunk in chunks)
+
+
 def _words(s):
     return re.findall(r"[A-Za-z0-9'’]+", s)
 

@@ -56,8 +56,28 @@ runs:
           export PATH="$HOME/ffmpeg-bin:$PATH"
         else
           command -v ffmpeg > /dev/null || brew install ffmpeg
+          brew list pango > /dev/null 2>&1 || HOMEBREW_NO_AUTO_UPDATE=1 brew install pango
         fi
         ffmpeg -hide_banner -version | head -1
+    - name: Cache native text libraries (Windows)
+      if: runner.os == 'Windows'
+      id: text-cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          apps/desk/build/.cache
+          apps/desk/build/runtime/win32-x64/ffmpeg
+        key: text-native-win32-${{ hashFiles('apps/desk/packaging/ffmpeg/win32-x64.txt', 'apps/desk/packaging/runtime.lock.json', 'apps/desk/scripts/runtime/*.mjs') }}
+    - name: Native text libraries (Windows; same locked stack as the app)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        TEXT_CACHED: ${{ steps.text-cache.outputs.cache-hit }}
+      run: |
+        if [ "$TEXT_CACHED" != true ]; then
+          node apps/desk/scripts/runtime/bundle.mjs --target=win32-x64 --only=ffmpeg
+        fi
+        node -e "require('fs').appendFileSync(process.env.GITHUB_ENV, 'VSTUDIO_TEXT_LAYOUT_DIR=' + require('path').resolve('apps/desk/build/runtime/win32-x64/ffmpeg/bin') + '\n')"
     - name: Engine python deps
       shell: bash
       env:
@@ -77,6 +97,18 @@ runs:
         fi
         # the app would otherwise pick the runner's own python3 (no engine deps) before this one
         echo "DESK_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+    - name: Cache pinned engine fonts
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/video-studio/fonts
+        key: engine-fonts-${{ hashFiles('apps/desk/packaging/assets.json') }}
+    - name: Engine fonts and native paragraph smoke check
+      shell: bash
+      env:
+        PYTHONPATH: lib
+      run: |
+        node apps/desk/scripts/runtime/ensure-fonts.mjs
+        python -B apps/desk/scripts/runtime/check_text_layout.py
     - name: npm ci
       shell: bash
       run: npm ci

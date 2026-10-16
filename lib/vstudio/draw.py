@@ -115,11 +115,16 @@ def plain(text: str) -> str:
 
 
 def text_width(text: str, f) -> float:
-    return _D0.textlength(plain(text), font=f)
+    from . import textlayout as TL
+    text = plain(text)
+    return TL.measure(text, f)[0] if TL.needed(text, f) else _D0.textlength(text, font=f)
 
 
 def text_size(text: str, f):
     """(width, line height) of a single line; height = ascent + descent so mixed lines align."""
+    from . import textlayout as TL
+    if TL.needed(plain(text), f):
+        return TL.measure(plain(text), f)
     asc, desc = f.getmetrics()
     return int(round(text_width(text, f))), asc + desc
 
@@ -144,9 +149,11 @@ def tokens(text: str, keep_phrases: bool = None):
     punctuation / markup to the token after it."""
     if keep_phrases is None:
         keep_phrases = has_cjk(text)
+    from .textbreak import dictionary_words
+    dictionary = dictionary_words(text)
     raw, i = [], 0
     while i < len(text):
-        end = word_end(text, i)
+        end = dictionary.get(i) or word_end(text, i)
         if end > i:
             raw.append(text[i:end]); i = end
         elif text[i].isspace():
@@ -310,6 +317,15 @@ def draw_runs(d, xy, line, f, fill=WHITE, hl_fill=None, keywords=None, **kw):
     """Draw one line with highlight runs; returns the x after the last run."""
     x, y = xy
     hl = hl_fill or rgba(brand()["highlight"])
+    from . import textlayout as TL
+    if TL.needed(plain(line), f):
+        unsupported = set(kw) - {'stroke_width', 'stroke_fill'}
+        if unsupported:
+            raise ValueError('Unsupported paragraph drawing options: ' + ', '.join(sorted(unsupported)))
+        row = [TL.Run(t, rgba(hl if h else fill)) for t, h in runs(line, keywords)]
+        image = TL.block([row], f, stroke=kw.get('stroke_width', 0), stroke_fill=rgba(kw.get('stroke_fill', fill)))
+        alpha_paste(d._image, image, (x, y))
+        return x + text_width(line, f)
     for t, h in runs(line, keywords):
         d.text((x, y), t, font=f, fill=hl if h else fill, **kw)
         x += d.textlength(t, font=f)
@@ -326,7 +342,7 @@ def wrap_draw(d, xy, text, f, max_w, fill=WHITE, hl_fill=None, line_gap=1.25, al
         w = text_width(ln, f)
         lx = x - w / 2 if align == "center" else (x - w if align == "right" else x)
         draw_runs(d, (lx, y), ln, f, fill, hl_fill, keywords, **kw)
-        y += lh
+        y += max(lh, int(round(text_size(ln, f)[1] * line_gap)))
     return y
 
 
@@ -413,6 +429,10 @@ def text_layer(text, f, fill=WHITE, hl_fill=None, stroke=6, stroke_fill=(20, 20,
         hl = rgba(hl_fill) if hl_fill is not None else rgba(brand()["highlight"])
         lines = wrap(text, f, max_w, balance=True) if max_w else [text]
         lines_runs = [[(t, hl if h else rgba(fill)) for t, h in runs(ln, keywords)] for ln in lines]
+    from . import textlayout as TL
+    if any(TL.needed(''.join(t for t, _ in row), f) for row in lines_runs):
+        return TL.block([[TL.Run(t, col) for t, col in row] for row in lines_runs], f, pad=pad, stroke=stroke,
+                        stroke_fill=rgba(stroke_fill), shadow_alpha=shadow_alpha, line_gap=line_gap, align=align)
     asc, desc = f.getmetrics()
     lh = int((asc + desc) * line_gap)
     widths = [sum(_D0.textlength(t, font=f) for t, _ in lr) for lr in lines_runs]
@@ -473,6 +493,19 @@ def emph_layer(text, f, T=None, surface="paper", fill=None, emph_font=None, max_
         lines = wrap(text, f, max_w, balance=True, max_lines=max_lines) if max_w else std_markup(str(text)).split("\n")
     per = int(T.get("emph_per_line") or 0)
     L = [limit_runs(runs(ln, keywords), per) for ln in lines]
+    from . import textlayout as TL
+    if any(TL.needed(''.join(t for t, _ in row), f) for row in L):
+        styled = [[TL.Run(t, emph_col if h and (video or mode == 'color') else ink, h, ef if h else f)
+                   for t, h in row] for row in L]
+        marker = None
+        if not video and mode in ('marker', 'underline'):
+            marker = (mode, (_TH.rgb(T, 'marker') + (round(255 * float(T.get('marker_alpha') or 1.0)),))
+                      if mode == 'marker' else acc + (255,))
+        return TL.block(styled, f, pad=pad, stroke=stroke,
+                        stroke_fill=_TH.rgba(T, 'over_stroke', .85) if stroke else (0, 0, 0, 255),
+                        shadow_alpha=int(T.get('over_shadow') or 0) if video else 0,
+                        shadow_blur=max(2, size // 14), line_gap=line_gap, align=align, marker=marker,
+                        sweep=min(1., max(0., float(sweep))))
     asc, desc = f.getmetrics()
     lh = int((asc + desc) * line_gap)
     widths = [sum(_D0.textlength(t, font=ef if h else f) for t, h in lr) for lr in L]

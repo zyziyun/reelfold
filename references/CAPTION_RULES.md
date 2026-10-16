@@ -57,8 +57,13 @@ Invalid cached segment times must surface for review, not silently trigger anoth
 Use the shared `subs.balanced_wrap` / `draw.wrap` for caption and card lines. In space-delimited scripts,
 keep the complete Unicode word and its combining marks together, including highlighted words. A word wider
 than the box needs a smaller font or a different layout, never an arbitrary letter break. Keep Arabic and
-Indic closing punctuation with the preceding word. This is not dictionary segmentation for Thai or other
-scripts without spaces.
+Indic closing punctuation with the preceding word. For Thai, Lao, Khmer and Myanmar scripts, the shared
+caption and card tokenizers use ICU's dictionary word boundaries instead of treating an entire unspaced
+sentence as one word. ICU's UTF-16 offsets are mapped to the original text without changing characters;
+highlight markup and no-break punctuation retain their existing behavior. This reuses the native ICU
+already locked with the app (MIT/Unicode licence); source installations need ICU as well. Test the actual
+bundled libraries: a developer's Pango may include LibThai while the packaged build does not. Korean's
+space-delimited words still stay whole; a too-wide indivisible word triggers fitting, not syllable splitting.
 
 Word-preserving text is not proof of correct glyphs or reading order. Review the rendered result with the
 actual font and backend. The libass writer selects whole-line shaping and automatic base direction for RTL
@@ -70,3 +75,18 @@ Pillow still needs appropriate font coverage; enabling Raqm alone does not add m
 separately drawn highlight runs into a correct mixed-direction paragraph. A successful draw
 call alone does not prove Arabic or Indic text is readable. Do not reverse strings or transliterate them to
 hide a renderer limitation.
+
+For complex scripts or glyphs absent from the chosen face, the shared drawing helpers use
+`textlayout.Layout`: one Pango paragraph with style attributes, rather than independently painted logical
+runs. Measurements, fallback glyphs and emphasis positions come from the same layout; marker/underline,
+stroke and shadow remain available. Missing glyphs are errors, not successful boxes. Font registration is
+process-local. The engine uses the existing dynamic Pango/Cairo stack and CFFI, not a second wheel's native
+libraries. Source environments need Pango 1.44 or newer; shipped
+runtimes already pin 1.58.2. A source installation with native libraries outside standard system folders
+can set `VSTUDIO_TEXT_LAYOUT_DIR` to their absolute directory. Bundled runtimes always use their own libraries.
+Windows uses the shipped Fontconfig/FreeType backend: the locked HarfBuzz has no DirectWrite integration,
+so selecting Pango's default DirectWrite backend is not a valid custom-font rendering path for this build.
+Fontconfig excludes the macOS `.LastResort` placeholder through in-memory selection rules: its claimed
+coverage is not readable text and must not conceal missing glyphs. No system font configuration is changed.
+This does not prove coverage on every OS: exercise the actual installed/downloaded fonts and review the
+output. Paragraph drawing rejects unsupported low-level Pillow keyword options instead of ignoring them.

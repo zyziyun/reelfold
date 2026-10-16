@@ -13,6 +13,7 @@
 // Chinese voice (Qwen3-TTS through mlx-audio, no extra packages: vstudio.qwen_synth / qwen_bpe) is the tts-qwen-zh
 // download; verify says a Chinese line with it too (--skip=voice-zh: not).
 // Usage: node scripts/runtime/bundle.mjs [--target=darwin-arm64] [--skip=python,ffmpeg,vstudio,verify,voice,voice-zh]
+// Native libraries only (source-engine CI; no Python, engine or complete-runtime manifest): --only=ffmpeg
 // The pip step runs the target's own interpreter, so build on a host of the target's OS/arch (CI matrix does).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -164,7 +165,7 @@ async function buildFfmpeg() {
     fs.mkdirSync(path.join(dst, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(dst, 'lib'), { recursive: true });
     for (const b of ['ffmpeg', 'ffprobe']) fs.copyFileSync(path.join(prefix, 'bin', b), path.join(dst, 'bin', b));
-    closure = machoClosure(prefix, ['bin/ffmpeg', 'bin/ffprobe', 'lib/libfribidi.0.dylib']);
+    closure = machoClosure(prefix, ['bin/ffmpeg', 'bin/ffprobe', 'lib/libfribidi.0.dylib', 'lib/libpangocairo-1.0.0.dylib']);
     for (const rel of closure) fs.copyFileSync(fs.realpathSync(path.join(prefix, rel)), path.join(dst, 'lib', path.basename(rel)));
     // Pillow's wheel dlopens "libfribidi.dylib". Preloading the versioned file works only when
     // its install ID matches that name. Keep the existing file/dependency paths and licence inventory.
@@ -177,7 +178,9 @@ async function buildFfmpeg() {
     const bin = path.join(prefix, 'Library', 'bin');
     const bidi = fs.readdirSync(bin).find((f) => /^(?:lib)?fribidi(?:-0)?\.dll$/i.test(f));
     if (!bidi) throw new Error('locked FFmpeg prefix has no FriBiDi DLL for Pillow shaping');
-    closure = peClosure(bin, ['ffmpeg.exe', 'ffprobe.exe', bidi]);
+    const pango = fs.readdirSync(bin).find((f) => /^(?:lib)?pangocairo-1\.0-0\.dll$/i.test(f));
+    if (!pango) throw new Error('locked FFmpeg prefix has no Pango/Cairo DLL for paragraph shaping');
+    closure = peClosure(bin, ['ffmpeg.exe', 'ffprobe.exe', bidi, pango]);
     for (const f of closure) fs.copyFileSync(path.join(bin, f), path.join(dst, 'bin', f));
     closure = closure.map((f) => `Library/bin/${f}`);
   }
@@ -242,6 +245,7 @@ async function verify() {
   Object.assign(env, { PYTHONPATH: path.join(OUT, 'vstudio', 'lib'), PYTHONNOUSERSITE: '1', PYTHONDONTWRITEBYTECODE: '1',
     PATH: [path.join(OUT, 'ffmpeg', 'bin'), sysPath].join(path.delimiter), VSTUDIO_CACHE: path.join(CACHE, 'vstudio-cache-check') });
   run(pyExe(), ['-c', 'from PIL import features; assert features.check("raqm"), "Pillow complex text shaping is unavailable"; print("Raqm/HarfBuzz/FriBiDi ok")'], { env });
+  run(pyExe(), [path.join(ROOT, 'scripts', 'runtime', 'check_text_layout.py')], { env });
   const asr = isMac && target.endsWith('arm64') ? 'mlx_whisper' : 'faster_whisper';
   run(pyExe(), ['-c', `import numpy, cv2, mediapipe, soundfile, yaml, PIL, fontTools, openai, ${asr}, vstudio.batch, vstudio.media as m; ` +
     `import shutil; ff = m.ffmpeg_bin(); assert ff.startswith(${JSON.stringify(path.join(OUT, 'ffmpeg'))}), ff; print('ok', ff, '${asr}')`], { env });
@@ -373,10 +377,16 @@ function manifest() {
   fs.writeFileSync(path.join(OUT, 'runtime.json'), JSON.stringify(m, null, 1) + '\n');
 }
 
-if (!skip.has('vstudio')) await buildVstudio();
-if (!skip.has('python')) await buildPython();
-if (!skip.has('ffmpeg')) await buildFfmpeg();
-installTextLayout();
-manifest();
-if (!skip.has('verify')) await verify();
-log(`runtime ready: ${OUT}`);
+if (arg('only') === 'ffmpeg') {
+  await buildFfmpeg();
+  log(`native libraries ready: ${path.join(OUT, 'ffmpeg')}`);
+} else {
+  if (arg('only')) throw new Error('unknown runtime component (supported: --only=ffmpeg)');
+  if (!skip.has('vstudio')) await buildVstudio();
+  if (!skip.has('python')) await buildPython();
+  if (!skip.has('ffmpeg')) await buildFfmpeg();
+  installTextLayout();
+  manifest();
+  if (!skip.has('verify')) await verify();
+  log(`runtime ready: ${OUT}`);
+}

@@ -86,7 +86,13 @@ jobs:
         run: python scripts/check_skill.py
       - name: ffmpeg + GL runtime (mediapipe needs libEGL / libGLESv2)
         if: env.PICKED != 'none'
-        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libegl1 libgles2
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libegl1 libgles2 libpangocairo-1.0-0 fonts-noto-core fonts-noto-cjk
+      - uses: actions/setup-node@v7
+        if: env.PICKED != 'none'
+        with: { node-version: 22 }
+      - name: Pinned engine fonts (same manifest as the app)
+        if: env.PICKED != 'none'
+        run: node apps/desk/scripts/runtime/ensure-fonts.mjs
       - name: Python deps (runtime + tests/requirements.txt)
         if: env.PICKED != 'none'
         run: python -m pip install -r tests/requirements.txt

@@ -153,7 +153,11 @@ Pillow's existing Raqm/HarfBuzz text layout also uses the same dynamically loade
 The macOS library's install ID is adjusted for Pillow's loader; no FriBiDi source is changed. The library stays
 replaceable in the same runtime folder, with its licence and corresponding source listed below.
 
-Packages in the locked ffmpeg environments (only the libraries FFmpeg and Pillow load are shipped; the per-build list
+The shared paragraph renderer uses the same Pango/Cairo libraries; dictionary caption/card wrapping uses
+the same ICU (MIT/Unicode licence). These dynamically linked libraries remain replaceable and their
+original licences and component sources are listed below; no additional binding wheel is bundled.
+
+Packages in the locked ffmpeg environments (only the libraries the media and text renderers load are shipped; the per-build list
 is \`resources/runtime/licenses/ffmpeg-components.json\`):
 
 | Package | Version | Licence | Targets | Source |
