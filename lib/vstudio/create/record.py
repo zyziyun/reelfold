@@ -152,7 +152,16 @@ def mux(d, sess, out):
         graph = (f"[0:v]scale={w}:{h},setsar=1[screen];"
                  f"[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
                  f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:shortest=1[v]")
-        args += ["-filter_complex", graph, "-map", "[v]", "-map", "2:a:0" if has_mic else "1:a?",
+        # A screen may carry app playback audio, independently of the raw microphone file.
+        # Mix only for the viewing copy; both original recordings remain available for editing.
+        screen_audio = info.get("has_audio", False)
+        audio_map = "2:a:0" if has_mic else "1:a?"
+        if screen_audio and has_mic:
+            graph += ";[0:a:0][2:a:0]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]"
+            audio_map = "[a]"
+        elif screen_audio:
+            audio_map = "0:a:0"
+        args += ["-filter_complex", graph, "-map", "[v]", "-map", audio_map,
                  # Browser MediaRecorder WebMs often have no duration tag even after a normal Stop. Bound the
                  # mux by the real tracks, not a zero metadata duration that creates an audio-only empty clip.
                  "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",

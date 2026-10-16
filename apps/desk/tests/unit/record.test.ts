@@ -9,7 +9,7 @@ vi.mock('electron', () => ({ shell: { trashItem: vi.fn() }, systemPreferences: {
 
 import { blockReason, chosenTake, DEFAULT_PREFS, keyAction, lineSeconds, mainAction, parsePrefs, scriptLines, scriptSeconds, scrollStep, slugOf, WPM, type Take } from '../../src/renderer/src/create/record/recModel';
 import { recordedSeconds, screenFailure } from '../../src/renderer/src/create/record/useRecorder';
-import { Recorder, screenAccess, ScreenPick, toScreenSources } from '../../src/main/recorder';
+import { FAKE_SCREEN_ID, installDisplayMedia, Recorder, screenAccess, ScreenPick, toScreenSources } from '../../src/main/recorder';
 import { validateIpc } from '../../src/shared/ipc';
 
 describe('recorder model', () => {
@@ -113,7 +113,9 @@ describe('recorder main side', () => {
     const p = new ScreenPick(1000);
     expect(p.take(0)).toBeNull();
     p.arm('screen:1:0', 0);
-    expect(p.take(500)).toBe('screen:1:0');
+    expect(p.take(500)).toEqual({ id: 'screen:1:0', appAudio: false });
+    p.arm('screen:1:0', 0, true);
+    expect(p.take(500)).toEqual({ id: 'screen:1:0', appAudio: true });
     expect(p.take(600)).toBeNull(); // used once
     p.arm('window:9:0', 0);
     expect(p.take(1500)).toBeNull(); // expired
@@ -141,5 +143,34 @@ describe('recorder main side', () => {
     expect(screenFailure(Object.assign(new Error('Timeout starting video source'), { name: 'AbortError' }))).toEqual({ error: 'Timeout starting video source' });
     expect(validateIpc('rec:screenPick', { id: 'screen:1:0' })).toEqual({ id: 'screen:1:0' });
     expect(() => validateIpc('rec:screenPick', { id: '' })).toThrow();
+  });
+});
+
+
+describe('material playback capture permissions', () => {
+  it('grants app audio once only after explicit choice; embedded frames cannot capture the app', () => {
+    type Handler = NonNullable<Parameters<Electron.Session['setDisplayMediaRequestHandler']>[0]>;
+    let handler: Handler;
+    const session = { setDisplayMediaRequestHandler: (fn: typeof handler) => { handler = fn; } } as unknown as Electron.Session;
+    const pick = new ScreenPick();
+    installDisplayMedia(session, { flag: () => true, pick, fakeMedia: true });
+    const frame = {} as Electron.WebFrameMain;
+    Object.assign(frame, { top: frame });
+    const request = (f = frame, audioRequested = true) => ({ frame: f, audioRequested }) as Parameters<Handler>[0];
+    const cb = vi.fn();
+    pick.arm(FAKE_SCREEN_ID);
+    handler!(request(), cb);
+    expect(cb).toHaveBeenLastCalledWith({ video: frame });
+    pick.arm(FAKE_SCREEN_ID, Date.now(), true);
+    handler!(request(), cb);
+    expect(cb).toHaveBeenLastCalledWith({ video: frame, audio: frame, enableLocalEcho: true });
+    handler!(request(), cb);
+    expect(cb).toHaveBeenLastCalledWith({});
+    pick.arm(FAKE_SCREEN_ID, Date.now(), true);
+    handler!(request({ top: frame } as Electron.WebFrameMain), cb);
+    expect(cb).toHaveBeenLastCalledWith({});
+    pick.arm(FAKE_SCREEN_ID, Date.now(), true);
+    handler!(request(frame, false), cb);
+    expect(cb).toHaveBeenLastCalledWith({ video: frame });
   });
 });

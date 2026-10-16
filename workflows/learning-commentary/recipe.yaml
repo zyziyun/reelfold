@@ -1,0 +1,159 @@
+id: learning-commentary
+version: 1
+workflow: learning-commentary
+format: learning-commentary
+labels: {en: Learn and share, zh: 学习分享, fr: Apprendre et partager}
+description:
+  en: Interleave interview or course excerpts with your recorded explanations and experiences, or discuss book pages in your own voice, retaining source citations.
+  zh: 访谈、课程片段与自己的讲解、经验交替，或用自己的声音讲书页；保留出处。
+  fr: Alternez extraits et commentaires enregistrés, ou commentez des pages avec votre voix, en conservant les sources.
+category: write
+inputs:
+  - key: brief
+    kind: text
+    labels: {en: Learning goal and personal thoughts, zh: 学习目标与自己的想法, fr: Objectif et réflexions personnelles}
+    required: false
+    scope: item
+  - key: references
+    kind: video
+    labels: {en: Original interviews or courses, zh: 原访谈或课程, fr: Entretiens ou cours originaux}
+    required: false
+    multiple: true
+    accept: [.mp4, .mov, .m4v, .webm, .mkv]
+    scope: item
+  - key: pages
+    kind: photos
+    labels: {en: Book pages or source images, zh: 书页或引用图片, fr: Pages ou images sources}
+    required: false
+    multiple: true
+    accept: [.png, .jpg, .jpeg, .webp]
+    scope: item
+  - key: takes
+    kind: file
+    labels: {en: Your commentary recordings, zh: 自己的口播录音或录像, fr: Vos commentaires enregistrés}
+    required: false
+    multiple: true
+    accept: [.mp4, .mov, .m4v, .webm, .mkv, .wav, .m4a, .mp3]
+    scope: item
+  - key: notes
+    kind: file
+    labels: {en: Your thoughts and source details, zh: 你的感想与出处, fr: Vos idées et références}
+    required: false
+    multiple: true
+    accept: [.md, .txt]
+    scope: item
+items:
+  sources: [single]
+  per_item: [title]
+  shared: [platforms, width, height, preset]
+params:
+  type: object
+  properties:
+    title: {type: string, default: "", title: Title, x-zh: 标题}
+    platforms:
+      type: array
+      items: {type: string}
+      default: [youtube]
+      title: Platforms
+      x-zh: 发布平台
+    width: {type: integer, minimum: 160, maximum: 3840, default: 1280, title: Canvas width, x-zh: 画面宽度}
+    height: {type: integer, minimum: 160, maximum: 3840, default: 720, title: Canvas height, x-zh: 画面高度}
+    preset: {enum: [ultrafast, fast, medium, slow], default: medium, title: Encoding preset, x-zh: 编码速度}
+stages:
+  - id: prepare
+    resource: io
+    fn: vstudio.project.adapters.learning:prepare
+    keys: []
+    produces: [work/sources.json]
+  - id: script
+    resource: io
+    deps: [prepare]
+    fn: vstudio.project.adapters.learning:script
+    keys: []
+    watch: ["{item_dir}/SCRIPT.md"]
+    produces: [SCRIPT.md]
+    preview: {kind: markdown, path: "{item_dir}/SCRIPT.md"}
+  - id: compose
+    resource: cpu-render
+    deps: [script]
+    fn: vstudio.project.adapters.learning:compose
+    keys: [width, height, preset]
+    watch: ["{item_dir}/work/montage.json"]
+    produces: [work/master.mp4, work/timeline.json]
+    preview: {kind: video, path: "out:master"}
+  - id: export
+    resource: cpu-render
+    deps: [compose]
+    fn: vstudio.project.adapters.learning:export
+    keys: [platforms, preset]
+    produces: [exports/manifest.json]
+  - id: qc
+    resource: cpu
+    deps: [compose, export]
+    fn: vstudio.project.adapters.learning:qc
+    keys: []
+    produces: [work/quality.json]
+checkpoints:
+  - id: outline
+    kind: author
+    scope: item
+    after: prepare
+    blocks: [script]
+    labels: {en: Shape your learning video, zh: 准备学习分享创作提纲, fr: Préparer votre vidéo}
+    help:
+      en: Choose the point you want to explore, ground it in a source, then develop your own interpretation and recording script. Questions stay explicit when your experience is still missing.
+      zh: 先选一个想探讨的观点，核对原始材料，再整理自己的理解与口播稿；尚未提供的个人经历会保留为问题。
+    author:
+      file: "{item_dir}/SCRIPT.md"
+      format: Markdown creation brief with source evidence, interpretation, open questions, and a teleprompter section headed '## RECORD'
+      doc: workflows/learning-commentary/WORKFLOW.md
+    payload: vstudio.project.adapters.common:author_payload
+    apply: vstudio.project.adapters.common:author_apply
+    answer:
+      type: object
+      properties: {done: {type: boolean}, content: {type: string}}
+    auto: default
+  - id: montage
+    kind: author
+    scope: item
+    after: script
+    blocks: [compose]
+    labels: {en: Source excerpts and your perspective, zh: 引用片段与我的理解, fr: Extraits et votre point de vue}
+    help:
+      en: Check the excerpts, their sources and your actual commentary. Missing recordings stay here for you to add.
+      zh: 检查原片选段、出处和你实际录制的讲解；尚未录制时先补录。
+    author:
+      file: "{item_dir}/work/montage.json"
+      format: JSON title and segments with attached source IDs, start/end, point, source citations and optional recorded voice
+      doc: workflows/learning-commentary/WORKFLOW.md
+    payload: vstudio.project.adapters.common:author_payload
+    apply: vstudio.project.adapters.common:author_apply
+    answer:
+      type: object
+      properties: {done: {type: boolean}, content: {type: string}}
+    auto: default
+  - id: publish
+    kind: publish
+    scope: item
+    after: qc
+    labels: {en: Review your learning video, zh: 审看学习分享视频, fr: Vérifier votre vidéo}
+    payload: vstudio.project.adapters.common:publish_payload
+    apply: vstudio.project.adapters.common:publish_apply
+    answer:
+      type: object
+      properties: {approve: {type: boolean}, reason: {type: string}}
+      required: [approve]
+    auto: default
+outputs:
+  platforms: [youtube, youtube-shorts, tiktok, instagram, xiaohongshu, douyin, bilibili]
+  collect: vstudio.project.adapters.common:collect_vstudio_exports
+  files: ["{item_dir}/SCRIPT.md", "{item_dir}/RECORDING.md", "{item_dir}/work/montage.json", "{item_dir}/work/timeline.json"]
+agent:
+  workflow_md: workflows/learning-commentary/WORKFLOW.md
+  notes: Keep the creator's actual contribution central. Add missing recordings rather than inventing testimony. Source URLs are citations, not locally editable video. Do not fetch paid or restricted media.
+  edit_files: ["{item_dir}/SCRIPT.md", "{item_dir}/work/montage.json"]
+gaps:
+  - A YouTube URL alone does not supply editable footage; attach a local copy you can use.
+  - First version uses alternating full-frame passages; simultaneous picture-in-picture and live pause-to-record are not implemented.
+  - Audio-only commentary currently accompanies a supplied page/image; standalone audio needs a visual.
+capabilities: [source-grounded-selection, recorded-commentary, book-pages, citations, multi-platform]

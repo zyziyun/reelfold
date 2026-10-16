@@ -1,3 +1,4 @@
+import type { LearningWorkspace } from './learning';
 // HTTP client for the desk engine. Used by the renderer (token from preload) and by the main process. Both address it
 // as app://desk/api/...: the renderer's fetch goes to main's app:// protocol handler, main's own client gets a fetch
 // that talks to the engine's socket directly (src/main/engineTransport.ts). The engine never listens on a port the
@@ -799,6 +800,33 @@ export class EngineClient {
     return this.req<{ ok: boolean; path: string }>('POST', '/api/inbox/open', { key, which });
   }
   /** an author item drafted again by the engine (in the background): "Draft it for me" / "ask in plain words" */
+  createLearning(brief: { idea: string; thoughts: string; files: string[] }) {
+    return this.req<LearningWorkspace>('POST', '/api/create/learning', brief);
+  }
+  learningWorkspace(id: string) {
+    return this.req<LearningWorkspace>('GET', `/api/create/learning/${bid(id)}`);
+  }
+  updateLearning(id: string, change: Record<string, unknown>) {
+    return this.req<LearningWorkspace>('POST', `/api/create/learning/${bid(id)}`, change);
+  }
+  learningWorkspaces() {
+    return this.req<{ workspaces: { id: string; title: string; updated: number }[] }>('GET', '/api/create/learning');
+  }
+  editLearning(id: string) {
+    return this.req<{ ok: boolean; id: string }>('POST', `/api/create/learning/${bid(id)}/edit`, {});
+  }
+  captureLearning(id: string, session_dir: string) {
+    return this.req<LearningWorkspace>('POST', `/api/create/learning/${bid(id)}/capture`, { session_dir });
+  }
+  dictateLearning(id: string, session_dir: string) {
+    return this.req<{ text: string; audio: string }>('POST', `/api/create/learning/${bid(id)}/dictate`, { session_dir });
+  }
+  learningScript(key: string) {
+    return this.req<{ script: string }>('GET', `/api/inbox/learning-script?key=${encodeURIComponent(key)}`);
+  }
+  attachLearningTake(key: string, path: string) {
+    return this.req<{ ok: boolean }>('POST', '/api/inbox/learning-take', { key, path });
+  }
   redraftInbox(key: string, instruction?: string) {
     return this.req<{ ok: boolean; drafting: boolean }>('POST', '/api/inbox/redraft', { key, ...(instruction ? { instruction: instruction.slice(0, 1000) } : {}) });
   }

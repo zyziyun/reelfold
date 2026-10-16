@@ -109,6 +109,7 @@ const api: DeskApi = {
   watchHistory: (roots) => call('history:watch', { roots }),
   grantAccess: (paths) => call('access:grant', { paths }),
   rec: {
+    browserCapture: (lang, sourceUrl) => call('rec:browserCapture', { lang, ...(sourceUrl ? { sourceUrl } : {}) }),
     status: () => call('rec:status'),
     ask: (kind) => call('rec:ask', { kind }),
     openPrivacy: (pane) => call('rec:openPrivacy', { pane }),
@@ -120,7 +121,7 @@ const api: DeskApi = {
     recover: () => call('rec:recover'),
     discard: (sessionId) => call('rec:discard', { sessionId }),
     screens: () => call('rec:screens'),
-    screenPick: (id) => call('rec:screenPick', { id }),
+    screenPick: (id, appAudio) => call('rec:screenPick', { id, ...(appAudio === undefined ? {} : { appAudio }) }),
   },
   ai: {
     status: (opts) => call('ai:status', opts ?? {}),

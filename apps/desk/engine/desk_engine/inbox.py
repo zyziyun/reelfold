@@ -611,6 +611,62 @@ class Inbox:
             except Exception as e:  # noqa: BLE001  (the answer itself is saved; say why nothing ran)
                 print(f"[inbox] resume after answer failed for {d}: {e}", file=sys.stderr, flush=True)
 
+    @property
+    def learning(self):
+        from .learning import Learning
+        return Learning(self)
+
+    def learning_script(self, key):
+        need(isinstance(key, str) and re.fullmatch(r"[0-9a-f]{16}", key), "key: an inbox key")
+        it = next((i for i in self.list()["items"] if i["key"] == key), None)
+        need(it and (it.get("author") or {}).get("recipe") == "learning-commentary", "the learning video is unavailable")
+        eng = it["engine"]
+        path = os.path.join(eng["dir"], "items", eng["item"], "SCRIPT.md")
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read(50000)
+        except OSError:
+            text = ""
+        found = re.search(r"^## RECORD\s*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+        return dict(script=(found.group(1).strip() if found else ""))
+
+    def learning_take(self, key, path):
+        """The creator explicitly assigns a saved camera take to this pending learning video."""
+        need(isinstance(key, str) and re.fullmatch(r"[0-9a-f]{16}", key), "key: an inbox key")
+        need(isinstance(path, str) and os.path.isabs(path) and os.path.isfile(path), "select a saved recording")
+        need(os.path.splitext(path)[1].lower() in (".mp4", ".mov", ".m4v", ".webm", ".mkv"), "select a camera recording")
+        it = next((i for i in self.list()["items"] if i["key"] == key), None)
+        need(it and (it.get("author") or {}).get("recipe") == "learning-commentary", "this is not a learning video")
+        eng = it["engine"]
+        need(eng.get("id") == "montage", "this step does not accept commentary")
+        need(not pilot.running(eng["dir"]), "wait for this project's current run to stop")
+        dk = _key(eng["dir"], eng["id"], eng.get("item"))
+        need(dk not in self._drafting, "wait for the current draft")
+        from vstudio import media, learning
+        from vstudio.project.core import Project
+        info = media.probe(path)
+        need(info["has_video"] and info["has_audio"], "the recording needs camera video and your voice")
+        p = Project(eng["dir"])
+        row = next((r for r in p.data["items"] if r["id"] == eng.get("item")), None)
+        need(row is not None, "the learning video is unavailable")
+        ins = dict(p.data.get("inputs") or {}, **(row.get("inputs") or {}))
+        def values(k):
+            v = ins.get(k) or []
+            return v if isinstance(v, list) else [v]
+        # If it was dropped with the reference footage, the user's explicit assignment wins.
+        ins["references"] = [x for x in values("references") if os.path.realpath(x) != os.path.realpath(path)]
+        ins["takes"] = list(dict.fromkeys(values("takes") + [path]))
+        sources = learning.catalog(ins)
+        need(any(x["role"] in ("reference", "page") for x in sources.values()), "keep a separate original excerpt or book page")
+        row["inputs"] = ins
+        p.save()
+        p.plan()
+        write_json(os.path.join(p.dir, "items", row["id"], "work", "sources.json"), sources)
+        self._forget_engine()
+        if self.bus:
+            self.bus.publish("inbox")
+        return dict(ok=True)
+
     def redraft(self, key, instruction=None):
         """「Draft it for me」/「Ask in plain words」 on an author item: the engine drafts the file again (following
         ``instruction``), in the background (a model call takes a minute or two); the item says "Drafting ..." and

@@ -926,6 +926,10 @@ class Api:
                 return self.inbox.undo(b.get("keys"))
             if parts == ["inbox", "open"] and method == "POST":
                 return self.inbox.open_file(b.get("key"), b.get("which") or "file")
+            if parts == ["inbox", "learning-script"] and method == "GET":
+                return self.inbox.learning_script(query.get("key", [None])[0])
+            if parts == ["inbox", "learning-take"] and method == "POST":
+                return self.inbox.learning_take(b.get("key"), b.get("path"))
             if parts == ["inbox", "redraft"] and method == "POST":
                 return self.inbox.redraft(b.get("key"), b.get("instruction"))
         return None
@@ -1226,6 +1230,22 @@ class Api:
             return e.recipes()
         if method == "GET" and parts == ["roots"]:
             return self.roots()
+        if parts == ["create", "learning"] and method == "GET":
+            return self.inbox.learning.list()
+        if parts == ["create", "learning"] and method == "POST":
+            return self.inbox.learning.create(body or {})
+        if parts[:2] == ["create", "learning"] and len(parts) >= 3:
+            ident = parts[2]
+            if len(parts) == 3 and method == "GET":
+                return self.inbox.learning.get(ident)
+            if len(parts) == 3 and method == "POST":
+                return self.inbox.learning.update(ident, body or {})
+            if len(parts) == 4 and method == "POST" and parts[3] == "edit":
+                return self.inbox.learning.edit(ident)
+            if len(parts) == 4 and method == "POST" and parts[3] == "capture":
+                return self.inbox.learning.capture(ident, (body or {}).get("session_dir"))
+            if len(parts) == 4 and method == "POST" and parts[3] == "dictate":
+                return self.inbox.learning.dictate(ident, (body or {}).get("session_dir"))
         if parts[:1] == ["create"]:
             return self.create.route(method, parts[1:], query, body)
         if parts[:1] == ["music"]:

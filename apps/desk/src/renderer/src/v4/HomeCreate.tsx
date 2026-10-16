@@ -2,7 +2,7 @@
 // formats, write a script, record yourself - each opens Create's own screen) and "Keep creating" (her series in
 // progress). Both only with the Create flag on; what they last loaded is shown at once on the next visit (no flash).
 import { useEffect, useRef } from 'react';
-import { Circle, PenLine } from 'lucide-react';
+import { BookOpen, Circle, PenLine } from 'lucide-react';
 import type { Format, SeriesSummary } from '../../../shared/create';
 import { t } from '../i18n';
 import { useCreate, useCreateLoad, msgText } from '../create/api';
@@ -49,6 +49,9 @@ function StartRow({ scrollTo }: { scrollTo?: boolean }) {
   return (
     <section className="ux-startfrom" ref={box} data-testid="home-start-from">
       <span className="lbl">{t('create.start.title')}</span>
+      <a className="ux-sf" href={createHref({ screen: 'learning' })} data-tip={t('learning.flow')} data-testid="home-create-learning">
+        <BookOpen className="ico" />{t('learning.creation')}
+      </a>
       {fmts.map((f) => (
         <a key={f.id} className="ux-sf" href={createHref({ screen: 'new', format: f.id })} data-tip={l10n(f.blurb)} data-testid={`create-fmt-${f.id}`}>
           <span className="art">

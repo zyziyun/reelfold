@@ -14,6 +14,8 @@ Setup once: `$VSTUDIO/install.sh` (deps, open fonts, MediaPipe models), `cp pers
 (her speeds, theme, tags, term fixes, format overrides), `export PYTHONPATH="$VSTUDIO/lib:$PYTHONPATH"`.
 HyperFrames workflows (explainer, promo-recut, launch-kit) also need Node 18+ and `npx hyperframes`.
 
+Creator-led exploration, notes, voice/video thoughts, demo material and post drafts: follow [Creator workspace](references/CREATOR_WORKSPACE.md). Preserve existing editing tools. For selected source excerpts plus recorded commentary, use [learning-commentary](workflows/learning-commentary/WORKFLOW.md).
+
 ## 1. Every job, in this order
 1. **Format first.** `python -m vstudio.formats detect "<her request>"` (or pick from `formats list`). Say its summary
    line to her before any render, e.g. "按「口播」默认：正文 1.25x，hook 给 12 条候选你挑，严格去 filler，封面与正片同尺寸、修图，

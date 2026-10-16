@@ -10,6 +10,7 @@ const line = z.string().max(500).refine((v) => !/\p{Cc}/u.test(v.replace(/\n/g, 
 
 export const recIpcSchemas = {
   'rec:status': z.undefined(),
+  'rec:browserCapture': z.strictObject({ lang: z.enum(['en', 'zh', 'fr']), sourceUrl: z.string().max(2000).optional() }),
   'rec:ask': z.strictObject({ kind: z.enum(['camera', 'microphone']) }),
   'rec:openPrivacy': z.strictObject({ pane: z.enum(['camera', 'microphone', 'screen']) }),
   'rec:begin': z.strictObject({
@@ -50,7 +51,7 @@ export const recIpcSchemas = {
   /** screens + windows she can share (thumbnails), or access 'denied' (macOS Screen Recording is off for the app) */
   'rec:screens': z.undefined(),
   /** the source the next getDisplayMedia shares (from rec:screens; used once, within 30 s) */
-  'rec:screenPick': z.strictObject({ id: z.string().min(1).max(200) }),
+  'rec:screenPick': z.strictObject({ id: z.string().min(1).max(200), appAudio: z.boolean().optional() }),
 } as const;
 
 /** Allow a permission only for media (camera / mic / the screen she picked) from the app's own UI with the Create

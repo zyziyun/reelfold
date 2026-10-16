@@ -22,7 +22,7 @@ export function buildCsp(o: CspOptions): string {
     'font-src': ["'self'", 'data:'],
     'connect-src': ["'self'", engine, devWs].filter(Boolean),
     'object-src': ["'none'"],
-    'frame-src': ["'none'"],
+    'frame-src': o.create ? ['https://www.youtube-nocookie.com'] : ["'none'"],
     'worker-src': ["'none'"],
     'base-uri': ["'none'"],
     'form-action': ["'none'"],
@@ -67,3 +67,13 @@ export function isLocalEngineRequest(url: string): boolean {
 /** Permissions platform pages may get: none of camera/mic/geolocation/notifications/midi/hid/serial... Only
  * clipboard writes (copy buttons) and fullscreen of the preview player. */
 export const REMOTE_ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen']);
+
+
+/** YouTube requires desktop app identity for embedded players with an otherwise empty HTTP Referer.
+ * Only official embed requests receive our registered bundle ID; ordinary requests are untouched. */
+export function youtubeEmbedIdentity(url: string, resourceType: string): string | null {
+  try {
+    const u = new URL(url);
+    return resourceType === 'subFrame' && u.protocol === 'https:' && u.hostname === 'www.youtube-nocookie.com' && /^\/embed\/[\w-]{11}$/.test(u.pathname) ? 'https://app.reelfold.desk/' : null;
+  } catch { return null; }
+}
