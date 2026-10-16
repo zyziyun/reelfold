@@ -94,7 +94,7 @@ unsigned char CTFontManagerRegisterFontsForURL(void *url, int scope, void **erro
 
 _NAMES = {
     'darwin': ('libcairo.2.dylib', 'libpango-1.0.0.dylib', 'libpangocairo-1.0.0.dylib', 'libgobject-2.0.0.dylib'),
-    'win32': ('cairo-2.dll', 'pango-1.0-0.dll', 'pangocairo-1.0-0.dll', 'gobject-2.0-0.dll'),
+    'win32': ('cairo.dll', 'pango-1.0-0.dll', 'pangocairo-1.0-0.dll', 'gobject-2.0-0.dll'),
 }
 
 
@@ -128,12 +128,14 @@ def _libraries():
     for i, system_name in enumerate(('cairo', 'pango-1.0', 'pangocairo-1.0', 'gobject-2.0')):
         if root is not None and sys.platform in _NAMES:
             base = _NAMES[sys.platform][i]
-            candidates = (root / base, root / ('lib' + base)) if sys.platform == 'win32' else (root / base,)
+            candidates = ((root / 'cairo.dll', root / 'cairo-2.dll', root / 'libcairo-2.dll') if i == 0 else
+                          (root / base, root / ('lib' + base))) if sys.platform == 'win32' else (root / base,)
             file = next((str(p) for p in candidates if p.is_file()), None)
         else:
             file = ctypes.util.find_library(system_name)
         if not file:
-            raise RuntimeError('Complex text layout requires Pango/Cairo; use the bundled app or install Pango 1.44 or newer')
+            raise RuntimeError(f'Complex text layout cannot find {system_name} in {root or "system libraries"}; '
+                               'use the bundled app or install Pango/Cairo 1.44 or newer')
         try:
             libraries.append(ffi.dlopen(file))
         except OSError as exc:

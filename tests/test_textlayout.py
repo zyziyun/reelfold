@@ -29,6 +29,28 @@ def test_source_native_folder_is_explicit_and_absolute(tmp_path, monkeypatch):
         T._library_directory()
 
 
+def test_windows_loader_uses_real_locked_cairo_dll_name(tmp_path, monkeypatch):
+    from cffi import FFI
+    names = ('cairo.dll', 'pango-1.0-0.dll', 'pangocairo-1.0-0.dll', 'gobject-2.0-0.dll')
+    for name in names:
+        (tmp_path / name).touch()
+    loaded = []
+    def load(_, path):
+        loaded.append(path)
+        return SimpleNamespace(pango_version=lambda: 15802)
+    with monkeypatch.context() as patch:
+        patch.setattr(T.sys, 'platform', 'win32')
+        patch.setattr(T, '_library_directory', lambda: tmp_path)
+        patch.setattr(T.os, 'add_dll_directory', lambda _: object(), raising=False)
+        patch.setattr(FFI, 'dlopen', load)
+        T._libraries.cache_clear()
+        try:
+            T._libraries()
+            assert loaded == [str(tmp_path / name) for name in names]
+        finally:
+            T._libraries.cache_clear()
+
+
 def test_older_fontconfig_backend_keeps_selected_custom_font(monkeypatch):
     ffi = SimpleNamespace(NULL=None)
     pango = SimpleNamespace(pango_version=lambda: 15200, pango_font_map_changed=Mock(),
