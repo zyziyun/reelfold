@@ -1,4 +1,5 @@
 """Paragraph shaping, fallback and shared styled drawing; no character reversal or second native stack."""
+from functools import lru_cache
 from types import SimpleNamespace
 from unittest.mock import Mock
 import threading
@@ -163,24 +164,57 @@ def test_windows_uses_the_font_backend_supported_by_locked_harfbuzz(monkeypatch)
             T._fontmap.cache_clear()
 
 
+
+@lru_cache(maxsize=1)
+def _native_debug_api():
+    ffi, _, pa, _, go = T._libraries()
+    ffi.cdef('''
+        void *pango_layout_serialize(void *layout, int flags);
+        const void *g_bytes_get_data(void *bytes, size_t *size);
+        void g_bytes_unref(void *bytes);
+    ''')
+    return ffi, pa, go
+
+
+def _native_debug(layout):
+    # Pango's own testing/debug format records actual fallback faces and glyph
+    # positions. Keep strict pixel assertions; explain an OS-specific failure
+    # with native evidence instead of guessing from its platform name.
+    ffi, pa, go = _native_debug_api()
+    if pa.pango_version() < 15000:
+        return f'Pango {pa.pango_version()} (layout serialization needs 1.50)'
+    blob = pa.pango_layout_serialize(layout.layout, 3)  # CONTEXT | OUTPUT
+    assert blob != ffi.NULL
+    try:
+        length = ffi.new('size_t *')
+        data = go.g_bytes_get_data(blob, length)
+        return bytes(ffi.buffer(data, length[0])).decode('utf-8')
+    finally:
+        go.g_bytes_unref(blob)
+
+
 def test_plain_and_equivalent_styled_runs_keep_the_same_shaped_glyphs(native_font):
     text = 'مرحبا Reelfold 2026'
     with T.Layout([T.Run(text)], native_font) as whole:
         expected = np.asarray(whole.image())
+        whole_debug = _native_debug(whole)
     with T.Layout([T.Run('مر'), T.Run('حبا '), T.Run('Reelfold '), T.Run('2026')], native_font) as styled:
         actual = np.asarray(styled.image())
-    np.testing.assert_array_equal(actual, expected)
+        styled_debug = _native_debug(styled)
+    np.testing.assert_array_equal(actual, expected, err_msg=f'Whole native layout: {whole_debug}\nStyled native layout: {styled_debug}')
 
 
 def test_foreground_emphasis_keeps_arabic_joining_and_geometry(native_font):
     with T.Layout([T.Run('مرحبا')], native_font) as plain:
         expected = np.asarray(plain.image())[..., 3]
+        plain_debug = _native_debug(plain)
     with T.Layout([T.Run('مر'), T.Run('ح', (255, 100, 0, 255), True), T.Run('با')], native_font) as styled:
         actual = np.asarray(styled.image())
         assert styled.emphasis_boxes()
+        styled_debug = _native_debug(styled)
     # Different foreground runs composite antialiasing separately at shared joining edges;
     # ink coverage/placement must still be identical (no tolerance for detached or moved glyphs).
-    np.testing.assert_array_equal(actual[..., 3] > 0, expected > 0)
+    np.testing.assert_array_equal(actual[..., 3] > 0, expected > 0, err_msg=f'Plain native layout: {plain_debug}\nStyled native layout: {styled_debug}')
     assert np.any((actual[..., 0] > actual[..., 1]) & (actual[..., 3] > 0))
 
 
