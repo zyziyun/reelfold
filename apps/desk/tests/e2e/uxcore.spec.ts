@@ -308,9 +308,16 @@ test('Inbox: list + preview, plain choices, confirm -> next one + Undo, ↑ ↓'
   await expect.poll(() => page.evaluate(() => document.fullscreenElement?.getAttribute('data-testid') ?? null)).toBe('cut-preview-stage');
   await page.keyboard.press('ArrowDown');
   await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.volume)).toBeCloseTo(0.9, 2);
+  // The seek check left the eight-second fixture at 90%: it can finish before
+  // a busy runner observes playback. Rewind with the player's own shortcut.
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(max / 2);
+  const playFrom = await pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.currentTime);
   await page.keyboard.press('Space');
   await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+  await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(playFrom);
   await page.keyboard.press('Space');
+  await expect.poll(() => pv.getByTestId('cut-preview-video').evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
   await expect(page.locator('.ux-irow.on')).toHaveAttribute('data-key', onRow ?? '');
