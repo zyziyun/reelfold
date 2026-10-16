@@ -72,6 +72,12 @@ def _transitions():
 
 # id -> spec. kind: overlay | camera | fullframe | progress | box | audio | join | look | end
 SPECS = {
+    "privacy-sticker": dict(
+        zh="跟随人脸遮挡", en="Tracked face mask", kind="look", stage="frame", default_dur=3.0,
+        what_zh="本地检测并跟踪指定人脸；不确定的帧会停止导出，不会猜测位置",
+        params=dict(target=_str("center", "目标人脸", enum=("left", "center", "right")),
+                    style=_str("mosaic", "遮挡样式", enum=("mosaic", "blur", "cat", "dog")),
+                    margin=_num(1.65, 1.5, 3.0, "遮挡范围")), sample={}),
     "pop-words": dict(
         zh="弹出大字", en="Pop word", kind="overlay", stage="frame", default_dur=1.2, anim="pop",
         what_zh="一个大字 / 短词带描边弹出（重点词）",
@@ -820,6 +826,32 @@ class PunchIn(Layer):
         return img
 
 
+class FaceMask(Layer):
+    """Analyze the edited source before encoding; mask before camera transforms."""
+    camera = True
+
+    def prepare(self, src, start, end):
+        from vstudio import face_privacy as FP
+        self.start = start
+        self.track = FP.analyze(src, start, end, target=self.p.get("target", "center"))
+        boxes = self.track["boxes"]
+        if self.track.get("uncertain") or not boxes or any(b is None for b in boxes):
+            at = ", ".join(f"{a:g}–{b:g}s" for a, b in self.track.get("uncertain", []))
+            raise ValueError("Face tracking needs checking" + (f" at {at}" if at else "") +
+                             "; no masked video was exported. Select a clearer continuous interval.")
+
+    def draw(self, img, t, dur):
+        from vstudio import face_privacy as FP
+        if not hasattr(self, "track"):
+            raise ValueError("Analyze the face before applying its mask")
+        index = int(math.floor((self.start + t - self.track["start"]) * self.track["fps"] + 1e-6))
+        if not 0 <= index < len(self.track["boxes"]):
+            raise ValueError("Face track does not cover this frame")
+        FP.cover(img, self.track["boxes"][index], self.p.get("style", "mosaic"),
+                 float(self.p.get("margin", 1.65)))
+        return img
+
+
 class SkinSmooth(Layer):
     """``portrait-retouch``: face-tracked skin smoothing (or beauty) on the source frame, before any canvas work
     (vstudio.retouch.VideoRetoucher: temporally stable masks, texture kept). One tracker per instance; frames
@@ -960,7 +992,7 @@ class LowerThird(ImageLayer):
         return _shadow(im, self.u)
 
 
-LAYERS = {"pop-words": PopWords, "stacking-stamps": Stamp, "quote-card": QuoteCard, "callout-bubble": Callout,
+LAYERS = {"privacy-sticker": FaceMask, "pop-words": PopWords, "stacking-stamps": Stamp, "quote-card": QuoteCard, "callout-bubble": Callout,
           "notes-panel": Notes, "explanation-card": ExplanationCard, "overlay-images": Sticker, "badge": Badge, "red-box": RedBox,
           "chapter-card": ChapterCard, "punch-in": PunchIn, "progress-bar-pil": Progress,
           "marker-sweep": MarkerSweep, "chapter-rule": ChapterRule, "number-counter": NumberCounter,

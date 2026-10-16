@@ -296,8 +296,8 @@ _add("shrink-to-card", "Shrink-to-card scene", "cards", "Frame shrinks to a 0.55
      {PIL: [TH + ":card", TH + ":blurbg", TH + ":CARDS"]}, "`compose.py:card`",
      [("s", 0.55, "smaller card = more room for lines, less face"), ("r", 36, "corner radius")],
      "A section summary over the speaker", "med", "4-8 s", "1-2 per video", [], "no", "Copy `card()` + `blurbg()`")
-_add("privacy-sticker", "Privacy sticker", "cards", "Face-tracked sticker covering a participant, with a coverage proof", [PIL],
-     {PIL: [CC + "track_face.py:region", CC + "apply_sticker.py:sticker", CC + "verify_coverage.py"]},
+_add("privacy-sticker", "Privacy sticker", "cards", "Locally tracked face mask (mosaic, blur, cat or dog); uncertain frames stop export", [PIL],
+     {PIL: ["lib/vstudio/face_privacy.py", "lib/vstudio/project/outfx.py:FaceMask", CC + "verify_coverage.py"]},
      "`call-clips/scripts/track_face.py` -> `apply_sticker.py`; `verify_coverage.py`",
      [("scale", 2.40, "coverage margin; lower risks a peeking cheek"), ("smooth", 0.25, "more = calmer sticker, lags fast moves")],
      "Hide a participant's face", "n/a", "whole clip", "unlimited", ["Always run verify_coverage --min-coverage 1.0"],

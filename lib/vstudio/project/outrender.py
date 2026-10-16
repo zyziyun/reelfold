@@ -1007,8 +1007,18 @@ def _frame_pass(src, out, audio_wav, vis, tg, fps, quality, final_encode, beat):
         L = FX.make_layer(inst, W if not FX.LAYERS[e["effect"]].camera else sw,
                           H if not FX.LAYERS[e["effect"]].camera else sh, safe if not FX.LAYERS[e["effect"]].camera else None)
         if L:
+            if isinstance(L, FX.FaceMask):
+                try:
+                    L.prepare(src, e["a"], e["b"])
+                except (ValueError, RuntimeError) as error:
+                    detail = str(error)[:600]
+                    raise OUT.OutputError("face-tracking-failed", detail,
+                                          "人脸跟踪未完成，未导出遮挡视频。详情：" + detail,
+                                          start=e["a"], end=e["b"], detail=detail) from error
             layers.append((e["a"], e["b"], L))
-    cams = [x for x in layers if x[2].camera]
+    # Face tracks use source coordinates. Cover first so zooms move the mask with the face.
+    cams = sorted((x for x in layers if x[2].camera),
+                  key=lambda x: 0 if isinstance(x[2], FX.FaceMask) else 1)
     ovs = [x for x in layers if not x[2].camera]
     band = vis["band"]
     vid_rect = top_rect = bot_rect = None

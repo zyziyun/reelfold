@@ -2668,8 +2668,12 @@ Rules:
 - Prefer few, purposeful ops; do not repeat existing effects.
 - Sticker images may use direct public HTTPS raster image URLs; the engine downloads and saves them locally.
   Do not use an HTML library page as an image. Finding a sticker does not locate a face.
-- Privacy masking needs verified target positions throughout the requested interval. Never guess coordinates
-  or claim a fixed sticker tracks a face. If positions/tracking are unavailable, explain that no masking was applied.
+- For face masking / 人脸打码 use effect_add with effect="privacy-sticker", explicit start/end and params
+  target="left"|"center"|"right", style="mosaic"|"blur"|"cat"|"dog". The renderer detects and tracks locally;
+  you do not need face coordinates or tracking data in this context. Cat/dog masks are built in: no URL needed.
+  Submit this operation when the user identifies a position and interval; do not refuse because tracking data
+  is absent from this prompt. Never guess coordinates, infer gender/identity, or use a static sticker as tracking.
+  Describe tracking as requested, not verified: uncertain tracking stops the export with the affected times.
 - A different video aspect needs source-based recomposition, not padding the finished movie. Never silently
   use band/letterbox to satisfy a size request. If source layout cannot be rebuilt here, explain the need to
   remake from original materials, or offer only a cover with a new aspect while retaining the video canvas.
