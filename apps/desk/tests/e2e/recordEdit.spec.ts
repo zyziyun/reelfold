@@ -167,6 +167,76 @@ test.describe('recording device interruption', () => {
   }
 });
 
+test.describe('recording final data delivery', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+  test('waits for final data and stop events after devices become inactive', async () => {
+    test.setTimeout(120000);
+    const launched = await launch('final-events', { DESK_STUDIO: '1' });
+    app = launched.app;
+    const page = launched.page;
+    await page.evaluate(() => { location.hash = '#/create/record'; });
+    await page.evaluate(() => {
+      const state = { pending: [] as (() => void)[], recorders: [] as MediaRecorder[], nativeStops: 0 };
+      (window as unknown as { finalEvents: typeof state }).finalEvents = state;
+      const Native = MediaRecorder;
+      const data = Object.getOwnPropertyDescriptor(Native.prototype, 'ondataavailable')!;
+      window.MediaRecorder = new Proxy(Native, { construct(Target, args) {
+        const recorder = Reflect.construct(Target, args) as MediaRecorder;
+        state.recorders.push(recorder);
+        Object.defineProperty(recorder, 'ondataavailable', { set(handler) {
+          data.set!.call(recorder, (event: BlobEvent) => {
+            const deliver = () => handler.call(recorder, event);
+            if (recorder.state === 'inactive') state.pending.push(deliver); else deliver();
+          });
+        } });
+        const listen = recorder.addEventListener.bind(recorder);
+        listen('stop', () => { state.nativeStops++; });
+        recorder.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject | null, options?: AddEventListenerOptions | boolean) => {
+          const delayed = type === 'stop' ? (event: Event) => state.pending.push(() => {
+            if (typeof listener === 'function') listener.call(recorder, event); else listener?.handleEvent(event);
+          }) : listener;
+          if (delayed) listen(type, delayed, options);
+        }) as MediaRecorder['addEventListener'];
+        return recorder;
+      } });
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+        const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+        const paint = () => { const c = canvas.getContext('2d')!; c.fillStyle = '#238b82'; c.fillRect(0, 0, 640, 360); };
+        paint(); setInterval(paint, 40);
+        const audio = new AudioContext(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        const stream = new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+        (window as unknown as { endFinalInputs: () => void }).endFinalInputs = () => {
+          stream.getTracks().forEach((track) => { track.stop(); track.dispatchEvent(new Event('ended')); });
+        };
+        return stream;
+      } });
+    });
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.getByTestId('create-rec-start').click();
+    await page.waitForTimeout(1800);
+    await page.evaluate(() => (window as unknown as { endFinalInputs: () => void }).endFinalInputs());
+    await expect.poll(() => page.evaluate(() => {
+      const s = (window as unknown as { finalEvents: { pending: unknown[]; recorders: MediaRecorder[]; nativeStops: number } }).finalEvents;
+      return s.recorders.length === 2 && s.recorders.every((r) => r.state === 'inactive') && s.nativeStops === 2;
+    })).toBe(true);
+    const recordings = path.join(tmp, 'vhome-final-events', 'recordings');
+    const take = path.join(recordings, fs.readdirSync(recordings)[0]);
+    await page.getByTestId('create-rec-stop').click();
+    await page.waitForTimeout(250); // deliberately longer than the old arbitrary 50ms wait
+    expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).ended).toBeUndefined();
+    await page.evaluate(() => {
+      const s = (window as unknown as { finalEvents: { pending: (() => void)[] } }).finalEvents;
+      s.pending.splice(0).forEach((deliver) => deliver());
+    });
+    await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
+    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+    expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(1.4);
+  });
+});
+
 test.describe('recording permission lifecycle', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
