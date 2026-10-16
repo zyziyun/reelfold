@@ -262,8 +262,13 @@ class Layout:
                 if run.font is not None:
                     name, face = run.font.getname()
                     attrs += f' font_desc="{escape(face, quote=True)}" font_family="{escape(name, quote=True)}"'
-                spans.append(f'<span {attrs}>{escape(run.text)}</span>')
-            markup = ''.join(spans).encode()
+                # Adjacent identical paint/font attributes are one native run.
+                # Emphasis boxes still use the original logical runs below.
+                if spans and spans[-1][0] == attrs:
+                    spans[-1][1].append(run.text)
+                else:
+                    spans.append((attrs, [run.text]))
+            markup = ''.join(f'<span {attrs}>{escape("".join(parts))}</span>' for attrs, parts in spans).encode()
             self.pa.pango_layout_set_markup(self.layout, markup, len(markup))
             unknown = self.pa.pango_layout_get_unknown_glyphs_count(self.layout)
             if unknown:

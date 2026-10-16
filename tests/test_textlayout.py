@@ -204,18 +204,39 @@ def test_plain_and_equivalent_styled_runs_keep_the_same_shaped_glyphs(native_fon
     np.testing.assert_array_equal(actual, expected, err_msg=f'Whole native layout: {whole_debug}\nStyled native layout: {styled_debug}')
 
 
+
+def _caret_positions(layout):
+    rect = layout.ffi.new('PangoRectangle *')
+    offset = 0
+    positions = []
+    for char in layout.text:
+        layout.pa.pango_layout_index_to_pos(layout.layout, offset, rect)
+        positions.append((rect.x, rect.y, rect.width, rect.height))
+        offset += len(char.encode())
+    return positions
+
+
 def test_foreground_emphasis_keeps_arabic_joining_and_geometry(native_font):
     with T.Layout([T.Run('مرحبا')], native_font) as plain:
-        expected = np.asarray(plain.image())[..., 3]
+        plain_image = plain.image()
+        expected = np.asarray(plain.image(stroke=1))[..., 3]
+        expected_positions = _caret_positions(plain)
         plain_debug = _native_debug(plain)
     with T.Layout([T.Run('مر'), T.Run('ح', (255, 100, 0, 255), True), T.Run('با')], native_font) as styled:
-        actual = np.asarray(styled.image())
+        styled_image = styled.image()
+        actual = np.asarray(styled.image(stroke=1))
         assert styled.emphasis_boxes()
+        actual_positions = _caret_positions(styled)
         styled_debug = _native_debug(styled)
-    # Different foreground runs composite antialiasing separately at shared joining edges;
-    # ink coverage/placement must still be identical (no tolerance for detached or moved glyphs).
+    assert actual_positions == expected_positions
+    assert styled_image.size == plain_image.size
+    assert styled_image.getbbox() == plain_image.getbbox()
+    # Foreground runs composite antialiasing separately at shared glyph edges.
+    # That alpha is not a shaping invariant. Compare the unified native stroked
+    # outline exactly, alongside every logical position and the unstroked bounds.
     np.testing.assert_array_equal(actual[..., 3] > 0, expected > 0, err_msg=f'Plain native layout: {plain_debug}\nStyled native layout: {styled_debug}')
-    assert np.any((actual[..., 0] > actual[..., 1]) & (actual[..., 3] > 0))
+    foreground = np.asarray(styled_image)
+    assert np.any((foreground[..., 0] > foreground[..., 1]) & (foreground[..., 3] > 0))
 
 
 def test_missing_glyph_is_an_error_instead_of_a_successful_tofu_image(native_font):
