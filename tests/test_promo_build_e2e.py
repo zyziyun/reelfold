@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 S = ROOT / "workflows" / "promo-recut" / "scripts"
 sys.path.insert(0, str(ROOT / "lib"))
 
-from vstudio import media  # noqa: E402
+from vstudio import media, node  # noqa: E402
 from vstudio.cut import TimeMap  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
@@ -183,8 +183,7 @@ def test_pip_overlapping_card_is_an_error(tmp_path):
     assert r.returncode != 0 and "overlaps card[2]" in r.stderr
 
 
-NODE = next(iter(sorted(pathlib.Path.home().glob(".nvm/versions/node/*/bin"), reverse=True)), pathlib.Path("/nonexistent"))
-NODE = str(NODE)
+NODE_OK = node.health()["ok"]
 # lint flags a font family without @font-face; the subset fonts only exist after ./install.sh (not on CI runners)
 from vstudio import config as _cfg  # noqa: E402
 
@@ -199,7 +198,7 @@ def _fonts_ok():
 FONTS_OK = _fonts_ok()
 
 
-@pytest.mark.skipif(not (shutil.which("npx") or os.path.exists(os.path.join(NODE, "npx"))), reason="node not installed")
+@pytest.mark.skipif(not NODE_OK, reason="supported node not installed")
 @pytest.mark.skipif(not FONTS_OK, reason="fonts not installed (install.sh)")
 @pytest.mark.parametrize("platform", [None, "douyin"])
 def test_hyperframes_lint_zero_errors(built, platform):
@@ -208,13 +207,12 @@ def test_hyperframes_lint_zero_errors(built, platform):
     if platform:
         build(tmp / "promo.config.json", "--platform", platform, "--out", "promo-v")
         promo = tmp / "promo-v"
-    env = dict(os.environ, PATH=NODE + os.pathsep + os.environ.get("PATH", ""))
-    r = subprocess.run(["npx", "--yes", "hyperframes", "lint"], cwd=str(promo), capture_output=True, text=True,
+    env = node.child_env()
+    r = subprocess.run(node.npx("--yes", "hyperframes", "lint", env=env), cwd=str(promo), capture_output=True, text=True,
                        env=env, timeout=600)
     out = r.stdout + r.stderr
     m = re.search(r"(\d+) error\(s\)", out)
-    if m is None and "0 error" not in out and r.returncode != 0:
-        pytest.skip("hyperframes lint unavailable: " + out[-300:])
+    assert r.returncode == 0, out
     assert m is None or m.group(1) == "0", out
 
 
@@ -247,9 +245,10 @@ def test_example_config_builds_and_lints(tmp_path):
     assert "hooks→" in out
     html = (tmp_path / "promo" / "index.html").read_text(encoding="utf-8")
     assert 'class="scene"' in html and 'id="hooks"' in html
-    if FONTS_OK and (shutil.which("npx") or os.path.exists(os.path.join(NODE, "npx"))):
-        env = dict(os.environ, PATH=NODE + os.pathsep + os.environ.get("PATH", ""))
-        r = subprocess.run(["npx", "--yes", "hyperframes", "lint"], cwd=str(tmp_path / "promo"), capture_output=True,
+    if FONTS_OK and NODE_OK:
+        env = node.child_env()
+        r = subprocess.run(node.npx("--yes", "hyperframes", "lint", env=env), cwd=str(tmp_path / "promo"), capture_output=True,
                            text=True, env=env, timeout=600)
+        assert r.returncode == 0, r.stdout + r.stderr
         m = re.search(r"(\d+) error\(s\)", r.stdout + r.stderr)
         assert m is None or m.group(1) == "0", r.stdout + r.stderr
