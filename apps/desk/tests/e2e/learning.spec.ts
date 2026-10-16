@@ -78,7 +78,11 @@ test('camera and screen sharing stay beside the material; a new take remains edi
   await page.getByTestId('learning-source-video').evaluate(async (v: HTMLVideoElement) => { v.currentTime = 0; v.loop = true; v.muted = false; await v.play(); });
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Stop');
+  const stopLabel = await page.getByTestId('learning-camera-record').textContent();
+  await expect(page.getByTestId('learning-camera-clock')).toBeVisible();
   await page.waitForTimeout(1800);
+  expect(await page.getByTestId('learning-camera-record').textContent()).toBe(stopLabel);
+  await expect(page.getByTestId('learning-camera-clock')).not.toHaveText('0:00');
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Record my explanation', { timeout: 30000 });
   await expect(page.getByTestId('learning-source-select')).toContainText('My recorded contribution');

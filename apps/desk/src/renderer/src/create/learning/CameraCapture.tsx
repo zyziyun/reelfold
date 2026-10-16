@@ -40,7 +40,8 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
     {rec.stream && <video ref={video} autoPlay muted playsInline style={{ width: 180, maxHeight: 160 }} data-testid="learning-camera-preview" />}
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
       {!rec.stream ? <button className="btn" onClick={() => void rec.open()} data-testid="learning-camera-open">{t('learning.openCamera')}</button> : <>
-        <button className="btn" disabled={busy || rec.state === 'stopping'} onClick={() => void (live ? stop() : start())} data-testid="learning-camera-record">{live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('learning.recordHere')}{live && <> <span className="learning-capture-clock">{fmtClock(rec.elapsed)}</span></>}</button>
+        <button className="btn" disabled={busy || rec.state === 'stopping'} onClick={() => void (live ? stop() : start())} data-testid="learning-camera-record">{live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('learning.recordHere')}</button>
+        {live && <span className="learning-capture-clock" data-testid="learning-camera-clock">{fmtClock(rec.elapsed)}</span>}
         {!live && <button className="btn ghost" onClick={() => setScreen(!screen)} data-testid="learning-screen">{t('learning.shareScreen')}</button>}
         {rec.state === 'recording' && <button className="btn" onClick={rec.pause}>{t('rec.pause')}</button>}
         {rec.state === 'paused' && !rec.interruption && <button className="btn" onClick={rec.resume}>{t('rec.resume')}</button>}
