@@ -288,7 +288,11 @@ export function PostNow({ id }: { id: string }) {
                 {fail.reason === 'cancelled' ? <Pause className="ico" /> : <TriangleAlert className="ico" />}
                 <div className="col" style={{ gap: 8 }}>
                   <span>{t(`pl.fail.${fail.reason}` as 'pl.fail.no-post', { pf: platformName(pf), detail: fail.detail ?? '' })}</span>
-                  {fail.reason === 'login-required' ? (
+                  {['edit-pending', 'version-unavailable', 'no-file', 'file-missing'].includes(fail.reason) ? (
+                    <button className="btn" onClick={() => go({ name: 'clip', id: post.item, clip: post.clip })} data-testid="post-open-editor">
+                      {t('pb.d.editor')}
+                    </button>
+                  ) : fail.reason === 'login-required' ? (
                     <span className="row" style={{ gap: 8 }}>
                       <button className="btn primary" onClick={() => void openPage('login')} data-testid="post-signin">
                         <LogIn className="ico" />

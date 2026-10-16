@@ -43,7 +43,7 @@ export interface DueMsg {
 
 export type PostFillMsg =
   | { ok: true; postId: string; adapterId: string; account: string; results: FillStepMsg[]; video: string; cover: string | null }
-  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api' | 'cancelled'; detail?: string; adapterId?: string; account?: string };
+  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'edit-pending' | 'version-unavailable' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api' | 'cancelled'; detail?: string; adapterId?: string; account?: string };
 
 export interface PostedEntryMsg {
   batchId: string;

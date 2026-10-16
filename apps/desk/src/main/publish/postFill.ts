@@ -20,7 +20,7 @@ import { probeLogin } from './loginProbe';
 
 export type PostFillOutcome =
   | { ok: true; postId: string; adapterId: string; account: string; results: StepResult[]; video: string; cover: string | null }
-  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api'; detail?: string; adapterId?: string; account?: string };
+  | { ok: false; reason: 'no-post' | 'posted' | 'no-adapter' | 'adapter-todo' | 'no-account' | 'no-file' | 'edit-pending' | 'version-unavailable' | 'file-missing' | 'login-required' | 'page-failed' | 'debugger-busy' | 'use-api'; detail?: string; adapterId?: string; account?: string };
 
 export interface PostFillDeps {
   client: EngineClient;
@@ -96,7 +96,9 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
 
   const clips = await deps.client.clips(post.item);
   const clip = clips.clips.find((c) => c.id === post.clip);
+  if (clip?.edited_stale) return { ok: false, reason: 'edit-pending', detail: post.clip, adapterId: adapter.id, account };
   const file = clip ? pickFile(clip.files, post.platform, post.video_path) : null;
+  if (clip && post.video_path && !file) return { ok: false, reason: 'version-unavailable', detail: post.clip, adapterId: adapter.id, account };
   if (!clip || !file) return { ok: false, reason: 'no-file', detail: post.clip, adapterId: adapter.id, account };
   if (!fs.existsSync(file.path)) return { ok: false, reason: 'file-missing', detail: file.path, adapterId: adapter.id, account };
   const cover = clip.cover && fs.existsSync(clip.cover) ? clip.cover : null;

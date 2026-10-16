@@ -473,7 +473,8 @@ describe('text selectors', () => {
     for (const a of [by.xiaohongshu, by.douyin]) {
       expect(a.status).toBe('unverified');
       expect(a.publishButton?.selectors.some((s) => s.includes('发布'))).toBe(true);
-      expect(a.fields.cover).toBeNull();
+      if (a.id === 'xiaohongshu') expect(a.fields.cover?.selectors.length).toBeGreaterThan(0);
+      else expect(a.fields.cover).toBeNull();
     }
     expect(by.xiaohongshu.fields.title?.maxLength).toBe(20);
     expect(by.douyin.fields.title?.maxLength).toBe(30);
