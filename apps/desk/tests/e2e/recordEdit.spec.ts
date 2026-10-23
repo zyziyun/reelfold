@@ -485,12 +485,17 @@ test.describe('shared window ends during a take', () => {
       }});
       Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
         const track = makeVideo('#fafafa');
+        const audio = new AudioContext();
+        const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        const sharedAudio = dest.stream.getAudioTracks()[0];
+        (window as unknown as { sharedAudio: MediaStreamTrack }).sharedAudio = sharedAudio;
         (window as unknown as { endSharedWindow: () => void }).endSharedWindow = () => {
           track.stop();
           // stop() itself does not fire ended; the OS dispatches it when a shared window closes.
           track.dispatchEvent(new Event('ended'));
         };
-        return new MediaStream([track]);
+        return new MediaStream([track, sharedAudio]);
       }});
     });
     await page.getByTestId('create-rec-allow').click();
@@ -505,6 +510,7 @@ test.describe('shared window ends during a take', () => {
     await page.evaluate(() => (window as unknown as { endSharedWindow: () => void }).endSharedWindow());
     await expect(page.getByTestId('create-rec-live')).toContainText('Paused');
     await expect(page.getByTestId('rec-screen-interrupted')).toContainText('Stop to save this take');
+    expect(await page.evaluate(() => (window as unknown as { sharedAudio: MediaStreamTrack }).sharedAudio.readyState)).toBe('ended');
     await expect(page.getByTestId('rec-takes')).toContainText('Paused');
     await expect(page.getByTestId('rec-pause')).toBeDisabled();
     await shot(page, 'R7-screen-ended-paused');

@@ -270,6 +270,9 @@ export function useRecorder() {
             // Any lost input pauses the surviving tracks together. Replacing a
             // recorder mid-take would make their saved timelines disagree.
             interruptCapture('screen');
+            // Closing a shared window may end only its video track. Release
+            // companion system audio before losing ownership of this stream.
+            stopStream(st);
             screen.current = null;
             setScreenOn(false);
             setScreenStream(null);
