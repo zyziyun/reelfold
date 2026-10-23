@@ -155,7 +155,7 @@ export function studioRows(
   }
   const deciding = new Set(inbox.filter((x) => x.kind !== 'failed' && x.project.id).map((x) => x.project.id!));
   for (const i of items) {
-    const p = itemPipeline(i, posts, deciding.has(i.id));
+    const p = itemPipeline(i, posts, deciding.has(i.id), clips[i.id]);
     const at = i.updated ?? i.created ?? 0;
     const projAsks = asksFor(inbox, i.id, null);
     const old = now - at > RECENT_S && p.state !== 'you' && p.state !== 'failed' && p.state !== 'run' && p.state !== 'queued';
@@ -195,7 +195,8 @@ export function studioRows(
     cl.forEach((c, k) => {
       const ask = asksFor(inbox, i.id, c.id)[0] ?? (single ? projAsk : null);
       const mine = posts.filter((x) => x.item === i.id && x.clip === c.id);
-      const g = clipGroup(c, mine, !!ask, running);
+      const missing = p.state === 'failed' && i.status === 'done' && !c.files.length && c.state !== 'failed';
+      const g = clipGroup(missing ? { ...c, state: 'failed' } : c, mine, !!ask, running);
       if (ask?.kind === 'failed') g.tone = 'error';
       out.push({
         key: `${i.id}/${c.id}`,
@@ -209,7 +210,7 @@ export function studioRows(
         thumbV: c.cover_v ?? null,
         video: c.files[0]?.path ?? null,
         duration: c.duration,
-        clipState: c.state,
+        clipState: missing ? 'failed' : c.state,
         group: g.group,
         tone: g.tone,
         p: g.group === 'run' ? p : { ...p, state: g.group === 'scheduled' ? (g.posted ? 'out' : 'scheduled') : g.group === 'ready' ? 'ready' : p.state },

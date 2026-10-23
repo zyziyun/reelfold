@@ -14,7 +14,7 @@ import { useEngine, useLoad } from '../lib/engine';
 import { useHistory } from '../lib/history';
 import { useInbox } from '../lib/inbox';
 import { clipHref, inboxHref, projectHref } from '../lib/nav';
-import { decisionWords, hubGroups, postsOf, requestPipeline, STEPS, stepState, workNotMade, type GroupId, type HubRow, type Pipeline } from '../lib/pipeline';
+import { decisionWords, itemPipeline, hubGroups, postsOf, requestPipeline, STEPS, stepState, workNotMade, type GroupId, type HubRow, type Pipeline } from '../lib/pipeline';
 import { href, routeQuery } from '../lib/router';
 import { useIntakeJob } from '../lib/useIntakeJob';
 import { studioEnabled } from '../lib/studioFlag';
@@ -289,12 +289,13 @@ export function RequestDetail({ r, onApplied }: { r: OpenRequest; onApplied: (di
 }
 
 // ---------------------------------------------------------------- a project
-export function ProjectDetail({ i, p, posts }: { i: HistoryItem; p: Pipeline; posts: CalendarPost[] }) {
+export function ProjectDetail({ i, p: initialPipeline, posts }: { i: HistoryItem; p: Pipeline; posts: CalendarPost[] }) {
   const { client, subscribe } = useEngine();
   const { reload: reloadHist } = useHistory();
   const ui = useUi();
-  const live = p.state === 'run' || p.state === 'queued';
   const { data: clipsDoc, reload: reloadClips } = useLoad((c) => c.clips(i.id), [i.id, i.updated]);
+  const p = clipsDoc ? itemPipeline(i, posts, initialPipeline.state === 'you', clipsDoc.clips) : initialPipeline;
+  const live = p.state === 'run' || p.state === 'queued';
   const { data: ap, reload: reloadAp } = useLoad((c) => c.autopilot(i.id).catch(() => null as AutopilotDoc | null), [i.id, i.updated]);
   useEffect(() => subscribe((e) => void ((e.type === 'output-edit' && e.item === i.id) || e.type === 'inbox' ? (reloadClips(), reloadAp()) : undefined)), [subscribe, i.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {

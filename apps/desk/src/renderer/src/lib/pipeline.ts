@@ -2,7 +2,7 @@
 // plan → transcribe → cut → captions → render → check → copy → ready → out, and which group of the list it sits in
 // (needs you / running / ready / out / earlier). Pure functions: the hub, Home and the tests share them.
 import type { HistoryItem, LiveStatus } from '../../../shared/v02';
-import type { AutopilotDecision, CalendarPost, OpenRequest } from '../../../shared/v04';
+import type { AutopilotDecision, CalendarPost, Clip, OpenRequest } from '../../../shared/v04';
 import { itemStatus } from './status';
 import { getLang } from '../i18n';
 
@@ -75,7 +75,7 @@ export function workNotMade(i: Pick<HistoryItem, 'kind' | 'counts' | 'live' | 's
 }
 
 /** A project's place in the pipeline. ``hasDecision``: the Inbox holds a question for it. */
-export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDecision = false): Pipeline {
+export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDecision = false, clips?: Clip[]): Pipeline {
   if (i.missing_outputs && !i.pilot && !i.queued && i.live?.state !== 'running') return { state: 'idle', current: 'plan', progress: null, eta: null };
   const s = itemStatus(i);
   const live = i.live;
@@ -88,6 +88,9 @@ export function itemPipeline(i: HistoryItem, posts: CalendarPost[] = [], hasDeci
   // something waits for her (an Inbox question, a run parked at one): she is what it waits for - 「需要你」, not 「进行中」
   if (s === 'you' || hasDecision || live?.needs_you) return { state: 'you', current: at ?? 'check', progress: s === 'run' ? progress : null, eta: null };
   if (s === 'run') return { state: 'run', current: at ?? 'plan', progress, eta };
+  const primary = clips?.filter(c => !c.extra);
+  if (primary && i.kind === 'project' && s === 'done' && (!primary.length || primary.some(c => !c.files.length)))
+    return { state: 'failed', current: 'render', progress: null, eta: null };
   const p = postsOf(posts, i.id);
   if (p.total && p.scheduled === 0) return { state: 'out', current: 'out', progress: 1, eta: null };
   if (p.total) return { state: 'scheduled', current: 'out', progress: 1, eta: null };

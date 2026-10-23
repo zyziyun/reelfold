@@ -48,7 +48,28 @@ describe('a finished project', () => {
 
   it('without a file (what her vlog looked like before the engine collect) is not counted as made', () => {
     const rows = studioRows([vlog], [], { [vlog.id]: [{ ...made, files: [], cover: null }] }, [], [], NOW);
-    expect(rows[0].group).toBe('run');
+    expect(rows[0].group).toBe('you');
+    expect(rows[0].p).toMatchObject({ state: 'failed', current: 'render' });
+    expect(itemPipeline(vlog, [], false, [{ ...made, files: [] }])).toMatchObject({ state: 'failed', current: 'render' });
+  });
+
+  it('keeps made clips usable when a completed sibling has no file', () => {
+    const missing = { ...made, id: 'missing', files: [] };
+    const rows = studioRows([vlog], [], { [vlog.id]: [made, missing] }, [], [], NOW);
+    expect(rows.map(r => [r.clip, r.group])).toEqual([['main', 'ready'], ['missing', 'you']]);
+    expect(itemPipeline(vlog, [], false, [made, missing]).state).toBe('failed');
+  });
+
+  it('does not mistake an unqueried or actively rendering output for a missing result', () => {
+    expect(itemPipeline(vlog).state).toBe('ready');
+    expect(itemPipeline({ ...vlog, live: { ...vlog.live!, state: 'running' } }, [], false, []).state).toBe('run');
+    expect(itemPipeline({ ...vlog, queued: 1 }, [], false, []).state).toBe('queued');
+    expect(itemPipeline(vlog, [], true, []).state).toBe('you');
+  });
+
+  it('extra assets cannot make an empty primary output ready', () => {
+    expect(itemPipeline(vlog, [], false, [{ ...made, files: [] }, { ...made, extra: true }]).state).toBe('failed');
+    expect(itemPipeline(vlog, [], false, []).state).toBe('failed');
   });
 
   it('the step bar reaches Ready to post; Posted waits for a post', () => {
