@@ -300,3 +300,89 @@ class PurgeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class SeriesPurgeTest(unittest.TestCase):
+    setUp = PurgeTest.setUp
+    tearDown = PurgeTest.tearDown
+    def series(self):
+        class Goals:
+            hidden = set()
+            def __init__(self, goal):
+                self.goal = goal
+            def _get(self, gid):
+                if gid != self.goal['id']:
+                    raise KeyError(gid)
+                return self.goal
+            def _all(self):
+                return [self.goal]
+            def forget(self, dirs, reqs):
+                pass
+            def dismiss(self, gid):
+                self._get(gid)['dismissed_at'] = 1
+        g = Goals(dict(id='f'*12, goal='Series', state='stopped', inputs=[self.rec], videos=[dict(projects=[dict(dir=self.p)], intake='a'*12)]))
+        self.pg.goals = g
+        return g, dict(goals=['f'*12])
+
+    def test_series_undo_preserves_every_file(self):
+        g, sel = self.series()
+        plan = self.pg.plan(sel)
+        self.assertTrue(plan['items'][0]['ok'])
+        self.assertIn(self.rec, plan['keep'])
+        staged = self.pg.stage(sel, plan['sig'])
+        self.assertIn(g.goal['id'], g.hidden)
+        self.assertTrue(os.path.exists(self.p))
+        self.pg.undo(staged['id'])
+        self.assertFalse(g.hidden)
+        self.assertTrue(os.path.exists(self.p))
+        self.assertTrue(os.path.exists(self.rec))
+
+    def test_series_hard_preserves_source_and_removes_group(self):
+        g, sel = self.series()
+        result = self.pg.hard(sel, self.pg.plan(sel)['sig'])
+        self.assertEqual(len(result['deleted']), 1)
+        self.assertFalse(os.path.exists(self.p))
+        self.assertTrue(os.path.exists(self.rec))
+        self.assertEqual(g.goal['dismissed_at'], 1)
+
+    def test_series_rechecks_running_state(self):
+        g, sel = self.series()
+        plan = self.pg.plan(sel)
+        g.goal['state'] = 'running'
+        with self.assertRaises(BadRequest):
+            self.pg.stage(sel, plan['sig'])
+        self.assertTrue(os.path.exists(self.p))
+
+    def test_series_failed_trash_keeps_group(self):
+        g, sel = self.series()
+        staged = self.pg.stage(sel, self.pg.plan(sel)['sig'])
+        result = self.pg.commit(staged['id'], [], staged['targets'])
+        self.assertEqual(len(result['back']), 1)
+        self.assertNotIn('dismissed_at', g.goal)
+        self.assertFalse(g.hidden)
+
+    def test_series_shared_source_target_refused(self):
+        g, sel = self.series()
+        g.goal['inputs'].append(os.path.join(self.p, 'final', 'a', 'youtube.mp4'))
+        self.assertEqual(self.pg.plan(sel)['items'][0]['reason'], 'unsafe')
+
+    def test_series_shared_project_refused(self):
+        g, sel = self.series()
+        g._all = lambda: [g.goal, dict(id='e'*12, videos=[dict(projects=[dict(dir=self.p)])])]
+        self.assertEqual(self.pg.plan(sel)['items'][0]['reason'], 'unsafe')
+
+    def test_series_changed_membership_invalidates_confirmation(self):
+        g, sel = self.series()
+        plan = self.pg.plan(sel)
+        g.goal['videos'].append(dict(projects=[dict(dir=self.b)]))
+        with self.assertRaises(BadRequest):
+            self.pg.stage(sel, plan['sig'])
+
+    def test_series_soft_commit_removes_group_after_targets_move(self):
+        g, sel = self.series()
+        staged = self.pg.stage(sel, self.pg.plan(sel)['sig'])
+        for i, target in enumerate(staged['targets']):
+            shutil.move(target, os.path.join(self.root, f'trash-{i}'))
+        result = self.pg.commit(staged['id'], staged['targets'], [])
+        self.assertFalse(result['back'])
+        self.assertEqual(g.goal['dismissed_at'], 1)
+        self.assertTrue(os.path.exists(self.rec))

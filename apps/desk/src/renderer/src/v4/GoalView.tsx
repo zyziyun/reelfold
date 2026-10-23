@@ -29,6 +29,7 @@ import { filePlatforms, missingTargets } from '../lib/versions';
 import { useUi } from './ui';
 import type { PilotFailure } from '../../../shared/v02';
 import './goal.css';
+import { useDelete } from './DeleteDialog';
 
 const base = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? p;
 
@@ -61,6 +62,7 @@ function useGoal(gid: string) {
 export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
   const { client } = useEngine();
   const ui = useUi();
+  const deletion = useDelete();
   const { g, setG, err } = useGoal(gid);
   const [busy, setBusy] = useState(false);
   const [recut, setRecut] = useState<RecutAsk | null>(null);
@@ -87,6 +89,7 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
   const unfinished = vs.some((v) => v.state === 'dropped' && !v.cleared);
   return (
     <div className="goalv" data-testid="goal-page" data-goal={g.id} data-state={g.state}>
+      {deletion.modal}
       <header className="runv-hero goalv-hero">
         <div className="runv-top">
           <span className="runv-eyebrow" data-testid="goal-eyebrow">
@@ -120,6 +123,11 @@ export function GoalPage({ gid, vid }: { gid: string; vid?: string }) {
               {t('goal.clear')}
             </button>
           )}
+          <button className="btn sm ghost danger" disabled={busy || g.state === 'surveying' || g.state === 'running'}
+            title={t('goal.deleteTip')} data-testid="goal-delete"
+            onClick={() => void deletion.ask({ goals: [g.id] }, () => { location.hash = '#/studio'; })}>
+            <Trash2 className="ico" />{t('goal.delete')}
+          </button>
           {!goalActive(g) && (
             <button className="btn sm ghost" disabled={busy} onClick={() => void act(async () => (await client!.goalAct(g.id, 'dismiss'), (location.hash = '#/studio'), null))} data-testid="goal-dismiss">
               <X className="ico" />

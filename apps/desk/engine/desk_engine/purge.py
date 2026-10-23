@@ -187,15 +187,24 @@ class Purge:
         return doc if isinstance(doc, dict) else {}
 
     def _apply_hidden(self):
-        dirs, reqs, clips = set(), set(), {}
+        dirs, reqs, clips, goals = set(), set(), {}, set()
         for p in self._pending().values():
+            entries = []
             for it in p.get("items") or []:
+                if it["kind"] == "goal":
+                    goals.add(it["id"])
+                    entries.extend(it.get("members") or [])
+                else:
+                    entries.append(it)
+            for it in entries:
                 if it["kind"] == "clip":
                     clips.setdefault(os.path.realpath(it["dir"]), set()).add(it["clip"])
                 elif it["kind"] == "request":
                     reqs.add(it["id"])
                 else:
                     dirs.add(os.path.realpath(it["dir"]))
+        if self.goals is not None:
+            self.goals.hidden = goals
         self.history.gone = dirs
         self.history._last = self.history._last_archived = None
         if self.intake is not None:
@@ -205,7 +214,7 @@ class Purge:
 
     def _publish(self, items=()):
         if self.bus:
-            for t in ("batches", "inbox", "calendar"):
+            for t in ("batches", "inbox", "calendar", "goals"):
                 self.bus.publish(t)
             for x in items:
                 if x.get("kind") == "clip":
@@ -356,6 +365,54 @@ class Purge:
         res.update(ok=True, keep=[p for p in (j.get("inputs") or []) if isinstance(p, str)][:20])
         return res
 
+    def _goal(self, gid):
+        res = dict(key=f"g:{gid}", kind="goal", id=gid, name=gid, ok=False,
+                   targets=[], files=0, bytes=0, keep=[], other=[], members=[])
+        try:
+            g = self.goals._get(gid)
+        except (AttributeError, KeyError):
+            return dict(res, reason="not-found")
+        res["name"] = g.get("goal") or g.get("prompt") or gid
+        if g.get("state") in ("surveying", "running") or (g.get("more") or {}).get("state") in ("planning", "ready"):
+            return dict(res, reason="running")
+        dirs, reqs = set(), set()
+        for v in g.get("videos") or []:
+            dirs.update(p["dir"] for p in v.get("projects") or [] if p.get("dir"))
+            dirs.update(p["dir"] for p in (v.get("prev") or {}).get("projects") or [] if p.get("dir"))
+            dirs.update((v.get("past") or {}).get("dirs") or [])
+            reqs.update((v.get("past") or {}).get("intakes") or [])
+            if v.get("intake"):
+                reqs.add(v["intake"])
+        # A project shared by another visible collection is not exclusively owned by this deletion.
+        for other in self.goals._all():
+            if other["id"] == gid or other.get("dismissed_at"):
+                continue
+            for v in other.get("videos") or []:
+                linked = [p.get("dir") for p in v.get("projects") or []]
+                linked += [p.get("dir") for p in (v.get("prev") or {}).get("projects") or []]
+                linked += (v.get("past") or {}).get("dirs") or []
+                if {os.path.realpath(d) for d in dirs} & {os.path.realpath(d) for d in linked if d}:
+                    return dict(res, reason="unsafe")
+        members = [self._folder(d) for d in sorted(dirs) if os.path.lexists(d)]
+        for rid in sorted(reqs):
+            r = self._request(rid)
+            if r.get("reason") == "made":
+                # Applied requests are retained as history; their project files are handled above.
+                continue
+            members.append(r)
+        members = [m for m in members if not (m["kind"] == "request" and m.get("reason") == "not-found")]
+        if any(not m["ok"] for m in members):
+            return dict(res, reason=next(m["reason"] for m in members if not m["ok"]))
+        targets = sorted(set(t for m in members for t in m["targets"]))
+        targets = [t for t in targets if not any(t != parent and _inside(t, parent) for parent in targets)]
+        keep = list(dict.fromkeys([*(g.get("inputs") or []), *[p for m in members for p in m["keep"]]]))
+        if any(_inside(os.path.realpath(src), os.path.realpath(target)) for src in keep for target in targets):
+            return dict(res, reason="unsafe")
+        return dict(res, ok=True, members=members, targets=targets,
+                    files=sum(m["files"] for m in members), bytes=sum(m["bytes"] for m in members),
+                    keep=keep,
+                    other=list(dict.fromkeys(p for m in members for p in m["other"])))
+
     @staticmethod
     def _sel(sel):
         need(isinstance(sel, dict), "body must be an object")
@@ -372,6 +429,13 @@ class Purge:
         return list(dict.fromkeys(os.path.normpath(d) for d in dirs)), clips, list(dict.fromkeys(reqs))
 
     def plan(self, sel):
+        gids = sel.get("goals") or [] if isinstance(sel, dict) else []
+        if gids:
+            need(isinstance(gids, list) and len(gids) == 1 and isinstance(gids[0], str) and len(gids[0]) == 12, "pick one series")
+            need(not any(sel.get(k) for k in ("dirs", "clips", "requests")), "delete a series separately")
+            item = self._goal(gids[0])
+            return dict(items=[item], keep=item["keep"], files=item["files"], bytes=item["bytes"],
+                        sig=self._sig([item] if item["ok"] else []))
         dirs, clips, reqs = self._sel(sel)
         items = [self._folder(d) for d in dirs]
         whole = {os.path.realpath(d) for d in dirs}
@@ -393,7 +457,7 @@ class Purge:
 
     @staticmethod
     def _sig(ok):
-        return hashlib.sha1(json.dumps(sorted([x["key"], sorted(x["targets"])] for x in ok)).encode()).hexdigest()[:16]
+        return hashlib.sha1(json.dumps(sorted([x["key"], sorted(x["targets"]), sorted(m["key"] for m in x.get("members") or [])] for x in ok)).encode()).hexdigest()[:16]
 
     def _checked(self, sel, sig):
         doc = self.plan(sel)
@@ -407,7 +471,7 @@ class Purge:
         doc, ok = self._checked(sel, sig)
         pid = uuid.uuid4().hex[:12]
         rec = dict(id=pid, at=time.time(), items=[{k: x.get(k) for k in ("key", "kind", "dir", "id", "item", "clip",
-                                                                          "name", "targets")} for x in ok])
+                                                                          "name", "targets", "members")} for x in ok])
         with self._lock:
             p = self._pending()
             p[pid] = rec
@@ -487,6 +551,11 @@ class Purge:
     # ------------------------------------------------------------------ the notes that go with them
     def _forget(self, items):
         from .common import batch_id
+        groups = [x for x in items if x["kind"] == "goal"]
+        for group in groups:
+            self._forget(group.get("members") or [])
+            self.goals.dismiss(group["id"])
+        items = [x for x in items if x["kind"] != "goal"]
         dirs = [x["dir"] for x in items if x["kind"] not in ("clip", "request")]
         clips = [x for x in items if x["kind"] == "clip"]
         reqs = [x["id"] for x in items if x["kind"] == "request"]

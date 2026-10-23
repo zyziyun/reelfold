@@ -587,6 +587,7 @@ export interface OpenRequest {
 
 /** What Delete picks (POST /api/delete/*): project / batch / work folders, single videos, requests. */
 export interface DeleteSel {
+  goals?: string[];
   dirs?: string[];
   clips?: { item: string; clip: string }[];
   requests?: string[];
@@ -595,7 +596,7 @@ export interface DeleteSel {
 /** One thing in the Delete plan (engine/desk_engine/purge.py): what Reelfold made and would go, and what stays. */
 export interface DeletePlanItem {
   key: string;
-  kind: 'project' | 'batch' | 'work' | 'import' | 'clip' | 'request';
+  kind: 'project' | 'batch' | 'work' | 'import' | 'clip' | 'request' | 'goal';
   name: string;
   ok: boolean;
   /** running | nothing-made | unsafe | not-found | made (a request already made into projects) */

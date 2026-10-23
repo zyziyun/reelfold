@@ -110,3 +110,29 @@ test('the clip page reads the same versions', async () => {
   await expect(page.getByTestId('ci-versions')).not.toContainText('原尺寸');
   await shot('S4-clip-versions');
 });
+
+
+test('delete series previews all generated files and cancel preserves the series', async () => {
+  await hash(`#/studio?goal=${fx.goal}`);
+  const button = page.getByTestId('goal-delete');
+  await expect(button).toBeEnabled();
+  await button.click();
+  const dialog = page.getByTestId('delete-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId('delete-item')).toHaveAttribute('data-kind', 'goal');
+  await expect(dialog.getByTestId('delete-paths')).toBeVisible();
+  await page.getByTestId('delete-cancel').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('goal-page')).toBeVisible();
+});
+
+test('delete series can be undone before any files move', async () => {
+  await hash(`#/studio?goal=${fx.goal}`);
+  await page.getByTestId('goal-delete').click();
+  await page.getByTestId('delete-soft').click();
+  await expect(page.getByTestId('goal-page')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await hash(`#/studio?goal=${fx.goal}`);
+  await expect(page.getByTestId('goal-page')).toBeVisible();
+  await expect(page.getByTestId('goal-delete')).toBeEnabled();
+});

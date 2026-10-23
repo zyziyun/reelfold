@@ -1399,7 +1399,7 @@ class Goals:
         now = now or time.time()
         out = []
         for g in self._all():
-            if g.get("dismissed_at"):
+            if g.get("dismissed_at") or g["id"] in getattr(self, "hidden", set()):
                 continue
             if g.get("state") in ("done", "stopped", "failed") and now - (g.get("updated") or 0) > RECENT_S:
                 continue
@@ -1412,7 +1412,7 @@ class Goals:
         them under their group, never twice)."""
         reqs, dirs = {}, {}
         for g in self._all():
-            if g.get("dismissed_at"):
+            if g.get("dismissed_at") or g["id"] in getattr(self, "hidden", set()):
                 continue
             for v in g.get("videos") or []:
                 past = v.get("past") or {}
