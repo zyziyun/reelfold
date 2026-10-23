@@ -248,3 +248,34 @@ def test_process_labels_render_inside_safe_width_on_each_canvas(tmp_path, monkey
     # A high-contrast plate and legible foreground, rather than a bare thin caption.
     assert ((a[:, :, 0] < 30) & (a[:, :, 3] > 200)).sum() > 500
     assert ((a[:, :, :3].min(axis=2) > 235) & (a[:, :, 3] > 250)).sum() > 100
+
+
+@pytest.mark.parametrize("options,motion", [
+    ('dict(fit="contain", z=2)', 'still'),
+    ('dict(fit="contain", c=(0.5, 0.2))', 'in'),
+    ('dict(fit="contain")', 'panL'),
+    ('dict(z=0)', 'still'),
+    ('dict(c=(0.5, 2))', 'still'),
+])
+def test_photo_framing_rejects_ignored_or_invalid_requests(options, motion):
+    script = f'SCRIPT = [(0, [], [("p0001", 1, "{motion}", {options})])]'
+    assert PS.spec_error(script)
+
+
+def test_detail_framing_changes_the_visible_source_region():
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import numpy as np
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'workflows/photo-story/scripts'))
+    from photostory.shots import ImageShot
+    im = Image.new("RGB", (400, 400), "white")
+    im.paste((255, 0, 0), (150, 30, 250, 130))
+    ctx = SimpleNamespace(BOX_W=200, BOX_H=200, open_img=lambda _: im.copy())
+    base = dict(start=0, end=3, tail=0, motion="still")
+    wide = ImageShot(ctx, dict(base, fit="contain"), "p0001").frame(1)
+    detail = ImageShot(ctx, dict(base, fit="cover", c=(0.5, 0.2), z=3), "p0001").frame(1)
+    def red_area(frame):
+        return np.mean((frame[:,:,0] > 240) & (frame[:,:,1] < 15))
+    assert red_area(detail) > red_area(wide) * 5
+    assert PS.spec_error('SCRIPT = [(0, [], [("p0001", 1, "still", dict(fit="cover", c=(0.5,0.2), z=3))])]') is None

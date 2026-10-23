@@ -33,6 +33,11 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   A final CTA is an ordinary final cue/shot. Do not invent CTA, DURATION or ART_DIRECTION globals; they do not render.
   In music mode set MUSIC = dict(grid="seconds", length={target}, tail=0, captions="all"); weights allocate its time.
   For a photo that must be shown complete use dict(fit="contain"); its whole image fits on a colour-matched matte.
+  For a source-visible detail use dict(fit="cover", c=(cx, cy), z=zoom): c is the normalized source focal point
+  (0..1), z >= 1 magnifies the crop. Choose the focal point from the supplied image, not a guessed feature.
+  contain preserves the whole image and does not support c/z or pans; never combine them. Use a separate
+  cover/detail shot between full-product hero shots. Do not claim a detail is demonstrated by an unchanged wide shot.
+  If the source does not resolve that detail, use another supplied view or omit the unsupported detail claim.
 - MEDIA = dict(images=["frames", "../inputs"], videos="../inputs")  (paths relative to this spec's folder).
 - A video shot's source is "v" + the clip id, e.g. ("v{first}", 1, "still", dict(off=12.0, audio="mute")): off = the
   second in the clip where the shot starts (from the contact sheet); weight = its share of the unit's narration time.
@@ -554,6 +559,16 @@ def spec_error(text):
                 return f"SCRIPT[{i}] needs a motion string and dict/None options"
             if opts and opts.get("fit") not in (None, "contain", "cover"):
                 return f"SCRIPT[{i}] fit must be contain or cover"
+            if opts:
+                zoom = opts.get("z", 1)
+                if type(zoom) not in (int, float) or not math.isfinite(zoom) or zoom < 1:
+                    return f"SCRIPT[{i}] z must be a finite zoom >= 1"
+                focus = opts.get("c", (0.5, 0.5))
+                if (not isinstance(focus, (list, tuple)) or len(focus) != 2 or
+                        any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in focus)):
+                    return f"SCRIPT[{i}] c must be two normalized source coordinates between 0 and 1"
+                if opts.get("fit") == "contain" and ("c" in opts or zoom != 1 or motion not in ("still", "in", "out")):
+                    return f"SCRIPT[{i}] contain shows the whole photo; use fit=cover for c/z detail framing or pans"
     for name in ("CTA", "DURATION", "ART_DIRECTION"):
         if _spec_value(text, name) is not None:
             return f"{name} does not render; put CTA text in SCRIPT and duration in MUSIC.length"
