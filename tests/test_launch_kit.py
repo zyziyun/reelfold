@@ -1114,3 +1114,18 @@ def test_config_load_resolves_old_bare_imports_without_rewriting_file(tmp_path):
     assert cfg['capture']['clips'][0]['file'] == str(inputs/'demo.mp4')
     assert cfg['capture']['images'][0]['file'] == str(inputs/'screen.png')
     assert p.read_bytes() == before
+
+
+def test_recipe_collects_film_outputs_not_intermediate_renders(tmp_path):
+    from types import SimpleNamespace
+    from vstudio.project.adapters.common import collect_files
+    manifest = yaml.safe_load(open(os.path.join(ROOT, "workflows/launch-kit/recipe.yaml")))
+    item = tmp_path / "items/main"
+    (item / "kit/films").mkdir(parents=True)
+    (item / "kit/build/hero/renders").mkdir(parents=True)
+    film = item / "kit/films/hero-zh-16x9.mp4"
+    film.write_bytes(b"test")
+    (item / "kit/build/hero/renders/_raw.mp4").write_bytes(b"test")
+    job = {"id": "main", "params": {"_item_dir": str(item), "platforms": []}}
+    found = collect_files(SimpleNamespace(manifest=manifest), job, [])
+    assert [e["file"] for e in found] == [str(film)]

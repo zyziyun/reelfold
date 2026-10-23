@@ -164,7 +164,7 @@ checkpoints:
 outputs:
   platforms: [x, linkedin, youtube, youtube-shorts, tiktok, instagram, xiaohongshu, bilibili, douyin]
   collect: vstudio.project.adapters.common:collect_files
-  files: ["{item_dir}/kit/demo/*.mp4", "{item_dir}/kit/clips/*.mp4", "{item_dir}/kit/readme/*", "{item_dir}/kit/stills/*.png",
+  files: ["{item_dir}/kit/films/*.mp4", "{item_dir}/kit/demo/*.mp4", "{item_dir}/kit/clips/*.mp4", "{item_dir}/kit/readme/*", "{item_dir}/kit/stills/*.png",
           "{item_dir}/kit/copy/COPY.md", "{item_dir}/kit/schedule/SCHEDULE.md"]
 agent:
   workflow_md: workflows/launch-kit/WORKFLOW.md
