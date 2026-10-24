@@ -51,7 +51,8 @@ class FakeGoogle {
   access = new Set<string>();
   sessions = new Map<string, Session>();
   /** per chunk index: what goes wrong */
-  faults = new Map<number, '503' | 'drop-after-store'>();
+  faults = new Map<number, '503' | 'drop-after-store' | 'stall' | 'invalid-range' | 'pending-final'>();
+  retryDelay: string | null = null;
   chunks = 0;
   queries = 0;
   thumbs: { videoId: string; type: string; bytes: number }[] = [];
@@ -164,19 +165,22 @@ class FakeGoogle {
         const privacy = this.lockPrivate ? 'private' : s.meta.status.privacyStatus;
         return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, uploadStatus: 'processed', ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
       };
-      const incomplete = () => res.writeHead(308, s.received ? { Range: `bytes=0-${s.received - 1}` } : {}).end();
+      const incomplete = () => res.writeHead(308, { ...(s.received ? { Range: `bytes=0-${s.received - 1}` } : {}), ...(this.retryDelay ? { 'Retry-After': this.retryDelay } : {}) }).end();
       if (range.startsWith('bytes */')) {
         this.queries++;
-        return s.done ? finish() : incomplete();
+        return s.done || s.received === s.size ? finish() : incomplete();
       }
       const m = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(range);
       if (!m || Number(m[3]) !== s.size || Number(m[2]) - Number(m[1]) + 1 !== body.length) return this.json(res, 400, { error: { message: `bad range ${range}` } });
       const i = this.chunks++;
       const fault = this.faults.get(i);
+      if (fault === 'stall') return incomplete();
+      if (fault === 'invalid-range') return res.writeHead(308, { Range: `bytes=0-${s.size}` }).end();
       if (fault === '503') return this.json(res, 503, { error: { message: 'backend error' } });
       if (Number(m[1]) !== s.received) return incomplete();
       s.got.push(body);
       s.received += body.length;
+      if (fault === 'pending-final') { s.done = true; return incomplete(); }
       if (fault === 'drop-after-store') {
         req.socket.destroy(); // the bytes arrived, the answer is lost
         return;
@@ -387,6 +391,47 @@ describe('resumable upload (fake API)', () => {
     const { yt, dir } = await connected();
     for (let i = 0; i < 20; i++) g.faults.set(i, '503');
     await expect(yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null })).rejects.toThrow(/after 6 retries/);
+  });
+
+  it('bounds repeated incomplete responses without progress', async () => {
+    const { yt, dir } = await connected();
+    for (let i = 0; i < 20; i++) g.faults.set(i, 'stall');
+    await expect(yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null })).rejects.toThrow(/no progress after 6 retries/);
+    expect(g.chunks).toBe(7);
+    expect(g.sessions.size).toBe(1);
+  });
+
+  it('recovers from a stalled chunk without duplicating stored bytes', async () => {
+    const { yt, dir } = await connected();
+    const file = video(dir);
+    g.faults.set(1, 'stall');
+    expect((await yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null })).id).toBe('vid123');
+    expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
+  });
+
+  it('rejects out-of-bounds provider ranges before reading another chunk', async () => {
+    const { yt, dir } = await connected();
+    g.faults.set(0, 'invalid-range');
+    await expect(yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null })).rejects.toThrow(/invalid upload range/);
+    expect(g.chunks).toBe(1);
+  });
+
+  it('honors the provider retry delay on incomplete uploads', async () => {
+    const delays: number[] = [];
+    const { yt, dir } = mk(undefined, { sleep: async (ms) => { delays.push(ms); } });
+    yt.setClient(CLIENT, 'GOCSPX-desktop');
+    await yt.connect('main', { timeoutMs: 5000 });
+    g.retryDelay = '3';
+    await yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null });
+    expect(delays).toEqual([3000, 3000]);
+  });
+
+  it('queries the receipt when all bytes are acknowledged with 308', async () => {
+    const { yt, dir } = await connected();
+    g.faults.set(0, 'pending-final');
+    expect((await yt.upload('main', { file: video(dir, 1000), title: 't', description: '', tags: [], publishAt: null })).id).toBe('vid123');
+    expect(g.chunks).toBe(1);
+    expect(g.queries).toBe(1);
   });
 
   it('an expired access token is refreshed once; the provider returns private visibility', async () => {

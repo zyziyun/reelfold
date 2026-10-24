@@ -468,6 +468,7 @@ export class YouTubeApi {
     const maxRetries = this.d.maxRetries ?? 6;
     let offset = 0;
     let tries = 0;
+    let highWater = 0;
     let authRetried = false;
     let done = null as Inserted | null;
     const fd = fs.openSync(v.file, 'r');
@@ -480,7 +481,7 @@ export class YouTubeApi {
         try {
           r = await this.f(loc, {
             method: 'PUT',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(buf.length), 'Content-Range': `bytes ${offset}-${end - 1}/${size}` },
+            headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(buf.length), 'Content-Range': offset === size ? `bytes */${size}` : `bytes ${offset}-${end - 1}/${size}` },
             body: buf,
           });
         } catch (e) {
@@ -491,8 +492,15 @@ export class YouTubeApi {
           break;
         }
         if (r && r.status === 308) {
-          offset = nextOffset(r);
-          tries = 0;
+          offset = nextOffset(r, size);
+          if (offset > highWater) {
+            highWater = offset;
+            tries = 0;
+          } else if (++tries > maxRetries) {
+            throw new Error(`YouTube upload made no progress after ${maxRetries} retries`);
+          }
+          const delay = Math.max(retryAfter(r), tries ? Math.min(64_000, 1000 * 2 ** (tries - 1)) : 0);
+          if (delay) await this.sleep(delay);
           onProgress?.(offset, size);
           continue;
         }
@@ -512,7 +520,13 @@ export class YouTubeApi {
         if (q && (q.status === 200 || q.status === 201)) {
           done = (await q.json().catch(() => ({}))) as Inserted;
         } else if (q && q.status === 308) {
-          offset = nextOffset(q);
+          offset = nextOffset(q, size);
+          if (offset > highWater) {
+            highWater = offset;
+            tries = 0;
+          }
+          const delay = retryAfter(q);
+          if (delay) await this.sleep(delay);
           onProgress?.(offset, size);
         } else if (q && (q.status === 404 || q.status === 410)) {
           throw new Error('the upload session expired: press Publish again to start over');
@@ -591,9 +605,20 @@ export class YouTubeApi {
 type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string } };
 
 /** 308 Resume Incomplete: "Range: bytes=0-N" -> N+1; no Range: nothing arrived yet. */
-function nextOffset(r: Response): number {
-  const m = /bytes=0-(\d+)/.exec(r.headers.get('range') ?? '');
-  return m ? Number(m[1]) + 1 : 0;
+function nextOffset(r: Response, size: number): number {
+  const range = r.headers.get('range');
+  if (range === null) return 0;
+  const m = /^bytes=0-(\d+)$/.exec(range);
+  const offset = m ? Number(m[1]) + 1 : NaN;
+  if (!Number.isSafeInteger(offset) || offset < 1 || offset > size) throw new Error('YouTube returned an invalid upload range');
+  return offset;
+}
+
+function retryAfter(r: Response): number {
+  const value = r.headers.get('retry-after');
+  if (!value) return 0;
+  const ms = /^\d+$/.test(value) ? Number(value) * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(ms) ? Math.max(0, ms) : 0;
 }
 
 const retryable = (s: number) => s === 408 || s === 429 || s >= 500;
