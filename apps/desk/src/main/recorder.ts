@@ -114,10 +114,14 @@ export class Recorder {
   end(p: IpcPayload<'rec:end'>) {
     const s = this.need(p.sessionId);
     const secs = p.secs;
-    for (const f of Object.values(s.fds)) {
+    for (const track of REC_TRACKS) {
+      const f = s.fds[track];
       if (f === undefined) continue;
       fs.fsyncSync(f);
       fs.closeSync(f);
+      // Metadata or lock removal can fail after tracks are closed. A retry
+      // must finalize those steps without reusing an invalid descriptor.
+      s.fds[track] = undefined;
     }
     const sessFile = path.join(s.dir, 'session.json');
     const sess = JSON.parse(fs.readFileSync(sessFile, 'utf8'));

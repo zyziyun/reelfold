@@ -40,6 +40,7 @@ describe('recorder model', () => {
     expect(mainAction('recording', true)).toBe('stop');
     expect(mainAction('paused', true)).toBe('stop');
     expect(mainAction('stopping', true)).toBeNull();
+    expect(mainAction('save-error', true)).toBe('stop');
     expect(mainAction('off', true)).toBeNull();
   });
 
@@ -92,6 +93,22 @@ describe('recorder main side', () => {
     expect(JSON.parse(fs.readFileSync(path.join(a.dir, 'session.json'), 'utf8')).studio).toBe(false);
     const b = r.begin({ slug: 'b', script: ['x'], tracks: ['camera'] });
     expect(JSON.parse(fs.readFileSync(path.join(b.dir, 'session.json'), 'utf8')).studio).toBe(true);
+  });
+
+  it('retries metadata finalization without closing already closed tracks', () => {
+    const r = new Recorder(tmp());
+    const take = r.begin({ slug: 'retry', script: [], tracks: ['camera', 'mic'] });
+    for (const track of ['camera', 'mic'] as const) r.chunk({ sessionId: take.sessionId, track, seq: 0, data: new Uint8Array([1, 2, 3]) });
+    const meta = path.join(take.dir, 'session.json');
+    const original = fs.readFileSync(meta);
+    fs.writeFileSync(meta, '{');
+    expect(() => r.end({ sessionId: take.sessionId, secs: 2 })).toThrow();
+    expect(fs.existsSync(path.join(take.dir, 'recording.lock'))).toBe(true);
+    fs.writeFileSync(meta, original);
+    expect(r.end({ sessionId: take.sessionId, secs: 2 }).tracks).toEqual(['camera', 'mic']);
+    expect(fs.existsSync(path.join(take.dir, 'recording.lock'))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(meta, 'utf8')).secs).toBe(2);
+    expect(fs.readFileSync(path.join(take.dir, 'camera.webm'))).toEqual(Buffer.from([1, 2, 3]));
   });
 
   it('a deleted take goes to the Trash; never a live one or one outside the recordings', async () => {

@@ -161,9 +161,9 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const video = useRef<HTMLVideoElement | null>(null);
   const screenVideo = useRef<HTMLVideoElement | null>(null);
 
-  const live = rec.state === 'recording' || rec.state === 'paused' || rec.state === 'stopping';
+  const live = rec.state === 'recording' || rec.state === 'paused' || rec.state === 'stopping' || rec.state === 'save-error';
   const off = !rec.stream || rec.state === 'idle' || rec.state === 'asking' || rec.state === 'denied' || rec.state === 'error';
-  const phase: Phase = off && !live ? 'off' : count !== null ? 'countdown' : rec.state === 'recording' ? 'recording' : rec.state === 'paused' ? 'paused' : rec.state === 'stopping' ? 'stopping' : 'ready';
+  const phase: Phase = off && !live ? 'off' : count !== null ? 'countdown' : rec.state === 'recording' ? 'recording' : rec.state === 'paused' ? 'paused' : rec.state === 'stopping' ? 'stopping' : rec.state === 'save-error' ? 'save-error' : 'ready';
   const blocked = blockReason({ phase, useScript, lines: lines.length, busy: finishing.busy || rec.starting });
   const setTpBoth = (v: { cur: number; progress: number }) => {
     tpRef.current = v;
@@ -253,6 +253,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   };
 
   const stop = async () => {
+    setErr(null);
     const thumb = grab();
     try {
       const out = await rec.stop();
@@ -426,8 +427,8 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
               ? withKeys('rec.hintPaused', { space: 'Space', p: 'P' })
               : phase === 'stopping'
                 ? t('rec.saving')
-                : withKeys('rec.hintReady', { key: 'Space' });
-  const mainLabel = phase === 'countdown' ? t('rec.cancel') : live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('rec.start');
+                : phase === 'save-error' ? t('rec.saveFailed') : withKeys('rec.hintReady', { key: 'Space' });
+  const mainLabel = phase === 'save-error' ? t('rec.retrySave') : phase === 'countdown' ? t('rec.cancel') : live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('rec.start');
   const mainKey = phase === 'countdown' || live ? 'stop' : 'start';
   const title = ep ? t('create.ep.title', { n: ep.no, title: ep.title }) : t('rec.title');
 
@@ -553,7 +554,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
             <div className="rs-dock" data-testid="rec-dock">
               <div className="rs-side l">
                 {live ? (
-                  <button type="button" className="rs-ctl" disabled={phase === 'stopping' || !!rec.interruption} onClick={onPause} title={`${rec.state === 'paused' ? t('rec.resume') : t('rec.pause')} (P)`} data-testid="rec-pause">
+                  <button type="button" className="rs-ctl" disabled={phase === 'stopping' || phase === 'save-error' || !!rec.interruption} onClick={onPause} title={`${rec.state === 'paused' ? t('rec.resume') : t('rec.pause')} (P)`} data-testid="rec-pause">
                     {rec.state === 'paused' ? <Play className="ico" /> : <Pause className="ico" />}
                     <span className="tx">{rec.state === 'paused' ? t('rec.resume') : t('rec.pause')}</span>
                   </button>
@@ -589,7 +590,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
 
               <button
                 type="button"
-                className={`rs-rec ${mainKey}${live && rec.interruption ? ' save-take' : ''}`}
+                className={`rs-rec ${mainKey}${live && (rec.interruption || phase === 'save-error') ? ' save-take' : ''}`}
                 disabled={phase === 'stopping' || (!live && phase !== 'countdown' && !!blocked)}
                 onClick={onMain}
                 aria-busy={rec.starting}
@@ -598,7 +599,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                 data-testid={live ? 'create-rec-stop' : phase === 'countdown' ? 'rec-cancel' : 'create-rec-start'}
               >
                 {rec.starting ? <LoaderCircle className="ico spin" aria-hidden="true" /> : <i />}
-                {live && rec.interruption && <span>{t('rec.saveTake')}</span>}
+                {live && (rec.interruption || phase === 'save-error') && <span>{mainLabel}</span>}
               </button>
 
               <div className="rs-side r">
@@ -675,7 +676,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
             <div className="rs-take live">
               <span className="th rec" />
               <div className="tx">
-                <div className="t1">{rec.state === 'recording' ? t('rec.takeNow', { n: takeNo.current + 1 }) : `${t('rec.take', { n: takeNo.current + 1 })} · ${rec.state === 'paused' ? t('rec.paused', { t: fmtClock(rec.elapsed) }) : t('rec.saving')}`}</div>
+                <div className="t1">{rec.state === 'recording' ? t('rec.takeNow', { n: takeNo.current + 1 }) : `${t('rec.take', { n: takeNo.current + 1 })} · ${rec.state === 'paused' ? t('rec.paused', { t: fmtClock(rec.elapsed) }) : rec.state === 'save-error' ? t('rec.saveFailed') : t('rec.saving')}`}</div>
                 <div className="t2">{useScript && lines.length ? t('rec.takePart', { n: tp.cur + 1, total: lines.length }) : t('rec.takeFree')}</div>
               </div>
             </div>

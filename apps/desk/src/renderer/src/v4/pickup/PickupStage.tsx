@@ -61,6 +61,7 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
   const stop = useCallback(async () => {
     if (!client) return;
     setPhase('stopping');
+    setErr(null);
     try {
       const out = await rec.stop();
       if (!out) return setPhase('ready');
@@ -84,6 +85,7 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
   }, [phase, rec, discard, onCancel]);
 
   const main = useCallback(() => {
+    if (rec.state === 'save-error') { void stop(); return; }
     if (phase === 'ready' || (phase === 'failed' && rec.stream)) {
       if (prefs.countdown) {
         setPhase('countdown');
@@ -93,7 +95,7 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
       setCount(null);
       setPhase('ready');
     } else if (phase === 'recording') void stop();
-  }, [phase, prefs.countdown, begin, stop, rec.stream]);
+  }, [phase, prefs.countdown, begin, stop, rec.stream, rec.state]);
 
   useEffect(() => {
     if (count === null) return;
@@ -187,17 +189,17 @@ export function PickupStage({ item, clip, doc, spot, onDone, onCancel }: { item:
         </span>
         <button
           type="button"
-          className={`rs-rec ${phase === 'recording' || phase === 'countdown' ? 'stop' : 'start'}${phase === 'recording' && rec.interruption ? ' save-take' : ''}`}
+          className={`rs-rec ${phase === 'recording' || phase === 'countdown' ? 'stop' : 'start'}${(phase === 'recording' && rec.interruption) || rec.state === 'save-error' ? ' save-take' : ''}`}
           disabled={busy || phase === 'opening' || (!rec.stream && phase === 'failed')}
           onClick={main}
-          aria-label={phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')}
-          title={`${phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')} (Space)`}
+          aria-label={rec.state === 'save-error' ? t('rec.retrySave') : phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')}
+          title={`${rec.state === 'save-error' ? t('rec.retrySave') : phase === 'recording' ? t(rec.interruption ? 'rec.saveTake' : 'pk.stop') : t('pk.record')} (Space)`}
           data-testid={phase === 'recording' ? 'pickup-stop' : 'pickup-record'}
         >
           <i />
-          {phase === 'recording' && rec.interruption && <span>{t('rec.saveTake')}</span>}
+          {rec.state === 'save-error' ? <span>{t('rec.retrySave')}</span> : phase === 'recording' && rec.interruption && <span>{t('rec.saveTake')}</span>}
         </button>
-        <span className="muted small pk-hint">{phase === 'recording' ? t('pk.hintRec') : phase === 'failed' && rec.stream ? t('pk.hintRetry') : t('pk.hintReady')}</span>
+        <span className="muted small pk-hint">{rec.state === 'save-error' ? t('rec.saveFailed') : phase === 'recording' ? t('pk.hintRec') : phase === 'failed' && rec.stream ? t('pk.hintRetry') : t('pk.hintReady')}</span>
       </div>
     </div>
   );

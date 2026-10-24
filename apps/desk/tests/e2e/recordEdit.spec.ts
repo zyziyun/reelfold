@@ -297,6 +297,49 @@ test.describe('recording permission lifecycle', () => {
   }
 });
 
+test.describe('recording save recovery', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+
+  test('retries finalizing the same stopped take after a metadata failure', async () => {
+    test.setTimeout(120000);
+    const { app: launched, page } = await launch('save-retry', { DESK_STUDIO: '1' });
+    app = launched;
+    await page.evaluate(() => { location.hash = '#/create/record'; });
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.getByTestId('create-rec-start').click();
+    await page.waitForTimeout(1800);
+    const recordings = path.join(tmp, 'vhome-save-retry', 'recordings');
+    const names = fs.readdirSync(recordings);
+    expect(names).toHaveLength(1);
+    const take = path.join(recordings, names[0]);
+    const meta = path.join(take, 'session.json');
+    const original = fs.readFileSync(meta);
+    // Real finalization fails after the camera/mic files have been flushed and closed.
+    fs.writeFileSync(meta, '{');
+    await page.getByTestId('create-rec-stop').click();
+    const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
+    await expect(retry).toBeEnabled();
+    await expect(page.getByTestId('rec-pause')).toBeDisabled();
+    await expect(page.getByText('Recording stopped. Saving failed; try again.', { exact: false }).first()).toBeVisible();
+    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(true);
+    const bytes = ['camera', 'mic'].map(track => fs.readFileSync(path.join(take, `${track}.webm`)));
+    await shot(page, 'save-retry');
+    await page.waitForTimeout(1200); // retry latency must not become part of the take
+    fs.writeFileSync(meta, original);
+    await retry.click();
+    await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
+    expect(fs.readdirSync(recordings)).toEqual(names);
+    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+    const saved = JSON.parse(fs.readFileSync(meta, 'utf8'));
+    expect(saved.secs).toBeGreaterThan(1.4);
+    expect(saved.secs).toBeLessThan(3);
+    for (const [i, track] of ['camera', 'mic'].entries()) expect(fs.readFileSync(path.join(take, `${track}.webm`))).toEqual(bytes[i]);
+    expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(1.4);
+  });
+});
+
 test.describe('recording startup lifecycle', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));

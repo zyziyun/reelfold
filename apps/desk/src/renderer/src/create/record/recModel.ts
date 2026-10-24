@@ -1,7 +1,7 @@
 // The recorder's plain logic (no React, no devices): prefs, the script, what the big button does, the keys, the
 // teleprompter's pace. RecordStudio and the unit tests share it.
 
-export type Phase = 'off' | 'ready' | 'countdown' | 'recording' | 'paused' | 'stopping';
+export type Phase = 'off' | 'ready' | 'countdown' | 'recording' | 'paused' | 'stopping' | 'save-error';
 export type Speed = 'slow' | 'normal' | 'fast';
 export type TextSize = 's' | 'm' | 'l';
 
@@ -100,7 +100,7 @@ export function blockReason(o: { phase: Phase; useScript: boolean; lines: number
 export function mainAction(phase: Phase, countdown: boolean): 'countdown' | 'start' | 'cancel' | 'stop' | null {
   if (phase === 'ready') return countdown ? 'countdown' : 'start';
   if (phase === 'countdown') return 'cancel';
-  if (phase === 'recording' || phase === 'paused') return 'stop';
+  if (phase === 'recording' || phase === 'paused' || phase === 'save-error') return 'stop';
   return null;
 }
 

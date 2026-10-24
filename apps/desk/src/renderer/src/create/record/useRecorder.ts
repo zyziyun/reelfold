@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 import { recorderLifecycle } from './recorderLifecycle';
 
 export type RecTrack = 'camera' | 'mic' | 'screen';
-export type RecState = 'idle' | 'asking' | 'denied' | 'ready' | 'recording' | 'paused' | 'stopping' | 'error';
+export type RecState = 'idle' | 'asking' | 'denied' | 'ready' | 'recording' | 'paused' | 'stopping' | 'save-error' | 'error';
 
 export interface Device {
   id: string;
@@ -417,7 +417,16 @@ export function useRecorder() {
     const s = sess.current;
     if (!s) return null;
     setState('stopping');
-    const out = await finishSession(s);
+    let out: Awaited<NonNullable<Session['saving']>>;
+    try {
+      out = await finishSession(s);
+    } catch (error) {
+      if (mounted.current && sess.current === s) {
+        setElapsed(recordedSeconds(s, performance.now()));
+        setState('save-error');
+      }
+      throw error;
+    }
     if (sess.current === s) sess.current = null;
     if (!mounted.current) return out;
     const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
