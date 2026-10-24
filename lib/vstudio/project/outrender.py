@@ -759,6 +759,8 @@ def _voice_for(lang, choice="auto"):
     eng = tts.available_engine()
     if choice and choice != "auto":
         return eng, choice
+    if eng == "system":
+        return eng, None  # synth selects an installed voice using the version's language
     if lang == "zh":
         return eng, tts.zh_voice(eng)
     if lang == "fr" and eng == "kokoro":

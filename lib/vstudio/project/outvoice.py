@@ -433,7 +433,7 @@ def _tts_line(v, text, wav, workdir, k):
         eng = None
     eng = eng or VC.narration_engine(v["lang"])
     sp = voice.get("speaker") if voice.get("engine") == eng else None
-    if not sp:
+    if not sp and eng != "system":
         sp = tts.zh_voice(eng) if v["lang"] == "zh" else tts.default_voice(eng)
     got = tts.synth(text, engine=eng, voice=sp, instructions=voice.get("style") if eng == "qwen" else None,
                     language=v["lang"], out=wav)

@@ -26,6 +26,16 @@ def chinese_voices():
                   key=lambda v: ('Premium' not in v['name'], v['lang'] != 'zh-CN', v['name']))
 
 
+def voice_for(language, preferred=None):
+    """Choose an installed voice in the requested language, never another language."""
+    locale = language.replace('_', '-').lower()
+    candidates = [v for v in voices() if v['lang'].lower().split('-')[0] == locale.split('-')[0]]
+    if not candidates:
+        raise RuntimeError(f'No installed macOS voice for {language}. Install a matching voice in System Settings.')
+    return min(candidates, key=lambda v: (v['id'] != preferred,
+               v['lang'].lower() != locale, 'Premium' not in v['name'], v['name']))['id']
+
+
 def synth(text, voice, dst, tmp):
     if voice not in {v['id'] for v in voices()}:
         raise RuntimeError('The selected macOS voice is not installed. Choose an installed voice in Settings > Voice.')

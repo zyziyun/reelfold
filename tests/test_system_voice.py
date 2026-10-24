@@ -69,3 +69,33 @@ def test_explainer_approval_names_selected_system_voice_without_paid_key(monkeyp
     assert payload['default']['voice'] == 'Lili (Premium)'
     assert not payload['paid'] and 'no_key' not in payload
     assert E.voice_apply(SimpleNamespace(value=payload['default'], payload=payload))['project_params']['tts_engine'] == 'system'
+
+
+def test_language_selection_never_uses_unrelated_preference(monkeypatch):
+    monkeypatch.setattr(S, 'voices', lambda: [
+        dict(id='Tingting', name='Tingting', lang='zh-CN'),
+        dict(id='Thomas', name='Thomas', lang='fr-FR'),
+        dict(id='Amelie', name='Amelie', lang='fr-CA'),
+    ])
+    assert S.voice_for('fr_FR', preferred='Tingting') == 'Thomas'
+    assert S.voice_for('fr-CA') == 'Amelie'
+    assert S.voice_for('fr', preferred='Amelie') == 'Amelie'
+    with pytest.raises(RuntimeError, match='No installed macOS voice for ja'):
+        S.voice_for('ja')
+
+
+def test_system_language_reaches_synth_without_chinese_default(monkeypatch, tmp_path):
+    from pathlib import Path
+    from vstudio.project import outvoice, outrender
+    monkeypatch.setattr(tts, '_cache_dir', lambda: str(tmp_path))
+    monkeypatch.setattr(tts, 'prefs', lambda: {'system_voice': 'Tingting'})
+    monkeypatch.setattr(S, 'voices', lambda: [dict(id='Thomas', name='Thomas', lang='fr-FR')])
+    selected = []
+    monkeypatch.setattr(S, 'synth', lambda text, voice, raw, tmp: selected.append(voice))
+    monkeypatch.setattr(tts.media, 'run', lambda args: Path(args[-1]).write_bytes(b'wave'))
+    monkeypatch.setattr(tts, 'available_engine', lambda: 'system')
+    assert outrender._voice_for('fr') == ('system', None)
+    outvoice._tts_line(dict(lang='fr', voice={'engine': 'system'}), 'Bonjour.', str(tmp_path/'fr.wav'), str(tmp_path), 0)
+    assert selected == ['Thomas']
+    tts.synth('Bonjour.', engine='system', voice='Explicit', language='fr', cache=False)
+    assert selected[-1] == 'Explicit'

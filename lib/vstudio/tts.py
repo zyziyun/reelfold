@@ -621,6 +621,9 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         model = ccfg["model"]
         voice = f"ref:{ccfg['ref_hash']}:{ccfg['language'] or 'auto'}:{seed if seed is not None else '-'}"
     else:
+        if engine == "system" and language and not voice:
+            from .system_voice import voice_for
+            voice = voice_for(language, preferred=prefs().get("system_voice"))
         voice = _voice(engine, voice)
         model = kokoro_model(model) if engine == "kokoro" else qwen_model(model) if engine == "qwen" else \
             model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
