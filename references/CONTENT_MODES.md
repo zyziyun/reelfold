@@ -45,7 +45,7 @@ creating a portrait V-track master. Explicit requested shapes override the defau
 separately. A horizontal source exported unchanged for a platform that supports landscape is a valid deliverable.
 
 Product defaults disable scenic grading/grain and floating film title/chapter cards. Source-photo captions use
-a contrasting theme ink in the upper safe area; a short explicit end fade is respected. These defaults are
+a bounded high-contrast label plate in the upper safe area; a short explicit end fade is respected. These defaults are
 editable in the spec. `PRESERVE_COLOUR` also gives the designed cover an ungraded, uncropped source with a
 separate title area, rather than shading the product to carry a headline. Planning sheets/previews are not cover
 candidates. These defaults cannot establish that a detail is legible, a shot proves its line, or the text avoids
@@ -59,6 +59,14 @@ faces and source text. Corporate footage is not evidence of certifications, thro
 Both narrated and music timelines give the final shot only its visible closing hold. Do not inflate that duration
 to keep it active after playback: motion interpolation and source preparation also consume the same duration.
 A closing move must complete visibly, and source preparation must not decode unused extra footage.
+
+Product photo sequences should reveal the product, approach a source-visible detail, then return to a complete
+hero. Use the native `in`/`out` photo motions where they explain the design; keep a steady reading hold where
+needed. `contain` keeps the complete image visible with a restrained 4% scale move; `cover` uses a 12% move
+around the authored focus. Vary shot weights to match reading and evidence, rather than defaulting to equally
+timed static slides. Do not simulate new object angles or rotate branding from a single flat photograph.
+Moving source footage does not need an added camera move by default. Verify actual start/middle/end frames;
+writing a motion name in the plan alone does not establish useful movement.
 
 ## Acceptance by purpose
 

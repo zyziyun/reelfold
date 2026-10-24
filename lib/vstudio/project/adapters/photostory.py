@@ -38,6 +38,13 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   contain preserves the whole image and does not support c/z or pans; never combine them. Use a separate
   cover/detail shot between full-product hero shots. Do not claim a detail is demonstrated by an unchanged wide shot.
   If the source does not resolve that detail, use another supplied view or omit the unsupported detail claim.
+  For product photos, author a reveal-to-detail-to-hero sequence with changing framing, not four static slides.
+  The executable motion string "in" gently approaches a visible feature; "out" reveals the whole design.
+  Both work with contain (subtle 4% scale change, whole source stays visible) and cover (12% crop move).
+  Keep a steady hold where the viewer must read a label; do not animate every shot or repeat alternating zooms.
+  Choose unequal shot weights from reading/action time: a short opening, enough time to see the evidence,
+  and a deliberate closing hold. Do not request object rotation, parallax or new product angles from a flat photo.
+  Existing video action already supplies movement; never turn it into a zooming still.
 - MEDIA = dict(images=["frames", "../inputs"], videos="../inputs")  (paths relative to this spec's folder).
 - A video shot's source is "v" + the clip id, e.g. ("v{first}", 1, "still", dict(off=12.0, audio="mute")): off = the
   second in the clip where the shot starts (from the contact sheet); weight = its share of the unit's narration time.

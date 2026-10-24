@@ -308,3 +308,24 @@ def test_silent_draft_overrides_model_music(tmp_path):
     text = open(dest).read()
     assert PS._spec_value(text, 'BGM') is None
     assert PS._spec_value(text, 'MUSIC')['grid'] == 'seconds'
+
+
+@pytest.mark.parametrize("motion", ["in", "out"])
+def test_product_photo_move_keeps_all_source_corners_visible(motion):
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import numpy as np
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'workflows/photo-story/scripts'))
+    from photostory.shots import ImageShot
+    im = Image.new("RGB", (400, 600), "white")
+    colours = [(240, 10, 10), (10, 240, 10), (10, 10, 240), (240, 10, 240)]
+    for colour, box in zip(colours, [(0, 0, 30, 30), (370, 0, 400, 30), (0, 570, 30, 600), (370, 570, 400, 600)]):
+        im.paste(colour, box)
+    ctx = SimpleNamespace(BOX_W=240, BOX_H=320, open_img=lambda _: im.copy())
+    shot = ImageShot(ctx, dict(start=0, end=3, tail=0, motion=motion, fit="contain"), "product")
+    frames = [shot.frame(t) for t in (0, 1.5, 3)]
+    assert np.mean(np.abs(frames[0] - frames[-1])) > 0.5
+    for frame in frames:
+        for colour in colours:
+            assert (np.max(np.abs(frame - np.array(colour)), axis=2) < 10).sum() > 50
