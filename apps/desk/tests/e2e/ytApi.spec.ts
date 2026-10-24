@@ -250,6 +250,8 @@ test('a YouTube Short: the form, Schedule after Made for kids, uploaded through 
   expect((await rec()).puts).toBe(1);
   await page.screenshot({ path: path.join(SHOTS, 'yt-scheduled.png') });
   await hash('#/publish');
+  // The scheduled date can fall in the next week when this test runs on a weekend.
+  if ((when.getDay() + 6) % 7 < (new Date().getDay() + 6) % 7) await page.getByRole('button', { name: 'Next week', exact: true }).click();
   const card = page.getByTestId('pub-post').filter({ has: page.getByTestId('pb-status').filter({ hasText: 'Scheduled on platform' }) }).first();
   await expect(card).toHaveAttribute('draggable', 'false');
   await card.locator('.pc-top').click();

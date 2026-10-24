@@ -445,8 +445,44 @@ export class YouTubeApi {
     };
   }
 
+  /** Query only the saved session. Never create another upload while its outcome is unknown. */
+  async recover(postId: string): Promise<{ account: string; result: YtPublishResult } | null> {
+    const key = `youtube-upload/${postId}`;
+    const saved = this.d.vault.get(key);
+    if (saved.uploadReceipt) return saved.uploadReceipt;
+    const session = saved.uploadSession;
+    if (!session) return null;
+    const url = new URL(session.url);
+    if (url.origin !== new URL(this.ep.upload).origin || url.username || url.password ||
+        !Number.isSafeInteger(session.size) || session.size <= 0) throw new Error('Invalid saved upload session');
+    const token = await this.token(session.account);
+    const r = await this.f(url.toString(), { method: 'PUT', redirect: 'error',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Length': '0', 'Content-Range': `bytes */${session.size}` },
+      signal: AbortSignal.timeout(15_000) });
+    if (r.status === 308) return null;
+    if (r.status !== 200 && r.status !== 201) throw new Error('Upload result is still unconfirmed; check YouTube Studio');
+    const done = await r.json() as Inserted;
+    const result = uploadResult(done, session.privacy, session.publishAt);
+    if (session.followups) result.warnings.push('Recovered upload: check the cover and playlist in YouTube Studio.');
+    const receipt = { account: session.account, result };
+    this.d.vault.set(key, { uploadReceipt: receipt, uploadSession: undefined });
+    return receipt;
+  }
+
   /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */
-  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void): Promise<YtResult> {
+  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string): Promise<YtResult> {
+    const receiptKey = postId ? `youtube-upload/${postId}` : null;
+    if (postId) {
+      const saved = this.d.vault.get(receiptKey!);
+      if (saved.uploadSession || saved.uploadReceipt) {
+        const recovered = await this.recover(postId);
+        if (recovered) {
+          if (recovered.account !== account) throw new UploadOutcomeUnknown('This post was uploaded with another account. Check YouTube Studio.');
+          return recovered.result as YtResult;
+        }
+        throw new UploadOutcomeUnknown('The previous upload is still unconfirmed. Check YouTube Studio.');
+      }
+    }
     const size = fs.statSync(v.file).size;
     if (!size) throw new Error('the video file is empty');
     const meta = ytMeta(v);
@@ -464,6 +500,10 @@ export class YouTubeApi {
     const loc = init.headers.get('location');
     if (!init.ok || !loc) throw new Error(`YouTube refused the upload: ${await errText(init)}`);
     if (new URL(loc).origin !== new URL(this.ep.upload).origin) throw new Error('unexpected upload location');
+
+    if (receiptKey) this.d.vault.set(receiptKey, { uploadSession: { url: loc, size, account,
+      privacy: meta.status.privacyStatus, publishAt: v.publishAt?.toISOString() ?? null,
+      followups: !!(v.thumbnail || v.playlistId) } });
 
     const unit = Math.max(1, Math.round((this.d.chunkBytes ?? 32 * CHUNK_UNIT) / CHUNK_UNIT)) * CHUNK_UNIT;
     const maxRetries = this.d.maxRetries ?? 6;
@@ -538,6 +578,7 @@ export class YouTubeApi {
       }
     } catch (e) {
       if (mayHaveCompleted) throw new UploadOutcomeUnknown(`YouTube upload outcome is unconfirmed. Check YouTube Studio before uploading again. ${e instanceof Error ? e.message : String(e)}`);
+      if (receiptKey) this.d.vault.set(receiptKey, null); // no final chunk was sent; a fresh attempt cannot duplicate a video
       throw e;
     } finally {
       fs.closeSync(fd);
@@ -557,16 +598,13 @@ export class YouTubeApi {
       if (w) warnings.push(w);
     }
     this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
-    return {
-      id,
-      url: `https://youtu.be/${id}`,
-      privacy,
-      uploadStatus: ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(done.status?.uploadStatus ?? '') ? done.status!.uploadStatus as YtPublishResult['uploadStatus'] : 'unknown',
-      publishAt: done.status?.publishAt ?? null,
-      // asked public / unlisted and got private; or scheduled and YouTube dropped the time (the response does not establish why)
-      lockedPrivate: asked !== 'private' ? privacy === 'private' : !!v.publishAt && !!done.status && !done.status.publishAt,
-      warnings,
-    };
+    const result = uploadResult(done, asked, v.publishAt?.toISOString() ?? null);
+    result.warnings = warnings;
+    if (receiptKey) {
+      try { this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined }); }
+      catch { throw new UploadOutcomeUnknown('Video uploaded, but its receipt could not be saved. Check YouTube Studio.'); }
+    }
+    return result;
   }
 
   /** thumbnails.set: JPEG / PNG up to 2 MB; a channel that is not phone-verified cannot set one. -> a warning or null */
@@ -609,6 +647,17 @@ export class YouTubeApi {
 }
 
 type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string } };
+
+function uploadResult(done: Inserted, askedPrivacy: string, askedPublishAt: string | null): YtResult {
+  if (!done.id || !/^[\w-]{1,64}$/.test(done.id)) throw new UploadOutcomeUnknown('YouTube did not return a valid video ID. Check YouTube Studio.');
+  const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
+  return { id: done.id, url: `https://youtu.be/${done.id}`, privacy,
+    uploadStatus: ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(done.status?.uploadStatus ?? '') ? done.status!.uploadStatus as YtPublishResult['uploadStatus'] : 'unknown',
+    publishAt: done.status?.publishAt ?? null,
+    lockedPrivate: askedPrivacy !== 'private' ? privacy === 'private' : !!askedPublishAt && !!done.status && !done.status.publishAt,
+    warnings: [],
+  };
+}
 
 /** 308 Resume Incomplete: "Range: bytes=0-N" -> N+1; no Range: nothing arrived yet. */
 function nextOffset(r: Response, size: number): number {

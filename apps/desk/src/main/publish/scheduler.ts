@@ -47,6 +47,7 @@ export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
   publish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload>;
+  recover?(p: CalendarPost): Promise<Extract<ApiUpload, { ok: true }> | null>;
   canRefresh?(p: CalendarPost): boolean;
   refresh?(p: CalendarPost, result: YtPublishResult): Promise<YtPublishResult>;
 }
@@ -80,6 +81,8 @@ export class PublishScheduler {
   private checking = new Map<string, Promise<YtPublishResult>>();
   private syncing = new Map<string, Promise<void>>();
   private checkedBatchAt = 0;
+  private recoveredBatchAt = 0;
+  private uploading = new Set<string>();
 
   constructor(private deps: SchedulerDeps) {
     this.state = this.read();
@@ -186,6 +189,42 @@ export class PublishScheduler {
         await this.syncReceipt(p, receipt);
       }
     }
+    // Read back pending uploads after restart without sending video bytes or changing visibility.
+    if (api.recover && now.getTime() - this.recoveredBatchAt >= 5 * 60_000) {
+      this.recoveredBatchAt = now.getTime();
+      const pending = posts.filter(p => {
+        const a = this.state.api[p.id];
+        return a && ['uploading', 'unverified'].includes(a.status) && !this.uploading.has(p.id) &&
+          a.at === p.at && (a.account ?? null) === (p.account ?? null) &&
+          now.getTime() - (a.lastCheck ?? 0) >= 5 * 60_000 && p.state !== 'posted';
+      }).sort((a, b) => (this.state.api[a.id]?.lastCheck ?? 0) - (this.state.api[b.id]?.lastCheck ?? 0)).slice(0, 3);
+      for (const p of pending) {
+        const previous = this.state.api[p.id];
+        previous.lastCheck = now.getTime();
+        if (!this.write()) continue;
+        try {
+          const r = await api.recover(p);
+          if (this.state.api[p.id] !== previous) continue;
+          if (!r) {
+            previous.status = 'unverified';
+            previous.detail = 'Upload completion is not confirmed. Check YouTube Studio.';
+            this.write();
+            continue;
+          }
+          const current = (await this.deps.load()).find(row => row.id === p.id);
+          if (!current || current.at !== p.at || (current.account ?? null) !== (p.account ?? null) || current.state === 'posted') continue;
+          const receipt: ApiAttempt = { ...previous, status: 'done', calendarSynced: false,
+            url: r.url ?? undefined, result: r.result, resolvedAccount: r.account };
+          this.state.api[p.id] = receipt;
+          await this.syncReceipt(current, receipt);
+        } catch (e) {
+          previous.status = 'unverified';
+          previous.detail = 'Upload verification is unavailable. Check YouTube Studio.';
+          this.write();
+          this.deps.log?.(`[scheduler] upload verification pending: ${(e as Error).message}`);
+        }
+      }
+    }
     // Bounded readback independent of opt-in uploads: at most three reads per five minutes.
     if (api.refresh && now.getTime() - this.checkedBatchAt >= 5 * 60_000) {
       this.checkedBatchAt = now.getTime();
@@ -245,19 +284,22 @@ export class PublishScheduler {
       else delete this.state.api[p.id];
       return { ok: false, error: 'Could not save upload history. No upload was started.' };
     }
-    let r: ApiUpload;
-    try { r = await publish(); }
-    catch (e) { r = apiFailure(e); }
-    if (r.ok) {
-      const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}), ...(r.result ? { result: r.result } : {}) };
-      this.state.api[p.id] = receipt;
-      await this.syncReceipt(p, receipt);
-    } else {
-      this.state.api[p.id] = { ...rec, status: r.unverified ? 'unverified' : 'failed', detail: r.error };
-      this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
-    }
-    this.write();
-    return r;
+    this.uploading.add(p.id);
+    try {
+      let r: ApiUpload;
+      try { r = await publish(); }
+      catch (e) { r = apiFailure(e); }
+      if (r.ok) {
+        const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}), ...(r.result ? { result: r.result } : {}) };
+        this.state.api[p.id] = receipt;
+        await this.syncReceipt(p, receipt);
+      } else {
+        this.state.api[p.id] = { ...rec, status: r.unverified ? 'unverified' : 'failed', detail: r.error };
+        this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
+      }
+      this.write();
+      return r;
+    } finally { this.uploading.delete(p.id); }
   }
 
   /** Keep readback and calendar reconciliation ordered for this post, including a concurrent timer tick. */

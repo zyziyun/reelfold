@@ -406,6 +406,32 @@ describe('resumable upload (fake API)', () => {
     expect(g.queries).toBeGreaterThan(0);
   });
 
+  it('recovers the original receipt after restart using an encrypted session without reuploading', async () => {
+    const { yt, dir, vault } = await connected();
+    const request = { file: video(dir, 100), title: 't', description: '', tags: [], publishAt: null };
+    g.loseReceipt = true;
+    await expect(yt.upload('main', request, undefined, 'post-1')).rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    expect(vault.get('youtube-upload/post-1').uploadSession?.size).toBe(100);
+    expect(fs.readFileSync(path.join(dir, 'publish-api.json'), 'utf8')).not.toContain('upload_id=');
+    const chunks = g.chunks;
+    g.loseReceipt = false;
+    const restarted = mk(dir);
+    const recovered = await restarted.yt.recover('post-1');
+    expect(recovered).toMatchObject({ account: 'main', result: { id: 'vid123', privacy: 'public' } });
+    expect(restarted.vault.get('youtube-upload/post-1').uploadSession).toBeUndefined();
+    expect(await restarted.yt.upload('main', request, undefined, 'post-1')).toMatchObject({ id: 'vid123' });
+    expect(g.sessions.size).toBe(1);
+    expect(g.chunks).toBe(chunks);
+  });
+
+  it('rejects saved sessions on an unexpected host before sending credentials', async () => {
+    const { yt, vault } = await connected();
+    vault.set('youtube-upload/bad', { uploadSession: { url: 'https://example.com/session', account: 'main', size: 100,
+      privacy: 'public', publishAt: null, followups: false } });
+    await expect(yt.recover('bad')).rejects.toThrow('Invalid saved upload session');
+    expect(g.queries).toBe(0);
+  });
+
   it('bounds repeated incomplete responses without progress', async () => {
     const { yt, dir } = await connected();
     for (let i = 0; i < 20; i++) g.faults.set(i, 'stall');

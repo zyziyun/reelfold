@@ -164,6 +164,55 @@ describe('scheduler', () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  it('reconciles an unknown upload after restart even with automatic publishing switched off', async () => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const p = post('recover', '2026-10-07T20:00', { platform: 'youtube' });
+    const stateFile = path.join(tmp(), 'state.json');
+    const first = mk([p], clock, { stateFile });
+    await first.s.upload(p, async () => { throw new UploadOutcomeUnknown('Receipt unavailable'); });
+    const result = { id: 'abc', url: 'https://youtu.be/abc', privacy: 'private', publishAt: null, lockedPrivate: false, warnings: [] };
+    const recover = vi.fn(async () => ({ ok: true as const, url: result.url, result, account: 'main' }));
+    const publish = vi.fn();
+    const restarted = mk([p], clock, { stateFile, api: { wants: () => false, publish, recover } });
+    await restarted.s.tick();
+    expect(restarted.s.apiState(p.id)).toMatchObject({ status: 'done', calendarSynced: true, result, resolvedAccount: 'main' });
+    expect(restarted.posted).toEqual(['recover']);
+    await restarted.s.tick();
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('shows interrupted uploads as unverified when recovery cannot confirm completion', async () => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const p = post('interrupted', '2026-10-07T20:00', { platform: 'youtube' });
+    const stateFile = path.join(tmp(), 'state.json');
+    fs.writeFileSync(stateFile, JSON.stringify({ notified: {}, api: { interrupted: {
+      at: p.at, status: 'uploading', tries: 1, lastTry: clock.t.getTime() - 60000,
+    } } }));
+    const recover = vi.fn(async () => null);
+    const m = mk([p], clock, { stateFile, api: { wants: () => true, publish: vi.fn(), recover } });
+    expect((await m.s.tick()).due.map(p => p.id)).toEqual(['interrupted']);
+    expect(m.s.apiState(p.id)?.status).toBe('unverified');
+    await m.s.tick();
+    expect(recover).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not query a live manual upload during scheduler ticks', async () => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const p = post('active', '2026-10-07T20:00', { platform: 'youtube' });
+    const recover = vi.fn(async () => null);
+    const m = mk([p], clock, { api: { wants: () => false, publish: vi.fn(), recover } });
+    let finish!: () => void;
+    const upload = m.s.upload(p, async () => {
+      await new Promise<void>(resolve => { finish = resolve; });
+      return { ok: true, url: 'https://youtu.be/abc' };
+    });
+    await m.s.tick();
+    expect(recover).not.toHaveBeenCalled();
+    finish();
+    await upload;
+  });
+
   it('recovers a durable upload after calendar failure and restart without uploading again', async () => {
     const clock = { t: new Date(2026, 9, 7, 19, 30) };
     const p = post('y1', '2026-10-07T20:00', { platform: 'youtube' });

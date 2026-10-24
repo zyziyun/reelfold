@@ -690,7 +690,7 @@ async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<ApiU
     const account = ytAccountFor(p);
     if (!account) return { ok: false, error: 'YouTube is not connected' };
     const pkg = await postPackage(p.id);
-    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') });
+    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') }, undefined, p.id);
     return { ok: true, url: r.url, account, result: r };
   } catch (e) {
     return apiFailure(e);
@@ -716,6 +716,11 @@ function startScheduler() {
     api: {
       wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(p),
       publish: apiPublish,
+      recover: async (p) => {
+        if (!CAPS.youtubeApi || !['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0])) return null;
+        const recovered = await youtube.recover(p.id);
+        return recovered ? { ok: true, url: recovered.result.url, ...recovered } : null;
+      },
       canRefresh: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!ytAccountFor(p),
       refresh: async (p, r) => {
         const account = ytAccountFor(p);
@@ -1128,6 +1133,7 @@ function registerIpc() {
           last = Date.now();
           win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
         },
+        p.postId,
       );
       return { ok: true, url: r.url, account: p.account, result: r };
     });
