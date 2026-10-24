@@ -52,7 +52,7 @@ def test_synth_normalizes_system_audio_and_speed(monkeypatch, tmp_path):
     def convert(args):
         calls.append(args)
         from pathlib import Path
-        Path(args[-1]).write_bytes(b'wave')
+        _write_audio(args[-1])
     monkeypatch.setattr(tts.media, 'run', convert)
     tts.synth('你好', engine='system', voice='Lili (Premium)', speed=1.2)
     assert 'atempo=1.2000' in calls[0]
@@ -92,10 +92,50 @@ def test_system_language_reaches_synth_without_chinese_default(monkeypatch, tmp_
     monkeypatch.setattr(S, 'voices', lambda: [dict(id='Thomas', name='Thomas', lang='fr-FR')])
     selected = []
     monkeypatch.setattr(S, 'synth', lambda text, voice, raw, tmp: selected.append(voice))
-    monkeypatch.setattr(tts.media, 'run', lambda args: Path(args[-1]).write_bytes(b'wave'))
+    monkeypatch.setattr(tts.media, 'run', lambda args: _write_audio(args[-1]))
     monkeypatch.setattr(tts, 'available_engine', lambda: 'system')
     assert outrender._voice_for('fr') == ('system', None)
     outvoice._tts_line(dict(lang='fr', voice={'engine': 'system'}), 'Bonjour.', str(tmp_path/'fr.wav'), str(tmp_path), 0)
     assert selected == ['Thomas']
     tts.synth('Bonjour.', engine='system', voice='Explicit', language='fr', cache=False)
     assert selected[-1] == 'Explicit'
+
+
+def _write_audio(path):
+    import wave
+    with wave.open(str(path), 'wb') as wav:
+        wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+        wav.writeframes(b'\x00\x10' * 4800)
+
+
+@pytest.mark.parametrize('invalid', ['empty', 'silence', 'truncated', 'garbage'])
+def test_invalid_speech_never_replaces_export_and_cache_is_repaired(monkeypatch, tmp_path, invalid):
+    import wave
+    from pathlib import Path
+    monkeypatch.setattr(tts, '_cache_dir', lambda: str(tmp_path))
+    monkeypatch.setattr(S, 'synth', lambda *args: None)
+    destination = tmp_path/'export.wav'
+    destination.write_bytes(b'previous export')
+    def corrupt(path):
+        path = Path(path)
+        if invalid == 'garbage':
+            path.write_bytes(b'not audio')
+        else:
+            with wave.open(str(path), 'wb') as wav:
+                wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+                wav.writeframes(b'\x00\x00' * (4800 if invalid != 'empty' else 0))
+            if invalid == 'truncated':
+                path.write_bytes(path.read_bytes()[:-200])
+    monkeypatch.setattr(tts.media, 'run', lambda args: corrupt(args[-1]))
+    with pytest.raises(RuntimeError, match='empty or invalid speech audio'):
+        tts.synth('Test.', engine='system', voice='Test', out=str(destination))
+    assert destination.read_bytes() == b'previous export'
+    assert not list(tmp_path.glob('*.part.wav'))
+    monkeypatch.setattr(tts.media, 'run', lambda args: _write_audio(args[-1]))
+    cached = tts.synth('Test.', engine='system', voice='Test')
+    assert tts._has_audio(cached)
+    corrupt(cached)  # old invalid cache must regenerate even when cache=True
+    tts.synth('Test.', engine='system', voice='Test', out=str(destination))
+    assert tts._has_audio(cached) and tts._has_audio(str(destination))
+    monkeypatch.setattr(tts.media, 'run', lambda args: pytest.fail('valid cache should be reused'))
+    assert tts.synth('Test.', engine='system', voice='Test') == cached

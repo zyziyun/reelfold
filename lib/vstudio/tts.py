@@ -72,6 +72,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+import wave
 
 from . import media
 
@@ -601,6 +602,22 @@ def _edge(text, voice, speed, dst):
         raise RuntimeError("edge engine needs edge-tts (pip install edge-tts)")
 
 
+def _has_audio(path):
+    """Check normalized PCM WAVs before caching or reusing them, including old bad caches."""
+    try:
+        with wave.open(path, "rb") as wav:
+            expected = wav.getnframes() * wav.getnchannels() * wav.getsampwidth()
+            if not expected or wav.getsampwidth() != 2:
+                return False
+            size, audible = 0, False
+            while chunk := wav.readframes(48000):
+                size += len(chunk)
+                audible = audible or any(chunk)
+            return size == expected and audible
+    except (OSError, EOFError, wave.Error):
+        return False
+
+
 def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=None, model=None, cache=True,
           ref_wav=None, ref_text=None, language=None, seed=None):
     """Synthesise ``text`` -> 48 kHz mono wav; returns the wav path (``out`` if given, else the cache file).
@@ -638,7 +655,7 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
             mkey = f"{mkey}#names{kokoro_lexicon.VERSION}"
     key = cache_key(text, engine, voice, speed, instructions, mkey)
     cpath = os.path.join(_cache_dir(), f"{key}.wav")
-    if not (cache and os.path.exists(cpath)):
+    if not (cache and _has_audio(cpath)):
         with tempfile.TemporaryDirectory() as tmp:
             raw = os.path.join(tmp, "raw" + (".mp3" if engine in ("edge", "elevenlabs") else ".wav"))
             if engine == "openai":
@@ -662,6 +679,10 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
             tempo = ["-af", f"atempo={max(0.5, min(2.0, float(speed))):.4f}"] if engine in ("qwen", "system") and \
                 abs(float(speed) - 1.0) > 1e-3 else []          # Qwen3-TTS has no speed of its own
             media.run(["ffmpeg", "-y", "-i", raw, *tempo, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", part])
+            if not _has_audio(part):
+                if os.path.exists(part):
+                    os.remove(part)
+                raise RuntimeError(f"{engine} returned empty or invalid speech audio. Choose another voice or retry synthesis.")
             os.replace(part, cpath)
     if out:
         os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
