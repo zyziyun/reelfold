@@ -1,6 +1,7 @@
 // Microphone ownership across failures, navigation and late transcription. Only Chromium's synthetic mic is used.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { closeApp } from './closeApp';
@@ -48,6 +49,54 @@ async function backend(mode: 'fail' | 'pending' | 'ok' | 'chunk-fail') {
     ipcMain.handle('rec:chunk', () => { if (mode === 'chunk-fail') throw new Error('Test chunk write failed'); return { ok: true }; });
   }, { mode, session, dir: path.join(temp, 'thought') });
 }
+
+test('a real voice recording retains failed disk writes and retries the same take', async () => {
+  await page.reload(); const workspace = await open(); await device();
+  await app.evaluate(() => {
+    const fs = process.mainModule!.require('node:fs') as typeof import('node:fs');
+    const open = fs.openSync; const write = fs.writeSync;
+    let fd: number | undefined;
+    fs.openSync = ((...args: Parameters<typeof open>) => {
+      const result = open(...args);
+      if (String(args[0]).endsWith('/mic.webm')) fd = result;
+      return result;
+    }) as typeof open;
+    fs.writeSync = ((...args: Parameters<typeof write>) => {
+      if (args[0] === fd) throw new Error('ENOSPC: test voice disk full');
+      return write(...args);
+    }) as typeof write;
+    (globalThis as unknown as { repairVoiceDisk: () => void }).repairVoiceDisk = () => { fs.openSync = open; fs.writeSync = write; };
+  });
+  // Synthetic microphone beeps have no words: isolate only the transcription response.
+  await page.evaluate((id) => {
+    const native = window.fetch.bind(window);
+    window.fetch = async (input, options) => String(input).endsWith(`/api/create/learning/${id}/dictate`)
+      ? new Response(JSON.stringify({ text: 'Recovered voice note', audio: '/test/voice.webm' }), { headers: { 'Content-Type': 'application/json' } })
+      : native(input, options);
+  }, workspace.id);
+  await page.getByTestId('learning-dictate').click();
+  await expect(page.getByRole('alert')).toContainText('test voice disk full');
+  await expect.poll(stopped).toBe(true);
+  const retry = page.getByTestId('learning-dictate');
+  await expect(retry).toHaveText('Try saving again');
+  const root = path.join(temp, 'home', 'recordings');
+  const names = fs.readdirSync(root);
+  expect(names).toHaveLength(1);
+  const take = path.join(root, names[0]);
+  expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(true);
+  await retry.click();
+  await expect(retry).toHaveText('Try saving again');
+  await expect(page.getByTestId('learning-thought')).toHaveValue('');
+  await app.evaluate(() => (globalThis as unknown as { repairVoiceDisk: () => void }).repairVoiceDisk());
+  await retry.click();
+  await expect(page.getByTestId('learning-thought')).toHaveValue('Recovered voice note');
+  expect(fs.readdirSync(root)).toEqual(names);
+  expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+  const pcm = execFileSync('ffmpeg', ['-v', 'error', '-i', path.join(take, 'mic.webm'), '-ac', '1', '-ar', '8000', '-f', 's16le', '-']);
+  expect(pcm.length).toBeGreaterThan(1000);
+  expect(pcm.some(x => x !== 0)).toBe(true);
+  expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).secs).toBeLessThan(1.5);
+});
 
 test('a session-creation failure releases the already acquired microphone', async () => {
   await page.reload(); await open(); await device(); await backend('fail');
@@ -99,10 +148,11 @@ test('late transcription cannot fill the next workspace and stopping closes the 
   await expect(page.getByTestId('learning-thought')).toHaveValue('New workspace thoughts');
   expect(await app.evaluate(() => (globalThis as unknown as { endCalls: string[] }).endCalls)).toEqual([session]);
 });
-test('a failed chunk write stops the mic and offers a visible retry', async () => {
+test('a failed chunk write stops the mic without finalizing an incomplete take', async () => {
   await page.reload(); await open(); await device(); await backend('chunk-fail');
   await page.getByTestId('learning-dictate').click(); await expect(page.getByRole('alert')).toContainText('Test chunk write failed');
   await expect.poll(stopped).toBe(true);
-  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { endCalls: string[] }).endCalls)).toEqual([session]);
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { endCalls: string[] }).endCalls)).toEqual([]);
   await expect(page.getByTestId('learning-dictate')).toBeEnabled();
+  await expect(page.getByTestId('learning-dictate')).toHaveText('Try saving again');
 });

@@ -4,22 +4,26 @@ import { t } from '../../i18n';
 import { useEngine } from '../../lib/engine';
 import { media } from '../../v4/kit';
 import { errText } from '../../v4/msg';
+import { recordingQueue } from '../record/recordingQueue';
+import { recorderLifecycle } from '../record/recorderLifecycle';
 
-interface VoiceCapture { recorder: MediaRecorder; stream: MediaStream; session: string; dir: string; t0: number; chain: Promise<unknown>; seq: number; finished?: Promise<void>; failure?: unknown }
+interface VoiceCapture { stream: MediaStream; session: string; dir: string; t0: number; writer: ReturnType<typeof recordingQueue>; stop: () => Promise<void>; seq: number; secs?: number; finished?: Promise<void> }
 
-/** Stop the device immediately, then flush final chunks and close this session exactly once. */
+function stopVoice(a: VoiceCapture): Promise<void> {
+  a.secs ??= (performance.now() - a.t0) / 1000;
+  const stopped = a.stop();
+  a.stream.getTracks().forEach(track => track.stop());
+  return stopped;
+}
+
+/** Share the camera recorder's final-event and retained-chunk guarantees. */
 function finishVoice(a: VoiceCapture): Promise<void> {
   if (a.finished) return a.finished;
   a.finished = (async () => {
-    const stopped = new Promise<void>((resolve) => {
-      if (a.recorder.state === 'inactive') return resolve();
-      a.recorder.addEventListener('stop', () => resolve(), { once: true }); a.recorder.stop();
-    });
-    a.stream.getTracks().forEach((track) => track.stop());
-    try { await stopped; await a.chain; }
-    finally { await window.desk.rec.end(a.session, (performance.now() - a.t0) / 1000); }
-    if (a.failure) throw a.failure;
-  })();
+    await stopVoice(a);
+    await a.writer.flush();
+    await window.desk.rec.end(a.session, a.secs!);
+  })().catch(error => { a.finished = undefined; throw error; });
   return a.finished;
 }
 
@@ -29,7 +33,7 @@ export function VoiceNote({ id, onText, onStart, disabled }: { id: string; onTex
   const active = useRef<VoiceCapture | null>(null);
   const mounted = useRef(true);
   const opening = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<'idle' | 'opening' | 'recording' | 'busy'>('idle');
+  const [state, setState] = useState<'idle' | 'opening' | 'recording' | 'busy' | 'save-error'>('idle');
   const saved = useRef<string | null>(null);
   const [audio, setAudio] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -72,35 +76,36 @@ export function VoiceNote({ id, onText, onStart, disabled }: { id: string; onTex
       const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       const result = await window.desk.rec.begin({ slug: 'thought', title: t('learning.voiceThought'), script: [], tracks: ['mic'], mime: { mic: recorder.mimeType } });
       if (!mounted.current) { stream.getTracks().forEach((track) => track.stop()); opening.current = null; await window.desk.rec.end(result.sessionId, 0); return; }
-      const row: VoiceCapture = { recorder, stream, session: result.sessionId, dir: result.dir, t0: performance.now(), chain: Promise.resolve() as Promise<unknown>, seq: 0 };
+      const lifecycle = recorderLifecycle(recorder);
       const failed = (error: unknown) => {
-        row.failure = error;
-        if (active.current === row) active.current = null;
-        void finishVoice(row).catch(() => undefined).finally(() => {
-          if (mounted.current) { saved.current = row.dir; setAudio(`${row.dir}/mic.webm`); setState('idle'); setError(errText(error)); }
-        });
+        void stopVoice(row);
+        if (mounted.current && active.current === row) {
+          setState('save-error'); setError(errText(error));
+        }
       };
+      const row: VoiceCapture = { stream, session: result.sessionId, dir: result.dir, t0: performance.now(), writer: recordingQueue(failed), stop: lifecycle.stop, seq: 0 };
       recorder.ondataavailable = (event) => {
-        if (!event.data.size || row.failure) return;
-        row.chain = row.chain.then(async () => window.desk.rec.chunk({ sessionId: row.session, track: 'mic', seq: row.seq++, data: new Uint8Array(await event.data.arrayBuffer()) })).catch(failed);
+        if (!event.data.size) return;
+        const seq = row.seq++;
+        row.writer.add(async () => window.desk.rec.chunk({ sessionId: row.session, track: 'mic', seq, data: new Uint8Array(await event.data.arrayBuffer()) }));
       };
       recorder.onerror = () => failed(new Error(t('learning.voiceInterrupted')));
       active.current = row; openingStream = null; opening.current = null;
       onStart();
-      recorder.start(500);
+      lifecycle.start(500);
       setState('recording');
     } catch (e) {
       openingStream?.getTracks().forEach((track) => track.stop()); opening.current = null;
-      const row = active.current; active.current = null;
-      if (row) await finishVoice(row).catch(() => undefined);
-      if (mounted.current) { setState('idle'); setError(errText(e)); }
+      const row = active.current;
+      if (row) await stopVoice(row);
+      if (mounted.current) { setState(row ? 'save-error' : 'idle'); setError(errText(e)); }
     }
   };
   return <div>
-    <button className="btn" disabled={state === 'busy' || state === 'opening' || (state !== 'recording' && (disabled || !client))} onClick={() => void toggle()} data-testid="learning-dictate"><Mic className="ico" />{state === 'recording' ? t('learning.stopDictation') : state === 'busy' ? t('learning.transcribing') : state === 'opening' ? t('learning.openingMic') : t('learning.dictate')}</button>
+    <button className="btn" disabled={state === 'busy' || state === 'opening' || (state !== 'recording' && state !== 'save-error' && (disabled || !client))} onClick={() => void toggle()} data-testid="learning-dictate"><Mic className="ico" />{state === 'save-error' ? t('rec.retrySave') : state === 'recording' ? t('learning.stopDictation') : state === 'busy' ? t('learning.transcribing') : state === 'opening' ? t('learning.openingMic') : t('learning.dictate')}</button>
     {error && <p role="alert">{error}</p>}
     {audio && <audio controls src={media(audio)} style={{ maxWidth: '100%', marginTop: 8 }} />}
-    {error && saved.current && <button className="btn ghost sm" disabled={state !== 'idle' || !client} onClick={() => void (async () => {
+    {error && saved.current && state !== 'save-error' && <button className="btn ghost sm" disabled={state !== 'idle' || !client} onClick={() => void (async () => {
       if (!client || !saved.current) return;
       setState('busy');
       try { const r = await client.dictateLearning(id, saved.current); if (mounted.current) { onText(r.text, r.audio); setError(''); } }
