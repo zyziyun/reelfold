@@ -424,6 +424,40 @@ describe('resumable upload (fake API)', () => {
     expect(g.chunks).toBe(chunks);
   });
 
+  it('resumes a partial upload after restart only when enabled, preserving bytes and schedule', async () => {
+    const { yt, dir, vault } = await connected();
+    const file = video(dir);
+    const at = new Date(Date.now() + 86400_000);
+    for (let i = 1; i < 20; i++) g.faults.set(i, '503');
+    await expect(yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: at }, undefined, 'partial'))
+      .rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    expect(g.sessions.get('S1')!.received).toBe(256 * 1024);
+    expect(vault.get('youtube-upload/partial').uploadSession?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    const restarted = mk(dir);
+    const chunks = g.chunks;
+    expect(await restarted.yt.recover('partial')).toBeNull();
+    expect(g.chunks).toBe(chunks);
+    g.faults.clear();
+    const recovered = await restarted.yt.recover('partial', true);
+    expect(recovered?.result).toMatchObject({ id: 'vid123', privacy: 'private', publishAt: at.toISOString() });
+    expect(g.sessions.size).toBe(1);
+    expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
+  });
+
+  it('refuses to append a changed same-size video to a saved session', async () => {
+    const { yt, dir } = await connected();
+    const file = video(dir);
+    for (let i = 1; i < 20; i++) g.faults.set(i, '503');
+    await expect(yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null }, undefined, 'changed'))
+      .rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    const chunks = g.chunks;
+    fs.writeFileSync(file, Buffer.alloc(fs.statSync(file).size, 42));
+    g.faults.clear();
+    await expect(mk(dir).yt.recover('changed', true)).rejects.toThrow('unavailable or changed');
+    expect(g.chunks).toBe(chunks);
+    expect(g.sessions.size).toBe(1);
+  });
+
   it('rejects saved sessions on an unexpected host before sending credentials', async () => {
     const { yt, vault } = await connected();
     vault.set('youtube-upload/bad', { uploadSession: { url: 'https://example.com/session', account: 'main', size: 100,

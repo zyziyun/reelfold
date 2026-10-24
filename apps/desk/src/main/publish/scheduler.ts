@@ -47,7 +47,7 @@ export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
   publish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload>;
-  recover?(p: CalendarPost): Promise<Extract<ApiUpload, { ok: true }> | null>;
+  recover?(p: CalendarPost, resume: boolean): Promise<Extract<ApiUpload, { ok: true }> | null>;
   canRefresh?(p: CalendarPost): boolean;
   refresh?(p: CalendarPost, result: YtPublishResult): Promise<YtPublishResult>;
 }
@@ -189,7 +189,7 @@ export class PublishScheduler {
         await this.syncReceipt(p, receipt);
       }
     }
-    // Read back pending uploads after restart without sending video bytes or changing visibility.
+    // Read receipts after restart; resume bytes only for uploads still opted into autopilot.
     if (api.recover && now.getTime() - this.recoveredBatchAt >= 5 * 60_000) {
       this.recoveredBatchAt = now.getTime();
       const pending = posts.filter(p => {
@@ -203,7 +203,7 @@ export class PublishScheduler {
         previous.lastCheck = now.getTime();
         if (!this.write()) continue;
         try {
-          const r = await api.recover(p);
+          const r = await api.recover(p, previous.source !== 'manual' && api.wants(p));
           if (this.state.api[p.id] !== previous) continue;
           if (!r) {
             previous.status = 'unverified';

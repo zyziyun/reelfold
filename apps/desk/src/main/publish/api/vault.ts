@@ -8,7 +8,7 @@ import type { Crypto } from '../../secrets';
 
 export interface ApiSecret {
   /** Resumable URI stays encrypted alongside credentials, never in the scheduler journal. */
-  uploadSession?: { url: string; size: number; account: string; privacy: string; publishAt: string | null; followups: boolean };
+  uploadSession?: { file?: string; sha256?: string; url: string; size: number; account: string; privacy: string; publishAt: string | null; followups: boolean };
   uploadReceipt?: { account: string; result: YtPublishResult };
   clientId?: string;
   clientSecret?: string;

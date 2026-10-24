@@ -716,9 +716,9 @@ function startScheduler() {
     api: {
       wants: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!settings.get().publishApi?.youtube?.auto && !!ytAccountFor(p),
       publish: apiPublish,
-      recover: async (p) => {
+      recover: async (p, resume) => {
         if (!CAPS.youtubeApi || !['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0])) return null;
-        const recovered = await youtube.recover(p.id);
+        const recovered = await youtube.recover(p.id, resume);
         return recovered ? { ok: true, url: recovered.result.url, ...recovered } : null;
       },
       canRefresh: (p) => CAPS.youtubeApi && ['youtube', 'youtube-shorts'].includes(p.platform.split(':')[0]) && !!ytAccountFor(p),

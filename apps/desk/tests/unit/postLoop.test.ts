@@ -177,6 +177,7 @@ describe('scheduler', () => {
     await restarted.s.tick();
     expect(restarted.s.apiState(p.id)).toMatchObject({ status: 'done', calendarSynced: true, result, resolvedAccount: 'main' });
     expect(restarted.posted).toEqual(['recover']);
+    expect(recover).toHaveBeenCalledWith(p, false);
     await restarted.s.tick();
     expect(recover).toHaveBeenCalledTimes(1);
     expect(publish).not.toHaveBeenCalled();
@@ -193,6 +194,7 @@ describe('scheduler', () => {
     const m = mk([p], clock, { stateFile, api: { wants: () => true, publish: vi.fn(), recover } });
     expect((await m.s.tick()).due.map(p => p.id)).toEqual(['interrupted']);
     expect(m.s.apiState(p.id)?.status).toBe('unverified');
+    expect(recover).toHaveBeenCalledWith(p, true);
     await m.s.tick();
     expect(recover).toHaveBeenCalledTimes(1);
   });

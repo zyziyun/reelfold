@@ -446,7 +446,7 @@ export class YouTubeApi {
   }
 
   /** Query only the saved session. Never create another upload while its outcome is unknown. */
-  async recover(postId: string): Promise<{ account: string; result: YtPublishResult } | null> {
+  async recover(postId: string, resume = false): Promise<{ account: string; result: YtPublishResult } | null> {
     const key = `youtube-upload/${postId}`;
     const saved = this.d.vault.get(key);
     if (saved.uploadReceipt) return saved.uploadReceipt;
@@ -456,12 +456,20 @@ export class YouTubeApi {
     if (url.origin !== new URL(this.ep.upload).origin || url.username || url.password ||
         !Number.isSafeInteger(session.size) || session.size <= 0) throw new Error('Invalid saved upload session');
     const token = await this.token(session.account);
-    const r = await this.f(url.toString(), { method: 'PUT', redirect: 'error',
+    // 308 means Resume Incomplete here, not a redirect. Inspect it without following Location.
+    const r = await this.f(url.toString(), { method: 'PUT', redirect: 'manual',
       headers: { Authorization: `Bearer ${token}`, 'Content-Length': '0', 'Content-Range': `bytes */${session.size}` },
       signal: AbortSignal.timeout(15_000) });
-    if (r.status === 308) return null;
-    if (r.status !== 200 && r.status !== 201) throw new Error('Upload result is still unconfirmed; check YouTube Studio');
-    const done = await r.json() as Inserted;
+    let done: Inserted;
+    if (r.status === 308) {
+      if (!resume) return null;
+      if (!session.file || !session.sha256 || !fs.existsSync(session.file) || fs.statSync(session.file).size !== session.size ||
+          await fileDigest(session.file) !== session.sha256) throw new Error('The original upload file is unavailable or changed; check YouTube Studio');
+      done = await this.transfer(session.account, session.file, session.url, session.size, nextOffset(r, session.size));
+    } else {
+      if (r.status !== 200 && r.status !== 201) throw new Error('Upload result is still unconfirmed; check YouTube Studio');
+      done = await r.json() as Inserted;
+    }
     const result = uploadResult(done, session.privacy, session.publishAt);
     if (session.followups) result.warnings.push('Recovered upload: check the cover and playlist in YouTube Studio.');
     const receipt = { account: session.account, result };
@@ -486,7 +494,8 @@ export class YouTubeApi {
     const size = fs.statSync(v.file).size;
     if (!size) throw new Error('the video file is empty');
     const meta = ytMeta(v);
-    let token = await this.token(account);
+    const sha256 = receiptKey ? await fileDigest(v.file) : undefined;
+    const token = await this.token(account);
     const init = await this.f(`${this.ep.upload}/videos?uploadType=resumable&part=snippet,status`, {
       method: 'POST',
       headers: {
@@ -501,29 +510,60 @@ export class YouTubeApi {
     if (!init.ok || !loc) throw new Error(`YouTube refused the upload: ${await errText(init)}`);
     if (new URL(loc).origin !== new URL(this.ep.upload).origin) throw new Error('unexpected upload location');
 
-    if (receiptKey) this.d.vault.set(receiptKey, { uploadSession: { url: loc, size, account,
+    if (receiptKey) this.d.vault.set(receiptKey, { uploadSession: { url: loc, size, account, file: v.file, sha256,
       privacy: meta.status.privacyStatus, publishAt: v.publishAt?.toISOString() ?? null,
       followups: !!(v.thumbnail || v.playlistId) } });
 
+    let done: Inserted & { id: string };
+    try { done = await this.transfer(account, v.file, loc, size, 0, onProgress); }
+    catch (e) {
+      if (receiptKey) throw new UploadOutcomeUnknown('Upload interrupted; its saved session will be checked before retrying.');
+      throw e;
+    }
+    const id = done.id;
+    const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
+    const asked = meta.status.privacyStatus;
+    const warnings: string[] = [];
+    if (v.thumbnail) {
+      const w = await this.setThumbnail(account, id, v.thumbnail);
+      if (w) warnings.push(w);
+    }
+    if (v.playlistId) {
+      const w = await this.addToPlaylist(account, id, v.playlistId);
+      if (w) warnings.push(w);
+    }
+    this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
+    const result = uploadResult(done, asked, v.publishAt?.toISOString() ?? null);
+    result.warnings = warnings;
+    if (receiptKey) {
+      try { this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined }); }
+      catch { throw new UploadOutcomeUnknown('Video uploaded, but its receipt could not be saved. Check YouTube Studio.'); }
+    }
+    return result;
+  }
+
+  /** Shared bounded transfer for fresh uploads and verified restart recovery. */
+  private async transfer(account: string, file: string, loc: string, size: number, start: number, onProgress?: (sent: number, total: number) => void): Promise<Inserted & { id: string }> {
+    let token = await this.token(account);
     const unit = Math.max(1, Math.round((this.d.chunkBytes ?? 32 * CHUNK_UNIT) / CHUNK_UNIT)) * CHUNK_UNIT;
     const maxRetries = this.d.maxRetries ?? 6;
-    let offset = 0;
+    let offset = start;
     let tries = 0;
-    let highWater = 0;
+    let highWater = start;
     let authRetried = false;
     let done = null as Inserted | null;
     let mayHaveCompleted = false;
-    const fd = fs.openSync(v.file, 'r');
+    const fd = fs.openSync(file, 'r');
     try {
       while (!done) {
         const end = Math.min(offset + unit, size);
         const buf = Buffer.alloc(end - offset);
-        fs.readSync(fd, buf, 0, buf.length, offset);
+        if (fs.readSync(fd, buf, 0, buf.length, offset) !== buf.length) throw new Error('The video file changed during upload');
         let r: Response | null = null;
         try {
           if (end === size) mayHaveCompleted = true;
           r = await this.f(loc, {
-            method: 'PUT',
+            method: 'PUT', redirect: 'manual', signal: AbortSignal.timeout(120_000),
             headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(buf.length), 'Content-Range': offset === size ? `bytes */${size}` : `bytes ${offset}-${end - 1}/${size}` },
             body: buf,
           });
@@ -559,7 +599,7 @@ export class YouTubeApi {
           await this.sleep(Math.min(64_000, 1000 * 2 ** (tries - 1)) + Math.floor(Math.random() * 250));
         }
         // ask the session how much it has, then go on from there
-        const q = await this.f(loc, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Length': '0', 'Content-Range': `bytes */${size}` } }).catch(() => null);
+        const q = await this.f(loc, { method: 'PUT', redirect: 'manual', signal: AbortSignal.timeout(120_000), headers: { Authorization: `Bearer ${token}`, 'Content-Length': '0', 'Content-Range': `bytes */${size}` } }).catch(() => null);
         if (q && (q.status === 200 || q.status === 201)) {
           done = (await q.json().catch(() => ({}))) as Inserted;
         } else if (q && q.status === 308) {
@@ -578,33 +618,13 @@ export class YouTubeApi {
       }
     } catch (e) {
       if (mayHaveCompleted) throw new UploadOutcomeUnknown(`YouTube upload outcome is unconfirmed. Check YouTube Studio before uploading again. ${e instanceof Error ? e.message : String(e)}`);
-      if (receiptKey) this.d.vault.set(receiptKey, null); // no final chunk was sent; a fresh attempt cannot duplicate a video
       throw e;
     } finally {
       fs.closeSync(fd);
     }
     if (!done?.id) throw new UploadOutcomeUnknown('YouTube did not return the new video ID. Check YouTube Studio before uploading again.');
     onProgress?.(size, size);
-    const id = done.id;
-    const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
-    const asked = meta.status.privacyStatus;
-    const warnings: string[] = [];
-    if (v.thumbnail) {
-      const w = await this.setThumbnail(account, id, v.thumbnail);
-      if (w) warnings.push(w);
-    }
-    if (v.playlistId) {
-      const w = await this.addToPlaylist(account, id, v.playlistId);
-      if (w) warnings.push(w);
-    }
-    this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
-    const result = uploadResult(done, asked, v.publishAt?.toISOString() ?? null);
-    result.warnings = warnings;
-    if (receiptKey) {
-      try { this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined }); }
-      catch { throw new UploadOutcomeUnknown('Video uploaded, but its receipt could not be saved. Check YouTube Studio.'); }
-    }
-    return result;
+    return done as Inserted & { id: string };
   }
 
   /** thumbnails.set: JPEG / PNG up to 2 MB; a channel that is not phone-verified cannot set one. -> a warning or null */
@@ -685,4 +705,10 @@ async function errText(r: Response): Promise<string> {
   } catch {
     return String(r.status);
   }
+}
+
+async function fileDigest(file: string): Promise<string> {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
 }
