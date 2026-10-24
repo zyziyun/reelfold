@@ -25,7 +25,8 @@ def test_photo_sheets_have_unique_ids_and_leave_sources_unchanged(tmp_path):
     assert [open(p, "rb").read() for p in photos] == original
 
 
-def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypatch):
+@pytest.mark.parametrize("caption_style", [None, "plain"])
+def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypatch, caption_style):
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
     photo = tmp_path / "cup.png"
     Image.new("RGB", (600, 800), (20, 100, 80)).save(photo)
@@ -37,6 +38,7 @@ def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypa
     def complete(task, system, body, **kw):
         seen.update(body=body, **kw)
         return dict(provider="test", model="fixture", json=dict(content=(
+            (f'LAYOUT = dict(caption_style={caption_style!r})\n' if caption_style else '') +
             'TITLE_EN = "A daily cup"\nMEDIA = dict(images="wrong-directory")\n'
             'MUSIC = dict(length=6)\nCOVER = dict(hero=dict(src="p0001"))\n'
             'SCRIPT = [(0, [("A daily cup.", "日常水杯。")], [("p0001", 1, "still", None)])]\n'), summary="Product shown"))
@@ -54,6 +56,7 @@ def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypa
     assert PS._spec_value(result, "TITLE_CARD") is False
     assert PS._spec_value(result, "PRESERVE_COLOUR") is True
     assert PS._spec_value(result, "LAYOUT")["caption_y"] == 0.12
+    assert PS._spec_value(result, "LAYOUT")["caption_style"] == (caption_style or "label")
 
 
 def test_unknown_photo_is_not_silently_replaced(tmp_path, monkeypatch):
