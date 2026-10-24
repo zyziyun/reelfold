@@ -86,10 +86,15 @@ def catalog():
     return _CAT
 
 
+def _language(lang):
+    """Use the base language for catalog matching without treating other languages as English."""
+    return str(lang or "en").strip().lower().replace("_", "-").split("-")[0]
+
+
 def voices(engine=None, lang=None):
     """The catalog's voices, of ``engine`` and native in ``lang`` when given."""
     return [v for v in catalog()["voices"] if (engine is None or v["engine"] == engine)
-            and (lang is None or lang in v["native"])]
+            and (lang is None or _language(lang) in v["native"])]
 
 
 def _norm(s):
@@ -113,7 +118,7 @@ def find(name, engine=None):
 def style_for(kind, lang):
     """The delivery instruction for ``kind`` in ``lang`` (Qwen3-TTS ``instruct``), or None."""
     s = catalog()["styles"].get(kind or "") or {}
-    return s.get("zh" if lang == "zh" else "en")
+    return s.get(_language(lang))
 
 
 def label(v, ui="en"):
@@ -168,7 +173,7 @@ def narration_engine(lang, engine="auto"):
     e = tts.ALIASES.get(e, e)
     if e == "auto":
         e = tts.available_engine()
-    if lang == "zh":
+    if _language(lang) == "zh":
         e = tts.zh_engine(e)
     return e
 
@@ -255,7 +260,7 @@ def _platform_kind(platforms):
 def rule_cast(lang, engine, kind=None, platforms=None, instruction=None, current=None, audience=None):
     """The rules' voice (no model): her words first (a named speaker, then gender / tone), else the kind's list in
     ``voices.json`` rules, else the language default. -> a cast dict (``by: rules``) | None (no catalog voice here)."""
-    lang = "zh" if lang == "zh" else "en"
+    lang = _language(lang)
     cands = candidates(engine, lang)
     if not cands:
         return None
@@ -315,7 +320,7 @@ def cast(lang, engine, kind=None, platforms=None, title=None, request=None, scri
     None when ``engine`` has no catalog voices for ``lang`` (OpenAI, a cloned voice, a TTS server: their own voice).
     ``complete``: ``llm.complete`` (default) or a stand-in; False = rules only. ``instruction``: her words ("换个男声"),
     ``current`` the voice she has now (a change asked for picks another one)."""
-    lang = "zh" if lang == "zh" else "en"
+    lang = _language(lang)
     kind = kind or kind_of(request, title, (script or "")[:1500])
     base = rule_cast(lang, engine, kind, platforms, instruction, current, audience)
     if base is None:
@@ -328,7 +333,8 @@ def cast(lang, engine, kind=None, platforms=None, title=None, request=None, scri
         return base
     cands = candidates(engine, lang)
     cur = (current or {}).get("speaker") if isinstance(current, dict) else current
-    body = dict(language="Chinese (Mandarin)" if lang == "zh" else "English", kind=kind or "unknown",
+    from vstudio.tts import LANG_NAMES
+    body = dict(language=LANG_NAMES.get(lang, lang), kind=kind or "unknown",
                 platforms=list(platforms or []), title=title or "", audience=audience or "",
                 request=str(request or "")[:600], script_excerpt=str(script or "")[:900],
                 candidates=[_brief(v) for v in cands])

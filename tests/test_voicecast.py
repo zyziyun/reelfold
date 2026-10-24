@@ -308,3 +308,27 @@ def test_photostory_her_voice_not_installed_falls_back_with_the_reason(tmp_path,
     (tmp_path / "proj" / "items" / "needle" / "work" / "spec.py").write_text(SPEC.replace('language="zh"', 'language="en"'))
     pay = PS.voice_payload(env, {})
     assert pay["default"]["speaker"] == "am_michael" and "bm_george is not installed" in pay["default"]["reason"]
+
+
+@pytest.mark.parametrize("lang,speaker", [("ja", "ono_anna"), ("ja-JP", "ono_anna"),
+                                          ("ko", "sohee"), ("KO_kr", "sohee")])
+def test_cast_preserves_native_language_and_regional_tags(lang, speaker):
+    assert VC.rule_cast(lang, "qwen", "vlog")["speaker"] == speaker
+    assert VC.cast(lang, "qwen", "vlog", complete=False)["speaker"] == speaker
+    assert VC.voices("qwen", lang)[0]["speaker"] == speaker
+    assert VC.style_for("vlog", lang) is None   # no invented or mislabeled delivery translation
+
+
+@pytest.mark.parametrize("lang", ["fr", "de-DE", "unknown"])
+def test_missing_native_catalog_voice_does_not_cast_english(lang):
+    assert VC.rule_cast(lang, "qwen", "vlog") is None
+    assert VC.cast(lang, "qwen", "vlog", complete=False) is None
+
+
+def test_ai_cast_receives_the_actual_language_and_only_native_candidates():
+    calls = []
+    result = VC.cast("ja-JP", "qwen", "vlog", complete=fake(dict(speaker="ryan"), calls))
+    body = json.loads(calls[0]["prompt"].split("\nWrite the reason")[0])
+    assert body["language"] == "Japanese"
+    assert [v["speaker"] for v in body["candidates"]] == ["ono_anna"]
+    assert result["speaker"] == "ono_anna"   # an English model suggestion cannot replace the native choice
