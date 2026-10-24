@@ -190,6 +190,18 @@ class Ctx:
         if self.overlay_subs and "caption_y" in lay:
             self.SUB_Y0 = max(self.SAFE[1], min(px(lay["caption_y"]), self.SAFE[3] - self.SUB_H))
         self.BOX_W = self.W
+        # Wide product-photo layouts can spend their unused horizontal room on
+        # copy instead of reducing the image height for a full-width caption band.
+        self.PHOTO_BOX = None
+        if (lay.get("photo_caption_safe") and lay.get("photo_caption_side")
+                and self.overlay_subs and not portrait and self.HDR == 0):
+            sx0, sy0, sx1, sy1 = self.SAFE
+            gap = max(2, round(self.W * 0.025))
+            divide = round(self.W * 0.40)
+            self.SUB_H = min(round(self.H * 0.4), sy1 - sy0)
+            self.SUB_Y0 = sy0 + (sy1 - sy0 - self.SUB_H) // 2
+            self.CAP = (sx0, self.SUB_Y0, divide - gap, self.SUB_Y0 + self.SUB_H)
+            self.PHOTO_BOX = (divide, sy0, sx1, sy1)
         # lowest box row (box coords) that is not covered by overlaid subtitles / below the safe area
         self.LAB_BOT = self.BOX_H - (self.SUB_H if self.overlay_subs and self.prof is None else 0)
         if self.prof is not None:

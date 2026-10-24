@@ -197,6 +197,8 @@ class ImageShot:
         if sh.get("_lut_table") is not None:          # the film look (photostory/grade.py), as on the video shots
             from vstudio import colormatch as CM
             self.img = np.clip(CM.apply(sh["_lut_table"], self.img) + 0.5, 0, 255).astype(np.uint8)
+        edge = np.concatenate((self.img[0], self.img[-1], self.img[:, 0], self.img[:, -1]))
+        self.matte_colour = np.median(edge, axis=0)
         self.sk = pencil(self.img) if "sketch" in sh.get("fx", ()) else None
 
     def frame(self, lt):
@@ -204,6 +206,13 @@ class ImageShot:
         BW, BH = C.BOX_W, C.BOX_H
         layout = getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}
         if layout.get("photo_caption_safe") and getattr(C, "overlay_subs", False):
+            picture = getattr(C, "PHOTO_BOX", None)
+            if picture:
+                x0, y0, x1, y1 = picture
+                out = np.empty((BH, BW, 3), np.float32)
+                out[:] = self.matte_colour
+                out[y0:y1, x0:x1] = self._frame(lt, x1 - x0, y1 - y0)
+                return out
             top = max(0, min(BH, C.SUB_Y0 - C.HDR))
             bottom = max(0, min(BH, top + C.SUB_H))
             gap = max(2, round(BH * 0.015))
@@ -211,10 +220,8 @@ class ImageShot:
             # caption band clear even when the current cue wraps to two lines.
             y0, y1 = (bottom + gap, BH) if BH - bottom >= top else (0, top - gap)
             if y1 - y0 >= BH * 0.4:
-                img = self.img
-                edge = np.concatenate((img[0], img[-1], img[:, 0], img[:, -1]))
                 out = np.empty((BH, BW, 3), np.float32)
-                out[:] = np.median(edge, axis=0)
+                out[:] = self.matte_colour
                 out[y0:y1] = self._frame(lt, BW, y1 - y0)
                 return out
         return self._frame(lt, BW, BH)
@@ -227,14 +234,12 @@ class ImageShot:
         if sh.get("fit") == "contain":
             # Product/artwork proof: show the complete source without stretching,
             # reflected edges or blurred duplicates. Matte follows its own edges.
-            edge = np.concatenate((img[0], img[-1], img[:, 0], img[:, -1]))
-            colour = np.median(edge, axis=0)
             scale = min(BW / iw, BH / ih) * 0.94
             if sh["motion"] in ("in", "out"):
                 scale *= (0.96 + 0.04 * u) if sh["motion"] == "in" else (1 - 0.04 * u)
             w, h = max(1, round(iw * scale)), max(1, round(ih * scale))
             out = np.empty((BH, BW, 3), np.float32)
-            out[:] = colour
+            out[:] = self.matte_colour
             x, y = (BW - w) // 2, (BH - h) // 2
             out[y:y + h, x:x + w] = cv2.resize(img, (w, h), interpolation=cv2.INTER_CUBIC)
             return out

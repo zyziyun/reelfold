@@ -47,6 +47,12 @@ separately. A horizontal source exported unchanged for a platform that supports 
 Product defaults disable scenic grading/grain and floating film title/chapter cards. Source-photo captions use
 a bounded high-contrast label plate; product photos reserve the measured caption band within their composition,
 using source-edge colours behind it so multi-line copy cannot cover the product or its zoomed detail.
+For photo-only product drafts without an explicit caption position, `LAYOUT.photo_caption_side=True`
+uses the spare horizontal space on landscape canvases: copy on the left, complete photo on the right.
+It reuses the same measured caption and contain/detail renderer; portrait canvases keep the top/bottom layout.
+Set `photo_caption_side=False` to keep a full-width photo with the reserved caption band. Mixed photo/video
+drafts do not enable this automatically, because a moving shot may need its full frame. Inspect both hero and
+detail views: enlarging a photo must not crop product identity or turn its label into an unreadable texture.
 `LAYOUT.photo_caption_safe=False` disables this treatment for an explicitly reviewed composition. A short explicit end fade is respected. These defaults are
 editable in the spec. `PRESERVE_COLOUR` also gives the designed cover an ungraded, uncropped source with a
 separate title area, rather than shading the product to carry a headline. Planning sheets/previews are not cover

@@ -324,6 +324,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
                 palette.setdefault(key, ink)
             text = _set_global(text, "PALETTE", palette)
             layout = dict(_spec_value(text, "LAYOUT") or {})
+            if purpose_kind == "product" and not vids and "caption_y" not in layout:
+                layout.setdefault("photo_caption_side", True)
             layout.setdefault("caption_y", 0.12)
             # Source-wide ink sampling cannot predict the pixels under a zoomed
             # detail shot. Reuse the bounded label plate for reliable contrast.
