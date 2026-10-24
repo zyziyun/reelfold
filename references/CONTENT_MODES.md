@@ -70,6 +70,14 @@ timed static slides. Do not simulate new object angles or rotate branding from a
 Moving source footage does not need an added camera move by default. Verify actual start/middle/end frames;
 writing a motion name in the plan alone does not establish useful movement.
 
+For short product films, review the rendered shot durations as well as the motion. Multiple subtitle cues can
+occupy one unchanged picture: cue count is not visual progression. Give the brief CTA a reading hold, not an
+automatic oversized share of the film. For example, a 12-second film can allocate roughly 2/3/4/3 seconds to
+reveal/detail/supporting view/CTA. Adapt this to real reading and action; a slow brief or complex instruction
+may need a longer hold. If the material cannot support another meaningful view, shorten the film unless its
+duration is explicit. Do not fill the gap with repeated zooms or fabricated angles. Review the last third in
+continuous playback, not only a contact sheet; a clean still frame cannot reveal a dragging ending.
+
 ## Acceptance by purpose
 
 Audit source fidelity, editorial sequence, type/contrast, subject visibility, motion, audio, timing, output shape

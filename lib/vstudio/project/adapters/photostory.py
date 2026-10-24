@@ -43,7 +43,14 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   Both work with contain (subtle 4% scale change, whole source stays visible) and cover (12% crop move).
   Keep a steady hold where the viewer must read a label; do not animate every shot or repeat alternating zooms.
   Choose unequal shot weights from reading/action time: a short opening, enough time to see the evidence,
-  and a deliberate closing hold. Do not request object rotation, parallax or new product angles from a flat photo.
+  and a deliberate closing hold. Before finalizing a short product film, translate weights into approximate
+  seconds and check the longest unchanged picture. A brief CTA usually needs less time than the demonstration;
+  do not spend half a short film on a static hero merely because two cues share that shot. Allocate a separate
+  cue/shot when new information needs a supporting view. A 12-second sequence might use 2/3/4/3 seconds for
+  reveal/detail/supporting view/CTA; this is an example, not a mandatory shot count or timing rule. Preserve a
+  longer hold for actual reading, visible action or an explicit slow-paced brief. With too few distinct views,
+  prefer a shorter film over repeated zooms, fabricated angles or filler. Keep an explicitly requested duration.
+  Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
 - MEDIA = dict(images=["frames", "../inputs"], videos="../inputs")  (paths relative to this spec's folder).
 - A video shot's source is "v" + the clip id, e.g. ("v{first}", 1, "still", dict(off=12.0, audio="mute")): off = the
