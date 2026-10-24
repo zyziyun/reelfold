@@ -200,8 +200,27 @@ class ImageShot:
         self.sk = pencil(self.img) if "sketch" in sh.get("fx", ()) else None
 
     def frame(self, lt):
-        C, sh, img = self.C, self.sh, self.img
+        C = self.C
         BW, BH = C.BOX_W, C.BOX_H
+        layout = getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}
+        if layout.get("photo_caption_safe") and getattr(C, "overlay_subs", False):
+            top = max(0, min(BH, C.SUB_Y0 - C.HDR))
+            bottom = max(0, min(BH, top + C.SUB_H))
+            gap = max(2, round(BH * 0.015))
+            # Use the larger contiguous picture region, leaving the full measured
+            # caption band clear even when the current cue wraps to two lines.
+            y0, y1 = (bottom + gap, BH) if BH - bottom >= top else (0, top - gap)
+            if y1 - y0 >= BH * 0.4:
+                img = self.img
+                edge = np.concatenate((img[0], img[-1], img[:, 0], img[:, -1]))
+                out = np.empty((BH, BW, 3), np.float32)
+                out[:] = np.median(edge, axis=0)
+                out[y0:y1] = self._frame(lt, BW, y1 - y0)
+                return out
+        return self._frame(lt, BW, BH)
+
+    def _frame(self, lt, BW, BH):
+        C, sh, img = self.C, self.sh, self.img
         ih, iw = img.shape[:2]
         dur = sh["end"] - sh["start"] + sh["tail"]
         u = ease(lt / dur)

@@ -57,6 +57,7 @@ def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypa
     assert PS._spec_value(result, "PRESERVE_COLOUR") is True
     assert PS._spec_value(result, "LAYOUT")["caption_y"] == 0.12
     assert PS._spec_value(result, "LAYOUT")["caption_style"] == (caption_style or "label")
+    assert PS._spec_value(result, "LAYOUT")["photo_caption_safe"] is True
 
 
 def test_unknown_photo_is_not_silently_replaced(tmp_path, monkeypatch):
@@ -329,3 +330,27 @@ def test_product_photo_move_keeps_all_source_corners_visible(motion):
     for frame in frames:
         for colour in colours:
             assert (np.max(np.abs(frame - np.array(colour)), axis=2) < 10).sum() > 50
+
+
+@pytest.mark.parametrize("platform", ["youtube", "tiktok", "xiaohongshu:vertical"])
+@pytest.mark.parametrize("fit", ["contain", "cover"])
+def test_product_picture_leaves_caption_band_clear(platform, fit, tmp_path, monkeypatch):
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import numpy as np
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'workflows/photo-story/scripts'))
+    from photostory.ctx import Ctx
+    from photostory.shots import ImageShot
+    monkeypatch.setenv("VSTUDIO_DEFAULT_PERSONA", "1")
+    ctx = Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), PLATFORM=platform,
+        LAYOUT=dict(caption_style="label", caption_y=0.12, photo_caption_safe=True), SCRIPT=[]))
+    im = Image.new("RGB", (400, 600), (240, 240, 230))
+    im.paste((180, 0, 0), (100, 50, 300, 550))
+    ctx.open_img = lambda _: im.copy()
+    shot = ImageShot(ctx, dict(start=0, end=3, tail=0, motion="in", fit=fit), "product")
+    for t in (0, 1.5, 3):
+        frame = shot.frame(t)
+        band = frame[ctx.SUB_Y0:ctx.SUB_Y0+ctx.SUB_H]
+        assert np.max(np.abs(band - np.array((240, 240, 230)))) < 1
+        assert ((frame[:,:,0] > 160) & (frame[:,:,1] < 10)).sum() > 1000

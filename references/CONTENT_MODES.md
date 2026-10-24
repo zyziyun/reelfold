@@ -45,7 +45,9 @@ creating a portrait V-track master. Explicit requested shapes override the defau
 separately. A horizontal source exported unchanged for a platform that supports landscape is a valid deliverable.
 
 Product defaults disable scenic grading/grain and floating film title/chapter cards. Source-photo captions use
-a bounded high-contrast label plate in the upper safe area; a short explicit end fade is respected. These defaults are
+a bounded high-contrast label plate; product photos reserve the measured caption band within their composition,
+using source-edge colours behind it so multi-line copy cannot cover the product or its zoomed detail.
+`LAYOUT.photo_caption_safe=False` disables this treatment for an explicitly reviewed composition. A short explicit end fade is respected. These defaults are
 editable in the spec. `PRESERVE_COLOUR` also gives the designed cover an ungraded, uncropped source with a
 separate title area, rather than shading the product to carry a headline. Planning sheets/previews are not cover
 candidates. These defaults cannot establish that a detail is legible, a shot proves its line, or the text avoids

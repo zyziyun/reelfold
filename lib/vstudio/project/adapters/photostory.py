@@ -321,6 +321,10 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
             # Source-wide ink sampling cannot predict the pixels under a zoomed
             # detail shot. Reuse the bounded label plate for reliable contrast.
             layout.setdefault("caption_style", "label")
+            if purpose_kind == "product":
+                # Reserve space inside photo compositions without adding a dark
+                # platform-sized footer. Explicit authored layouts still win.
+                layout.setdefault("photo_caption_safe", True)
             text = _set_global(text, "LAYOUT", layout)
             text = _set_global(text, "SUB_BACKDROP", False)
         pace = dict(_spec_value(text, "PACING") or {})
