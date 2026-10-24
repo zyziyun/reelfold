@@ -185,3 +185,16 @@ def test_screen_playback_audio_survives_mux_with_separate_microphone(home, micro
     assert magnitude(500) > 0.06
     assert (magnitude(440) > 0.06) if microphone else (magnitude(440) < 0.01)
     assert all(hashlib.sha256(open(os.path.join(d, f), "rb").read()).hexdigest() == sha for f, sha in originals.items())
+
+
+def test_automatic_cleanup_keeps_a_filler_too_short_for_a_safe_cut():
+    words = [dict(w="hello", t=0.3, te=0.48), dict(w="um", t=0.487, te=0.514),
+             dict(w="world", t=0.52, te=0.7)]
+    ops, counts = RE.auto_cuts(words, 1.0, [(0, 1.0)])
+    assert not ops
+    assert counts["filler"] == 0
+    words[1].update(t=0.49, te=0.7)
+    words[2].update(t=0.8, te=0.95)
+    ops, counts = RE.auto_cuts(words, 1.0, [(0, 1.0)])
+    assert ops == [dict(op="cut", words=[1, 1], why="filler")]
+    assert counts["filler"] == 1

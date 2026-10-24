@@ -249,6 +249,7 @@ def auto_cuts(W, total, kept):
     trailing silence too, keeping 0.25 s); then the ums (``filler``) and pauses over 0.6 s (shortened to 0.25 s)
     inside what is kept. -> (ops, counts)."""
     from vstudio.project import outputs as O
+    from vstudio import cleanup
     ops, n = [], dict(retake=0, filler=0, pause=0)
     kept = sorted((float(a), float(b)) for a, b in kept)
     holes, t = [], 0.0
@@ -275,6 +276,11 @@ def auto_cuts(W, total, kept):
     inside = lambda t: any(a - 1e-3 <= t <= b + 1e-3 for a, b in spans)  # noqa: E731
     for m in O.marks(W):
         if m["kind"] == "filler" and not inside(mid(W[m["i0"]])):
+            # ASR can assign a filler an extremely short or overlapping span.
+            # Keep it when the shared word-safe cutter cannot remove it; an
+            # optional cleanup must not prevent opening the recorded take.
+            if cleanup.snap_cut(W, None, float(W[m["i0"]]["t"]), float(W[m["i1"]]["te"])) is None:
+                continue
             ops.append(dict(op="cut", words=[m["i0"], m["i1"]], why="filler"))
             n["filler"] += 1
         elif m["kind"] == "pause" and not inside(float(W[m["i0"]]["te"])) and not inside(float(W[m["i1"]]["t"])):

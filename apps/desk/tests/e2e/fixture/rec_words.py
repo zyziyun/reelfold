@@ -23,5 +23,7 @@ def words(path, language=None):
     if d < 1.0:
         return []
     a, b = 0.3, max(0.6, d - 0.3)
+    # Keep synthetic word timings plausible even for a one-second take.
+    ws = ws[:max(1, int((b - a) / 0.15))]
     step = (b - a) / len(ws)
     return [dict(w=w, t=round(a + k * step, 3), te=round(a + k * step + step * 0.7, 3)) for k, w in enumerate(ws)]

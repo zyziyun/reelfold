@@ -311,14 +311,13 @@ test.describe('recording save recovery', () => {
       const write = fs.writeSync;
       let target: number | undefined;
       let broken = true;
-      let cameraWrites = 0;
       fs.openSync = ((...args: Parameters<typeof open>) => {
         const fd = open(...args);
         if (String(args[0]).endsWith('/camera.webm')) target = fd;
         return fd;
       }) as typeof open;
       fs.writeSync = ((...args: Parameters<typeof write>) => {
-        if (args[0] === target && ++cameraWrites > 1 && broken) throw new Error('ENOSPC: test recording disk full');
+        if (args[0] === target && broken) throw new Error('ENOSPC: test recording disk full');
         return write(...args);
       }) as typeof write;
       (globalThis as unknown as { repairRecordingDisk: () => void }).repairRecordingDisk = () => { broken = false; };
