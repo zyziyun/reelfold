@@ -8,16 +8,25 @@ import re
 PATTERNS = {
     "product": r"电商|带货|商品展示|产品广告|产品短片|e-?commerce|shopping ad|product (?:ad\b|commercial|spot\b|showcase|video|film)",
     "company": r"企业宣传|公司宣传|品牌形象片|corporate (?:brand )?(?:film|video)|company (?:brand )?(?:film|video)|brand film",
-    "sketch": r"段子|小品|情景喜剧|搞笑短片|comedy|\bskit\b|\bsketch\b",
+    "sketch": r"段子|小品|情景喜剧|搞笑(?:短片|段子)|comedy(?:\s+(?:sketch|skit|film|video))?|\bskit\b|\bsketch\b",
 }
+
+
+# Negation belongs to the requested format, including its article/classifier.
+# Do not negate “not only / 不只是”, or carry a negative across a new clause.
+_NEGATED = re.compile(
+    r"(?:\b(?:no|not|without|never|avoid|skip)|\b(?:do not|don't)\s+(?:make|create|use))"
+    r"\s+(?:(?:a|an|the|any|another|new|generic|typical|standard|traditional)\s+)*$|"
+    r"(?:不要|别|不需要|不用|不是|不做)(?:做成|制作|做|用)?"
+    r"(?:(?:一个|一条|一部|这种|那种|普通|传统|常见|的)\s*)*$", re.I)
 
 
 def detect(text):
     text = str(text or "").lower()
     for kind, pattern in PATTERNS.items():
         for hit in re.finditer(pattern, text, re.I):
-            before = text[max(0, hit.start() - 14):hit.start()]
-            if not re.search(r"(?:不要|不做|不是|no |not |without )\s*$", before):
+            before = text[:hit.start()]
+            if not _NEGATED.search(before):
                 return kind
     return None
 

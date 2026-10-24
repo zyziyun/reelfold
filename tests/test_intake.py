@@ -328,6 +328,9 @@ def test_parse_prompt():
     ("剪这个已经拍好的双人段子，保留铺垫与笑点", "sketch", "performance-edit"),
     ("Generate an AI skit about a coffee machine", None, "ai-video"),
     ("用录屏做产品发布视频", "screen", "launch-kit"),
+    ("Not a comedy sketch; keep this talking-head recording natural.", "talk", "talkinghead"),
+    ("不要做成一个搞笑段子，保留这段口播原声", "talk", "talkinghead"),
+    ("Make a company film, not a product ad.", "footage", "photo-story"),
 ])
 def test_content_purpose_and_materials_choose_executable_workflows(tmp_path, prompt, material, expected):
     m = Mat(tmp_path)
