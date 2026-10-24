@@ -779,7 +779,7 @@ def voice_track(v, duration, workdir):
             from vstudio import tts
             if eng is None:
                 eng, voice = _voice_for(v["lang"], v.get("voice"))
-            got = tts.synth(text, engine=eng, voice=voice, out=wav)
+            got = tts.synth(text, engine=eng, voice=voice, language=v["lang"], out=wav)
             if got and got != wav:
                 shutil.copy2(got, wav)
 

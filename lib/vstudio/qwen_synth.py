@@ -29,7 +29,26 @@ GAP_S = 0.12                          # pause between the pieces of a long line
 _SENT = re.compile(r"(?<=[。！？!?；;])|(?<=[.])\s+")
 _CLAUSE = re.compile(r"(?<=[，、：,:])")
 _CJK = re.compile(r"[㐀-鿿]")
-_WORD = re.compile(r"[A-Za-z0-9]+")
+_SYLLABIC = re.compile(r"[㐀-鿿\u3040-\u30ff\uac00-\ud7af\u1100-\u11ff]")
+_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+_LANGUAGES = dict(zh="chinese", en="english", ja="japanese", ko="korean", fr="french", de="german",
+                  it="italian", pt="portuguese", es="spanish", ru="russian")
+
+
+def language_for(text, language=None):
+    """Honor an explicit locale; infer distinctive scripts only (Latin languages need a locale)."""
+    if language:
+        code = str(language).strip().lower().replace("_", "-").split("-")[0]
+        name = _LANGUAGES.get(code, code)
+        if name not in _LANGUAGES.values():
+            raise ValueError(f"Qwen3-TTS does not support language {language!r}")
+        return name
+    for pattern, name in ((r"[\u3040-\u30ff]", "japanese"), (r"[\uac00-\ud7af\u1100-\u11ff]", "korean"),
+                          (r"[㐀-鿿]", "chinese"), (r"[\u0400-\u04ff]", "russian")):
+        if re.search(pattern, text):
+            return name
+    return "english"
+
 
 
 def pieces(text, limit=MAX_PIECE):
@@ -49,8 +68,8 @@ def pieces(text, limit=MAX_PIECE):
 
 
 def expected_seconds(text):
-    """About how long ``text`` takes to say: Mandarin ~4.5 characters/s, English ~2.6 words/s."""
-    return len(_CJK.findall(text)) / 4.5 + len(_WORD.findall(_CJK.sub(" ", text))) / 2.6
+    """About how long ``text`` takes to say: CJK/Korean ~4.5 characters/s, other scripts ~2.6 words/s; a loose retry bound."""
+    return len(_SYLLABIC.findall(text)) / 4.5 + len(_WORD.findall(_SYLLABIC.sub(" ", text))) / 2.6
 
 
 def plausible(seconds, text):
@@ -137,7 +156,7 @@ def synth(text, model, voice="serena", instruct=None, lang=None, seed=7, log=Non
     voice = str(voice or "serena").lower()
     if voice not in SPEAKERS:
         raise SystemExit(f"Qwen3-TTS has no voice {voice!r} (voices: {', '.join(SPEAKERS)})")
-    lang = lang or ("chinese" if _CJK.search(text) else "english")
+    lang = language_for(text, lang)
     out = []
     for i, p in enumerate(pieces(text)):
         best = None

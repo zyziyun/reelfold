@@ -433,7 +433,8 @@ def _tts_line(v, text, wav, workdir, k):
     sp = voice.get("speaker") if voice.get("engine") == eng else None
     if not sp:
         sp = tts.zh_voice(eng) if v["lang"] == "zh" else tts.default_voice(eng)
-    got = tts.synth(text, engine=eng, voice=sp, instructions=voice.get("style") if eng == "qwen" else None, out=wav)
+    got = tts.synth(text, engine=eng, voice=sp, instructions=voice.get("style") if eng == "qwen" else None,
+                    language=v["lang"], out=wav)
     if got and got != wav:
         import shutil
         shutil.copy2(got, wav)

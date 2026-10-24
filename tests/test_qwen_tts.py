@@ -263,3 +263,38 @@ def test_whisper_round_trip(tmp_path, monkeypatch):
         for j, b in enumerate(got, 1):
             p, d[j] = d[j], min(d[j] + 1, d[j - 1] + 1, p + (a != b))
     assert d[-1] / len(ref) < 0.1, hyp
+
+
+@pytest.mark.parametrize("text,locale,expected", [
+    ("今日は動画を作ります。", None, "japanese"), ("오늘 영상을 만듭니다.", None, "korean"),
+    ("Сегодня делаем видео.", None, "russian"), ("Bonjour", "fr-FR", "french"),
+    ("Hello", "KO_kr", "korean"), ("你好", None, "chinese"), ("Hello", None, "english")])
+def test_language_is_preserved_or_inferred_from_distinctive_script(text, locale, expected):
+    assert QS.language_for(text, locale) == expected
+    assert QS.expected_seconds(text) > 0
+
+
+def test_non_latin_duration_is_not_treated_as_zero():
+    for text in ["今日は動画の字幕を確認します。", "오늘 동영상의 자막을 확인합니다.",
+                 "Сегодня мы проверяем субтитры в этом видео."]:
+        assert QS.expected_seconds(text) > 2
+        assert QS.plausible(4, text)
+    with pytest.raises(ValueError, match="does not support"):
+        QS.language_for("test", "ar")
+
+
+def test_qwen_language_reaches_child_and_separates_cache(here, monkeypatch, tmp_path):
+    model = tmp_path / "model"
+    model.mkdir()
+    monkeypatch.setenv(tts.QWEN_MODEL_ENV, str(model))
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setattr(importlib.util, "find_spec", lambda n, *a: object() if n == "mlx_audio" else None)
+    calls = []
+    monkeypatch.setattr(subprocess, "run", _fake_child(calls))
+    from vstudio import media
+    monkeypatch.setattr(media, "run", lambda cmd, **kw: _ffmpeg_copy(cmd))
+    en = tts.synth("Bonjour", engine="qwen", language="en")
+    fr = tts.synth("Bonjour", engine="qwen", language="fr-FR")
+    assert en != fr
+    assert tts.synth("Bonjour", engine="qwen", language="French") == fr
+    assert [c["cmd"][c["cmd"].index("--lang") + 1] for c in calls] == ["english", "french"]

@@ -503,7 +503,7 @@ def _kokoro(text, voice, speed, model, dst, tmp):
     shutil.move(out, dst)
 
 
-def _qwen(text, voice, model, dst, tmp, instructions=None):
+def _qwen(text, voice, model, dst, tmp, instructions=None, language=None):
     if not importlib.util.find_spec("mlx_audio"):
         raise RuntimeError("qwen needs mlx-audio (pip install mlx-audio; Apple Silicon)")
     local = os.path.isdir(model)
@@ -515,7 +515,8 @@ def _qwen(text, voice, model, dst, tmp, instructions=None):
         env["HF_HUB_OFFLINE"] = "1"                  # a local folder: never reach for the hub
     out = os.path.join(tmp, "qwen.wav")
     r = subprocess.run([sys.executable, "-m", "vstudio.qwen_synth", "--model", model, "--voice", str(voice),
-                        "--out", out] + (["--instruct", instructions] if instructions else []),
+                        "--out", out] + (["--instruct", instructions] if instructions else []) +
+                       (["--lang", language] if language else []),
                        input=text, capture_output=True, text=True, env=env)
     tail = lambda: "\n".join(((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-15:])
     if r.returncode != 0 or not os.path.exists(out):
@@ -607,6 +608,7 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
     Args: engine "openai" | "kokoro" | "qwen" | "system" | "edge" | "clone" | "openai-compatible" | "elevenlabs" | "auto"; voice
     (default persona tts.<engine>_voice); speed (1.0 = normal; openai 0.25-4, edge as +-% rate, qwen/system by ffmpeg atempo;
     ignored by clone); instructions = delivery direction (openai gpt-4o-*, qwen: a style line); model overrides DEFAULT_MODEL; cache=False forces a new take (still cached after).
+    Qwen: language accepts a locale or language name; distinctive scripts are inferred when omitted.
     clone only: ref_wav / ref_text / language (default persona tts.clone.*), seed (reproducible take; part
     of the cache key).
     """
@@ -623,6 +625,10 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         model = kokoro_model(model) if engine == "kokoro" else qwen_model(model) if engine == "qwen" else \
             model or (server_config()["model"] if engine == "openai-compatible" else None) or DEFAULT_MODEL[engine]
     mkey = f"{server_config()['base_url']}#{model}" if engine == "openai-compatible" else model
+    if engine == "qwen":
+        from .qwen_synth import language_for
+        language = language_for(text, language)
+        mkey = f"{mkey}#language:{language}"
     if engine == "kokoro":
         from . import kokoro_lexicon
         if kokoro_lexicon.mentions(text):     # a line naming a curated name: its take follows the lexicon's version
@@ -641,7 +647,7 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
             elif engine == "kokoro":
                 _kokoro(text, voice, speed, model, raw, tmp)
             elif engine == "qwen":
-                _qwen(text, voice, model, raw, tmp, instructions)
+                _qwen(text, voice, model, raw, tmp, instructions, language)
             elif engine == "system":
                 from .system_voice import synth as system_synth
                 system_synth(text, voice, raw, tmp)
