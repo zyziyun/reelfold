@@ -279,3 +279,29 @@ def test_detail_framing_changes_the_visible_source_region():
         return np.mean((frame[:,:,0] > 240) & (frame[:,:,1] < 15))
     assert red_area(detail) > red_area(wide) * 5
     assert PS.spec_error('SCRIPT = [(0, [], [("p0001", 1, "still", dict(fit="cover", c=(0.5,0.2), z=3))])]') is None
+
+
+@pytest.mark.parametrize("brief", ["No music", "不要配乐", "A silent product film"])
+def test_explicit_silence_never_selects_music_even_in_music_mode(tmp_path, monkeypatch, brief):
+    from types import SimpleNamespace
+    from vstudio import music
+    supplied = tmp_path / "unused.wav"
+    supplied.write_bytes(b"unused input")
+    ctx = SimpleNamespace(inputs={"music": str(supplied)})
+    monkeypatch.setattr(music, "choose", lambda *a, **k: pytest.fail("Must not choose a bed"))
+    assert PS.music_bed(ctx, str(tmp_path), brief, 12, True) is None
+
+
+def test_silent_draft_overrides_model_music(tmp_path):
+    photo = tmp_path / 'bottle.png'
+    Image.new('RGB', (100, 150), 'green').save(photo)
+    ctx = DR.Ctx(str(tmp_path), 'main', dict(_inputs=dict(photos=[str(photo)]),
+        _item_dir=str(tmp_path/'item'), mode='music'), 'photo-story')
+    ctx.request_text = 'A silent 12-second product film, no music'
+    def complete(*a, **kw):
+        return dict(provider='test', json=dict(content='SCRIPT = [(0, [("Bottle", "瓶子")], [("p0001", 1, "still", None)])]\nBGM = "invented.wav"\nMUSIC = dict(grid="beat", length=12)'))
+    dest = str(tmp_path/'item/work/spec.py')
+    assert PS.draft_spec(ctx, dict(id='story', author={}), dest, complete=complete)
+    text = open(dest).read()
+    assert PS._spec_value(text, 'BGM') is None
+    assert PS._spec_value(text, 'MUSIC')['grid'] == 'seconds'

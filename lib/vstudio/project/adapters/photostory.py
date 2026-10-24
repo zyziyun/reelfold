@@ -332,7 +332,14 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         text, steered = BST.photo_fix(text, doc, by_id)
     text = enforce_voice(text, vp, lang_zh, music_mode)
     text = label_language(text, lang_zh, complete)
-    if bgm:
+    from vstudio import music as MU
+    if MU.wants_none(request):
+        text = _set_global(text, "BGM", None)
+        if music_mode:
+            clock = dict(_spec_value(text, "MUSIC") or {})
+            clock.update(grid="seconds", length=target)
+            text = _set_global(text, "MUSIC", clock)
+    elif bgm:
         text = enforce_bgm(text, work, bgm)
     fact_rec, facts_note = None, ""
     if not music_mode and FG.is_told(request):   # a told piece: its claims checked before the voice is made
@@ -368,6 +375,9 @@ def music_bed(ctx, work, request, target, music_mode):
     ../inputs by the prepare stage), else a built-in bed (vstudio.music) when the request wants music - and always in
     music mode, whose timeline is cut on the bed's beats ("MODE music needs BGM" stopped every history video drafted
     as a mood piece without a music word)."""
+    from vstudio import music as MU
+    if MU.wants_none(request):
+        return None
     for v in (ctx.inputs or {}).values():
         for src in (v if isinstance(v, list) else [v]):
             if isinstance(src, str) and src.lower().endswith(_AUDIO_EXT) and os.path.isfile(src):

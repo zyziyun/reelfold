@@ -184,7 +184,14 @@ class MusicTimeline:
         if cfg["grid"] == "seconds":
             import numpy as np
             from vstudio import media
-            duration = float(media.probe(bgm_path(C))["duration"])
+            if getattr(C.spec, "BGM", None):
+                duration = float(media.probe(bgm_path(C))["duration"])
+            else:
+                # A seconds grid is an authored clock, not an audible music requirement.
+                weights = sum(float(sh[1]) for _, _, shots in C.spec.SCRIPT for sh in shots)
+                duration = float(cfg["length"] or weights * float(cfg["per"]))
+                duration += float(cfg["start"] or 0) + float(cfg["tail"] or 0) + 1
+
             ticks = np.arange(0.0, duration + 1.0)
             b = vbeats.Beats(ticks, ticks, 60.0, 1.0, 0.0, 0.0, 0.0, True,
                              duration=duration, backend="seconds")

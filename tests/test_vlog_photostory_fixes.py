@@ -402,14 +402,15 @@ def test_clean_hit_budget_never_reintroduces_a_flash():
 
 
 @need_ff
-def test_empty_chapters_and_seconds_grid_render_a_valid_timeline(media_dir, monkeypatch):
+@pytest.mark.parametrize("bed", ["song.wav", None])
+def test_empty_chapters_and_seconds_grid_render_a_valid_timeline(media_dir, monkeypatch, bed):
     from photostory.ctx import Ctx
     from photostory.music import MusicTimeline
     from photostory.timeline import Timeline, load_timing
     spec = types.SimpleNamespace(__file__=str(media_dir / "spec.py"), SECTIONS=(), SECTIONS_EN=(),
                                  SCRIPT=[(0, [("A quiet shore", "安静的岸边")], [("p0", 2.8, "still", {})]),
                                          (0, [], [("p1", 5.2, "still", {})])],
-                                 BGM="song.wav", MUSIC=dict(grid="seconds", per=1.0, captions=False),
+                                 BGM=bed, MUSIC=dict(grid="seconds", per=1.0, captions=False),
                                  MODE="music", CANVAS=(320, 180))
     C = Ctx(spec)
     assert C.SECTIONS == [""]
