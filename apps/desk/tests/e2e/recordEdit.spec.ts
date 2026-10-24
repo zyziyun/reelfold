@@ -285,6 +285,66 @@ test.describe('recording permission lifecycle', () => {
   }
 });
 
+test.describe('recording startup lifecycle', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+
+  for (const leave of [false, true]) {
+    test(`serializes pending startup and closes it${leave ? ' after navigation' : ' after a track fails'}`, async () => {
+      const launched = await launch(`begin-${leave}`, { DESK_STUDIO: '1' });
+      app = launched.app;
+      const page = launched.page;
+      await app.evaluate(({ ipcMain }) => {
+        const fixture = { begins: 0, ends: [] as unknown[], release: null as null | (() => void) };
+        (globalThis as unknown as { startupFixture: typeof fixture }).startupFixture = fixture;
+        ipcMain.removeHandler('rec:begin');
+        ipcMain.removeHandler('rec:end');
+        ipcMain.removeHandler('rec:chunk');
+        ipcMain.handle('rec:begin', () => {
+          fixture.begins++;
+          return new Promise(resolve => { fixture.release = () => resolve({ sessionId: 'startup-test', dir: '/tmp/startup-test' }); });
+        });
+        ipcMain.handle('rec:chunk', () => ({ ok: true }));
+        ipcMain.handle('rec:end', (_event, value) => {
+          fixture.ends.push(value);
+          return { dir: '/tmp/startup-test', tracks: [], marks: 0 };
+        });
+      });
+      await page.evaluate(() => (location.hash = '#/create/record'));
+      await page.getByTestId('create-rec-allow').click();
+      await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+      await page.evaluate((leaving) => {
+        const Native = window.MediaRecorder;
+        const records: MediaRecorder[] = [];
+        (window as unknown as { startedRecorders: MediaRecorder[] }).startedRecorders = records;
+        window.MediaRecorder = class extends Native {
+          start(timeslice?: number) {
+            if (!leaving && records.length === 1) throw new Error('Test microphone startup failed');
+            super.start(timeslice);
+            records.push(this);
+          }
+        };
+      }, leave);
+      await page.getByTestId('create-rec-start').click();
+      await expect(page.getByTestId('create-rec-start')).toBeDisabled();
+      await expect(page.getByTestId('create-rec-start')).toHaveAttribute('aria-busy', 'true');
+      const button = await page.getByTestId('create-rec-start').boundingBox();
+      expect(button!.width).toBe(button!.height);
+      await shot(page, `startup-pending-${leave}`);
+      await page.keyboard.press('Space');
+      expect(await app.evaluate(() => (globalThis as unknown as { startupFixture: { begins: number } }).startupFixture.begins)).toBe(1);
+      if (leave) {
+        await page.evaluate(() => (location.hash = '#/'));
+        await expect(page.getByTestId('create-rec-start')).toHaveCount(0);
+      }
+      await app.evaluate(() => (globalThis as unknown as { startupFixture: { release: () => void } }).startupFixture.release());
+      await expect.poll(() => app.evaluate(() => (globalThis as unknown as { startupFixture: { ends: unknown[] } }).startupFixture.ends.length)).toBe(1);
+      expect(await page.evaluate(() => (window as unknown as { startedRecorders: MediaRecorder[] }).startedRecorders.map(r => r.state))).toEqual(leave ? [] : ['inactive']);
+      if (!leave) await expect(page.getByTestId('create-rec-start')).toBeEnabled();
+    });
+  }
+});
+
 test.describe('screen sharing with Screen Recording off', () => {
   let app: ElectronApplication;
   let page: Page;

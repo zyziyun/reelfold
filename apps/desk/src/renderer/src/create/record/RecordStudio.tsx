@@ -8,7 +8,7 @@
 // this visit (?group=) stay listed here: Record another take comes back to them.
 // Keys: Space record / stop · P pause · ⌘R say this line again · ↑ / ↓ change line.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AudioLines, Camera, ChevronLeft, ChevronRight, Lightbulb, Mic, Monitor, Pause, Play, RotateCcw, Settings2, Trash2 } from 'lucide-react';
+import { AudioLines, Camera, ChevronLeft, ChevronRight, Lightbulb, LoaderCircle, Mic, Monitor, Pause, Play, RotateCcw, Settings2, Trash2 } from 'lucide-react';
 import type { EpisodeView } from '../../../../shared/create';
 import { fmtClock, getLang, t } from '../../i18n';
 import { useHistory } from '../../lib/history';
@@ -164,7 +164,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const live = rec.state === 'recording' || rec.state === 'paused' || rec.state === 'stopping';
   const off = !rec.stream || rec.state === 'idle' || rec.state === 'asking' || rec.state === 'denied' || rec.state === 'error';
   const phase: Phase = off && !live ? 'off' : count !== null ? 'countdown' : rec.state === 'recording' ? 'recording' : rec.state === 'paused' ? 'paused' : rec.state === 'stopping' ? 'stopping' : 'ready';
-  const blocked = blockReason({ phase, useScript, lines: lines.length, busy: finishing.busy });
+  const blocked = blockReason({ phase, useScript, lines: lines.length, busy: finishing.busy || rec.starting });
   const setTpBoth = (v: { cur: number; progress: number }) => {
     tpRef.current = v;
     setTp(v);
@@ -592,11 +592,12 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                 className={`rs-rec ${mainKey}${live && rec.interruption ? ' save-take' : ''}`}
                 disabled={phase === 'stopping' || (!live && phase !== 'countdown' && !!blocked)}
                 onClick={onMain}
+                aria-busy={rec.starting}
                 aria-label={mainLabel}
                 title={`${mainLabel} (Space)`}
                 data-testid={live ? 'create-rec-stop' : phase === 'countdown' ? 'rec-cancel' : 'create-rec-start'}
               >
-                <i />
+                {rec.starting ? <LoaderCircle className="ico spin" aria-hidden="true" /> : <i />}
                 {live && rec.interruption && <span>{t('rec.saveTake')}</span>}
               </button>
 

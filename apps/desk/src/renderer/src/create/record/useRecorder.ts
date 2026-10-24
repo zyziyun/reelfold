@@ -73,6 +73,8 @@ export function recordedSeconds(s: { t0: number; pausedMs: number; pausedAt: num
 export function useRecorder() {
   const [state, setState] = useState<RecState>('idle');
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [starting, setStarting] = useState(false);
+  const beginning = useRef(false);
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -108,10 +110,12 @@ export function useRecorder() {
   useEffect(
     () => {
       mounted.current = true;
+      const cameraRequests = openRequest;
+      const screenRequests = screenRequest;
       return () => {
         mounted.current = false;
-        openRequest.current++;
-        screenRequest.current++;
+        cameraRequests.current++;
+        screenRequests.current++;
         releaseCamera();
         stopStream(screen.current);
       };
@@ -237,7 +241,7 @@ export function useRecorder() {
   /** Switch the camera or the microphone (not while recording). */
   const switchDevice = useCallback(
     async (kind: 'camera' | 'mic', id: string) => {
-      if (sess.current) return;
+      if (sess.current || beginning.current) return;
       stopStream(stream);
       await open(kind === 'camera' ? { cam: id, mic: micId } : { cam: cameraId, mic: id });
     },
@@ -248,7 +252,7 @@ export function useRecorder() {
    * is off for the app) | an error message. */
   const shareScreen = useCallback(
     async (id: string, appAudio = false): Promise<ScreenResult> => {
-      if (sess.current) return { error: t('rec.screenFinishTake') };
+      if (sess.current || beginning.current) return { error: t('rec.screenFinishTake') };
       stopScreen();
       const request = screenRequest.current;
       const active = () => mounted.current && screenRequest.current === request;
@@ -294,42 +298,65 @@ export function useRecorder() {
 
   const start = useCallback(
     async (req: { slug: string; title?: string; script: string[]; series?: string; episode?: string; shot?: string; studio?: boolean; group?: string; pickup?: boolean }) => {
-      if (!stream || sess.current) return;
-      interrupted.current = false;
-      setInterruption(null);
-      const vMime = pickMime(VIDEO_TYPES);
-      const aMime = pickMime(AUDIO_TYPES);
-      const screenMime = screen.current?.getAudioTracks().length ? pickMime(SCREEN_AUDIO_TYPES) : vMime;
-      const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
-      const { sessionId, dir } = await window.desk.rec.begin({ ...req, tracks, mime: { camera: vMime ?? '', mic: aMime ?? '', ...(screen.current ? { screen: screenMime ?? '' } : {}) } });
-      const s: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], stops: [], chains: [], pausedMs: 0, pausedAt: null };
-      const add = (track: RecTrack, ms: MediaStream, mime?: string) => {
-        const r = new MediaRecorder(ms, mime ? { mimeType: mime } : undefined);
-        let seq = 0;
-        let chain: Promise<unknown> = Promise.resolve();
-        const i = s.chains.length;
-        s.chains.push(chain);
-        r.ondataavailable = (ev) => {
-          if (!ev.data || !ev.data.size) return;
-          const n = seq++;
-          const startMs = n === 0 ? Date.now() - 1000 : undefined;
-          chain = chain.then(async () => {
-            const data = new Uint8Array(await ev.data.arrayBuffer());
-            await window.desk.rec.chunk(startMs === undefined ? { sessionId, track, seq: n, data } : { sessionId, track, seq: n, data, startMs });
-          });
-          s.chains[i] = chain.catch((e) => setError(String((e as Error).message)));
+      if (!stream || sess.current || beginning.current || !mounted.current) return;
+      beginning.current = true;
+      setStarting(true);
+      const originalCamera = camera.current;
+      const originalScreen = screen.current;
+      let s: Session | null = null;
+      try {
+        interrupted.current = false;
+        setInterruption(null);
+        const vMime = pickMime(VIDEO_TYPES);
+        const aMime = pickMime(AUDIO_TYPES);
+        const screenMime = screen.current?.getAudioTracks().length ? pickMime(SCREEN_AUDIO_TYPES) : vMime;
+        const tracks: RecTrack[] = ['camera', 'mic', ...(screen.current ? (['screen'] as RecTrack[]) : [])];
+        const { sessionId, dir } = await window.desk.rec.begin({ ...req, tracks, mime: { camera: vMime ?? '', mic: aMime ?? '', ...(screen.current ? { screen: screenMime ?? '' } : {}) } });
+        if (!mounted.current || camera.current !== originalCamera || screen.current !== originalScreen ||
+            [...stream.getTracks(), ...(originalScreen?.getTracks() ?? [])].some(track => track.readyState !== 'live')) {
+          await window.desk.rec.end(sessionId, 0);
+          return;
+        }
+        const session: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], stops: [], chains: [], pausedMs: 0, pausedAt: null };
+        s = session;
+        const add = (track: RecTrack, ms: MediaStream, mime?: string) => {
+          const r = new MediaRecorder(ms, mime ? { mimeType: mime } : undefined);
+          let seq = 0;
+          let chain: Promise<unknown> = Promise.resolve();
+          const i = session.chains.length;
+          session.chains.push(chain);
+          r.ondataavailable = (ev) => {
+            if (!ev.data || !ev.data.size) return;
+            const n = seq++;
+            const startMs = n === 0 ? Date.now() - 1000 : undefined;
+            chain = chain.then(async () => {
+              const data = new Uint8Array(await ev.data.arrayBuffer());
+              await window.desk.rec.chunk(startMs === undefined ? { sessionId, track, seq: n, data } : { sessionId, track, seq: n, data, startMs });
+            });
+            session.chains[i] = chain.catch((e) => setError(String((e as Error).message)));
+          };
+          const lifecycle = recorderLifecycle(r);
+          lifecycle.start(1000);
+          session.stops.push(lifecycle.stop);
+          session.recorders.push(r);
         };
-        const lifecycle = recorderLifecycle(r);
-        lifecycle.start(1000);
-        s.stops.push(lifecycle.stop);
-        s.recorders.push(r);
-      };
-      add('camera', new MediaStream(stream.getVideoTracks()), vMime);
-      add('mic', new MediaStream(stream.getAudioTracks()), aMime);
-      if (screen.current) add('screen', screen.current, screenMime);
-      sess.current = s;
-      setElapsed(0);
-      setState('recording');
+        add('camera', new MediaStream(stream.getVideoTracks()), vMime);
+        add('mic', new MediaStream(stream.getAudioTracks()), aMime);
+        if (screen.current) add('screen', screen.current, screenMime);
+        sess.current = session;
+        setElapsed(0);
+        setState('recording');
+      } catch (e) {
+        if (s) {
+          await Promise.all(s.stops.map(stop => stop()));
+          await Promise.all(s.chains);
+          await window.desk.rec.end(s.id, recordedSeconds(s, performance.now()));
+        }
+        throw e;
+      } finally {
+        beginning.current = false;
+        if (mounted.current) setStarting(false);
+      }
     },
     [stream],
   );
@@ -396,5 +423,5 @@ export function useRecorder() {
   }, [releaseCamera, stopScreen]);
 
   const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
-  return { state, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, interruption, interruptionMessage, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
+  return { state, starting, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, interruption, interruptionMessage, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
 }
