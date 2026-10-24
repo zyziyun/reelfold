@@ -310,3 +310,36 @@ def test_unfittable_narration_reports_error_instead_of_overlap_or_truncation(tmp
         (R.voice_track if translation else VO._tts_source)(dict(id="long", lang="en", lines=lines),
                                                           duration, str(tmp_path))
     assert err.value.info["code"] == "voiceover-slot-too-short"
+
+
+@pytest.mark.parametrize("lang,text,speaker", [("ja", "今日は字幕を確認します。", "ono_anna"),
+                                              ("ko", "오늘 자막을 확인합니다.", "sohee")])
+def test_explicit_language_survives_edit_plan_and_render(tmp_path, clip, _iso, monkeypatch, lang, text, speaker):
+    monkeypatch.setattr(VC, "narration_engine", lambda lang, engine="auto": "qwen")
+    w, oid = work(tmp_path, clip)
+    O.edit(w, oid, [dict(op="voiceover", mode="intro", **{f"text_{lang}": text})])
+    rec, doc = O._load(w, oid)
+    st = doc.state()
+    vo = st["voiceovers"][0]
+    assert vo["lines"][0][f"text_{lang}"] == text
+    p = R.plan(rec, doc, st, R.targets_of(rec, st)[0], "preview")
+    v = p["audio"]["vo"][0]
+    assert v["lang"] == lang and v["voice"]["speaker"] == speaker
+    assert v["lines"][0][2] == text
+    assert any(c[2] == text for c in p["final"]["visual"]["captions"])
+    R.render(w, oid, quality="preview")
+    assert _iso[-1]["lang"] == lang and _iso[-1]["text"] == text
+
+
+def test_written_multilingual_lines_are_not_discarded(monkeypatch):
+    seen = {}
+    def write(system, prompt):
+        seen.update(json.loads(prompt))
+        return dict(lines=[dict(start=0, text_fr="Bonjour tout le monde.", text_ja="こんにちは。")])
+    monkeypatch.setattr(VO, "WRITE_HOOK", write)
+    lines = VO.write_lines(dict(info=dict(duration=10)), [], 0, 10, "intro", "Introduce it", ["fr", "ja"])
+    assert seen["languages"] == ["French (text_fr)", "Japanese (text_ja)"]
+    assert lines[0]["text_fr"] == "Bonjour tout le monde."
+    placed = VO.place(lines, [], 0, 10, [])
+    assert placed[0]["text_ja"] == "こんにちは。"
+    assert VO.line_text(placed[0], "en") is None

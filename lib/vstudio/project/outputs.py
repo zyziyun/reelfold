@@ -2712,7 +2712,8 @@ OP_DOC = {
                  "calm for history; a speaker she names wins): intro = a short opening from the start (1-2 lines), "
                  "full = the whole clip narrated, lines timed to its moments and placed in the gaps of on-camera "
                  "speech (never over her own voice), span = text from start. Write the lines yourself (English in "
-                 "text, 中文 in text_zh when the clip has versions in both); ask = her words when you cannot write "
+                 "text, 中文 in text_zh; other languages MUST use text_<ISO code>, e.g. text_fr/text_ja/text_ko, "
+                 "at top level or within each line); ask = her words when you cannot write "
                  "them. The clip's sound and music are ducked under it and its lines captioned",
     "voiceover_remove": "{op, id} remove a voice-over",
     "shot_swap": "{op, shot, source?, t?, restore?} imported clips with matched footage only (`shots` in the context): "

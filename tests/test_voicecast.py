@@ -332,3 +332,13 @@ def test_ai_cast_receives_the_actual_language_and_only_native_candidates():
     assert body["language"] == "Japanese"
     assert [v["speaker"] for v in body["candidates"]] == ["ono_anna"]
     assert result["speaker"] == "ono_anna"   # an English model suggestion cannot replace the native choice
+
+
+def test_installed_native_qwen_used_for_japanese_and_korean(monkeypatch):
+    monkeypatch.setattr(tts, "available_engine", lambda: "kokoro")
+    monkeypatch.setattr(tts, "qwen_ready", lambda: True)
+    assert VC.narration_engine("ja-JP") == "qwen"
+    assert VC.narration_engine("ko") == "qwen"
+    assert VC.narration_engine("ja", "kokoro") == "kokoro"  # explicit engine remains explicit
+    monkeypatch.setattr(tts, "qwen_ready", lambda: False)
+    assert VC.narration_engine("ko") == "kokoro"

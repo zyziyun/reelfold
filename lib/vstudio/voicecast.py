@@ -175,6 +175,8 @@ def narration_engine(lang, engine="auto"):
         e = tts.available_engine()
     if _language(lang) == "zh":
         e = tts.zh_engine(e)
+    elif _language(lang) in ("ja", "ko") and e == "kokoro" and str(engine or "auto").lower() == "auto" and tts.qwen_ready():
+        e = "qwen"
     return e
 
 

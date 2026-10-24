@@ -27,6 +27,9 @@ import os
 import re
 
 from vstudio.batch.util import read_json
+from vstudio.tts import LANG_NAMES
+
+TEXT_FIELDS = ("text",) + tuple(f"text_{lang}" for lang in LANG_NAMES)
 
 CJK = re.compile(r"[㐀-鿿]")
 MODES = ("intro", "full", "span")
@@ -100,15 +103,16 @@ def version_langs(rec, st, words=None):
     return out
 
 
+def line_texts(line):
+    """Explicit text_<language> fields override the legacy plain English/Chinese text."""
+    text = str(line.get("text") or "")
+    out = {"zh" if is_zh(text) else "en": text} if text else {}
+    out.update({lang: str(line[f"text_{lang}"]) for lang in LANG_NAMES if line.get(f"text_{lang}")})
+    return out
+
+
 def line_text(line, lang):
-    """The words of a line for a version in ``lang`` (its ``text_<lang>`` / the text in that language), else None."""
-    alt = line.get(f"text_{lang}")
-    if alt:
-        return str(alt)
-    t = str(line.get("text") or "")
-    if t and (lang == "zh") == is_zh(t):
-        return t
-    return None
+    return line_texts(line).get(lang)
 
 
 # --------------------------------------------------------------------------- the voice
@@ -210,7 +214,7 @@ def place(lines, words, start, end, warns, avoid=True):
     spans = speech_spans(words) if avoid else []
     out, cursor = [], start
     for ln in lines:
-        need = max(seconds_for(ln.get("text")), seconds_for(ln.get("text_zh") or ""))
+        need = max((seconds_for(t) for t in line_texts(ln).values()), default=0.6)
         a = max(float(ln.get("start", cursor)), cursor)
         b = a + need
         if spans and _overlap(a, b, spans) > 0.15 * need:
@@ -229,7 +233,7 @@ def place(lines, words, start, end, warns, avoid=True):
                              "旁白比视频长，最后几句略过"))
             break
         b = min(b, end)
-        out.append(dict({k: v for k, v in ln.items() if k in ("text", "text_zh", "text_en")},
+        out.append(dict({k: v for k, v in ln.items() if k in TEXT_FIELDS},
                         start=round(a, 3), end=round(b, 3)))
         cursor = b + 0.1
     return out
@@ -241,13 +245,6 @@ def split_text(text):
     return parts or ([str(text).strip()] if str(text or "").strip() else [])
 
 
-def _pair_lines(text, text_zh):
-    en, zh = split_text(text), split_text(text_zh)
-    n = max(len(en), len(zh))
-    return [dict({k: v for k, v in (("text", en[i] if i < len(en) else None),
-                                    ("text_zh", zh[i] if i < len(zh) else None)) if v}) for i in range(n)]
-
-
 # --------------------------------------------------------------------------- writing it (no text given)
 WRITE_SYSTEM = (
     "You write a short voice-over narration for a finished video. Times are seconds on the video's timeline. Write "
@@ -255,7 +252,8 @@ WRITE_SYSTEM = (
     "voice). Keep it natural and fitting the creator's ask and the video's kind (a fun vlog: lively and warm; a "
     "history piece: calm). Each line is short (Chinese <= 24 characters, English <= 14 words) and its slot is long "
     "enough to say it. Reply with JSON only: {\"lines\": [{\"start\": s, \"end\": s, \"text\": \"<English>\", "
-    "\"text_zh\": \"<中文>\"}]} - give text (English) and / or text_zh (中文) as the languages asked.")
+    "\"text_zh\": \"<中文>\"}]} - give text (English) and / or text_zh (中文) as the languages asked. "
+    "For every other requested language use text_<ISO language code>, e.g. text_fr, text_ja, text_ko.")
 
 
 def write_lines(rec, words, start, end, mode, ask, langs):
@@ -266,7 +264,7 @@ def write_lines(rec, words, start, end, mode, ask, langs):
         if words else []
     body = dict(ask=str(ask or "")[:300], mode=mode, span=[round(start, 2), round(end, 2)],
                 duration=round(rec["info"]["duration"], 2), title=rec.get("title"),
-                languages=["English (text)" if lg == "en" else "Chinese (text_zh)" if lg == "zh" else lg
+                languages=["English (text)" if lg == "en" else "Chinese (text_zh)" if lg == "zh" else f"{LANG_NAMES.get(lg, lg)} (text_{lg})"
                            for lg in langs],
                 speech=said, gaps=gaps(words, start, end),
                 length=("one or two lines from the start (an intro)" if mode == "intro" else
@@ -290,7 +288,7 @@ def write_lines(rec, words, start, end, mode, ask, langs):
     for x in rows or []:
         if not isinstance(x, dict):
             continue
-        ln = {k: str(x[k]).strip()[:200] for k in ("text", "text_zh") if isinstance(x.get(k), str) and x[k].strip()}
+        ln = {k: str(x[k]).strip()[:200] for k in TEXT_FIELDS if isinstance(x.get(k), str) and x[k].strip()}
         if ln:
             try:
                 ln["start"] = float(x.get("start", start))
@@ -338,10 +336,12 @@ def normalize(doc, st, op, tl, dur, warns):
     for x in lines:
         if x.get("start") is not None:
             x["start"] = O._src_time(x["start"], "start", op, tl, dur)
-    if not lines and (op.get("text") or op.get("text_zh")):
-        lines = _pair_lines(op.get("text"), op.get("text_zh") or op.get("text_zh_cn"))
-        for x in lines:
-            x["start"] = start
+    if op.get("text_zh_cn") and not op.get("text_zh"):
+        op = dict(op, text_zh=op["text_zh_cn"])
+    if not lines and any(op.get(k) for k in TEXT_FIELDS):
+        fields = {k: split_text(op[k]) for k in TEXT_FIELDS if op.get(k)}
+        lines = [dict({k: parts[i] for k, parts in fields.items() if i < len(parts)}, start=start)
+                 for i in range(max(map(len, fields.values())))]
     if not lines and source == "tts":
         lines = write_lines(doc.rec, W, start, end, mode, op.get("ask"), langs)
     for x in lines:
@@ -365,7 +365,7 @@ def normalize(doc, st, op, tl, dur, warns):
         n["voices"] = {lg: {k: v[k] for k in ("engine", "speaker", "style", "reason", "by") if v.get(k)}
                        for lg, v in given.items()}
     elif source == "tts":
-        written = [lg for lg in ("zh", "en") if any(line_text(x, lg) for x in placed)]
+        written = list(dict.fromkeys(lg for x in placed for lg in line_texts(x)))
         n["voices"] = cast_voices(doc.rec, [lg for lg in langs if lg in written] +
                                   [lg for lg in written if lg not in langs] or
                                   [("zh" if is_zh(placed[0].get("text") or placed[0].get("text_zh")) else "en")],
@@ -400,11 +400,13 @@ def spec_for(vo, lang, tl):
     None (nothing in that span is left after the cuts)."""
     lines, used = [], None
     for x in vo.get("lines") or []:
-        txt = line_text(x, lang) or x.get("text") or x.get("text_zh") or ""
+        texts = line_texts(x)
+        actual = lang if texts.get(lang) else next(iter(texts), lang)
+        txt = texts.get(actual, "")
         sp = tl.span(x["start"], x["end"])
         if sp and str(txt).strip():
             lines.append([round(sp[0], 3), round(sp[1], 3), str(txt)])
-            used = used or ("zh" if is_zh(txt) else "en")
+            used = used or actual
     if not lines and vo.get("source") != "take":
         return None
     out = dict(id=vo["id"], source=vo.get("source") or "tts", lines=lines, duck_db=vo.get("duck_db", DUCK_DB),
