@@ -170,9 +170,10 @@ test.describe('recording device interruption', () => {
 test.describe('recording final data delivery', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
-  test('waits for final data and stop events after devices become inactive', async () => {
+  for (const navigate of [false, true]) test(`waits for final data and stop events after devices become inactive${navigate ? ' when navigating away' : ''}`, async () => {
     test.setTimeout(120000);
-    const launched = await launch('final-events', { DESK_STUDIO: '1' });
+    const profile = navigate ? 'final-events-nav' : 'final-events';
+    const launched = await launch(profile, { DESK_STUDIO: '1' });
     app = launched.app;
     const page = launched.page;
     await page.evaluate(() => { location.hash = '#/create/record'; });
@@ -217,23 +218,34 @@ test.describe('recording final data delivery', () => {
     await expect(page.getByTestId('create-rec-preview')).toBeVisible();
     await page.getByTestId('create-rec-start').click();
     await page.waitForTimeout(1800);
-    await page.evaluate(() => (window as unknown as { endFinalInputs: () => void }).endFinalInputs());
+    if (navigate) await page.evaluate(() => (location.hash = '#/'));
+    else await page.evaluate(() => (window as unknown as { endFinalInputs: () => void }).endFinalInputs());
     await expect.poll(() => page.evaluate(() => {
       const s = (window as unknown as { finalEvents: { pending: unknown[]; recorders: MediaRecorder[]; nativeStops: number } }).finalEvents;
       return s.recorders.length === 2 && s.recorders.every((r) => r.state === 'inactive') && s.nativeStops === 2;
     })).toBe(true);
-    const recordings = path.join(tmp, 'vhome-final-events', 'recordings');
+    const recordings = path.join(tmp, `vhome-${profile}`, 'recordings');
     const take = path.join(recordings, fs.readdirSync(recordings)[0]);
-    await page.getByTestId('create-rec-stop').click();
+    if (!navigate) await page.getByTestId('create-rec-stop').click();
     await page.waitForTimeout(250); // deliberately longer than the old arbitrary 50ms wait
     expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).ended).toBeUndefined();
     await page.evaluate(() => {
       const s = (window as unknown as { finalEvents: { pending: (() => void)[] } }).finalEvents;
       s.pending.splice(0).forEach((deliver) => deliver());
     });
-    await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
-    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
-    expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(1.4);
+    if (navigate) {
+      await expect.poll(() => fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+      expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).secs).toBeGreaterThan(1.4);
+      for (const track of ['camera', 'mic']) {
+        // MediaRecorder WebM has no duration header; inspect the actual packet timeline.
+        const packets = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_packets', '-show_entries', 'packet=pts_time,duration_time', '-of', 'json', path.join(take, `${track}.webm`)], { encoding: 'utf8' })).packets as { pts_time: string; duration_time?: string }[];
+        expect(Math.max(...packets.map(packet => Number(packet.pts_time) + Number(packet.duration_time ?? 0)))).toBeGreaterThan(1.4);
+      }
+    } else {
+      await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
+      expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+      expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(1.4);
+    }
   });
 });
 

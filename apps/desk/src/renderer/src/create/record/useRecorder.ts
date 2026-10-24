@@ -70,6 +70,25 @@ export function recordedSeconds(s: { t0: number; pausedMs: number; pausedAt: num
   return Math.max(0, (now - s.t0 - paused) / 1000);
 }
 
+/** Stop and drain once, whether requested by the button or by page cleanup. */
+function finishSession(s: Session): NonNullable<Session['saving']> {
+  if (s.saving) return s.saving;
+  const now = performance.now();
+  const secs = recordedSeconds(s, now);
+  // Freeze the duration while saving (and if closing the file needs a retry).
+  if (s.pausedAt === null) s.pausedAt = now;
+  s.saving = (async () => {
+    await Promise.all(s.stops.map(stop => stop()));
+    await Promise.all(s.chains);
+    const out = await window.desk.rec.end(s.id, secs);
+    return { ...out, sessionId: s.id, secs };
+  })().catch(error => {
+    s.saving = undefined;
+    throw error;
+  });
+  return s.saving;
+}
+
 export function useRecorder() {
   const [state, setState] = useState<RecState>('idle');
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -116,6 +135,10 @@ export function useRecorder() {
         mounted.current = false;
         cameraRequests.current++;
         screenRequests.current++;
+        const active = sess.current;
+        if (active) void finishSession(active).then(() => {
+          if (sess.current === active) sess.current = null;
+        }).catch(error => console.error('Recording could not finish saving on navigation', error));
         releaseCamera();
         stopStream(screen.current);
       };
@@ -348,9 +371,7 @@ export function useRecorder() {
         setState('recording');
       } catch (e) {
         if (s) {
-          await Promise.all(s.stops.map(stop => stop()));
-          await Promise.all(s.chains);
-          await window.desk.rec.end(s.id, recordedSeconds(s, performance.now()));
+          await finishSession(s);
         }
         throw e;
       } finally {
@@ -395,31 +416,21 @@ export function useRecorder() {
   const stop = useCallback(async () => {
     const s = sess.current;
     if (!s) return null;
-    if (s.saving) return s.saving;
-    if (s.pausedAt !== null) {
-      s.pausedMs += performance.now() - s.pausedAt;
-      s.pausedAt = null;
-    }
-    const secs = recordedSeconds(s, performance.now());
     setState('stopping');
-    s.saving = (async () => {
-      await Promise.all(s.stops.map((stop) => stop()));
-      await Promise.all(s.chains);
-      const out = await window.desk.rec.end(s.id, secs);
-      sess.current = null;
-      const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
-        camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
-      setState(missing ? 'error' : 'ready');
-      if (missing) {
-        stopScreen();
-        releaseCamera();
-        setStream(null);
-        setLevel(0);
-        setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
-      }
-      return { ...out, sessionId: s.id, secs };
-    })();
-    return s.saving;
+    const out = await finishSession(s);
+    if (sess.current === s) sess.current = null;
+    if (!mounted.current) return out;
+    const missing = camera.current?.getVideoTracks().some((tr) => tr.readyState === 'live') ?
+      camera.current.getAudioTracks().some((tr) => tr.readyState === 'live') ? null : 'mic' : 'camera';
+    setState(missing ? 'error' : 'ready');
+    if (missing) {
+      stopScreen();
+      releaseCamera();
+      setStream(null);
+      setLevel(0);
+      setError(t(missing === 'camera' ? 'rec.cameraDisconnected' : 'rec.micDisconnected'));
+    }
+    return out;
   }, [releaseCamera, stopScreen]);
 
   const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
