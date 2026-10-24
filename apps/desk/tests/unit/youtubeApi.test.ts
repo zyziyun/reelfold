@@ -4,6 +4,7 @@
 // app's loopback port. Also: tokens only in the keychain (encrypted vault), the client choice (Reelfold's / hers),
 // chunked upload with resume after a 503 and after a dropped connection, and the embedded-browser refusal pages.
 import crypto from 'node:crypto';
+import { UploadOutcomeUnknown } from '../../src/main/publish/outcome';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -55,6 +56,7 @@ class FakeGoogle {
   retryDelay: string | null = null;
   chunks = 0;
   queries = 0;
+  loseReceipt = false;
   thumbs: { videoId: string; type: string; bytes: number }[] = [];
   playlistItems: { playlistId: string; videoId: string }[] = [];
   revoked: string[] = [];
@@ -162,6 +164,7 @@ class FakeGoogle {
       const range = String(req.headers['content-range'] ?? '');
       const finish = () => {
         s.done = true;
+        if (this.loseReceipt) { req.socket.destroy(); return; }
         const privacy = this.lockPrivate ? 'private' : s.meta.status.privacyStatus;
         return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, uploadStatus: 'processed', ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
       };
@@ -391,6 +394,16 @@ describe('resumable upload (fake API)', () => {
     const { yt, dir } = await connected();
     for (let i = 0; i < 20; i++) g.faults.set(i, '503');
     await expect(yt.upload('main', { file: video(dir), title: 't', description: '', tags: [], publishAt: null })).rejects.toThrow(/after 6 retries/);
+  });
+
+  it('reports an uncertain outcome when the final receipt remains unreachable', async () => {
+    const { yt, dir } = await connected();
+    g.loseReceipt = true;
+    await expect(yt.upload('main', { file: video(dir, 100), title: 't', description: '', tags: [], publishAt: null }))
+      .rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    expect(g.sessions.size).toBe(1);
+    expect([...g.sessions.values()][0]).toMatchObject({ done: true, received: 100 });
+    expect(g.queries).toBeGreaterThan(0);
   });
 
   it('bounds repeated incomplete responses without progress', async () => {

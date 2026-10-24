@@ -38,7 +38,7 @@ export type FillResult =
 export interface DueMsg {
   ids: string[];
   /** an official API is handling (or failed) this post */
-  api: Record<string, { status: 'uploading' | 'done' | 'failed'; detail?: string; tries: number } | null>;
+  api: Record<string, { status: 'uploading' | 'done' | 'failed' | 'unverified'; detail?: string; tries: number } | null>;
 }
 
 export type PostFillMsg =

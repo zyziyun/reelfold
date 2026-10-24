@@ -8,6 +8,7 @@
 // Posts that came due while the app was closed show as overdue on launch (Publish / Home banner). No electron
 // import: the clock, the calendar and the notifier are injected (tests drive it with a fake clock).
 import fs from 'node:fs';
+import { UploadOutcomeUnknown } from './outcome';
 import path from 'node:path';
 import { apiDeliveryState, type YtPublishResult } from '../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../shared/v04';
@@ -16,7 +17,7 @@ import { duePosts, localDate, upcomingPosts } from '../../shared/publish/postNow
 export interface ApiAttempt {
   account?: string | null;
   at: string;
-  status: 'uploading' | 'done' | 'failed';
+  status: 'uploading' | 'done' | 'failed' | 'unverified';
   tries: number;
   detail?: string;
   url?: string;
@@ -35,7 +36,12 @@ interface State {
   api: Record<string, ApiAttempt>;
 }
 
-export type ApiUpload = { ok: true; url: string | null; account?: string; result?: YtPublishResult } | { ok: false; error: string };
+export type ApiUpload = { ok: true; url: string | null; account?: string; result?: YtPublishResult } | { ok: false; error: string; unverified?: boolean };
+
+export function apiFailure(error: unknown): Extract<ApiUpload, { ok: false }> {
+  return { ok: false, error: error instanceof Error ? error.message : String(error),
+    ...(error instanceof UploadOutcomeUnknown ? { unverified: true } : {}) };
+}
 
 export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
@@ -85,7 +91,7 @@ export class PublishScheduler {
       const record = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
       if (!record(s) || (s.notified !== undefined && (!record(s.notified) || Object.values(s.notified).some((at) => typeof at !== 'string'))) ||
         (s.api !== undefined && (!record(s.api) || Object.values(s.api).some((a) =>
-        !record(a) || typeof a.at !== 'string' || !['uploading', 'done', 'failed'].includes(a.status) ||
+        !record(a) || typeof a.at !== 'string' || !['uploading', 'done', 'failed', 'unverified'].includes(a.status) ||
         !Number.isInteger(a.tries) || a.tries < 1 || !Number.isFinite(a.lastTry))))) {
         throw new Error('Invalid upload receipt journal');
       }
@@ -206,7 +212,7 @@ export class PublishScheduler {
       // with the scheduler's defaults after a failure.
       if (prev?.source === 'manual') continue;
       const same = prev && prev.at === p.at && (prev.account ?? null) === (p.account ?? null);
-      if (prev && ['done', 'uploading'].includes(prev.status)) continue;
+      if (prev && ['done', 'uploading', 'unverified'].includes(prev.status)) continue;
       if (same) {
         if (prev.status !== 'failed' || prev.tries >= MAX_TRIES || t - prev.lastTry < RETRY_MS) continue;
       }
@@ -223,6 +229,7 @@ export class PublishScheduler {
   async upload(p: CalendarPost, publish: () => Promise<ApiUpload>, source: 'manual' | 'scheduled' = 'manual'): Promise<ApiUpload> {
     if (!this.stateReadable) return { ok: false, error: 'Upload history is unreadable; check the platform before uploading again.' };
     const prev = this.state.api[p.id];
+    if (prev?.status === 'unverified') return { ok: false, unverified: true, error: prev.detail ?? 'Upload outcome unconfirmed. Check YouTube Studio before uploading again.' };
     if (prev?.status === 'uploading') return { ok: false, error: 'This post has an upload in progress or awaiting verification. Check the platform before uploading again.' };
     if (prev?.status === 'done') {
       if (prev.at !== p.at || (prev.account ?? null) !== (p.account ?? null)) {
@@ -240,13 +247,13 @@ export class PublishScheduler {
     }
     let r: ApiUpload;
     try { r = await publish(); }
-    catch (e) { r = { ok: false, error: (e as Error).message }; }
+    catch (e) { r = apiFailure(e); }
     if (r.ok) {
       const receipt: ApiAttempt = { ...rec, status: 'done', calendarSynced: false, ...(r.account ? { resolvedAccount: r.account } : {}), ...(r.url ? { url: r.url } : {}), ...(r.result ? { result: r.result } : {}) };
       this.state.api[p.id] = receipt;
       await this.syncReceipt(p, receipt);
     } else {
-      this.state.api[p.id] = { ...rec, status: 'failed', detail: r.error };
+      this.state.api[p.id] = { ...rec, status: r.unverified ? 'unverified' : 'failed', detail: r.error };
       this.deps.log?.(`[scheduler] API post ${p.id} failed: ${r.error}`);
     }
     this.write();

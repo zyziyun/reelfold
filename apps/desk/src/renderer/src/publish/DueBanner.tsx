@@ -62,10 +62,11 @@ export function DueBanner() {
             </span>
             <span className="muted small">→ {platformName(p.platform)}</span>
             <span className="sp" />
+            {api?.status === 'unverified' && <span className="pb-amber small">{t('pl.due.apiUnverified')}</span>}
             {api?.status === 'failed' && <span className="pb-amber small">{t('pl.due.apiFailed')}</span>}
             <span className="muted small num">{t('pl.due.ago', { when: fmtAgo(new Date(`${p.at}:00`).getTime() / 1000) })}</span>
             <span className={`btn sm ${i === 0 ? 'primary' : ''}`}>
-              {t('pl.due.post')}
+              {t(api?.status === 'unverified' ? 'pl.due.checkUpload' : 'pl.due.post')}
               <ChevronRight className="ico" />
             </span>
           </button>

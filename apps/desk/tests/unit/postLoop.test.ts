@@ -2,6 +2,7 @@
 // API path with publishAt / retries / fallback), which file and text a post gets, the success signal, title
 // counting, session-cookie login detection, the text selectors, and YouTube's metadata.
 import fs from 'node:fs';
+import { UploadOutcomeUnknown } from '../../src/main/publish/outcome';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -143,6 +144,24 @@ describe('scheduler', () => {
     expect(last.due.map((p) => p.id)).toEqual(['y2']);
     expect(m.notified).toEqual([['y2']]);
     expect(m.s.apiState('y2')).toMatchObject({ status: 'failed', tries: 3, detail: 'quotaExceeded' });
+  });
+
+  it('persists uncertain outcomes without repeating manual or scheduled uploads', async () => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const p = post('uncertain', '2026-10-07T20:00', { platform: 'youtube' });
+    const stateFile = path.join(tmp(), 'state.json');
+    const publish = vi.fn(async () => { throw new UploadOutcomeUnknown('Check YouTube Studio'); });
+    const api = { wants: () => true, publish };
+    const first = mk([p], clock, { stateFile, api });
+    const tick = await first.s.tick();
+    expect(tick.due.map(p => p.id)).toEqual(['uncertain']);
+    expect(first.s.apiState(p.id)).toMatchObject({ status: 'unverified', tries: 1 });
+    clock.t = new Date(2026, 9, 7, 20, 30);
+    const restarted = mk([p], clock, { stateFile, api });
+    await restarted.s.tick();
+    expect(await restarted.s.upload(p, publish)).toMatchObject({ ok: false, unverified: true });
+    await restarted.s.upload({ ...p, account: 'other', at: '2026-10-07T21:00' }, publish);
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 
   it('recovers a durable upload after calendar failure and restart without uploading again', async () => {

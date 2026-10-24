@@ -29,7 +29,7 @@ import { CAPTURE_JS, saveCapture, type CaptureResult } from './publish/capture';
 import { probeLogin } from './publish/loginProbe';
 import { fillScheduledPost } from './publish/postFill';
 import { FillRuns } from './publish/fillControl';
-import { PublishScheduler, type ApiUpload } from './publish/scheduler';
+import { PublishScheduler, apiFailure, type ApiUpload } from './publish/scheduler';
 import { AppTray, applyLoginItem, startedHidden } from './tray';
 import { copyForPost, localDate, pickFile } from '../shared/publish/postNow';
 import { postAccount } from '../shared/publish/account';
@@ -693,7 +693,7 @@ async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<ApiU
     const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') });
     return { ok: true, url: r.url, account, result: r };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    return apiFailure(e);
   }
 }
 

@@ -15,6 +15,8 @@ export const publishLoopEn = {
   'pl.due.ago': 'due {when}',
   'pl.due.post': 'Post now',
   'pl.due.apiFailed': 'Automatic upload failed',
+  'pl.due.apiUnverified': 'Upload outcome unconfirmed — check YouTube Studio',
+  'pl.due.checkUpload': 'Check upload',
 
   'pl.post.back': 'Publish',
   'pl.post.gone': 'This post is no longer on the calendar.',
@@ -136,6 +138,8 @@ export const publishLoopZh: Record<PlKey, string> = {
   'pl.due.ago': '{when}到点',
   'pl.due.post': '现在发',
   'pl.due.apiFailed': '自动上传失败',
+  'pl.due.apiUnverified': '上传结果待确认，请检查 YouTube Studio',
+  'pl.due.checkUpload': '检查上传',
 
   'pl.post.back': '发布',
   'pl.post.gone': '这条已经不在日历上了。',
@@ -255,6 +259,8 @@ export const publishLoopFr: Record<PlKey, string> = {
   'pl.due.ago': 'prévu {when}',
   'pl.due.post': 'Publier',
   'pl.due.apiFailed': 'L’envoi automatique a échoué',
+  'pl.due.apiUnverified': 'Résultat non confirmé — vérifiez YouTube Studio',
+  'pl.due.checkUpload': 'Vérifier l’envoi',
 
   'pl.post.back': 'Publier',
   'pl.post.gone': 'Cette publication n’est plus au calendrier.',

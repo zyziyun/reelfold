@@ -13,6 +13,7 @@
 //   - Nothing is uploaded unless she pressed Publish / Schedule (or switched on scheduled posting herself).
 // Report the visibility YouTube actually returns. A private response does not identify the policy/account cause.
 import crypto from 'node:crypto';
+import { UploadOutcomeUnknown } from '../outcome';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -471,6 +472,7 @@ export class YouTubeApi {
     let highWater = 0;
     let authRetried = false;
     let done = null as Inserted | null;
+    let mayHaveCompleted = false;
     const fd = fs.openSync(v.file, 'r');
     try {
       while (!done) {
@@ -479,6 +481,7 @@ export class YouTubeApi {
         fs.readSync(fd, buf, 0, buf.length, offset);
         let r: Response | null = null;
         try {
+          if (end === size) mayHaveCompleted = true;
           r = await this.f(loc, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}`, 'Content-Length': String(buf.length), 'Content-Range': offset === size ? `bytes */${size}` : `bytes ${offset}-${end - 1}/${size}` },
@@ -533,10 +536,13 @@ export class YouTubeApi {
         }
         // anything else: the next PUT tries again from the same offset
       }
+    } catch (e) {
+      if (mayHaveCompleted) throw new UploadOutcomeUnknown(`YouTube upload outcome is unconfirmed. Check YouTube Studio before uploading again. ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
     } finally {
       fs.closeSync(fd);
     }
-    if (!done?.id) throw new Error('YouTube did not return the new video');
+    if (!done?.id) throw new UploadOutcomeUnknown('YouTube did not return the new video ID. Check YouTube Studio before uploading again.');
     onProgress?.(size, size);
     const id = done.id;
     const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
