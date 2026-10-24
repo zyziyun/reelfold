@@ -1253,6 +1253,7 @@ const v04Fr: Record<keyof typeof v04En, string> = {
   'em.voiceover-line-dropped': 'Une phrase de narration aurait couvert votre propre voix et aucune pause ne la contient : elle a été retirée.',
   'em.voiceover-too-long': 'La narration est plus longue que le clip : les dernières phrases ont été retirées.',
   'em.voiceover-over-speech': 'L’intro commence pendant que vous parlez : votre voix est baissée dessous.',
+  'em.voiceover-slot-too-short': 'La narration générée dépasse le créneau prévu. Raccourcissez le texte ou prolongez le créneau.',
   'em.voiceover-no-room': 'Aucune pause n’est assez longue pour une voix off sans couvrir la parole.',
   'em.voiceover-needs-engine': 'La voix off est faite par le moteur, qui ne tourne pas.',
   'em.op-effect-add': 'Ajouter {effect} à {start}',

@@ -452,16 +452,30 @@ def _tts_source(v, duration, workdir):
         wav = os.path.join(workdir, f"vo-{v['id']}-{k:03d}.wav")
         _tts_line(v, text, wav, workdir, k)
         y = A.decode_audio(wav, sr=A.SR, channels=2)
-        nxt = lines[k + 1][0] if k + 1 < len(lines) else duration
-        slot = max(0.3, nxt - a - 0.08)
+        nxt = lines[k + 1][0] - 0.08 if k + 1 < len(lines) else duration
+        until = min(b, nxt, duration)
+        slot = until - a
         have = len(y) / A.SR
+
+        def no_room():
+            return _err("voiceover-slot-too-short",
+                        "The generated narration does not fit its time slot. Shorten the text or extend the slot.",
+                        "生成的旁白放不进指定时段，请缩短文字或延长时段。",
+                        start=a, end=until, audio_seconds=round(have, 3))
+        if slot <= 0 or have > slot * 1.35:
+            raise no_room()
         if have > slot:
             fast = os.path.join(workdir, f"vo-{v['id']}-{k:03d}.fast.wav")
-            m.run(["ffmpeg", "-y", "-i", wav, "-af", m.atempo_chain(min(1.35, have / slot)), "-ar", str(A.SR), fast])
+            rate = min(1.35, have / max(0.001, slot - 0.01))
+            m.run(["ffmpeg", "-y", "-i", wav, "-af", m.atempo_chain(rate), "-ar", str(A.SR), fast])
             y = A.decode_audio(fast, sr=A.SR, channels=2)
         i0 = int(round(a * A.SR))
-        if i0 < n:
-            seg = y[: n - i0]
+        capacity = min(n, int(round(until * A.SR))) - i0
+        # Tempo filters can leave a short silent tail; never discard audible speech.
+        if len(y) > capacity and np.any(np.abs(y[max(0, capacity):]) > 0.001):
+            raise no_room()
+        if 0 <= i0 < n:
+            seg = y[:capacity]
             x[i0: i0 + len(seg)] += seg
     return x
 

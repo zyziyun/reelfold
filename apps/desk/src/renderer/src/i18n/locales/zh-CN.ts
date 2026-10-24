@@ -570,6 +570,7 @@ const v04Zh: Record<keyof typeof v04En, string> = {
   'em.voiceover-line-dropped': '有一句旁白会盖住你自己的声音，又没有足够长的停顿，已略过。',
   'em.voiceover-too-long': '旁白比视频长，最后几句略过了。',
   'em.voiceover-over-speech': '开头旁白和你说话重叠：你的声音会被压低。',
+  'em.voiceover-slot-too-short': '生成的旁白放不进指定时段，请缩短文字或延长时段。',
   'em.voiceover-no-room': '没有足够长的停顿可以加旁白而不盖住原来的人声。',
   'em.voiceover-needs-engine': '旁白需要引擎来生成，引擎现在没有运行。',
   'em.op-effect-add': '在 {start} 加{effect}',

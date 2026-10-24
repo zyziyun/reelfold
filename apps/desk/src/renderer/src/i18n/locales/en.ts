@@ -569,6 +569,7 @@ export const v04En = {
   'em.voiceover-line-dropped': 'A narration line would talk over your own voice and no pause holds it, so it was left out.',
   'em.voiceover-too-long': 'The narration is longer than the clip: the last lines were left out.',
   'em.voiceover-over-speech': 'The intro starts while you speak: your voice is lowered under it.',
+  'em.voiceover-slot-too-short': 'The generated narration does not fit its time slot. Shorten the text or extend the slot.',
   'em.voiceover-no-room': 'There is no pause long enough for a voice-over without talking over the speech.',
   'em.voiceover-needs-engine': 'A voice-over is made by the engine, which is not running.',
   'em.op-effect-add': 'Add {effect} at {start}',
