@@ -6,7 +6,7 @@ comedy must not lose its performance to an automatic speech speed-up.
 import re
 
 PATTERNS = {
-    "product": r"电商|带货|商品展示|产品广告|产品短片|e-?commerce|shopping ad|product (?:ad\b|commercial|spot\b|showcase|video|film)",
+    "product": r"电商|带货|商品展示|产品广告|产品短片|e-?commerce|shopping ad|\bproduct[- ](?:design[- ])?(?:ad\b|commercial|spot\b|showcase|video|film)",
     "company": r"企业宣传|公司宣传|品牌形象片|corporate (?:brand )?(?:film|video)|company (?:brand )?(?:film|video)|brand film",
     "sketch": r"段子|小品|情景喜剧|搞笑(?:短片|段子)|comedy(?:\s+(?:sketch|skit|film|video))?|\bskit\b|\bsketch\b",
 }

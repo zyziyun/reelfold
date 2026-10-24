@@ -25,14 +25,15 @@ def test_photo_sheets_have_unique_ids_and_leave_sources_unchanged(tmp_path):
     assert [open(p, "rb").read() for p in photos] == original
 
 
+@pytest.mark.parametrize("purpose", ["product ad", "product design film"])
 @pytest.mark.parametrize("caption_style", [None, "plain"])
-def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypatch, caption_style):
+def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypatch, caption_style, purpose):
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
     photo = tmp_path / "cup.png"
     Image.new("RGB", (600, 800), (20, 100, 80)).save(photo)
     ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(photos=[str(photo)]),
                  _item_dir=str(tmp_path / "item"), mode="music", platforms=["youtube"]), "photo-story")
-    ctx.request_text = "Create a 6-second product ad for this cup, no voice-over"
+    ctx.request_text = f"Create a 6-second {purpose} for this cup, no voice-over"
     path = str(tmp_path / "item/work/spec.py")
     seen = {}
     def complete(task, system, body, **kw):
