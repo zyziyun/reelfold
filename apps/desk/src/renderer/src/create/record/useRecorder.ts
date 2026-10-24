@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../../i18n';
 import { recorderLifecycle } from './recorderLifecycle';
+import { recordingQueue } from './recordingQueue';
 
 export type RecTrack = 'camera' | 'mic' | 'screen';
 export type RecState = 'idle' | 'asking' | 'denied' | 'ready' | 'recording' | 'paused' | 'stopping' | 'save-error' | 'error';
@@ -28,7 +29,7 @@ interface Session {
   recorders: MediaRecorder[];
   stops: (() => Promise<void>)[];
   saving?: Promise<{ dir: string; tracks: string[]; marks: number; sessionId: string; secs: number }>;
-  chains: Promise<unknown>[];
+  writers: ReturnType<typeof recordingQueue>[];
   /** paused time so far (ms) and when the current pause began */
   pausedMs: number;
   pausedAt: number | null;
@@ -79,7 +80,7 @@ function finishSession(s: Session): NonNullable<Session['saving']> {
   if (s.pausedAt === null) s.pausedAt = now;
   s.saving = (async () => {
     await Promise.all(s.stops.map(stop => stop()));
-    await Promise.all(s.chains);
+    await Promise.all(s.writers.map(writer => writer.flush()));
     const out = await window.desk.rec.end(s.id, secs);
     return { ...out, sessionId: s.id, secs };
   })().catch(error => {
@@ -340,23 +341,30 @@ export function useRecorder() {
           await window.desk.rec.end(sessionId, 0);
           return;
         }
-        const session: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], stops: [], chains: [], pausedMs: 0, pausedAt: null };
+        const session: Session = { id: sessionId, dir, t0: performance.now(), recorders: [], stops: [], writers: [], pausedMs: 0, pausedAt: null };
         s = session;
         const add = (track: RecTrack, ms: MediaStream, mime?: string) => {
           const r = new MediaRecorder(ms, mime ? { mimeType: mime } : undefined);
           let seq = 0;
-          let chain: Promise<unknown> = Promise.resolve();
-          const i = session.chains.length;
-          session.chains.push(chain);
+          const writer = recordingQueue(error => {
+            if (session.pausedAt === null) session.pausedAt = performance.now();
+            // Stop every input together and retain its final data for a save retry.
+            for (const stop of session.stops) void stop();
+            if (mounted.current && sess.current === session) {
+              setError(String((error as Error).message ?? error));
+              setElapsed(recordedSeconds(session, performance.now()));
+              setState('save-error');
+            }
+          });
+          session.writers.push(writer);
           r.ondataavailable = (ev) => {
             if (!ev.data || !ev.data.size) return;
             const n = seq++;
             const startMs = n === 0 ? Date.now() - 1000 : undefined;
-            chain = chain.then(async () => {
+            writer.add(async () => {
               const data = new Uint8Array(await ev.data.arrayBuffer());
               await window.desk.rec.chunk(startMs === undefined ? { sessionId, track, seq: n, data } : { sessionId, track, seq: n, data, startMs });
             });
-            session.chains[i] = chain.catch((e) => setError(String((e as Error).message)));
           };
           const lifecycle = recorderLifecycle(r);
           lifecycle.start(1000);
@@ -417,6 +425,7 @@ export function useRecorder() {
     const s = sess.current;
     if (!s) return null;
     setState('stopping');
+    setError(null);
     let out: Awaited<NonNullable<Session['saving']>>;
     try {
       out = await finishSession(s);

@@ -301,6 +301,53 @@ test.describe('recording save recovery', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
 
+  test('stops on a chunk write failure and saves all retained data on retry', async () => {
+    test.setTimeout(120000);
+    const { app: launched, page } = await launch('chunk-retry', { DESK_STUDIO: '1' });
+    app = launched;
+    await app.evaluate(() => {
+      const fs = process.mainModule!.require('node:fs') as typeof import('node:fs');
+      const open = fs.openSync;
+      const write = fs.writeSync;
+      let target: number | undefined;
+      let broken = true;
+      let cameraWrites = 0;
+      fs.openSync = ((...args: Parameters<typeof open>) => {
+        const fd = open(...args);
+        if (String(args[0]).endsWith('/camera.webm')) target = fd;
+        return fd;
+      }) as typeof open;
+      fs.writeSync = ((...args: Parameters<typeof write>) => {
+        if (args[0] === target && ++cameraWrites > 1 && broken) throw new Error('ENOSPC: test recording disk full');
+        return write(...args);
+      }) as typeof write;
+      (globalThis as unknown as { repairRecordingDisk: () => void }).repairRecordingDisk = () => { broken = false; };
+    });
+    await page.evaluate(() => { location.hash = '#/create/record'; });
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.getByTestId('create-rec-start').click();
+    const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
+    await expect(retry).toBeEnabled({ timeout: 15000 });
+    await expect(page.getByTestId('rec-pause')).toBeDisabled();
+    await retry.click();
+    await expect(retry).toBeEnabled();
+    await expect(page.getByTestId('editor')).toHaveCount(0);
+    const root = path.join(tmp, 'vhome-chunk-retry', 'recordings');
+    const names = fs.readdirSync(root);
+    expect(names).toHaveLength(1);
+    const take = path.join(root, names[0]);
+    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(true);
+    await app.evaluate(() => (globalThis as unknown as { repairRecordingDisk: () => void }).repairRecordingDisk());
+    await retry.click();
+    await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
+    expect(fs.readdirSync(root)).toEqual(names);
+    expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+    expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(0.5);
+    expect(fs.statSync(path.join(take, 'camera.webm')).size).toBeGreaterThan(1000);
+    expect(fs.statSync(path.join(take, 'mic.webm')).size).toBeGreaterThan(1000);
+  });
+
   test('retries finalizing the same stopped take after a metadata failure', async () => {
     test.setTimeout(120000);
     const { app: launched, page } = await launch('save-retry', { DESK_STUDIO: '1' });

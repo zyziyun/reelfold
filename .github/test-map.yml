@@ -56,6 +56,7 @@ e2e_real_smoke:
 
 # Specs for code the trace cannot follow (main process, engine). Added to what the trace finds.
 e2e:
+  apps/desk/src/renderer/src/create/record/recordingQueue.ts: [recordEdit.spec.ts, learning.spec.ts]
   apps/desk/src/main/aiConsent.ts: [windowMenu.spec.ts, aiConsent.spec.ts, aiAccounts.spec.ts]
   lib/vstudio/ai_consent.py: [aiConsent.spec.ts, modelSwitch.spec.ts, aiAccounts.spec.ts]
   lib/vstudio/learning.py: [learning.spec.ts]

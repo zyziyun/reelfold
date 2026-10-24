@@ -31,6 +31,7 @@ interface Live {
   dir: string;
   fds: Partial<Record<RecTrack, number>>;
   seq: Partial<Record<RecTrack, number>>;
+  bytes: Partial<Record<RecTrack, number>>;
   start: Partial<Record<RecTrack, number>>;
   lastSync: number;
   marks: { t: number; kind: string; line: number }[];
@@ -75,7 +76,7 @@ export class Recorder {
       ...(p.pickup ? { pickup: true } : {}),
     });
     writeJson(path.join(dir, 'takes.json'), []);
-    this.live.set(id, { dir, fds: {}, seq: {}, start: {}, lastSync: Date.now(), marks: [] });
+    this.live.set(id, { dir, fds: {}, seq: {}, bytes: {}, start: {}, lastSync: Date.now(), marks: [] });
     return { sessionId: id, dir };
   }
 
@@ -91,16 +92,25 @@ export class Recorder {
     if (p.seq !== want) throw new Error(`rec.gap: ${p.track} expected ${want}, got ${p.seq}`);
     let fd = s.fds[p.track];
     if (fd === undefined) {
-      fd = fs.openSync(path.join(s.dir, `${p.track}.webm`), 'a');
+      fd = fs.openSync(path.join(s.dir, `${p.track}.webm`), 'w');
       s.fds[p.track] = fd;
       s.start[p.track] = p.startMs ?? Date.now();
     }
-    fs.writeSync(fd, p.data);
-    s.seq[p.track] = want + 1;
+    const position = s.bytes[p.track] ?? 0;
+    let written = 0;
+    while (written < p.data.byteLength) {
+      const n = fs.writeSync(fd, p.data, written, p.data.byteLength - written, position + written);
+      if (n <= 0) throw new Error('Recording write made no progress');
+      written += n;
+    }
     if (Date.now() - s.lastSync > 5000) {
       for (const f of Object.values(s.fds)) if (f !== undefined) fs.fsyncSync(f);
       s.lastSync = Date.now();
     }
+    // Commit only after the full chunk and any due sync succeed. A retry
+    // overwrites a partial write at the same offset instead of duplicating it.
+    s.bytes[p.track] = position + written;
+    s.seq[p.track] = want + 1;
     return { ok: true, seq: p.seq };
   }
 

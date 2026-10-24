@@ -95,6 +95,22 @@ describe('recorder main side', () => {
     expect(JSON.parse(fs.readFileSync(path.join(b.dir, 'session.json'), 'utf8')).studio).toBe(true);
   });
 
+  it('retries a partially written chunk without duplicating bytes', () => {
+    const r = new Recorder(tmp());
+    const take = r.begin({ slug: 'partial', script: [], tracks: ['camera'] });
+    const chunk = { sessionId: take.sessionId, track: 'camera' as const, seq: 0, data: new Uint8Array([1, 2, 3, 4]) };
+    const write = fs.writeSync;
+    const spy = vi.spyOn(fs, 'writeSync');
+    spy.mockImplementationOnce(((fd: number, data: Uint8Array, offset: number, _length: number, position: number) => write(fd, data, offset, 2, position)) as typeof fs.writeSync);
+    spy.mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    try { expect(() => r.chunk(chunk)).toThrow('ENOSPC'); } finally { spy.mockRestore(); }
+    expect(fs.readFileSync(path.join(take.dir, 'camera.webm'))).toEqual(Buffer.from([1, 2]));
+    r.chunk(chunk);
+    r.chunk({ ...chunk, seq: 1, data: new Uint8Array([5, 6]) });
+    r.end({ sessionId: take.sessionId, secs: 1 });
+    expect(fs.readFileSync(path.join(take.dir, 'camera.webm'))).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
+  });
+
   it('retries metadata finalization without closing already closed tracks', () => {
     const r = new Recorder(tmp());
     const take = r.begin({ slug: 'retry', script: [], tracks: ['camera', 'mic'] });
