@@ -767,16 +767,12 @@ def _voice_for(lang, choice="auto"):
 
 
 def voice_track(v, duration, workdir):
-    """The lines of a language version voiced (vstudio.tts, or the VOICE hook) and laid at their times -> float32
-    (n, 2). A line longer than its slot is said up to 1.35x faster; past that it runs into the pause after it."""
-    from vstudio import audio as A
-    m = _media()
-    n = int(round(max(duration, 0.5) * A.SR))
-    x = np.zeros((n, 2), np.float32)
+    """Synthesise a translated version using the same bounded timing as added narration."""
+    from .outvoice import timed_speech
     eng = voice = None
-    lines = v.get("lines") or []
-    for k, (a, b, text) in enumerate(lines):
-        wav = os.path.join(workdir, f"line{k:03d}.wav")
+
+    def synth_line(text, wav, k):
+        nonlocal eng, voice
         if VOICE is not None:
             VOICE(text, v["lang"], wav)
         else:
@@ -786,21 +782,8 @@ def voice_track(v, duration, workdir):
             got = tts.synth(text, engine=eng, voice=voice, out=wav)
             if got and got != wav:
                 shutil.copy2(got, wav)
-        y = A.decode_audio(wav, sr=A.SR, channels=2)
-        nxt = lines[k + 1][0] if k + 1 < len(lines) else duration
-        slot = max(0.3, nxt - a - 0.08)
-        have = len(y) / A.SR
-        if have > slot:
-            rate = min(1.35, have / slot)
-            fast = os.path.join(workdir, f"line{k:03d}.fast.wav")
-            m.run(["ffmpeg", "-y", "-i", wav, "-af", m.atempo_chain(rate), "-ar", str(A.SR), fast])
-            y = A.decode_audio(fast, sr=A.SR, channels=2)
-        i0 = int(round(a * A.SR))
-        if i0 >= n:
-            continue
-        seg = y[: n - i0]
-        x[i0: i0 + len(seg)] += seg
-    return x
+
+    return timed_speech(v.get("lines") or [], duration, workdir, synth_line)
 
 
 def run_cover(spec, src, out, mode):

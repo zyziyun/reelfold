@@ -440,17 +440,16 @@ def _tts_line(v, text, wav, workdir, k):
     return wav
 
 
-def _tts_source(v, duration, workdir):
+def timed_speech(lines, duration, workdir, synth_line, prefix="line"):
     """``tts``: each line synthesised and laid at its time (said up to 1.35x faster when it is longer than its slot)."""
     import numpy as np
     from vstudio import audio as A
     from vstudio import media as m
     n = int(round(max(duration, 0.5) * A.SR))
     x = np.zeros((n, 2), np.float32)
-    lines = v["lines"]
     for k, (a, b, text) in enumerate(lines):
-        wav = os.path.join(workdir, f"vo-{v['id']}-{k:03d}.wav")
-        _tts_line(v, text, wav, workdir, k)
+        wav = os.path.join(workdir, f"{prefix}-{k:03d}.wav")
+        synth_line(text, wav, k)
         y = A.decode_audio(wav, sr=A.SR, channels=2)
         nxt = lines[k + 1][0] - 0.08 if k + 1 < len(lines) else duration
         until = min(b, nxt, duration)
@@ -465,7 +464,7 @@ def _tts_source(v, duration, workdir):
         if slot <= 0 or have > slot * 1.35:
             raise no_room()
         if have > slot:
-            fast = os.path.join(workdir, f"vo-{v['id']}-{k:03d}.fast.wav")
+            fast = os.path.join(workdir, f"{prefix}-{k:03d}.fast.wav")
             rate = min(1.35, have / max(0.001, slot - 0.01))
             m.run(["ffmpeg", "-y", "-i", wav, "-af", m.atempo_chain(rate), "-ar", str(A.SR), fast])
             y = A.decode_audio(fast, sr=A.SR, channels=2)
@@ -478,6 +477,11 @@ def _tts_source(v, duration, workdir):
             seg = y[:capacity]
             x[i0: i0 + len(seg)] += seg
     return x
+
+
+def _tts_source(v, duration, workdir):
+    return timed_speech(v["lines"], duration, workdir,
+                        lambda text, wav, k: _tts_line(v, text, wav, workdir, k), prefix=f"vo-{v['id']}")
 
 
 def _take_source(v, duration, workdir):

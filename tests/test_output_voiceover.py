@@ -283,25 +283,30 @@ def test_redo_full_narration_also_fixes_old_logs_but_keeps_independent_spans():
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+@pytest.mark.parametrize("translation", [False, True])
 @pytest.mark.parametrize("end,duration", [(2.0, 10.0), (10.0, 2.0)])
-def test_generated_narration_never_spills_past_line_or_video(tmp_path, monkeypatch, end, duration):
+def test_generated_narration_never_spills_past_line_or_video(tmp_path, monkeypatch, end, duration, translation):
     def voice(text, lang, selected, path):
         t = np.arange(int(2.4 * A.SR)) / A.SR
         A.write_wav(path, np.stack([0.2 * np.sin(2 * np.pi * 440 * t)] * 2, 1), A.SR)
     monkeypatch.setattr(VO, "VOICE_HOOK", voice)
     v = dict(id="bounded", lang="en", lines=[[0, end, "A short narration"]])
-    x = VO._tts_source(v, duration, str(tmp_path))
+    monkeypatch.setattr(R, "VOICE", lambda text, lang, path: voice(text, lang, {}, path))
+    x = (R.voice_track if translation else VO._tts_source)(v, duration, str(tmp_path))
     assert np.sqrt(np.mean(x[:int(1.8 * A.SR)] ** 2)) > .05
     assert not np.any(x[2 * A.SR:])
 
 
+@pytest.mark.parametrize("translation", [False, True])
 @pytest.mark.parametrize("lines,duration", [([[0, 2, "Too long"]], 10),
                                            ([[0, 10, "Too long"]], 2),
                                            ([[0, 5, "Too long"], [2, 5, "Next"]], 10)])
-def test_unfittable_narration_reports_error_instead_of_overlap_or_truncation(tmp_path, monkeypatch, lines, duration):
+def test_unfittable_narration_reports_error_instead_of_overlap_or_truncation(tmp_path, monkeypatch, lines, duration, translation):
     def voice(text, lang, selected, path):
         A.write_wav(path, np.full((A.SR * 4, 2), .2, np.float32), A.SR)
     monkeypatch.setattr(VO, "VOICE_HOOK", voice)
     with pytest.raises(O.OutputError) as err:
-        VO._tts_source(dict(id="long", lang="en", lines=lines), duration, str(tmp_path))
+        monkeypatch.setattr(R, "VOICE", lambda text, lang, path: voice(text, lang, {}, path))
+        (R.voice_track if translation else VO._tts_source)(dict(id="long", lang="en", lines=lines),
+                                                          duration, str(tmp_path))
     assert err.value.info["code"] == "voiceover-slot-too-short"
