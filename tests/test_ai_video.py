@@ -498,3 +498,19 @@ def test_review_rejects_omissions_and_incomplete_shot():
     card["soft"]["unrecognized"] = False
     assert J.verdict(card)[0] == "redo"
     assert J.verdict(None)[0] == "redo"
+
+
+@needs_ffmpeg
+def test_assembly_rechecks_file_bound_review(tmp_path):
+    from vstudio import take_review as R
+    video = tmp_path / "take.mp4"
+    _clip(video, 1.0)
+    card = tmp_path / "take.card.json"
+    review = R.bound_card(str(video))
+    review.update(hard=dict.fromkeys(R.HARD, False), soft=dict.fromkeys(R.SOFT, False), scores=dict(A=5, B=5, C=5))
+    card.write_text(json.dumps(review))
+    timeline = dict(_dir=str(tmp_path), takes_dir=".", edl=[dict(take="take.mp4", **{"in": 0, "out": 1})],
+                    review_cards={str(video): str(card)})
+    assert AS.validate_edl(timeline) == []
+    _clip(video, 1.0, color="red")
+    assert any("current video" in e for e in AS.validate_edl(timeline))

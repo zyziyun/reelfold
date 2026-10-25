@@ -99,7 +99,7 @@ stages:
     resource: cpu
     deps: [judge]
     fn: vstudio.project.adapters.aivideo:timeline
-    keys: [takes_pick]
+    keys: [takes_pick, takes_reviews]
     watch: ["{item_dir}/work/ai/timeline.yaml"]
     produces: [work/ai/timeline.auto.yaml (or the authored timeline.yaml)]
   - id: assemble
@@ -172,6 +172,7 @@ checkpoints:
     help: {zh: "每个镜头选一条（看评审拼图）", en: "One take per unit (judge sheets)"}
     payload: vstudio.project.adapters.aivideo:takes_payload
     apply: vstudio.project.adapters.aivideo:takes_apply
+    recheck: vstudio.project.adapters.aivideo:takes_recheck
     answer:
       type: object
       properties:
@@ -205,7 +206,7 @@ agent:
   edit_files: ["{item_dir}/work/ai/project.yaml", "{item_dir}/work/ai/timeline.yaml"]
 gaps:
   - Look sheets / scene masters and manual web generation (generate.py sheets / import) are agent / human steps.
-  - Judge cards (judge.py card / verdict) are not filled automatically; take selection uses the sheets.
+  - Judge cards are not filled automatically. Only complete passing cards bound to the current video can be selected; missing reviews wait for review.
   - The approved budget is the project total; each episode's generate run is capped at it (not at its own share).
   - Covers come from workflows/cover; package.py upload is never automated.
 capabilities: [aigc, shot-cards, credit-estimate, budget-gate, take-selection, assemble, captions, export]

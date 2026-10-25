@@ -41,3 +41,7 @@ laughing in danger.
 
 ## Fixed in post, not judged
 -10..15 % saturation, light grain, one grade for all takes, loudness via `vstudio.export` (-14 LUFS).
+
+## File-bound selection
+
+The App creates an unreviewed card beside each sheet. Review all checks and scores in that card; do not mark unseen properties clear. Cards carry the SHA-256 of the video reviewed. Replacing the video requires a new review (`judge.py card takes/<unit>_vN.mp4 --out work/ai/judge`). The App selects only passing, current cards and waits when any unit has no passing take. Selection, authored timelines, and assembly revalidate the evidence. Automatic model review is not implemented; sheets alone do not establish audio or continuous-motion quality.

@@ -7,6 +7,7 @@ import re
 
 import yaml
 
+from vstudio import take_review
 from vstudio.batch.util import read_json, sha1_json, write_json
 
 from ..build import file_sha
@@ -78,29 +79,61 @@ def judge(env):
         env.run(argv, log=f"judge_{os.path.basename(t)}.log")
         stem = os.path.splitext(os.path.basename(t))[0]
         unit = stem.rsplit("_v", 1)[0]
-        rows.append(dict(unit=unit, take=t, sheet=os.path.join(jd, f"{stem}.sheet.jpg")))
+        card = os.path.join(jd, f"{stem}.card.json")
+        if not os.path.exists(card):
+            write_json(card, take_review.bound_card(t))
+        rows.append(dict(unit=unit, take=t, card=card, sheet=os.path.join(jd, f"{stem}.sheet.jpg")))
     path = write_json(os.path.join(jd, "takes.json"), dict(takes=rows))
     return dict(takes=path, n=len(rows), files=[path])
+
+
+def takes_recheck(params):
+    """Invalidate cached selection when footage or its review changes on disk."""
+    root = os.path.join(params.get("_item_dir") or "", "work", "ai")
+    paths = sorted(glob.glob(os.path.join(root, "takes", "*.mp4")) +
+                   glob.glob(os.path.join(root, "judge", "*.card.json")))
+    return {path: file_sha(path) for path in paths} or {"reviews": "missing"}
 
 
 def takes_payload(env, cp):
     d = read_json((env.inputs.get(cp["after"]) or {}).get("takes"), {}) or {}
     units = {}
     for r in d.get("takes") or []:
-        units.setdefault(r["unit"], []).append(dict(file=r["take"], sheet=r["sheet"]))
+        card = r.get("card") or os.path.splitext(r["sheet"])[0].removesuffix(".sheet") + ".card.json"
+        decision, reasons = take_review.inspect(r["take"], card)
+        units.setdefault(r["unit"], []).append(dict(file=r["take"], sheet=r["sheet"], card=card,
+                                                   review=decision, reasons=reasons))
     opts = [dict(unit=u, takes=ts) for u, ts in sorted(units.items())]
-    return dict(options=opts, default=dict(picks={o["unit"]: o["takes"][-1]["file"] for o in opts}) if opts else None,
+    picks = {o["unit"]: next((t["file"] for t in reversed(o["takes"]) if t["review"] == "pass"), None)
+             for o in opts}
+    return dict(options=opts, default=dict(picks=picks) if picks and all(picks.values()) else None,
                 previews=[dict(kind="image", path=t["sheet"]) for o in opts for t in o["takes"]
-                          if os.path.exists(t["sheet"])], skip=not opts, skip_reason="no takes yet")
+                          if os.path.exists(t["sheet"])], skip=False)
 
 
 def takes_apply(a):
     picks = (a.value or {}).get("picks") or {}
-    files = {t["file"] for o in a.payload.get("options") or [] for t in o["takes"]}
-    bad = [f for f in picks.values() if files and f not in files]
-    if bad:
-        raise ValueError(f"takes: unknown take(s) {bad}")
-    return dict(params=dict(takes_pick=picks))
+    units = {o["unit"]: {t["file"]: t for t in o["takes"]} for o in a.payload.get("options") or []}
+    if not units or set(picks) != set(units):
+        raise ValueError("takes: select one reviewed take for every unit")
+    reviews = {}
+    for unit, path in picks.items():
+        if path not in units[unit]:
+            raise ValueError(f"takes: unknown take for {unit}")
+        card = units[unit][path]["card"]
+        take_review.require(path, card)
+        reviews[path] = card
+    return dict(params=dict(takes_pick=picks, takes_reviews=reviews))
+
+
+def _check_timeline_reviews(path, reviews):
+    with open(path, encoding="utf-8") as f:
+        doc = yaml.safe_load(f) or {}
+    base = os.path.dirname(path)
+    for entry in doc.get("edl") or []:
+        if "take" in entry:
+            video = os.path.abspath(os.path.join(base, doc.get("takes_dir", "takes"), entry["take"]))
+            take_review.require(video, reviews.get(video, ""))
 
 
 def timeline(env):
@@ -109,8 +142,16 @@ def timeline(env):
     from vstudio import media
     d = os.path.join(env.item_dir, "work", "ai")
     hand = os.path.join(d, "timeline.yaml")
+    reviews = {os.path.abspath(k): v for k, v in (env.params.get("takes_reviews") or {}).items()}
     if os.path.exists(hand):
-        return dict(timeline=hand, authored=True, files=[hand], digest=file_sha(hand))
+        _check_timeline_reviews(hand, reviews)
+        with open(hand, encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+        doc["review_cards"] = reviews
+        checked = os.path.join(d, "timeline.reviewed.yaml")
+        with open(checked, "w", encoding="utf-8") as f:
+            yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False)
+        return dict(timeline=checked, authored=True, files=[checked], digest=file_sha(checked))
     picks = env.params.get("takes_pick") or {}
     if not picks:
         raise RuntimeError("timeline: no picked takes and no work/ai/timeline.yaml")
@@ -120,9 +161,10 @@ def timeline(env):
     edl = []
     for unit in sorted(picks):
         f = picks[unit]
+        take_review.require(f, reviews.get(os.path.abspath(f), ""))
         edl.append({"take": _relpath(f, os.path.join(d, "takes")), "in": 0.0,
                     "out": round(media.duration(f), 3)})
-    tl = dict(canvas=[w, h], fps=30, takes_dir="takes", out="master.mp4", grade=dict(saturation=0.88, grain=4),
+    tl = dict(review_cards=reviews, canvas=[w, h], fps=30, takes_dir="takes", out="master.mp4", grade=dict(saturation=0.88, grain=4),
               edl=edl, music=dict(path=None, duck_db=-10, carve=True),
               captions=dict(language=proj.get("language", "en"), max_chars=32, out="cues.json"))
     path = os.path.join(d, "timeline.auto.yaml")

@@ -54,6 +54,11 @@ def validate_edl(t):
         if not os.path.exists(f):
             errs.append(f"#{i}: take {e['take']} missing")
             continue
+        if "review_cards" in t:
+            from vstudio import take_review
+            decision, reasons = take_review.inspect(f, t["review_cards"].get(os.path.abspath(f), ""))
+            if decision != "pass":
+                errs.append(f"#{i}: take review: {'; '.join(reasons)}")
         a, b = float(e.get("in", 0)), e.get("out")
         d = media.duration(f)
         b = d if b is None else float(b)
