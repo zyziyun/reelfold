@@ -50,6 +50,15 @@ const MAS_PROFILE = env.MAS_PROVISIONING_PROFILE || path.join(__dirname, 'packag
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
+  afterPack: async (context) => {
+    // electron-builder writes the feed only for dmg/zip on macOS. Our local
+    // installs use `--mac dir`; supply the same resolved metadata before signing.
+    if (context.electronPlatformName !== 'darwin' || !context.targets.every((target) => target.name === 'dir')) return;
+    const { getAppUpdatePublishConfiguration } = require('app-builder-lib/out/publish/PublishManager'); // eslint-disable-line @typescript-eslint/no-require-imports -- CommonJS build hook
+    const { serializeToYaml } = require('builder-util'); // eslint-disable-line @typescript-eslint/no-require-imports -- CommonJS build hook
+    const feed = await getAppUpdatePublishConfiguration(context.packager, null, context.arch, false);
+    if (feed) await fs.promises.writeFile(path.join(context.packager.getResourcesDir(context.appOutDir), 'app-update.yml'), serializeToYaml(feed));
+  },
   beforePack: async (context) => {
     const version = context.packager.appInfo.version;
     const { default: semver } = await import('semver');
