@@ -1278,6 +1278,38 @@ def fresh_finals(d, output):
     return out
 
 
+def caption_sidecars(plan, directory, stem, duration):
+    """Export the rendered caption layer in final time, bound to this exact render.
+
+    This can be bilingual or include editorial overlays, so never infer an upload
+    language from the destination platform. Hidden captions are not exported.
+    """
+    import hashlib
+    from vstudio.subs import Cue, srt_write, vtt_write
+    cues = [Cue(max(0, a), min(b, duration), text) for a, b, text in plan["final"]["visual"]["captions"]
+            if text.strip() and min(b, duration) > max(0, a)]
+    if not cues:
+        return []
+    result = []
+    for fmt, writer in (("srt", srt_write), ("vtt", vtt_write)):
+        # Revision-specific names prevent later edits from overwriting a track
+        # already referenced by a pending publishing job.
+        name = f"{stem}.{plan['final']['key']}.captions.{fmt}"
+        path = os.path.join(directory, name)
+        partial = path + ".part"
+        try:
+            count = writer(cues, partial, no_overlap=False)
+            with open(partial, "rb") as f:
+                checksum = hashlib.sha256(f.read()).hexdigest()
+            os.replace(partial, path)
+        finally:
+            if os.path.exists(partial):
+                os.remove(partial)
+        result.append(dict(file=path, format=fmt, cues=count, lang="und", role="rendered-captions",
+                           render_key=plan["final"]["key"], sha256=checksum))
+    return result
+
+
 def render(d, output, quality="preview", targets=None, on_event=None, with_ops=None, watermark=None):
     """Render the output's current edit (preview or final) for ``targets`` (default primary; "all" = primary +
     every export). -> {ok, output, quality, targets [{target, file, cover, canvas, duration, key, cached, stages
@@ -1386,7 +1418,8 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
                 from vstudio import platform as P
                 for w in P.check_length(tg["profile"], info["duration"]):
                     warns.append(OUT.msg("length", w, None, target=tg["target"]))
-            res = dict(target=tg["target"], quality=quality, file=dst, cover=cdst, canvas=[tg["w"], tg["h"]],
+            sidecars = caption_sidecars(p, rdir, f"{name}.{quality}", info["duration"]) if not compare else []
+            res = dict(target=tg["target"], quality=quality, file=dst, cover=cdst, sidecars=sidecars, canvas=[tg["w"], tg["h"]],
                        layout=tg["layout"], duration=round(info["duration"], 3), key=p["final"]["key"],
                        watermark=bool(p["final"]["visual"].get("watermark")),
                        cached=all(s["cached"] for s in stages), stages=[{k: v for k, v in s.items() if k != "file"}
@@ -1398,7 +1431,7 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
                 continue
             man = read_json(manifest_path(doc), {}) or {}
             man.setdefault("renders", {})[f"{tg['target']}.{quality}"] = dict(file=dst, cover=cdst, key=res["key"],
-                                                                             at=OUT._stamp(),
+                                                                             at=OUT._stamp(), sidecars=sidecars,
                                                                              duration=res["duration"],
                                                                              steps=len(doc.d["steps"]))
             man["output"] = rec["id"]

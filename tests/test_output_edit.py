@@ -759,6 +759,13 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert on["final"]["visual"]["captions"]
     first = R.render(th, oid, targets=target)
     assert first["ok"] and spoken and all(lang == "fr" for _, lang in spoken)
+    from vstudio.subs import srt_read
+    tracks = first["targets"][0]["sidecars"]
+    assert len(tracks) == 2
+    exported = srt_read(tracks[0]["file"])
+    assert [(c.start, c.end, c.text) for c in exported] == [tuple(c) for c in on["final"]["visual"]["captions"]]
+    manifest = json.load(open(R.manifest_path(doc)))
+    assert manifest["renders"][target + ".preview"]["sidecars"] == tracks
     first_audio = A.decode_audio(first["targets"][0]["file"], sr=A.SR, channels=2)
     calls = len(spoken)
     O.edit(th, oid, dict(op="captions", enabled=False))
@@ -769,6 +776,7 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert off["final"]["key"] != on["final"]["key"]
     second = R.render(th, oid, targets=target)
     assert second["ok"] and len(spoken) == calls
+    assert second["targets"][0]["sidecars"] == []
     second_audio = A.decode_audio(second["targets"][0]["file"], sr=A.SR, channels=2)
     assert first_audio.shape == second_audio.shape
     assert np.allclose(first_audio, second_audio, atol=1e-5)
@@ -802,3 +810,25 @@ def test_export_translation_preserves_asr_language(tmp_path, synth, monkeypatch,
     assert version["lines"][0][3] == ("Hello everyone." if source != target else text)
     with open(O.transcript_path(doc)) as f:
         assert json.load(f)["language"] == source
+
+
+def test_caption_sidecars_preserve_final_time_overlap_and_revision(tmp_path):
+    import hashlib
+    from vstudio.subs import srt_read
+    p = dict(final=dict(key='revision-one', visual=dict(captions=[
+        [-1, 1.5, 'First'], [1, 3, 'Second'], [4, 5, 'Outside'] ])))
+    tracks = R.caption_sidecars(p, str(tmp_path), 'youtube.final', 2)
+    assert {t['format'] for t in tracks} == {'srt', 'vtt'}
+    for track in tracks:
+        assert track['lang'] == 'und' and track['cues'] == 2
+        assert track['sha256'] == hashlib.sha256(open(track['file'], 'rb').read()).hexdigest()
+    cues = srt_read(tracks[0]['file'])
+    assert [(c.start, c.end, c.text) for c in cues] == [(0, 1.5, 'First'), (1, 2, 'Second')]
+    previous = open(tracks[0]['file']).read()
+    p['final']['key'] = 'revision-two'
+    p['final']['visual']['captions'] = [[0, 1, 'Changed']]
+    new = R.caption_sidecars(p, str(tmp_path), 'youtube.final', 2)
+    assert new[0]['file'] != tracks[0]['file']
+    assert open(tracks[0]['file']).read() == previous
+    p['final']['visual']['captions'] = []
+    assert R.caption_sidecars(p, str(tmp_path), 'youtube.final', 2) == []

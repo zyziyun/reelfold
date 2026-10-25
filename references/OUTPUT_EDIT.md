@@ -342,3 +342,5 @@ Remote sticker images in AI edits use direct public HTTPS raster URLs. The engin
 an RGBA PNG under the output edit assets before proposing the operation; replay does not depend on the URL.
 A sticker is a fixed overlay, not person tracking. Privacy requests require verified target positions across
 the full interval; never guess a face position or claim a person has been anonymized without checking coverage.
+
+Second-pass renders also return `sidecars` (SRT and WebVTT) and record them in the render manifest. These reproduce the visible caption layer after cuts and speed changes; caption-off renders return no tracks. Files include the render key in their names, plus SHA-256 and cue counts in the manifest, so a later revision cannot overwrite an earlier publication's caption file. These composite tracks may mix languages or editorial text and are marked `lang: und`, `role: rendered-captions`; they are not automatically uploaded as a language-specific closed-caption track. Existing burned-in text in imported videos is not extracted by this export.
