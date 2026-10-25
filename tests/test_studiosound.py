@@ -228,3 +228,27 @@ def test_stereo_analysis_and_gain_are_channel_order_independent():
     y = SS._spectral(stereo, SS.STRENGTHS["standard"], None)
     z = SS._spectral(swapped, SS.STRENGTHS["standard"], None)
     np.testing.assert_allclose(y, z[:, ::-1], atol=1e-6)
+
+
+@pytest.mark.parametrize("hz", [50, 60])
+@pytest.mark.parametrize("level", [1.0, 0.01])
+def test_hum_detection_resolves_frequency_at_different_levels(hz, level):
+    x, _ = voice(5.0)
+    t = np.arange(len(x)) / SR
+    hum = sum(0.02 / h * np.sin(2 * np.pi * hz * h * t) for h in (1, 2, 3))
+    noisy = (x + hum + np.random.default_rng(21).normal(0, 0.0005, len(x))).astype(np.float32)
+    assert SS.analyze(noisy * level)["hum_hz"] == float(hz)
+
+
+@pytest.mark.parametrize("hz", [45, 55, 65])
+def test_nearby_low_tones_are_not_mains_hum(hz):
+    t = np.arange(SR * 3) / SR
+    assert SS._hum((0.1 * np.sin(2 * np.pi * hz * t)).astype(np.float32)) is None
+
+
+def test_hum_requires_persistent_evidence():
+    t = np.arange(SR * 5) / SR
+    burst = (0.1 * np.sin(2 * np.pi * 60 * t) * (t < 1)).astype(np.float32)
+    assert SS._hum(burst) is None
+    assert SS._hum(burst[:SR // 2]) is None
+    assert SS._hum(np.zeros(SR * 2, np.float32)) is None

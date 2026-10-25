@@ -125,18 +125,28 @@ def noise_profile(P, block_s=10.0, quiet=0.15):
     return out
 
 
-def _hum(N0):
-    """Mains hum: 50 or 60 Hz (+ harmonics) standing >= 10 dB above the neighbouring noise bins."""
+def _hum(x):
+    """Detect persistent 50/60 Hz lines with 1 Hz resolution, independently of denoise FFTs.
+
+    Require a narrow peak in at least 75% of sampled windows. Short clips and
+    intermittent low-frequency speech are insufficient evidence for a notch.
+    """
+    if len(x) < SR:
+        return None
+    frames = np.lib.stride_tricks.sliding_window_view(x, SR)[::SR // 2]
+    # Bound memory and work for long recordings while sampling their full span.
+    if len(frames) > 64:
+        frames = frames[np.linspace(0, len(frames) - 1, 64, dtype=int)]
+    power = np.abs(np.fft.rfft(frames * np.hanning(SR), axis=1)[:, :70]) ** 2
     best = None
-    for base in (50.0, 60.0):
-        score = []
-        for h in (1, 2, 3):
-            k = int(round(base * h / (SR / N_FFT)))
-            nb = np.r_[N0[max(0, k - 6):max(0, k - 2)], N0[k + 3:k + 7]]
-            score.append(10 * np.log10(max(N0[k], 1e-20) / max(np.median(nb), 1e-15)))
-        s = float(np.mean(score))
-        if s >= 10 and (best is None or s > best[1]):
-            best = (base, s)
+    for hz in (50, 60):
+        peak = power[:, hz - 1:hz + 2].max(axis=1)
+        neighbours = np.concatenate([power[:, hz - 8:hz - 3], power[:, hz + 4:hz + 9]], axis=1)
+        floor = np.median(neighbours, axis=1)
+        contrast = 10 * np.log10(np.maximum(peak, 1e-20) / np.maximum(floor, 1e-20))
+        score = float(np.median(contrast))
+        if score >= 15 and np.mean(contrast >= 10) >= 0.75 and (best is None or score > best[1]):
+            best = (float(hz), score)
     return best[0] if best else None
 
 
@@ -189,9 +199,8 @@ def analyze(x, sr=SR):
     loud = e[e > np.percentile(e, 60)] if len(e) > 10 else e
     noise_db = float(np.percentile(e, 10)) if len(e) else -120.0
     speech_db = float(np.mean(loud)) if len(loud) else noise_db
-    N0 = P[np.argsort(e)[:max(4, len(P) // 7)]].mean(0)          # the quietest frames (by frame energy)
     return dict(noise_db=round(noise_db, 1), speech_db=round(speech_db, 1), snr_db=round(speech_db - noise_db, 1),
-                hum_hz=_hum(N0), t60=_round(_t60(m)), clip_pct=round(float(np.mean(np.abs(x) > 0.99) * 100), 3),
+                hum_hz=_hum(m), t60=_round(_t60(m)), clip_pct=round(float(np.mean(np.abs(x) > 0.99) * 100), 3),
                 seconds=round(len(m) / SR, 2))
 
 
