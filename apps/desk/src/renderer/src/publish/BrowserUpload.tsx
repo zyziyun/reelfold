@@ -72,7 +72,7 @@ export function UploadInBrowserSheet({ postId, pf, onClose, onPosted }: { postId
               await window.desk.showItem(pkg.cover!);
               mark('cover');
             })}
-          {!!(pkg.sidecars?.length || pkg.captionIssues?.length) && <li><CaptionFiles pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} /></li>
+          {!!(pkg.sidecars?.length || pkg.captionIssues?.length) && <li><CaptionFiles pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} /></li>}
           <li className="ub-step col" style={{ alignItems: 'stretch', gap: 6 }}>
             <span className="small">{t('ub.s.done')}</span>
             <span className="row" style={{ gap: 8 }}>
