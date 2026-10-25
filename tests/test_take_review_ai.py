@@ -101,3 +101,74 @@ def test_adapter_preserves_manual_rejection(tmp_path, monkeypatch):
                           run=lambda *a, **k: None)
     A.judge(env)
     assert json.load(open(path)) == card
+
+
+def test_current_partial_ai_review_is_not_retried_until_it_passes(tmp_path, monkeypatch):
+    root = tmp_path/'work'/'ai'; (root/'takes').mkdir(parents=True); (root/'judge').mkdir()
+    video = root/'takes'/'u1_v1.mp4'; video.write_bytes(b'video')
+    (root/'project.yaml').write_text('shots: [{id: u1}]')
+    card = R.bound_card(str(video)); card['review_source'] = 'ai-sampled-visual'
+    card['hard']['physics'] = True
+    path = root/'judge'/'u1_v1.card.json'; path.write_text(json.dumps(card))
+    monkeypatch.setattr(AI, 'review', lambda *a: pytest.fail('same evidence must not repeatedly ask for approval'))
+    env = SimpleNamespace(item_dir=str(tmp_path), workflow_dir='unused', params={}, fmt=lambda x: x,
+                          run=lambda *a, **k: None)
+    A.judge(env)
+    assert json.load(open(path)) == card
+
+
+def test_changed_take_gets_fresh_review_with_manual_history_preserved(tmp_path, monkeypatch):
+    root = tmp_path/'work'/'ai'; (root/'takes').mkdir(parents=True); (root/'judge').mkdir()
+    video = root/'takes'/'u1_v1.mp4'; video.write_bytes(b'old')
+    (root/'project.yaml').write_text('shots: [{id: u1}]')
+    old = R.bound_card(str(video)); old['hard']['physics'] = True; old['review_source'] = 'human'
+    path = root/'judge'/'u1_v1.card.json'; path.write_text(json.dumps(old))
+    video.write_bytes(b'new')
+    fresh = R.bound_card(str(video)); fresh['review_source'] = 'ai-sampled-visual'
+    fresh['hard']['physics'] = False
+    monkeypatch.setattr(AI, 'review', lambda *a: fresh)
+    env = SimpleNamespace(item_dir=str(tmp_path), workflow_dir='unused', params={}, fmt=lambda x: x,
+                          run=lambda *a, **k: None)
+    A.judge(env)
+    assert json.load(open(path)) == fresh
+    archived = list((root/'judge'/'history').glob('*.json'))
+    assert len(archived) == 1 and json.load(open(archived[0])) == old
+    assert not R.binding_reasons(str(video), fresh)
+
+
+def test_judge_stage_key_tracks_external_inputs_without_output_loop(tmp_path):
+    from vstudio.project import build, manifests
+    root = tmp_path/'work'/'ai'; (root/'takes').mkdir(parents=True); (root/'judge').mkdir()
+    video = root/'takes'/'u1_v1.mp4'; video.write_bytes(b'video')
+    ref = root/'ref.jpg'; ref.write_bytes(b'first')
+    (root/'project.yaml').write_text('characters: {A: {ref: ref.jpg}}\nshots: [{id: u1, chars: [A]}]')
+    manifest = manifests.get('ai-video')
+    entry = next(s for s in manifest['stages'] if s['id'] == 'judge')
+    key = build._keyfn(manifest, entry)
+    job = dict(id='test', params=dict(_item_dir=str(tmp_path), judge_asr=False))
+    before = key(job, None)
+    (root/'judge'/'u1_v1.card.json').write_text('{}')
+    assert key(job, None) == before  # outputs do not cause an endless rerun
+    ref.write_bytes(b'second')
+    assert key(job, None) != before
+    before = key(job, None); video.write_bytes(b'replacement')
+    assert key(job, None) != before
+    before = key(job, None); ref.unlink()
+    assert key(job, None) != before
+
+
+def test_concurrent_human_review_is_not_overwritten(tmp_path, monkeypatch):
+    root = tmp_path/'work'/'ai'; (root/'takes').mkdir(parents=True); (root/'judge').mkdir()
+    video = root/'takes'/'u1_v1.mp4'; video.write_bytes(b'video')
+    (root/'project.yaml').write_text('shots: [{id: u1}]')
+    path = root/'judge'/'u1_v1.card.json'
+    human = R.bound_card(str(video)); human['review_source'] = 'human'; human['hard']['physics'] = True
+    def review(*args):
+        path.write_text(json.dumps(human))
+        return normalize()
+    monkeypatch.setattr(AI, 'review', review)
+    env = SimpleNamespace(item_dir=str(tmp_path), workflow_dir='unused', params={}, fmt=lambda x: x,
+                          run=lambda *a, **k: None)
+    with pytest.raises(ValueError, match='changed while reviewing'):
+        A.judge(env)
+    assert json.load(open(path)) == human

@@ -241,6 +241,10 @@
      },
      "description": "params that change this stage's output (default: all user params)"
     },
+    "recheck": {
+     "$ref": "#/$defs/ref",
+     "description": "Pure module:function(job params) returning external inputs to hash into the stage cache key"
+    },
     "watch": {
      "type": "array",
      "items": {

@@ -93,6 +93,7 @@ stages:
     deps: [generate]
     fn: vstudio.project.adapters.aivideo:judge
     keys: [judge_asr]
+    recheck: vstudio.project.adapters.aivideo:judge_recheck
     produces: [work/ai/judge/<take>.sheet.jpg]
     preview: {kind: images, path: "{item_dir}/work/ai/judge/*.sheet.jpg"}
   - id: timeline

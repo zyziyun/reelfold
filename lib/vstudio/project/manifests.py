@@ -216,8 +216,7 @@ def _out_ref_errors(m):
 def _refs(m):
     out = [m["outputs"]["collect"]]
     for s in m["stages"]:
-        if s.get("fn"):
-            out.append(s["fn"])
+        out += [s[k] for k in ("fn", "recheck") if s.get(k)]
     for c in m["checkpoints"]:
         out += [c[k] for k in ("payload", "apply", "recheck", "current", "remake") if c.get(k)]
     out += [v["x-resolve"] for v in ((m.get("params") or {}).get("properties") or {}).values() if v.get("x-resolve")]

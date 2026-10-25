@@ -62,7 +62,7 @@ answer-derived overrides; params with `x-spec` go into a batch spec section (`as
 | `items {sources, from_input, planner, per_item, shared, variants, share_cache}` | how items form; which params / stages are per item vs shared |
 | `params` | JSON Schema object; every property has `title`, `x-zh`, `default`, ranges / enums; `x-scope: item`, `x-spec`, `x-map` |
 | `engine {batch_recipe, expand, batch_inputs, spec}` | reuse a vstudio.batch recipe's stages (`batch_recipe: name` or `{param, map}` for engine variants) |
-| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, when, paid, units, produces, preview, wip}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter; `preview {kind, path, label {zh, en, fr?}}` = what a finished stage shows, `wip` = the files it writes one by one (a glob, e.g. the vlog's `work/clips/seg_*.mp4`), shown while it runs and after (`Project.pieces()`: the desk's work-in-progress tiles, in recipe order, only this run's files while a stage runs again) |
+| `stages [{id, resource, fn \| run \| from_batch, deps, extra_deps, keys, watch, recheck, when, paid, units, produces, preview, wip}]` | the graph; `fn` = adapter `module:fn(env)`, `run` = a workflow script through the generic script adapter; `preview {kind, path, label {zh, en, fr?}}` = what a finished stage shows, `wip` = the files it writes one by one (a glob, e.g. the vlog's `work/clips/seg_*.mp4`), shown while it runs and after (`Project.pieces()`: the desk's work-in-progress tiles, in recipe order, only this run's files while a stage runs again) |
 | `checkpoints [...]` | section 3 |
 | `outputs {platforms, collect, files}` | supported platforms; collector (`module:fn`) or file templates for `export` |
 | `agent {workflow_md, notes, edit_files}`, `gaps`, `capabilities` | agent hook, known gaps |
@@ -263,3 +263,5 @@ those stages. `state/` is never edited by hand; budget / consent answers are the
 Adding a recipe: write `workflows/<name>/recipe.yaml` (the schema above), adapters only when a stage needs logic the
 scripts don't have (`lib/vstudio/project/adapters/`), then `pytest tests/test_project.py` (every manifest is
 validated, every engine variant built, and a project of synthetic inputs is planned for each recipe).
+
+A stage may define `recheck: module:function`: a pure function of job params returning external-input fingerprints to include in its cache key. Include only inputs (such as generated takes and reference images), never the stage’s own outputs, to avoid endless reruns. The AIGC judge uses this to refresh changed material while preserving prior review history.

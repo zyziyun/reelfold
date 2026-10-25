@@ -248,11 +248,14 @@ def _units(kind):
 
 def _keyfn(m, e):
     keys, watch = e.get("keys"), e.get("watch") or []
+    recheck = M.resolve_ref(e["recheck"]) if e.get("recheck") else None
 
     def f(job, spec):
         p = job["params"]
         d = {k: p.get(k) for k in keys} if keys is not None else public_params(p)
         d["_inputs"] = p.get("_inputs")
+        if recheck:
+            d["_recheck"] = recheck(p)
         if watch:
             t = static_tctx(m, p, job["id"])
             d["_watch"] = {w: file_sha(M.fmt(w, t)) for w in watch}

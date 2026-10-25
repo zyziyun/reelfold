@@ -84,18 +84,42 @@ def judge(env):
         unit = stem.rsplit("_v", 1)[0]
         card = os.path.join(jd, f"{stem}.card.json")
         existing = read_json(card, {}) or {}
-        manual = isinstance(existing, dict) and existing.get("review_source") != "ai-sampled-visual" and any(
+        stale = bool(take_review.binding_reasons(t, existing))
+        populated = isinstance(existing, dict) and any(
             value is not None for section in ("hard", "soft", "scores")
             for value in (existing.get(section) or {}).values())
-        # Never replace a person's rejection or partial review with an AI approval.
-        if not manual and take_review.inspect(t, card)[0] != "pass":
+        # Reuse current partial/rejected reviews too: retrying the workflow must not keep
+        # asking a model until it approves. Changed inputs need a new review, preserving history.
+        if stale or not populated:
             from vstudio import take_review_ai
+            revision = file_sha(card, 40)
             review = take_review_ai.review(t, project, unit, os.path.join(jd, stem),
                                            os.path.dirname(_proj(env)))
+            if revision != file_sha(card, 40):
+                raise ValueError("take review changed while reviewing; retry to preserve the newer review")
+            if existing:
+                history = os.path.join(jd, "history", f"{stem}-{file_sha(card, 40)}.json")
+                write_json(history, existing)
             write_json(card, review)
         rows.append(dict(unit=unit, take=t, card=card, sheet=os.path.join(jd, f"{stem}.sheet.jpg")))
     path = write_json(os.path.join(jd, "takes.json"), dict(takes=rows))
     return dict(takes=path, n=len(rows), files=[path])
+
+
+def judge_recheck(params):
+    """Only external review inputs, never its output cards (which would cause a rerun loop)."""
+    root = os.path.join(params.get("_item_dir") or "", "work", "ai")
+    brief = os.path.join(root, "project.yaml")
+    paths = sorted(glob.glob(os.path.join(root, "takes", "*.mp4"))) + [brief]
+    if os.path.isfile(brief):
+        with open(brief, encoding="utf-8") as f:
+            project = yaml.safe_load(f) or {}
+        for kind, field in (("characters", "ref"), ("scenes", "master")):
+            for entry in (project.get(kind) or {}).values():
+                ref = entry.get(field) if isinstance(entry, dict) else None
+                if isinstance(ref, str) and ref:
+                    paths.append(os.path.abspath(os.path.join(root, ref)))
+    return {path: file_sha(path, 40) for path in paths}
 
 
 def takes_recheck(params):
