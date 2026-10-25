@@ -104,7 +104,7 @@ export function useRecorder() {
   const [micId, setMicId] = useState<string | null>(null);
   const [screenOn, setScreenOn] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [interruption, setInterruption] = useState<RecTrack | null>(null);
+  const [interruption, setInterruption] = useState<RecTrack | 'encoder' | null>(null);
   const interrupted = useRef(false);
   const sess = useRef<Session | null>(null);
   const screen = useRef<MediaStream | null>(null);
@@ -157,9 +157,10 @@ export function useRecorder() {
     setScreenStream(null);
   }, [stopStream]);
 
-  const interruptCapture = useCallback((track: RecTrack) => {
+  const interruptCapture = useCallback((track: RecTrack | 'encoder') => {
     const s = sess.current;
     if (!s) {
+      if (track === 'encoder') return;
       if (track !== 'screen') {
         stopScreen();
         releaseCamera();
@@ -366,6 +367,11 @@ export function useRecorder() {
               await window.desk.rec.chunk(startMs === undefined ? { sessionId, track, seq: n, data } : { sessionId, track, seq: n, data, startMs });
             });
           };
+          // An encoder can fail while its input tracks are still live. Its final
+          // dataavailable/stop events still carry the recoverable part of this take.
+          r.addEventListener('error', () => {
+            if (mounted.current && sess.current === session) interruptCapture('encoder');
+          });
           const lifecycle = recorderLifecycle(r);
           lifecycle.start(1000);
           session.stops.push(lifecycle.stop);
@@ -387,7 +393,7 @@ export function useRecorder() {
         if (mounted.current) setStarting(false);
       }
     },
-    [stream],
+    [stream, interruptCapture],
   );
 
   useEffect(() => {
@@ -451,6 +457,6 @@ export function useRecorder() {
     return out;
   }, [releaseCamera, stopScreen]);
 
-  const interruptionMessage = interruption ? t(interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
+  const interruptionMessage = interruption ? t(interruption === 'encoder' ? 'rec.encoderInterrupted' : interruption === 'camera' ? 'rec.cameraInterrupted' : interruption === 'mic' ? 'rec.micInterrupted' : 'rec.screenInterrupted') : null;
   return { state, starting, stream, level, error, elapsed, cameras, mics, cameraId, micId, screenOn, screenStream, interruption, interruptionMessage, open, switchDevice, start, stop, pause, resume, mark, shareScreen, stopScreen };
 }

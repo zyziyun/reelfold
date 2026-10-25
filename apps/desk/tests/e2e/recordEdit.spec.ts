@@ -297,6 +297,70 @@ test.describe('recording permission lifecycle', () => {
   }
 });
 
+test.describe('recording encoder interruption', () => {
+  let app: ElectronApplication;
+  test.afterEach(async () => closeApp(app));
+  for (const [index, lang, message] of [[0, 'en', 'A recording input stopped unexpectedly'], [1, 'zh-CN', '录制发生错误']] as const) {
+    test(`preserves native encoder failure data (${lang})`, async () => {
+      test.setTimeout(120000);
+      const { app: launched, page } = await launch(`encoder-${lang}`, { DESK_STUDIO: '1' });
+      app = launched;
+      const pageErrors: string[] = [];
+      page.on('pageerror', error => {
+        pageErrors.push(error.message);
+        fs.appendFileSync(test.info().outputPath('renderer-errors.txt'), error.stack + '\n');
+      });
+      await page.evaluate(async (lang) => { await window.desk.setSettings({ lang }); }, lang);
+      await page.reload();
+      await page.evaluate(() => {
+        const Original = window.MediaRecorder;
+        const state = window as unknown as { nativeRecorders: MediaRecorder[]; recorderEvents: string[] };
+        state.nativeRecorders = []; state.recorderEvents = [];
+        window.MediaRecorder = new Proxy(Original, {
+          construct(Target, args) {
+            const recorder = new Target(...args as [MediaStream, MediaRecorderOptions?]);
+            state.nativeRecorders.push(recorder);
+            for (const kind of ['error', 'dataavailable', 'stop']) recorder.addEventListener(kind, () => state.recorderEvents.push(kind));
+            return recorder;
+          },
+        });
+        location.hash = '#/create/record';
+      });
+      await page.getByTestId('create-rec-allow').click();
+      await page.getByTestId('create-rec-start').click();
+      await expect(page.getByTestId('create-rec-live')).toBeVisible();
+      await page.waitForTimeout(1600);
+      // Changing the track set forces the browser's real InvalidModificationError,
+      // followed by its final dataavailable and stop events (no synthetic error).
+      await page.evaluate(index => {
+        const recorders = (window as unknown as { nativeRecorders: MediaRecorder[] }).nativeRecorders;
+        const r = recorders[index];
+        r.stream.addTrack(r.stream.getTracks()[0].clone());
+      }, index);
+      await expect(page.getByTestId('rec-input-interrupted')).toContainText(message);
+      await expect(page.getByTestId('rec-pause')).toBeDisabled();
+      const states = await page.evaluate(() => (window as unknown as { nativeRecorders: MediaRecorder[] }).nativeRecorders.map(r => r.state));
+      expect(states[index]).toBe('inactive');
+      expect(states[1-index]).toBe('paused');
+      const clock = await page.getByTestId('create-rec-live').textContent();
+      await page.waitForTimeout(1100);
+      expect(await page.getByTestId('create-rec-live').textContent()).toBe(clock);
+      const events = await page.evaluate(() => (window as unknown as { recorderEvents: string[] }).recorderEvents);
+      expect(events.slice(events.indexOf('error'),events.indexOf('error')+3)).toEqual(['error','dataavailable','stop']);
+      await shot(page, `encoder-${lang}-paused`);
+      await page.getByTestId('create-rec-stop').click();
+      await expect(page.getByTestId('editor')).toBeVisible({ timeout: 90000 });
+      const root = path.join(tmp, `vhome-encoder-${lang}`, 'recordings');
+      const names = fs.readdirSync(root); expect(names).toHaveLength(1);
+      const take = path.join(root,names[0]);
+      expect(fs.existsSync(path.join(take,'recording.lock'))).toBe(false);
+      for (const track of ['camera','mic']) expect(fs.statSync(path.join(take,`${track}.webm`)).size).toBeGreaterThan(1000);
+      expect(probe(path.join(take,'final','recording.mp4'))).toBeGreaterThan(.5);
+      expect(pageErrors).toEqual([]);
+    });
+  }
+});
+
 test.describe('recording save recovery', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
