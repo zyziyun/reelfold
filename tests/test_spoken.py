@@ -241,3 +241,29 @@ def test_future_number_is_not_available_to_context_card():
     beat = dict(BEAT, evidence_from=1, title='100 cases')
     with pytest.raises(ValueError, match='number absent'):
         spoken.validate(dict(beats=[beat]), cues, 12)
+
+
+DENSE = dict(kind='chain', title='比较不同方案时需要同时考虑输入条件以及输出结果之间的差异',
+             items=['这是一个用于检查手机上文字是否清晰的说明句子需要保留足够的字号让观众能够看清每个关键步骤和限定条件。'] * 3)
+
+
+@pytest.mark.parametrize('size', [(360, 640), (1080, 1920)])
+def test_dense_card_cannot_hide_overflow_at_high_resolution(size):
+    w, h = size
+    layer = outfx.make_layer(dict(effect='explanation-card', params=DENSE), w, h,
+                             (w*.07, h*.07, w*.92, h*.9))
+    with pytest.raises(ValueError, match='shorten'):
+        layer.setup()
+
+
+def test_layout_overflow_repairs_wording_before_export():
+    calls = []
+    def model(task, system, prompt, **kw):
+        calls.append(prompt)
+        beat = dict(BEAT, **DENSE) if len(calls) == 1 else BEAT
+        return dict(json=dict(beats=[beat]))
+    result = spoken.plan(CUES, 12, complete=model)
+    assert len(calls) == 2
+    assert 'layout:' in result['repairs'][0]
+    assert 'shorten' in calls[1]
+    assert result['effects'][0]['params']['items'] == BEAT['items']

@@ -118,6 +118,16 @@ def plan(cues, duration, title="", complete=None):
         doc = (result or {}).get("json")
         try:
             effects = validate(doc, cues, duration)
+            # Use the real typography layout before accepting a plan. A high-resolution
+            # export must not hide overflow by shrinking below readable phone scale.
+            from vstudio.project import outfx
+            for effect in effects:
+                for w, h in ((640, 360), (360, 640), (450, 600)):
+                    layer = outfx.make_layer(effect, w, h, (w * .07, h * .07, w * .92, h * .9))
+                    try:
+                        layer.setup()
+                    except ValueError as error:
+                        raise ValueError(f"spoken finishing: {w}x{h} layout: {error}") from error
         except ValueError as error:
             if attempt:
                 raise ValueError(f"spoken finishing: visual plan still invalid after one repair: {error}") from error

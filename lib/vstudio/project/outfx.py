@@ -688,11 +688,12 @@ class ExplanationCard(Layer):
         for i, text in enumerate(self.items):
             bx, by = (self.left + i * (bw + gap), y) if horizontal else (self.left, y + i * (bh + gap))
             pad = int(self.short * 0.025)
-            size = max(16, int(self.short * (0.1 if n == 1 else 0.07)))
+            minimum = max(16, round(self.short * 16 / 360))
+            size = max(minimum, int(self.short * (0.1 if n == 1 else 0.07)))
             while True:
                 txt = D.text_layer(text, D.load_font("cjk-bold", size), fill=(35, 42, 40, 255),
                                    max_w=max(20, bw - 2 * pad), align="left", pad=0, stroke=0, shadow_alpha=0)
-                if txt.height <= bh - 2 * pad or size <= 16:
+                if txt.height <= bh - 2 * pad or size <= minimum:
                     break
                 size -= 1
             if txt.height > bh - 2 * pad:
