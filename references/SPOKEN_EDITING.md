@@ -84,3 +84,7 @@ Primary written guidance, reviewed 2026-10-14 (references, not licensed footage 
   and cover editorial transitions; choose material for its meaning.
 - [Blackmagic official training](https://www.blackmagicdesign.com/products/davinciresolve/training): separate
   edit, visual effects, sound design and mixing disciplines. These are not evidence of a guaranteed market price.
+
+### Preserve the relationship when choosing a graphic
+
+Chain cards draw arrows. Use them for stated causes and consequences or ordered procedural steps, not conditional resilience, concessions, or hypothetical outcomes. Keep “even if”, “unless”, and other qualifications with the conclusion in a takeaway. A contrast needs real alternatives or differences. Audit the visible labels as well as the quoted evidence: an accurate quote does not make an inaccurate diagram acceptable.
