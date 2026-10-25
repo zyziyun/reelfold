@@ -459,3 +459,26 @@ def test_render_cover_platform_outputs_never_overwrite_plain_cover(tmp_path, mon
     monkeypatch.setattr(sys, "argv", ["render_cover.py", "c.html", "-o", out])
     main()
     assert made == [(out, (1080, 1920))]
+
+
+def test_screen_content_coverage_accounts_for_pan_and_unseen_gaps():
+    V = _import(LFS, "_vertical")
+    assert V.horizontal_coverage([[0, 0, 40, 100]], 0, 100) == .4
+    assert V.horizontal_coverage([[0, 0, 60, 100], [40, 0, 60, 100]], 0, 100) == 1
+    assert V.horizontal_coverage([[0, 0, 20, 100], [80, 0, 20, 100]], 0, 100) == .4
+    assert V.horizontal_coverage([[-20, 0, 150, 100]], 0, 100) == 1
+    assert V.horizontal_coverage([], 0, 100) == 0
+    assert V.horizontal_coverage([], 0, 0) is None
+
+
+def test_large_text_does_not_hide_cropped_screen_content():
+    from vstudio.batch import lfsplit as LS
+    plan = dict(items=[dict(item=0, screen=dict(text_px=52, horizontal_coverage=.44))])
+    summary = LS.screen_summary(plan, [dict(final_t0=12)], 30)
+    checks = LS.screen_checks({}, {}, dict(privacy=dict(plans={"portrait": dict(screen=summary)})))
+    by_id = {c["name"]: c for c in checks}
+    assert by_id["screen-text"]["ok"] is True
+    assert by_id["screen-content-cropped"]["ok"] is False
+    assert summary["cropped_content"] == [dict(t=12, coverage=.44)]
+    plan["items"][0]["screen"]["horizontal_coverage"] = 1
+    assert LS.screen_summary(plan, [dict(final_t0=12)], 30)["cropped_content"] == []

@@ -820,17 +820,20 @@ def spoken_hook_lines(timeline, cues, max_one=16):
 def screen_summary(plan, timeline, fps):
     """The screen-crop facts QC needs from one canvas plan: zoom, text size, follow, popups in output time."""
     items = [it for it in plan.get("items") or [] if it.get("screen")]
-    pops = []
+    pops, cropped = [], []
     for it in items:
         k = it.get("item")
         f0 = float(timeline[k]["final_t0"]) if k is not None and k < len(timeline) else 0.0
+        coverage = it["screen"].get("horizontal_coverage")
+        if coverage is not None and coverage < 0.98:
+            cropped.append(dict(t=round(f0, 2), coverage=round(coverage, 3)))
         for pp in (it["screen"].get("popups") or []):
             pops.append(dict(t=round(f0 + pp["f0"] / fps, 2), dur=pp["dur"], cover=pp["cover"], masked=pp["masked"]))
     tp = [it["screen"].get("text_px") for it in items if it["screen"].get("text_px")]
     return dict(scale=max([it["screen"].get("scale") or 0 for it in items] or [0]),
                 text_px_min=min(tp) if tp else None, text_small=any(it["screen"].get("text_small") for it in items),
                 moving=sum((it["screen"].get("p95_speed") or 0) > 0.002 for it in items), items=len(items),
-                scrolls=sum(it["screen"].get("scrolls") or 0 for it in items), popups=pops,
+                scrolls=sum(it["screen"].get("scrolls") or 0 for it in items), popups=pops, cropped_content=cropped,
                 visible=visible_popups(plan), static=static_overlays(plan))
 
 
@@ -913,6 +916,11 @@ def screen_checks(job, spec, export_out):
         out.append(_c("screen-popup", not shown, [[x["t"], x["dur"], x["cover"], x["masked"]] for x in big],
                       "editor popup over the page: " + ", ".join(f"{x['t']:.1f}s for {x['dur']:.1f}s ({x['cover']:.0%})"
                                                                  for x in shown), severity="warn", target=canvas))
+        if "cropped_content" in sc:
+            cropped = sc["cropped_content"]
+            out.append(_c("screen-content-cropped", not cropped, cropped,
+                          "Part of the detected screen content never enters the crop; review code line ends "
+                          "and annotations, or recompose the screen", severity="warn", target=canvas))
         tp = sc.get("text_px_min")
         out.append(_c("screen-text", tp is None or tp >= q["text_px_min"], tp,
                       f"text lines only {tp}px tall at the {sc.get('scale')}x zoom cap", severity="warn", target=canvas))

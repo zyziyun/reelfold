@@ -316,6 +316,21 @@ def find_popups(stack, o=SCREEN_DEFAULTS, hz=4.0):
     return popups
 
 
+def horizontal_coverage(rects, left, right):
+    """Fraction of the detected content width ever shown, including pans.
+
+    This is a crop-risk signal, not proof that text was readable or all rows visible.
+    """
+    if right <= left:
+        return None
+    covered, edge = 0.0, left
+    for x, _, w, _ in sorted(rects):
+        a, b = max(left, x), min(right, x + w)
+        covered += max(0.0, b - max(edge, a))
+        edge = max(edge, b)
+    return min(1.0, covered / (right - left))
+
+
 def analyse_screen(src, t0, t1, speed, fps, n, region, box, zoom_center=None, still=None, o=SCREEN_DEFAULTS,
                    vis_h=None):
     """Per-frame crop rects [x, y, cw, ch] (source px) for the screen box of one timeline item, plus stats
@@ -449,6 +464,7 @@ def analyse_screen(src, t0, t1, speed, fps, n, region, box, zoom_center=None, st
                         masked=o.get("popups") == "mask" and not pp.get("open")))
     text_px = line_px and line_px * (box[2] - box[0]) / cw
     stats = dict(scale=round((box[2] - box[0]) / cw, 3), content_w=round(content_w, 1), cuts=len(bounds) - 2,
+                 horizontal_coverage=horizontal_coverage(rects, bx0, bx1),
                  fixed_x=bool(fixed_x), draw_h=int(draw_h), draw_y=even(max(0, (box[3] - box[1]) - int(draw_h)) // 2), line_px=line_px and round(line_px, 1),
                  text_px=text_px and round(text_px, 1),
                  text_small=bool(text_px and o.get("min_text_px") and text_px < o["min_text_px"] - 0.5),

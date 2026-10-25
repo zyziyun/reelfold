@@ -238,6 +238,11 @@ loudness, length / title / label warnings; merged across runs, so `--targets you
 小红书 run adds entries instead of replacing them). `qa.py` summarises them and writes contact sheets.
 Speed: ~2x real time per canvas on a laptop (decode, compose in numpy, x264), plus one export per target.
 
+Screen QC also reports `screen-content-cropped` when part of the detected content width never appears
+in any crop of an item, even after panning. Review the reported times for cut-off code lines and annotations.
+Large text alone does not make a screen crop usable: retain the full explanation, or recompose it into
+verified detail shots with context. This heuristic does not prove semantic completeness or vertical coverage.
+
 ## Hard-won defaults
 - **Platform auto-captions are unusable** for non-English speech (Meet/Zoom map Chinese onto random
   English words). Keep only speaker labels + timestamps; re-transcribe with whisper.
