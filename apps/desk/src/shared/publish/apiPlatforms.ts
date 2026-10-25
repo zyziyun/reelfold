@@ -6,6 +6,15 @@
 // The audit behind this table: references/PUBLISHING.md.
 import { YOUTUBE_FORMATS } from '../platforms';
 
+/** Display-only saved upload details. No resumable URI, source path or credentials. */
+export interface YtResumeInfo {
+  account: string;
+  privacy: string;
+  publishAt: string | null;
+  canResume: boolean;
+  busy: boolean;
+}
+
 export type ApiId = 'youtube' | 'tiktok' | 'x' | 'instagram';
 
 export interface ApiPlatform {

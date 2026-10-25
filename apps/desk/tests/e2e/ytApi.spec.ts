@@ -39,6 +39,9 @@ interface Rec {
   verifier: string | null;
   remote?: Record<string, string>;
   reads?: number;
+  inserts?: number;
+  failNext?: boolean;
+  incomplete?: boolean;
 }
 const rec = () => app.evaluate(() => (globalThis as unknown as { __yt: Rec }).__yt);
 
@@ -93,11 +96,22 @@ test.beforeAll(async () => {
         if (u.pathname === '/youtube/v3/channels') return json(200, { items: [{ id: 'UCe2e', snippet: { title: 'E2E Channel' } }] });
         if (u.pathname === '/youtube/v3/playlists') return json(200, { items: [] });
         if (u.pathname === '/upload/youtube/v3/videos' && init?.method === 'POST') {
+          g.__yt.inserts = (g.__yt.inserts ?? 0) + 1;
           g.__yt.meta = JSON.parse(String(init.body));
           return new Response('', { status: 200, headers: { location: 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=E2E' } });
         }
         if (u.pathname === '/upload/youtube/v3/videos' && init?.method === 'PUT') {
           g.__yt.puts++;
+          if (g.__yt.failNext) {
+            g.__yt.failNext = false;
+            g.__yt.incomplete = true;
+            return json(400, { error: { message: 'Interrupted test upload' } });
+          }
+          if (g.__yt.incomplete) {
+            if (new Headers(init.headers).get('Content-Range')?.startsWith('bytes */')) return new Response(null, { status: 308 });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            g.__yt.incomplete = false;
+          }
           return json(201, { id: 'e2eVid', status: { privacyStatus: 'private', uploadStatus: 'processed', publishAt: (g.__yt.meta?.status as { publishAt?: string }).publishAt } });
         }
         if (u.pathname === '/upload/youtube/v3/thumbnails/set') {
@@ -279,6 +293,35 @@ test('a private upload remains uploaded, not posted, after reopening the page', 
   await expect(page.getByTestId('ytp-done')).toHaveAttribute('data-privacy', 'private');
   await expect(page.getByTestId('ytp-form')).toHaveCount(0);
   await page.screenshot({ path: path.join(SHOTS, 'yt-private.png') });
+});
+
+test('an interrupted manual upload survives reload and continues its original session', async () => {
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 3 * 86400_000)) }] });
+  const id = r.ids[0];
+  const initial = (await rec()).inserts ?? 0;
+  await hash(`#/publish/post/${id}`);
+  await expect(page.getByTestId('ytp-form')).toBeVisible();
+  await page.getByTestId('ytp-title').fill('Original scheduled title');
+  await page.getByTestId('ytp-kids-no').check();
+  await app.evaluate(() => { (globalThis as unknown as { __yt: Rec }).__yt.failNext = true; });
+  await page.getByTestId('ytp-publish').click();
+  await expect(page.getByTestId('ytp-resume-card')).toBeVisible();
+  const original = (await rec()).meta;
+  expect(original?.snippet.title).toBe('Original scheduled title');
+  await expect(page.getByTestId('ytp-resume-card')).toContainText('Account: main');
+  await expect(page.getByTestId('ytp-form')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('ytp-resume')).toBeEnabled();
+  await page.screenshot({ path: path.join(SHOTS, 'yt-resume-ready.png') });
+  expect((await rec()).inserts).toBe(initial + 1);
+  await page.getByTestId('ytp-resume').click();
+  await expect(page.getByTestId('ytp-resume')).toBeDisabled();
+  await page.screenshot({ path: path.join(SHOTS, 'yt-resume-running.png') });
+  await expect(page.getByTestId('ytp-done')).toContainText('Scheduled');
+  expect((await rec()).inserts).toBe(initial + 1);
+  expect((await rec()).meta).toEqual(original);
+  const row = (await api<{ posts: Row[] }>('/api/calendar')).posts.find(x => x.id === id)!;
+  expect(row).toMatchObject({ state: 'scheduled', via: 'api', url: 'https://youtu.be/e2eVid' });
 });
 
 test('status readback distinguishes processing, public and rejected, persists after reload, never uploads again', async () => {

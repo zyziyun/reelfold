@@ -1088,6 +1088,31 @@ function registerIpc() {
     delete pkg.clipTitles;
     return pkg;
   });
+  handle('publish:ytPending', async (p) => {
+    noYouTubeApiInLite();
+    const pending = youtube.pendingUpload(p.postId);
+    const attempt = scheduler?.apiState(p.postId);
+    return pending ? { ...pending, canResume: pending.canResume && !!attempt && ['uploading', 'unverified'].includes(attempt.status),
+      busy: scheduler?.isUploading(p.postId) ?? false } : null;
+  });
+  handle('publish:ytResume', async (p) => {
+    noYouTubeApiInLite();
+    const row = (await needClient().calendar(undefined, { queue: false })).posts.find(post => post.id === p.postId);
+    if (!scheduler || !row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) ||
+        ytAccountFor(row) !== p.account) throw new Error('Restore the original publishing account before continuing.');
+    let last = 0;
+    const recovered = await scheduler.recoverUpload(row, async () => {
+      const r = await youtube.recover(p.postId, true, p.account, (sent, total) => {
+        if (sent !== total && Date.now() - last < 250) return;
+        last = Date.now();
+        win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
+      });
+      return r ? { ok: true, url: r.result.url, ...r } : null;
+    });
+    if (!recovered.ok) throw new Error(recovered.error);
+    if (!recovered.result) throw new Error('Upload receipt is unavailable. Check YouTube Studio.');
+    return recovered.result;
+  });
   handle('publish:ytRefresh', async (p) => {
     noYouTubeApiInLite();
     const row = (await needClient().calendar(undefined, { queue: false })).posts.find(post => post.id === p.postId);

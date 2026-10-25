@@ -38,6 +38,20 @@ finished video, account and custom title/caption. Inherited copy stays inherited
 and statistics are not copied. A selected file that is no longer available stops the copy instead of silently
 switching to a default rendition. The whole card is copied atomically and can be undone together.
 
+## Continue an interrupted YouTube upload
+
+Reopen the post to see its saved account, visibility and scheduled time. **Continue original upload**
+queries the existing resumable session and sends only the remaining bytes; it never creates a second
+video. The original publishing settings stay in effect. A scheduled video stays private until its
+scheduled publication. Restore the original post account and calendar time if you changed them.
+
+The source must still match the file used to start the upload. Missing or changed files, unavailable
+credentials and expired sessions remain errors; use YouTube Studio to check the existing result.
+Older saved sessions without file verification cannot be resumed here. After recovery, check the cover
+and playlist in YouTube Studio when the result warns that these follow-up steps are unconfirmed.
+Manual continuation and automatic recovery share one in-flight owner. No automatic opt-in is needed
+for the user's explicit **Continue original upload** action.
+
 ## Automatic upload recovery
 
 YouTube receipts keep processing status separately from visibility. Public visibility does not count as published

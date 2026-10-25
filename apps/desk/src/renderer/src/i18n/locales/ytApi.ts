@@ -3,6 +3,14 @@
 // published (official API / built-in browser).
 
 export const ytApiEn = {
+  "ytp.resume.scheduledVisibility": "Private until scheduled publication",
+  "ytp.resume.title": "Continue the previous upload",
+  "ytp.resume.account": "Account: {account}",
+  "ytp.resume.hint": "Continue the same upload with its original publishing settings. Changes in this form do not replace those settings.",
+  "ytp.resume.accountChanged": "Restore the original publishing account to continue.",
+  "ytp.resume.unavailable": "This saved upload cannot be continued here. Check its result in YouTube Studio.",
+  "ytp.resume.button": "Continue original upload",
+  "ytp.resume.studio": "Check in YouTube Studio",
   'yt.title': 'YouTube',
   'yt.lead': 'YouTube is published through Google’s official YouTube Data API. You sign in with Google in your own browser; Reelfold never sees your password, and nothing goes out until you press Publish or Schedule.',
   'yt.how': 'Google sign-in uses',
@@ -152,6 +160,14 @@ export const ytApiEn = {
 export type YtKey = keyof typeof ytApiEn;
 
 export const ytApiZh: Record<YtKey, string> = {
+  "ytp.resume.scheduledVisibility": "定时发布前保持私密",
+  "ytp.resume.title": "继续上次的上传",
+  "ytp.resume.account": "账号：{account}",
+  "ytp.resume.hint": "继续同一次上传，保留原来的发布设置。这里修改的表单不会替换原设置。",
+  "ytp.resume.accountChanged": "请切回原发布账号后继续。",
+  "ytp.resume.unavailable": "无法在这里继续这次上传，请到 YouTube Studio 检查结果。",
+  "ytp.resume.button": "继续原上传",
+  "ytp.resume.studio": "在 YouTube Studio 检查",
   'yt.title': 'YouTube',
   'yt.lead': 'YouTube 通过 Google 官方 YouTube Data API 发布。你在自己的浏览器里用 Google 登录，千剪看不到你的密码；不按「发布」或「定时」，什么都不会发出去。',
   'yt.how': 'Google 登录使用',
@@ -299,6 +315,14 @@ export const ytApiZh: Record<YtKey, string> = {
 };
 
 export const ytApiFr: Record<YtKey, string> = {
+  "ytp.resume.scheduledVisibility": "Privée jusqu’à la publication programmée",
+  "ytp.resume.title": "Reprendre l’envoi précédent",
+  "ytp.resume.account": "Compte : {account}",
+  "ytp.resume.hint": "Reprend le même envoi avec ses paramètres de publication d’origine. Les modifications de ce formulaire ne les remplacent pas.",
+  "ytp.resume.accountChanged": "Rétablissez le compte de publication d’origine pour continuer.",
+  "ytp.resume.unavailable": "Cet envoi ne peut pas être repris ici. Vérifiez son résultat dans YouTube Studio.",
+  "ytp.resume.button": "Reprendre l’envoi d’origine",
+  "ytp.resume.studio": "Vérifier dans YouTube Studio",
   'yt.title': 'YouTube',
   'yt.lead': 'YouTube est publié via l’API officielle YouTube Data de Google. Vous vous connectez avec Google dans votre propre navigateur ; Reelfold ne voit jamais votre mot de passe, et rien ne part tant que vous n’appuyez pas sur Publier ou Programmer.',
   'yt.how': 'La connexion Google utilise',

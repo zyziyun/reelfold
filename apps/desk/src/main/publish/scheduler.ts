@@ -200,29 +200,7 @@ export class PublishScheduler {
       }).sort((a, b) => (this.state.api[a.id]?.lastCheck ?? 0) - (this.state.api[b.id]?.lastCheck ?? 0)).slice(0, 3);
       for (const p of pending) {
         const previous = this.state.api[p.id];
-        previous.lastCheck = now.getTime();
-        if (!this.write()) continue;
-        try {
-          const r = await api.recover(p, previous.source !== 'manual' && api.wants(p));
-          if (this.state.api[p.id] !== previous) continue;
-          if (!r) {
-            previous.status = 'unverified';
-            previous.detail = 'Upload completion is not confirmed. Check YouTube Studio.';
-            this.write();
-            continue;
-          }
-          const current = (await this.deps.load()).find(row => row.id === p.id);
-          if (!current || current.at !== p.at || (current.account ?? null) !== (p.account ?? null) || current.state === 'posted') continue;
-          const receipt: ApiAttempt = { ...previous, status: 'done', calendarSynced: false,
-            url: r.url ?? undefined, result: r.result, resolvedAccount: r.account };
-          this.state.api[p.id] = receipt;
-          await this.syncReceipt(current, receipt);
-        } catch (e) {
-          previous.status = 'unverified';
-          previous.detail = 'Upload verification is unavailable. Check YouTube Studio.';
-          this.write();
-          this.deps.log?.(`[scheduler] upload verification pending: ${(e as Error).message}`);
-        }
+        await this.recoverUpload(p, () => api.recover!(p, previous.source !== 'manual' && api.wants(p)));
       }
     }
     // Bounded readback independent of opt-in uploads: at most three reads per five minutes.
@@ -262,6 +240,44 @@ export class PublishScheduler {
       if (r.ok || this.state.api[p.id]?.lastTry === t) ran.push(p.id);
     }
     return ran;
+  }
+
+  isUploading(postId: string): boolean { return this.uploading.has(postId); }
+
+  /** Resume only the existing operation, serialized with automatic recovery and manual upload. */
+  async recoverUpload(p: CalendarPost, recover: () => Promise<Extract<ApiUpload, { ok: true }> | null>): Promise<ApiUpload> {
+    const previous = this.state.api[p.id];
+    if (!this.stateReadable || !previous || !['uploading', 'unverified'].includes(previous.status)) {
+      return { ok: false, error: 'No interrupted upload is available to continue.' };
+    }
+    if (this.uploading.has(p.id)) return { ok: false, error: 'This upload is already running.' };
+    if (previous.at !== p.at || (previous.account ?? null) !== (p.account ?? null) || p.state === 'posted') {
+      return { ok: false, error: 'This post changed since uploading. Restore its original account and time before continuing.' };
+    }
+    previous.lastCheck = this.deps.now().getTime();
+    if (!this.write()) return { ok: false, error: 'Could not save upload history. No upload was resumed.' };
+    this.uploading.add(p.id);
+    try {
+      const r = await recover();
+      if (!r) throw new UploadOutcomeUnknown('Upload completion is not confirmed. Check YouTube Studio.');
+      const receipt: ApiAttempt = { ...previous, status: 'done', calendarSynced: false,
+        url: r.url ?? undefined, result: r.result, resolvedAccount: r.account };
+      this.state.api[p.id] = receipt;
+      this.write();
+      const current = (await this.deps.load()).find(row => row.id === p.id);
+      if (current && current.at === p.at && (current.account ?? null) === (p.account ?? null) && current.state !== 'posted') {
+        await this.syncReceipt(current, receipt);
+      }
+      return r;
+    } catch (e) {
+      // A verified remote success must survive a later local read/reconciliation failure.
+      if (this.state.api[p.id] === previous) {
+        previous.status = 'unverified';
+        previous.detail = e instanceof Error ? e.message : String(e);
+        this.write();
+      }
+      return { ...apiFailure(e), unverified: true };
+    } finally { this.uploading.delete(p.id); }
   }
 
   /** One durable owner for manual and scheduled uploads. No await before claiming the post. */

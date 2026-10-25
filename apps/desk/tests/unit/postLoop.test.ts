@@ -164,6 +164,45 @@ describe('scheduler', () => {
     expect(publish).toHaveBeenCalledTimes(1);
   });
 
+  it('continues an interrupted manual upload once, sharing ownership with timer recovery', async () => {
+    const p = post('manual-resume', '2026-10-07T20:00', { platform: 'youtube', account: 'main' });
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const autoRecover = vi.fn(async () => null);
+    const m = mk([p], clock, { api: { wants: () => false, publish: vi.fn(), recover: autoRecover } });
+    await m.s.upload(p, async () => { throw new UploadOutcomeUnknown('Interrupted'); });
+    const result = { id: 'old', url: 'https://youtu.be/old', privacy: 'private', publishAt: null, lockedPrivate: false, warnings: [] };
+    let finish!: () => void;
+    const held = new Promise<void>(resolve => { finish = resolve; });
+    const recover = vi.fn(async () => { await held; return { ok: true as const, url: result.url, result, account: 'main' }; });
+    expect(await m.s.recoverUpload({ ...p, account: 'other' }, recover)).toMatchObject({ ok: false });
+    expect(await m.s.recoverUpload({ ...p, at: '2026-10-08T20:00' }, recover)).toMatchObject({ ok: false });
+    expect(recover).not.toHaveBeenCalled();
+    const task = m.s.recoverUpload(p, recover);
+    expect(m.s.isUploading(p.id)).toBe(true);
+    expect(await m.s.recoverUpload(p, recover)).toMatchObject({ ok: false });
+    await m.s.tick();
+    expect(autoRecover).not.toHaveBeenCalled();
+    finish();
+    expect(await task).toMatchObject({ ok: true, result });
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(m.posted).toEqual([p.id]);
+    expect(m.s.isUploading(p.id)).toBe(false);
+    expect(m.s.apiState(p.id)).toMatchObject({ status: 'done', source: 'manual', calendarSynced: true });
+  });
+
+  it('retains an interrupted session when manual recovery fails and permits another attempt', async () => {
+    const p = post('resume-failed', '2026-10-07T20:00', { platform: 'youtube' });
+    const m = mk([p], { t: new Date(2026, 9, 7, 20, 1) });
+    await m.s.upload(p, async () => { throw new UploadOutcomeUnknown('Interrupted'); });
+    const recover = vi.fn(async () => { throw new Error('Source file changed'); });
+    expect(await m.s.recoverUpload(p, recover)).toMatchObject({ ok: false, unverified: true, error: 'Source file changed' });
+    expect(m.s.isUploading(p.id)).toBe(false);
+    expect(m.s.apiState(p.id)).toMatchObject({ status: 'unverified' });
+    await m.s.recoverUpload(p, recover);
+    expect(recover).toHaveBeenCalledTimes(2);
+    expect(m.posted).toEqual([]);
+  });
+
   it('reconciles an unknown upload after restart even with automatic publishing switched off', async () => {
     const clock = { t: new Date(2026, 9, 7, 20, 1) };
     const p = post('recover', '2026-10-07T20:00', { platform: 'youtube' });

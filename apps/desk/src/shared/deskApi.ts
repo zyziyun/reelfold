@@ -4,7 +4,7 @@ import type { AiRoutes, AuthStatusMsg, KeyName, ProviderId } from './aiRoutes';
 import type { AssetsStatusMsg } from './assets';
 import type { ChannelMsg, ChannelPrefs } from './channels';
 import type { Adapter } from './publish/adapterSchema';
-import type { ApiStatusMsg, PostPackageMsg, YtPublishReq, YtPublishResult } from './publish/apiPlatforms';
+import type { ApiStatusMsg, PostPackageMsg, YtResumeInfo, YtPublishReq, YtPublishResult } from './publish/apiPlatforms';
 import type { EmbedBlock } from './publish/embedBlock';
 import type { Confirmation } from './publish/gating';
 import type { EngineInfo } from './types';
@@ -235,6 +235,8 @@ export interface DeskApi {
       disconnect(account?: string, forgetClient?: boolean): Promise<ApiStatusMsg[]>;
       setAuto(auto: boolean): Promise<ApiStatusMsg[]>;
       playlists(account: string): Promise<{ id: string; title: string }[]>;
+      pendingUpload(postId: string): Promise<YtResumeInfo | null>;
+      resume(postId: string, account: string): Promise<YtPublishResult>;
       refresh(postId: string): Promise<YtPublishResult>;
       /** her Publish / Schedule click: upload through the YouTube Data API (progress: 'publish:ytProgress') */
       publish(req: YtPublishReq): Promise<YtPublishResult>;

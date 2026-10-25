@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Copy, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
-import { apiDeliveryState, apiProcessingFailed, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
+import { apiDeliveryState, apiProcessingFailed, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtResumeInfo, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
 import type { CalendarPost } from '../../../shared/v04';
 import { fmtDate, t } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -238,6 +238,38 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   const [playlist, setPlaylist] = useState('');
   const [lists, setLists] = useState<{ id: string; title: string }[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ k: 'form' });
+  const [pending, setPending] = useState<YtResumeInfo | null>();
+  const [pendingError, setPendingError] = useState('');
+  const [pendingReload, setPendingReload] = useState(0);
+  useEffect(() => {
+    if (result || phase.k === 'done') return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try {
+        const info = await window.desk.publish.api.pendingUpload(post.id);
+        if (!active) return;
+        setPending(info);
+        setPendingError('');
+        if (info?.busy) timer = setTimeout(() => void read(), 3000);
+      } catch (e) { if (active) setPendingError(errText(e)); }
+    };
+    void read();
+    return () => { active = false; clearTimeout(timer); };
+  }, [post.id, phase.k, result, pendingReload]);
+  const resume = async () => {
+    if (!pending || pending.busy) return;
+    setPhase({ k: 'uploading', pct: 0 });
+    try {
+      const r = await window.desk.publish.api.resume(post.id, pending.account);
+      setPhase({ k: 'done', r });
+      onPosted(r);
+    } catch (e) {
+      setPhase({ k: 'form' });
+      ui.toast(errText(e), { error: true });
+    }
+  };
+
   useEffect(() => { onBusy?.(phase.k === 'uploading'); return () => onBusy?.(false); }, [phase.k, onBusy]);
   const [connect, setConnect] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -345,6 +377,31 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   }
   if (!acct) return null;
   const busy = phase.k === 'uploading';
+  if (pendingError || pending === undefined) return (
+    <div className="pl-card" data-testid="ytp-recovery-loading">
+      <span>{pendingError || t('ytp.status.checking')}</span>
+      {pendingError && <button className="btn" onClick={() => setPendingReload(n => n + 1)}>{t('ytp.status.refresh')}</button>}
+    </div>
+  );
+  if (pending) return (
+    <div className="pl-card warn" data-testid="ytp-resume-card">
+      <TriangleAlert className="ico" />
+      <div className="col" style={{ gap: 12 }}>
+        <b>{t('ytp.resume.title')}</b>
+        <span>{t('ytp.resume.account', { account: pending.account })}</span>
+        <span>{t('ytp.f.privacy')}: {pending.publishAt ? t('ytp.resume.scheduledVisibility') : t(`ytp.f.${['public', 'private', 'unlisted'].includes(pending.privacy) ? pending.privacy : 'unknown'}` as MessageKey)}</span>
+        <span>{t('ytp.f.when')}: {pending.publishAt ? fmtDate(pending.publishAt, { dateStyle: 'medium', timeStyle: 'short' }) : t('ytp.f.now')}</span>
+        <span className="muted small">{t('ytp.resume.hint')}</span>
+        {pending.account !== account && <span>{t('ytp.resume.accountChanged')}</span>}
+        {!pending.canResume && <span>{t('ytp.resume.unavailable')}</span>}
+        <button className="btn primary" data-testid="ytp-resume" disabled={busy || pending.busy || !pending.canResume || pending.account !== account} onClick={() => void resume()}>
+          {(busy || pending.busy) && <Loader2 className="ico spin" />}
+          {busy || pending.busy ? t('ytp.uploading', { pct: phase.k === 'uploading' ? phase.pct : 0 }) : t('ytp.resume.button')}
+        </button>
+        <button className="pb-link" onClick={() => void window.desk.openExternal('https://studio.youtube.com')}>{t('ytp.resume.studio')} <ExternalLink className="ico" /></button>
+      </div>
+    </div>
+  );
   const atDate = new Date(`${at}:00`);
   const atOk = when === 'now' || atDate.getTime() > Date.now() + 5 * 60_000;
   return (
