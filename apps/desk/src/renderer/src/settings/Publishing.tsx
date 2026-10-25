@@ -4,7 +4,7 @@
 // (Open at login + menu bar) and the official posting APIs: YouTube signs in with Google in her own browser (official
 // Data API, never the built-in browser); the others are documented until they are wired. Video length: her own
 // shortest / longest per platform (PlatformLengths.tsx).
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronRight, MoreHorizontal, Plus, Send } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
 import type { ApiStatusMsg } from '../../../shared/publish/apiPlatforms';
@@ -18,7 +18,7 @@ import { Dot, Group, Page, Row, Toggle } from './kit';
 import { VideoLengthGroup } from './PlatformLengths';
 import type { SettingsCtx } from './registry';
 import { adapterShort, signInChannel } from './status';
-import { YT_ADAPTER, YtClientChoice, YtConnectSheet } from '../publish/YouTube';
+import { YT_ADAPTER, YtClientChoice, YtConnectSheet, usePublishingApi, ApiStatusFeedback } from '../publish/YouTube';
 
 export function PublishingSection(ctx: Partial<SettingsCtx>) {
   const ui = useUi();
@@ -107,14 +107,9 @@ export function PublishingSection(ctx: Partial<SettingsCtx>) {
 
 function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
   const ui = useUi();
-  const [st, setSt] = useState<ApiStatusMsg[] | null>(null);
+  const { all: st, apply: setSt, error, loading, reload } = usePublishingApi();
   const [busy, setBusy] = useState(false);
   const { channels } = useChannels();
-  const reload = () => void window.desk.publish.api.status().then(setSt).catch(() => undefined);
-  useEffect(() => {
-    reload();
-    return window.desk.on('publish:channels', reload);
-  }, []);
   const run = async (fn: () => Promise<ApiStatusMsg[]>) => {
     setBusy(true);
     try {
@@ -127,14 +122,14 @@ function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
       setBusy(false);
     }
   };
-  if (!st) return null;
-  const api = st.find((a) => a.id === 'youtube')!;
-  const yt = api.yt;
+  if (error || !st) return <ApiStatusFeedback error={error} loading={loading} reload={reload} />;
+  const api = st.find((a) => a.id === 'youtube');
+  const yt = api?.yt;
   const nameOf = (account: string) => channels.find((c) => c.adapterId === YT_ADAPTER && c.account === account)?.name ?? account;
   const addYouTube = async () => {
     try {
       await window.desk.publish.addAccount(YT_ADAPTER, 'main');
-      reload();
+      void reload();
       onConnect('main');
     } catch (e) {
       ui.toast(errText(e), { error: true });
@@ -144,7 +139,7 @@ function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
     <>
       <Group title={<span className="row" style={{ gap: 8 }}><PlatformIcon id="youtube" size={18} />{t('yt.title')}</span>} testId="settings-api">
         <div className="s2-row s2-rhint">{t('yt.lead')}</div>
-        {!CAPS.youtubeApi || !yt ? (
+        {!CAPS.youtubeApi || !yt || !api ? (
           <div className="s2-row s2-rhint" data-testid="yt-lite">{t('yt.lite')}</div>
         ) : (
           <>

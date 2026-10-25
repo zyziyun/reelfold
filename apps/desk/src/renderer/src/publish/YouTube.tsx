@@ -2,7 +2,7 @@
 // client, with the setup guide), "Sign in with Google in your browser" per YouTube account, and the publish form of
 // one post (title, description, tags, category, visibility, now / at a time, made for kids, altered content, Short,
 // thumbnail, playlist). Uploading starts only from her Publish / Schedule click.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Copy, ExternalLink, Loader2, TriangleAlert, Upload } from 'lucide-react';
 import { CAPS } from '../../../shared/edition';
 import { apiDeliveryState, apiProcessingFailed, shortsFit, type ApiStatusMsg, type PostPackageMsg, type YtAccountMsg, type YtPublishResult, type YtResumeInfo, type YtStatusMsg } from '../../../shared/publish/apiPlatforms';
@@ -17,20 +17,54 @@ import './publish.css';
 export const YT_ADAPTER = 'youtube-studio';
 const CATEGORIES = ['22', '24', '27', '28', '26', '1', '10', '20', '23', '17', '19', '15', '25', '29', '2'];
 
-/** The YouTube API status (client + accounts), refreshed when an account's state changes. */
-export function useYt() {
-  const [api, setApi] = useState<ApiStatusMsg | null>(null);
-  const apply = useCallback((all: ApiStatusMsg[]) => setApi(all.find((a) => a.id === 'youtube') ?? null), []);
+/** Shared settings/login status reader. A late read must not undo a completed account change. */
+export function usePublishingApi() {
+  const [all, setAll] = useState<ApiStatusMsg[] | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const generation = useRef(0);
+  const apply = useCallback((value: ApiStatusMsg[]) => {
+    generation.current++;
+    setAll(value);
+    setError('');
+    setLoading(false);
+  }, []);
   const reload = useCallback(async () => {
-    if (!CAPS.youtubeApi) return;
-    apply(await window.desk.publish.api.status());
-  }, [apply]);
+    const request = ++generation.current;
+    setLoading(true);
+    setError('');
+    try {
+      const value = await window.desk.publish.api.status();
+      if (request === generation.current) setAll(value);
+    } catch (e) {
+      if (request === generation.current) setError(errText(e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+    } finally {
+      if (request === generation.current) setLoading(false);
+    }
+  }, []);
   useEffect(() => {
-    void reload().catch(() => undefined);
-    const off = window.desk.on('publish:channels', () => void reload().catch(() => undefined));
-    return off;
+    void reload();
+    const off = window.desk.on('publish:channels', () => void reload());
+    // Invalidate the latest request, including reloads started after this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { generation.current++; off(); };
   }, [reload]);
-  return { api, yt: api?.yt ?? null, apply, reload };
+  return { all, error, loading, apply, reload };
+}
+
+export function ApiStatusFeedback({ error, loading, reload }: { error: string; loading: boolean; reload: () => Promise<void> }) {
+  if (!error) return loading ? <div className="pb-loading" aria-busy="true" data-testid="api-status-loading" /> : null;
+  return <div className="pl-card" role="alert" data-testid="api-status-error">
+    <span>{error}</span>
+    <button className="btn" onClick={() => void reload()} data-testid="api-status-retry">{t('c.retry')}</button>
+  </div>;
+}
+
+/** The YouTube API status, refreshed when an account's state changes. */
+export function useYt() {
+  const state = usePublishingApi();
+  const api = state.all?.find((a) => a.id === 'youtube') ?? null;
+  return { ...state, api, yt: api?.yt ?? null };
 }
 
 export const ytAccount = (yt: YtStatusMsg | null, account: string): YtAccountMsg | null => yt?.accounts.find((a) => a.account === account) ?? null;
@@ -148,7 +182,7 @@ export function YtGuideSheet({ onClose, onSaved }: { onClose: () => void; onSave
 /** "Sign in with Google in your browser" for one YouTube account: the permissions first, then the system browser. */
 export function YtConnectSheet({ account, onClose, onDone }: { account: string; onClose: () => void; onDone?: (s: ApiStatusMsg[]) => void }) {
   const ui = useUi();
-  const { api, yt, apply } = useYt();
+  const { api, yt, apply, error, loading, reload } = useYt();
   const [waiting, setWaiting] = useState(false);
   const [playlists, setPlaylists] = useState(false);
   const close = () => {
@@ -185,7 +219,7 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
             </button>
           </span>
         ) : (
-          <button className="btn primary" disabled={!yt?.hasClient || !api?.keychain} onClick={() => void go()} data-testid="yt-connect-go">
+          <button className="btn primary" disabled={loading || !!error || !yt?.hasClient || !api?.keychain} onClick={() => void go()} data-testid="yt-connect-go">
             {t('yt.connectGo')}
           </button>
         )
@@ -193,8 +227,10 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
     >
       {!CAPS.youtubeApi ? (
         <p>{t('yt.lite')}</p>
+      ) : error || loading ? (
+        <ApiStatusFeedback error={error} loading={loading} reload={reload} />
       ) : !yt ? (
-        <div className="pb-loading" aria-busy="true" />
+        <p>{t('yt.lite')}</p>
       ) : (
         <>
           {!yt.hasClient || !yt.builtin ? <YtClientChoice yt={yt} apply={apply} /> : null}
@@ -219,7 +255,7 @@ const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
 /** A post's YouTube form; Publish / Schedule is her click. */
 export function YtPublishForm({ post, account, result, onPosted, onBusy, immediate = false }: { onBusy?: (busy: boolean) => void; immediate?: boolean; post: CalendarPost; account: string; result?: YtPublishResult | null; onPosted: (r: YtPublishResult) => void }) {
   const ui = useUi();
-  const { yt, apply } = useYt();
+  const { yt, apply, error, loading, reload } = useYt();
   const acct = ytAccount(yt, account);
   const [pkg, setPkg] = useState<PostPackageMsg | null>(null);
   const [title, setTitle] = useState('');
@@ -350,6 +386,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   // what YouTube answered (kept by the page: this form may be mounted again while the calendar reloads)
   const sent = result ?? (phase.k === 'done' ? phase.r : null);
   if (!CAPS.youtubeApi) return null;
+  if (!sent && (error || loading)) return <ApiStatusFeedback error={error} loading={loading} reload={reload} />;
   if (!acct?.connected && !sent)
     return (
       <div className="pl-card" data-testid="ytp-connect">

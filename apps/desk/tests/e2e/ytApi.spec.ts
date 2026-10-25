@@ -377,3 +377,36 @@ test('Upload in your browser: the page in her browser, the file shown, the copy 
   await page.getByTestId('ub-posted').click();
   await expect(page.getByTestId('post-posted')).toBeVisible({ timeout: 15000 });
 });
+
+test('account status failures stay visible and retry in settings and sign-in', async () => {
+  const status = await page.evaluate(() => window.desk.publish.api.status());
+  await app.evaluate(({ ipcMain }, value) => {
+    const g = globalThis as unknown as { __statusFails: boolean };
+    g.__statusFails = true;
+    ipcMain.removeHandler('publish:apiStatus');
+    ipcMain.handle('publish:apiStatus', () => {
+      if (g.__statusFails) throw new Error('Account status unavailable');
+      return value;
+    });
+  }, status);
+  await hash('#/settings/accounts');
+  await expect(page.getByTestId('api-status-error')).toContainText('Account status unavailable');
+  await expect(page.getByTestId('api-status-error')).not.toContainText('publish:apiStatus');
+  await expect(page.getByTestId('settings-api')).toHaveCount(0);
+  await app.evaluate(() => { (globalThis as unknown as { __statusFails: boolean }).__statusFails = false; });
+  await page.getByTestId('api-status-retry').click();
+  await expect(page.getByTestId('settings-api')).toBeVisible();
+  await expect(page.getByTestId('api-status-error')).toHaveCount(0);
+  await hash('#/publish/accounts');
+  await app.evaluate(() => { (globalThis as unknown as { __statusFails: boolean }).__statusFails = true; });
+  await page.locator('[data-testid="channel-platform"][data-adapter="youtube-studio"] [data-testid="channel-login"]').click();
+  await expect(page.getByTestId('yt-connect').getByTestId('api-status-error')).toContainText('Account status unavailable');
+  await expect(page.getByTestId('yt-connect-go')).toBeDisabled();
+  await expect(page.getByTestId('api-status-loading')).toHaveCount(0);
+  await page.screenshot({ path: path.join(SHOTS, 'yt-status-load-error.png') });
+  await app.evaluate(() => { (globalThis as unknown as { __statusFails: boolean }).__statusFails = false; });
+  await page.getByTestId('api-status-retry').click();
+  await expect(page.getByTestId('yt-connect-go')).toBeEnabled();
+  await expect(page.getByTestId('api-status-error')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+});
