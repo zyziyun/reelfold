@@ -265,3 +265,10 @@ scripts don't have (`lib/vstudio/project/adapters/`), then `pytest tests/test_pr
 validated, every engine variant built, and a project of synthetic inputs is planned for each recipe).
 
 A stage may define `recheck: module:function`: a pure function of job params returning external-input fingerprints to include in its cache key. Include only inputs (such as generated takes and reference images), never the stage’s own outputs, to avoid endless reruns. The AIGC judge uses this to refresh changed material while preserving prior review history.
+
+
+AI video take review can refresh changed footage, reference images, or shot plans from
+its review panel. This action only reviews existing takes; it does not run generation,
+resume the project, or accept a take. Current partial and rejected reviews remain in
+place. Changed evidence receives a fresh review with the previous card retained in
+history. A running project must stop before its takes can be reviewed again.

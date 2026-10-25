@@ -30,3 +30,22 @@ class TakeInboxTest(unittest.TestCase):
                 self.assertIn(root + "/" + file, allowed)
             answer = {"picks": {"shot": root + "/take.mp4"}, "reviews": {"shot": {"revision": "review-rev"}}}
             self.assertEqual(engine_answer("take-selection", answer), answer)
+
+    def test_review_runs_separately_and_reports_failure_without_resume(self):
+        from desk_engine.inbox import background
+        with tempfile.TemporaryDirectory() as root:
+            inbox = Inbox(root, Mock())
+            item = dict(key='a'*16,kind='take-selection',engine=dict(dir=root,id='takes',item='one'))
+            class InlineThread:
+                def __init__(self, target, **kw): self.target = target
+                def start(self): self.target()
+            with patch.object(inbox,'list',return_value=dict(items=[item])), \
+                 patch('desk_engine.inbox.threading.Thread',InlineThread), \
+                 patch('vstudio.project.core.Project'), \
+                 patch('vstudio.project.take_reviews.refresh',side_effect=ValueError('test failure')), \
+                 patch.object(inbox,'resume') as resume:
+                before = background()
+                self.assertEqual(inbox.review_takes(item['key']),dict(ok=True))
+                self.assertEqual(background(),before)
+                self.assertEqual(next(iter(inbox._take_review.values()))['state'],'failed')
+                resume.assert_not_called()

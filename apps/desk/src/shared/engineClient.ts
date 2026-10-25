@@ -827,6 +827,9 @@ export class EngineClient {
   attachLearningTake(key: string, path: string) {
     return this.req<{ ok: boolean }>('POST', '/api/inbox/learning-take', { key, path });
   }
+  reviewTakes(key: string) {
+    return this.req<{ ok: boolean }>('POST', '/api/inbox/review-takes', { key });
+  }
   redraftInbox(key: string, instruction?: string) {
     return this.req<{ ok: boolean; drafting: boolean }>('POST', '/api/inbox/redraft', { key, ...(instruction ? { instruction: instruction.slice(0, 1000) } : {}) });
   }

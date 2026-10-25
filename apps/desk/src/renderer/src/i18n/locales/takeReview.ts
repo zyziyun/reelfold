@@ -1,4 +1,8 @@
 export const takeReviewEn = {
+  "take.refresh": "Review changed takes",
+  "take.refreshing": "Reviewing…",
+  "take.refreshHelp": "Rechecks existing takes only. No videos are generated.",
+  "take.refreshFailed": "Review could not finish. Try again; existing reviews are preserved.",
   "take.title": "Review takes before editing",
   "take.help": "Play each take with sound. Complete the unknown checks, then choose one passing take per shot.",
   "take.unknown": "Not checked",
@@ -38,6 +42,10 @@ export const takeReviewEn = {
   "take.check.looks_at_camera": "Gaze fits the scene"
 };
 export const takeReviewZh = {
+  "take.refresh": "重新审核变化的片段",
+  "take.refreshing": "正在审核…",
+  "take.refreshHelp": "只检查现有片段，不会生成新视频。",
+  "take.refreshFailed": "审核未完成。已有记录已保留，可以重试。",
   "take.title": "检查镜头，继续制作",
   "take.help": "播放完整片段并听声音，补完未确认项，为每个镜头选一版。",
   "take.unknown": "尚未确认",
@@ -77,6 +85,10 @@ export const takeReviewZh = {
   "take.check.looks_at_camera": "视线符合场景"
 };
 export const takeReviewFr = {
+  "take.refresh": "Réexaminer les prises modifiées",
+  "take.refreshing": "Examen en cours…",
+  "take.refreshHelp": "Vérifie les prises existantes sans générer de vidéo.",
+  "take.refreshFailed": "Examen interrompu. Les avis existants sont conservés. Réessayez.",
   "take.title": "Vérifier les prises avant le montage",
   "take.help": "Lisez chaque prise avec le son. Complétez les vérifications, puis choisissez une prise validée par plan.",
   "take.unknown": "Non vérifié",

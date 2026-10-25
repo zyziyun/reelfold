@@ -332,7 +332,8 @@ class Inbox:
         self.outputs = None      # outputs.Outputs (app.py sets it): names the clip an engine question is about
         self.handlers = {}       # source -> fn(item, answer): desk-side items that act when answered (feedback)
         self.undo_hooks = []     # fn(keys): an answer taken back
-        self._drafting = {}      # inbox key -> started (a draft being written: "Drafting ..." on the item)
+        self._drafting = {}
+        self._take_review = {}      # inbox key -> started (a draft being written: "Drafting ..." on the item)
 
     def real(self):
         """The engine has project checkpoints (``vstudio.project.inbox``): checked in this process, no CLI start."""
@@ -521,7 +522,7 @@ class Inbox:
                                       clip=clip_of(e.get("id"), p.get("item")),
                                       previews=[] if author else p.get("previews") or [],
                                       default=p.get("default"), minutes=1 if not author else 2, source="engine",
-                                      take_units=take_units, pictures=pics, help=p.get("help") if isinstance(p.get("help"), dict) else None,
+                                      take_units=take_units, take_review=self._take_review.get(_key(pd, p.get("id"), p.get("item"))), pictures=pics, help=p.get("help") if isinstance(p.get("help"), dict) else None,
                                       engine=dict(dir=pd, id=p.get("id"), item=p.get("item")),
                                       **({"archived": True} if archived else {}),
                                       **({"no_key": _no_key(p.get("no_key"))} if p.get("no_key") else {}),
@@ -671,6 +672,45 @@ class Inbox:
         p.plan()
         write_json(os.path.join(p.dir, "items", row["id"], "work", "sources.json"), sources)
         self._forget_engine()
+        if self.bus:
+            self.bus.publish("inbox")
+        return dict(ok=True)
+
+    def review_takes(self, key):
+        """Refresh only the review, never resume the generating project."""
+        need(isinstance(key, str) and re.fullmatch(r"[0-9a-f]{16}", key), "key: an inbox key")
+        it = next((i for i in self.list()["items"] if i["key"] == key), None)
+        need(it and it.get("kind") == "take-selection" and it.get("engine"), "no takes to review")
+        eng = it["engine"]
+        dk = _key(eng["dir"], eng["id"], eng.get("item"))
+        with self._lock:
+            need((self._take_review.get(dk) or {}).get("state") != "running", "already reviewing")
+            self._take_review[dk] = dict(state="running")
+        with _BG_LOCK:
+            _BG[0] += 1
+
+        def go():
+            try:
+                from vstudio.project.core import Project
+                from vstudio.project.take_reviews import refresh
+                refresh(Project(eng["dir"]), eng["item"])
+                self._take_review[dk] = dict(state="done")
+            except Exception as e:  # noqa: BLE001
+                self._take_review[dk] = dict(state="failed")
+                print(f"[inbox] take review failed: {e}", file=sys.stderr, flush=True)
+            finally:
+                self._forget_engine()
+                with _BG_LOCK:
+                    _BG[0] -= 1
+                if self.bus:
+                    self.bus.publish("inbox")
+        try:
+            threading.Thread(target=go, daemon=True).start()
+        except Exception:
+            self._take_review[dk] = dict(state="failed")
+            with _BG_LOCK:
+                _BG[0] -= 1
+            raise
         if self.bus:
             self.bus.publish("inbox")
         return dict(ok=True)

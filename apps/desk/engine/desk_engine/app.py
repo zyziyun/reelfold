@@ -930,6 +930,8 @@ class Api:
                 return self.inbox.learning_script(query.get("key", [None])[0])
             if parts == ["inbox", "learning-take"] and method == "POST":
                 return self.inbox.learning_take(b.get("key"), b.get("path"))
+            if parts == ["inbox", "review-takes"] and method == "POST":
+                return self.inbox.review_takes(b.get("key"))
             if parts == ["inbox", "redraft"] and method == "POST":
                 return self.inbox.redraft(b.get("key"), b.get("instruction"))
         return None

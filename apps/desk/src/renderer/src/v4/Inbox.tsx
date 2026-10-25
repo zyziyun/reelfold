@@ -261,7 +261,15 @@ export function InboxThumb({ x, src }: { x: InboxItem; src?: string | null }) {
 
 // ---------------------------------------------------------------- the selected item
 export function ItemPane(props: { x: InboxItem; onDone: (answer?: Record<string, unknown>) => void; onSkip: () => void }) {
-  return props.x.kind === 'take-selection' ? <TakeReview {...props} /> : <GenericItemPane {...props} />;
+  const { client } = useEngine();
+  const { reload } = useInbox();
+  const ui = useUi();
+  const reviewAgain = async () => {
+    if (!client) return;
+    try { await client.reviewTakes(props.x.key); await reload(); }
+    catch (e) { ui.toast(errText(e)); throw e; }
+  };
+  return props.x.kind === 'take-selection' ? <TakeReview {...props} onRefresh={reviewAgain} /> : <GenericItemPane {...props} />;
 }
 
 function GenericItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?: Record<string, unknown>) => void; onSkip: () => void }) {

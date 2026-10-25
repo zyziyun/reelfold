@@ -698,6 +698,9 @@ class Project:
                         if cid and c != cid:
                             continue
                         pay = B.read_payload(self.state_dir, j["id"], c) or {}
+                        if self.manifest['id'] == 'ai-video' and c == 'takes':
+                            from .take_reviews import current_payload
+                            pay = current_payload(self, j['id'], pay)
                         pay.update(project=self.dir, project_name=self.data.get("name"), item=j["id"], id=c)
                         if answered or not self._settled(pay, (j.get("params") or {}).get("_base_item")):
                             out.append(pay)

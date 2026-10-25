@@ -884,6 +884,7 @@ export interface TakeCandidate {
 export interface TakeUnit { unit: string; takes: TakeCandidate[] }
 
 export interface InboxItem {
+  take_review?: { state: "running" | "done" | "failed" } | null;
   take_units?: TakeUnit[] | null;
   key: string;
   kind: string;

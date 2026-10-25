@@ -10,6 +10,7 @@ import { createServer, type Server } from 'node:http';
 declare global {
   interface Window {
     showReview: (x: unknown, lang?: string) => void;
+    refreshCount: number;
     answer: {picks: Record<string,string>; reviews: Record<string,unknown>};
   }
 }
@@ -49,7 +50,7 @@ test.beforeAll(async () => {
     applyTheme('notebook-light');
     window.desk={mediaUrl:p=>'/media/'+p};
     const root=createRoot(document.getElementById('root'));
-    window.showReview=(x,lang='en')=>{setLang(lang);root.render(<TakeReview key={JSON.stringify(x)+lang} x={x} onDone={a=>window.answer=a} onSkip={()=>{}}/>)};
+    window.showReview=(x,lang='en')=>{setLang(lang);root.render(<TakeReview key={JSON.stringify(x)+lang} x={x} onDone={a=>window.answer=a} onSkip={()=>{}} onRefresh={async()=>{window.refreshCount=(window.refreshCount||0)+1;}}/>)};
   `, resolveDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), loader: 'tsx' }, bundle: true, write: false, outdir: 'unused', jsx: 'automatic' });
   server = createServer((req,res) => {
     const ext=req.url==='/bundle.js'?'js':req.url==='/style.css'?'css':null;
@@ -99,4 +100,18 @@ test('changed evidence blocks approval in every supported language',async({page}
     await expect(page.locator('body')).not.toContainText('⟦');
   }
   await page.screenshot({path:test.info().outputPath('review-fr.png'),fullPage:true});
+});
+
+test('changed takes expose review action and running/error states',async({page})=>{
+  await page.goto(url);
+  const changed={...item,take_units:[{unit:'opening',takes:[candidate('changed.mp4',true)]}]};
+  await page.evaluate(x=>window.showReview(x),changed);
+  await page.getByRole('button',{name:'Review changed takes',exact:true}).click();
+  expect(await page.evaluate(()=>window.refreshCount)).toBe(1);
+  await page.evaluate(x=>window.showReview({...x,take_review:{state:'running'}}),changed);
+  await expect(page.getByRole('button',{name:'Reviewing…'})).toBeDisabled();
+  await expect(page.getByTestId('take-continue')).toBeDisabled();
+  await page.evaluate(x=>window.showReview({...x,take_review:{state:'failed'}}),changed);
+  await expect(page.getByRole('status')).toContainText('Review could not finish');
+  await expect(page.getByRole('button',{name:'Review changed takes',exact:true})).toBeEnabled();
 });
