@@ -38,7 +38,7 @@ def test_performance_boundary_review_repairs_false_black_claim(tmp_path, monkeyp
     doc = document(); doc['source_duration'] = 4
     records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=e == 'start')
                for i, s in enumerate(doc['segments']) for e in ('start', 'end')]
-    monkeypatch.setattr(B, 'context', lambda *a: ('Measured samples', ['sheet.jpg'], records))
+    monkeypatch.setattr(B, 'context', lambda *a, **kw: ('Measured samples', ['sheet.jpg'], records))
     calls = []
     def complete(task, system, prompt, **kw):
         calls.append(prompt)
@@ -47,7 +47,7 @@ def test_performance_boundary_review_repairs_false_black_claim(tmp_path, monkeyp
         if len(calls) == 1:
             choices[0]['start']['near_black'] = False
         return dict(json=dict(choices=choices, beats=doc['beats']))
-    result = P.review_boundaries('source', doc, str(tmp_path), complete)
+    result = P.review_boundaries('source', doc, str(tmp_path), complete, precise=True)
     assert result['segments'] == doc['segments']
     assert len(calls) == 2 and 'contradicts' in calls[1]
     assert len(result['boundary_review']['repairs']) == 1
@@ -59,8 +59,43 @@ def test_performance_boundary_review_cannot_drop_a_reaction(tmp_path, monkeypatc
     doc = document(); doc['source_duration'] = 4
     records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=False)
                for i, s in enumerate(doc['segments']) for e in ('start', 'end')]
-    monkeypatch.setattr(B, 'context', lambda *a: ('Measured samples', ['sheet.jpg'], records))
+    monkeypatch.setattr(B, 'context', lambda *a, **kw: ('Measured samples', ['sheet.jpg'], records))
     choices = [{e: dict(id=f'{i}{e}', near_black=False, reason='Keep') for e in ('start', 'end')} for i in range(2)]
     with pytest.raises(ValueError, match='cannot remove protected'):
         P.review_boundaries('source', doc, str(tmp_path), lambda *a, **kw:
                             dict(json=dict(choices=choices, beats=doc['beats'][:-1])))
+
+
+def test_exact_decode_preserves_frame_timestamps(tmp_path):
+    import shutil
+    if not shutil.which('ffmpeg'):
+        pytest.skip('ffmpeg unavailable')
+    source = str(tmp_path / 'frames.mp4')
+    B.media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=black:s=320x180:r=24:d=1',
+                 '-vf', "drawbox=color=white:t=fill:enable='gte(t,0.25)'",
+                 *B.media.delivery_args(preset='ultrafast', audio=False, encoder='libx264'), source])
+    frames = B.decoded_window(source, .18, .35)
+    assert len(frames) == 4
+    assert [t for t, _ in frames] == pytest.approx([5/24, 6/24, 7/24, 8/24], abs=.000001)
+    assert frames[0][1].getpixel((0, 0))[0] < 5
+    assert frames[1][1].getpixel((0, 0))[0] > 245
+
+
+def test_planner_runs_coarse_and_exact_boundary_review(tmp_path, monkeypatch):
+    from vstudio import performance as P
+    from test_performance import document
+    monkeypatch.setattr(B.media, 'probe', lambda _: dict(duration=4, has_audio=False))
+    monkeypatch.setattr(B.footage, 'sequence_context', lambda *a: ('sequence', ['full.jpg'], []))
+    phases = []
+    records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=False)
+               for i, s in enumerate(document()['segments']) for e in ('start', 'end')]
+    def context(*a, **kw):
+        phases.append(kw['precise']); return 'measured', ['boundary.jpg'], records
+    monkeypatch.setattr(B, 'context', context)
+    def complete(*a, **kw):
+        if 'choices' not in kw['schema']['properties']:
+            return dict(json=document())
+        return dict(json=dict(choices=[{e: dict(id=f'{i}{e}', near_black=False, reason='Complete action')
+                for e in ('start', 'end')} for i in range(2)], beats=document()['beats']))
+    result = P.plan('source', 'Keep the story', str(tmp_path), complete=complete)
+    assert phases == [False, True] and result['boundary_review']['frame_pts']

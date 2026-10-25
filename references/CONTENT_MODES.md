@@ -36,6 +36,9 @@ Before rendering, review each proposed boundary in a local ±1-second window at 
 intervals. Select measured frame IDs rather than guessing times from a grid. The engine supplies
 pixel-based near-black observations and rejects contradictory claims, unknown IDs, reordered cuts,
 removed protected beats and changes to internal story beats. One bounded repair is allowed.
+Then decode every frame within ±0.15 seconds of the selected boundaries using the renderer's
+timeline and review actual frame timestamps. This prevents a sampled first-unwanted-frame time
+from accidentally retaining an earlier frame between samples. Each pass permits at most one repair.
 Dark frames can be intentional; this is not automatic black-frame removal. Boundary review still
 does not establish audio continuity or full-motion quality: inspect the rendered joins and listen.
 

@@ -135,10 +135,11 @@ def render(source, doc, destination, preset="medium"):
                 source_has_audio=has_audio, source_geometry=[info["display_w"], info["display_h"]])
 
 
-def review_boundaries(source, doc, work, complete):
+def review_boundaries(source, doc, work, complete, precise=False):
     """Refine sampled cuts using measured IDs, without rewriting the performance."""
     from . import boundaries
-    text, images, records = boundaries.context(source, doc['segments'], os.path.join(work, 'boundaries'))
+    text, images, records = boundaries.context(source, doc['segments'], os.path.join(work, 'boundaries'),
+        radius=.15 if precise else 1.0, precise=precise)
     pick = {'type': 'object', 'required': ['id', 'near_black', 'reason'], 'properties': {
         'id': {'type': 'string'}, 'near_black': {'type': 'boolean'}, 'reason': {'type': 'string'}}}
     schema = {'type': 'object', 'required': ['choices', 'beats'], 'properties': {
@@ -180,9 +181,13 @@ def review_boundaries(source, doc, work, complete):
             validate(refined, doc['source_duration'])
             refined['boundary_review'] = dict(choices=answer['choices'], repairs=errors,
                 provider=result.get('provider'), model=result.get('model'), evidence=records)
-            return refined
+            break
         except ValueError as error:
             if attempt:
                 raise ValueError(f'performance boundary review still invalid: {error}') from error
             errors.append(str(error))
             prompt += '\nPREVIOUS REVIEW:\n' + json.dumps(answer) + '\nVALIDATION ERROR: ' + str(error)
+    if not precise:
+        return review_boundaries(source, refined, os.path.join(work, 'exact'), complete, precise=True)
+    refined['boundary_review']['frame_pts'] = True
+    return refined

@@ -6,13 +6,40 @@ story. This module never removes frames or infers that dark footage is empty.
 import json
 import math
 import os
+import re
+import subprocess
 
 from PIL import Image, ImageDraw, ImageStat
 
 from . import footage, media
 
 
-def context(source, segments, work, radius=1.0, step=.1):
+def decoded_window(source, start, end):
+    """Decode actual frame PTS using the same unseeked timeline as trim rendering."""
+    proc = subprocess.run([media.ffmpeg_bin(), '-hide_banner', '-i', source, '-vf',
+        f'trim=start={start}:end={end},scale=320:-2,showinfo', '-fps_mode', 'passthrough',
+        '-frames:v', '241', '-an', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+        capture_output=True, timeout=180)
+    if proc.returncode:
+        raise ValueError('Cannot decode exact boundary frames')
+    rows = re.findall(r' n:\s*\d+ pts:\s*-?\d+ pts_time:([\d.e+-]+).*? s:(\d+)x(\d+)', proc.stderr.decode(errors='replace'))
+    if not rows or len(rows) > 240:
+        raise ValueError('Exact boundary frame budget exceeded or empty')
+    frames, offset = [], 0
+    for timestamp, width, height in rows:
+        w, h = int(width), int(height)
+        size = w * h * 3
+        raw = proc.stdout[offset:offset + size]
+        if len(raw) != size:
+            raise ValueError('Incomplete exact boundary decode')
+        frames.append((float(timestamp), Image.frombytes('RGB', (w, h), raw)))
+        offset += size
+    if offset != len(proc.stdout):
+        raise ValueError('Exact boundary frame metadata mismatch')
+    return frames
+
+
+def context(source, segments, work, radius=1.0, step=.1, precise=False):
     if not (math.isfinite(radius) and math.isfinite(step) and .02 <= step <= radius <= 2):
         raise ValueError("Invalid boundary sampling window")
     if not segments or len(segments) > 20:
@@ -30,10 +57,13 @@ def context(source, segments, work, radius=1.0, step=.1):
                             for j in range(math.ceil(2 * radius / step) + 1)})
             if edge == 'end' and t == info['duration']:
                 times.append(float(t))  # Preserve the exclusive EOF, including its last frame.
+            decoded = (decoded_window(source, max(0, t - radius), min(info['duration'], t + radius))
+                       if precise else [(when, footage._frame(source, min(when, last), 320)) for when in times])
+            if precise and edge == 'end' and t == info['duration']:
+                decoded.append((float(t), decoded[-1][1]))
             tiles = []
-            for j, when in enumerate(times):
+            for j, (when, frame) in enumerate(decoded):
                 sampled = min(when, last)
-                frame = footage._frame(source, sampled, 320)
                 if frame is None:
                     raise ValueError("Cannot decode required boundary evidence")
                 gray = frame.convert('L')
