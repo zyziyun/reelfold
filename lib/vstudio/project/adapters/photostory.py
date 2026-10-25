@@ -52,6 +52,13 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   prefer a shorter film over repeated zooms, fabricated angles or filler. Keep an explicitly requested duration.
   Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
+  For process demonstrations, select the source interval containing the interaction and its visible result.
+  A glove, tool or machine in a contact sheet does not prove loading, filling, testing or assembly occurred.
+  Check that the relevant hand/tool and object remain readable together in each requested aspect ratio;
+  a centred portrait crop may remove the interaction, and zooming cannot recover out-of-focus evidence.
+  If the supplied views do not establish the action, choose another supplied view or use an accurate
+  descriptive cue for what is visible. State missing action coverage in the summary; do not pretend the
+  planned film demonstrates a process that the source cannot show.
 - MEDIA = dict(images=["frames", "../inputs"], videos="../inputs")  (paths relative to this spec's folder).
 - A video shot's source is "v" + the clip id, e.g. ("v{first}", 1, "still", dict(off=12.0, audio="mute")): off = the
   second in the clip where the shot starts (from the contact sheet); weight = its share of the unit's narration time.

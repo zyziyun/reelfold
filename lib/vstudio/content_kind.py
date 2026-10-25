@@ -46,7 +46,10 @@ def direction(kind):
             "show their process, then its visible result and one supplied contact/CTA. Tie each claim to supplied "
             "materials; never invent customers, certifications, rankings, impact figures or a client logo. "
             "Use a coherent visual identity, clear role/process labels and deliberate wide-to-detail progression. "
-            "Preserve real people and equipment; do not imply stock or generated pictures are this company."
+            "Preserve real people and equipment; do not imply stock or generated pictures are this company. "
+            "A process verb needs a visible action, not just nearby equipment or an out-of-focus worker. "
+            "Keep the interaction and its result readable in each requested crop. If the supplied footage "
+            "does not show the action, use a supported descriptive label and disclose the missing process coverage."
         ),
         "sketch": (
             "Comedy performance: preserve setup, escalation, payoff and the reaction beat. A pause may be the joke; "

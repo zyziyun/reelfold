@@ -63,6 +63,12 @@ Company process films use measured, high-contrast lower-third labels by default 
 floating scenic title/chapter cards, automatic scenic grading or grain. Explicit spec layout and colour choices
 remain available. The label plate stays within each target's safe width; inspect its position against equipment,
 faces and source text. Corporate footage is not evidence of certifications, throughput or client identity.
+A process label also makes a claim: a worker beside cans does not establish loading, and a nozzle above
+containers does not alone establish filling. Select the interval showing interaction and result; inspect its
+start, action and end in each target crop, then play it continuously. Keep the hand/tool and target object
+readable together. A centred portrait crop may lose the action, while an enlarged blurred background cannot
+restore it. If no supplied view proves the action, use a truthful descriptive label and explicitly record the
+missing demonstration; this is not full process-film acceptance. Do not fabricate an action to complete a story.
 
 Both narrated and music timelines give the final shot only its visible closing hold. Do not inflate that duration
 to keep it active after playback: motion interpolation and source preparation also consume the same duration.
