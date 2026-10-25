@@ -195,7 +195,8 @@ export function apiProcessingFailed(r: YtPublishResult): boolean {
 
 export function apiDeliveryState(r: YtPublishResult): 'uploaded' | 'scheduled' | 'posted' {
   if (r.uploadStatus && !['processed', 'uploaded'].includes(r.uploadStatus)) return 'uploaded';
-  if (r.privacy === 'public') return r.uploadStatus === 'uploaded' ? 'uploaded' : 'posted';
+  // Older receipts may omit processing status; public visibility alone is not completion evidence.
+  if (r.privacy === 'public') return r.uploadStatus === 'processed' ? 'posted' : 'uploaded';
   return r.privacy === 'private' && r.publishAt && !r.lockedPrivate ? 'scheduled' : 'uploaded';
 }
 

@@ -453,6 +453,24 @@ describe('confirmed API delivery states', () => {
     expect(deps.api.publish).not.toHaveBeenCalled();
   });
 
+  it('rechecks a legacy public receipt without uploading it again', async () => {
+    const previous = { ...r, privacy: 'public', publishAt: null };
+    const p = post('legacy', '2026-10-07T20:00', { platform: 'youtube', account: 'main', state: 'posted', via: 'api', api_result: previous });
+    const read = vi.fn(async () => ({ ...previous, uploadStatus: 'processed' as const }));
+    const publish = vi.fn();
+    const mark = vi.fn<ConstructorParameters<typeof PublishScheduler>[0]['markPosted']>(async () => undefined);
+    const scheduler = new PublishScheduler({ load: async () => [p], now: () => new Date(2026, 9, 8),
+      notify: () => undefined, markPosted: mark, stateFile: path.join(tmp(), 'scheduler.json'),
+      api: { wants: () => true, publish, canRefresh: () => true, refresh: read } });
+    expect(apiDeliveryState(previous)).toBe('uploaded');
+    await scheduler.tick();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(publish).not.toHaveBeenCalled();
+    const confirmed = mark.mock.calls[0]?.[3];
+    expect(confirmed).toMatchObject({ privacy: 'public', uploadStatus: 'processed' });
+    expect(apiDeliveryState(confirmed!)).toBe('posted');
+  });
+
   it('bounds automatic status reads even when automatic uploading is off', async () => {
     const ps = Array.from({ length: 6 }, (_, i) => post(`r${i}`, '2026-10-07T20:00', { platform: 'youtube', via: 'api', api_result: r }));
     let now = new Date(2026, 9, 8);
@@ -499,7 +517,8 @@ describe('confirmed API delivery states', () => {
   });
   it('does not infer public visibility from an upload or the passage of its schedule time', () => {
     expect(apiDeliveryState(r)).toBe('scheduled');
-    expect(apiDeliveryState({ ...r, privacy: 'public' })).toBe('posted');
+    expect(apiDeliveryState({ ...r, privacy: 'public' })).toBe('uploaded');
+    expect(apiDeliveryState({ ...r, privacy: 'public', uploadStatus: 'processed' })).toBe('posted');
     expect(apiDeliveryState({ ...r, privacy: 'unlisted' })).toBe('uploaded');
     expect(apiDeliveryState({ ...r, privacy: 'unknown' })).toBe('uploaded');
     expect(apiDeliveryState({ ...r, lockedPrivate: true })).toBe('uploaded');
