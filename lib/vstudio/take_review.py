@@ -52,15 +52,16 @@ def verdict(card):
         value = sc.get(key)
         if type(value) not in (int, float) or not 1 <= value <= 5:
             reasons.append(f"score {key} must be a number from 1 to 5")
-    if reasons:
-        return "redo", reasons
-    hard = [key for key in HARD if card["hard"][key]]
+    # Incomplete checks must not hide confirmed defects from the repair plan.
+    # Only literal booleans and valid numeric scores count as reviewed evidence.
+    checks = card.get("hard")
+    hard = [key for key in HARD if isinstance(checks, dict) and checks.get(key) is True]
+    low = [key for key in ("A", "B", "C")
+           if type(sc.get(key)) in (int, float) and 1 <= sc[key] < 4]
+    failures = [f"hard: {key}" for key in hard] + [f"score {key}={sc[key]} < 4" for key in low]
+    if failures or reasons:
+        return "redo", failures + reasons
     soft = [key for key in SOFT if card["soft"][key]]
-    if hard:
-        return "redo", [f"hard: {key}" for key in hard]
-    low = [key for key in ("A", "B", "C") if sc[key] < 4]
-    if low:
-        return "redo", [f"score {key}={sc[key]} < 4" for key in low]
     if len(soft) >= 3:
         return "fix-in-post", [f"{len(soft)} soft flaws: {', '.join(soft)} - grade/grain/trim or redo"]
     return "pass", [f"soft: {key}" for key in soft]

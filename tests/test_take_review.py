@@ -129,3 +129,28 @@ def test_bad_selection_does_not_write_any_manual_reviews(tmp_path):
     with pytest.raises(ValueError, match='current video'):
         A.takes_apply(SimpleNamespace(payload=payload, value=dict(picks=dict(a=rows[1]['take'], b=rows[2]['take']), reviews=dict(a=patch))))
     assert open(rows[1]['card']).read() == before
+
+
+def test_partial_review_keeps_confirmed_repair_reasons(tmp_path):
+    rows, env = fixture(tmp_path)
+    card = R.bound_card(rows[0]['take'])
+    card['hard']['premise_missing'] = True
+    card['hard']['scene_master'] = True
+    card['scores']['C'] = 1
+    open(rows[0]['card'], 'w').write(json.dumps(card))
+    decision, reasons = R.inspect(rows[0]['take'], rows[0]['card'])
+    assert decision == 'redo'
+    assert reasons[:3] == ['hard: premise_missing', 'hard: scene_master', 'score C=1 < 4']
+    assert any('identity_drift has not been reviewed' in reason for reason in reasons)
+    payload = A.takes_payload(env, dict(after='judge'))
+    candidate = payload['options'][0]['takes'][0]
+    assert candidate['reasons'] == reasons
+
+
+def test_invalid_flaw_values_are_not_promoted_to_confirmed_defects():
+    card = R.blank_card('take')
+    card['hard']['premise_missing'] = 'true'
+    card['scores']['C'] = True
+    decision, reasons = R.verdict(card)
+    assert decision == 'redo'
+    assert not any(reason.startswith('hard:') or '< 4' in reason for reason in reasons)
