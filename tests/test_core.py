@@ -295,3 +295,18 @@ def test_contact_sheet_of_a_short_clip_has_no_empty_cells(tmp, av):
 def test_contact_sheet_labels_are_exact(tmp, av):
     _, ts = media.contact_sheet(str(av), str(tmp / "cs_exact.jpg"), every=2.0, start=0)
     assert ts[:3] == [0, 2.0, 4.0]
+
+
+def test_asr_preserves_valid_phrases_and_acronyms_without_explicit_correction(monkeypatch):
+    from vstudio import asr
+    monkeypatch.setattr(asr, "_persona_fixes", lambda: {})
+    monkeypatch.setattr(asr, "persona_terms", lambda: [])
+    for text in ("We have a system problem.", "Use the field shot.",
+                 "REG stores the result.", "A long chain and a long graph.",
+                 "Review the lead code and lit code examples.",
+                 "中文夹英文：system problem、field shot、REG。"):
+        assert asr.apply_term_fixes(text) == text
+    assert asr.apply_term_fixes("leet code, lang chain, lang graph") == "LeetCode, LangChain, LangGraph"
+    assert asr.apply_term_fixes("system problem", extra={"system problem": "system prompt"}) == "system prompt"
+    monkeypatch.setattr(asr, "_persona_fixes", lambda: {"REG": "RAG"})
+    assert asr.apply_term_fixes("REG") == "RAG"

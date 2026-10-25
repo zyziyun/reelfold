@@ -173,7 +173,9 @@ unchanged, as subprocesses.
 
 Captions must match the audio, so proofreading only fixes recognition errors, before burn-in:
 (a) the spec `subtitles.term_fixes` + persona `subtitles.term_fixes` + `asr.GENERIC_TERM_FIXES` (the creator's
-own list: applied even when a fix deletes words, but such a fix is listed under `warnings`);
+own list: applied even when a fix deletes words, but such a fix is listed under `warnings`).
+Generic spelling normalization must preserve valid phrases and acronyms: do not turn `system problem` into
+`system prompt`, `field shot` into `few-shot`, or `REG` into `RAG` without an explicit recording/persona correction;
 (b) the source glossary (stage `glossary`, shared: built ONCE per source, applied identically to every job of it):
 the LLM reads the WHOLE transcript and lists the domain terms and the recurring confusions (`RM -> LLM`,
 `称爆 -> 撑爆`), a second focused look goes over every latin token with its contexts, and a third look rejects

@@ -53,21 +53,20 @@ CACHE_VERSION = 1
 
 # Common tech-talk mis-hearings that are safe for anyone (regex -> replacement). Creator-specific
 # fixes belong in persona.local.yaml subtitles.term_fixes; per-recording ones at the call site.
+# Do not globally replace valid phrases or acronyms based only on sound-alikes.
+# For example, "system problem", "field shot", and "REG" can be exactly what was said.
 # NB: \b does not work next to CJK (CJK counts as \w), so latin words are delimited with lookarounds.
 GENERIC_TERM_FIXES = [
-    (r"(?i)(?<![a-z])(?:lit|leet|lead) ?code(?![a-z])", "LeetCode"),
+    (r"(?i)(?<![a-z])leet ?code(?![a-z])", "LeetCode"),
     (r"(?i)(?<![a-z])git ?hub(?![a-z])", "GitHub"),
     (r"(?i)(?<![a-z])open ?ai(?![a-z])", "OpenAI"),
     (r"(?i)(?<![a-z])(?:chat|challet) ?gpt(?![a-z])", "ChatGPT"),
-    (r"[Ll]ong ?chain|[Ll]ung ?chain", "LangChain"),
-    (r"[Ll]ong ?graph|[Ll]ung ?graph", "LangGraph"),
+    (r"(?i)(?<![a-z])lang ?chain(?![a-z])", "LangChain"),
+    (r"(?i)(?<![a-z])lang ?graph(?![a-z])", "LangGraph"),
     (r"(?i)(?<![a-z])(?:pg ?vector|pd vector)(?![a-z])", "pgvector"),
-    (r"system problem", "system prompt"),
-    (r"field shot|feel shot", "few-shot"),
     (r"半tune", "fine-tune"),
     (r"[Ff]acefulness", "faithfulness"),
     (r"[Bb]anjmark", "benchmark"),
-    (r"(?<![A-Za-z])REG(?![A-Za-z])", "RAG"),
     (r"readnning|readning", "reasoning"),
     (r"思维导徒", "思维导图"),
     (r"favor out|figur out", "figure out"),
