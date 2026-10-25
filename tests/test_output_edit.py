@@ -889,3 +889,33 @@ def test_speech_captions_require_consistent_narration_language(tmp_path, extra_l
     assert bool(tracks) == expected
     if expected:
         assert [c.text for c in srt_read(tracks[0]['file'])] == ['Bonjour.', 'Encore.']
+
+
+@pytest.mark.parametrize('reader', ['job', 'file'])
+def test_secondary_edit_keeps_bilingual_cue_payload(tmp_path, reader):
+    path = tmp_path/'cues.json'
+    path.write_text(json.dumps(dict(cues=[dict(start=1, end=3, text='你好', alt='Hello',
+                                               meta=dict(kind='speech', language='zh'))])))
+    cues = O._cues_of_job(dict(compose=dict(out=dict(cues=str(path)))), {}) if reader == 'job' else O._cues_file(str(path))
+    assert cues[0]['alt'] == 'Hello'
+    assert cues[0]['meta']['language'] == 'zh'
+    assert R.mono_caption(cues[0]['text'], cues[0]['alt'], 'en') == 'Hello'
+    assert R.mono_caption(cues[0]['text'], cues[0]['alt'], 'zh', both=True) == '你好\nHello'
+
+
+def test_secondary_bilingual_cues_retime_with_speed(th, tmp_path, monkeypatch):
+    from vstudio import platform as P, subs
+    oid, _ = _pipeline(th)
+    rec, doc = O._load(th, oid)
+    path = tmp_path/'bilingual.json'
+    path.write_text(json.dumps(dict(cues=[dict(start=0, end=4, text='你好', alt='Hello')])))
+    rec['cues'] = O._cues_file(str(path))
+    st = O.empty_state()
+    st['speed'] = 2.0
+    st['captions']['enabled'] = True
+    tg = dict(target='youtube:horizontal', w=640, h=360, profile=P.profile('youtube'), layout='auto')
+    plan = R.plan(rec, doc, st, tg, 'preview')
+    assert plan['final']['visual']['captions'] == [[0, 2, 'Hello']]
+    monkeypatch.setattr(subs, 'bilingual_wanted', lambda: True)
+    plan = R.plan(rec, doc, st, dict(tg, profile=None), 'preview')
+    assert plan['final']['visual']['captions'] == [[0, 2, '你好\nHello']]

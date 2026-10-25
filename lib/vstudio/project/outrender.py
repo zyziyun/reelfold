@@ -493,7 +493,9 @@ def mono_caption(text, alt, lang, both=False):
     ``subtitles.bilingual`` asks (``both``; never on YouTube). None / no line in that language: as is."""
     from vstudio.subs import _ZH
     text = str(text or "")
-    if lang not in ("en", "zh") or both:
+    if both:
+        return "\n".join(x for x in (text, str(alt or "")) if x.strip())
+    if lang not in ("en", "zh"):
         return text
     lines = [x for x in text.split("\n") if x.strip()] + ([str(alt)] if alt else [])
     keep = [x for x in lines if bool(_ZH.search(x)) == (lang == "zh")]

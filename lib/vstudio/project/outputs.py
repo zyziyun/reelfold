@@ -340,15 +340,19 @@ def _cues_of_job(rows, params):
         a = (read_json(cm["cues"], {}) or {}) if cm.get("cues") else {}
         cues, _, _ = apply_caption_overrides(cues, params["caption_overrides"],
                                              asr_cues=a.get("cues") if isinstance(a, dict) else a)
-    return [dict(start=float(c["start"]), end=float(c["end"]), text=str(c.get("text") or ""),
-                 kind=(c.get("meta") or {}).get("kind")) for c in cues if str(c.get("text") or "").strip()]
+    return _edit_cues(cues)
 
 
 def _cues_file(path):
     if not path:
         return []
+    return _edit_cues(path)
+
+
+def _edit_cues(source):
+    """Keep the shared caption payload, including translations and language metadata."""
     from vstudio.export import load_cues
-    return [dict(start=c.start, end=c.end, text=c.text) for c in load_cues(path) if c.text.strip()]
+    return [dict(c.to_dict(), kind=c.meta.get("kind")) for c in load_cues(source) if c.text.strip()]
 
 
 def resolve(d, output):
