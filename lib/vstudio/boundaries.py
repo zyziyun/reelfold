@@ -28,16 +28,19 @@ def context(source, segments, work, radius=1.0, step=.1):
                 raise ValueError("Boundary outside source")
             times = sorted({round(max(0, min(last, t - radius + j * step)), 4)
                             for j in range(math.ceil(2 * radius / step) + 1)})
+            if edge == 'end' and t == info['duration']:
+                times.append(float(t))  # Preserve the exclusive EOF, including its last frame.
             tiles = []
             for j, when in enumerate(times):
-                frame = footage._frame(source, when, 320)
+                sampled = min(when, last)
+                frame = footage._frame(source, sampled, 320)
                 if frame is None:
                     raise ValueError("Cannot decode required boundary evidence")
                 gray = frame.convert('L')
                 hist = gray.histogram()
                 dark = sum(hist[:17]) / (gray.width * gray.height)
                 fid = f'B{index}{edge[0]}F{j:02d}'
-                records.append(dict(id=fid, segment=index, edge=edge, time=when,
+                records.append(dict(id=fid, segment=index, edge=edge, time=when, sampled_time=sampled,
                                     mean_luma=round(ImageStat.Stat(gray).mean[0], 3),
                                     dark_fraction=round(dark, 4), near_black=dark >= .98))
                 tile = Image.new('RGB', (320, frame.height + 32), 'black')
@@ -54,6 +57,7 @@ def context(source, segments, work, radius=1.0, step=.1):
     text = ('Boundary IDs and times below are authoritative. near_black means >=98% of thumbnail pixels '
             'have luma <=16; it does NOT mean the shot is unwanted. Do not call a near_black sample a visible '
             'actor/action frame. Select boundary IDs, never infer timestamps from grid positions. '
+            'At exclusive EOF, sampled_time identifies the last preceding frame. '
             'Samples are not continuous playback; preserve intentional pauses and complete actions.\n'
             + json.dumps(records))
     return text, images, records
@@ -73,6 +77,8 @@ def resolve(choices, records, segments):
             pick = choice.get(edge, {})
             if not isinstance(pick, dict):
                 raise ValueError('Boundary selection must name an evidence frame')
+            if not isinstance(pick.get('id'), str):
+                raise ValueError('Boundary frame ID must be a string')
             sample = lookup.get(pick.get('id'))
             if not sample or sample['segment'] != i or sample['edge'] != edge:
                 raise ValueError('Boundary review selected an unrelated or unknown frame')

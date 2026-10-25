@@ -38,6 +38,7 @@ def test_invalid_cut_cannot_proceed(change):
 
 def planner_context(monkeypatch, audio=False):
     from vstudio import footage, asr
+    monkeypatch.setattr(P, "review_boundaries", lambda source, doc, work, complete: doc)
     monkeypatch.setattr(footage, "sequence_context", lambda *a, **k: ("Public synthetic performance, 4s", ["synthetic-sheet.jpg"], []))
     monkeypatch.setattr(media, "probe", lambda p: dict(duration=4, has_audio=audio))
     monkeypatch.setattr(asr, "transcribe", lambda *a, **k: pytest.fail("Silent or speech-disabled footage must not call ASR"))

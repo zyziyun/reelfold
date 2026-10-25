@@ -99,7 +99,7 @@ def plan(source, request, work, speech=False, complete=None):
             continue
         doc.update(provider=result.get("provider"), model=result.get("model"), repairs=repairs,
                    source_duration=info["duration"], source_has_audio=info["has_audio"], speed=1.0)
-        return doc
+        return review_boundaries(source, doc, work, call)
 
 
 def render(source, doc, destination, preset="medium"):
@@ -133,3 +133,56 @@ def render(source, doc, destination, preset="medium"):
         raise ValueError("performance edit: the original performance audio is missing")
     return dict(master=destination, duration=output["duration"], files=[destination],
                 source_has_audio=has_audio, source_geometry=[info["display_w"], info["display_h"]])
+
+
+def review_boundaries(source, doc, work, complete):
+    """Refine sampled cuts using measured IDs, without rewriting the performance."""
+    from . import boundaries
+    text, images, records = boundaries.context(source, doc['segments'], os.path.join(work, 'boundaries'))
+    pick = {'type': 'object', 'required': ['id', 'near_black', 'reason'], 'properties': {
+        'id': {'type': 'string'}, 'near_black': {'type': 'boolean'}, 'reason': {'type': 'string'}}}
+    schema = {'type': 'object', 'required': ['choices', 'beats'], 'properties': {
+        'choices': {'type': 'array', 'items': {'type': 'object', 'required': ['start', 'end'],
+                    'properties': {'start': pick, 'end': pick}}}, 'beats': SCHEMA['properties']['beats']}}
+    system = ('Review only the proposed source cut boundaries using measured frame IDs. '
+        'Return one start/end choice per segment, in order, with id, measured near_black and reason. '
+        'Use the supplied IDs, not estimated timestamps. Exclude unwanted credit fragments while preserving '
+        'complete actions, reactions and intentional pauses. Near-black is not automatically unwanted. '
+        'A start is inclusive; an end excludes the selected frame and everything after it. '
+        'Do not claim visible action in a measured near-black sample. Keep all protected beats and roles in '
+        'their original order. You may correct a beat endpoint only within 1 second of a proposed cut, '
+        'with evidence; keep every other endpoint unchanged. Return choices and the complete beats list. '
+        'This is visual sampling, not verification of audio continuity or continuous playback.')
+    prompt = json.dumps(doc, ensure_ascii=False) + '\n' + text
+    errors = []
+    for attempt in range(2):
+        result = complete('segment_plan', system, prompt, schema=schema, images=images, max_tokens=6000)
+        answer = result.get('json')
+        try:
+            if not isinstance(answer, dict):
+                raise ValueError('Missing boundary review')
+            segments = boundaries.resolve(answer.get('choices'), records, doc['segments'])
+            beats = answer.get('beats')
+            if not isinstance(beats, list) or len(beats) != len(doc['beats']):
+                raise ValueError('Boundary review cannot remove protected story beats')
+            edges = [s[e] for s in doc['segments'] for e in ('start', 'end')]
+            for old, new in zip(doc['beats'], beats):
+                if not isinstance(new, dict) or new.get('role') != old['role']:
+                    raise ValueError('Boundary review changed a protected beat role')
+                for edge in ('start', 'end'):
+                    value = new.get(edge)
+                    if type(value) not in (int, float) or not math.isfinite(value):
+                        raise ValueError('Invalid protected beat time')
+                    if value != old[edge] and (abs(value - old[edge]) > 1 or
+                            not any(abs(old[edge] - t) <= 1 and abs(value - t) <= 1 for t in edges)):
+                        raise ValueError('Boundary review changed an internal story beat')
+            refined = dict(doc, segments=segments, beats=beats)
+            validate(refined, doc['source_duration'])
+            refined['boundary_review'] = dict(choices=answer['choices'], repairs=errors,
+                provider=result.get('provider'), model=result.get('model'), evidence=records)
+            return refined
+        except ValueError as error:
+            if attempt:
+                raise ValueError(f'performance boundary review still invalid: {error}') from error
+            errors.append(str(error))
+            prompt += '\nPREVIOUS REVIEW:\n' + json.dumps(answer) + '\nVALIDATION ERROR: ' + str(error)

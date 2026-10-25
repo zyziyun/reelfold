@@ -30,3 +30,37 @@ def test_missing_boundary_frame_is_not_silently_omitted(tmp_path, monkeypatch):
     monkeypatch.setattr(B.footage, '_frame', lambda *a: None)
     with pytest.raises(ValueError, match='decode'):
         B.context('fixture', [dict(start=1, end=2)], str(tmp_path))
+
+
+def test_performance_boundary_review_repairs_false_black_claim(tmp_path, monkeypatch):
+    from vstudio import performance as P
+    from test_performance import document
+    doc = document(); doc['source_duration'] = 4
+    records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=e == 'start')
+               for i, s in enumerate(doc['segments']) for e in ('start', 'end')]
+    monkeypatch.setattr(B, 'context', lambda *a: ('Measured samples', ['sheet.jpg'], records))
+    calls = []
+    def complete(task, system, prompt, **kw):
+        calls.append(prompt)
+        choices = [{e: dict(id=f'{i}{e}', near_black=e == 'start', reason='Keep the complete action')
+                    for e in ('start', 'end')} for i in range(2)]
+        if len(calls) == 1:
+            choices[0]['start']['near_black'] = False
+        return dict(json=dict(choices=choices, beats=doc['beats']))
+    result = P.review_boundaries('source', doc, str(tmp_path), complete)
+    assert result['segments'] == doc['segments']
+    assert len(calls) == 2 and 'contradicts' in calls[1]
+    assert len(result['boundary_review']['repairs']) == 1
+
+
+def test_performance_boundary_review_cannot_drop_a_reaction(tmp_path, monkeypatch):
+    from vstudio import performance as P
+    from test_performance import document
+    doc = document(); doc['source_duration'] = 4
+    records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=False)
+               for i, s in enumerate(doc['segments']) for e in ('start', 'end')]
+    monkeypatch.setattr(B, 'context', lambda *a: ('Measured samples', ['sheet.jpg'], records))
+    choices = [{e: dict(id=f'{i}{e}', near_black=False, reason='Keep') for e in ('start', 'end')} for i in range(2)]
+    with pytest.raises(ValueError, match='cannot remove protected'):
+        P.review_boundaries('source', doc, str(tmp_path), lambda *a, **kw:
+                            dict(json=dict(choices=choices, beats=doc['beats'][:-1])))

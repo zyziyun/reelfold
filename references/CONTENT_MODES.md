@@ -32,6 +32,13 @@ reaction or precise cut boundary. Preserve uncertain action ranges and review th
 setup, payoff and reaction before accepting the cut. Missing requested frames stop planning
 rather than silently leaving holes in the evidence. Original speed, sound and frame are retained.
 
+Before rendering, review each proposed boundary in a local ±1-second window at 0.1-second
+intervals. Select measured frame IDs rather than guessing times from a grid. The engine supplies
+pixel-based near-black observations and rejects contradictory claims, unknown IDs, reordered cuts,
+removed protected beats and changes to internal story beats. One bounded repair is allowed.
+Dark frames can be intentional; this is not automatic black-frame removal. Boundary review still
+does not establish audio continuity or full-motion quality: inspect the rendered joins and listen.
+
 ## Photo planning and rendering
 
 The automatic photo-story drafter now sees labelled contact sheets of supplied photos, as well as videos.
