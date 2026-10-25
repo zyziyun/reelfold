@@ -7,12 +7,26 @@
 <div id="form" style="display:none">
   <div class="x9a1-c1"><div class="x9a1-c2"><input class="d-text" type="text" placeholder="填写标题会有更多赞哦～" value=""></div><span class="x9a1-count">0/20</span></div>
   <div class="x9a1-ed"><div class="x9a1-pm" contenteditable="true" data-placeholder="输入正文描述，真诚有价值的分享予人温暖"></div></div>
-  <div class="x9a1-cover"><span>设置封面</span></div>
+  <div class="x9a1-cover"><button id="cover-open" type="button">设置封面</button></div>
   <div class="x9a1-submit"><button class="x9a1-b1 x9a1-red" onclick="window.__clicked = true; history.pushState({}, '', '?published=true'); document.body.insertAdjacentHTML('beforeend', '<div>发布成功</div>')"><span>发布</span></button><button class="x9a1-b1"><span>暂存离开</span></button></div>
 </div>
 <script>
   __reveal(document.getElementById('f'), 'form');
+  document.getElementById('cover-open').onclick = () => {
+    document.body.insertAdjacentHTML('beforeend', '<section id="cover-dialog"><h2>设置封面</h2><button id="cover-upload">上传封面</button><button id="cover-cancel">取消</button><button id="cover-confirm" disabled>确定</button></section>');
+    document.getElementById('cover-upload').onclick = () => {
+      if (document.getElementById('cover-file')) return;
+      document.getElementById('cover-dialog').insertAdjacentHTML('beforeend', '<input id="cover-file" type="file" accept="image/png,image/jpeg">');
+      document.getElementById('cover-file').onchange = e => {
+        window.__cover = e.target.files[0].name;
+        document.getElementById('cover-confirm').disabled = false;
+      };
+    };
+    document.getElementById('cover-confirm').onclick = () => document.getElementById('cover-dialog').remove();
+    document.getElementById('cover-cancel').onclick = () => document.getElementById('cover-dialog').remove();
+  };
   window.__state = () => ({
+    cover: window.__cover,
     file: window.__file,
     title: document.querySelector('#form input').value,
     desc: document.querySelector('[contenteditable]').innerText,

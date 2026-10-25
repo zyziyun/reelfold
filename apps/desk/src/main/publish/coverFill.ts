@@ -4,13 +4,23 @@ export function coverAction(action: 'open' | 'upload' | 'input' | 'confirm' | 'c
     if (location.hostname !== 'creator.xiaohongshu.com') throw new Error('Cover filling requires Xiaohongshu creator center');
     const visible = el => el.getClientRects().length > 0;
     const text = el => (el.innerText || el.textContent || '').trim();
-    const exact = (root, label) => [...root.querySelectorAll('button,span,div,a,h1,h2,h3,[role="tab"]')]
+    const matches = (root, label) => [...root.querySelectorAll('button,span,div,a,h1,h2,h3,[role="tab"]')]
       .filter(el => visible(el) && text(el) === label)
-      .sort((a,b) => a.querySelectorAll('*').length - b.querySelectorAll('*').length)[0];
-    const heading = exact(document, '设置封面');
-    let dialog = heading;
-    while (dialog && dialog !== document.body && !(exact(dialog, '上传封面') && exact(dialog, '取消'))) dialog = dialog.parentElement;
-    if (dialog === document.body) dialog = null;
+      .sort((a,b) => a.querySelectorAll('*').length - b.querySelectorAll('*').length);
+    const exact = (root, label) => matches(root, label)[0];
+    const headings = matches(document, '设置封面');
+    // The page's opener can remain visible behind the modal. Find the smallest
+    // enclosing cover dialog, rather than assuming the first label is its title.
+    const dialogs = headings.map(heading => {
+      let candidate = heading;
+      while (candidate && candidate !== document.body) {
+        if (exact(candidate, '上传封面') && exact(candidate, '取消')) return candidate;
+        candidate = candidate.parentElement;
+      }
+      return null;
+    }).filter(Boolean);
+    const dialog = dialogs.sort((a,b) => a.querySelectorAll('*').length - b.querySelectorAll('*').length)[0];
+    const heading = headings[0];
     const action = ${JSON.stringify(action)};
     if (action === 'closed') return !dialog;
     if (action === 'open') {

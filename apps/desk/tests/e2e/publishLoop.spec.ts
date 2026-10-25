@@ -214,8 +214,7 @@ test('time to post: overdue banner, one notification, click -> the form fills it
   const pn = page.getByTestId('post-now');
   await expect(pn).toHaveAttribute('data-phase', 'filled', { timeout: 60000 });
   await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(5);
-  // This fixture has no cover upload dialog: the cover flow must report failure.
-  await expect(page.locator('[data-testid="post-steps"] li[data-field="cover"]')).toHaveAttribute('data-status', 'error');
+  await expect(page.locator('[data-testid="post-steps"] li[data-field="cover"]')).toHaveAttribute('data-status', 'ok');
   for (const f of ['file', 'title', 'description', 'publish']) await expect(page.locator(`[data-testid="post-steps"] li[data-field="${f}"]`)).toHaveAttribute('data-status', 'ok');
   expect((await rows()).find((x) => x.id === id)?.state).toBe('filled');
   // what the platform page holds now (the account's view): the video made for 小红书, the title, the text, nothing clicked
@@ -223,7 +222,7 @@ test('time to post: overdue banner, one notification, click -> the form fills it
     const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
     return wc.executeJavaScript('window.__state()');
   });
-  expect(state).toMatchObject({ file: 'A_小博主.mp4', title: '再小的博主，也是博主', clicked: false, sideClicked: false });
+  expect(state).toMatchObject({ file: 'A_小博主.mp4', cover: 'A_小博主_cover.jpg', title: '再小的博主，也是博主', clicked: false, sideClicked: false });
   expect(String(state.desc)).toContain('副业对我最大的价值');
   expect(String(state.desc)).not.toContain('再小的博主，也是博主');
   expect(String(state.outline)).toContain('solid');
@@ -400,7 +399,7 @@ test('visible steps pause and resume, manual takeover and navigation stop furthe
   fs.writeFileSync(path.join(SHOTS, 'publish-paused-platform.png'), Buffer.from(view.png, 'base64'));
   await page.getByTestId('post-pause').click();
   await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'filled');
-  await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(4);
+  await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(5);
   expect((await rows()).find((p) => p.id === first)?.state).toBe('filled');
   expect((await platform('window.__state()')).clicked).toBe(false);
 
