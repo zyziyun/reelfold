@@ -12,6 +12,7 @@ import type { MessageKey } from '../i18n';
 import { Sheet } from '../settings/kit';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
+import { CaptionFiles } from './CaptionFiles';
 import './publish.css';
 
 export const YT_ADAPTER = 'youtube-studio';
@@ -318,16 +319,20 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   };
 
   useEffect(() => {
+    let active = true;
+    setPkg(null);
     if (result) return; // Status checks need the platform receipt, not the original local file.
     void window.desk.publish
       .postPackage(post.id)
       .then((p) => {
+        if (!active) return;
         setPkg(p);
         setTitle(p.title);
         setDescription(p.description);
         setTags(p.tags.join(', '));
       })
-      .catch((e) => ui.toast(errText(e), { error: true }));
+      .catch((e) => { if (active) ui.toast(errText(e), { error: true }); });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id, !!result]);
   useEffect(() => {
@@ -531,6 +536,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
           {t('ytp.f.thumb')}
         </label>
       )}
+      <CaptionFiles pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} />
       <label className="col small">
         {t('ytp.f.playlist')}
         <span className="row" style={{ gap: 6 }}>

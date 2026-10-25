@@ -410,3 +410,58 @@ test('account status failures stay visible and retry in settings and sign-in', a
   await expect(page.getByTestId('api-status-error')).toHaveCount(0);
   await page.keyboard.press('Escape');
 });
+
+test('subtitle handoff exposes verified files and explains invalid tracks without uploading them', async () => {
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [
+    { item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 86400_000)) },
+    { item, clip: 'A_tip', platform: 'xiaohongshu', at: at(new Date(Date.now() + 86400_000)) },
+  ] });
+  const pkg = await page.evaluate(id => window.desk.publish.postPackage(id), r.ids[0]);
+  const file = path.join(tmp, 'captions.srt');
+  fs.writeFileSync(file, '1\n00:00:00,000 --> 00:00:01,000\nTest captions\n');
+  await app.evaluate(({ ipcMain }, value) => {
+    ipcMain.removeHandler('publish:postPackage');
+    ipcMain.handle('publish:postPackage', (_event, request) => ({ ...value.pkg, postId: request.postId,
+      sidecars: [{ file: value.file, format: 'srt', cues: 1, lang: 'und', role: 'rendered-captions', render_key: 'test', sha256: 'test' }],
+      captionIssues: [{ format: 'vtt', reason: 'file-changed' }],
+    }));
+  }, { pkg, file });
+  const puts = (await rec()).puts;
+  await hash(`#/publish/post/${r.ids[0]}?now=1`);
+  const captions = page.getByTestId('publish-captions');
+  await expect(captions).toContainText('no longer match this video');
+  await captions.getByRole('button', { name: 'Show SRT file' }).click();
+  expect((await rec()).shown.at(-1)).toBe(file);
+  await page.screenshot({ path: path.join(SHOTS, 'yt-caption-files.png') });
+  await hash(`#/publish/post/${r.ids[1]}`);
+  await page.getByTestId('post-in-browser').click();
+  await expect(page.getByTestId('ub-sheet').getByTestId('publish-captions')).toContainText('does not upload them automatically');
+  await page.getByTestId('ub-sheet').getByRole('button', { name: 'Show SRT file' }).click();
+  expect((await rec()).shown.at(-1)).toBe(file);
+  expect((await rec()).puts).toBe(puts);
+});
+
+test('late package response cannot replace the next post copy or subtitle files', async () => {
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [
+    { item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 2 * 86400_000)) },
+    { item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 3 * 86400_000)) },
+  ] });
+  const pkg = await page.evaluate(id => window.desk.publish.postPackage(id), r.ids[1]);
+  await app.evaluate(({ ipcMain }, value) => {
+    const g = globalThis as unknown as { __latePackage?: () => void };
+    ipcMain.removeHandler('publish:postPackage');
+    ipcMain.handle('publish:postPackage', (_event, request) => {
+      const result = { ...value.pkg, postId: request.postId, title: request.postId === value.first ? 'Old post' : 'Next post',
+        sidecars: [], captionIssues: request.postId === value.first ? [{ reason: 'file-missing' }] : [] };
+      return request.postId === value.first ? new Promise(resolve => { g.__latePackage = () => resolve(result); }) : result;
+    });
+  }, { pkg, first: r.ids[0] });
+  await page.keyboard.press('Escape');
+  await hash(`#/publish/post/${r.ids[0]}?now=1`);
+  await expect.poll(() => app.evaluate(() => !!(globalThis as unknown as { __latePackage?: () => void }).__latePackage)).toBe(true);
+  await hash(`#/publish/post/${r.ids[1]}?now=1`);
+  await expect(page.getByTestId('ytp-title')).toHaveValue('Next post');
+  await app.evaluate(() => (globalThis as unknown as { __latePackage: () => void }).__latePackage());
+  await expect(page.getByTestId('publish-captions')).toHaveCount(0);
+  await expect(page.getByTestId('ytp-title')).toHaveValue('Next post');
+});

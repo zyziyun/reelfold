@@ -8,6 +8,7 @@ import { t } from '../i18n';
 import { Sheet } from '../settings/kit';
 import { errText } from '../v4/msg';
 import { useUi } from '../v4/ui';
+import { CaptionFiles } from './CaptionFiles';
 import './publish.css';
 
 export function UploadInBrowserSheet({ postId, pf, onClose, onPosted }: { postId: string; pf: string; onClose: () => void; onPosted: (url: string) => void }) {
@@ -16,13 +17,19 @@ export function UploadInBrowserSheet({ postId, pf, onClose, onPosted }: { postId
   const [done, setDone] = useState<Set<string>>(new Set());
   const [url, setUrl] = useState('');
   useEffect(() => {
+    let active = true;
+    setPkg(null);
+    setDone(new Set());
+    setUrl('');
     void window.desk.publish
       .postPackage(postId)
-      .then(setPkg)
+      .then(value => { if (active) setPkg(value); })
       .catch((e) => {
+        if (!active) return;
         ui.toast(errText(e), { error: true });
         onClose();
       });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
   const mark = (k: string) => setDone((s) => new Set(s).add(k));
@@ -65,6 +72,7 @@ export function UploadInBrowserSheet({ postId, pf, onClose, onPosted }: { postId
               await window.desk.showItem(pkg.cover!);
               mark('cover');
             })}
+          {!!(pkg.sidecars?.length || pkg.captionIssues?.length) && <li><CaptionFiles pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} /></li>
           <li className="ub-step col" style={{ alignItems: 'stretch', gap: 6 }}>
             <span className="small">{t('ub.s.done')}</span>
             <span className="row" style={{ gap: 8 }}>
