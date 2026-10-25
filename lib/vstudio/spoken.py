@@ -55,7 +55,9 @@ def validate(doc, cues, duration):
         if not isinstance(b.get("evidence"), str) or len(_plain(b["evidence"])) < 4 or _plain(b["evidence"]) not in _plain(excerpt):
             raise ValueError("spoken finishing: the evidence must quote the selected speech")
         # Summary labels may paraphrase; they must not introduce a new number.
-        if any(n not in excerpt for n in re.findall(r"\d+(?:\.\d+)?", title + " ".join(items))):
+        number = r"\d+(?:[.,]\d+)*"
+        source_numbers = set(re.findall(number, excerpt))
+        if any(n not in source_numbers for n in re.findall(number, title + " ".join(items))):
             raise ValueError("spoken finishing: a card introduces a number absent from its source")
         effects.append(dict(id=f"spoken-{i + 1}", effect="explanation-card", start=start, end=stop,
                             params=dict(title=title, items=items, kind=kind)))

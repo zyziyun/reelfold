@@ -178,3 +178,30 @@ def test_provider_failure_does_not_trigger_a_plan_repair():
     with pytest.raises(RuntimeError, match="AI login expired"):
         spoken.plan(CUES, 12, complete=model)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("source,label", [
+    ("我记录了100个案例。", "10个案例"),
+    ("结果是12.5分。", "2.5分"),
+    ("The sample has 1,000 entries.", "1 entry"),
+    ("The rate is 0.05 percent.", "05 percent"),
+])
+def test_card_numbers_must_match_whole_source_values(source, label):
+    cues = [dict(c) for c in CUES]
+    cues[3]['text'] = source
+    beat = dict(BEAT, kind='takeaway', title='Result', items=[label], evidence=source)
+    with pytest.raises(ValueError, match='number absent'):
+        spoken.validate(dict(beats=[beat]), cues, 12)
+
+
+@pytest.mark.parametrize("source,label", [
+    ("我记录了100个案例。", "100个案例"),
+    ("结果是12.5分。", "12.5分"),
+    ("The sample has 1,000 entries.", "1,000 entries"),
+    ("Le taux est 2,5 pour cent.", "2,5 pour cent"),
+])
+def test_card_keeps_exact_source_quantities_across_languages(source, label):
+    cues = [dict(c) for c in CUES]
+    cues[3]['text'] = source
+    beat = dict(BEAT, kind='takeaway', title='Result', items=[label], evidence=source)
+    assert spoken.validate(dict(beats=[beat]), cues, 12)[0]['params']['items'] == [label]
