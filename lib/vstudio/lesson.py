@@ -555,7 +555,8 @@ def clip_specs(plan, source, camera=None, offset=0.0, layout=None, mode="bilingu
                  for t in (p.get("terms") or []) if t.get("t") is not None][:3]
         specs.append(dict(base, id=p["id"], kind=p["kind"], title=p["title"],
                           parts=[dict(kind="card", kicker=k, title=p["title"], sub=sub, dur=card_s),
-                                 dict(kind="src", a=p["start"], b=p["end"])],
+                                 dict(kind="src", a=p["start"], b=p["end"],
+                                      **({"detail_regions": p["detail_regions"]} if "detail_regions" in p else {}))],
                           header=dict(kicker=k, title=p["title"], sub=sub), terms=terms,
                           highlight=[x for x in [p.get("phrase")] + [t["term"] for t in p.get("terms") or []] if x],
                           summary=p.get("summary"), gloss=sub))

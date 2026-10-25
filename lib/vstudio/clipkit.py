@@ -280,6 +280,46 @@ def _crop_fill(w, h):
     return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
 
 
+def detail_geometry(geo, src_wh, regions, caption_rail=False):
+    """Source-pixel rectangles for one continuous source part; preserve its full overview.
+
+    Portrait only: landscape retains the complete source. Regions must be verified against
+    the displayed (rotation-corrected) source, not inferred from its title or transcript.
+    """
+    import math
+    if not isinstance(regions, list) or not 1 <= len(regions) <= 2:
+        raise ValueError("detail_regions needs one or two source rectangles")
+    sw, sh = src_wh
+    rects = []
+    for r in regions:
+        if not isinstance(r, (list, tuple)) or len(r) != 4 or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in r):
+            raise ValueError("detail_regions rectangles must be finite [x, y, width, height]")
+        x, y, w, h = r
+        if x < 0 or y < 0 or w < 2 or h < 2 or x + w > sw or y + h > sh:
+            raise ValueError("detail_regions rectangle is outside the displayed source")
+        rects.append([int(x), int(y), int(w), int(h)])
+    if not geo["vertical"]:
+        return geo
+    if geo.get("camera"):
+        raise ValueError("detail_regions currently requires the screen layout without a separate camera tile")
+    W, H = geo["canvas"]
+    margin = max(2, int(W * .035))
+    # Short-video caption safe zones end well above the physical canvas bottom.
+    # Keep detail pixels above the caption band's usual 62.5% start, not at 78%.
+    bottom = int(H * .60) if caption_rail else H - margin
+    ow, oh = _fit(sw, sh, W, int(H * (.24 if caption_rail else .34)))
+    top = margin + oh + margin
+    slot = (bottom - top) // len(rects)
+    details = []
+    for j, rect in enumerate(rects):
+        dw, dh = _fit(rect[2], rect[3], W - 2 * margin, slot - margin)
+        if min(dw, dh) < 2:
+            raise ValueError("detail_regions cannot fit this canvas")
+        details.append(dict(source=rect, box=[(W - dw) // 2, top + j * slot + (slot - dh) // 2, dw, dh]))
+    return dict(geo, main=((W - ow) // 2, margin, ow, oh), header=None, details=details)
+
+
 def compose_part(src, a, b, out, geo, camera=None, offset=0.0, speed=1.0, header_png=None, audio="source"):
     """One src part on the canvas: paper ground, the main picture (and camera) placed per ``geo``, the header,
     speed-up with pitch kept. Audio from the main source (or ``audio="camera"``); silence if it has none."""
@@ -302,9 +342,21 @@ def compose_part(src, a, b, out, geo, camera=None, offset=0.0, speed=1.0, header
         n += 1
     sp = f"setpts=(PTS-STARTPTS)/{speed:.4f}"
     x, y, w, h = geo["main"]
-    g = [f"[1:v]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
+    details = geo.get("details") or []
+    g = []
+    main_input = "1:v"
+    if details:
+        g.append(f"[1:v]split={len(details) + 1}[overview]" + "".join(f"[detail{j}]" for j in range(len(details))))
+        main_input = "overview"
+    g += [f"[{main_input}]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
          f"color={_hex('paper')},setsar=1[m]", f"[0:v][m]overlay={x}:{y}:shortest=1[b0]"]
     last = "b0"
+    for j, detail in enumerate(details):
+        sx, sy, sw, sh = detail["source"]
+        dx, dy, dw, dh = detail["box"]
+        g.append(f"[detail{j}]{sp},crop={sw}:{sh}:{sx}:{sy}:exact=1,scale={dw}:{dh},setsar=1[d{j}]")
+        g.append(f"[{last}][d{j}]overlay={dx}:{dy}:shortest=1[bd{j}]")
+        last = f"bd{j}"
     if idx_cam is not None:
         cx, cy, cw, ch = geo["camera"]
         g.append(f"[{idx_cam}:v]{sp},{_crop_fill(cw, ch)},setsar=1[c]")
@@ -439,7 +491,10 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
     layout = spec.get("layout") or ("pip" if cam else "screen")
     if layout not in LAYOUTS:
         raise ValueError(f"layout {layout!r}: {' | '.join(LAYOUTS)}")
-    protected = bool(spec.get("protect_content"))
+    has_details = any(p.get("detail_regions") is not None for p in spec["parts"])
+    protected = bool(spec.get("protect_content")) or has_details
+    if has_details and (cam or (spec.get("mask") or {}).get("mode") in ("sticker", "blur")):
+        raise ValueError("detail_regions requires a screen source without separate camera or face masking")
     hdr = None if protected else spec.get("header")
     geo = geometry(canvas, layout, src_wh, cam_wh if cam else None, header=bool(hdr))
     if protected:
@@ -485,7 +540,9 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
         else:
             a, b = float(p["a"]), float(p["b"])
             sp = float(p.get("speed") or speed)
-            compose_part(src, a, b, out, geo, cam, float(spec.get("offset") or 0.0), sp, header_png,
+            part_geo = detail_geometry(geo, src_wh, p["detail_regions"], spec.get("_caption_rail", False)) \
+                if p.get("detail_regions") is not None else geo
+            compose_part(src, a, b, out, part_geo, cam, float(spec.get("offset") or 0.0), sp, header_png,
                          spec.get("audio") or "source")
             if mask.get("mode") in ("sticker", "blur"):
                 mo = out.replace(".mp4", ".masked.mp4")
@@ -493,7 +550,8 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
                 mrep.append(dict(part=k, **r))
                 os.replace(mo, out)
             d = media.probe(out)["duration"]
-            timeline.append(dict(kind="src", t0=round(t, 3), t1=round(t + d, 3), a=a, b=b, speed=sp))
+            timeline.append(dict(kind="src", t0=round(t, 3), t1=round(t + d, 3), a=a, b=b, speed=sp,
+                                 main=list(part_geo["main"]), details=part_geo.get("details", [])))
             t += d
         parts.append(out)
     # overlays (final time): term cards, speaker labels
@@ -511,7 +569,9 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
     if protected:
         for seg in timeline:
             if seg["kind"] == "src":
-                keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=list(geo["main"]), kind="source-content"))
+                keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=seg["main"], kind="source-content"))
+                for detail in seg["details"]:
+                    keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=detail["box"], kind="source-detail"))
                 if geo.get("camera"):
                     keepouts.append(dict(t0=seg["t0"], t1=seg["t1"], box=list(geo["camera"]), kind="camera"))
     tx, ty, tw = geo["terms"]

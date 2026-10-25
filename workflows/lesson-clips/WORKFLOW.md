@@ -79,6 +79,20 @@ portrait requests: keeping every source pixel does not by itself prove that smal
 Local visual classification is a heuristic, recorded as such, not OCR or a semantic proof that a slide is correct.
 Do not treat a green media check as proof that technical names in ASR or an explanation's boundaries are correct.
 
+For dense slides in a portrait clip, a point may specify `detail_regions`, one or two
+`[x, y, width, height]` rectangles in the displayed source's pixels. The shared renderer keeps the complete
+source above enlarged detail panes, with captions in a separate bottom rail. Landscape keeps the full source.
+For example, `detail_regions: [[80, 120, 900, 300], [1000, 120, 500, 180]]` describes two regions;
+these are example coordinates, never defaults. Verify complete code lines, labels and arrows on actual source
+frames throughout the point. Split at a slide change; a region belongs only to its source part. Clipkit's
+`parts` entries accept the same field for other screen-based workflows. The output timeline records each
+source rectangle and destination box, and subtitle keepouts follow those part times.
+
+This is an explicit layout capability, not automatic semantic region selection. Never invent coordinates from
+the transcript. Separate camera tiles and face masking are not supported with these detail panes and fail
+explicitly; embedded camera footage remains in the overview. Bounds and finite dimensions are validated.
+Inspect at phone size: enlargement alone does not prove the selected detail is complete or readable.
+
 ### Caption proofreading
 
 Before translation or burn-in, the shared caption proofreader follows the configured `proofread` LLM route.
