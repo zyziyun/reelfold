@@ -11,6 +11,7 @@ import re
 SCHEMA = {"type": "object", "required": ["beats"], "properties": {"beats": {
     "type": "array", "items": {"type": "object", "required": ["from", "to", "kind", "title", "items", "evidence"],
     "properties": {"from": {"type": "integer"}, "to": {"type": "integer"},
+                   "evidence_from": {"type": "integer"},
                    "kind": {"enum": ["contrast", "chain", "takeaway"]}, "title": {"type": "string"},
                    "items": {"type": "array", "items": {"type": "string"}},
                    "evidence": {"type": "string"}}}}}}
@@ -51,7 +52,15 @@ def validate(doc, cues, duration):
             raise ValueError("spoken finishing: a contrast needs exactly two sides")
         if kind == "chain" and len(items) < 2:
             raise ValueError("spoken finishing: a chain needs at least two steps")
-        excerpt = "".join(c["text"] for c in cues[a:z + 1])
+        # The on-screen duration is not the length of the supporting argument.
+        # Permit nearby prior context, but never borrow a later conclusion.
+        ea = b.get("evidence_from", a)
+        if type(ea) is not int or not 0 <= ea <= a or b.get("evidence_to", z) != z:
+            raise ValueError("spoken finishing: evidence must begin at or before the display and end with it")
+        evidence_start = float(cues[ea]["start"])
+        if not math.isfinite(evidence_start) or not 0 <= start - evidence_start <= 12:
+            raise ValueError("spoken finishing: supporting context must be within 12 seconds before the display")
+        excerpt = "".join(c["text"] for c in cues[ea:z + 1])
         if not isinstance(b.get("evidence"), str) or len(_plain(b["evidence"])) < 4 or _plain(b["evidence"]) not in _plain(excerpt):
             raise ValueError("spoken finishing: the evidence must quote the selected speech")
         # Summary labels may paraphrase; they must not introduce a new number.
@@ -75,7 +84,13 @@ def plan(cues, duration, title="", complete=None):
         "not decoration. Preserve the speaker's meaning, qualifications and first-person perspective. "
         "Choose only moments that benefit from a contrast, causal chain or takeaway. Return beats with from/to "
         "CAPTION INDICES, kind (contrast/chain/takeaway), a short title, 1–3 short items and evidence quoted "
-        "EXACTLY from those captions. Contrast has 2 items; chain has 2–3. "
+        "EXACTLY from those captions. If a complete idea begins before the brief display range, "
+        "set optional evidence_from to its first caption (at most 12 seconds before from). "
+        "Evidence ends at to: never borrow later speech to announce a conclusion early. "
+        "Prior context must belong to the SAME argument, not an unrelated earlier topic. "
+        "Use it to retain the subject, condition or qualification that makes the displayed idea accurate. "
+        "The display still spans 2–5 seconds; supporting context does not extend the graphic. "
+        "Contrast has 2 items; chain has 2–3. "
         "The renderer draws arrows between chain items: use chain ONLY for an explicitly stated cause "
         "and consequence or ordered procedural steps. A conditional, concession or hypothetical "
         "(if, even if, unless, despite) is not a causal chain. Keep that condition together with its "

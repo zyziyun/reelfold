@@ -88,3 +88,5 @@ Primary written guidance, reviewed 2026-10-14 (references, not licensed footage 
 ### Preserve the relationship when choosing a graphic
 
 Chain cards draw arrows. Use them for stated causes and consequences or ordered procedural steps, not conditional resilience, concessions, or hypothetical outcomes. Keep “even if”, “unless”, and other qualifications with the conclusion in a takeaway. A contrast needs real alternatives or differences. Audit the visible labels as well as the quoted evidence: an accurate quote does not make an inaccurate diagram acceptable.
+
+The visual plan may use `evidence_from` to include the beginning of the same argument up to 12 seconds before the display. Evidence ends at the display’s `to` cue, never in future speech. This context window supplies missing subjects and qualifications without holding a card on screen for the entire argument. It is a locality bound, not proof of semantic relevance; review the actual relationship. Existing plans without this field keep their selected-cue evidence.

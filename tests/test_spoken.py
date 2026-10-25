@@ -205,3 +205,39 @@ def test_card_keeps_exact_source_quantities_across_languages(source, label):
     cues[3]['text'] = source
     beat = dict(BEAT, kind='takeaway', title='Result', items=[label], evidence=source)
     assert spoken.validate(dict(beats=[beat]), cues, 12)[0]['params']['items'] == [label]
+
+
+def test_prior_argument_context_does_not_extend_display():
+    cues = [dict(c) for c in CUES]
+    cues[1]['text'] = 'Only in this 100-case sample.'
+    beat = dict(BEAT, kind='takeaway', title='Sample only', items=['100 cases'],
+                evidence_from=1, evidence='Only in this 100-case sample.')
+    result = spoken.plan(cues, 12, complete=lambda *a, **kw: dict(json=dict(beats=[beat])))
+    assert result['effects'][0]['start'] == 3
+    assert result['effects'][0]['end'] == 6
+    assert result['beats'][0]['evidence_from'] == 1
+
+
+@pytest.mark.parametrize('extra', [dict(evidence_from=-1), dict(evidence_from=True),
+                                  dict(evidence_from=4), dict(evidence_to=6)])
+def test_context_cannot_borrow_future_or_invalid_cues(extra):
+    with pytest.raises(ValueError, match='evidence must begin'):
+        spoken.validate(dict(beats=[dict(BEAT, **extra)]), CUES, 12)
+
+
+def test_context_cannot_reach_a_distant_argument():
+    cues = [dict(c) for c in CUES]
+    for c in cues[3:]:
+        c['start'] += 20
+        c['end'] += 20
+    beat = dict(BEAT, evidence_from=0, evidence=CUES[0]['text'])
+    with pytest.raises(ValueError, match='within 12 seconds'):
+        spoken.validate(dict(beats=[beat]), cues, 32)
+
+
+def test_future_number_is_not_available_to_context_card():
+    cues = [dict(c) for c in CUES]
+    cues[6]['text'] = 'Later we measured 100 cases.'
+    beat = dict(BEAT, evidence_from=1, title='100 cases')
+    with pytest.raises(ValueError, match='number absent'):
+        spoken.validate(dict(beats=[beat]), cues, 12)
