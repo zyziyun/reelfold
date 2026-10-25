@@ -1465,7 +1465,9 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
             summary = None
     if not projects and not media and not any(n["code"] == "intake.need.footage" for n in needs):
         intent = _words_intent(intent, prompt)          # no files: a project made from the request's words
-    if not projects:
+    # An explicit empty model plan is a decision, not a failed model call.
+    # Rule fallback must not invent work the model said cannot be made.
+    if not projects and raw_projects != []:
         rp, rq, rr = R.rule_projects(intent, analysis, ctx)
         for x in rp:
             p = normalize_project(x, len(projects), analysis, intent, ctx, warn)
@@ -1474,6 +1476,8 @@ def make_plan(prompt, inputs=None, client=None, provider=None, model=None, analy
         questions, risks = (questions or rq), (risks + [r for r in rr if r not in risks])
         info["fallback"] = info.get("route") != "fixed"
         info.setdefault("reason", "rule planner")
+    if raw_projects == [] and not needs:
+        needs.append(MSG.msg("intake.need.plan", reason="; ".join(risks) or summary or ""))
     projects, questions = split_by_language(projects, questions)     # YouTube is always English: its own version
     projects = split_by_cut(projects, intent)                        # long + short cuts, each its own length
     risks += [r for r in voice_risks(projects, ui_lang) if r not in risks]
@@ -1629,7 +1633,7 @@ def revise(plan, instruction, provider=None, model=None, call=None, client=None,
                 p = normalize_project(rp, len(projects), analysis, _only_explicit(follow, instruction), ctx, warn)
                 if p:
                     projects.append(p)
-        if js.get("projects") == [] and R.negations(instruction):
+        if js.get("projects") == []:
             projects = []
         elif not projects:
             js = None
@@ -1658,6 +1662,9 @@ def revise(plan, instruction, provider=None, model=None, call=None, client=None,
     kept = {p["id"] for p in projects}
     plan["questions"] = [q for q in plan.get("questions") or [] if not q.get("project") or q["project"] in kept]
     plan["projects"] = projects
+    plan["needs"] = [n for n in plan.get("needs", []) if n.get("code") != "intake.need.plan"]
+    if js is not None and js.get("projects") == []:
+        plan["needs"].append(MSG.msg("intake.need.plan", reason="; ".join(plan.get("risks") or []) or summary or ""))
     plan["series"] = _series_for(projects, plan["prompt"]) if len(projects) > 1 else None
     plan["revisions"] = list(plan.get("revisions") or []) + [dict(prompt=instruction, at=time.strftime(
         "%Y-%m-%dT%H:%M:%S"), planner=info, changes=notes)]

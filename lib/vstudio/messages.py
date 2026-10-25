@@ -50,6 +50,8 @@ CATALOG = {
     "intake.option.mask.pick": ("I'll pick", "我来指定"),
     "intake.option.narration.voice": ("Narration", "旁白"),
     "intake.option.narration.music": ("Music only", "纯音乐"),
+    "intake.need.plan": ("No project can be made from this plan yet. Add the missing material or change the request. {reason}",
+                         "这个方案暂时无法制作项目。请补充缺少的素材或修改要求。{reason}"),
     "intake.need.footage": ("Add the recordings you want cut - this request edits your own video. Drop them here",
                             "把要剪的录像拖进来：这个请求是剪你自己的视频"),
     "intake.need.notion": ("Which Notion pages? Paste their links (pages shared to the web), or export them in Notion "
@@ -109,6 +111,7 @@ CATALOG = {
 
 # French (the desk's fr locale, the engine's ``lang="fr"``). "{text}" codes pass the text through untranslated.
 FR = {
+    "intake.need.plan": "Ce plan ne permet pas encore de créer un projet. Ajoutez les éléments manquants ou modifiez la demande. {reason}",
     "intake.need.footage": "Ajoutez les enregistrements à monter - cette demande monte votre propre vidéo. Déposez-les ici",
     "intake.need.notion": "Quelles pages Notion ? Collez leurs liens (pages partagées sur le web), ou exportez-les dans "
                           "Notion (••• › Exporter › Markdown & CSV), décompressez et déposez le dossier ici",

@@ -724,3 +724,34 @@ def test_screen_lesson_preserves_readable_canvas_unless_shape_is_explicit(tmp_pa
     p = plan["projects"][0]
     assert p["recipe"] == "lesson-clips"
     assert p["params"]["platforms"] == [expected]
+
+
+def test_explicit_empty_model_plan_does_not_invent_rule_project(tmp_path):
+    a = build('talk', tmp_path)
+    reason = 'Only a finished export is available; original camera files are missing.'
+    reply = lambda s, b: dict(json=dict(projects=[], risks=[reason], questions=[]), model='mock')
+    plan = PL.make_plan('Rebuild from original camera footage; do not use finished exports',
+                        analysis=a, asr='off', call=reply)
+    assert plan['projects'] == []
+    assert plan['planner']['fallback'] is False
+    assert plan['risks'] == [reason]
+    assert plan['needs'][0]['code'] == 'intake.need.plan'
+    assert reason in plan['needs'][0]['message']
+    assert not PL.validate(plan)
+    with pytest.raises(AP.ApplyError, match='no sub-projects'):
+        AP.apply_plan(plan, out_dir=str(tmp_path / 'outputs'), autopilot=True)
+    assert not (tmp_path / 'outputs').exists()
+
+
+def test_empty_model_revision_keeps_no_project_and_can_recover(tmp_path, monkeypatch):
+    a = build('talk', tmp_path)
+    monkeypatch.setattr(I, 'analyze', lambda *args, **kw: a)
+    plan = PL.make_plan('Polish this video', analysis=a, asr='off', provider='none')
+    empty = PL.revise(plan, 'Use only missing original footage', call=lambda s, b:
+        dict(json=dict(projects=[], risks=['Originals missing'], questions=[]), model='mock'))
+    assert empty['projects'] == [] and empty['planner']['fallback'] is False
+    assert empty['needs'][0]['code'] == 'intake.need.plan'
+    restored = PL.revise(empty, 'Use the supplied video', call=lambda s, b:
+        dict(json=dict(projects=plan['projects'], risks=[], questions=[]), model='mock'))
+    assert restored['projects']
+    assert not restored.get('needs')

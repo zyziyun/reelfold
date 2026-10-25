@@ -125,3 +125,26 @@ class PlanLanguageArgsTest(unittest.TestCase):
 
     def test_ui_lang_codes(self):
         self.assertEqual([IN.ui_lang(x) for x in ("en", "zh-CN", "zh", "fr", None)], ["en", "zh", "zh", "fr", None])
+
+
+class EmptyPlanStateTest(unittest.TestCase):
+    def test_revision_enters_needs_and_clears_it_after_recovery(self):
+        from unittest.mock import patch
+        job = dict(plan=dict(projects=[{}]), state='done')
+        intake = object.__new__(IN.Intake)
+        intake.get = lambda pid: dict(job)
+        intake._set = lambda pid, **fields: job.update(fields)
+        intake._need_engine = lambda: None
+        intake._took = lambda pid: 1
+        intake._fail = lambda pid, error: self.fail(str(error))
+        needs = [dict(code='intake.need.plan', message='Originals missing')]
+        with patch.object(IN.threading, 'Thread') as thread:
+            thread.side_effect = lambda target, **kw: type('Immediate', (), {'start': staticmethod(target)})()
+            intake._engine_revise = lambda *args: dict(projects=[], needs=needs)
+            intake.revise('request', 'Use only original footage')
+            self.assertEqual(job['state'], 'needs')
+            self.assertEqual(job['needs'], needs)
+            intake._engine_revise = lambda *args: dict(projects=[{}])
+            intake.revise('request', 'Use the supplied export')
+            self.assertEqual(job['state'], 'done')
+            self.assertIsNone(job['needs'])

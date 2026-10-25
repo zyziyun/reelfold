@@ -597,7 +597,9 @@ class Intake:
             try:
                 self._need_engine()
                 p = self._engine_revise(pid, j["plan"], prompt)
-                self._set(pid, state="done", step="done", plan=p, seconds=self._took(pid))
+                waiting = bool(p.get("needs"))
+                self._set(pid, state="needs" if waiting else "done", step="needs" if waiting else "done",
+                          plan=p, needs=p.get("needs") or None, seconds=self._took(pid))
             except Exception as e:  # noqa: BLE001
                 self._set(pid, failed_revise=prompt)
                 self._fail(pid, e)
