@@ -74,6 +74,20 @@ def test_unknown_photo_is_not_silently_replaced(tmp_path, monkeypatch):
                       dict(provider="test", json=dict(content='SCRIPT = [(0, [("Cup", "杯子")], [("imaginary", 1, "still", None)])]')))
 
 
+@pytest.mark.parametrize("ext", [".webm", ".WEBM", ".mkv", ".MKV", ".m4v", ".M4V"])
+def test_planner_video_formats_resolve_as_video_shots(tmp_path, ext):
+    import sys
+    from types import SimpleNamespace
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "workflows/photo-story/scripts"))
+    from photostory.ctx import Ctx
+    from photostory.shots import parse_src
+    source = tmp_path / ("source" + ext)
+    source.write_bytes(b"lookup fixture; decoding verified by native audit")
+    ctx = Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), SCRIPT=[], MEDIA=dict(videos=".")))
+    assert os.path.samefile(ctx.find_video("source"), source)
+    assert parse_src(ctx, "vsource") == ("video", "source")
+
+
 @pytest.mark.parametrize("script", [
     'SCRIPT = [dict(duration=4, cues=[("Cup", "杯子")], shots=[("p0001", 1, "still", None)])]',
     'SCRIPT = [(0, [("Cup",)], [("p0001", 1, "still", None)])]',

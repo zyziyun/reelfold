@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image, ImageFont, ImageOps
 
 from vstudio import ffmpeg_filters as FF
+from vstudio.footage import VIDEO_EXT
 from vstudio.config import MissingAsset, font as vfont, persona
 
 from .util import has_cjk, hex_rgb
@@ -284,7 +285,7 @@ class Ctx:
         self.vid_dirs = [self.path(p) for p in _aslist(media.get("videos", media.get("images", "my_clips")))]
         self.img_ext = _aslist(media.get("image_ext", [".jpg", ".jpeg", ".png", ".webp", ".heic", ".JPG", ".JPEG",
                                                        ".PNG", ".HEIC"]))
-        self.vid_ext = _aslist(media.get("video_ext", [".mov", ".mp4", ".m4v", ".MOV", ".MP4"]))
+        self.vid_ext = _aslist(media.get("video_ext", [ext for e in VIDEO_EXT for ext in (e, e.upper())]))
         self.cache_dir = self.path(g("CACHE", "cache"))
         os.makedirs(self.cache_dir, exist_ok=True)
         self._imgs = OrderedDict()
