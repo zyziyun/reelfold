@@ -1359,7 +1359,9 @@ def keep_segments(edits, ranges, approve=(), keep=(), all_confirm=False, extra=(
     for a, b in out:
         if b - a < mp and not any(a <= m <= b for m in mids):
             continue
-        res.append((round(a, 3), round(b, 3)))
+        # Preserve saved frame/sample boundaries until the final media-grid snap.
+        # Millisecond rounding here can move an aligned edge into an adjacent frame.
+        res.append((a, b))
     return res
 
 

@@ -500,6 +500,24 @@ def _decode_frames(path):
     return np.frombuffer(r.stdout, np.uint8).reshape(-1, 96)[:, :64].mean(1)
 
 
+@pytest.mark.parametrize("rate", [24, 30, 60, 30000 / 1001, 48000])
+def test_saved_cut_boundaries_keep_time_precision(rate):
+    ranges = [(31 / rate, 67 / rate), (91 / rate, 137 / rate)]
+    kept = cleanup.keep_segments([], ranges, min_piece=0)
+    assert kept == ranges
+    assert cleanup._frame_grid(kept, rate) == [(31, 67), (91, 137)]
+
+
+@need_ff
+def test_apply_saved_frame_ranges_without_extra_frames(project):
+    edl = dict(project["edl"], edits=[], ranges=[(31 / FPS, 67 / FPS), (91 / FPS, 137 / FPS)])
+    result = cleanup.apply(edl, media_path=project["src"],
+                           out=str(project["tmp"] / "saved-frame-ranges.mp4"))
+    assert len(_decode_frames(result["out"])) == 82
+    assert result["duration"] == pytest.approx(82 / FPS)
+    assert result["timemap"].to_final(91 / FPS) == pytest.approx(36 / FPS)
+
+
 @need_ff
 def test_apply_av_sync_over_many_cuts(project):
     s, edl = project["s"], project["edl"]
