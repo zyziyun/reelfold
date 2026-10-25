@@ -717,6 +717,25 @@ def test_translated_pipeline_uses_replacement_captions(th, lang, text):
     assert len(original["final"]["visual"]["captions"]) > 1
 
 
+def test_translated_voice_selection_invalidates_audio_cache(th, monkeypatch):
+    from vstudio import platform as P, tts
+    oid, _ = _pipeline(th)
+    rec, doc = O._load(th, oid)
+    tg = dict(target="youtube:horizontal", w=640, h=360, profile=P.profile("youtube"),
+              layout="auto", lang="zh", lines=[[0, 2, "Original speech", "你好。"]])
+    monkeypatch.setattr(R, "VOICE", None)
+    monkeypatch.setattr(R, "_voice_for", lambda *a: ("qwen", "serena"))
+    first = R.plan(rec, doc, O.empty_state(), tg, "preview")
+    monkeypatch.setattr(R, "_voice_for", lambda *a: ("system", None))
+    monkeypatch.setattr(tts, "prefs", lambda: dict(system_voice="Tingting"))
+    second = R.plan(rec, doc, O.empty_state(), tg, "preview")
+    monkeypatch.setattr(tts, "prefs", lambda: dict(system_voice="Lili (Premium)"))
+    third = R.plan(rec, doc, O.empty_state(), tg, "preview")
+    assert len({p["audio"]["key"] for p in (first, second, third)}) == 3
+    assert len({p["final"]["key"] for p in (first, second, third)}) == 3
+    assert len({p["timeline"]["key"] for p in (first, second, third)}) == 1
+
+
 @media
 def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     from vstudio import audio as A

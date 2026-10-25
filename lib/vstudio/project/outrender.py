@@ -213,6 +213,12 @@ def plan(rec, doc, st, tg, quality, watermark=None):
             if sp:
                 vl.append([round(sp[0], 3), round(sp[1], 3), text])
         audio["voice"] = dict(lang=tg["lang"], lines=vl, voice=tg.get("voice") or "auto")
+        if VOICE is None:
+            engine, speaker = _voice_for(tg["lang"], tg.get("voice"))
+            audio["voice"].update(engine=engine, voice=speaker)
+            if engine == "system":
+                from vstudio import tts
+                audio["voice"]["system_preference"] = tts.prefs().get("system_voice")
         if not audio["music"]:
             audio["music"] = dict(mood="calm", sig=["mood", "calm"], duck_db=-8, music_lufs=-26)
     vos = []
@@ -762,8 +768,11 @@ def run_audio(spec, src, out, duration, workdir):
 
 
 def _voice_for(lang, choice="auto"):
-    from vstudio import tts
-    eng = tts.available_engine()
+    from vstudio import tts, voicecast as VC
+    named = VC.explicit(choice)
+    if named:
+        return named["engine"], named["speaker"]
+    eng = VC.narration_engine(lang)
     if choice and choice != "auto":
         return eng, choice
     if eng == "system":
@@ -772,13 +781,21 @@ def _voice_for(lang, choice="auto"):
         return eng, tts.zh_voice(eng)
     if lang == "fr" and eng == "kokoro":
         return eng, "ff_siwis"
+    if lang not in ("en", "zh"):
+        cast = VC.rule_cast(lang, eng)
+        if cast:
+            return eng, cast["speaker"]
+        if eng == "kokoro":
+            raise OUT.OutputError("voice-language-unavailable", f"No installed narration voice for {lang}. "
+                                  "Choose a voice engine that supports this language in Settings.",
+                                  "没有可用的目标语言声音，请在设置中选择支持该语言的语音引擎。", language=lang)
     return eng, tts.default_voice(eng)
 
 
 def voice_track(v, duration, workdir):
     """Synthesise a translated version using the same bounded timing as added narration."""
     from .outvoice import timed_speech
-    eng = voice = None
+    eng, voice = v.get("engine"), v.get("voice")
 
     def synth_line(text, wav, k):
         nonlocal eng, voice

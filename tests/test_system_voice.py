@@ -101,6 +101,29 @@ def test_system_language_reaches_synth_without_chinese_default(monkeypatch, tmp_
     assert selected[-1] == 'Explicit'
 
 
+@pytest.mark.parametrize('lang', ['ja', 'ko'])
+def test_translated_version_uses_native_voice_route(monkeypatch, lang):
+    from vstudio.project import outrender
+    monkeypatch.setattr(tts, 'available_engine', lambda: 'kokoro')
+    monkeypatch.setattr(tts, 'qwen_ready', lambda: True)
+    engine, speaker = outrender._voice_for(lang)
+    assert engine == 'qwen'
+    assert voicecast.find(speaker, engine) in voicecast.candidates(engine, lang)
+
+
+def test_translated_chinese_honors_system_preference(monkeypatch):
+    from vstudio.project import outrender
+    monkeypatch.setattr(tts, 'available_engine', lambda: 'kokoro')
+    monkeypatch.setattr(tts, 'prefs', lambda: dict(zh_engine='system', system_voice='Lili (Premium)'))
+    assert outrender._voice_for('zh') == ('system', None)
+
+
+def test_translated_named_voice_selects_its_engine(monkeypatch):
+    from vstudio.project import outrender
+    monkeypatch.setattr(tts, 'available_engine', lambda: 'kokoro')
+    assert outrender._voice_for('zh', 'qwen:serena') == ('qwen', 'serena')
+
+
 def _write_audio(path):
     import wave
     with wave.open(str(path), 'wb') as wav:
@@ -139,3 +162,11 @@ def test_invalid_speech_never_replaces_export_and_cache_is_repaired(monkeypatch,
     assert tts._has_audio(cached) and tts._has_audio(str(destination))
     monkeypatch.setattr(tts.media, 'run', lambda args: pytest.fail('valid cache should be reused'))
     assert tts.synth('Test.', engine='system', voice='Test') == cached
+
+
+def test_translation_rejects_unavailable_native_voice(monkeypatch):
+    from vstudio.project import outrender, outputs
+    monkeypatch.setattr(voicecast, 'narration_engine', lambda lang: 'kokoro')
+    monkeypatch.setattr(voicecast, 'rule_cast', lambda *args: None)
+    with pytest.raises(outputs.OutputError, match='No installed narration voice for ko'):
+        outrender._voice_for('ko')
