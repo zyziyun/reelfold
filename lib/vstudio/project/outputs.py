@@ -392,8 +392,8 @@ def resolve(d, output):
             v = imp["version"]
             post = v.get("post") or {}
             said = " ".join(x for x in (post.get("title"), post.get("body")) if x)
-            if said.strip():                     # its post copy says the language: whisper's guess over a music
-                from vstudio import bilingual as BL   # intro is not trusted
+            if said.strip():                     # editorial hint only: post copy need not match the spoken audio
+                from vstudio import bilingual as BL
                 rec["lang_hint"] = BL.detect_lang([said])
             if v.get("platform"):
                 rec["platform"] = f"{v['platform']}:{v.get('orientation') or 'vertical'}"
@@ -1094,7 +1094,10 @@ def words(doc, required=True):
     try:
         from vstudio.batch.livestatus import write as lw
         lw(doc.dir, "running", stage="transcribe", message=os.path.basename(doc.rec["file"]), by="output-edit")
-        raw = _transcriber()(doc.rec["file"], language=doc.rec.get("lang_hint"))
+        # An imported post can be localized independently of its audio. Let ASR honor the user's
+        # configured language/detection mode instead of forcing the post's English/Chinese hint.
+        language = None if doc.rec.get("imported") else doc.rec.get("lang_hint")
+        raw = _transcriber()(doc.rec["file"], language=language)
     except Exception as e:  # noqa: BLE001
         if required:
             raise _err("transcribe-failed", f"could not transcribe the output: {str(e)[:200]}",

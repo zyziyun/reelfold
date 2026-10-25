@@ -154,6 +154,29 @@ def _imported(footage):
     return r["dir"], r["clips"][0]["versions"][0]["file"]
 
 
+@pytest.mark.parametrize("configured", ["auto", "fr"])
+@pytest.mark.parametrize("version", [0, 1])
+def test_post_copy_does_not_override_spoken_language(footage, monkeypatch, configured, version):
+    from vstudio import asr
+    r = IM.import_([str(footage["out"])])
+    oid = r["clips"][0]["versions"][version]["file"]
+    _, doc = O._load(r["dir"], oid)
+    assert doc.rec["lang_hint"] == ("en" if version == 0 else "zh")
+    monkeypatch.setenv("VSTUDIO_ASR_LANGUAGE", configured)
+    monkeypatch.setattr(O, "TRANSCRIBE", None)
+    heard = []
+
+    def transcribe(path, language=None, **kwargs):
+        heard.append(language if language is not None else asr.default_language())
+        return dict(language="fr", segments=[dict(start=0.3, end=1.5, text="Bonjour à tous.", words=[
+            dict(word="Bonjour", start=0.3, end=0.8), dict(word="à tous.", start=0.8, end=1.5)])])
+
+    monkeypatch.setattr(asr, "transcribe", transcribe)
+    assert O.words(doc)
+    assert heard == [configured]
+    assert json.loads(open(O.transcript_path(doc)).read())["language"] == "fr"
+
+
 def test_editor_on_an_import_swaps_a_shot(footage):
     d, oid = _imported(footage)
     sh = O.show(d, oid)
