@@ -213,7 +213,9 @@ test('time to post: overdue banner, one notification, click -> the form fills it
   await expect(page).toHaveURL(new RegExp(`#/publish/post/${id}`));
   const pn = page.getByTestId('post-now');
   await expect(pn).toHaveAttribute('data-phase', 'filled', { timeout: 60000 });
-  await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(4);
+  await expect(page.locator('[data-testid="post-steps"] li')).toHaveCount(5);
+  // This fixture has no cover upload dialog: the cover flow must report failure.
+  await expect(page.locator('[data-testid="post-steps"] li[data-field="cover"]')).toHaveAttribute('data-status', 'error');
   for (const f of ['file', 'title', 'description', 'publish']) await expect(page.locator(`[data-testid="post-steps"] li[data-field="${f}"]`)).toHaveAttribute('data-status', 'ok');
   expect((await rows()).find((x) => x.id === id)?.state).toBe('filled');
   // what the platform page holds now (the account's view): the video made for 小红书, the title, the text, nothing clicked
@@ -419,4 +421,31 @@ test('visible steps pause and resume, manual takeover and navigation stop furthe
   await platform("document.getElementById('form').style.display='block'");
   await page.waitForTimeout(550);
   expect((await platform('window.__state()')).title).toBe('');
+});
+
+
+for (const rejected of [false, true]) test(`a late fill ${rejected ? 'error' : 'response'} cannot replace confirmed publication`, async () => {
+  const hist = await api<{ items: { id: string; dir: string }[] }>('/api/history');
+  const source = hist.items.find(i => i.dir === work)!.id;
+  const created = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item: source, clip: 'A_小博主', platform: 'xiaohongshu', at: at(new Date(Date.now() + 3600000)), account: 'main' }] });
+  const id = created.ids[0];
+  // Delay only the IPC response: exercise the real renderer's concurrent event
+  // and request handling without publishing to an external account.
+  await app.evaluate(({ ipcMain }, rejected) => {
+    ipcMain.removeHandler('publish:fillPost');
+    ipcMain.handle('publish:fillPost', () => new Promise((resolve, reject) => {
+      (globalThis as unknown as { releaseFill: () => void }).releaseFill = () => rejected ? reject(new Error('Delayed fill transport failure')) : resolve({ ok: true, results: [], cover: null });
+    }));
+  }, rejected);
+  await hash(`#/publish/post/${id}`);
+  await page.getByTestId('post-fill').click();
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'filling');
+  await app.evaluate(({ BrowserWindow }, postId) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('publish:posted', { postId, url: null });
+  }, id);
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'posted');
+  await app.evaluate(() => (globalThis as unknown as { releaseFill: () => void }).releaseFill());
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'posted');
+  await expect(page.getByTestId('post-filled')).toHaveCount(0);
 });

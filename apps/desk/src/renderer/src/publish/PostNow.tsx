@@ -70,6 +70,8 @@ export function PostNow({ id }: { id: string }) {
         const p = d as { postId: string; url: string | null; result?: YtPublishResult };
         if (p.postId === id && p.result) setYtSent(p.result);
         if (p.postId === id) {
+          // Platform confirmation is final; a slower fill reply must not undo it.
+          fillSeq.current += 1;
           setPhase({ k: 'posted', url: p.url });
           cal.reload();
         }
