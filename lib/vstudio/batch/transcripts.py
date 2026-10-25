@@ -76,25 +76,31 @@ def job_dir_of(path, depth=5):
 def _sidecar_words(path):
     s = read_json(path) if path and os.path.isfile(path) else None
     if not isinstance(s, dict):
-        return None, None
+        return None, None, None
     W = [w for w in s.get("words") or [] if isinstance(w, dict) and str(w.get("w", "")).strip()
          and w.get("t") is not None and w.get("te") is not None]
-    return W, float(s.get("duration") or 0)
+    return W, float(s.get("duration") or 0), s.get("language")
 
 
 def mapped_words(path, duration=None, tol=0.35):
+    """Compatibility word-list view of :func:`mapped_transcript`."""
+    tr = mapped_transcript(path, duration=duration, tol=tol)
+    return tr["words"] if tr else None
+
+
+def mapped_transcript(path, duration=None, tol=0.35):
     """Word timings of a speech-pipeline cut (the export / master of a batch job), WITHOUT hearing it again.
 
     The ``apply`` stage already re-timed the source transcript onto the cut (``<part>.cleanup.json`` -> ``words``,
     cut seconds); ``compose`` played the hook (at ``hook_speed``) then the body (at ``speed``). This replays that:
-    [{"w","t","te"}] on ``path``'s timeline, or None when ``path`` is not a pipeline cut, the sidecars are gone,
-    or the cut's length does not match ``duration`` within ``tol`` seconds (a shorter platform variant, a file
+    {words: [{"w","t","te"}], language} on ``path``'s timeline, or None when ``path`` is not a pipeline cut,
+    the sidecars are gone, or the cut's length does not match ``duration`` within ``tol`` seconds (a shorter platform variant, a file
     edited since) - the caller then transcribes as before."""
     jd = job_dir_of(path)
     if not jd:
         return None
     if not os.path.isdir(os.path.join(jd, "apply")):
-        return _vtrack_words(jd, duration, tol)
+        return _vtrack_transcript(jd, duration, tol)
     job = read_json(os.path.join(jd, "job.json")) or {}
     p = job.get("params") if isinstance(job.get("params"), dict) else {}
     try:
@@ -105,8 +111,8 @@ def mapped_words(path, duration=None, tol=0.35):
     if s <= 0 or hs <= 0:
         return None
     out, t = [], 0.0
-    hook, hdur = _sidecar_words(os.path.join(jd, "apply", "hook.cleanup.json"))
-    body, bdur = _sidecar_words(os.path.join(jd, "apply", "body.cleanup.json"))
+    hook, hdur, hlang = _sidecar_words(os.path.join(jd, "apply", "hook.cleanup.json"))
+    body, bdur, blang = _sidecar_words(os.path.join(jd, "apply", "body.cleanup.json"))
     if body is None:
         return None
     if hook is not None and hdur:
@@ -119,14 +125,24 @@ def mapped_words(path, duration=None, tol=0.35):
     if duration and total and abs(float(duration) - total) > tol:
         return None
     out.sort(key=lambda w: w["t"])
-    return out or None
+    languages = ([hlang] if hook and hdur else []) + ([blang] if body else [])
+    return _mapped_result(out, languages)
 
 
-def _vtrack_words(jd, duration=None, tol=0.35):
+def _mapped_result(words, languages):
+    if not words:
+        return None
+    # Unknown or mixed spoken parts cannot establish a single language for the whole cut.
+    langs = {str(lg or "").strip().lower() for lg in languages}
+    language = next(iter(langs)) if len(langs) == 1 else None
+    return dict(words=words, language=language or None)
+
+
+def _vtrack_transcript(jd, duration=None, tol=0.35):
     """A talking-head job (``cleanup`` + ``compose``, no ``apply`` stage): the cleanup sidecar compose played
     (``compose/segs.json`` ``sidecar``: words in body seconds) placed at ``BODY_START + t / BODY_SPEED``
     (``compose/timeline.json``, the workflow's own mapping). The hook montage before ``BODY_START`` re-cuts body
-    moments and gets no words of its own. -> words or None (sidecars gone, or another length than ``duration``)."""
+    moments and gets no words of its own. -> transcript or None (sidecars gone, or another length than ``duration``)."""
     tl = read_json(os.path.join(jd, "compose", "timeline.json"))
     segs = read_json(os.path.join(jd, "compose", "segs.json"))
     if not isinstance(tl, dict) or not isinstance(segs, dict):
@@ -134,7 +150,7 @@ def _vtrack_words(jd, duration=None, tol=0.35):
     name = segs.get("sidecar")
     if not isinstance(name, str) or not name or os.sep in name or "/" in name or name.startswith("."):
         return None
-    body, bdur = _sidecar_words(os.path.join(jd, "cleanup", name))
+    body, bdur, language = _sidecar_words(os.path.join(jd, "cleanup", name))
     if body is None:
         return None
     try:
@@ -150,4 +166,4 @@ def _vtrack_words(jd, duration=None, tol=0.35):
     out = [dict(w=str(w["w"]).strip(), t=round(start + float(w["t"]) / speed, 3),
                 te=round(start + float(w["te"]) / speed, 3)) for w in body]
     out.sort(key=lambda w: w["t"])
-    return out or None
+    return _mapped_result(out, [language])

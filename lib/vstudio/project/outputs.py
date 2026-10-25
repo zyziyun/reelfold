@@ -1176,16 +1176,17 @@ def _pipeline_words(doc):
     if _tsig(doc) != doc.d["source_sig"]:
         return None
     try:
-        from vstudio.batch.transcripts import mapped_words
-        W = mapped_words(doc.rec["file"], duration=doc.rec["info"].get("duration"))
-        if not W and doc.rec.get("master"):
-            W = mapped_words(doc.rec["master"], duration=doc.rec["info"].get("duration"))
+        from vstudio.batch.transcripts import mapped_transcript
+        tr = mapped_transcript(doc.rec["file"], duration=doc.rec["info"].get("duration"))
+        if not tr and doc.rec.get("master"):
+            tr = mapped_transcript(doc.rec["master"], duration=doc.rec["info"].get("duration"))
     except Exception:  # noqa: BLE001  (a hint: the output is transcribed as before)
         return None
-    if not W:
+    if not tr:
         return None
+    W = tr["words"]
     try:
-        write_words(doc, W)
+        write_words(doc, W, tr.get("language"))
     except OSError:
         pass
     return W

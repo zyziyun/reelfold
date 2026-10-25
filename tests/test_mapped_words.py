@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "lib"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from vstudio import cleanup, media  # noqa: E402
-from vstudio.batch.transcripts import job_dir_of, mapped_words  # noqa: E402
+from vstudio.batch.transcripts import job_dir_of, mapped_words, mapped_transcript  # noqa: E402
 
 HAS_FF = bool(shutil.which("ffmpeg"))
 
@@ -136,3 +136,53 @@ def test_talkinghead_after_its_hook_and_length_checked(tmp_path):
     W = mapped_words(str(f), duration=4.0)
     assert W[0]["w"] == "one" and W[0]["t"] == pytest.approx(2.0 + 0.1 / 1.25, abs=0.01)
     assert mapped_words(str(f), duration=2.5) is None                               # another variant: transcribe
+
+
+@pytest.mark.parametrize("kind", ["apply", "talkinghead"])
+@pytest.mark.parametrize("lang,text", [("fr", "Bonjour tout le monde."), ("ja", "今日は世界を紹介します。"),
+                                      ("ko", "오늘은 세상을 소개합니다.")])
+def test_pipeline_translation_retains_source_language(tmp_path, monkeypatch, kind, lang, text):
+    from types import SimpleNamespace
+    from vstudio import bilingual
+    from vstudio.project import outputs as O
+    words = [dict(w=text, t=0.2, te=1.2)]
+    if kind == "apply":
+        jd = _job(tmp_path, dict(speed=2))
+        f = jd / "export" / "exports" / "x.mp4"
+        f.write_bytes(b"")
+        sidecar = jd / "apply" / "body.cleanup.json"
+    else:
+        jd, f = _vtrack_job(tmp_path, dict(BODY_START=0, BODY_SPEED=2, TOTAL=1), [(0, 2)], words)
+        sidecar = jd / "cleanup" / "body2_a.cleanup.json"
+    cleanup.write_sidecar(str(f), "source.mp4", [(0, 2)], words, language=lang, path=str(sidecar))
+    doc = SimpleNamespace(dir=str(tmp_path / "edit"), d=dict(source_sig="current"),
+                          rec=dict(file=str(f), info=dict(duration=1, has_audio=True)))
+    monkeypatch.setattr(O, "TRANSCRIBE", lambda *a, **kw: pytest.fail("mapped words must not run ASR"))
+    calls = []
+
+    def translate(texts, src, target, **kwargs):
+        calls.append((src, target))
+        return ["Hello everyone." for _ in texts], {}
+
+    monkeypatch.setattr(bilingual, "translate_texts", translate)
+    result = O._language_version(doc, dict(lang="en"), [])
+    assert result["src_lang"] == lang
+    assert calls == [(lang, "en")]
+    assert result["lines"][0][:2] == [0.1, 0.6]
+    cache = json.loads(pathlib.Path(O.transcript_path(doc)).read_text())
+    assert cache["language"] == lang and cache["sig"] == "current"
+    assert O._language_version(doc, dict(lang="en"), [])["src_lang"] == lang
+
+
+@pytest.mark.parametrize("hook_language,hook_words,expected", [
+    ("fr", SRC, "fr"), ("en", SRC, None), (None, SRC, None), (None, [], "fr")])
+def test_hook_and_body_language_must_agree(tmp_path, hook_language, hook_words, expected):
+    jd = _job(tmp_path)
+    for part, lang, words in [("body", "fr", SRC), ("hook", hook_language, hook_words)]:
+        cleanup.write_sidecar(str(jd / "apply" / (part + ".mp4")), "source.mp4", [(0, 2)], words,
+                              language=lang, path=str(jd / "apply" / (part + ".cleanup.json")))
+    f = jd / "export" / "exports" / "x.mp4"
+    result = mapped_transcript(str(f), duration=4)
+    assert result["language"] == expected
+    assert result["words"] == mapped_words(str(f), duration=4)
+    assert mapped_transcript(str(f), duration=2) is None
