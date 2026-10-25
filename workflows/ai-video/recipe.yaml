@@ -206,7 +206,7 @@ agent:
   edit_files: ["{item_dir}/work/ai/project.yaml", "{item_dir}/work/ai/timeline.yaml"]
 gaps:
   - Look sheets / scene masters and manual web generation (generate.py sheets / import) are agent / human steps.
-  - Judge cards are not filled automatically. Only complete passing cards bound to the current video can be selected; missing reviews wait for review.
+  - Visual judge cards are drafted by the configured AI from ordered sampled frames and references. Audio/lip-sync checks still need listening review; unknown checks cannot pass.
   - The approved budget is the project total; each episode's generate run is capped at it (not at its own share).
   - Covers come from workflows/cover; package.py upload is never automated.
 capabilities: [aigc, shot-cards, credit-estimate, budget-gate, take-selection, assemble, captions, export]

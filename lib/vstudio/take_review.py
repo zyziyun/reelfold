@@ -91,6 +91,11 @@ def inspect(path, card_path):
             card = json.load(f)
         if not isinstance(card, dict) or card.get('media_sha256') != media_digest(path):
             return 'redo', ['Review does not match the current video file']
+        for ref in card.get('references', []):
+            if not isinstance(ref, dict) or ref.get('sha256') != media_digest(ref.get('path', '')):
+                return 'redo', ['Review reference changed; review the take again']
+        if card.get('brief_path') and card.get('brief_sha256') != media_digest(card['brief_path']):
+            return 'redo', ['Shot plan changed; review the take again']
         return verdict(card)
     except (OSError, ValueError, TypeError):
         return 'redo', ['Video or review card is missing or unreadable']

@@ -71,6 +71,8 @@ def judge(env):
     takes = sorted(glob.glob(os.path.join(env.item_dir, "work", "ai", "takes", "*.mp4")))
     jd = os.path.join(env.item_dir, "work", "ai", "judge")
     os.makedirs(jd, exist_ok=True)
+    with open(_proj(env), encoding="utf-8") as f:
+        project = yaml.safe_load(f) or {}
     rows = []
     for t in takes:
         argv = [env.fmt("{python}"), os.path.join(env.workflow_dir, "scripts", "judge.py"), "sheet", t, "--out", jd]
@@ -80,8 +82,16 @@ def judge(env):
         stem = os.path.splitext(os.path.basename(t))[0]
         unit = stem.rsplit("_v", 1)[0]
         card = os.path.join(jd, f"{stem}.card.json")
-        if not os.path.exists(card):
-            write_json(card, take_review.bound_card(t))
+        existing = read_json(card, {}) or {}
+        manual = isinstance(existing, dict) and existing.get("review_source") != "ai-sampled-visual" and any(
+            value is not None for section in ("hard", "soft", "scores")
+            for value in (existing.get(section) or {}).values())
+        # Never replace a person's rejection or partial review with an AI approval.
+        if not manual and take_review.inspect(t, card)[0] != "pass":
+            from vstudio import take_review_ai
+            review = take_review_ai.review(t, project, unit, os.path.join(jd, stem),
+                                           os.path.dirname(_proj(env)))
+            write_json(card, review)
         rows.append(dict(unit=unit, take=t, card=card, sheet=os.path.join(jd, f"{stem}.sheet.jpg")))
     path = write_json(os.path.join(jd, "takes.json"), dict(takes=rows))
     return dict(takes=path, n=len(rows), files=[path])
@@ -92,7 +102,12 @@ def takes_recheck(params):
     root = os.path.join(params.get("_item_dir") or "", "work", "ai")
     paths = sorted(glob.glob(os.path.join(root, "takes", "*.mp4")) +
                    glob.glob(os.path.join(root, "judge", "*.card.json")))
-    return {path: file_sha(path) for path in paths} or {"reviews": "missing"}
+    paths.append(os.path.join(root, "project.yaml"))
+    for card in glob.glob(os.path.join(root, "judge", "*.card.json")):
+        data = read_json(card, {}) or {}
+        if isinstance(data, dict):
+            paths.extend(r["path"] for r in data.get("references", []) if isinstance(r, dict) and r.get("path"))
+    return {path: file_sha(path) for path in paths}
 
 
 def takes_payload(env, cp):
