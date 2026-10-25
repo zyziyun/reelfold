@@ -723,7 +723,8 @@ class PublishedTest(Fixture):
         prim, vert, cov = (os.path.join(rdir, n) for n in ("primary.final.mp4", "douyin-vertical.final.mp4", "c.jpg"))
         for p in (prim, vert, cov):
             open(p, "wb").close()
-        fin = dict(primary=dict(file=prim, cover=cov, w=1080, h=1440, duration=20.0, key="k1"),
+        fin = dict(primary=dict(file=prim, cover=cov, w=1080, h=1440, duration=20.0, key="k1", sidecars=[dict(file="verified.srt", render_key="k1")],
+                               caption_issues=[dict(reason="file-missing")]),
                    **{"douyin:vertical": dict(file=vert, cover=None, w=1080, h=1920, duration=20.0, key="k2")})
         self.o._engine_list = lambda e: {os.path.realpath(f0): oid}
         self.o._edited[os.path.realpath(self.d)] = {oid}
@@ -735,6 +736,8 @@ class PublishedTest(Fixture):
         # the render writes its cover again in place: the cover's URL keys on the render, like the video's
         self.assertEqual(c["cover_v"], "k1")
         self.assertEqual(c["files"][0]["v"], "k1")
+        self.assertEqual(c["files"][0]["sidecars"], fin["primary"]["sidecars"])
+        self.assertEqual(c["files"][0]["caption_issues"], fin["primary"]["caption_issues"])
         self.assertEqual(next(f for f in c["files"] if f["aspect"] == "9:16")["path"], vert)
         with mock.patch("vstudio.project.outrender.fresh_finals", return_value={}):
             c = self.o.clips(self.item)["clips"][0]

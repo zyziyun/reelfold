@@ -766,6 +766,7 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert [(c.start, c.end, c.text) for c in exported] == [tuple(c) for c in on["final"]["visual"]["captions"]]
     manifest = json.load(open(R.manifest_path(doc)))
     assert manifest["renders"][target + ".preview"]["sidecars"] == tracks
+    assert R.checked_sidecars(manifest["renders"][target + ".preview"], os.path.dirname(R.manifest_path(doc))) == (tracks, [])
     first_audio = A.decode_audio(first["targets"][0]["file"], sr=A.SR, channels=2)
     calls = len(spoken)
     O.edit(th, oid, dict(op="captions", enabled=False))
@@ -832,3 +833,28 @@ def test_caption_sidecars_preserve_final_time_overlap_and_revision(tmp_path):
     assert open(tracks[0]['file']).read() == previous
     p['final']['visual']['captions'] = []
     assert R.caption_sidecars(p, str(tmp_path), 'youtube.final', 2) == []
+
+
+@pytest.mark.parametrize('damage,reason', [('subtitle', 'file-changed'), ('missing', 'file-missing'),
+    ('revision', 'revision-mismatch'), ('video', 'video-changed'), ('outside', 'outside-render-directory')])
+def test_publishing_caption_integrity(tmp_path, damage, reason):
+    video = tmp_path/'video.mp4'
+    video.write_bytes(b'video revision one')
+    p = dict(final=dict(key='revision-one', visual=dict(captions=[[0, 1, 'Bonjour.']])))
+    tracks = R.caption_sidecars(p, str(tmp_path), 'primary.final', 2)
+    record = dict(file=str(video), video_sig=O.file_sig(str(video)), key='revision-one', sidecars=tracks)
+    assert R.checked_sidecars(record, str(tmp_path)) == (tracks, [])
+    from pathlib import Path
+    if damage == 'subtitle':
+        Path(tracks[0]['file']).write_text('stale subtitles')
+    elif damage == 'missing':
+        Path(tracks[0]['file']).unlink()
+    elif damage == 'revision':
+        tracks[0]['render_key'] = 'old-revision'
+    elif damage == 'video':
+        video.write_bytes(b'other video')
+    else:
+        record['sidecars'][0]['file'] = str(tmp_path.parent/'outside.srt')
+    valid, issues = R.checked_sidecars(record, str(tmp_path))
+    assert issues[0]['reason'] == reason
+    assert len(valid) == (0 if damage == 'video' else 1)

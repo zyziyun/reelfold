@@ -1,12 +1,14 @@
 // v0.4 engine documents: outputs (player + second-pass editor), intake (composer -> plan card), inbox, calendar.
 // Mirrors engine/desk_engine/{outputs,intake,inbox,calendar}.py.
 
-import type { YtPublishResult } from './publish/apiPlatforms';
+import type { YtPublishResult, CaptionArtifact, CaptionIssue } from './publish/apiPlatforms';
 import type { ImportedDoc } from './imports';
 
 export type Aspect = '3:4' | '9:16' | '16:9' | string;
 
 export interface ClipFile {
+  sidecars?: CaptionArtifact[];
+  caption_issues?: CaptionIssue[];
   path: string;
   aspect: Aspect;
   /** shown on the size chip instead of the aspect (e.g. "Edited" / "Original") */

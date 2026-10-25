@@ -950,13 +950,15 @@ class Outputs:
             files = [dict(f) for f in c["files"]]
             p = fin["primary"]
             # v: the render's key - the file is replaced in place by every render, the player's URL must change
-            files[0].update(path=p["file"], duration=p.get("duration") or files[0].get("duration"), v=p.get("key"))
+            files[0].update(path=p["file"], duration=p.get("duration") or files[0].get("duration"), v=p.get("key"),
+                            sidecars=p.get("sidecars") or [], caption_issues=p.get("caption_issues") or [])
             for tg, r in fin.items():
                 if tg == "primary":
                     continue
                 asp = WK.aspect_of(r.get("w"), r.get("h")) or tg
                 row = dict(path=r["file"], aspect=asp, w=r.get("w"), h=r.get("h"), duration=r.get("duration"),
-                           platform=tg, v=r.get("key"))
+                           platform=tg, v=r.get("key"), sidecars=r.get("sidecars") or [],
+                           caption_issues=r.get("caption_issues") or [])
                 k = next((i for i, f in enumerate(files) if i and f.get("aspect") == asp), None)
                 if k is None:
                     files.append(row)

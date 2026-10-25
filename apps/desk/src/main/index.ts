@@ -672,6 +672,8 @@ async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitle
     postId,
     platform: p.platform,
     video: file.path,
+    sidecars: file.sidecars ?? [],
+    captionIssues: file.caption_issues ?? [],
     cover: clip.cover && fs.existsSync(clip.cover) ? clip.cover : null,
     title: copy.title || p.title,
     description: copy.description,

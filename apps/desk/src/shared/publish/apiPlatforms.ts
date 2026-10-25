@@ -163,9 +163,26 @@ export interface YtPublishResult {
   checkedAt?: string;
 }
 
+export interface CaptionArtifact {
+  file: string;
+  format: 'srt' | 'vtt';
+  lang: string;
+  role: 'rendered-captions';
+  cues: number;
+  render_key: string;
+  sha256: string;
+}
+export interface CaptionIssue {
+  format?: string;
+  reason: string;
+}
+
 /** One post's ready-made package: the file made for its platform, the cover, the copy (Upload in your browser, the
  * YouTube form). */
 export interface PostPackageMsg {
+  /** Verified local artifacts; composite rendered captions are not auto-uploadable language tracks. */
+  sidecars?: CaptionArtifact[];
+  captionIssues?: CaptionIssue[];
   postId: string;
   platform: string;
   video: string;

@@ -28,7 +28,7 @@ import time
 
 import numpy as np
 
-from vstudio.batch.util import read_json, sha1_json, write_json
+from vstudio.batch.util import read_json, sha1_json, sha256_file, write_json
 
 from . import outfx as FX
 from . import outputs as OUT
@@ -1254,6 +1254,40 @@ def render_status(rec, doc, st):
     return out
 
 
+def checked_sidecars(render, directory):
+    """Only expose caption files still bound to the current video and render revision."""
+    tracks, issues = [], []
+    if not render.get("sidecars"):
+        return tracks, issues
+    try:
+        video_sig = OUT.file_sig(render.get("file") or "")
+    except OSError:
+        video_sig = None
+    for track in render.get("sidecars") or []:
+        reason = None
+        path = track.get("file") or ""
+        if not video_sig or render.get("video_sig") != video_sig:
+            reason = "video-changed"
+        elif track.get("render_key") != render.get("key"):
+            reason = "revision-mismatch"
+        elif track.get("format") not in ("srt", "vtt"):
+            reason = "unsupported-format"
+        elif os.path.dirname(os.path.realpath(path)) != os.path.realpath(directory):
+            reason = "outside-render-directory"
+        else:
+            try:
+                digest = sha256_file(path)
+                if digest != track.get("sha256"):
+                    reason = "file-changed"
+            except OSError:
+                reason = "file-missing"
+        if reason:
+            issues.append(dict(format=track.get("format"), reason=reason))
+        else:
+            tracks.append(dict(track))
+    return tracks, issues
+
+
 def fresh_finals(d, output):
     """The output as it should be published: its edit's FINAL renders that are fresh (key = the current edit state)
     -> {target: {file, cover, w, h, duration}} ({} when it was never edited, or edited since its last render - the
@@ -1273,8 +1307,10 @@ def fresh_finals(d, output):
             continue
         if r.get("key") != plan(rec, doc, st, tg, "final")["final"]["key"]:
             continue
+        sidecars, caption_issues = checked_sidecars(r, os.path.dirname(manifest_path(doc)))
         out[tg["target"]] = dict(file=r["file"], cover=r.get("cover") if r.get("cover") and os.path.exists(r["cover"])
-                                 else None, w=tg["w"], h=tg["h"], duration=r.get("duration"), key=r.get("key"))
+                                 else None, w=tg["w"], h=tg["h"], duration=r.get("duration"), key=r.get("key"),
+                                 sidecars=sidecars, caption_issues=caption_issues)
     return out
 
 
@@ -1284,7 +1320,6 @@ def caption_sidecars(plan, directory, stem, duration):
     This can be bilingual or include editorial overlays, so never infer an upload
     language from the destination platform. Hidden captions are not exported.
     """
-    import hashlib
     from vstudio.subs import Cue, srt_write, vtt_write
     cues = [Cue(max(0, a), min(b, duration), text) for a, b, text in plan["final"]["visual"]["captions"]
             if text.strip() and min(b, duration) > max(0, a)]
@@ -1299,8 +1334,7 @@ def caption_sidecars(plan, directory, stem, duration):
         partial = path + ".part"
         try:
             count = writer(cues, partial, no_overlap=False)
-            with open(partial, "rb") as f:
-                checksum = hashlib.sha256(f.read()).hexdigest()
+            checksum = sha256_file(partial)
             os.replace(partial, path)
         finally:
             if os.path.exists(partial):
@@ -1431,7 +1465,7 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
                 continue
             man = read_json(manifest_path(doc), {}) or {}
             man.setdefault("renders", {})[f"{tg['target']}.{quality}"] = dict(file=dst, cover=cdst, key=res["key"],
-                                                                             at=OUT._stamp(), sidecars=sidecars,
+                                                                             at=OUT._stamp(), sidecars=sidecars, video_sig=OUT.file_sig(dst),
                                                                              duration=res["duration"],
                                                                              steps=len(doc.d["steps"]))
             man["output"] = rec["id"]
