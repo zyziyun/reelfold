@@ -105,14 +105,19 @@ def test_performance_review_uses_ui_messages():
     assert all(line["code"] == "draft.line" and line["params"]["label"] for line in review["lines"])
 
 
-def test_quality_red_never_has_auto_approval(monkeypatch, tmp_path):
-    from vstudio import flicker
+@pytest.mark.parametrize("audio_only", [False, True])
+def test_quality_red_never_has_auto_approval(monkeypatch, tmp_path, audio_only):
+    from vstudio import flicker, audio_joins
     from vstudio.project.adapters import common
     monkeypatch.setattr(media, "probe", lambda p: dict(has_audio=True))
-    monkeypatch.setattr(flicker, "analyze", lambda *a, **k: dict(ok=False))
+    monkeypatch.setattr(flicker, "analyze", lambda *a, **k: dict(ok=audio_only))
     monkeypatch.setattr(flicker, "describe", lambda r: "Visible flash in the source")
     env = SimpleNamespace(item_dir=str(tmp_path), inputs=dict(compose=dict(source_has_audio=True),
                            export=dict(exports=[dict(file=str(tmp_path / "clip.mp4"), platform="youtube")])))
+    monkeypatch.setattr(A, "_source", lambda e: "fixture")
+    monkeypatch.setattr(audio_joins, "inspect", lambda *a: dict(joins=[dict(time=1, needs_review=audio_only, reason="Review audio")]))
+    plan = tmp_path / "edit.json"; plan.write_text(json.dumps(document()))
+    env.inputs["compose"]["plan"] = str(plan)
     env.inputs["qc"] = A.qc(env)
     monkeypatch.setattr(common, "publish_copy", lambda env: {})
     monkeypatch.setattr(common, "_exports_of", lambda env: [])

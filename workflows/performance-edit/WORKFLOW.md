@@ -27,3 +27,18 @@ a silent source may remain silent. Keep `work/quality.json`, source ranges, and 
 Flicker failures are review blockers, including source-film damage: do not loosen thresholds, silently discard
 reactions or claim a red report is an accepted film. Exporting an already edited sample is integration evidence,
 not proof of professional editing quality, a newly shot performance, or superiority to a competing editor.
+
+
+### Audio cuts need their own review
+
+Quality review compares 100 ms of each retained side of a cut with the original
+continuous sound at both source boundaries, per channel. An edit-created level
+change above 12 dB, at audible energy and more than 6 dB beyond either original
+transition, requests listening before approval. These are review thresholds, not
+proof of an audible defect or a LUFS measurement. Preserve intended silence,
+reactions and impact sounds. Do not apply a blanket fade or crossfade: protect
+words and synchronization, inspect source handles, and compare treatments by
+listening. The report explicitly records that listening has not been verified.
+
+The native renderer and review use decoded source timestamps. Short input-seek
+windows can truncate packet-based audio and must not be used as review evidence.

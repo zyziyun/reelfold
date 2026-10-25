@@ -111,7 +111,13 @@ def qc(env):
         reports.append(r)
         if not r["ok"]:
             reasons.append(flicker.describe(r))
+    from vstudio import audio_joins
+    plan = read_json(env.inputs["compose"]["plan"], {})
+    sound = audio_joins.inspect(_source(env), plan.get("segments", []))
+    for join in sound["joins"]:
+        if join["needs_review"]:
+            reasons.append(f"Listen to the audio cut at {join['time']:.2f}s: {join['reason']}")
     path = os.path.join(env.item_dir, "work", "quality.json")
-    write_json(path, dict(status="red" if reasons else "green", reasons=reasons, reports=reports))
+    write_json(path, dict(status="red" if reasons else "green", reasons=reasons, reports=reports, audio_joins=sound))
     return dict(status="red" if reasons else "green", reasons=reasons, files=[path],
                 exports=env.inputs["export"]["exports"])
