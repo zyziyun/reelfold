@@ -12,8 +12,8 @@ The 2026-10-12 review of six DJI films: "有点俗气，不够高端大气", "�
 travel / documentary film looks like, and what the engine now does by default (each one configurable):
 
 **P1. No flicker, ever.** No white flashes, dips through black, light leaks, glitches or whips between shots;
-dissolves (0.8 s on aerials) or hard cuts on the beat. Captions crossfade from cue to cue and never cut out for a
-frame; the shade behind them eases in and out. Every render is measured by `vstudio.flicker` (flash / blink /
+dissolves (0.8 s on aerials) or hard cuts on the beat. Spoken captions switch at their exact cue boundaries; do not crossfade different words at the same
+position or extend them into silence. The shade behind them eases in and out independently. Every render is measured by `vstudio.flicker` (flash / blink /
 max luma jump) and fails on a flicker (`qc.flicker: fail | warn | off`, persona or recipe config).
 *Engine:* vlog `transition` dips -> fade (`allow_dips` to keep), fun reel `transitions: clean` (default; `expressive`
 restores flash / leak / glitch / whip), photo-story `LOOK = "cinema"` maps every transition to fade / cut.

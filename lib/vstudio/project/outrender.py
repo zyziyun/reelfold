@@ -914,9 +914,9 @@ class Captions:
     paper_rgb = None
 
     def draw(self, img, t):
-        from vstudio.subs import CUE_FADE, cue_opacity
-        for k, (a, b, text) in enumerate(self.cues):    # eased, crossfading cues (no caption blink)
-            if a - CUE_FADE <= t < b + CUE_FADE and cue_opacity(a, b, t) > 0:
+        from vstudio.subs import cue_opacity
+        for k, (a, b, text) in enumerate(self.cues):    # keep text within its spoken cue
+            if a <= t < b and cue_opacity(a, b, t) > 0:
                 if self.band_rect:
                     x0, y0, x1, y1 = self.band_rect
                     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2

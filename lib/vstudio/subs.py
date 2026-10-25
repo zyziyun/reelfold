@@ -60,7 +60,7 @@ def _persona_subs():
 _HI = re.compile(r"【([^】]*)】|\*\*(.+?)\*\*")
 
 
-CUE_FADE = 0.18      # s: burned captions fade over 2 x this, centred on each cue edge
+CUE_FADE = 0.0       # spoken captions switch at the cue boundary for legibility
 _ZH = re.compile(r"[\u3400-\u9fff]")
 
 
@@ -86,14 +86,17 @@ def pick_lang(text, alt, lang):
 
 
 def cue_opacity(a, b, t, fade=CUE_FADE):
-    """Opacity (0-1) of a burned caption cue [a, b) at ``t``: eased in and out over 2 x ``fade`` centred on its
-    edges, so a cue ending where the next one starts crossfades into it - captions never cut out for a frame
-    (the subtitle 'blink' vstudio.flicker measures). Visible on [a - fade, b + fade)."""
-    if fade <= 0:
-        return 1.0 if a <= t < b else 0.0
-    u = min(1.0, (t - (a - fade)) / (2 * fade), ((b + fade) - t) / (2 * fade))
-    if u <= 0:
+    """Caption opacity within [a, b). Optional fades stay inside that interval.
+
+    Spoken text switches directly by default: crossfading different words at the
+    same position makes both unreadable. Decorative titles may opt into a fade.
+    """
+    if not a <= t < b:
         return 0.0
+    if fade <= 0:
+        return 1.0
+    fade = min(fade, (b - a) / 2)
+    u = min(1.0, (t - a) / fade, (b - t) / fade)
     return 0.5 - 0.5 * math.cos(math.pi * u)
 
 

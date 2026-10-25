@@ -433,11 +433,11 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
         rep_["moved"] += 1
         return min(cands, key=lambda c: abs(c - y))
 
-    from .subs import CUE_FADE, cue_opacity
+    from .subs import cue_opacity
 
     def overlay(i, t, img):
-        for a, b, k, c in spans:                       # eased, crossfading cues (no caption blink)
-            if a - CUE_FADE <= t < b + CUE_FADE:
+        for a, b, k, c in spans:                       # keep text within its spoken cue
+            if a <= t < b:
                 op = cue_opacity(a, b, t)
                 if op <= 0:
                     continue

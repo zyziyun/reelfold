@@ -1,8 +1,8 @@
 """Premium-by-default look (2026-10-12 review of the six DJI films: "有点俗气，不够高端大气", "屏闪有点厉害").
 
-photo-story LOOK "cinema": no running header, dissolves only, subtitles crossfade (never cut out for a frame), the
+photo-story LOOK "cinema": no running header, dissolves only, subtitles switch without overlapping words, the
 shade behind them eases instead of popping per cue, the year marker moves on from the last year; captions burned by
-vstudio.export / the output editor crossfade too."""
+vstudio.export / the output editor stay within their cue boundaries too."""
 import pathlib
 import sys
 import types
@@ -14,23 +14,30 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
 sys.path.insert(0, str(ROOT / "workflows" / "photo-story" / "scripts"))
 
-from vstudio.subs import CUE_FADE, cue_opacity  # noqa: E402
+from vstudio.subs import cue_opacity  # noqa: E402
 
 
-def test_burned_cues_crossfade_without_a_dip():
-    a, b, c = (0.0, 3.0), (3.0, 6.0), (8.0, 9.0)
-    for t in np.arange(2.5, 3.5, 1 / 30):
-        total = cue_opacity(*a, t) + cue_opacity(*b, t)
-        assert total == pytest.approx(1.0, abs=1e-6), t           # the band never drops between adjacent cues
-    assert cue_opacity(*c, 8.0) == pytest.approx(0.5)
-    assert cue_opacity(*c, 8.0 - CUE_FADE) == 0.0 and cue_opacity(*c, 8.5) == 1.0
+def test_burned_cues_never_overlap_or_extend_into_silence():
+    for t in np.arange(2.5, 3.5, 1 / 120):
+        values = [cue_opacity(0, 3, t), cue_opacity(3, 6, t)]
+        assert sorted(values) == [0.0, 1.0]
+    assert cue_opacity(0, 3, 3) == 0
+    assert cue_opacity(3, 6, 3) == 1
+    assert cue_opacity(8, 9, 7.99) == cue_opacity(8, 9, 9) == 0
+
+
+@pytest.mark.parametrize("duration", [0.04, 1.0])
+def test_optional_fades_stay_inside_cue_and_reach_full_opacity(duration):
+    assert cue_opacity(1, 1 + duration, 0.99, fade=0.18) == 0
+    assert cue_opacity(1, 1 + duration, 1 + duration, fade=0.18) == 0
+    assert cue_opacity(1, 1 + duration, 1 + duration / 2, fade=0.18) == pytest.approx(1)
 
 
 def test_photostory_cue_and_backdrop_alpha():
     from photostory.render import backdrop_alpha, cue_alpha
     subs = [dict(start=1.0, end=4.0), dict(start=4.0, end=7.0), dict(start=12.0, end=14.0)]
     for t in np.arange(3.5, 4.5, 1 / 30):
-        assert cue_alpha(subs[0], t) + cue_alpha(subs[1], t) == pytest.approx(1.0, abs=1e-6)
+        assert sorted([cue_alpha(subs[0], t), cue_alpha(subs[1], t)]) == [0.0, 1.0]
     assert backdrop_alpha(subs, 5.0) == 1.0
     assert backdrop_alpha(subs, 10.0) == 0.0                      # a long gap: the shade eases away
     vals = [backdrop_alpha(subs, t) for t in np.arange(7.0, 12.0, 1 / 30)]

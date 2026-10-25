@@ -171,7 +171,7 @@ def main():
         frame[C.HDR:C.HDR + C.BOX_H] = box
         if header is not None:
             header.draw(frame, sec, gt, T.sec_bounds)
-        cue = [] if a.clean_master else [s for s in T.subs if s["start"] - SUB_FADE <= gt < s["end"] + SUB_FADE]
+        cue = [] if a.clean_master else [s for s in T.subs if s["start"] <= gt < s["end"]]
         if backdrop is not None and not a.clean_master:
             ba = backdrop_alpha(T.subs, gt)
             if ba > 0:
@@ -245,19 +245,15 @@ def write_edl(C, T, out):
                   ensure_ascii=False, indent=1)
 
 
-SUB_FADE = 0.18            # a cue fades in / out over 2 x this, centred on its edges: the next cue crossfades in
 TITLE_HOLD = (0.6, 5.2)    # cinema title card: on screen between these times (eased in and out)
 
 
 def cue_alpha(s, gt):
-    """Opacity of a subtitle cue at ``gt``: eased in and out over 2 x SUB_FADE centred on its start / end, so a cue
-    that ends where the next begins crossfades into it (the band never drops dark for a frame - the 'blink' of the
-    2026-10-12 review). Music-mode titles keep their slower 0.6 s fades."""
+    """Keep spoken text legible; only decorative music titles fade."""
+    from vstudio.subs import cue_opacity
     if s.get("style") == "title":
         return min(1.0, max(0.0, (gt - s["start"]) / 0.6), max(0.0, (s["end"] - gt) / 0.6))
-    a = (gt - (s["start"] - SUB_FADE)) / (2 * SUB_FADE)
-    b = ((s["end"] + SUB_FADE) - gt) / (2 * SUB_FADE)
-    return ease(min(1.0, a, b))
+    return cue_opacity(s["start"], s["end"], gt)
 
 
 def backdrop_alpha(subs, gt, lead=0.5, hold=0.9):
