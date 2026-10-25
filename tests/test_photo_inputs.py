@@ -407,8 +407,10 @@ def test_product_demo_video_uses_process_labels(tmp_path, monkeypatch, layout):
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
     source = tmp_path / "source.webm"
     source.write_bytes(b"fixture")
-    monkeypatch.setattr(footage, "context", lambda *a, **k: ("Visible process", [],
-        [dict(id="source", path=str(source), dur=20)]))
+    def context(*a, **kw):
+        assert kw["temporal"] is True
+        return "Visible process", [], [dict(id="source", path=str(source), dur=20)]
+    monkeypatch.setattr(footage, "context", context)
     ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(videos=[str(source)]),
         _item_dir=str(tmp_path / "item"), mode="music", platforms=["youtube"]), "photo-story")
     ctx.request_text = "Create a 6-second product demonstration; no voice-over and no background music"

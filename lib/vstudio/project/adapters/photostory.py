@@ -168,11 +168,14 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     """Checkpoint ``story``: the spec from her request + footage (module doc). -> record or None."""
     from vstudio import footage
     request = ctx.request()
+    from vstudio.content_kind import detect, direction
+    purpose_kind = detect(request)
     vids = [p for v in ctx.inputs.values() for p in (v if isinstance(v, list) else [v]) if footage.is_video(p)]
     vids = list(dict.fromkeys(vids))
     work = os.path.dirname(path)
     ids = [os.path.splitext(os.path.basename(p))[0] for p in vids]
-    ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids) if vids else ("", [], [])
+    ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids,
+                                          temporal=purpose_kind in ("product", "company")) if vids else ("", [], [])
     from . import photo_inputs
     photos = (ctx.inputs or {}).get("photos") or []
     photos = photos if isinstance(photos, list) else [photos]
@@ -183,8 +186,6 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     plats = list(ctx.params.get("platforms") or [])
     lang_zh = narration_is_chinese(request, (ctx.data or {}).get("name"), ctx.params.get("title"),
                                    ctx.params.get("language"), ctx.item, plats)
-    from vstudio.content_kind import detect, direction
-    purpose_kind = detect(request)
     music_mode = str(ctx.params.get("mode") or "narration") == "music"
     from vstudio import narration as N
     vp = N.voice_plan("zh" if lang_zh else "en", ctx.params.get("tts_engine") or "auto")
@@ -219,6 +220,11 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
                          length_of="of on-screen lines" if music_mode else "of narration", platforms=plat_names,
                          words_lang="Chinese" if lang_zh else "English")
     purpose = direction(purpose_kind)
+    if vids and purpose_kind in ("product", "company"):
+        purpose += (" Ordered temporal sheets supplement quality-ranked moments. Preserve the action onset, "
+                    "interaction and visible result. A best-quality window is not an action boundary. "
+                    "Use the reported sampling gap to judge uncertainty; do not claim continuous or "
+                    "frame-accurate verification from still samples.")
     if ptext:
         guide += ("\nProvided photos (the attached contact sheets label each photo by its actual ID):\n" + ptext +
                   '\nUse these IDs as image sources in SCRIPT and COVER. Set MEDIA.images to '

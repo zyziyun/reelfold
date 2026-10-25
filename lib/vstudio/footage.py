@@ -188,7 +188,7 @@ def line(fid, f):
     return "; ".join(bits)
 
 
-def sequence_context(source, sheet_dir, every=.5, max_frames=240):
+def sequence_context(source, sheet_dir, every=.5, max_frames=240, fid="source"):
     """Bounded, paginated temporal evidence; report the actual gap, never imply playback."""
     if not math.isfinite(every) or every <= 0 or max_frames < 2:
         raise ValueError("Invalid sequence sampling budget")
@@ -203,14 +203,14 @@ def sequence_context(source, sheet_dir, every=.5, max_frames=240):
     times = [round(i * gap, 4) for i in range(count)]
     images = [sheet(source, os.path.join(sheet_dir, f"sequence-{i // 20:03d}.jpg"),
                     times=times[i:i + 20]) for i in range(0, count, 20)]
-    text = (line("source", f) + f"; {count} sampled frames across {len(images)} ordered sheets; "
+    text = (line(fid, f) + f"; {count} sampled frames across {len(images)} ordered sheets; "
             f"actual sampling gap {gap:.3f}s. These are still samples, not continuous playback. "
             "Fast actions between samples may be invisible. Preserve uncertain action boundaries; "
             "do not claim frame-accurate verification from these sheets.")
     return text, images, [dict(f, sample_times=times, sampling_gap=gap)]
 
 
-def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, every=6.0):
+def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, every=6.0, temporal=False):
     """Clips -> (text: one facts line per clip, images: one contact sheet per clip, [facts]). Sheets that fail are
     left out (the facts line stays). With ``shots`` each facts dict also carries ``moments`` (vstudio.shots).
     ``every`` controls periodic sampling when shot sheets are disabled (or unavailable); tiles remain capped at 20."""
@@ -253,4 +253,16 @@ def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, eve
                      + (f"; contact sheet: {os.path.basename(img)}" if img else ""))
         if img:
             images.append(img)
+    if temporal and all_facts:
+        if len(all_facts) > 120:
+            raise ValueError("Temporal evidence needs at least two frames per clip within its 240-frame budget")
+        # Bound the whole request, not just each source. Long/many clips get a
+        # coarser reported gap; a quality-ranked still never proves an action.
+        budget = max(2, min(80, 240 // len(all_facts)))
+        for index, f in enumerate(all_facts):
+            note, ordered, sampled = sequence_context(f["path"],
+                os.path.join(sheet_dir, f"temporal-{index:03d}"), max_frames=budget, fid=f["id"])
+            lines.append(note + "; ordered sheets: " + ", ".join(ordered))
+            images.extend(ordered)
+            f.update(sample_times=sampled[0]["sample_times"], sampling_gap=sampled[0]["sampling_gap"])
     return "\n".join(lines), images, all_facts

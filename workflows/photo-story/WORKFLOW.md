@@ -28,12 +28,18 @@ contact sheets and binds their `pNNNN` IDs to `work/source_photos/`. Product def
 film chapters/title cards and use source-aware contrasting captions. `fit="contain"` on a photo keeps its whole
 frame; inspect each canvas rather than resizing a completed movie.
 
-For company/process films, music-mode drafting defaults to `LAYOUT.caption_style="label"`: a measured
+For product demonstrations and company/process films, music-mode drafting defaults to `LAYOUT.caption_style="label"`: a measured
 lower-third plate with clear bold text, rather than a second scenic chapter title floating over the process.
 The title/chapter cards and scenic colour/grain defaults are off unless explicitly authored; keep supplied
 identity and inspect labels against the actual machinery/people at phone size. This is a shared purpose-based
 layout, not a sample-specific title, source path or timestamp. Match the first label to the action visible now;
 cover/post text must disclose stock reference footage where appropriate.
+
+For these video purposes, automatic planning also receives ordered temporal sheets in addition to
+quality-ranked moments: at most 80 sampled frames per clip and 240 across the default 24-clip request.
+The actual sampling gap is reported. Preserve action onset, interaction and result; a sharp frame is
+not an action boundary. Long inputs need closer review where the reported gaps hide short actions.
+These sheets do not establish frame-accurate or continuous-playback acceptance.
 
 1. **Gather media.** Put photos in `my_photos/` (names are the shot ids: `photo07.jpg` → `"photo07"`), clips in
    `my_clips/` (`IMG_1234.MOV` can be referenced as `"v1234"`). Still frames from a clip: extract them to
