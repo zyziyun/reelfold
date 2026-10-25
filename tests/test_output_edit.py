@@ -761,7 +761,8 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert first["ok"] and spoken and all(lang == "fr" for _, lang in spoken)
     from vstudio.subs import srt_read
     tracks = first["targets"][0]["sidecars"]
-    assert len(tracks) == 2
+    assert len(tracks) == 4
+    assert {t["lang"] for t in tracks if t["role"] == "speech"} == {"fr"}
     exported = srt_read(tracks[0]["file"])
     assert [(c.start, c.end, c.text) for c in exported] == [tuple(c) for c in on["final"]["visual"]["captions"]]
     manifest = json.load(open(R.manifest_path(doc)))
@@ -777,7 +778,9 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert off["final"]["key"] != on["final"]["key"]
     second = R.render(th, oid, targets=target)
     assert second["ok"] and len(spoken) == calls
-    assert second["targets"][0]["sidecars"] == []
+    off_tracks = second["targets"][0]["sidecars"]
+    assert len(off_tracks) == 2 and all(t["role"] == "speech" and t["lang"] == "fr" for t in off_tracks)
+    assert [c.text for c in srt_read(off_tracks[0]["file"])] == [c.text for c in exported]
     second_audio = A.decode_audio(second["targets"][0]["file"], sr=A.SR, channels=2)
     assert first_audio.shape == second_audio.shape
     assert np.allclose(first_audio, second_audio, atol=1e-5)
@@ -858,3 +861,31 @@ def test_publishing_caption_integrity(tmp_path, damage, reason):
     valid, issues = R.checked_sidecars(record, str(tmp_path))
     assert issues[0]['reason'] == reason
     assert len(valid) == (0 if damage == 'video' else 1)
+
+
+@pytest.mark.parametrize('lang,text', [('fr', 'Bonjour.'), ('ja', 'こんにちは。'), ('ko', '안녕하세요.')])
+def test_speech_caption_track_excludes_editorial_text_and_survives_burn_off(tmp_path, lang, text):
+    from vstudio.subs import srt_read
+    p = dict(final=dict(key='render', visual=dict(captions=[[0, 1, 'Editorial note']])),
+             audio=dict(voice=dict(lang=lang, lines=[[0, 1, text]])))
+    tracks = R.caption_sidecars(p, str(tmp_path), 'video', 2)
+    speech = [t for t in tracks if t['role'] == 'speech']
+    assert len(speech) == 2
+    assert all(t['lang'] == lang for t in speech)
+    assert [c.text for c in srt_read(speech[0]['file'])] == [text]
+    p['final']['key'] = 'caption-off'
+    p['final']['visual']['captions'] = []
+    off = R.caption_sidecars(p, str(tmp_path), 'video', 2)
+    assert len(off) == 2 and all(t['role'] == 'speech' for t in off)
+
+
+@pytest.mark.parametrize('extra_lang,expected', [('fr', True), ('en', False), (None, False)])
+def test_speech_captions_require_consistent_narration_language(tmp_path, extra_lang, expected):
+    from vstudio.subs import srt_read
+    p = dict(final=dict(key='render', visual=dict(captions=[])),
+             audio=dict(voice=dict(lang='fr', lines=[[0, 1, 'Bonjour.']]),
+                        vo=[dict(lang=extra_lang, lines=[[1, 2, 'Encore.']])]))
+    tracks = R.caption_sidecars(p, str(tmp_path), 'video', 2)
+    assert bool(tracks) == expected
+    if expected:
+        assert [c.text for c in srt_read(tracks[0]['file'])] == ['Bonjour.', 'Encore.']

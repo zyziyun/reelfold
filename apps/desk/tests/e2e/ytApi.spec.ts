@@ -419,19 +419,24 @@ test('subtitle handoff exposes verified files and explains invalid tracks withou
   const pkg = await page.evaluate(id => window.desk.publish.postPackage(id), r.ids[0]);
   const file = path.join(tmp, 'captions.srt');
   fs.writeFileSync(file, '1\n00:00:00,000 --> 00:00:01,000\nTest captions\n');
+  const speech = path.join(tmp, 'speech.fr.srt');
+  fs.writeFileSync(speech, '1\n00:00:00,000 --> 00:00:01,000\nBonjour.\n');
   await app.evaluate(({ ipcMain }, value) => {
     ipcMain.removeHandler('publish:postPackage');
     ipcMain.handle('publish:postPackage', (_event, request) => ({ ...value.pkg, postId: request.postId,
-      sidecars: [{ file: value.file, format: 'srt', cues: 1, lang: 'und', role: 'rendered-captions', render_key: 'test', sha256: 'test' }],
+      sidecars: [{ file: value.file, format: 'srt', cues: 1, lang: 'und', role: 'rendered-captions', render_key: 'test', sha256: 'test' },
+        { file: value.speech, format: 'srt', cues: 1, lang: 'fr', role: 'speech', render_key: 'test', sha256: 'test' }],
       captionIssues: [{ format: 'vtt', reason: 'file-changed' }],
     }));
-  }, { pkg, file });
+  }, { pkg, file, speech });
   const puts = (await rec()).puts;
   await hash(`#/publish/post/${r.ids[0]}?now=1`);
   const captions = page.getByTestId('publish-captions');
   await expect(captions).toContainText('no longer match this video');
   await captions.getByRole('button', { name: 'Show SRT file' }).click();
   expect((await rec()).shown.at(-1)).toBe(file);
+  await captions.getByRole('button', { name: 'Français speech · SRT' }).click();
+  expect((await rec()).shown.at(-1)).toBe(speech);
   await page.screenshot({ path: path.join(SHOTS, 'yt-caption-files.png') });
   await hash(`#/publish/post/${r.ids[1]}`);
   await page.getByTestId('post-in-browser').click();

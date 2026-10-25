@@ -1315,32 +1315,42 @@ def fresh_finals(d, output):
 
 
 def caption_sidecars(plan, directory, stem, duration):
-    """Export the rendered caption layer in final time, bound to this exact render.
+    """Export visible captions and a separate known-language translated speech track.
 
-    This can be bilingual or include editorial overlays, so never infer an upload
-    language from the destination platform. Hidden captions are not exported.
+    A full translated voice replaces the source soundtrack. Its lines remain
+    available as closed captions even when on-picture captions are hidden.
     """
     from vstudio.subs import Cue, srt_write, vtt_write
-    cues = [Cue(max(0, a), min(b, duration), text) for a, b, text in plan["final"]["visual"]["captions"]
-            if text.strip() and min(b, duration) > max(0, a)]
-    if not cues:
-        return []
+    from vstudio.tts import LANG_NAMES
+    tracks = [("rendered-captions", "und", "captions", plan["final"]["visual"]["captions"])]
+    audio = plan.get("audio") or {}
+    voice = audio.get("voice") or {}
+    lang = voice.get("lang")
+    narrations = audio.get("vo") or []
+    if lang in LANG_NAMES and all(v.get("lang") == lang for v in narrations):
+        lines = list(voice.get("lines") or []) + [line for v in narrations for line in v.get("lines") or []]
+        tracks.append(("speech", lang, f"speech.{lang}", sorted(lines)))
     result = []
-    for fmt, writer in (("srt", srt_write), ("vtt", vtt_write)):
-        # Revision-specific names prevent later edits from overwriting a track
-        # already referenced by a pending publishing job.
-        name = f"{stem}.{plan['final']['key']}.captions.{fmt}"
-        path = os.path.join(directory, name)
-        partial = path + ".part"
-        try:
-            count = writer(cues, partial, no_overlap=False)
-            checksum = sha256_file(partial)
-            os.replace(partial, path)
-        finally:
-            if os.path.exists(partial):
-                os.remove(partial)
-        result.append(dict(file=path, format=fmt, cues=count, lang="und", role="rendered-captions",
-                           render_key=plan["final"]["key"], sha256=checksum))
+    for role, lang, suffix, lines in tracks:
+        cues = [Cue(max(0, a), min(b, duration), text) for a, b, text in lines
+                if text.strip() and min(b, duration) > max(0, a)]
+        if not cues:
+            continue
+        for fmt, writer in (("srt", srt_write), ("vtt", vtt_write)):
+            # Revision-specific names preserve pending publishing jobs' files.
+            name = f"{stem}.{plan['final']['key']}.{suffix}.{fmt}"
+            path = os.path.join(directory, name)
+            fd, partial = tempfile.mkstemp(prefix=name + ".", suffix=".part", dir=directory)
+            os.close(fd)
+            try:
+                count = writer(cues, partial, no_overlap=False)
+                checksum = sha256_file(partial)
+                os.replace(partial, path)
+            finally:
+                if os.path.exists(partial):
+                    os.remove(partial)
+            result.append(dict(file=path, format=fmt, cues=count, lang=lang, role=role,
+                               render_key=plan["final"]["key"], sha256=checksum))
     return result
 
 

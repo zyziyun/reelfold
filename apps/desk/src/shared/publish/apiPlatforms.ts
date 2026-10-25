@@ -167,7 +167,7 @@ export interface CaptionArtifact {
   file: string;
   format: 'srt' | 'vtt';
   lang: string;
-  role: 'rendered-captions';
+  role: 'rendered-captions' | 'speech';
   cues: number;
   render_key: string;
   sha256: string;

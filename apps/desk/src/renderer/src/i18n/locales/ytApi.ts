@@ -3,8 +3,9 @@
 // published (official API / built-in browser).
 
 export const ytApiEn = {
+  "publish.captions.speech": "{language} speech · {format}",
   "publish.captions.title": "Subtitle files",
-  "publish.captions.hint": "These match the visible captions and may contain more than one language. Review before uploading; Reelfold does not upload them automatically.",
+  "publish.captions.hint": "Speech tracks follow the translated narration. Other files match the visible captions and may mix languages. Review before uploading; Reelfold does not upload them automatically.",
   "publish.captions.show": "Show {format} file",
   "publish.captions.invalid": "Some subtitle files are missing or no longer match this video. Export the edited video again to recreate them.",
   "ytp.resume.scheduledVisibility": "Private until scheduled publication",
@@ -164,8 +165,9 @@ export const ytApiEn = {
 export type YtKey = keyof typeof ytApiEn;
 
 export const ytApiZh: Record<YtKey, string> = {
+  "publish.captions.speech": "{language}配音字幕 · {format}",
   "publish.captions.title": "字幕文件",
-  "publish.captions.hint": "这些文件与画面字幕一致，可能包含多种语言。上传前请检查；Reelfold 不会自动上传它们。",
+  "publish.captions.hint": "配音字幕对应翻译后的语音；其他文件与画面字幕一致，可能混合多种语言。上传前请检查；Reelfold 不会自动上传它们。",
   "publish.captions.show": "显示 {format} 文件",
   "publish.captions.invalid": "部分字幕文件已丢失或与当前视频不匹配。请重新导出编辑后的视频以生成字幕。",
   "ytp.resume.scheduledVisibility": "定时发布前保持私密",
@@ -323,8 +325,9 @@ export const ytApiZh: Record<YtKey, string> = {
 };
 
 export const ytApiFr: Record<YtKey, string> = {
+  "publish.captions.speech": "Paroles en {language} · {format}",
   "publish.captions.title": "Fichiers de sous-titres",
-  "publish.captions.hint": "Ces fichiers reproduisent les sous-titres visibles et peuvent contenir plusieurs langues. Vérifiez-les avant de les importer ; Reelfold ne les envoie pas automatiquement.",
+  "publish.captions.hint": "Les pistes de paroles suivent la narration traduite. Les autres fichiers reproduisent les sous-titres visibles et peuvent mêler plusieurs langues. Vérifiez-les avant de les importer ; Reelfold ne les envoie pas automatiquement.",
   "publish.captions.show": "Afficher le fichier {format}",
   "publish.captions.invalid": "Certains sous-titres sont manquants ou ne correspondent plus à cette vidéo. Exportez à nouveau la vidéo modifiée pour les recréer.",
   "ytp.resume.scheduledVisibility": "Privée jusqu’à la publication programmée",
