@@ -71,6 +71,8 @@ timeline); positions are fractions of the canvas (x, y = centre).
 
 Explicit export languages take precedence over platform defaults. A translated version replaces the source subtitle track with its translated, retimed lines; manually added caption overlays remain. Unlabelled Japanese and other non-English/Chinese text is preserved rather than classified using Han characters.
 
+For pipeline outputs, turning captions off also hides generated narration and translated subtitles, without changing the voice track. Imported videos keep the narration step's caption setting because their original burned captions cannot be toggled off.
+
 ### 3a. Transcript cuts (Descript-style editing)
 
 Word indices refer to the cached transcript (`transcript.json` words `[{w, t, te, p?}]`, `paths.transcript` in

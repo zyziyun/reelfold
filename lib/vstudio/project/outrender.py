@@ -232,14 +232,17 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     audio["op"] = "none" if not (info["has_audio"] or sfx or music or vos) else "mix"
     audio["key"] = sha1_json(["audio", timeline["key"], audio], 16)
     vis = visual_spec(rec, st, tl, tg, band)
-    vo_caps = [[a_, b_, t_] for v in vos if v.get("captions") for a_, b_, t_ in v["lines"]]
+    # The pipeline subtitle switch also controls generated narration subtitles.
+    # Imported files have no source-caption switch; their narration keeps its own setting.
+    captions_visible = rec["mode"] != "pipeline" or st["captions"]["enabled"] is not False
+    vo_caps = [[a_, b_, t_] for v in vos if v.get("captions") and captions_visible for a_, b_, t_ in v["lines"]]
     if vo_caps:                                    # the narration captioned in the version's language
         vis["captions"] = sorted(vis["captions"] + vo_caps)
         if rec["mode"] == "flattened" and canvas["op"] != "sources" and not vis.get("mask"):
             bt = (doc.d.get("burned") or {})
             if bt.get("captions") and bt.get("box"):
                 vis["mask"] = dict(box=bt["box"], style="blur", always=True)
-    if audio.get("voice"):                         # its captions: the translated lines (over the burned ones)
+    if audio.get("voice") and captions_visible:    # translated lines replace the source subtitles
         vis["captions"] = sorted(vis["captions"] + [[a_, b_, t_] for a_, b_, t_ in audio["voice"]["lines"]])
         if rec["mode"] == "flattened" and canvas["op"] != "sources" and not vis.get("mask"):
             bt = (doc.d.get("burned") or {})

@@ -715,3 +715,43 @@ def test_translated_pipeline_uses_replacement_captions(th, lang, text):
     # A normal version still retains the original captions.
     original = R.plan(rec, doc, st, dict(tg, lang=None, lines=[]), "preview")
     assert len(original["final"]["visual"]["captions"]) > 1
+
+
+@media
+def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
+    from vstudio import audio as A
+    import numpy as np
+    oid, _ = _pipeline(th)
+    monkeypatch.setattr(O, "TRANSLATE", lambda system, prompt:
+                        ([dict(n=i + 1, t="Bonjour.") for i, _ in enumerate(prompt.splitlines())], dict(provider="test")))
+    spoken = []
+    def voice(text, lang, out):
+        spoken.append((text, lang))
+        t = np.arange(int(.12 * A.SR)) / A.SR
+        A.write_wav(out, np.stack([.2 * np.sin(2 * np.pi * 440 * t)] * 2, 1), A.SR)
+    monkeypatch.setattr(R, "VOICE", voice)
+    O.edit(th, oid, [dict(op="reset"), dict(op="speed", value=1.2),
+                     dict(op="export_add", target="youtube", lang="fr")])
+    rec, doc = O._load(th, oid)
+    st = doc.state()
+    target = st["exports"][0]["target"]
+    tg = R.targets_of(rec, st, target)[0]
+    on = R.plan(rec, doc, st, tg, "preview")
+    assert on["final"]["visual"]["captions"]
+    first = R.render(th, oid, targets=target)
+    assert first["ok"] and spoken and all(lang == "fr" for _, lang in spoken)
+    first_audio = A.decode_audio(first["targets"][0]["file"], sr=A.SR, channels=2)
+    calls = len(spoken)
+    O.edit(th, oid, dict(op="captions", enabled=False))
+    rec, doc = O._load(th, oid)
+    off = R.plan(rec, doc, doc.state(), tg, "preview")
+    assert off["final"]["visual"]["captions"] == []
+    assert off["audio"]["key"] == on["audio"]["key"]
+    assert off["final"]["key"] != on["final"]["key"]
+    second = R.render(th, oid, targets=target)
+    assert second["ok"] and len(spoken) == calls
+    second_audio = A.decode_audio(second["targets"][0]["file"], sr=A.SR, channels=2)
+    assert first_audio.shape == second_audio.shape
+    assert np.allclose(first_audio, second_audio, atol=1e-5)
+    assert any(s["stage"] == "audio" and s["cached"] for s in second["targets"][0]["stages"])
+    assert abs(second["targets"][0]["duration"] - on["timeline"]["duration"]) < .1
