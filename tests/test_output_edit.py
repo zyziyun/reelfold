@@ -693,3 +693,25 @@ def test_ai_remote_sticker_is_local_before_apply_and_render(tmp_path, synth, mon
     monkeypatch.setattr(outassets, 'image', lambda *a: pytest.fail('replay must not fetch again'))
     rendered = R.render(w, oid, quality='preview')
     assert rendered['ok'] and rendered['targets']
+
+
+@pytest.mark.parametrize("lang,text", [("fr", "Bonjour tout le monde."),
+                                      ("ja", "今日は字幕を確認します。"),
+                                      ("ko", "오늘 자막을 확인합니다.")])
+def test_translated_pipeline_uses_replacement_captions(th, lang, text):
+    from vstudio import platform as P
+    oid, _ = _pipeline(th)
+    rec, doc = O._load(th, oid)
+    st = O.empty_state()
+    st["speed"] = 2.0
+    st["captions"]["enabled"] = True
+    st["captions"]["added"] = [dict(start=0, end=2, text="Editorial note")]
+    tg = dict(target="youtube:horizontal", w=640, h=360, profile=P.profile("youtube"),
+              layout="auto", lang=lang, lines=[[0, 2, "Original speech", text]])
+    p = R.plan(rec, doc, st, tg, "preview")
+    assert R.target_lang(tg) == lang
+    assert p["audio"]["voice"]["lang"] == lang
+    assert p["final"]["visual"]["captions"] == sorted([[0, 1, text], [0, 1, "Editorial note"]])
+    # A normal version still retains the original captions.
+    original = R.plan(rec, doc, st, dict(tg, lang=None, lines=[]), "preview")
+    assert len(original["final"]["visual"]["captions"]) > 1

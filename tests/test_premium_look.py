@@ -110,6 +110,8 @@ def test_effect_texts_per_version_language():
     assert OR.target_lang(dict(profile=P.profile("bilibili"))) == "zh"
     assert OR.target_lang(dict(profile=P.profile("xiaohongshu:full"))) == "zh"
     assert OR.target_lang(dict(profile=None)) is None
+    assert OR.target_lang(dict(profile=P.profile("youtube"), lang="ja")) == "ja"
+    assert OR.target_lang(dict(profile=P.profile("bilibili"), lang="fr")) == "fr"
 
 
 def test_planner_never_keeps_a_paid_voice_without_its_key(monkeypatch):
@@ -148,6 +150,9 @@ def test_captions_are_one_language_per_platform(monkeypatch):
     assert OR.mono_caption("夜幕下的西雅图\nSeattle at night", None, "en") == "Seattle at night"
     assert OR.mono_caption("Seattle at night", "夜幕下的西雅图", "zh") == "夜幕下的西雅图"
     assert OR.mono_caption("Seattle at night", "夜幕下的西雅图", "zh", both=True) == "Seattle at night"
+    # Han characters in Japanese do not make that line Chinese. Without labelled
+    # alternatives, preserve the supplied text instead of guessing its language.
+    assert OR.mono_caption("日本語の説明\nAPI", None, "ja") == "日本語の説明\nAPI"
 
 
 def test_photostory_subtitles_follow_the_platform(tmp_path):

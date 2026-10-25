@@ -69,6 +69,8 @@ timeline); positions are fractions of the canvas (x, y = centre).
 | `reset` | | everything back to the original (undoable) |
 | `override_reset` | `key` | one of her hand edits (`show.overrides[].key`) back to the AI version: her ops on that key are left out of the state (undo brings them back); `unknown-override` when the key is not hers |
 
+Explicit export languages take precedence over platform defaults. A translated version replaces the source subtitle track with its translated, retimed lines; manually added caption overlays remain. Unlabelled Japanese and other non-English/Chinese text is preserved rather than classified using Han characters.
+
 ### 3a. Transcript cuts (Descript-style editing)
 
 Word indices refer to the cached transcript (`transcript.json` words `[{w, t, te, p?}]`, `paths.transcript` in

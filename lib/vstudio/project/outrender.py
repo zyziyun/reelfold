@@ -484,7 +484,7 @@ def mono_caption(text, alt, lang, both=False):
     ``subtitles.bilingual`` asks (``both``; never on YouTube). None / no line in that language: as is."""
     from vstudio.subs import _ZH
     text = str(text or "")
-    if not lang or both:
+    if lang not in ("en", "zh") or both:
         return text
     lines = [x for x in text.split("\n") if x.strip()] + ([str(alt)] if alt else [])
     keep = [x for x in lines if bool(_ZH.search(x)) == (lang == "zh")]
@@ -492,8 +492,9 @@ def mono_caption(text, alt, lang, both=False):
 
 
 def target_lang(tg):
-    """The language a version shows: "en" on international platforms (YouTube, TikTok, Instagram, X ...), "zh" on
-    Chinese ones (Xiaohongshu, Bilibili, Douyin ...); None for the primary file without a platform profile."""
+    """An explicit version language wins; otherwise use the platform default, or None for an unprofiled file."""
+    if tg.get("lang"):
+        return tg["lang"]
     prof = tg.get("profile")
     if prof is None:
         return None
@@ -540,7 +541,10 @@ def visual_spec(rec, st, tl, tg, band):
                                  color="white" if tr in ("flash", "light-leak", "whip", "zoom", "iris") else "black"))
     c = st["captions"]
     caps = []
-    if rec["mode"] == "pipeline" and c["enabled"]:
+    # A translated version replaces the original speech, so its timed lines also replace
+    # the source subtitle track. Explicit caption additions remain editorial overlays.
+    translated = bool(tg.get("lang") and tg.get("lines"))
+    if rec["mode"] == "pipeline" and c["enabled"] and not translated:
         for i, cue in enumerate(rec.get("cues") or []):
             k = str(i)
             if k in c["removed"]:
