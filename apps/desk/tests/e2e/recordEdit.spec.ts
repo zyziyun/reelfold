@@ -686,16 +686,16 @@ test.describe('record -> edit -> pickup', () => {
 // Current Studio routing: the OS can end display capture independently of camera and mic.
 test.describe('shared window ends during a take', () => {
   let app: ElectronApplication;
-  test.afterAll(async () => closeApp(app));
-  test('pauses all tracks, prevents an incomplete resume and saves the take', async () => {
+  test.afterEach(async () => closeApp(app));
+  for (const lostTrack of ['video', 'audio'] as const) test(`${lostTrack} loss pauses all tracks and saves the take`, async () => {
     test.setTimeout(240000);
-    const launched = await launch('screen-ended', { DESK_STUDIO: '1' });
+    const launched = await launch(`screen-ended-${lostTrack}`, { DESK_STUDIO: '1' });
     app = launched.app;
     const page = launched.page;
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.evaluate(() => (location.hash = '#/create/record'));
-    await page.evaluate(() => {
+    await page.evaluate((lostTrack) => {
       const makeVideo = (colour: string) => {
         const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
         const ctx = canvas.getContext('2d')!;
@@ -716,13 +716,14 @@ test.describe('shared window ends during a take', () => {
         const sharedAudio = dest.stream.getAudioTracks()[0];
         (window as unknown as { sharedAudio: MediaStreamTrack }).sharedAudio = sharedAudio;
         (window as unknown as { endSharedWindow: () => void }).endSharedWindow = () => {
-          track.stop();
-          // stop() itself does not fire ended; the OS dispatches it when a shared window closes.
-          track.dispatchEvent(new Event('ended'));
+          const endedTrack = lostTrack === 'audio' ? sharedAudio : track;
+          endedTrack.stop();
+          // stop() itself does not fire ended; the OS dispatches input loss.
+          endedTrack.dispatchEvent(new Event('ended'));
         };
         return new MediaStream([track, sharedAudio]);
       }});
-    });
+    }, lostTrack);
     await page.getByTestId('create-rec-allow').click();
     await expect(page.getByTestId('create-rec-preview')).toBeVisible();
     await page.getByTestId('create-rec-screen').click();

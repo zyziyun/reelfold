@@ -294,7 +294,9 @@ export function useRecorder() {
           return { error: t('learning.materialAudioMissing') };
         }
         screen.current = st;
-        st.getVideoTracks()[0]?.addEventListener('ended', () => {
+        // Losing shared audio is just as incomplete as losing its picture.
+        // Stop the entire share and pause surviving inputs so no silent tail is saved.
+        for (const track of st.getTracks()) track.addEventListener('ended', () => {
           if (screen.current === st) {
             // Any lost input pauses the surviving tracks together. Replacing a
             // recorder mid-take would make their saved timelines disagree.
