@@ -482,6 +482,14 @@ class Inbox:
                     if spend:
                         params.update(L.spend_params(p))
                     raw = [o for o in p.get("options") or [] if isinstance(o, dict)]
+                    take_units = raw if kind == "take-selection" else None
+                    if take_units is not None:
+                        raw = []
+                        for unit in take_units:
+                            for take in unit.get("takes", []):
+                                allow += [v for v in (take.get("file"), take.get("sheet")) if v]
+                                allow += [r["path"] for r in (take.get("scorecard") or {}).get("references", [])
+                                          if isinstance(r, dict) and r.get("path")]
                     if kind == "publish":                 # the exported videos (not their covers), by platform
                         raw = [dict(o, labels=dict(en=_export_label(o["file"]), zh=_export_label(o["file"], "zh")),
                                     platform=_export_parts(o["file"])[0], aspect=_export_parts(o["file"])[1])
@@ -513,7 +521,7 @@ class Inbox:
                                       clip=clip_of(e.get("id"), p.get("item")),
                                       previews=[] if author else p.get("previews") or [],
                                       default=p.get("default"), minutes=1 if not author else 2, source="engine",
-                                      pictures=pics, help=p.get("help") if isinstance(p.get("help"), dict) else None,
+                                      take_units=take_units, pictures=pics, help=p.get("help") if isinstance(p.get("help"), dict) else None,
                                       engine=dict(dir=pd, id=p.get("id"), item=p.get("item")),
                                       **({"archived": True} if archived else {}),
                                       **({"no_key": _no_key(p.get("no_key"))} if p.get("no_key") else {}),

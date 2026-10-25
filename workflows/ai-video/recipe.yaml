@@ -177,6 +177,7 @@ checkpoints:
       type: object
       properties:
         picks: {type: object, additionalProperties: {type: string}}
+        reviews: {type: object, additionalProperties: {type: object}}
       required: [picks]
     auto: default
     batch_by: unit

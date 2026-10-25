@@ -94,3 +94,38 @@ def test_authored_adapter_emits_guarded_copy(tmp_path):
     assert hand.read_text() == original
     checked = yaml.safe_load(open(result['timeline']))
     assert checked['review_cards'] == env.params['takes_reviews']
+
+
+def test_human_can_complete_unknown_checks_without_bypassing_binding(tmp_path):
+    rows, env = fixture(tmp_path)
+    path = rows[1]['card']; card = json.load(open(path))
+    card['hard']['lipsync_or_line'] = None
+    card['soft']['sound_mismatch'] = None
+    open(path, 'w').write(json.dumps(card))
+    payload = A.takes_payload(env, dict(after='judge'))
+    candidate = payload['options'][0]['takes'][1]
+    patch = dict(revision=candidate['revision'], hard=dict(card['hard'], lipsync_or_line=False),
+                 soft=dict(card['soft'], sound_mismatch=False), scores=card['scores'])
+    picks = dict(a=rows[1]['take'], b=rows[2]['take'])
+    A.takes_apply(SimpleNamespace(payload=payload, value=dict(picks=picks, reviews=dict(a=patch))))
+    saved = json.load(open(path))
+    assert saved['review_source'] == 'human'
+    assert R.inspect(rows[1]['take'], path)[0] == 'pass'
+    with pytest.raises(ValueError, match='reload'):
+        A.takes_apply(SimpleNamespace(payload=payload, value=dict(picks=picks, reviews=dict(a=patch))))
+
+
+def test_bad_selection_does_not_write_any_manual_reviews(tmp_path):
+    rows, env = fixture(tmp_path)
+    payload = A.takes_payload(env, dict(after='judge'))
+    candidate = payload['options'][0]['takes'][1]
+    before = open(rows[1]['card']).read()
+    card = json.loads(before)
+    patch = dict(revision=candidate['revision'], hard=card['hard'], soft=card['soft'], scores=card['scores'])
+    with pytest.raises(ValueError):
+        A.takes_apply(SimpleNamespace(payload=payload, value=dict(picks=dict(a=rows[1]['take'], b='not-a-take'), reviews=dict(a=patch))))
+    assert open(rows[1]['card']).read() == before
+    open(rows[1]['take'], 'ab').write(b'replaced')
+    with pytest.raises(ValueError, match='current video'):
+        A.takes_apply(SimpleNamespace(payload=payload, value=dict(picks=dict(a=rows[1]['take'], b=rows[2]['take']), reviews=dict(a=patch))))
+    assert open(rows[1]['card']).read() == before

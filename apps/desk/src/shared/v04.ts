@@ -865,7 +865,26 @@ export interface InboxOption {
   aspect?: string | null;
 }
 
+export interface TakeScorecard {
+  hard: Record<string, boolean | null>;
+  soft: Record<string, boolean | null>;
+  scores: Record<string, number | null>;
+  evidence?: Record<string, { reason: string; time?: number | null }>;
+  references?: { id: string; path: string }[];
+}
+export interface TakeCandidate {
+  file: string;
+  sheet: string;
+  review: string;
+  reasons: string[];
+  scorecard: TakeScorecard;
+  revision: string | null;
+  stale: boolean;
+}
+export interface TakeUnit { unit: string; takes: TakeCandidate[] }
+
 export interface InboxItem {
+  take_units?: TakeUnit[] | null;
   key: string;
   kind: string;
   group: InboxGroup;

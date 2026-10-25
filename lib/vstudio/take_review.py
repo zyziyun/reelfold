@@ -85,18 +85,26 @@ def bound_card(path):
     return card
 
 
+def binding_reasons(path, card):
+    try:
+        if not isinstance(card, dict) or card.get('media_sha256') != media_digest(path):
+            return ['Review does not match the current video file']
+        for ref in card.get('references', []):
+            if not isinstance(ref, dict) or ref.get('sha256') != media_digest(ref.get('path', '')):
+                return ['Review reference changed; review the take again']
+        if card.get('brief_path') and card.get('brief_sha256') != media_digest(card['brief_path']):
+            return ['Shot plan changed; review the take again']
+    except (OSError, ValueError, TypeError):
+        return ['Video or reference is missing or unreadable']
+    return []
+
+
 def inspect(path, card_path):
     try:
         with open(card_path, encoding='utf-8') as f:
             card = json.load(f)
-        if not isinstance(card, dict) or card.get('media_sha256') != media_digest(path):
-            return 'redo', ['Review does not match the current video file']
-        for ref in card.get('references', []):
-            if not isinstance(ref, dict) or ref.get('sha256') != media_digest(ref.get('path', '')):
-                return 'redo', ['Review reference changed; review the take again']
-        if card.get('brief_path') and card.get('brief_sha256') != media_digest(card['brief_path']):
-            return 'redo', ['Shot plan changed; review the take again']
-        return verdict(card)
+        reasons = binding_reasons(path, card)
+        return ('redo', reasons) if reasons else verdict(card)
     except (OSError, ValueError, TypeError):
         return 'redo', ['Video or review card is missing or unreadable']
 

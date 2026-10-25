@@ -1,3 +1,4 @@
+import { takeReviewEn } from './takeReview';
 // English (source of truth and fallback). Product copy: short, friendly, no engine jargon.
 import { draftsEn } from './drafts';
 import { brainEn } from './brain';
@@ -746,5 +747,5 @@ const learningStrings = {
   "learning.takeAdded": "Commentary added. Draft the sequence when you are ready.",
 };
 
-export const en = { ...learningStrings, ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...ytApiEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...musicEn, ...platformLengthsEn, ...voiceEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...purgeEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn, ...goalFlowEn, ...goalEditEn, ...brainEn, ...agentsEn, ...nleEn, ...taskAiEn };
+export const en = { ...takeReviewEn, ...learningStrings, ...legacyEn, ...legacyEnV02, ...v04En, ...aiaccEn, ...publishPlatformsEn, ...chatEditEn, ...channelsEn, ...projectAiEn, ...aboutEn, ...releaseEn, ...publishBoardEn, ...publishLoopEn, ...ytApiEn, ...settingsV2En, ...createEn, ...pluginsEn, ...uxCoreEn, ...usageEn, ...weekPlanEn, ...shareEn, ...qaEn, ...firstRunEn, ...liteEn, ...sessionFixesEn, ...watermarkEn, ...musicEn, ...platformLengthsEn, ...voiceEn, ...archiveEn, ...autopilotEn, ...recordEn, ...fewerStepsEn, ...pickupsEn, ...studioEn, ...layoutEn, ...runEn, ...draftsEn, ...updateEn, ...composerFilesEn, ...rowActionsEn, ...purgeEn, ...projectPageEn, ...homeDashEn, ...checksEn, ...modelsEn, ...importsEn, ...goalEn, ...goalFlowEn, ...goalEditEn, ...brainEn, ...agentsEn, ...nleEn, ...taskAiEn };
 export type MessageKey = keyof typeof en;

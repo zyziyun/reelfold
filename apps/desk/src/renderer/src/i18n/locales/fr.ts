@@ -1,3 +1,4 @@
+import { takeReviewFr } from './takeReview';
 // Français. Record<MessageKey, string>: a key missing here is a type error. Built section by section in the same
 // order as en.ts (legacy, v02, v04, aiacc, publishPlatforms, chatEdit, channels, projectAi, release) so later sections
 // override earlier ones exactly like in English.
@@ -2031,4 +2032,4 @@ const learningStrings = {
   "learning.takeAdded": "Commentaire ajouté. Préparez la séquence quand vous le souhaitez.",
 };
 
-export const fr: Record<MessageKey, string> = { ...learningStrings, ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...ytApiFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...musicFr, ...platformLengthsFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...goalEditFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };
+export const fr: Record<MessageKey, string> = { ...takeReviewFr, ...learningStrings, ...legacyFr, ...legacyFrV02, ...v04Fr, ...aiaccFr, ...publishPlatformsFr, ...chatEditFr, ...channelsFr, ...projectAiFr, ...aboutFr, ...releaseFr, ...publishBoardFr, ...publishLoopFr, ...ytApiFr, ...settingsV2Fr, ...createFr, ...pluginsFr, ...uxCoreFr, ...usageFr, ...weekPlanFr, ...shareFr, ...qaFr, ...firstRunFr, ...liteFr, ...sessionFixesFr, ...watermarkFr, ...musicFr, ...platformLengthsFr, ...voiceFr, ...archiveFr, ...autopilotFr, ...recordFr, ...fewerStepsFr, ...pickupsFr, ...studioFr, ...layoutFr, ...runFr, ...draftsFr, ...updateFr, ...composerFilesFr, ...rowActionsFr, ...purgeFr, ...projectPageFr, ...homeDashFr, ...checksFr, ...modelsFr, ...importsFr, ...goalFr, ...goalFlowFr, ...goalEditFr, ...brainFr, ...agentsFr, ...nleFr, ...taskAiFr };

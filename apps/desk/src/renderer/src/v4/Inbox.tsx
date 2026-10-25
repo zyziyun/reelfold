@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, FileDown, 
 import type { InboxItem, InboxOption } from '../../../shared/v04';
 import { fmtClock, getLang, has, intlLocale, t } from '../i18n';
 import { answerOf, authorHelp, clipName, inboxClip, inboxSub, inboxTitle, issueDo, issueText, keptChanged, keptOf, keptSpans, money, noKeyBody, optionLabel, reviewReasons, secsLabel } from '../lib/inboxView';
+import { TakeReview } from './TakeReview';
 import { DraftPane, useDraftIt, type KeepEdits } from './DraftReview';
 import { useEngine } from '../lib/engine';
 import { useInbox } from '../lib/inbox';
@@ -259,7 +260,11 @@ export function InboxThumb({ x, src }: { x: InboxItem; src?: string | null }) {
 }
 
 // ---------------------------------------------------------------- the selected item
-export function ItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?: Record<string, unknown>) => void; onSkip: () => void }) {
+export function ItemPane(props: { x: InboxItem; onDone: (answer?: Record<string, unknown>) => void; onSkip: () => void }) {
+  return props.x.kind === 'take-selection' ? <TakeReview {...props} /> : <GenericItemPane {...props} />;
+}
+
+function GenericItemPane({ x, onDone, onSkip }: { x: InboxItem; onDone: (answer?: Record<string, unknown>) => void; onSkip: () => void }) {
   const opts = x.options ?? [];
   const [picked, setPicked] = useState<Set<string>>(() => new Set(opts.filter((o) => o.checked !== false).map((o) => o.id)));
   const [choices, setChoices] = useState<Record<string, string>>({});

@@ -1,3 +1,4 @@
+import { takeReviewZh } from './takeReview';
 // 简体中文。Record<MessageKey, string>: a key missing here is a type error.
 import { draftsZh } from './drafts';
 import { brainZh } from './brain';
@@ -747,4 +748,4 @@ const learningStrings = {
   "learning.takeAdded": "口播已添加，可以开始整理原片与讲解顺序。",
 };
 
-export const zhCN: Record<MessageKey, string> = { ...learningStrings, ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...ytApiZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...musicZh, ...platformLengthsZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...goalEditZh, ...brainZh, ...agentsZh, ...nleZh, ...taskAiZh };
+export const zhCN: Record<MessageKey, string> = { ...takeReviewZh, ...learningStrings, ...legacyZh, ...legacyZhV02, ...v04Zh, ...aiaccZh, ...publishPlatformsZh, ...chatEditZh, ...channelsZh, ...projectAiZh, ...aboutZh, ...releaseZh, ...publishBoardZh, ...publishLoopZh, ...ytApiZh, ...settingsV2Zh, ...createZh, ...pluginsZh, ...uxCoreZh, ...usageZh, ...weekPlanZh, ...shareZh, ...qaZh, ...firstRunZh, ...liteZh, ...sessionFixesZh, ...watermarkZh, ...musicZh, ...platformLengthsZh, ...voiceZh, ...archiveZh, ...autopilotZh, ...recordZh, ...fewerStepsZh, ...pickupsZh, ...studioZh, ...layoutZh, ...runZh, ...draftsZh, ...updateZh, ...composerFilesZh, ...rowActionsZh, ...purgeZh, ...projectPageZh, ...homeDashZh, ...checksZh, ...modelsZh, ...importsZh, ...goalZh, ...goalFlowZh, ...goalEditZh, ...brainZh, ...agentsZh, ...nleZh, ...taskAiZh };

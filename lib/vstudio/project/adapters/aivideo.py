@@ -2,6 +2,7 @@
 (paid, generate.py run --budget --yes) -> judge sheets per take -> take selection -> timeline (auto EDL from the
 picks unless work/ai/timeline.yaml is authored) -> assemble.py -> vstudio.export."""
 import glob
+import copy
 import os
 import re
 
@@ -116,8 +117,10 @@ def takes_payload(env, cp):
     for r in d.get("takes") or []:
         card = r.get("card") or os.path.splitext(r["sheet"])[0].removesuffix(".sheet") + ".card.json"
         decision, reasons = take_review.inspect(r["take"], card)
+        data = read_json(card, {}) or {}
         units.setdefault(r["unit"], []).append(dict(file=r["take"], sheet=r["sheet"], card=card,
-                                                   review=decision, reasons=reasons))
+            review=decision, reasons=reasons, scorecard=data, revision=file_sha(card, 40),
+            stale=bool(take_review.binding_reasons(r["take"], data))))
     opts = [dict(unit=u, takes=ts) for u, ts in sorted(units.items())]
     picks = {o["unit"]: next((t["file"] for t in reversed(o["takes"]) if t["review"] == "pass"), None)
              for o in opts}
@@ -131,13 +134,38 @@ def takes_apply(a):
     units = {o["unit"]: {t["file"]: t for t in o["takes"]} for o in a.payload.get("options") or []}
     if not units or set(picks) != set(units):
         raise ValueError("takes: select one reviewed take for every unit")
-    reviews = {}
+    reviews, updates = {}, []
+    edits = (a.value or {}).get("reviews") or {}
+    if not isinstance(edits, dict) or set(edits) - set(units):
+        raise ValueError("takes: unknown review unit")
     for unit, path in picks.items():
         if path not in units[unit]:
             raise ValueError(f"takes: unknown take for {unit}")
         card = units[unit][path]["card"]
-        take_review.require(path, card)
+        if unit in edits:
+            patch = edits[unit]
+            if not isinstance(patch, dict) or patch.get("revision") != file_sha(card, 40):
+                raise ValueError("takes: review changed; reload before saving")
+            data = read_json(card, {}) or {}
+            reasons = take_review.binding_reasons(path, data)
+            if reasons:
+                raise ValueError("takes: " + "; ".join(reasons))
+            data = copy.deepcopy(data)
+            for section in ("hard", "soft", "scores"):
+                if section in patch:
+                    if not isinstance(patch[section], dict) or set(patch[section]) != set(data.get(section, {})):
+                        raise ValueError("takes: invalid review checklist")
+                    data[section] = patch[section]
+            decision, reasons = take_review.verdict(data)
+            if decision != "pass":
+                raise ValueError("takes: " + "; ".join(reasons))
+            data["review_source"] = "human"
+            updates.append((card, data))
+        else:
+            take_review.require(path, card)
         reviews[path] = card
+    for card, data in updates:
+        write_json(card, data)
     return dict(params=dict(takes_pick=picks, takes_reviews=reviews))
 
 
