@@ -87,3 +87,6 @@ The plan may set `proofread: {provider: none}` for local term fixes only, or sel
 pass the shared fidelity checks. Identical captions across aspect ratios reuse one correction result.
 The clip report records the actual provider, changes, rejected proposals, uncertain words and provider
 warnings. A provider failure is reported as degraded local correction, not successful AI proofreading.
+Uncertain corrections are withheld before translation, subtitle export and burn-in. The report's
+`pending_changes` retains their proposed text, times and supporting evidence for audio review. Earlier
+supported corrections remain applied; later edits depending on a withheld correction also await review.

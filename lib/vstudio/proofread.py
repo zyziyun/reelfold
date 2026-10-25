@@ -1163,6 +1163,41 @@ def proofread(cues, term_fixes=None, provider="auto", model=None, context=None, 
                 locked=sorted(locked))
 
 
+def hold_guesses(result):
+    """Keep uncertain proposals out of automatic exports without losing their review evidence.
+
+    Changes are ordered edits of whole cue text. Once a guess is withheld, later changes to
+    that cue also need review: their before-text includes an unaccepted edit. Other cues and
+    earlier supported corrections remain intact. Operate on a copy so interactive reviewers
+    and the per-cue proposal cache can still use the original result.
+    """
+    from copy import deepcopy
+    safe = deepcopy(result)
+    held = set()
+    applied = []
+    pending = safe.setdefault("pending_changes", [])
+    for change in safe["changes"]:
+        i = change["i"]
+        if change.get("guess") or i in held:
+            dependent = i in held
+            if not dependent:
+                safe["cues"][i]["text"] = change["before"]
+                held.add(i)
+            pending.append(dict(change, reason="depends on an uncertain correction" if dependent else
+                                change.get("support") or "uncertain correction"))
+        else:
+            applied.append(change)
+    safe["changes"] = applied
+    for i in sorted(held):
+        cue = safe["cues"][i]
+        safe["warnings"].append(dict(
+            source="proofread", i=i, start=cue["start"], end=cue["end"],
+            message=f"Uncertain caption correction at {cue['start']:.2f}s withheld; review the original audio."))
+    if held:
+        safe["fillers_left"] = caption_fillers(safe["cues"])
+    return safe
+
+
 # ------------------------------------------------------------------ per-cue cache (no re-roll on a re-cut)
 def norm_cue(text):
     """The cache form of a cue text: whitespace collapsed, case kept (RAG vs rag is a real difference)."""
@@ -1212,7 +1247,7 @@ class CueCache:
         os.replace(tmp, p)
 
 
-__all__ = ["proofread", "resolve_provider", "low_confidence", "cue_evidence", "unjustified", "caption_fillers",
+__all__ = ["proofread", "hold_guesses", "resolve_provider", "low_confidence", "cue_evidence", "unjustified", "caption_fillers",
            "words_of", "SYSTEM",
            "GLOSSARY_SYSTEM", "build_glossary", "apply_glossary", "check_glossary_fix", "faithful", "faithful_swap",
            "diff_spans", "tokens", "fix_filler_edges", "flag_guesses", "guess_check", "sound_alike", "pinyin_of",

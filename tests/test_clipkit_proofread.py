@@ -72,3 +72,49 @@ def test_source_normalization_keeps_low_confidence_subwords():
     ]}]})
     assert [(w['w'], w.get('p')) for w in words] == [('counter', .21), ('line', .7), ('unknown', None)]
     assert 'p' not in load_words([dict(w='invalid', t=0, te=1, p=float('nan'))])[0]
+
+
+def test_uncertain_proposals_are_not_translated_or_burned(tmp_path, monkeypatch):
+    monkeypatch.setattr(CK, 'canvases', lambda _: {(1920, 1080): ['youtube']})
+    monkeypatch.setattr(CK, 'render_clip', lambda *a, **k: dict(
+        cues=[S.Cue(32.2, 34.9, 'at a break point')], master='master.mp4',
+        keepouts=[], timeline=[], duration=40, mask_report=[], content_policy={},
+        deferred_overlays=[], geometry={}))
+    monkeypatch.setattr(CK, '_covers', lambda *a: [])
+    proposal = dict(cues=[S.Cue(32.2, 34.9, 'add a break point').to_dict()],
+                    changes=[dict(i=0, start=32.2, end=34.9, before='at a break point',
+                                  after='add a break point', guess=True, support='weak sound match')],
+                    warnings=[], rejected=[], low_confidence=[], usage={}, cost_usd=0, provider='codex')
+    monkeypatch.setattr(PR, 'proofread', lambda *a, **k: proposal)
+    def translate(cues, *args):
+        assert cues[0].text == 'at a break point'
+        return cues, {}
+    def export(*args, **kw):
+        assert json.loads(open(kw['cues']).read())['cues'][0]['text'] == 'at a break point'
+        return {'exports': []}
+    monkeypatch.setattr(EX, 'export', export)
+    report = CK.deliver({'id': 'p02'}, [], [], str(tmp_path),
+                        CK.caption_config('bilingual', 'en', 'zh'), firstpass=False, translate=translate)
+    assert report['proofread'][0]['changes'] == []
+    assert report['proofread'][0]['pending_changes'][0]['start'] == 32.2
+    assert '32.20s' in report['warnings'][0]
+    assert proposal['cues'][0]['text'] == 'add a break point'
+
+
+def test_hold_guesses_preserves_supported_edits_and_withholds_dependent_chain():
+    changes = [
+        dict(i=0, before='trace hook at', after='TraceHook at', source='term_fix', guess=False),
+        dict(i=0, before='TraceHook at', after='TraceHook add', guess=True),
+        dict(i=1, before='discount', after='this count', guess=False),
+        dict(i=0, before='TraceHook add', after='TraceHook add.', guess=False),
+    ]
+    result = dict(cues=[dict(start=0, end=1, text='TraceHook add.', meta={'source': 'asr'}),
+                       dict(start=1, end=2, text='this count')], changes=changes, warnings=[])
+    safe = PR.hold_guesses(result)
+    assert [c['text'] for c in safe['cues']] == ['TraceHook at', 'this count']
+    assert safe['cues'][0]['meta'] == {'source': 'asr'}
+    assert safe['changes'] == [changes[0], changes[2]]
+    assert len(safe['pending_changes']) == 2
+    assert 'depends' in safe['pending_changes'][1]['reason']
+    assert PR.hold_guesses(safe) == safe
+    assert len(result['changes']) == 4

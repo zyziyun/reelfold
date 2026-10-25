@@ -668,17 +668,18 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
             signature = json.dumps([_cue_dicts(cues), res.get("words", [])], sort_keys=True)
             reused = signature in corrections
             if not reused:
-                corrections[signature] = PR.proofread(
+                corrections[signature] = PR.hold_guesses(PR.proofread(
                     cues, term_fixes=captions.get("term_fixes"),
                     provider="none" if opts.get("enabled") is False else opts.get("provider", "auto"),
                     model=opts.get("model"), words=res.get("words"),
                     context=dict(topic=spec.get("title"), glossary=[t["term"] for t in spec.get("terms") or []]),
-                    low_conf=float(opts.get("low_conf", 0.5)), entities=False)
+                    low_conf=float(opts.get("low_conf", 0.5)), entities=False))
             correction = corrections[signature]
             cues = [S.Cue.from_dict(c) for c in correction["cues"]]
             report.setdefault("proofread", []).append(dict(
                 size=[W, H], provider=correction["provider"], changes=correction["changes"],
                 rejected=correction["rejected"], warnings=correction["warnings"],
+                pending_changes=correction["pending_changes"],
                 low_confidence=correction["low_confidence"], reused=reused,
                 usage={} if reused else correction["usage"], cost_usd=0 if reused else correction["cost_usd"]))
             report["warnings"].extend(
