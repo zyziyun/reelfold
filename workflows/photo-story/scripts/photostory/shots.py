@@ -104,20 +104,21 @@ def prep_video(C, sh, name):
     csrc = None
     if speechclean.options(C, sh) is not None:       # speech clip with cleanup=: read the cleaned clip from 0
         csrc, off = speechclean.cleaned(C, sh, C.find_video(name))
+    src = csrc or C.find_video(name)
+    if not src:
+        raise FileNotFoundError(f"video '{name}' not found in {C.vid_dirs}")
+    st = os.stat(src)
+    identity = repr((os.path.realpath(src), st.st_size, st.st_mtime_ns))
     need = (sh["end"] - sh["start"] + sh["tail"] + 0.6) * speed
-    tag = re.sub(r"[^\w.-]", "_", name)
+    tag = re.sub(r"[^\w.-]", "_", name) + "_" + hashlib.sha1(identity.encode()).hexdigest()[:12]
     # crop / zoom / grade are part of the cache key (editing VCROP re-renders the clip)
     look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
-                 sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H))
-    if csrc:
-        look += "|" + os.path.basename(csrc)
-    lk = "" if look == repr((None, None, None, False, None, None)) else "_" + hashlib.sha1(look.encode()).hexdigest()[:8]
+                 sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
+                 C.pal["paper"], need))
+    lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
     out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
     if not os.path.exists(out):
-        src = csrc or C.find_video(name)
-        if not src:
-            raise FileNotFoundError(f"video '{name}' not found in {C.vid_dirs}")
         hdr = ""
         info = vmedia.probe(src)
         if info["hdr"]:                              # iPhone HLG / PQ clip -> SDR bt709 first (avconvert on macOS)

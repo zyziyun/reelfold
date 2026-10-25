@@ -37,6 +37,15 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
         assert a[40,35,0]>220 and a[40,145,2]>220
         assert a[230,90,2]>220 and a[230,90,0]<30
         assert np.all(a[120,90]>200)  # caption gap excludes both moving pictures
+    C.FPS = 30
+    new_fps = prep_video(C,sh,'source')
+    assert new_fps != out and float(media.probe(new_fps)['fps']) == 30
+    C.pal['paper'] = (10,20,30)
+    new_paper = prep_video(C,sh,'source')
+    assert new_paper != new_fps
+    st = os.stat(src)
+    os.utime(src, ns=(st.st_atime_ns,st.st_mtime_ns+1000000))
+    assert prep_video(C,sh,'source') != new_paper
     changed = dict(sh,fit='cover'); changed.pop('detail_regions',None)
     assert prep_video(C,changed,'source') != out
 
