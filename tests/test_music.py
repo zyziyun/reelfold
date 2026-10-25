@@ -16,6 +16,11 @@ need_ff = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not inst
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+@pytest.mark.parametrize("brief", ["Use background music", "Use BGM", "no background musician"])
+def test_background_music_words_without_negation_do_not_request_silence(brief):
+    assert not MU.wants_none(brief)
+
+
 @pytest.fixture(autouse=True)
 def _iso(tmp_path, monkeypatch):
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))

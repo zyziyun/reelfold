@@ -518,8 +518,11 @@ NO_MUSIC = ("不要音乐", "不要配乐", "无配乐", "没有音乐", "不用
 
 
 def wants_none(text):
+    import re
     t = str(text or "").lower()
-    return any(k in t for k in NO_MUSIC)
+    return (any(k in t for k in NO_MUSIC)
+            or bool(re.search(r"\b(?:no|without)\s+(?:background\s+music|bgm)\b", t))
+            or any(k in t for k in ("不要背景音乐", "不用背景音乐", "不加背景音乐", "无背景音乐")))
 
 
 # words that ask for a kind of track (its style / tags): (words, tags)
