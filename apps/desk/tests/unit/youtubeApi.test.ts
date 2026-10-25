@@ -444,6 +444,30 @@ describe('resumable upload (fake API)', () => {
     expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
   });
 
+  it('checks the current account before resuming or querying a saved upload', async () => {
+    const { yt, dir, vault } = await connected();
+    const file = video(dir);
+    for (let i = 1; i < 20; i++) g.faults.set(i, '503');
+    await expect(yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null }, undefined, 'account-change'))
+      .rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    const chunks = g.chunks, queries = g.queries;
+    g.faults.clear();
+    const restarted = mk(dir);
+    for (const account of ['other', null]) {
+      await expect(restarted.yt.recover('account-change', true, account)).rejects.toThrow('another publishing account');
+    }
+    await expect(restarted.yt.upload('other', { file, title: 't', description: '', tags: [], publishAt: null }, undefined, 'account-change'))
+      .rejects.toThrow('another publishing account');
+    expect(g.chunks).toBe(chunks);
+    expect(g.queries).toBe(queries);
+    expect(vault.get('youtube-upload/account-change').uploadSession?.account).toBe('main');
+    const recovered = await restarted.yt.recover('account-change', true, 'main');
+    expect(recovered?.account).toBe('main');
+    expect(g.sessions.size).toBe(1);
+    expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
+    await expect(restarted.yt.recover('account-change', false, 'other')).rejects.toThrow('another publishing account');
+  });
+
   it('refuses to append a changed same-size video to a saved session', async () => {
     const { yt, dir } = await connected();
     const file = video(dir);

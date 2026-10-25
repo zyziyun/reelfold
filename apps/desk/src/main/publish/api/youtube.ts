@@ -446,9 +446,14 @@ export class YouTubeApi {
   }
 
   /** Query only the saved session. Never create another upload while its outcome is unknown. */
-  async recover(postId: string, resume = false): Promise<{ account: string; result: YtPublishResult } | null> {
+  async recover(postId: string, resume = false, expectedAccount?: string | null): Promise<{ account: string; result: YtPublishResult } | null> {
     const key = `youtube-upload/${postId}`;
     const saved = this.d.vault.get(key);
+    const savedAccount = saved.uploadReceipt?.account ?? saved.uploadSession?.account;
+    // Check before requesting a token, querying the session or sending any remaining bytes.
+    if (savedAccount && expectedAccount !== undefined && savedAccount !== expectedAccount) {
+      throw new UploadOutcomeUnknown('The saved upload belongs to another publishing account. Restore that account or check YouTube Studio.');
+    }
     if (saved.uploadReceipt) return saved.uploadReceipt;
     const session = saved.uploadSession;
     if (!session) return null;
@@ -483,7 +488,7 @@ export class YouTubeApi {
     if (postId) {
       const saved = this.d.vault.get(receiptKey!);
       if (saved.uploadSession || saved.uploadReceipt) {
-        const recovered = await this.recover(postId);
+        const recovered = await this.recover(postId, false, account);
         if (recovered) {
           if (recovered.account !== account) throw new UploadOutcomeUnknown('This post was uploaded with another account. Check YouTube Studio.');
           return recovered.result as YtResult;
