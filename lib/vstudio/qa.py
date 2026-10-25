@@ -459,7 +459,7 @@ def render(plan, source, out_dir, platforms, question="audio", mode="bilingual",
         subs = dict(zip(texts, CK.translate_lines(texts, lang, tgt, cache=cache, call=call)))
     specs = clip_specs(plan, source, question, mode, mask, speed, subs, ui)
     words = load_words(plan["transcript"]) if plan.get("transcript") else None
-    cap = CK.caption_config(mode, lang, tgt, cache=cache)
+    cap = CK.caption_config(mode, lang, tgt, cache=cache, proofread=plan.get("proofread"))
     return CK.render_all(specs, words, platforms, out_dir, cap, "interview-qa", only=only, post_of=post_for,
                          translate=translate)
 

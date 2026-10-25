@@ -181,7 +181,8 @@ def load_words(transcript, sentence_gap=0.7):
     Accepts a ``vstudio.asr.transcribe`` dict (segments preferred, else words), whisper segments
     [{start, end, text, words:[{word, start, end}]}], flat [{"w","t","te"}] / [{"word","start","end"}]
     / [(text, start, end)], or a path to a JSON file of any of these. ``n`` = normalised text, ``seg`` =
-    segment index, ``end`` = the word ends a sentence (punctuation, segment end, or a gap >= sentence_gap)."""
+    segment index, ``end`` = the word ends a sentence (punctuation, segment end, or a gap >= sentence_gap).
+    Valid recognition confidence is retained as ``p``; merged tokenizer pieces keep the lowest known value."""
     if isinstance(transcript, (str, os.PathLike)):
         with open(transcript, encoding="utf-8") as f:
             transcript = json.load(f)
@@ -214,6 +215,14 @@ def load_words(transcript, sentence_gap=0.7):
             continue
         out.append(dict(w=txt, n=norm(txt), t=round(float(a), 3), te=round(max(float(a), float(b)), 3), seg=si,
                         _cont=bool(txt) and raw_txt[:1] not in (" ", "\t") and bool(re.match(r"[A-Za-z]", txt))))
+        if isinstance(w, dict):
+            probability = w.get("p", w.get("probability"))
+            try:
+                probability = float(probability)
+            except (TypeError, ValueError):
+                probability = None
+            if probability is not None and 0 <= probability <= 1:
+                out[-1]["p"] = probability
     out.sort(key=lambda w: (w["t"], w["te"]))
     # Whisper marks a new latin word with a leading space; a latin piece WITHOUT one right after a latin word is
     # the same word split by the tokenizer ("engine"+"er", "caption"+"er"). Merge it, so a sub-word piece that
@@ -227,6 +236,9 @@ def load_words(transcript, sentence_gap=0.7):
             p["w"] += w["w"]
             p["n"] = norm(p["w"])
             p["te"] = max(p["te"], w["te"])
+            confidence = [v["p"] for v in (p, w) if "p" in v]
+            if confidence:
+                p["p"] = min(confidence)
             continue
         w.pop("_cont", None)
         merged.append(w)

@@ -611,7 +611,7 @@ def render(plan, source, out_dir, platforms, camera=None, offset=None, layout=No
     CK.auto_layouts(specs)
     words = load_words(plan["transcript"]) if plan.get("transcript") else None
     cap = CK.caption_config(mode, src_lang, tgt, cache=cache, glossary=plan.get("glossary"),
-                            term_fixes=plan.get("term_fixes"))
+                            term_fixes=plan.get("term_fixes"), proofread=plan.get("proofread"))
     return CK.render_all(specs, words, platforms, out_dir, cap, "lesson-points", only=only,
                          post_of=lambda s: post_for(s, src_lang), translate=translate)
 

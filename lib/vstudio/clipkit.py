@@ -552,14 +552,15 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
     media.run(["ffmpeg", "-y", *ins, *media.filter_complex_args(";".join(g), workdir), "-map", f"[{last}]",
                "-map", "[a]", *media.delivery_args(crf=14, preset="medium"), master])
     # captions in final time
-    cues = []
+    cues, final_words = [], []
     if words:
         for seg in timeline:
             if seg["kind"] != "src":
                 continue
-            ws = [dict(w=w["w"], t=seg["t0"] + max(0.0, w["t"] - seg["a"]) / seg["speed"],
+            ws = [dict({k: w[k] for k in ("w", "p", "probability") if k in w}, t=seg["t0"] + max(0.0, w["t"] - seg["a"]) / seg["speed"],
                        te=seg["t0"] + max(0.0, min(w["te"], seg["b"]) - seg["a"]) / seg["speed"])
                   for w in _words_in(words, seg["a"], seg["b"])]
+            final_words.extend(ws)
             part = S.cues_from_words(ws) if ws else []
             for c in part:
                 c.end = min(c.end, seg["t1"])
@@ -570,7 +571,7 @@ def render_clip(spec, words=None, canvas=(1080, 1920), workdir="work", keep=Fals
                 os.remove(p)
             except OSError:
                 pass
-    return dict(master=master, cues=cues, keepouts=keepouts, timeline=timeline, duration=round(t, 3),
+    return dict(master=master, cues=cues, words=final_words, keepouts=keepouts, timeline=timeline, duration=round(t, 3),
                 size=[W, H], mask_report=mrep, cover=cover, geometry={k: v for k, v in geo.items()},
                 content_policy="unobstructed-source" if protected else "presenter-overlays",
                 deferred_overlays=([k for k in ("header", "terms", "labels") if spec.get(k)] if protected else []))
@@ -655,6 +656,7 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
                   layout=spec.get("layout"), layout_why=spec.get("layout_why"),
                   protect_content=bool(spec.get("protect_content")), content_why=spec.get("content_why"))
     tr_info = None
+    corrections = {}
     for (W, H), keys in canvases(platforms).items():
         burn_required = not captions.get("off")
         render_spec = dict(spec, _caption_rail=burn_required)
@@ -662,12 +664,25 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         cues = res["cues"]
         if cues and not captions.get("off"):
             from . import proofread as PR
-            correction = PR.proofread(cues, term_fixes=captions.get("term_fixes"),
-                                      provider="none", entities=False)
+            opts = dict(captions.get("proofread") or {})
+            signature = json.dumps([_cue_dicts(cues), res.get("words", [])], sort_keys=True)
+            reused = signature in corrections
+            if not reused:
+                corrections[signature] = PR.proofread(
+                    cues, term_fixes=captions.get("term_fixes"),
+                    provider="none" if opts.get("enabled") is False else opts.get("provider", "auto"),
+                    model=opts.get("model"), words=res.get("words"),
+                    context=dict(topic=spec.get("title"), glossary=[t["term"] for t in spec.get("terms") or []]),
+                    low_conf=float(opts.get("low_conf", 0.5)), entities=False)
+            correction = corrections[signature]
             cues = [S.Cue.from_dict(c) for c in correction["cues"]]
             report.setdefault("proofread", []).append(dict(
-                size=[W, H], provider="none", changes=correction["changes"],
-                rejected=correction["rejected"], warnings=correction["warnings"]))
+                size=[W, H], provider=correction["provider"], changes=correction["changes"],
+                rejected=correction["rejected"], warnings=correction["warnings"],
+                low_confidence=correction["low_confidence"], reused=reused,
+                usage={} if reused else correction["usage"], cost_usd=0 if reused else correction["cost_usd"]))
+            report["warnings"].extend(
+                w.get("message", str(w)) if isinstance(w, dict) else str(w) for w in correction["warnings"])
         if captions.get("mode") in ("bilingual", "translated") and cues:
             fn = translate or (lambda cs, s, t: BL.translate_cues(cs, s, t, captions.get("glossary"),
                                                                  cache=captions.get("cache")))
@@ -825,10 +840,11 @@ def render_all(specs, words, platforms, out_dir, captions=None, fmt=None, only=N
     return res
 
 
-def caption_config(mode, src_lang, tgt_lang=None, cache=None, highlight=None, glossary=None, term_fixes=None):
+def caption_config(mode, src_lang, tgt_lang=None, cache=None, highlight=None, glossary=None, term_fixes=None,
+                   proofread=None):
     from . import bilingual as BL
     mode = mode or "mono"
     if mode not in BL.MODES:
         raise ValueError(f"subtitles {mode!r}: {' | '.join(BL.MODES)}")
     return dict(mode=mode, src=src_lang, tgt=tgt_lang or BL.other_lang(src_lang), cache=cache,
-                highlight=list(highlight or []), glossary=glossary, term_fixes=term_fixes)
+                highlight=list(highlight or []), glossary=glossary, term_fixes=term_fixes, proofread=proofread)

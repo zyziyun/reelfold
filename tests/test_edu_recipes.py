@@ -596,7 +596,9 @@ def test_local_slide_detection_and_unobstructed_body(tmp_path, monkeypatch):
                 terms=[dict(t=.1, term="A card over the source")], labels=[])
     CK.auto_layouts([spec])
     assert spec["protect_content"] is True
-    result = CK.render_clip(spec, canvas=(640, 360), workdir=str(tmp_path / "work"))
+    result = CK.render_clip(spec, words=[dict(w="process", t=.4, te=.9, p=.23, end=True)],
+                            canvas=(640, 360), workdir=str(tmp_path / "work"))
+    assert result["words"] == [dict(w="process", t=.4, te=.9, p=.23)]
     raw = subprocess.check_output([MD.ffmpeg_bin(), "-v", "error", "-ss", "1", "-i", result["master"],
                                    "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
     frame = np.frombuffer(raw, np.uint8).reshape(360, 640, 3)

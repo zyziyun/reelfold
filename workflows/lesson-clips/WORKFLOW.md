@@ -78,3 +78,12 @@ requested aspect remains an explicit recomposition task. Review text at the actu
 portrait requests: keeping every source pixel does not by itself prove that small code is readable on a phone.
 Local visual classification is a heuristic, recorded as such, not OCR or a semantic proof that a slide is correct.
 Do not treat a green media check as proof that technical names in ASR or an explanation's boundaries are correct.
+
+### Caption proofreading
+
+Before translation or burn-in, the shared caption proofreader follows the configured `proofread` LLM route.
+The plan may set `proofread: {provider: none}` for local term fixes only, or select `provider`, `model`,
+`low_conf` and `enabled`. Recognition confidence is retained at the edited timeline times; corrections must
+pass the shared fidelity checks. Identical captions across aspect ratios reuse one correction result.
+The clip report records the actual provider, changes, rejected proposals, uncertain words and provider
+warnings. A provider failure is reported as degraded local correction, not successful AI proofreading.
