@@ -280,7 +280,7 @@ def _crop_fill(w, h):
     return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
 
 
-def detail_geometry(geo, src_wh, regions, caption_rail=False):
+def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None):
     """Source-pixel rectangles for one continuous source part; preserve its full overview.
 
     Portrait only: landscape retains the complete source. Regions must be verified against
@@ -310,6 +310,12 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False):
     bottom = int(H * .60) if caption_rail else H - margin
     ow, oh = _fit(sw, sh, W, int(H * (.24 if caption_rail else .34)))
     top = margin + oh + margin
+    if caption_band is not None:
+        y0, y1 = caption_band
+        if not 2 * margin < y0 < y1 < bottom - 2 * margin:
+            raise ValueError("Caption band leaves no room for overview and details")
+        ow, oh = _fit(sw, sh, W, y0 - 2 * margin)
+        top = y1 + margin
     slot = (bottom - top) // len(rects)
     details = []
     for j, rect in enumerate(rects):
@@ -318,6 +324,27 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False):
             raise ValueError("detail_regions cannot fit this canvas")
         details.append(dict(source=rect, box=[(W - dw) // 2, top + j * slot + (slot - dh) // 2, dw, dh]))
     return dict(geo, main=((W - ow) // 2, margin, ow, oh), header=None, details=details)
+
+
+def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2"):
+    """Shared overview/detail graph; caller supplies timing, background and output encoding."""
+    x, y, w, h = geo["main"]
+    details = geo.get("details") or []
+    g = []
+    main_input = source
+    if details:
+        g.append(f"[{source}]split={len(details) + 1}[overview]" + "".join(f"[detail{j}]" for j in range(len(details))))
+        main_input = "overview"
+    g += [f"[{main_input}]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
+         f"color={matte},setsar=1[m]", f"[{background}][m]overlay={x}:{y}:shortest=1[b0]"]
+    last = "b0"
+    for j, detail in enumerate(details):
+        sx, sy, sw, sh = detail["source"]
+        dx, dy, dw, dh = detail["box"]
+        g.append(f"[detail{j}]{sp},crop={sw}:{sh}:{sx}:{sy}:exact=1,scale={dw}:{dh},setsar=1[d{j}]")
+        g.append(f"[{last}][d{j}]overlay={dx}:{dy}:shortest=1[bd{j}]")
+        last = f"bd{j}"
+    return g, last
 
 
 def compose_part(src, a, b, out, geo, camera=None, offset=0.0, speed=1.0, header_png=None, audio="source"):
@@ -341,22 +368,7 @@ def compose_part(src, a, b, out, geo, camera=None, offset=0.0, speed=1.0, header
         idx_hdr = n
         n += 1
     sp = f"setpts=(PTS-STARTPTS)/{speed:.4f}"
-    x, y, w, h = geo["main"]
-    details = geo.get("details") or []
-    g = []
-    main_input = "1:v"
-    if details:
-        g.append(f"[1:v]split={len(details) + 1}[overview]" + "".join(f"[detail{j}]" for j in range(len(details))))
-        main_input = "overview"
-    g += [f"[{main_input}]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
-         f"color={_hex('paper')},setsar=1[m]", f"[0:v][m]overlay={x}:{y}:shortest=1[b0]"]
-    last = "b0"
-    for j, detail in enumerate(details):
-        sx, sy, sw, sh = detail["source"]
-        dx, dy, dw, dh = detail["box"]
-        g.append(f"[detail{j}]{sp},crop={sw}:{sh}:{sx}:{sy}:exact=1,scale={dw}:{dh},setsar=1[d{j}]")
-        g.append(f"[{last}][d{j}]overlay={dx}:{dy}:shortest=1[bd{j}]")
-        last = f"bd{j}"
+    g, last = source_layout_graph(geo, "1:v", "0:v", sp, _hex("paper"))
     if idx_cam is not None:
         cx, cy, cw, ch = geo["camera"]
         g.append(f"[{idx_cam}:v]{sp},{_crop_fill(cw, ch)},setsar=1[c]")

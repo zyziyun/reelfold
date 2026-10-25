@@ -245,3 +245,17 @@ Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zo
 - Editing a line's cue count invalidates that unit's timing. Render falls back to an estimate for that unit and prints a warning. Re-run `tts.py <i>`.
 
 Music timing: `MUSIC.grid="seconds"` uses each shot weight as seconds (at 0.1-second resolution); `per` scales those seconds. `SECTIONS=[]` hides chapter labels while preserving internal section slots from SCRIPT. Other grids remain `bar`, `beat`, `half`, or a numeric beat count.
+
+### Moving video overview and details
+
+Video shots support explicit `fit="contain"` without stretching or silently centre-cropping.
+For a portrait demonstration, `detail_regions=[[x,y,width,height]]` in video shot options reuses the
+course renderer's overview/detail composition. One or two source-pixel rectangles must be checked
+against the displayed, rotation-corrected source. Landscape keeps the complete source. Do not combine
+this layout with `VCROP`, `c` or `z`. Photos use their existing framing options instead.
+
+The actual subtitle band is reserved between the overview and details. For short labels,
+`LAYOUT=dict(caption_y=0.35, sub=0.08, caption_style="label")` is a starting point, not a universal
+layout: review the source aspect ratio, text size and detail readability. An impossible band or an
+out-of-source rectangle fails explicitly. This is an authored capability, not proof that automatic
+region selection or the finished film has passed visual review. Keep original audio handling unchanged.

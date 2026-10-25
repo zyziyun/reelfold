@@ -108,7 +108,8 @@ def prep_video(C, sh, name):
     tag = re.sub(r"[^\w.-]", "_", name)
     # crop / zoom / grade are part of the cache key (editing VCROP re-renders the clip)
     look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
-                 C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None))
+                 C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
+                 sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H))
     if csrc:
         look += "|" + os.path.basename(csrc)
     lk = "" if look == repr((None, None, None, False, None, None)) else "_" + hashlib.sha1(look.encode()).hexdigest()[:8]
@@ -141,8 +142,27 @@ def prep_video(C, sh, name):
               f"deflicker=size=5:mode=am," + FF.retime(info["fps"], speed, C.FPS))
         if name in C.VEQ or sh.get("grade"):
             vf += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(off), "-t", f"{need:.2f}", "-i", src,
-                        "-vf", vf, "-an", "-c:v", "libx264", "-crf", "12", "-preset", "fast", out], check=True)
+        filters = ["-vf", vf]
+        if sh.get("fit") == "contain" or sh.get("detail_regions") is not None:
+            from vstudio import clipkit as CK
+            if name in C.VCROP or "c" in sh or sh.get("z", 1) != 1:
+                raise ValueError("Whole-source video layout cannot also use a crop or zoom")
+            geo = dict(canvas=(C.BOX_W, C.BOX_H), vertical=C.BOX_H > C.BOX_W,
+                       main=(0, 0, C.BOX_W, C.BOX_H), camera=None)
+            if sh.get("detail_regions") is not None:
+                geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
+                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))
+            matte = "0x" + "".join(f"{int(v):02x}" for v in C.pal["paper"])
+            timing = hdr + "setpts=PTS-STARTPTS," + FF.retime(info["fps"], speed, C.FPS)
+            if name in C.VEQ or sh.get("grade"):
+                timing += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
+            graph = [f"[0:v]{timing}[timed]",
+                     f"color=c={matte}:s={C.BOX_W}x{C.BOX_H}:r={C.FPS}:d={need / speed}[ground]"]
+            layers, last = CK.source_layout_graph(geo, "timed", "ground", matte=matte)
+            graph += layers + [f"[{last}]format=yuv420p[laidout]"]
+            filters = vmedia.filter_complex_args(";".join(graph)) + ["-map", "[laidout]"]
+        subprocess.run([vmedia.ffmpeg_bin(), "-v", "error", "-y", "-ss", str(off), "-t", f"{need:.2f}", "-i", src,
+                        *filters, "-an", "-c:v", "libx264", "-crf", "12", "-preset", "fast", out], check=True)
     return out
 
 

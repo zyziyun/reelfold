@@ -52,6 +52,12 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   prefer a shorter film over repeated zooms, fabricated angles or filler. Keep an explicitly requested duration.
   Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
+  A video may explicitly use fit="contain" to preserve its full source; this does not create a new portrait edit.
+  For a source-verified portrait overview plus detail, video options may use detail_regions=[[x,y,width,height]]
+  (one or two rectangles in displayed source pixels). Full source stays above the magnified detail; landscape
+  retains the full source. Choose rectangles from actual frames, not a guessed feature. Do not combine with c/z.
+  Reserve a short-label gap with LAYOUT caption_y=0.35, sub=0.08 as a starting point, and inspect the actual
+  source shape and text length; invalid gaps fail rather than obscure the source. Never add regions to photos.
   For process demonstrations, select the source interval containing the interaction and its visible result.
   A glove, tool or machine in a contact sheet does not prove loading, filling, testing or assembly occurred.
   Check that the relevant hand/tool and object remain readable together in each requested aspect ratio;
@@ -609,6 +615,17 @@ def spec_error(text):
                 return f"SCRIPT[{i}] needs a motion string and dict/None options"
             if opts and opts.get("fit") not in (None, "contain", "cover"):
                 return f"SCRIPT[{i}] fit must be contain or cover"
+            if opts and opts.get("detail_regions") is not None:
+                regions = opts["detail_regions"]
+                if not source.startswith(("v", "video:")):
+                    return f"SCRIPT[{i}] detail_regions requires a video source"
+                if not isinstance(regions, list) or not 1 <= len(regions) <= 2 or any(
+                    not isinstance(r, (list, tuple)) or len(r) != 4 or any(
+                        type(v) not in (int, float) or not math.isfinite(v) for v in r)
+                    or r[0] < 0 or r[1] < 0 or r[2] < 2 or r[3] < 2 for r in regions):
+                    return f"SCRIPT[{i}] detail_regions needs one or two finite source-pixel rectangles"
+                if "c" in opts or opts.get("z", 1) != 1:
+                    return f"SCRIPT[{i}] detail_regions preserves the overview; remove c/z"
             if opts:
                 zoom = opts.get("z", 1)
                 if type(zoom) not in (int, float) or not math.isfinite(zoom) or zoom < 1:
