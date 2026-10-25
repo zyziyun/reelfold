@@ -23,6 +23,15 @@ Product claims come from the supplied brief or a visible demonstration. Do not i
 sales, performance or testimonials. Company claims need evidence for customers, certificates, rankings,
 results and logos. A generated/stock shot must not imply it depicts the actual company or product.
 
+## Filmed comedy evidence
+
+Performance planning uses ordered contact-sheet pages, targeting one frame every 0.5 seconds,
+with at most 240 frames (12 pages) across the source. Longer sources have a wider sampling gap;
+the planner receives that actual gap explicitly. Still samples cannot verify every movement,
+reaction or precise cut boundary. Preserve uncertain action ranges and review the continuous
+setup, payoff and reaction before accepting the cut. Missing requested frames stop planning
+rather than silently leaving holes in the evidence. Original speed, sound and frame are retained.
+
 ## Photo planning and rendering
 
 The automatic photo-story drafter now sees labelled contact sheets of supplied photos, as well as videos.

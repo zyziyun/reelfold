@@ -63,7 +63,7 @@ def validate(doc, duration):
 def plan(source, request, work, speech=False, complete=None):
     from vstudio import footage, llm
     os.makedirs(work, exist_ok=True)
-    text, images, facts = footage.context([source], os.path.join(work, "sheets"), ids=["source"], shots=False, every=2.0)
+    text, images, facts = footage.sequence_context(source, os.path.join(work, "sheets"))
     if not images:
         raise ValueError("performance edit: source frames are unavailable; cannot verify the performance")
     info = media.probe(source)

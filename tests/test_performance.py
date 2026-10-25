@@ -38,7 +38,7 @@ def test_invalid_cut_cannot_proceed(change):
 
 def planner_context(monkeypatch, audio=False):
     from vstudio import footage, asr
-    monkeypatch.setattr(footage, "context", lambda *a, **k: ("Public synthetic performance, 4s", ["synthetic-sheet.jpg"], []))
+    monkeypatch.setattr(footage, "sequence_context", lambda *a, **k: ("Public synthetic performance, 4s", ["synthetic-sheet.jpg"], []))
     monkeypatch.setattr(media, "probe", lambda p: dict(duration=4, has_audio=audio))
     monkeypatch.setattr(asr, "transcribe", lambda *a, **k: pytest.fail("Silent or speech-disabled footage must not call ASR"))
 
@@ -137,7 +137,7 @@ def test_trim_pipeline_converts_pixels_before_tagging_709(tmp_path, sources, kin
 
 def test_unavailable_source_frames_stop_planning(tmp_path, monkeypatch):
     from vstudio import footage
-    monkeypatch.setattr(footage, "context", lambda *a, **k: ("4s", [], []))
+    monkeypatch.setattr(footage, "sequence_context", lambda *a, **k: ("4s", [], []))
     with pytest.raises(ValueError, match="source frames are unavailable"):
         P.plan("missing.mp4", "Edit", str(tmp_path), complete=lambda *a, **k: pytest.fail("No source evidence"))
 
@@ -169,3 +169,53 @@ def test_native_export_metadata_stays_inside_original_canvas(target, geometry):
         assert 0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h
     with pytest.raises(ValueError, match="not a Short"):
         A.native_profile("youtube-shorts", 958, 720)
+
+
+@pytest.mark.parametrize('duration', [60, 600])
+def test_sequence_evidence_covers_full_source_in_bounded_pages(tmp_path, monkeypatch, duration):
+    from vstudio import footage
+    monkeypatch.setattr(footage, 'facts', lambda p: dict(file=p, dur=duration, w=320, h=240, orientation='horizontal'))
+    sampled = []
+    def sheet(source, out, **kw):
+        assert len(kw['times']) <= 20
+        sampled.extend(kw['times'])
+        return out
+    monkeypatch.setattr(footage, 'sheet', sheet)
+    text, images, facts = footage.sequence_context('public.mp4', str(tmp_path))
+    assert 100 < len(sampled) <= 240 and len(images) <= 12
+    assert sampled[0] == 0 and sampled[-1] == pytest.approx(duration - .1)
+    assert sampled == sorted(set(sampled))
+    assert max(b-a for a,b in zip(sampled, sampled[1:])) == pytest.approx(facts[0]['sampling_gap'], abs=.0001)
+    assert 'actual sampling gap' in text and 'not continuous playback' in text
+
+
+@pytest.mark.skipif(not shutil.which('ffmpeg'), reason='ffmpeg not installed')
+def test_sequence_sheet_captures_brief_action_and_invalidates_cache(tmp_path):
+    from PIL import Image
+    from vstudio import footage
+    source = str(tmp_path / 'brief-action.mp4')
+    media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=black:s=320x240:r=20:d=3',
+               '-vf', "drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='between(t,0.9,1.1)'",
+               *media.delivery_args(preset='ultrafast', audio=False, encoder='libx264'), source])
+    # The old six whole-clip samples all miss this short visible action.
+    assert not any(.9 <= t <= 1.1 for t in footage.tiles_for(3, every=2))
+    _, images, facts = footage.sequence_context(source, str(tmp_path / 'sheets'))
+    index = next(i for i,t in enumerate(facts[0]['sample_times']) if .9 <= t <= 1.1)
+    with Image.open(images[0]) as image:
+        assert min(image.getpixel(((index % 5)*320+160, (index//5)*264+120))) > 220
+    path = str(tmp_path / 'cache.jpg')
+    footage.sheet(source, path, times=[0])
+    with Image.open(path) as image:
+        assert max(image.getpixel((160,120))) < 20
+    footage.sheet(source, path, times=[1])
+    with Image.open(path) as image:
+        assert min(image.getpixel((160,120))) > 220
+
+
+def test_sequence_decode_failure_does_not_silently_remove_evidence(tmp_path, monkeypatch):
+    from vstudio import footage
+    source = tmp_path / 'source.mp4'; source.write_bytes(b'test')
+    monkeypatch.setattr(media, 'probe', lambda p: dict(duration=3))
+    monkeypatch.setattr(footage, '_frame', lambda *a: None)
+    with pytest.raises(RuntimeError, match='requested sequence frame'):
+        footage.sheet(str(source), str(tmp_path/'sheet.jpg'), times=[0,1,2])

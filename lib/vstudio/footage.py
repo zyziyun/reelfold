@@ -18,6 +18,7 @@ to write them into on-screen text or post copy.
 """
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -132,20 +133,22 @@ def tiles_for(dur, every=6.0, lo=6, hi=20):
     return [round(step * (k + 0.5), 1) for k in range(n)]
 
 
-def sheet(src, out, thumb_w=320, cols=5, every=6.0):
+def sheet(src, out, thumb_w=320, cols=5, every=6.0, times=None):
     """A contact sheet that covers the whole clip (fast seeks, one frame per tile, each labelled with its time)."""
     from PIL import Image, ImageDraw, ImageFont
     st = os.stat(src)
-    key = hashlib.sha1(json.dumps([os.path.abspath(src), st.st_size, int(st.st_mtime), thumb_w, cols, every]).encode()
+    key = hashlib.sha1(json.dumps([os.path.abspath(src), st.st_size, int(st.st_mtime), thumb_w, cols, every, times]).encode()
                        ).hexdigest()[:12]
     side = out + ".key"
     if os.path.exists(out) and os.path.exists(side) and open(side).read().strip() == key:
         return out
     from . import media
     dur = float(media.probe(src)["duration"] or 0)
-    ts = tiles_for(dur, every)
+    ts = tiles_for(dur, every) if times is None else times
     with ThreadPoolExecutor(max_workers=4) as ex:
         frames = list(ex.map(lambda t: (t, _frame(src, t, thumb_w)), ts))
+    if times is not None and any(im is None for _, im in frames):
+        raise RuntimeError("A requested sequence frame could not be decoded")
     frames = [(t, im) for t, im in frames if im is not None]
     if not frames:
         raise RuntimeError(f"no frames from {os.path.basename(src)}")
@@ -183,6 +186,28 @@ def line(fid, f):
                                                  (f" alt {p['alt']} m" if p.get("alt") is not None else "")
                                                  for p in (g[0], g[len(g) // 2], g[-1])))
     return "; ".join(bits)
+
+
+def sequence_context(source, sheet_dir, every=.5, max_frames=240):
+    """Bounded, paginated temporal evidence; report the actual gap, never imply playback."""
+    if not math.isfinite(every) or every <= 0 or max_frames < 2:
+        raise ValueError("Invalid sequence sampling budget")
+    f = facts(source)
+    duration = float(f["dur"])
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("Sequence source has no usable duration")
+    # Avoid seeking past the last frame. Keep both the opening and the ending.
+    end = max(0, duration - .1)
+    count = min(max_frames, max(2, math.ceil(end / every) + 1))
+    gap = end / (count - 1)
+    times = [round(i * gap, 4) for i in range(count)]
+    images = [sheet(source, os.path.join(sheet_dir, f"sequence-{i // 20:03d}.jpg"),
+                    times=times[i:i + 20]) for i in range(0, count, 20)]
+    text = (line("source", f) + f"; {count} sampled frames across {len(images)} ordered sheets; "
+            f"actual sampling gap {gap:.3f}s. These are still samples, not continuous playback. "
+            "Fast actions between samples may be invisible. Preserve uncertain action boundaries; "
+            "do not claim frame-accurate verification from these sheets.")
+    return text, images, [dict(f, sample_times=times, sampling_gap=gap)]
 
 
 def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, every=6.0):
