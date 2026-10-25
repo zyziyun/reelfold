@@ -47,10 +47,7 @@ def inspect(source, segments, window=.1):
                               reason='Insufficient source audio around this cut'))
             continue
         def level(t):
-            # Decode on the same timeline as the renderer. Input seeking plus a short
-            # output duration can truncate WebM/Vorbis windows at packet boundaries.
-            x = audio.decode_audio(source, sr=audio.SR, channels=2,
-                                   af=f"atrim=start={t:.9f}:end={t+w:.9f},asetpts=PTS-STARTPTS")
+            x = audio.decode_audio(source, sr=audio.SR, channels=2, start=t, dur=w)
             if len(x) < round(w * audio.SR) - 2:
                 raise ValueError('audio join: source audio ended before the review window')
             return _levels(x)

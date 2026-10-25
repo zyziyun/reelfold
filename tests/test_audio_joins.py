@@ -6,9 +6,7 @@ from vstudio import audio, audio_joins as J
 
 def setup(monkeypatch, values):
     monkeypatch.setattr(J.media, 'probe', lambda _: dict(duration=4, has_audio=True))
-    def decode(path, af, **kw):
-        start=float(af.split('start=')[1].split(':')[0])
-        end=float(af.split('end=')[1].split(',')[0]); dur=end-start
+    def decode(path, start, dur, **kw):
         index = min(3, int(round(start * 10)))
         return np.full((round(dur * audio.SR),2), values[index],dtype=np.float32)
     monkeypatch.setattr(audio,'decode_audio',decode)

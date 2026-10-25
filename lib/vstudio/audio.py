@@ -75,14 +75,19 @@ def write_wav(path, x, sr=SR):
 
 def decode_audio(path, sr=SR, channels=2, start=None, dur=None, af=None):
     """Decode any media's first audio stream with ffmpeg -> float32 array (n, channels).
-    start/dur in seconds (accurate seek); af: optional filter chain applied before resampling."""
-    cmd = ["ffmpeg"]
-    if start:
-        cmd += ["-ss", f"{start:.4f}"]
-    cmd += ["-i", path]
+    start is a source-timeline position; dur limits the filtered output, in seconds.
+    af is applied to the selected audio before resampling. Decode before trimming:
+    input seeking can shift/truncate short Vorbis windows at packet boundaries.
+    This trades seeking speed for correct samples; audio beyond EOF is not padded.
+    """
+    for name, value in (("start", start), ("dur", dur)):
+        if value is not None and (isinstance(value, bool) or not math.isfinite(value) or value < 0):
+            raise ValueError(f"audio {name} must be finite and non-negative")
+    cmd = ["ffmpeg", "-i", path]
     if dur is not None:
-        cmd += ["-t", f"{dur:.4f}"]
-    chain = [c for c in (af, f"aresample={sr}") if c]
+        cmd += ["-t", f"{dur:.9f}"]
+    trim = f"atrim=start={start:.9f},asetpts=PTS-STARTPTS" if start else None
+    chain = [c for c in (trim, af, f"aresample={sr}") if c]
     cmd += ["-map", "0:a:0", "-vn", "-af", ",".join(chain), "-ac", str(channels), "-f", "f32le", "-"]
     r = media.run(cmd, capture=True)
     return np.frombuffer(r.stdout, np.float32).reshape(-1, channels).copy()
