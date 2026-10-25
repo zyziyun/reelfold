@@ -201,3 +201,30 @@ def test_output_edit_renders_studio_sound_and_builtin_music(tmp_path, monkeypatc
     O.edit(str(w), oid, dict(op="effect_add", effect="pop-words", start=1.0, params=dict(text="重点")))
     rec, doc = O._load(str(w), oid)
     assert R.plan(rec, doc, doc.state(), tg, "final")["final"]["op"] == "frames"   # a visual edit: frames again
+
+
+@pytest.mark.parametrize("strength", ["light", "standard", "strong"])
+def test_spectral_cleanup_preserves_opposite_polarity_speech(strength):
+    x, on = voice(3.0)
+    noisy = x + np.random.default_rng(42).standard_normal(len(x)).astype(np.float32) * 0.01
+    same = np.stack([noisy, noisy], axis=1)
+    opposite = np.stack([noisy, -noisy], axis=1)
+    cfg = SS.STRENGTHS[strength]
+    reference = SS._spectral(same, cfg, None)
+    actual = SS._spectral(opposite, cfg, None)
+    np.testing.assert_allclose(actual[:, 0], reference[:, 0], atol=1e-6)
+    np.testing.assert_allclose(actual[:, 1], -reference[:, 1], atol=1e-6)
+    assert abs(db(actual[on, 0]) - db(noisy[on])) < 1.5
+    assert SS.analyze(opposite) == SS.analyze(same)
+
+
+def test_stereo_analysis_and_gain_are_channel_order_independent():
+    x, _ = voice(3.0)
+    rng = np.random.default_rng(18)
+    stereo = np.stack([x + rng.normal(0, 0.01, len(x)),
+                       -0.7 * x + rng.normal(0, 0.015, len(x))], axis=1).astype(np.float32)
+    swapped = stereo[:, ::-1]
+    assert SS.analyze(stereo) == SS.analyze(swapped)
+    y = SS._spectral(stereo, SS.STRENGTHS["standard"], None)
+    z = SS._spectral(swapped, SS.STRENGTHS["standard"], None)
+    np.testing.assert_allclose(y, z[:, ::-1], atol=1e-6)

@@ -89,13 +89,21 @@ def istft(S, n):
 
 
 # ------------------------------------------------------------------ analysis
+def _spectra_power(x):
+    """Shared channel power without phase cancellation; retain spectra for linked gains."""
+    channels = [x] if x.ndim == 1 else [x[:, c] for c in range(x.shape[1])]
+    spectra = [stft(c) for c in channels]
+    power = np.mean([np.abs(s) ** 2 for s in spectra], axis=0).astype(np.float32)
+    return spectra, power
+
+
 def _frame_db(P):
     return 10 * np.log10(np.maximum(P.mean(1), 1e-12))
 
 
 def noise_profile(P, block_s=10.0, quiet=0.15):
     """Noise power per (frame, bin): mean of the quietest ``quiet`` share of frames in blocks of ``block_s``,
-    linearly interpolated between block centres (slowly changing room noise follows, speech never counts)."""
+    linearly interpolated between block centres. Quiet speech can enter this estimate when there are no pauses."""
     nf = len(P)
     per = max(40, int(block_s * SR / HOP))
     e = _frame_db(P)
@@ -173,8 +181,10 @@ def analyze(x, sr=SR):
     """x (n,) or (n, ch) -> {noise_db, speech_db, snr_db, hum_hz, t60, clip_pct, seconds}."""
     if sr != SR:
         raise ValueError("analyze expects 48 kHz audio (decode with audio.decode_audio)")
-    m = x.mean(1) if x.ndim > 1 else x
-    P = np.abs(stft(m)) ** 2
+    # Reverb estimation needs a waveform: use the strongest channel, not a
+    # potentially cancelling downmix. Other analysis uses linked channel power.
+    m = x[:, np.argmax(np.sum(x.astype(np.float64) ** 2, axis=0))] if x.ndim > 1 else x
+    _, P = _spectra_power(x)
     e = _frame_db(P)
     loud = e[e > np.percentile(e, 60)] if len(e) > 10 else e
     noise_db = float(np.percentile(e, 10)) if len(e) else -120.0
@@ -224,16 +234,10 @@ def _gains(P, N, reduce_db, over, dereverb, t60):
 
 
 def _spectral(x, cfg, t60):
-    ch = [x] if x.ndim == 1 else [x[:, c] for c in range(x.shape[1])]
-    mid = x if x.ndim == 1 else x.mean(1)
-    Sm = stft(mid)
-    P = (np.abs(Sm) ** 2).astype(np.float32)
+    spectra, P = _spectra_power(x)
     N = noise_profile(P)
     G = _gains(P, N, cfg["reduce_db"], cfg["over"], cfg["dereverb"], t60)
-    outs = []
-    for c in ch:
-        S = Sm if x.ndim == 1 else stft(c)
-        outs.append(istft(S * G, len(c)))
+    outs = [istft(S * G, len(x)) for S in spectra]
     return outs[0] if x.ndim == 1 else np.stack(outs, 1)
 
 
