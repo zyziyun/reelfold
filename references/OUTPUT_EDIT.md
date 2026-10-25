@@ -71,6 +71,8 @@ timeline); positions are fractions of the canvas (x, y = centre).
 
 Explicit export languages take precedence over platform defaults. A translated version replaces the source subtitle track with its translated, retimed lines; manually added caption overlays remain. Unlabelled Japanese and other non-English/Chinese text is preserved rather than classified using Han characters.
 
+Language exports use the transcriber's source-language code when it is cached for the current video. Legacy transcripts without language metadata still use the existing English/Chinese text heuristic; they are not evidence of reliable multilingual language detection.
+
 For pipeline outputs, turning captions off also hides generated narration and translated subtitles, without changing the voice track. Imported videos keep the narration step's caption setting because their original burned captions cannot be toggled off.
 
 ### 3a. Transcript cuts (Descript-style editing)

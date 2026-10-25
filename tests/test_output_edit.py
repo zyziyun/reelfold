@@ -755,3 +755,31 @@ def test_translated_render_caption_toggle_preserves_voice(th, monkeypatch):
     assert np.allclose(first_audio, second_audio, atol=1e-5)
     assert any(s["stage"] == "audio" and s["cached"] for s in second["targets"][0]["stages"])
     assert abs(second["targets"][0]["duration"] - on["timeline"]["duration"]) < .1
+
+
+@media
+@pytest.mark.parametrize("source,target,text", [("fr", "en", "Bonjour tout le monde."),
+                                               ("ja", "en", "今日はいい天気です。"),
+                                               ("ko", "en", "오늘 날씨가 좋습니다."),
+                                               ("fr", "fr", "Bonjour tout le monde.")])
+def test_export_translation_preserves_asr_language(tmp_path, synth, monkeypatch, source, target, text):
+    w, oid = _work(tmp_path, synth)
+    monkeypatch.setattr(O, "TRANSCRIBE", lambda path, language=None:
+                        dict(language=source, words=[dict(w=text, t=0, te=2)]))
+    prompts = []
+    def translate(system, prompt):
+        prompts.append(system)
+        return dict(lines=[dict(n=1, t="Hello everyone.")]), dict(provider="test")
+    monkeypatch.setattr(O, "TRANSLATE", translate)
+    rec, doc = O._load(w, oid)
+    assert O.words(doc)
+    # Reopening the edit must keep the ASR result's language without transcribing again.
+    monkeypatch.setattr(O, "TRANSCRIBE", lambda *a, **k: pytest.fail("cached transcript must be reused"))
+    O.edit(w, oid, dict(op="export_add", target="youtube", lang=target))
+    rec, doc = O._load(w, oid)
+    version = doc.state()["exports"][0]
+    assert version["src_lang"] == source
+    assert bool(prompts) == (source != target)
+    assert version["lines"][0][3] == ("Hello everyone." if source != target else text)
+    with open(O.transcript_path(doc)) as f:
+        assert json.load(f)["language"] == source

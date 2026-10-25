@@ -1051,10 +1051,19 @@ def _tsig(doc):
     return getattr(doc, "tsig", None) or doc.d["source_sig"]
 
 
-def write_words(doc, W):
+def _transcript_language(value):
+    """Keep ASR language codes, never a free-form hint or the detection mode 'auto'."""
+    value = str(value or "").strip().lower()
+    return value if re.fullmatch(r"[a-z]{2,3}", value) and value != "und" else None
+
+
+def write_words(doc, W, language=None):
     path = transcript_path(doc)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    write_json(path, dict(sig=_tsig(doc), file=doc.rec["file"], words=W, at=_stamp(), joined=1))
+    tr = dict(sig=_tsig(doc), file=doc.rec["file"], words=W, at=_stamp(), joined=1)
+    if language := _transcript_language(language):
+        tr["language"] = language
+    write_json(path, tr)
     return W
 
 
@@ -1103,7 +1112,7 @@ def words(doc, required=True):
             if w.get("p") is not None:
                 row["p"] = round(float(w["p"]), 3)
             W.append(row)
-    return _heard(doc, write_words(doc, W))
+    return _heard(doc, write_words(doc, W, raw.get("language") if isinstance(raw, dict) else None))
 
 
 _LATIN = re.compile(r"[A-Za-z0-9']+")
@@ -1930,7 +1939,9 @@ def _language_version(doc, op, warns):
     if not rows:
         raise _err("no-words", "nobody speaks in this clip: a language version needs speech (add captions instead)",
                    "片子里没有人声：换语言版本需要有说话（可以改为加字幕）")
-    src_lang = BL.detect_lang([r[2] for r in rows])
+    tr = read_json(transcript_path(doc), {})
+    src_lang = (_transcript_language(tr.get("language")) if tr.get("sig") == _tsig(doc) else None) \
+        or BL.detect_lang([r[2] for r in rows])
     if src_lang == lang:
         warns.append(msg("same-language", "the clip is already in this language: the lines are voiced again as "
                          "they are", "片子本来就是这种语言：按原文重新配音", lang=lang))
