@@ -21,6 +21,11 @@ from vstudio.content_kind import detect
     ("Make a product-design video", "product"),
     ("Not a product design film; make a company film", "company"),
     ("Discuss product design in this interview", None),
+    ("Create a product demonstration edit", "product"),
+    ("Create a product-demo", "product"),
+    ("制作产品演示短片", "product"),
+    ("Not a product demo; make a company film", "company"),
+    ("Discuss product demographics", None),
 ])
 def test_purpose_negation(prompt, expected):
     assert detect(prompt) == expected

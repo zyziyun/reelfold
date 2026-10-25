@@ -183,6 +183,8 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     plats = list(ctx.params.get("platforms") or [])
     lang_zh = narration_is_chinese(request, (ctx.data or {}).get("name"), ctx.params.get("title"),
                                    ctx.params.get("language"), ctx.item, plats)
+    from vstudio.content_kind import detect, direction
+    purpose_kind = detect(request)
     music_mode = str(ctx.params.get("mode") or "narration") == "music"
     from vstudio import narration as N
     vp = N.voice_plan("zh" if lang_zh else "en", ctx.params.get("tts_engine") or "auto")
@@ -191,6 +193,10 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         lang_note = ('no voice-over: MODE = "music"; the cues are a few refined on-screen lines (short, quiet, '
                      "poetic, never a running commentary), one per shot or two"
                      + ('; SUB_LEAD = "zh" (the 中文 line leads).' if lang_zh else "."))
+        if purpose_kind in ("product", "company"):
+            lang_note = ('no voice-over: MODE = "music"; use concise factual process or feature labels tied to '
+                         'the visible action, preserving complete meaningful actions and their results. '
+                         + ('SUB_LEAD = "zh".' if lang_zh else 'SUB_LEAD = "en".'))
     elif vp["narrate"] == "zh":
         lang_note = ('this version is narrated in Chinese: TTS = dict(language="zh") (the narrator speaks the 中文 of each '
                      "cue; the English shows as the subtitle under it).")
@@ -212,8 +218,6 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     guide = GUIDE.format(first=ids[0] if ids else "CLIP", lang_note=lang_note, target=int(target), bgm_note=bgm_note,
                          length_of="of on-screen lines" if music_mode else "of narration", platforms=plat_names,
                          words_lang="Chinese" if lang_zh else "English")
-    from vstudio.content_kind import detect, direction
-    purpose_kind = detect(request)
     purpose = direction(purpose_kind)
     if ptext:
         guide += ("\nProvided photos (the attached contact sheets label each photo by its actual ID):\n" + ptext +
@@ -346,7 +350,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         pace = dict(_spec_value(text, "PACING") or {})
         pace.setdefault("end_fade", 0.4)
         text = _set_global(text, "PACING", pace)
-    if purpose_kind == "company" and music_mode:
+    if purpose_kind in ("product", "company") and music_mode:
         # Short process labels need hierarchy and contrast, not a second set of
         # scenic chapters. Explicit authored layout/palette choices still win.
         layout = dict(_spec_value(text, "LAYOUT") or {})

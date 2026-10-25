@@ -399,3 +399,30 @@ def test_side_photo_layout_increases_subject_height_without_cropping(tmp_path, m
         assert abs((ys.max()-ys.min()+1)/(xs.max()-xs.min()+1) - 2.5) < 0.04
         assert ys.min() > 0 and ys.max() < ctx.H-1
     assert heights[1] > heights[0] * 1.2
+
+
+@pytest.mark.parametrize("layout", ["", 'LAYOUT=dict(caption_style="plain", caption_y=0.3)\n'])
+def test_product_demo_video_uses_process_labels(tmp_path, monkeypatch, layout):
+    from vstudio import footage
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    source = tmp_path / "source.webm"
+    source.write_bytes(b"fixture")
+    monkeypatch.setattr(footage, "context", lambda *a, **k: ("Visible process", [],
+        [dict(id="source", path=str(source), dur=20)]))
+    ctx = DR.Ctx(str(tmp_path), "main", dict(_inputs=dict(videos=[str(source)]),
+        _item_dir=str(tmp_path / "item"), mode="music", platforms=["youtube"]), "photo-story")
+    ctx.request_text = "Create a 6-second product demonstration; no voice-over and no background music"
+    path = str(tmp_path / "item/work/spec.py")
+    PS.draft_spec(ctx, dict(id="story", author={}), path, complete=lambda *a, **k:
+        dict(provider="test", json=dict(content=layout +
+            'TITLE_EN="Process"\nMUSIC=dict(length=6)\n'
+            'SCRIPT=[(0,[("Pressing", "按压")],[("vsource",6,"still",None)])]\n')))
+    text = open(path).read()
+    assert PS._spec_value(text, "TITLE_CARD") is False
+    assert PS._spec_value(text, "CHAPTER_CARD") == 0
+    assert PS._spec_value(text, "PRESERVE_COLOUR") is True
+    result = PS._spec_value(text, "LAYOUT")
+    assert result["caption_style"] == ("plain" if layout else "label")
+    assert result["caption_y"] == (0.3 if layout else 0.68)
+    assert "photo_caption_side" not in result
+    assert PS._spec_value(text, "BGM") is None
