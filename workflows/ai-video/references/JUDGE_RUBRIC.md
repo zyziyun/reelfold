@@ -37,7 +37,7 @@ laughing in danger.
 - Whole film (after assembly): **D fun** (hook in 3 s, escalation, rule of three, callbacks advance, pause
   before the laugh line, reaction close-ups), **E originality** (something only this video has).
 
-**Pass**: no hard flaw, A >= 4, B >= 4. **Film pass**: all five >= 4.
+**Pass**: every hard and soft check explicitly reviewed as true/false, no hard flaw, A/B/C all >= 4. Blank checks are unknown, never assumed clear; all three scores must be numbers from 1 to 5. **Film pass**: all five >= 4.
 
 ## Fixed in post, not judged
 -10..15 % saturation, light grain, one grade for all takes, loudness via `vstudio.export` (-14 LUFS).

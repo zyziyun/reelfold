@@ -8,7 +8,7 @@
     python3 judge.py verdict work/ai/judge/u03_v1.card.json                # pass / redo / fix-in-post
 
 Rubric (references/JUDGE_RUBRIC.md): any HARD flaw -> redo; >= 3 SOFT flaws -> redo or fix in post;
-per-take scores A identity, B continuity, C shot completeness on 1-5; a take passes at A >= 4 and B >= 4
+per-take scores A identity, B continuity, C shot completeness on 1-5; a take passes at A, B and C >= 4 after every check is explicitly reviewed
 with no hard flaw. Look at faces at FULL size next to the reference sheet - thumbnails hid a smiling
 character and a wrong face in the sessions.
 """
@@ -49,25 +49,43 @@ SOFT = {
 def verdict(card):
     """card: {"hard": {key: bool flaw}, "soft": {key: bool flaw}, "scores": {"A": 1-5, "B": 1-5, "C": 1-5}}.
     -> (decision, reasons). decision in {"pass", "redo", "fix-in-post"}."""
-    hard = [k for k, v in (card.get("hard") or {}).items() if v]
-    soft = [k for k, v in (card.get("soft") or {}).items() if v]
-    sc = card.get("scores") or {}
+    if not isinstance(card, dict):
+        return "redo", ["review card must be an object"]
     reasons = []
+    for section, keys in (("hard", HARD), ("soft", SOFT)):
+        checks = card.get(section)
+        if not isinstance(checks, dict):
+            reasons.append(f"{section} checklist is missing")
+            continue
+        if set(checks) != set(keys):
+            reasons.append(f"{section} checklist has missing or unknown checks")
+        for key in keys:
+            if type(checks.get(key)) is not bool:
+                reasons.append(f"{section}.{key} has not been reviewed (true or false required)")
+    sc = card.get("scores")
+    if not isinstance(sc, dict):
+        reasons.append("scores are missing")
+        sc = {}
+    for key in ("A", "B", "C"):
+        value = sc.get(key)
+        if type(value) not in (int, float) or not 1 <= value <= 5:
+            reasons.append(f"score {key} must be a number from 1 to 5")
+    if reasons:
+        return "redo", reasons
+    hard = [key for key in HARD if card["hard"][key]]
+    soft = [key for key in SOFT if card["soft"][key]]
     if hard:
-        return "redo", [f"hard: {k}" for k in hard]
-    low = [k for k in ("A", "B") if sc.get(k) is not None and sc[k] < 4]
+        return "redo", [f"hard: {key}" for key in hard]
+    low = [key for key in ("A", "B", "C") if sc[key] < 4]
     if low:
-        return "redo", [f"score {k}={sc[k]} < 4" for k in low]
+        return "redo", [f"score {key}={sc[key]} < 4" for key in low]
     if len(soft) >= 3:
         return "fix-in-post", [f"{len(soft)} soft flaws: {', '.join(soft)} - grade/grain/trim or redo"]
-    if any(sc.get(k) is None for k in ("A", "B")):
-        reasons.append("scores A/B not filled in - look at full-size faces before passing")
-        return "redo", reasons
-    return "pass", [f"soft: {k}" for k in soft]
+    return "pass", [f"soft: {key}" for key in soft]
 
 
 def blank_card(take):
-    return {"take": take, "hard": {k: False for k in HARD}, "soft": {k: False for k in SOFT},
+    return {"take": take, "hard": {k: None for k in HARD}, "soft": {k: None for k in SOFT},
             "scores": {"A": None, "B": None, "C": None}, "notes": ""}
 
 

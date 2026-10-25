@@ -236,6 +236,9 @@ def test_judge_verdicts_and_line_match():
     card = J.blank_card("u1_v1")
     assert J.verdict(card)[0] == "redo"                         # unscored = not reviewed
     card["scores"] = {"A": 5, "B": 4, "C": 4}
+    assert J.verdict(card)[0] == "redo"  # scores alone do not review the checklist
+    card["hard"] = dict.fromkeys(J.HARD, False)
+    card["soft"] = dict.fromkeys(J.SOFT, False)
     assert J.verdict(card)[0] == "pass"
     card["hard"]["generated_text"] = True
     assert J.verdict(card) == ("redo", ["hard: generated_text"])
@@ -472,3 +475,26 @@ def test_upload_warns_before_and_logs_locked(series, tmp_path, monkeypatch):
     assert json.loads((tmp_path / "publish_log.json").read_text())["1"]["youtube"]["status"] == "locked"
     PK.upload(series, 1, "youtube", confirm=code, uploaders=ups, out=lambda *a: None)
     assert calls == ["private"]                                             # locked counts as uploaded
+
+
+@pytest.mark.parametrize("score", [None, True, "5", 0, 6, float("nan"), float("inf")])
+def test_review_rejects_invalid_scores(score):
+    card = J.blank_card("take")
+    card.update(hard=dict.fromkeys(J.HARD, False), soft=dict.fromkeys(J.SOFT, False),
+                scores=dict(A=5, B=5, C=score))
+    assert J.verdict(card)[0] == "redo"
+
+
+def test_review_rejects_omissions_and_incomplete_shot():
+    card = dict(hard=dict.fromkeys(J.HARD, False), soft=dict.fromkeys(J.SOFT, False),
+                scores=dict(A=5, B=5, C=2))
+    assert J.verdict(card) == ("redo", ["score C=2 < 4"])
+    card["scores"]["C"] = 5
+    del card["hard"]["physics"]
+    assert J.verdict(card)[0] == "redo"
+    card["hard"]["physics"] = "false"
+    assert J.verdict(card)[0] == "redo"
+    card["hard"]["physics"] = False
+    card["soft"]["unrecognized"] = False
+    assert J.verdict(card)[0] == "redo"
+    assert J.verdict(None)[0] == "redo"
