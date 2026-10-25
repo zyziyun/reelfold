@@ -42,6 +42,7 @@ interface Rec {
   inserts?: number;
   failNext?: boolean;
   incomplete?: boolean;
+  failPlaylists?: boolean;
 }
 const rec = () => app.evaluate(() => (globalThis as unknown as { __yt: Rec }).__yt);
 
@@ -94,7 +95,7 @@ test.beforeAll(async () => {
           return json(200, { items: g.__yt.remote ? [{ id: u.searchParams.get('id'), status: g.__yt.remote }] : [] });
         }
         if (u.pathname === '/youtube/v3/channels') return json(200, { items: [{ id: 'UCe2e', snippet: { title: 'E2E Channel' } }] });
-        if (u.pathname === '/youtube/v3/playlists') return json(200, { items: [] });
+        if (u.pathname === '/youtube/v3/playlists') return g.__yt.failPlaylists ? json(503, { error: { message: 'Playlist temporarily unavailable' } }) : json(200, { items: [] });
         if (u.pathname === '/upload/youtube/v3/videos' && init?.method === 'POST') {
           g.__yt.inserts = (g.__yt.inserts ?? 0) + 1;
           g.__yt.meta = JSON.parse(String(init.body));
@@ -238,6 +239,12 @@ test('a YouTube Short: the form, Schedule after Made for kids, uploaded through 
   await expect(page.getByTestId('ytp-form')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('post-path')).toHaveAttribute('data-path', 'api');
   await expect(page.getByTestId('post-fill')).toHaveCount(0); // no built-in browser fill for YouTube
+  await app.evaluate(() => { (globalThis as unknown as { __yt: Rec }).__yt.failPlaylists = true; });
+  await page.reload();
+  await expect(page.getByText(/YouTube did not list the playlists: 503/)).toBeVisible();
+  await expect(page.getByTestId('ytp-playlist')).toBeDisabled();
+  await app.evaluate(() => { (globalThis as unknown as { __yt: Rec }).__yt.failPlaylists = false; });
+  await page.reload();
   await expect(page.getByTestId('ytp-title')).toHaveValue('One tip a day');
   await expect(page.getByTestId('ytp-short')).toBeChecked(); // a real 90s file passes the same UI + main eligibility check
   await expect(page.getByTestId('ytp-at')).toBeChecked(); // its time is ahead: scheduled

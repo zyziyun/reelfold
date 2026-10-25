@@ -236,6 +236,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   const [thumb, setThumb] = useState(true);
   const [short, setShort] = useState(post.platform.startsWith('youtube-shorts'));
   const [playlist, setPlaylist] = useState('');
+  const playlistToast = ui.toast;
   const [lists, setLists] = useState<{ id: string; title: string }[] | null>(null);
   const [phase, setPhase] = useState<Phase>({ k: 'form' });
   const [pending, setPending] = useState<YtResumeInfo | null>();
@@ -294,12 +295,20 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id, !!result]);
   useEffect(() => {
+    let active = true;
+    setLists(null);
+    setPlaylist('');
     if (!acct?.connected) return;
     void window.desk.publish.api
       .playlists(account)
-      .then(setLists)
-      .catch(() => setLists([]));
-  }, [acct?.connected, account]);
+      .then(value => { if (active) setLists(value); })
+      .catch(e => {
+        if (!active) return;
+        setLists([]);
+        playlistToast(errText(e), { error: true });
+      });
+    return () => { active = false; };
+  }, [acct?.connected, account, playlistToast]);
   useEffect(
     () =>
       window.desk.on('publish:ytProgress', (d) => {

@@ -410,10 +410,23 @@ export class YouTubeApi {
   /** Her playlists (playlists.list, youtube.readonly). */
   async playlists(account: string): Promise<{ id: string; title: string }[]> {
     const token = await this.token(account);
-    const r = await this.f(`${this.ep.api}/playlists?part=snippet&mine=true&maxResults=50`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) throw new Error(`YouTube did not list the playlists: ${await errText(r)}`);
-    const j = (await r.json()) as { items?: { id: string; snippet?: { title?: string } }[] };
-    return (j.items ?? []).map((p) => ({ id: p.id, title: p.snippet?.title ?? p.id }));
+    const playlists = new Map<string, { id: string; title: string }>();
+    const pages = new Set<string>();
+    let pageToken = '';
+    do {
+      if (pages.has(pageToken)) throw new Error('YouTube repeated a playlist page; try loading the playlists again');
+      pages.add(pageToken);
+      const query = new URLSearchParams({ part: 'snippet', mine: 'true', maxResults: '50' });
+      if (pageToken) query.set('pageToken', pageToken);
+      const r = await this.f(`${this.ep.api}/playlists?${query}`, {
+        headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000),
+      });
+      if (!r.ok) throw new Error(`YouTube did not list the playlists: ${await errText(r)}`);
+      const j = (await r.json()) as { items?: { id: string; snippet?: { title?: string } }[]; nextPageToken?: string };
+      for (const p of j.items ?? []) playlists.set(p.id, { id: p.id, title: p.snippet?.title ?? p.id });
+      pageToken = j.nextPageToken ?? '';
+    } while (pageToken);
+    return [...playlists.values()];
   }
 
   /** Read only a known uploaded video through the fixed official endpoint, never fetch the receipt URL. */

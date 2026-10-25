@@ -47,6 +47,9 @@ class FakeGoogle {
   videoStatus: Record<string, string> | null = { privacyStatus: 'public', uploadStatus: 'processed' };
   statusCode = 200;
   statusReads = 0;
+  playlistPages = new Map<string, { items: { id: string; snippet?: { title?: string } }[]; nextPageToken?: string }>();
+  playlistReads: string[] = [];
+  playlistFailurePage: string | null = null;
   codes = new Map<string, { challenge: string; redirect: string; scope: string }>();
   refresh = new Map<string, string>();
   access = new Set<string>();
@@ -143,7 +146,12 @@ class FakeGoogle {
       this.statusReads++;
       return this.json(res, this.statusCode, { items: this.videoStatus ? [{ id: u.searchParams.get('id'), status: this.videoStatus }] : [] });
     }
-    if (u.pathname === '/youtube/v3/playlists') return this.json(res, 200, { items: [{ id: 'PL1', snippet: { title: 'Course' } }] });
+    if (u.pathname === '/youtube/v3/playlists') {
+      const page = u.searchParams.get('pageToken') ?? '';
+      this.playlistReads.push(page);
+      if (page === this.playlistFailurePage) return this.json(res, 503, { error: { message: 'Playlist temporarily unavailable' } });
+      return this.json(res, 200, this.playlistPages.get(page) ?? { items: [{ id: 'PL1', snippet: { title: 'Course' } }] });
+    }
     if (u.pathname === '/youtube/v3/playlistItems' && req.method === 'POST') {
       const j = JSON.parse(body.toString());
       this.playlistItems.push({ playlistId: j.snippet.playlistId, videoId: j.snippet.resourceId.videoId });
@@ -388,6 +396,29 @@ describe('resumable upload (fake API)', () => {
     expect(g.thumbs).toEqual([{ videoId: 'vid123', type: 'image/jpeg', bytes: 2048 }]);
     expect(g.playlistItems).toEqual([{ playlistId: 'PL1', videoId: 'vid123' }]);
     expect(await yt.playlists('main')).toEqual([{ id: 'PL1', title: 'Course' }]);
+  });
+
+  it('lists later playlist pages with opaque tokens and deduplicates shared entries', async () => {
+    const { yt } = await connected();
+    const first = Array.from({ length: 50 }, (_, i) => ({ id: `PL${i}`, snippet: { title: `Series ${i}` } }));
+    g.playlistPages.set('', { items: first, nextPageToken: 'next+/=&' });
+    g.playlistPages.set('next+/=&', { items: [first[49], { id: 'PL50', snippet: { title: '课程' } }, { id: 'PL51' }] });
+    const result = await yt.playlists('main');
+    expect(result).toHaveLength(52);
+    expect(result.slice(-2)).toEqual([{ id: 'PL50', title: '课程' }, { id: 'PL51', title: 'PL51' }]);
+    expect(g.playlistReads).toEqual(['', 'next+/=&']);
+  });
+
+  it('does not return a partial list when a later page fails or repeats', async () => {
+    const { yt } = await connected();
+    g.playlistPages.set('', { items: [{ id: 'PL1' }], nextPageToken: 'next' });
+    g.playlistFailurePage = 'next';
+    await expect(yt.playlists('main')).rejects.toThrow(/503/);
+    g.playlistFailurePage = null;
+    g.playlistPages.set('next', { items: [], nextPageToken: 'next' });
+    g.playlistReads = [];
+    await expect(yt.playlists('main')).rejects.toThrow(/repeated a playlist page/);
+    expect(g.playlistReads).toEqual(['', 'next']);
   });
 
   it('gives up after the retries, with a plain error', async () => {
