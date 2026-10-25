@@ -30,7 +30,7 @@ Masks (``mask``): mode ``sticker`` (call-clips' cat, scaled to the tracked face)
 ``all`` (the main picture), ``camera`` (the camera tile), ``screen``, or ``regions`` [[x, y, w, h] source px]; one
 face tracked per target box (``face.track_faces``), the hit rate reported per part (``mask_report``).
 Captions: words of each src part -> final time -> ``subs.cues_from_words`` (term fixes applied); ``deliver``
-translates (``vstudio.bilingual``), applies the caption mode, highlights the target phrases, burns them per
+runs local term correction (``vstudio.proofread``, no model call), translates (``vstudio.bilingual``), applies the caption mode, highlights the target phrases, burns them per
 platform through ``vstudio.export`` (keep-outs: header, term cards, labels) and writes per-language SRT / VTT.
 Every export is checked with ``vstudio.firstpass`` (``firstpass.json``).
 """
@@ -642,11 +642,12 @@ def _cue_dicts(cues):
 def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None, workdir=None, firstpass=True,
             translate=None):
     """Render + export one clip to every platform. captions = {mode mono|bilingual|translated, src, tgt,
-    highlight [phrases], glossary {..}, cache path, off: bool}. translate: fn(cues, src, tgt) -> (cues, info)
+    highlight [phrases], glossary {..}, term_fixes, cache path, off: bool}. translate: fn(cues, src, tgt) -> (cues, info)
     (tests; default ``bilingual.translate_cues``). Writes ``out_dir/<platform>-<orientation>.mp4`` (+ cover,
     post), ``<id>.<lang>.srt/.vtt``, ``cues.<W>x<H>.json``, ``report.json``. Returns the report."""
     from . import bilingual as BL
     from . import export as EX
+    from . import subs as S
     captions = dict(captions or {})
     os.makedirs(out_dir, exist_ok=True)
     workdir = workdir or os.path.join(out_dir, "work")
@@ -659,6 +660,14 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         render_spec = dict(spec, _caption_rail=burn_required)
         res = render_clip(render_spec, words, (W, H), os.path.join(workdir, f"{W}x{H}"))
         cues = res["cues"]
+        if cues and not captions.get("off"):
+            from . import proofread as PR
+            correction = PR.proofread(cues, term_fixes=captions.get("term_fixes"),
+                                      provider="none", entities=False)
+            cues = [S.Cue.from_dict(c) for c in correction["cues"]]
+            report.setdefault("proofread", []).append(dict(
+                size=[W, H], provider="none", changes=correction["changes"],
+                rejected=correction["rejected"], warnings=correction["warnings"]))
         if captions.get("mode") in ("bilingual", "translated") and cues:
             fn = translate or (lambda cs, s, t: BL.translate_cues(cs, s, t, captions.get("glossary"),
                                                                  cache=captions.get("cache")))
@@ -816,10 +825,10 @@ def render_all(specs, words, platforms, out_dir, captions=None, fmt=None, only=N
     return res
 
 
-def caption_config(mode, src_lang, tgt_lang=None, cache=None, highlight=None, glossary=None):
+def caption_config(mode, src_lang, tgt_lang=None, cache=None, highlight=None, glossary=None, term_fixes=None):
     from . import bilingual as BL
     mode = mode or "mono"
     if mode not in BL.MODES:
         raise ValueError(f"subtitles {mode!r}: {' | '.join(BL.MODES)}")
     return dict(mode=mode, src=src_lang, tgt=tgt_lang or BL.other_lang(src_lang), cache=cache,
-                highlight=list(highlight or []), glossary=glossary)
+                highlight=list(highlight or []), glossary=glossary, term_fixes=term_fixes)

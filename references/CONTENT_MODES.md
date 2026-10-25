@@ -100,3 +100,14 @@ An AIGC animatic with placeholder sketches is a storyboard, never a finished gen
 After a fix, rerender and inspect the failed moments plus the opening, busiest frame and ending. Run the
 appropriate flicker/media checks without loosening their thresholds to pass. Record unresolved issues and
 actual evidence; source fixtures and a structural test do not establish professional commercial quality.
+
+
+## Recorded lesson caption correction
+
+Clip-kit delivery applies the shared local proofreading pass after cue assembly and before translation,
+sidecar writing and caption burn-in. `caption_config(..., term_fixes=...)` accepts recording-specific fixes;
+lesson plans may supply `term_fixes` and a translation `glossary`. The translation glossary does not rewrite
+source-language captions. Persona term fixes still apply. Corrections retain cue
+timing and are recorded under `proofread` in the delivery report for each canvas. This pass makes no model
+request and does not claim to recognize technical speech correctly on its own: supply verified corrections
+and inspect technical identifiers against the recording. A glossary term is not proof that the speaker said it.
