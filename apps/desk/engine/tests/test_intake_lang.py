@@ -148,3 +148,57 @@ class EmptyPlanStateTest(unittest.TestCase):
             intake.revise('request', 'Use the supplied export')
             self.assertEqual(job['state'], 'done')
             self.assertIsNone(job['needs'])
+
+
+class RestoredPlanStateTest(unittest.TestCase):
+    def test_plan_only_restore_keeps_missing_input_state(self):
+        with tempfile.TemporaryDirectory() as data:
+            intake = IN.Intake(data, None)
+            pid = 'abcdef012345'
+            needs = [dict(code='intake.need.plan', message='Originals missing')]
+            plan = dict(projects=[], needs=needs, prompt='Use original footage')
+            os.makedirs(intake.dir)
+            with open(intake._path(pid), 'w') as f:
+                json.dump(plan, f)
+            restored = intake.get(pid)
+            self.assertEqual(restored['state'], 'needs')
+            self.assertEqual(restored['needs'], needs)
+            self.assertEqual(restored['plan'], plan)
+
+    def test_saved_done_job_cannot_hide_structured_plan_needs(self):
+        with tempfile.TemporaryDirectory() as data:
+            intake = IN.Intake(data, None)
+            pid = 'abcdef012345'
+            plan = dict(projects=[], needs=[dict(code='intake.need.plan', message='Originals missing')])
+            os.makedirs(intake.dir)
+            with open(intake._path(pid), 'w') as f:
+                json.dump(plan, f)
+            with open(intake._job_path(pid), 'w') as f:
+                json.dump(dict(id=pid, state='done', mode='ask', started=time.time()), f)
+            recovered = IN.Intake(data, None)
+            row, = recovered.open()['items']
+            self.assertEqual(row['state'], 'needs')
+            self.assertEqual(recovered.inbox_items()[0]['kind'], 'needs')
+            restored = recovered.get(pid)
+            self.assertEqual(restored['state'], 'needs')
+            self.assertEqual(restored['needs'], plan['needs'])
+            with open(intake._job_path(pid)) as f:
+                self.assertEqual(json.load(f)['state'], 'done')  # read-only recovery
+
+    def test_restore_preserves_terminal_and_running_states(self):
+        for state in ('running', 'error', 'stopped'):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as data:
+                intake = IN.Intake(data, None)
+                pid = 'abcdef012345'
+                intake.jobs[pid] = dict(id=pid, state=state,
+                    plan=dict(projects=[], needs=[dict(code='intake.need.plan')]))
+                self.assertEqual(intake.get(pid)['state'], state)
+
+    def test_valid_and_applied_plans_stay_done(self):
+        for plan, applied in ((dict(projects=[{}]), None),
+                              (dict(projects=[{}], needs=[dict(code='intake.need.plan')]), ['project'])):
+            with self.subTest(applied=applied), tempfile.TemporaryDirectory() as data:
+                intake = IN.Intake(data, None)
+                pid = 'abcdef012345'
+                intake.jobs[pid] = dict(id=pid, state='done', plan=plan, applied=applied)
+                self.assertEqual(intake.get(pid)['state'], 'done')

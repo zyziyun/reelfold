@@ -278,6 +278,12 @@ class Intake:
             if plan:
                 with self._lock:
                     self.jobs[pid] = j = dict(j, plan=plan)
+        # A plan can outlive its job record (or finish writing before the job is
+        # persisted). Its structured needs still block starting after recovery.
+        # Keep active, stopped, failed and already-applied jobs authoritative.
+        plan = j.get("plan") or {}
+        if j.get("state") == "done" and not j.get("applied") and plan.get("needs"):
+            return dict(j, state="needs", step="needs", needs=plan["needs"])
         return dict(j)
 
     def recent(self, n=8):
@@ -304,6 +310,7 @@ class Intake:
                 continue
             if bool(j.get("archived_at")) != bool(archived) or j["id"] in self.hidden:
                 continue
+            j = self.get(j["id"])
             plan = j.get("plan") or {}
             names = [p.get("name") for p in plan.get("projects") or [] if p.get("name")]
             row = dict(id=j["id"], state=j.get("state"), step=j.get("step"), mode=j["mode"],
