@@ -198,3 +198,27 @@ def test_automatic_cleanup_keeps_a_filler_too_short_for_a_safe_cut():
     ops, counts = RE.auto_cuts(words, 1.0, [(0, 1.0)])
     assert ops == [dict(op="cut", words=[1, 1], why="filler")]
     assert counts["filler"] == 1
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize('target', ['prepare', 'edit', 'assembled'])
+def test_partial_camera_take_without_mic_remains_editable(home, target):
+    from vstudio import media
+    d = session(str(home), [], seconds=1)
+    os.remove(os.path.join(d, 'mic.webm'))
+    # A failed mic startup leaves its declared track in session metadata.
+    sess = store.read_json(os.path.join(d, 'session.json'))
+    sess['tracks']['mic']['start_ms'] = None
+    sess['studio'] = True
+    store.write_json(os.path.join(d, 'session.json'), sess)
+    if target == 'prepare':
+        movie = RE.prepare(d, os.path.join(d, 'prepared.mp4'))
+    elif target == 'edit':
+        movie = RE.edit(d)['file']
+    else:
+        movie = RE.ingest(d, 'assembled')['assembled']
+    info = media.probe(movie)
+    assert info['w'] == 180 and info['h'] == 320
+    assert not info['has_audio']
+    assert media.duration(movie) > .8
+    assert os.path.isfile(os.path.join(d, 'camera.webm'))

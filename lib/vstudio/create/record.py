@@ -196,12 +196,7 @@ def cut(src, edl, out, studio=True):
         f.writelines(f"file '{p}'\n" for p in parts)
     joined = os.path.join(work, "joined.mp4")
     _run([_ff(), "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", joined])
-    if studio:                                 # local denoise + dereverb + voice EQ, -16 LUFS (vstudio.studiosound)
-        from vstudio import studiosound
-        studiosound.enhance(joined, out, "standard", lufs=-16.0)
-    else:
-        shutil.copy2(joined, out)
-    return out
+    return _studio(joined, out, studio)
 
 
 def transcript_words(path, language=None):
@@ -230,7 +225,10 @@ def prepare(session_dir, out):
 
 
 def _studio(src, out, on):
-    if on:                                     # local denoise + dereverb + voice EQ, -16 LUFS (vstudio.studiosound)
+    from vstudio import media
+    # A partial capture may contain usable video but no microphone track.
+    # Sound processing cannot restore missing audio; preserve the silent video.
+    if on and media.probe(src).get("has_audio"):
         from vstudio import studiosound
         studiosound.enhance(src, out, "standard", lufs=-16.0)
         if os.path.abspath(src) != os.path.abspath(out):
