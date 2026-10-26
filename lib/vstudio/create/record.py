@@ -154,7 +154,7 @@ def mux(d, sess, out):
             args += ["-itsoffset", f"{off:.3f}", "-i", mic]
         graph = (f"[0:v]scale={w}:{h},setsar=1[screen];"
                  f"[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
-                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:shortest=1[v]")
+                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:eof_action=pass:repeatlast=0[v]")
         # A screen may carry app playback audio, independently of the raw microphone file.
         # Mix only for the viewing copy; both original recordings remain available for editing.
         screen_audio = info.get("has_audio", False)
@@ -168,9 +168,15 @@ def mux(d, sess, out):
             audio_map = "[a]"
         elif screen_audio:
             audio_map = "0:a:0"
+        # Keep the screen as the recording's duration owner even if a device stops.
+        # Pad only existing audio; a silent recording must not gain an audio track.
+        if has_mic or screen_audio or media.probe(cam).get("has_audio"):
+            audio_input = audio_map if audio_map.startswith("[") else f"[{audio_map.rstrip('?')}]"
+            graph += f";{audio_input}aresample=async=1:first_pts=0,apad[recording_audio]"
+            audio_map = "[recording_audio]"
         args += ["-filter_complex", graph, "-map", "[v]", "-map", audio_map,
                  # Browser MediaRecorder WebMs often have no duration tag even after a normal Stop. Bound the
-                 # mux by the real tracks, not a zero metadata duration that creates an audio-only empty clip.
+                 # mux by the screen's frames, not a zero metadata duration that creates an audio-only empty clip.
                  "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                  "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", out]
         _run(args)

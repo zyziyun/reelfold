@@ -292,3 +292,52 @@ def test_screen_audio_mix_preserves_microphone_capture_clock(home, mic_start):
         assert magnitude(500, start) > .06
         expected_beep = (mic_start == 2000 and start == 1.25) or (mic_start == 1000 and start == .25)
         assert (magnitude(440, start) > .06) if expected_beep else (magnitude(440, start) < .01)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize('short_track', ['camera', 'mic'])
+@pytest.mark.parametrize('audio_source', ['mic', 'camera', 'silent'])
+def test_screen_recording_keeps_screen_after_other_track_ends(home, short_track, audio_source):
+    import io
+    from PIL import Image
+    from vstudio import media
+    d = session(str(home), [], seconds=3)
+    _webm(os.path.join(d, short_track + '.webm'), 1, video=short_track == 'camera')
+    if audio_source != 'mic':
+        os.remove(os.path.join(d, 'mic.webm'))
+    if audio_source == 'camera':
+        cam = os.path.join(d, 'camera.webm')
+        with_audio = os.path.join(d, 'camera-audio.webm')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', cam, '-f', 'lavfi', '-i',
+                        'sine=frequency=440:duration=1', '-map', '0:v', '-map', '1:a',
+                        '-c:v', 'copy', '-c:a', 'libopus', with_audio], check=True)
+        os.replace(with_audio, cam)
+    screen = os.path.join(d, 'screen.webm')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=blue:size=320x180:rate=24:duration=3', '-c:v', 'libvpx-vp9',
+                    '-deadline', 'realtime', '-live', '1', screen], check=True)
+    assert RE.duration(screen) == 0  # Browser streaming capture has no duration tag.
+    sess = store.read_json(os.path.join(d, 'session.json'))
+    sess['tracks']['screen'] = dict(file='screen.webm', start_ms=1000)
+    movie = RE.mux(d, sess, os.path.join(d, 'partial-device.mp4'))
+    assert 2.9 < media.duration(movie) < 3.2
+    assert bool(media.probe(movie)['has_audio']) == (audio_source != 'silent')
+    if audio_source != 'silent':
+        import numpy as np
+        pcm = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', movie, '-vn', '-ac', '1',
+                                       '-ar', '8000', '-f', 'f32le', '-'])
+        samples = np.frombuffer(pcm, dtype='<f4')
+        assert np.sqrt(np.mean(samples[2000:4000] ** 2)) > .02
+        tail_rms = np.sqrt(np.mean(samples[20000:22000] ** 2))
+        if audio_source == 'camera' or short_track == 'mic':
+            assert tail_rms < .001
+        else:
+            assert tail_rms > .02
+    data = subprocess.check_output(['ffmpeg', '-v', 'error', '-ss', '2.5', '-i', movie,
+                                    '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-'])
+    pixels = Image.open(io.BytesIO(data)).convert('RGB')
+    assert pixels.getpixel((160, 80))[2] > 180
+    if short_track == 'camera':
+        # A stopped camera must disappear, not leave a misleading frozen face.
+        red, green, blue = pixels.getpixel((280, 140))
+        assert blue > 180 and red < 50 and green < 50
