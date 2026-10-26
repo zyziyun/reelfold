@@ -175,6 +175,25 @@ def measure(F, fps, profile="calm", C=None):
         fc = score(np.asarray(C, np.float32), fps).max(1)[s0:s1]
         rep["colour"] = round(float(fc.max()), 1)
         ev += _events(fc, fps, lim["colour"], "colour", s0)
+    # A change in the frame mean is not proof that every part flashed. Preserve
+    # the gate, but expose spatial support so reviewers can distinguish localized
+    # object/occlusion changes from a broadly distributed exposure transient.
+    if any(e["kind"] == "flash" for e in ev):
+        for event in ev:
+            if event["kind"] != "flash":
+                continue
+            a = min(len(fl) - 1, max(0, round(event["t"] * fps) - s0))
+            b = max(a + 1, min(len(fl), round(event["end"] * fps) - s0 + 1))
+            peak = a + int(np.argmax(fl[a:b]))
+            frame = peak + s0
+            event["peak_t"] = round(frame / fps, 3)
+            # Only inspect the event neighbourhood, not a second full-length
+            # per-cell rolling window for a potentially hours-long recording.
+            radius = int(np.ceil(.6 * fps)) + 2
+            lo, hi = max(0, frame - radius), min(n, frame + radius + 1)
+            cells = score(F[lo:hi].reshape(hi - lo, -1), fps)[frame - lo]
+            event["active_cell_fraction"] = round(float(
+                np.mean(cells > lim["flash"])), 3)
     rep["events"] = sorted(ev, key=lambda e: e["t"])
     rep["ok"] = not rep["events"]
     return rep
@@ -188,7 +207,7 @@ def analyze(path, profile="calm"):
     return rep
 
 
-WHAT = dict(flash="the whole picture flashes", flash_region="part of the picture flashes",
+WHAT = dict(flash="the frame's average brightness flashes", flash_region="part of the picture flashes",
             colour="the picture's colour flashes (a light leak / tinted dip)",
             blink="a band of the picture blinks (subtitle / title popping, strobing cuts)")
 

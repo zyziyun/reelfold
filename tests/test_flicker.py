@@ -108,3 +108,14 @@ def test_colour_flash_is_caught():
     C2 = np.zeros((240, 2), np.float32)
     C2[120:, 1] = 10.0                                                     # a cut to a warmer shot: a step
     assert FL.measure(F, FPS, "calm", C2)["ok"]
+
+
+@pytest.mark.parametrize("region,expected", [(slice(None),1.0), (slice(0,2),.25)])
+def test_flash_report_exposes_spatial_support_without_waiving_gate(region, expected):
+    grid = np.full((240,8,8), 50, dtype=np.float32)
+    grid[100:115, region, :] += 100
+    report = FL.measure(grid, FPS, "energetic")
+    event = next(e for e in report["events"] if e["kind"] == "flash")
+    assert not report["ok"]
+    assert event["active_cell_fraction"] == expected
+    assert 100/FPS <= event["peak_t"] <= 115/FPS

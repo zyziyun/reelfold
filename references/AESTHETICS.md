@@ -158,3 +158,13 @@ offset, not to the analysis.
   moment that gets to breathe: a reaction, food, a view, a line). Energy rises block to block.
 - Peak finale: accelerate cuts, riser → impact → sparkle.
 - Outro: a slow wide shot and a sign-off.
+
+### Interpreting a flash report
+
+A `flash` event measures a transient in the frame's mean luminance; it does not establish its cause.
+The JSON report also gives `peak_t` and `active_cell_fraction`: the fraction of luma-grid cells whose
+activity-adjusted transient exceeds the same flash threshold at that peak. A localized moving object
+can change the frame mean. A large fraction can also come from content, so neither value proves an
+exposure defect or a clean shot. Compare the source and output around the event before choosing a
+repair. These fields are diagnostic only: they do not change thresholds, waive failures or approve
+a render. Cropping may amplify a source transient; repeating the same render cannot fix it.
