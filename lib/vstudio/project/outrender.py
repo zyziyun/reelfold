@@ -265,6 +265,9 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     else:
         final["op"] = "frames" if (vis["layers"] or vis["captions"] or vis["title"] or vis["mask"] or vis["band"] or
                                    vis["dips"] or (canvas["op"] == "none" and not same and not band)) else "encode"
+    speech = original_speech(doc, tl, audio)
+    if speech:
+        final["speech"] = speech
     final["key"] = sha1_json(["final", timeline["key"], audio["key"], final], 16)
     cover = None
     if st.get("cover"):
@@ -1316,8 +1319,32 @@ def fresh_finals(d, output):
     return out
 
 
+def original_speech(doc, tl, audio):
+    """Map a current, language-tagged ASR cache to the edited soundtrack.
+
+    Never infer speech language from the destination platform or burn-in text.
+    Narration may replace/mute source speech, so those mixes need their own map.
+    """
+    if not audio.get("has_audio") or audio.get("voice") or audio.get("vo"):
+        return None
+    tr = OUT.read_json(OUT.transcript_path(doc), {})
+    if not isinstance(tr, dict) or tr.get("sig") != OUT._tsig(doc):
+        return None
+    lang = OUT._transcript_language(tr.get("language"))
+    if not lang or not isinstance(tr.get("words"), list):
+        return None
+    from vstudio.subs import cues_from_words
+    words = []
+    for w in OUT._heard(doc, tr["words"]):
+        span = tl.span(w["t"], w["te"])
+        if span:
+            words.append(dict(w=w["w"], t=span[0], te=span[1]))
+    cues = cues_from_words(words, fixes=False)
+    return dict(lang=lang, lines=[[c.start, c.end, c.text] for c in cues]) if cues else None
+
+
 def caption_sidecars(plan, directory, stem, duration):
-    """Export visible captions and a separate known-language translated speech track.
+    """Export visible captions and a separate known-language speech track.
 
     A full translated voice replaces the source soundtrack. Its lines remain
     available as closed captions even when on-picture captions are hidden.
@@ -1327,6 +1354,9 @@ def caption_sidecars(plan, directory, stem, duration):
     tracks = [("rendered-captions", "und", "captions", plan["final"]["visual"]["captions"])]
     audio = plan.get("audio") or {}
     voice = audio.get("voice") or {}
+    source = plan["final"].get("speech") or {}
+    if source and not voice and not audio.get("vo"):
+        tracks.append(("speech", source["lang"], f"speech.{source['lang']}", source["lines"]))
     lang = voice.get("lang")
     narrations = audio.get("vo") or []
     if lang in LANG_NAMES and all(v.get("lang") == lang for v in narrations):

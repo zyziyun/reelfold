@@ -919,3 +919,59 @@ def test_secondary_bilingual_cues_retime_with_speed(th, tmp_path, monkeypatch):
     monkeypatch.setattr(subs, 'bilingual_wanted', lambda: True)
     plan = R.plan(rec, doc, st, dict(tg, profile=None), 'preview')
     assert plan['final']['visual']['captions'] == [[0, 2, '你好\nHello']]
+
+
+@pytest.mark.parametrize('language', ['fr', 'ja', 'ko', 'zh'])
+def test_original_speech_sidecars_follow_cut_speed_and_caption_off(th, tmp_path, language):
+    from vstudio.subs import srt_read
+    oid, _ = _pipeline(th)
+    rec, doc = O._load(th, oid)
+    O.write_words(doc, [dict(w='Bonjour.', t=0, te=1), dict(w='Removed.', t=1.1, te=1.9),
+                        dict(w='Encore.', t=2, te=4)], language)
+    st = O.empty_state()
+    st['cuts'] = [[1, 2, 'aside']]
+    st['speed'] = 2
+    st['captions']['enabled'] = False
+    tg = R.targets_of(rec, st, ['primary'])[0]
+    p = R.plan(rec, doc, st, tg, 'preview', watermark=False)
+    speech = p['final']['speech']
+    assert speech['lang'] == language
+    assert 'Removed' not in str(speech['lines'])
+    assert speech['lines'][-1][1] == 1.5
+    tracks = R.caption_sidecars(p, str(tmp_path), 'video', p['timeline']['duration'])
+    assert len(tracks) == 2 and all(t['role'] == 'speech' for t in tracks)
+    assert 'Encore.' in ' '.join(c.text for c in srt_read(tracks[0]['file']))
+    old_key = p['final']['key']
+    O.write_words(doc, [dict(w='Correction.', t=0, te=1)], language)
+    assert R.plan(rec, doc, st, tg, 'preview', watermark=False)['final']['key'] != old_key
+
+
+@pytest.mark.parametrize('case', ['stale', 'unknown', 'voice', 'narration', 'silent'])
+def test_original_speech_never_labels_unverified_or_replaced_audio(tmp_path, case):
+    from types import SimpleNamespace
+    doc = SimpleNamespace(dir=str(tmp_path), d=dict(source_sig='current'),
+                          rec=dict(file='source.mp4', info=dict(duration=3)))
+    O.write_words(doc, [dict(w='Bonjour.', t=0, te=1)], None if case == 'unknown' else 'fr')
+    if case == 'stale':
+        doc.d['source_sig'] = 'other'
+    audio = dict(has_audio=case != 'silent')
+    if case == 'voice':
+        audio['voice'] = dict(lang='en')
+    if case == 'narration':
+        audio['vo'] = [dict(lang='fr')]
+    assert R.original_speech(doc, O.Timeline(O.empty_state(), 3), audio) is None
+
+
+@media
+def test_original_speech_track_is_bound_to_native_render(th):
+    from vstudio.subs import srt_read
+    oid, _ = _pipeline(th)
+    rec, doc = O._load(th, oid)
+    O.write_words(doc, [dict(w='大家好。', t=0, te=1), dict(w='介绍。', t=2, te=3)], 'zh')
+    O.edit(th, oid, [dict(op='speed', value=2)])
+    result = R.render(th, oid, quality='preview', watermark=False)['targets'][0]
+    speech = [t for t in result['sidecars'] if t['role'] == 'speech']
+    assert len(speech) == 2 and all(t['lang'] == 'zh' for t in speech)
+    cues = srt_read(speech[0]['file'])
+    assert cues[-1].end == 1.5
+    subprocess.run(['ffmpeg', '-v', 'error', '-i', result['file'], '-f', 'null', '-'], check=True)
