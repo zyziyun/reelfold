@@ -420,14 +420,19 @@ def alpha_paste(dst, src, xy, opacity=1.0, center=False, scale=1.0, bgr=False):
 
 
 def text_layer(text, f, fill=WHITE, hl_fill=None, stroke=6, stroke_fill=(20, 20, 20, 255), shadow_alpha=150,
-               pad=16, keywords=None, max_w=None, line_gap=1.15, align="center"):
+               pad=16, keywords=None, max_w=None, line_gap=1.15, align="center", word_aware=False):
     """Stroked text strip (RGBA PIL) with soft drop shadow. `text` may hold 【】 markup or be a list of
-    (text, colour) runs. With max_w the text is wrapped (balanced) and lines centred."""
+    (text, colour) runs. With max_w the text is wrapped (balanced) and lines centred.
+    word_aware uses the shared subtitle breaker."""
     if isinstance(text, (list, tuple)):
         lines_runs = [[(t, rgba(c)) for t, c in text]]
     else:
         hl = rgba(hl_fill) if hl_fill is not None else rgba(brand()["highlight"])
-        lines = wrap(text, f, max_w, balance=True) if max_w else [text]
+        if max_w and word_aware:
+            from .subs import balanced_wrap
+            lines = balanced_wrap(std_markup(text), max_w, measure=lambda value: text_width(value, f))
+        else:
+            lines = wrap(text, f, max_w, balance=True) if max_w else [text]
         lines_runs = [[(t, hl if h else rgba(fill)) for t, h in runs(ln, keywords)] for ln in lines]
     from . import textlayout as TL
     if any(TL.needed(''.join(t for t, _ in row), f) for row in lines_runs):

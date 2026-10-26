@@ -196,3 +196,15 @@ def test_vertical_relayout_splits_english_on_words_only():
         assert all(w in _words(EN) for w in _words(c.text)), c.text
         assert len(c.text) <= 2 * prof.caption["max_chars_en"] + 2
     assert abs(out[-1].end - 9.0) < 1e-6
+
+
+@pytest.mark.parametrize("scale", [16, 36, 72])
+def test_pixel_wrapping_keeps_semantic_preferences_at_large_font_sizes(monkeypatch, scale):
+    text = "即使网络断开，我依然能继续编辑草稿"
+    monkeypatch.setattr(S, "_word_bounds", lambda _: {2, 4, 6, 7, 8, 10, 11, 13, 15, 17})
+    expected = S.balanced_wrap(text, 8)
+    actual = S.balanced_wrap(text, 8 * scale, measure=lambda value: S.text_width(value) * scale)
+    assert actual == expected
+    assert any("断开" in line for line in actual)
+    assert any("依然" in line for line in actual)
+    assert any("继续" in line for line in actual)

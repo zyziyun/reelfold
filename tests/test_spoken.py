@@ -267,3 +267,22 @@ def test_layout_overflow_repairs_wording_before_export():
     assert 'layout:' in result['repairs'][0]
     assert 'shorten' in calls[1]
     assert result['effects'][0]['params']['items'] == BEAT['items']
+
+
+@pytest.mark.parametrize('size', [(1280, 720), (640, 360), (360, 640)])
+def test_card_uses_shared_readable_word_boundaries(monkeypatch, size):
+    from vstudio import draw as D
+    lines = []
+    original = D.runs
+    def record(text, *args, **kwargs):
+        lines.append(text)
+        return original(text, *args, **kwargs)
+    monkeypatch.setattr(D, 'runs', record)
+    w, h = size
+    layer = outfx.make_layer(dict(effect='explanation-card', params=dict(kind='takeaway',
+        title='草稿保存在本地', items=['即使网络断开，我依然能继续编辑草稿'])), w, h,
+        (w*.04, h*.05, w*.96, h*.95))
+    layer.setup()
+    assert any('依然' in line for line in lines)
+    assert not any(line.endswith('依') or line.startswith('然') for line in lines)
+    assert len(layer.texts) == 1

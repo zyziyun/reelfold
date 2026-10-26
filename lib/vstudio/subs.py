@@ -349,6 +349,9 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
     if total <= max_width:
         return [text.strip()]
     m = len(toks)
+    # Pixel measurements scale the squared balance cost; scale linguistic
+    # preferences too, so a larger font cannot erase word-boundary preferences.
+    unit_scale = total / max(text_width(strip_markup(text).strip()), 1)
 
     span_w, span_orphan = {}, {}   # the DP asks for the same spans O(n*m^2) times: measure each token once
 
@@ -396,11 +399,11 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
                         c += 1e5
                     last = toks[j - 1][0]
                     if j < m and last and last[-1] in _CLOSE:
-                        c -= 0.5 * target                   # break after punctuation
+                        c -= 0.5 * target * unit_scale      # break after punctuation
                     elif j < m and last and last[-1] in "·・":
-                        c += 0.5 * target                   # inside a name (玛丽·安): keep it on one line
+                        c += 0.5 * target * unit_scale      # inside a name (玛丽·安): keep it on one line
                     elif j < m:
-                        c += bonus[j] * target
+                        c += bonus[j] * target * unit_scale
                     if dp[L - 1][i] + c < dp[L][j]:
                         dp[L][j], bk[L][j] = dp[L - 1][i] + c, i
         if dp[n][m] < float("inf"):
