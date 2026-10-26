@@ -229,6 +229,11 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     if vids and purpose_kind in ("product", "company"):
         purpose += (" Ordered temporal sheets supplement quality-ranked moments. Preserve the action onset, "
                     "interaction and visible result. A best-quality window is not an action boundary. "
+                    "Before allocating shot lengths, locate the visible state changes in source time. "
+                    "Keep a developing change through its readable result; shorten repetitive steady states "
+                    "before removing that development. When jumping forward within one process, compare "
+                    "the outgoing and incoming states: do not skip the transformation that explains the result. "
+                    "A short excerpt may omit stages, but its labels must not promise a complete demonstration. "
                     "Use the reported sampling gap to judge uncertainty; do not claim continuous or "
                     "frame-accurate verification from still samples.")
     if ptext:

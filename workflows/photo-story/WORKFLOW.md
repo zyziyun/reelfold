@@ -276,6 +276,14 @@ Music timing: `MUSIC.grid="seconds"` uses each shot weight as seconds (at 0.1-se
 
 ### Moving video overview and details
 
+For product demonstrations and company processes, allocate time around visible state changes before
+dividing it into shots. Compare the outgoing and incoming states at each source-time jump: preserve
+the development that makes the result understandable, and compress repetitive steady states first.
+For example, keeping an initial trickle and a later steady stream can omit the formation of that stream;
+a label naming the process does not repair the missing visual explanation. Short excerpts may intentionally
+omit stages, but should be described as excerpts rather than complete demonstrations. Verify uncertain
+boundaries with denser samples or continuous playback; a contact sheet is not frame-accurate evidence.
+
 Video shots support explicit `fit="contain"` without stretching or silently centre-cropping.
 For a portrait demonstration, `detail_regions=[[x,y,width,height]]` in video shot options reuses the
 course renderer's overview/detail composition. One or two source-pixel rectangles must be checked
