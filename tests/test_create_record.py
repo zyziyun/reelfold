@@ -259,3 +259,36 @@ def test_screen_camera_inset_uses_capture_start_time(home, camera_start):
     assert RE.duration(movie) > 2.8
     r, g, b = pixel(2.75)
     assert g > 180 and r < 50 and b < 50
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize('mic_start', [0, 1000, 2000])
+def test_screen_audio_mix_preserves_microphone_capture_clock(home, mic_start):
+    """Decode the result: app audio stays continuous and a mic beep keeps its wall-clock position."""
+    import numpy as np
+    d = session(str(home), [], seconds=3)
+    screen = os.path.join(d, 'screen.webm')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=blue:size=320x180:rate=24:duration=3', '-f', 'lavfi', '-i',
+                    'sine=frequency=500:duration=3', '-c:v', 'libvpx-vp9', '-deadline', 'realtime',
+                    '-c:a', 'libopus', screen], check=True)
+    # The simultaneous mic also stops early; screen audio must continue afterward.
+    mic_duration = {0: 4, 1000: 1, 2000: 2}[mic_start]
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    f"sine=frequency=440:duration={mic_duration},volume='lt(t,1)':eval=frame",
+                    '-c:a', 'libopus', os.path.join(d, 'mic.webm')], check=True)
+    sess = store.read_json(os.path.join(d, 'session.json'))
+    sess['tracks']['screen'] = dict(file='screen.webm', start_ms=1000)
+    sess['tracks']['mic']['start_ms'] = mic_start
+    movie = RE.mux(d, sess, os.path.join(d, 'clock-mix.mp4'))
+    pcm = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', movie, '-vn', '-ac', '1',
+                                   '-ar', '8000', '-f', 'f32le', '-'])
+    samples = np.frombuffer(pcm, dtype='<f4')
+    def magnitude(hz, start):
+        window = samples[int(start * 8000):int((start + .3) * 8000)]
+        assert len(window) == 2400
+        return abs(np.sum(window * np.exp(-2j * np.pi * hz * np.arange(len(window)) / 8000))) * 2 / len(window)
+    for start in (.25, 1.25, 2.5):
+        assert magnitude(500, start) > .06
+        expected_beep = (mic_start == 2000 and start == 1.25) or (mic_start == 1000 and start == .25)
+        assert (magnitude(440, start) > .06) if expected_beep else (magnitude(440, start) < .01)

@@ -160,7 +160,11 @@ def mux(d, sess, out):
         screen_audio = info.get("has_audio", False)
         audio_map = "2:a:0" if has_mic else "1:a?"
         if screen_audio and has_mic:
-            graph += ";[0:a:0][2:a:0]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]"
+            # amix consumes samples, not the input timestamp gap. Materialize each
+            # capture clock as silence/trim before mixing so late speech stays late.
+            graph += (";[0:a:0]aresample=async=1:first_pts=0[screen_audio];"
+                      "[2:a:0]aresample=async=1:first_pts=0[mic_audio];"
+                      "[screen_audio][mic_audio]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]")
             audio_map = "[a]"
         elif screen_audio:
             audio_map = "0:a:0"
