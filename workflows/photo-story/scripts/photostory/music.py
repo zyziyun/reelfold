@@ -118,16 +118,17 @@ def allot(weights, total):
     return out
 
 
-def allot_min(weights, total, mins):
+def allot_min(weights, total, mins, *, proportional=False):
     """Integer units per weight summing to ``total`` with out[i] >= mins[i] (>= 1): proportional to weight,
     shots whose share falls under their minimum are pinned there and the rest is re-shared (largest
     remainder). ``total`` below sum(mins) returns the minimums (the caller warns)."""
     n = len(weights)
     mins = [max(1, int(m)) for m in mins]
     total = max(int(total), sum(mins))
-    plain = allot(weights, total)
-    if all(a >= m for a, m in zip(plain, mins)):          # nothing under its minimum: the historical split
-        return plain
+    if not proportional:
+        plain = allot(weights, total)
+        if all(a >= m for a, m in zip(plain, mins)):      # preserve historical beat-grid placement
+            return plain
     fixed = {}
     while True:
         free = [i for i in range(n) if i not in fixed]
@@ -243,7 +244,11 @@ class MusicTimeline:
         secs = sorted({sec for _, sec, _ in flat})
         sw = {s: sum(sh[1] for _, sec, sh in flat if sec == s) for s in secs}
         smin = {s: sum(m for (_, sec, _), m in zip(flat, mins) if sec == s) for s in secs}
-        counts = allot_min([sw[s] for s in secs], U, [smin[s] for s in secs])
+        # Seconds are authored durations. Reserving one unit per shot before
+        # proportioning the remainder biases short holds upward, even when
+        # every requested duration already lies exactly on the seconds grid.
+        proportional = cfg["grid"] == "seconds"
+        counts = allot_min([sw[s] for s in secs], U, [smin[s] for s in secs], proportional=proportional)
         bounds = [0]
         for c in counts:
             bounds.append(bounds[-1] + c)
@@ -263,7 +268,7 @@ class MusicTimeline:
         for j, s in enumerate(secs):
             ws = [sh[1] for _, sec, sh in flat if sec == s]
             ms = [m for (_, sec, _), m in zip(flat, mins) if sec == s]
-            units_per_shot += allot_min(ws, bounds[j + 1] - bounds[j], ms)
+            units_per_shot += allot_min(ws, bounds[j + 1] - bounds[j], ms, proportional=proportional)
         # ---- shots on the grid
         trd0 = cfg["trd"] if cfg["trd"] is not None else min(1.4, max(0.25, 0.5 * unit))
         self.units, self.shots, self.subs = [], [], []

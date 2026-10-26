@@ -320,7 +320,8 @@ def test_post_tag_args_pass_through(monkeypatch, capsys):
     assert "use_persona_tags" in capsys.readouterr().out
 
 
-def test_allot_min_never_below_minimums():
+@pytest.mark.parametrize("proportional", [False, True])
+def test_allot_min_never_below_minimums(proportional):
     from photostory.music import allot, allot_min
     rng = np.random.default_rng(0)
     for _ in range(500):
@@ -328,9 +329,9 @@ def test_allot_min_never_below_minimums():
         w = list(rng.uniform(0.3, 3.0, n))
         m = list(rng.integers(1, 4, n))
         T = int(rng.integers(1, 30))
-        o = allot_min(w, T, m)
+        o = allot_min(w, T, m, proportional=proportional)
         assert sum(o) == max(T, sum(m)) and all(a >= b for a, b in zip(o, m))
-        if all(v == 1 for v in m):
+        if not proportional and all(v == 1 for v in m):
             assert o == allot(w, T)                                         # unchanged when nothing is pinned
 
 
@@ -424,6 +425,21 @@ def test_empty_chapters_and_seconds_grid_render_a_valid_timeline(media_dir, monk
     timing, _ = load_timing(C)
     T = Timeline(C, timing)
     assert T.total > 0 and T.sec_bounds[0] == 0 and T.sec_bounds[-1] == T.total
+
+
+@pytest.mark.parametrize("sections", [(0, 0, 0), (0, 1, 2)])
+@pytest.mark.parametrize("length,expected", [(20, [8.5, 10, 1.5]), (40, [17, 20, 3])])
+def test_seconds_grid_preserves_proportions_across_sections(tmp_path, sections, length, expected):
+    from photostory.ctx import Ctx
+    from photostory.music import MusicTimeline
+    spec = types.SimpleNamespace(__file__=str(tmp_path / "spec.py"), SECTIONS=["A", "B", "C"],
+        SCRIPT=[(sec, [], [(f"p{i}", duration, "still", {})])
+                for i, (sec, duration) in enumerate(zip(sections, [8.5, 10, 1.5]))],
+        BGM=None, MUSIC=dict(grid="seconds", length=length, tail=0, captions=False),
+        MODE="music", CANVAS=(320, 180))
+    timeline = MusicTimeline(Ctx(spec))
+    assert [s["end"] - s["start"] for s in timeline.shots] == pytest.approx(expected)
+    assert timeline.total == pytest.approx(length)
 
 
 def test_missing_narration_plan_reports_a_useful_error():
