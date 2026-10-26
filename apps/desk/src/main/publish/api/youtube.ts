@@ -13,6 +13,8 @@
 //   - Nothing is uploaded unless she pressed Publish / Schedule (or switched on scheduled posting herself).
 // Report the visibility YouTube actually returns. A private response does not identify the policy/account cause.
 import crypto from 'node:crypto';
+import { ensureCaption, YT_CAPTIONS } from './youtubeCaptions';
+import type { CaptionArtifact } from '../../../shared/publish/apiPlatforms';
 import { UploadOutcomeUnknown } from '../outcome';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -285,11 +287,11 @@ export class YouTubeApi {
   }
 
   /** OAuth in the system browser; resolves once Google redirected back to the loopback port (or after 5 minutes). */
-  async connect(account: string, opts: { playlists?: boolean; timeoutMs?: number } = {}): Promise<YtAccountStatus> {
+  async connect(account: string, opts: { playlists?: boolean; captions?: boolean; timeoutMs?: number } = {}): Promise<YtAccountStatus> {
     const client = this.client();
     if (!client) throw new Error('choose how to sign in first: Reelfold’s Google client or your own');
     this.cancelConnect();
-    const scopes = [...YT_SCOPES, ...(opts.playlists ? [YT_MANAGE] : [])];
+    const scopes = [...YT_SCOPES, ...(opts.playlists ? [YT_MANAGE] : []), ...(opts.captions ? [YT_CAPTIONS] : [])];
     const verifier = b64url(crypto.randomBytes(48));
     const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
     const state = b64url(crypto.randomBytes(16));
@@ -500,6 +502,17 @@ export class YouTubeApi {
     const receipt = { account: session.account, result };
     this.d.vault.set(key, { uploadReceipt: receipt, uploadSession: undefined });
     return receipt;
+  }
+
+  /** Attach to an already-uploaded video; this never starts a new video upload. */
+  async caption(account: string, videoId: string, track: CaptionArtifact) {
+    const scopes = (this.d.vault.get(vaultKey(account)).scope ?? '').split(/\s+/);
+    if (!scopes.includes(YT_CAPTIONS)) throw new Error('Connect YouTube with caption permission before uploading subtitles');
+    const token = await this.token(account);
+    return ensureCaption({ api: this.ep.api, upload: this.ep.upload,
+      request: (url, init) => this.f(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(60_000),
+        headers: { ...init?.headers, Authorization: `Bearer ${token}` } }),
+    }, videoId, track);
   }
 
   /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */

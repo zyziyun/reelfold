@@ -681,3 +681,13 @@ it('detects the Google passkey challenge without mistaking another site or passw
   expect(embeddedBlock('https://x.com/login', 'Complete sign-in using your passkey')).toBeNull();
   expect(embeddedBlock('https://accounts.google.com/v3/signin/challenge/pwd', 'Enter your password')).toBeNull();
 });
+
+it('requests caption permission only when selected, and rejects attachment without it', async () => {
+  const { yt, seen } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  await yt.connect('main', { timeoutMs: 5000 });
+  await expect(yt.caption('main', 'video1', { file: '/unused', format: 'srt', lang: 'fr', role: 'speech', cues: 1, render_key: 'r', sha256: 'a'.repeat(64) })).rejects.toThrow('caption permission');
+  await yt.connect('main', { captions: true, timeoutMs: 5000 });
+  expect(new URL(seen[1]).searchParams.get('scope')).toContain('youtube.force-ssl');
+  expect(new URL(seen[0]).searchParams.get('scope')).not.toContain('youtube.force-ssl');
+});
