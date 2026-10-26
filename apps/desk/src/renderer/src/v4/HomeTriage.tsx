@@ -458,7 +458,7 @@ function HomeGoal({ g }: { g: Goal }) {
               <span className="st">{videoLine(v)}</span>
             </li>
           ))}
-          {vs.length > 6 && <li className="muted">{t('home.nMoreRunning', { n: vs.length - 6 })}</li>}
+          {vs.length > 6 && <li className="muted">{t('home.nMoreVideos', { n: vs.length - 6 })}</li>}
         </ul>
       )}
     </a>

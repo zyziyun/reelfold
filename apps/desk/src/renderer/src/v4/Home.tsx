@@ -47,7 +47,7 @@ import { LiveCardLine } from './LiveLine';
 import { liveStep, liveText } from '../lib/liveStatus';
 import { itemPipeline } from '../lib/pipeline';
 import { keyHint } from '../lib/keys';
-import { goalHref, useGoals } from '../lib/goals';
+import { goalHref, goalWorking, useGoals } from '../lib/goals';
 import { AiPickChip, AiTag } from './AiPick';
 import { useAi } from '../lib/ai';
 import { cleanAi, effectiveAi, type ProjectAi } from '../../../shared/projectAi';
@@ -519,7 +519,7 @@ function Below({ fill, addFile }: { fill: (p: string) => void; addFile: (path: s
   const st = useStudioData();
   // goal mode: a group of videos being read / made is one card in Running (its own jobs are not repeated)
   const { goals } = useGoals();
-  const runGoals = useMemo(() => goals.filter((g) => g.state === 'surveying' || g.state === 'running'), [goals]);
+  const runGoals = useMemo(() => goals.filter(goalWorking), [goals]);
   const { subscribe } = useEngine();
   const { data: calNow, error: calErr, reload: reloadCal } = useLoad((c) => c.calendar(today()), []);
   const { data: sugNow, error: sugErr } = useLoad((c) => c.homeSuggestions(), [data?.items.length]);

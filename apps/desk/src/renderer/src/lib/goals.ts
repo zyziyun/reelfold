@@ -15,6 +15,16 @@ export function goalActive(g: Pick<Goal, 'state'>): boolean {
   return g.state === 'surveying' || g.state === 'planned' || g.state === 'running';
 }
 
+/** Actual work, excluding a running parent that only waits for review. */
+export function goalWorking(g: Goal): boolean {
+  if (g.state === 'surveying' || g.more?.state === 'planning') return true;
+  if (g.fanouts?.some((f) => f.state === 'running' && f.videos.some((v) =>
+    ['waiting', 'asking', 'applying', 'rendering'].includes(v.state)))) return true;
+  return groupVideos(g).some((v) => v.recut?.state === 'making'
+    || v.versions?.some((x) => x.state === 'running')
+    || (g.state === 'running' && ['waiting', 'planning', 'making'].includes(v.state)));
+}
+
 /** The goal's title: the AI's one line (the rule planner's stock line in the UI's language), else her request. */
 export function goalTitle(g: Pick<Goal, 'goal' | 'prompt' | 'goal_code'>): string {
   const s = (g.goal_code === 'default' ? t('goal.defaultLine') : g.goal || g.prompt || '').trim();

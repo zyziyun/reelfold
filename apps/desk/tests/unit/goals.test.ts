@@ -1,9 +1,12 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { HomeRunning } from '../../src/renderer/src/v4/HomeTriage';
 // Goal mode in the UI (lib/goals): the group's line and bar, each video's state words and dot, why one was dropped,
 // where rows open, and which platforms a made file stands for.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Goal, GoalVideo } from '../../src/shared/goal';
 import { setLang } from '../../src/renderer/src/i18n';
-import { countNote, dropReason, goalActive, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, requestTitle, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
+import { countNote, dropReason, goalActive, goalWorking, goalHref, goalLine, goalPct, goalTitle, goalTone, groupVideos, requestTitle, surveyLine, versionLabel, versionLine, versionTone, videoHref, videoLine, videoTitle, videoTone } from '../../src/renderer/src/lib/goals';
 import { platformsFor } from '../../src/renderer/src/v4/GoalView';
 import { filePlatforms, missingTargets } from '../../src/renderer/src/lib/versions';
 
@@ -158,4 +161,43 @@ it('keeps successful versions visible when another language fails', () => {
   expect(videoTone(v)).toBe('you');
   expect(videoHref('group', v)).toBe('#/studio/zh');
   expect(versionLine(v.versions![0])).toContain('Slow-motion rendering');
+});
+
+
+describe('Home collection activity', () => {
+  it('keeps review-only parents resumable without calling them running', () => {
+    const g = goal([vid('a', { state: 'made' }), vid('b', { state: 'dropped' }), vid('c', { state: 'you' })]);
+    expect(goalWorking(g)).toBe(false);
+    expect(goalActive(g)).toBe(true);
+    expect(goalWorking(goal([]))).toBe(false);
+    expect(goalWorking(goal([], { more: { state: 'made', n: 4, left: 8 } }))).toBe(false);
+  });
+  it('shows queued or working children, excluding proposed and stopped work', () => {
+    for (const state of ['waiting', 'planning', 'making'] as const) {
+      expect(goalWorking(goal([vid('a', { state: 'you' }), vid('b', { state, queued: true })]))).toBe(true);
+    }
+    expect(goalWorking(goal([vid('a', { state: 'waiting' })], { state: 'stopped' }))).toBe(false);
+    expect(goalWorking(goal([vid('a', { state: 'making', proposed: true })]))).toBe(false);
+    expect(goalWorking(goal([], { state: 'planned' }))).toBe(false);
+  });
+  it('includes surveys, additional planning, recuts and active versions', () => {
+    expect(goalWorking(goal([], { state: 'surveying' }))).toBe(true);
+    expect(goalWorking(goal([], { state: 'done', more: { state: 'planning', n: 2 } }))).toBe(true);
+    expect(goalWorking(goal([vid('a', { state: 'made', recut: { state: 'making', at: 1, add: [], drop: [] } })], { state: 'done' }))).toBe(true);
+    expect(goalWorking(goal([vid('a', { state: 'you', versions: [{ state: 'running' }, { state: 'you' }] })]))).toBe(true);
+  });
+  it('distinguishes batch edit approvals from active edits', () => {
+    for (const state of ['waiting', 'asking', 'applying', 'rendering', 'proposed', 'done'] as const) {
+      const g = goal([], { state: 'done', fanouts: [{ id: 'f', prompt: 'edit', at: 1, state: 'running', videos: [{ video: 'a', state, rows: [] }], counts: { done: 0, nothing: 0, failed: 0, proposed: 0, undone: 0, total: 1 } }] });
+      expect(goalWorking(g)).toBe(!['proposed', 'done'].includes(state));
+    }
+  });
+});
+
+
+it('renders folded videos as videos, not additional running jobs', () => {
+  const g = goal(Array.from({ length: 14 }, (_, i) => vid(String(i), { state: i === 0 ? 'making' : 'made' })));
+  const html = renderToStaticMarkup(createElement(HomeRunning, { cards: [], waiting: 0, goals: [g] }));
+  expect(html).toContain('8 more videos');
+  expect(html).not.toContain('8 more running');
 });
