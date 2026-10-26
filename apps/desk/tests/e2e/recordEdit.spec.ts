@@ -454,6 +454,53 @@ test.describe('recording startup lifecycle', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
 
+  test('retains a partially started recording when saving fails', async () => {
+    const launched = await launch('partial-save', { DESK_STUDIO: '1' });
+    app = launched.app;
+    const page = launched.page;
+    await app.evaluate(({ ipcMain }) => {
+      const fixture = { begins: 0, ends: [] as unknown[], fail: true };
+      (globalThis as unknown as { partialFixture: typeof fixture }).partialFixture = fixture;
+      for (const name of ['rec:begin', 'rec:chunk', 'rec:end']) ipcMain.removeHandler(name);
+      ipcMain.handle('rec:begin', () => {
+        fixture.begins++;
+        return { sessionId: 'partial-test', dir: '/tmp/partial-test' };
+      });
+      ipcMain.handle('rec:chunk', () => ({ ok: true }));
+      ipcMain.handle('rec:end', (_event, value) => {
+        fixture.ends.push(value);
+        if (fixture.fail) throw new Error('Test save unavailable');
+        return { dir: '/tmp/partial-test', tracks: [], marks: 0 };
+      });
+    });
+    await page.evaluate(() => (location.hash = '#/create/record'));
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.evaluate(() => {
+      const Native = window.MediaRecorder;
+      let starts = 0;
+      window.MediaRecorder = class extends Native {
+        start(timeslice?: number) {
+          if (++starts === 2) throw new Error('Test microphone startup failed');
+          super.start(timeslice);
+        }
+      };
+    });
+    await page.getByTestId('create-rec-start').click();
+    const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
+    await expect(retry).toBeEnabled();
+    await app.evaluate(() => {
+      (globalThis as unknown as { partialFixture: { fail: boolean } }).partialFixture.fail = false;
+    });
+    await retry.click();
+    await expect.poll(() => app.evaluate(() => {
+      const f = (globalThis as unknown as { partialFixture: { begins: number; ends: unknown[] } }).partialFixture;
+      return { begins: f.begins, ends: f.ends.length };
+    })).toEqual({ begins: 1, ends: 2 });
+    const ends = await app.evaluate(() => (globalThis as unknown as { partialFixture: { ends: unknown[] } }).partialFixture.ends);
+    expect(ends[1]).toEqual(ends[0]);
+  });
+
   for (const leave of [false, true]) {
     test(`serializes pending startup and closes it${leave ? ' after navigation' : ' after a track fails'}`, async () => {
       const launched = await launch(`begin-${leave}`, { DESK_STUDIO: '1' });

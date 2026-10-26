@@ -390,7 +390,19 @@ export function useRecorder() {
         setState('recording');
       } catch (e) {
         if (s) {
-          await finishSession(s);
+          // A later track can fail after an earlier recorder has emitted data.
+          // Keep that session reachable if its cleanup needs a save retry.
+          sess.current = s;
+          try {
+            await finishSession(s);
+            if (sess.current === s) sess.current = null;
+          } catch (saveError) {
+            if (mounted.current && sess.current === s) {
+              setElapsed(recordedSeconds(s, performance.now()));
+              setState('save-error');
+            }
+            throw saveError;
+          }
         }
         throw e;
       } finally {
