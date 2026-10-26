@@ -144,7 +144,10 @@ def mux(d, sess, out):
         pw = max(2, int(w * .22) // 2 * 2)
         ph = max(2, int(pw * .75) // 2 * 2)
         gap = max(8, round(w * .015))
-        args = [_ff(), "-v", "error", "-y", "-i", screen, "-i", cam]
+        camera_offset = ((tracks.get("camera") or {}).get("start_ms", 0) -
+                         (tracks.get("screen") or {}).get("start_ms", 0)) / 1000
+        args = [_ff(), "-v", "error", "-y", "-i", screen,
+                "-itsoffset", f"{camera_offset:.3f}", "-i", cam]
         has_mic = os.path.exists(mic) and os.path.getsize(mic) > 0
         if has_mic:
             off = ((tracks.get("mic") or {}).get("start_ms", 0) - (tracks.get("screen") or {}).get("start_ms", 0)) / 1000

@@ -222,3 +222,40 @@ def test_partial_camera_take_without_mic_remains_editable(home, target):
     assert not info['has_audio']
     assert media.duration(movie) > .8
     assert os.path.isfile(os.path.join(d, 'camera.webm'))
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize('camera_start', [0, 2000])
+def test_screen_camera_inset_uses_capture_start_time(home, camera_start):
+    """A colour change is a visible sync marker, independent of mux metadata."""
+    from PIL import Image
+    import io
+    d = session(str(home), [], seconds=3)
+    cam = os.path.join(d, 'camera.webm')
+    camera_duration = 4 if camera_start == 0 else 2
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    f"color=red:size=180x320:rate=24:duration={camera_duration},drawbox=color=lime:t=fill:enable='gte(t,1)'",
+                    '-c:v', 'libvpx-vp9', '-deadline', 'realtime', cam], check=True)
+    screen = os.path.join(d, 'screen.webm')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=blue:size=640x360:rate=24:duration=3',
+                    '-c:v', 'libvpx-vp9', '-deadline', 'realtime', screen], check=True)
+    sess = store.read_json(os.path.join(d, 'session.json'))
+    sess['tracks']['camera']['start_ms'] = camera_start
+    sess['tracks']['screen'] = dict(file='screen.webm', start_ms=1000)
+    movie = RE.mux(d, sess, os.path.join(d, 'aligned.mp4'))
+    def pixel(t):
+        png = subprocess.check_output(['ffmpeg', '-v', 'error', '-ss', str(t), '-i', movie,
+                                       '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-'])
+        return Image.open(io.BytesIO(png)).convert('RGB').getpixel((560, 300))
+    r, g, b = pixel(.25)
+    if camera_start == 0:
+        assert g > 180 and r < 50 and b < 50, 'early camera should have reached green already'
+    else:
+        assert b > 180 and r < 50 and g < 50, 'late camera should not appear before it starts'
+        r, g, b = pixel(1.25)
+        assert r > 180 and g < 50 and b < 50
+    # All streams stop at the same wall-clock instant despite different starts.
+    assert RE.duration(movie) > 2.8
+    r, g, b = pixel(2.75)
+    assert g > 180 and r < 50 and b < 50
