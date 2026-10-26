@@ -303,3 +303,7 @@ planner. Inspect the original at sufficient resolution before specifying coordin
 contact-sheet tile coordinates are not source coordinates. Select the single relevant
 line or detail and allow enough time to understand it. Regions are fixed, not tracked:
 do not use them for moving targets or changing slides. Invalid bounds stop rendering.
+Detail inserts reserve the rendered subtitle area throughout their interval. Check the
+remaining detail size as well as overlap: avoiding subtitles alone does not prove that
+a dense diagram or code excerpt is readable. Text burned into source images still
+requires visual inspection.

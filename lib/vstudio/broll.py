@@ -207,12 +207,50 @@ def exists(cfg_list):
     return [d["src"] for d in (cfg_list or []) if not os.path.exists(d["src"])]
 
 
-def detail_view(img, w, h, regions):
+def detail_view(img, w, h, regions, caption_band=None):
     """Use the course compositor's overview/detail geometry for supporting material."""
     from vstudio.clipkit import detail_geometry
     geo = detail_geometry(dict(vertical=h > w, canvas=(w, h), camera=None),
                           (img.shape[1], img.shape[0]), regions)
-    if not geo.get("details"):
+    if caption_band is not None:
+        import math
+        y0, y1 = math.floor(caption_band[0]), math.ceil(caption_band[1])
+        gap = max(2, round(w * .035))
+        candidates = []
+        # Reuse the course layout in the free area, or put captions between
+        # overview and details. Balance detail scale with overview scale;
+        # the overview may be three times smaller than the enlarged detail.
+        for lo, hi in ((0, min(h, int(y0-gap))), (max(0, int(y1+gap)), h)):
+            if hi-lo < 4*gap:
+                continue
+            try:
+                g = detail_geometry(dict(vertical=h > w, canvas=(w, hi-lo), camera=None),
+                                    (img.shape[1], img.shape[0]), regions)
+                if not g.get("details"):
+                    scale = min(w/img.shape[1], (hi-lo)/img.shape[0])
+                    dw, dh = max(1, round(img.shape[1]*scale)), max(1, round(img.shape[0]*scale))
+                    g["main"] = ((w-dw)//2, (hi-lo-dh)//2, dw, dh)
+                x,y,dw,dh = g["main"]
+                g["main"] = (x,y+lo,dw,dh)
+                g["details"] = [dict(d, box=[d["box"][0], d["box"][1]+lo, *d["box"][2:]])
+                                for d in g.get("details", [])]
+                candidates.append(g)
+            except ValueError:
+                pass
+        if h > w:
+            try:
+                candidates.append(detail_geometry(dict(vertical=True, canvas=(w,h), camera=None),
+                    (img.shape[1], img.shape[0]), regions, caption_band=(y0-gap,y1+gap)))
+            except ValueError:
+                pass
+        def score(g):
+            overview = g["main"][2] / img.shape[1]
+            details = [d["box"][2]/d["source"][2] for d in g.get("details", [])]
+            return min([overview*3, *details])
+        if not candidates:
+            raise ValueError("media-insert: captions leave no room for supporting details")
+        geo = max(candidates, key=score)
+    if not geo.get("details") and caption_band is None:
         # A landscape canvas retains the complete source, regardless of cover/card fit.
         s = min(w / img.shape[1], h / img.shape[0])
         dw, dh = max(1, round(img.shape[1] * s)), max(1, round(img.shape[0] * s))

@@ -368,4 +368,8 @@ the shared course layout; landscape retains the full source. This overrides `fit
 Coordinates must come from the original frame, not its contact-sheet position; bounds
 are checked against decoded frames. Fixed regions do not track motion. Use only a
 stable document or shot, and check reading time and captions in the actual export.
+First export and re-edit reserve the actual burned-caption height and position for the
+whole insert, including translated lines. The layout stays fixed while cues change.
+If subtitles leave no usable area, rendering stops rather than hiding the detail.
+Burned text already inside a source image is not detected by this reservation.
 The spoken planner does not automatically select these regions yet.

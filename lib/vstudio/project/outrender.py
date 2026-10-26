@@ -946,22 +946,46 @@ class Captions:
 
     paper_rgb = None
 
+    def center(self, height=None):
+        if self.band_rect:
+            x0, y0, x1, y1 = self.band_rect
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        elif self.mask_rect:
+            x0, y0, x1, y1 = self.mask_rect
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        else:
+            pos = self.st.get("position") or "bottom"
+            x0, y0, x1, y1 = self.box
+            cx = (x0 + x1) / 2
+            cy = {"bottom": (y0 + y1) / 2, "middle": self.H * 0.6, "top": self.H * 0.22}.get(
+                pos, float(self.st.get("y") or 0.8) * self.H)
+        if height is not None and not self.band_rect and not self.mask_rect and (self.st.get("position") or "bottom") == "bottom":
+            cy = min(cy, self.box[3]-height/2)
+        return cx, cy
+
+    def bounds(self, start, end):
+        saved_cache = self.cache
+        self.cache = dict(saved_cache)
+        boxes = []
+        for k, (a,b,text) in enumerate(self.cues):
+            if a >= end or b <= start or not text.strip():
+                continue
+            # Automatic surface choice changes typography. Reserve both real
+            # surfaces, or the explicit style, before seeing the frame.
+            surfaces = (self.st["surface"],) if self.st.get("surface") in ("paper", "video") else \
+                (("legacy",) if self.st.get("color") or self.st.get("stroke") is not None else ("paper", "video"))
+            for surface in surfaces:
+                h = self.layer(k, text, surface).shape[0]
+                _, cy = self.center(h)
+                boxes.append((cy-h/2, cy+h/2))
+        self.cache = saved_cache  # Surface colour is sampled later from the actual frame.
+        return (min(b[0] for b in boxes), max(b[1] for b in boxes)) if boxes else None
+
     def draw(self, img, t):
         from vstudio.subs import cue_opacity
         for k, (a, b, text) in enumerate(self.cues):    # keep text within its spoken cue
             if a <= t < b and cue_opacity(a, b, t) > 0:
-                if self.band_rect:
-                    x0, y0, x1, y1 = self.band_rect
-                    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-                elif self.mask_rect:
-                    x0, y0, x1, y1 = self.mask_rect
-                    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-                else:
-                    pos = self.st.get("position") or "bottom"
-                    x0, y0, x1, y1 = self.box
-                    cx = (x0 + x1) / 2
-                    cy = {"bottom": (y0 + y1) / 2, "middle": self.H * 0.6, "top": self.H * 0.22}.get(
-                        pos, float(self.st.get("y") or 0.8) * self.H)
+                cx, cy = self.center()
                 sf = self._surface(img, cx, cy)
                 if sf == "paper" and self.paper_rgb is None:
                     h = int(self.H * 0.05)
@@ -970,8 +994,7 @@ class Captions:
                         self.paper_rgb = tuple(int(v) for v in np.median(roi.reshape(-1, 3), axis=0)[::-1])
                 L = self.layer(k, text, sf)
                 h, w = L.shape[:2]
-                if not self.band_rect and not self.mask_rect and (self.st.get("position") or "bottom") == "bottom":
-                    cy = min(cy, self.box[3] - h / 2)
+                cx, cy = self.center(h)
                 self.Dr.alpha_paste(img, L, (cx, cy), opacity=cue_opacity(a, b, t), center=True, bgr=True)
         return img
 
@@ -1052,6 +1075,10 @@ def _frame_pass(src, out, audio_wav, vis, tg, fps, quality, final_encode, beat):
         sx, sy = W / sw, H / sh
         cap_mask_rect = (mrect[0] * sx, mrect[1] * sy, mrect[2] * sx, mrect[3] * sy)
     caps = Captions(vis, W, H, tg.get("profile"), band_rect=bot_rect, mask_rect=cap_mask_rect) if vis["captions"] else None
+    if caps:
+        for a, b, layer in layers:
+            if isinstance(layer, FX.MediaInsert) and layer.p.get("detail_regions"):
+                layer.inst["_caption_band"] = caps.bounds(a, b)
     title = vis["title"]
     title_arr = title_y = None
     if title:

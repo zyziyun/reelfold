@@ -520,7 +520,8 @@ class MediaInsert(Layer):
                 self.close()
                 raise ValueError("media-insert: selected interval exceeds the source video; choose a shorter insert")
         try:
-            picture = broll.detail_view(self.item.src.frame(t), self.W, self.H, self.p["detail_regions"]) \
+            picture = broll.detail_view(self.item.src.frame(t), self.W, self.H, self.p["detail_regions"],
+                                        caption_band=self.inst.get("_caption_band")) \
                 if self.p.get("detail_regions") is not None else self.item.view(t, self.W, self.H, t)
         except Exception:
             self.close()

@@ -416,7 +416,7 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
 
     spans = sorted(((c.start, c.end, k, c) for k, c in enumerate(cues) if c.text.strip()), key=lambda s: s[0])
 
-    def _place(i, t, w, h, cx, y):
+    def _place(i, t, w, h, cx, y, count=True):
         boxes = [map_box(plan, k["box"], i) for k in kos if k["t0"] <= t < k["t1"]]
         if not boxes:
             return y
@@ -428,9 +428,11 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
         cands = [b[1] - h - m for b in boxes] + [b[3] + m for b in boxes]
         cands = [c for c in cands if sy0 <= c <= sy1 - h and not hits(c)]
         if not cands:
-            rep_["blocked"] += 1
+            if count:
+                rep_["blocked"] += 1
             return y
-        rep_["moved"] += 1
+        if count:
+            rep_["moved"] += 1
         return min(cands, key=lambda c: abs(c - y))
 
     from .subs import cue_opacity
@@ -449,6 +451,22 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
                     y = _place(i, t, w, h, cx, y)
                 draw.alpha_paste(img, L, (cx - w / 2, y), opacity=op, bgr=True)
         return img
+    def bounds(start, end):
+        boxes = []
+        for a, b, k, c in spans:
+            if a >= end or b <= start:
+                continue
+            h, w = layer(k, c).shape[:2]
+            cx, cy = (x0+x1)/2, (y0+y1)/2
+            y = min(cy-h/2, y1-h) if h <= y1-y0 else cy-h/2
+            # Caption keep-outs can move with a reframed source. Include every
+            # rendered position over this insert, not just the first cue.
+            times = range(max(0, int(max(a,start)*fps)), int(min(b,end)*fps)+1) if kos else [0]
+            for i in times:
+                yy = _place(i, i/fps, w, h, cx, y, count=False) if kos else y
+                boxes.append((yy, yy+h))
+        return (min(b[0] for b in boxes), max(b[1] for b in boxes)) if boxes else None
+    overlay.bounds = bounds
     return overlay
 
 
@@ -789,6 +807,9 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         from . import spoken
         fx = [dict(e, start=e["start"] - start, end=e["end"] - start) for e in effects
               if e["end"] > start and (dur is None or e["start"] < start + dur)]
+        if overlay:
+            fx = [dict(e, _caption_band=overlay.bounds(e["start"], e["end"]))
+                  if e["effect"] == "media-insert" and e.get("params", {}).get("detail_regions") else e for e in fx]
         draw_effects = spoken.overlay(fx, prof.w, prof.h, P.safe_box(prof))
         draw_captions = overlay
 

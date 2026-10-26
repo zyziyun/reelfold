@@ -171,3 +171,77 @@ def test_secondary_portrait_pass_draws_the_selected_detail(assets, tmp_path):
     geo = detail_geometry(dict(vertical=True, canvas=(180,320), camera=None), (400,1200), regions)
     x,y,w,h = geo['details'][0]['box']
     assert frame[y+h//2,x+w//2,1] > 210 and frame[y+h//2,x+w//2,2] < 60
+
+@pytest.mark.parametrize('band', [(95,165), (350,415), (510,565)])
+@pytest.mark.parametrize('size', [(360,640),(640,360)])
+def test_detail_layout_leaves_caption_pixels_clear(assets, band, size):
+    from vstudio import broll
+    w,h=size
+    band=tuple(v*h/640 for v in band)
+    source=np.asarray(Image.open(assets[1]).convert('RGB'))
+    frame=broll.detail_view(source,w,h,[[0,400,400,400]],caption_band=band)
+    rail=frame[int(band[0]):int(band[1])+1]
+    assert np.all(rail == np.array([238,234,226]))
+    assert ((frame[:,:,1]>230)&(frame[:,:,0]<40)).sum()>100
+    # The overview keeps both other source colours as well.
+    assert ((frame[:,:,0]>230)&(frame[:,:,1]<40)).sum()>100
+    assert ((frame[:,:,2]>230)&(frame[:,:,1]<40)).sum()>100
+
+@pytest.mark.parametrize('position', ['bottom','middle','top'])
+def test_secondary_detail_captions_do_not_cover_source(assets,tmp_path,position):
+    import cv2
+    from vstudio.project import outputs as O, outrender as R
+    source,photo=assets
+    st=O.empty_state();st['effects']=[inst(photo,detail_regions=[[0,400,400,400]])]
+    rec=dict(mode='pipeline',info=dict(duration=5,w=320,h=180),cues=[])
+    tg=dict(target='primary',w=360,h=640,profile=None,layout='auto')
+    vis=R.visual_spec(rec,st,O.Timeline(st,5),tg,False)
+    vis['captions']=[(2,5,'Readable captions stay clear of details.')]
+    vis['style']=dict(position=position,size=1.2)
+    band=R.Captions(vis,360,640,None).bounds(2,5)
+    dest=str(tmp_path/'captioned.mp4')
+    R.frame_pass(str(source),dest,None,vis,tg,15,'preview',None,lambda p:None)
+    cap=cv2.VideoCapture(dest);cap.set(cv2.CAP_PROP_POS_MSEC,3000)
+    ok,frame=cap.read();cap.release();assert ok
+    green=(frame[:,:,1]>200)&(frame[:,:,0]<60)&(frame[:,:,2]<60)
+    assert green.sum()>1000
+    assert not green[max(0,int(band[0])):min(640,int(band[1])+1)].any()
+    rail=frame[max(0,int(band[0])):min(640,int(band[1])+1)]
+    assert (rail.max(axis=2)<100).sum()>30 # Actual caption ink exists.
+
+
+def test_initial_export_reserves_bilingual_caption_bounds(assets,tmp_path):
+    import json, cv2
+    from vstudio.subs import Cue
+    source,photo=assets
+    prof=platform.profile('youtube','horizontal',overrides=dict(w=360,h=640,
+        safe=dict(top=18,bottom=32,left=18,right=18),
+        caption=dict(band=[500,590],size=[18,22],max_chars_zh=16,max_chars_en=36,max_lines=2,stroke=.08)))
+    text='The detail stays visible.'
+    alt='字幕不应遮挡关键内容。'
+    cues=tmp_path/'cues.json'
+    cues.write_text(json.dumps(dict(cues=[dict(start=2,end=5,text=text,alt=alt)])))
+    bounds=export.caption_overlay(prof,[Cue(2,5,text,alt)],15).bounds(2,5)
+    out=tmp_path/'out';out.mkdir()
+    r=export.export_one(str(source),prof,str(out),captions='burn',cues=str(cues),watermark=False,
+        effects=[inst(photo,detail_regions=[[0,400,400,400]])],encoder='libx264',preset='ultrafast',mode='letterbox')
+    cap=cv2.VideoCapture(str(out/r['file']));cap.set(cv2.CAP_PROP_POS_MSEC,3000)
+    ok,frame=cap.read();cap.release();assert ok
+    green=(frame[:,:,1]>200)&(frame[:,:,0]<60)&(frame[:,:,2]<60)
+    assert green.sum()>1000
+    assert not green[int(bounds[0]):int(bounds[1])+1].any()
+    assert (frame[int(bounds[0]):int(bounds[1])+1].max(axis=2)<100).sum()>30
+
+
+def test_caption_measurement_is_interval_scoped_and_does_not_freeze_surface():
+    from vstudio.project.outrender import Captions
+    vis=dict(captions=[(1,2,'Short'),(3,5,'Longer captions have multiple lines and must retain their own space.')],
+             style=dict(position='middle'),caption_box=(18,500,342,590))
+    caps=Captions(vis,360,640,None)
+    before=caps.cache
+    assert caps.bounds(5,8) is None
+    small=caps.bounds(1,2); both=caps.bounds(1,5)
+    assert both[0]<=small[0] and both[1]>=small[1]
+    assert caps.cache is before and not caps.cache
+    # Layout measurement must not freeze the later per-frame surface colour.
+    assert caps.paper_rgb is None
