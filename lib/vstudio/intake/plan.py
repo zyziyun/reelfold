@@ -730,6 +730,10 @@ def _apply_ctx_defaults(m, params, sources, ctx, ins, analysis):
         for k, v in bd.items():
             if k in props and k not in params:
                 params[k], sources[k] = v, "material"
+        if params.get("layout") != "band":
+            # A model preference must not burn a second track over retained text.
+            # Explicit band reconstruction removes the old caption region first.
+            params["captions"], sources["captions"] = False, "material"
         if params.get("layout") == "band" and params.get("captions") is False and sources.get("captions") != "prompt":
             params["captions"], sources["captions"] = True, "material"   # band = old captions cropped: new ones
         if "speed" not in params:

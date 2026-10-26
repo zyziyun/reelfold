@@ -71,3 +71,23 @@ def test_export_band_layout_crops_old_captions(tmp_path):
                      captions=False)
     assert (e["w"], e["h"]) == (1080, 1440)
     assert e["reframe"]["band"]["region"] == [0, 0, 640, 258] and e["reframe"]["mode_used"] == "pad-blur"
+
+@pytest.mark.parametrize('layout', ['letterbox', 'pad-blur', 'face'])
+def test_model_cannot_add_second_captions_over_retained_baked_text(tmp_path, layout):
+    analysis = build('finished', tmp_path)
+    raw = dict(recipe='talkinghead', inputs={'video': [analysis['files'][0]['id']]},
+               items=dict(method='per-file'), params=dict(captions=True, layout=layout))
+    plan = PL.make_plan('剪成口播视频', analysis=analysis, asr='off',
+                        call=lambda s, b: dict(json=dict(projects=[raw]), model='mock'))
+    assert plan['planner']['fallback'] is False
+    assert _th(plan)['params']['captions'] is False
+
+@pytest.mark.parametrize('source,layout', [('finished', 'band'), ('talk', 'letterbox')])
+def test_new_captions_remain_available_for_band_reconstruction_and_raw_speech(tmp_path, source, layout):
+    analysis = build(source, tmp_path)
+    raw = dict(recipe='talkinghead', inputs={'video': [analysis['files'][0]['id']]},
+               items=dict(method='per-file'), params=dict(captions=True, layout=layout, crop_bottom=0.28))
+    plan = PL.make_plan('剪成口播视频', analysis=analysis, asr='off',
+                        call=lambda s, b: dict(json=dict(projects=[raw]), model='mock'))
+    assert plan['planner']['fallback'] is False
+    assert _th(plan)['params']['captions'] is True
