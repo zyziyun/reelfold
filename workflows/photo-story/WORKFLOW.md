@@ -53,6 +53,29 @@ These sheets do not establish frame-accurate or continuous-playback acceptance.
    python3 $VSTUDIO/workflows/photo-story/scripts/photostory/render.py work/spec.py --stills 2,10,25,40
    ```
    Stills go to `work/stills/` at 1/3 size (`--full` for full size). Look at each one. Check mid-transition times too.
+   For product/process footage, replace the example times with each selected action's onset, contact,
+   release and result, plus each framing change. Compare those output frames with the corresponding
+   source frames. A few evenly spaced stills can miss a cropped-out hand or a cut before the result.
+
+   Review each requested aspect ratio at phone size before approving its layout:
+   - **Information:** the object, tool and interaction must remain understandable. A detail can crop the
+     object only after context is established; the closing view must communicate the result.
+   - **Composition:** compare a single view with any proposed overview/detail pair. Keep a second pane
+     only when it adds readable information. Inspect actual magnification, not just crop coordinates.
+     Neither repeated wide panes nor an undersized picture surrounded by accidental matte is a pass.
+   - **Safe areas:** keep essential action, text and logos clear of platform UI. Background imagery may
+     extend beyond those areas; safe margins are not a requirement to render blank bands. Do not solve
+     empty space by stretching the subject or cropping away the demonstration. Check labels against
+     moving hands/tools across the interval, not just the first frame.
+   - **Motion:** play the action and its cuts continuously, and keep flicker checks enabled. A larger
+     crop can make source exposure changes more prominent even when the wider version passed.
+
+   If a layout fails, revise its framing or shot choice and repeat the comparison. Record what remains
+   unverified; a successful encode or flicker pass does not approve the composition. These are review
+   steps, not an automated semantic-quality guarantee. See TikTok's
+   [creative guidance](https://ads.tiktok.com/business/creativecenter/quicktok/online/tiktok_creative_accelerator/pc/en)
+   for keeping products and important elements clear of its UI; use the current destination preview
+   for its actual caption and button overlays.
 4. **Cast the voice, then make it** (skip in `MODE = "music"`). In a project the `voice` step casts the narrator
    before any take is made (`vstudio.voicecast`, catalog `lib/vstudio/voices.json`): the routed AI picks the speaker
    and a delivery instruction for the story's kind, language, platform and script tone - history / documentary calm
