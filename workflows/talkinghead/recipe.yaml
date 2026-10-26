@@ -19,6 +19,14 @@ inputs:
     accept: [.mp4, .mov, .m4v, .mkv, .webm]
     scope: item
     help: {zh: "一条一个条目；整夹导入 = 批量", en: "one item per clip; a folder = a batch"}
+  - key: broll
+    kind: file
+    labels: {zh: "补充视频 / 截图", en: "Supporting videos / screenshots"}
+    required: false
+    multiple: true
+    accept: [.mp4, .mov, .m4v, .mkv, .webm, .png, .jpg, .jpeg, .webp, .bmp]
+    scope: project
+    help: {zh: "按原话选用画面并保留原声", en: "Visual inserts matched to speech; narration stays"}
 items:
   sources: [single, files, folder, csv, variants]
   from_input: video
@@ -43,8 +51,8 @@ params:
     finishing:
       enum: [assembly, editorial]
       default: assembly
-      title: Visual finishing (fast pipeline)
-      x-zh: 视觉编排（快速引擎）
+      title: Visual finishing (fast engine; supplied material is selected in either engine)
+      x-zh: 视觉编排（快速引擎；两种引擎均可自动选用补充素材）
     pipeline:
       enum: [fast, vtrack]
       x-format: engine

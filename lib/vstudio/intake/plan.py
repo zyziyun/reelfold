@@ -598,10 +598,10 @@ def _used_paths(ins, rows=()):
 
 
 def _add_broll(ins, broll, cands, rows=()):
-    """Videos the plan names for a project (its ``materials``, the extra files of a one-file input) that no input
+    """Supporting media the plan names for a project (its ``materials``, the extra files of a one-file input) that no input
     took go into the b-roll input: a recording she attached as B-roll is never silently dropped."""
     used = set(_used_paths(ins, rows))
-    add = [x for x in cands if isinstance(x, str) and x not in used and I.kind_of(x) == "video" and _accepts(broll, x)]
+    add = [x for x in cands if isinstance(x, str) and x not in used and I.kind_of(x) in ("video", "image") and _accepts(broll, x)]
     if add:
         cur = ins.get(broll["key"]) or []
         ins[broll["key"]] = list(dict.fromkeys((cur if isinstance(cur, list) else [cur]) + add))

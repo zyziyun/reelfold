@@ -103,3 +103,10 @@ def test_apply_on_autopilot_marks_the_projects_and_their_run(tmp_path):
     assert pr.data["autopilot"]["on"] is True and pr.data["autopilot"]["lang"] == "fr"
     assert pr.data["prompt"] == plan["prompt"]
     assert "--autopilot" in res["projects"][0]["run"] and "--pilot" not in res["projects"][0]["run"]
+
+
+def test_talkinghead_keeps_named_supporting_images(tmp_path):
+    plan, a = _plan(tmp_path, dict(recipe='talkinghead', name='Demo',
+        materials=['f1', 'f5', 'f6'], inputs=dict(video=['f1']), params=dict(pipeline='fast')))
+    by = {f['id']: f['path'] for f in a['files']}
+    assert set(plan['projects'][0]['inputs']['broll']) >= {by['f5'], by['f6']}

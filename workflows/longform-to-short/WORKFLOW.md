@@ -301,3 +301,22 @@ Change one knob, re-run from that step down:
 
 Coaching-call variant (diarization, visual privacy leaks, word-level filler tightening):
 `references/coaching-variant.md`.
+
+
+### Supplied supporting material
+
+Attach optional `broll` images or videos alongside the primary speech recording. The
+finishing stage previews the actual material and selects source IDs against proofread
+caption spans, then renders full-frame inserts with the original voice continuing.
+Images preserve EXIF orientation; videos use a bounded source offset. `contain` preserves
+the frame, `cover` explicitly crops, and `card` scrolls a tall document at full width.
+Selections and quoted speech evidence are saved in `finish/editorial-plan.json` and
+remain removable through output editing. Supplying material enables this planning pass
+even with `finishing: assembly`; unused material is not forced into the story.
+
+Talking-head fast and V-track exports support these inserts. Long-form slices require
+`layout_mode: reframe`; split-screen slices currently reject this input explicitly.
+Missing files or wholly unavailable previews stop the pass. Sampled video sheets do not
+prove unseen action boundaries: review the selected interval and document reading time
+in the finished export. This does not replace narrative recutting or establish premium
+quality by the number of effects.

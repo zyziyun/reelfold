@@ -389,17 +389,39 @@ def run_finish(ctx):
     path = caption_cues(ctx)
     data = read_json(path, {})
     cues = data.get("cues", []) if isinstance(data, dict) else data
-    result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "")
+    from vstudio import supporting_media
+    supplied = supporting_media.paths(ctx.job, ctx.spec)
+    kwargs = {}
+    material_files = []
+    if supplied:
+        text, images, assets = supporting_media.context(supplied, ctx.path("materials"))
+        if not assets:
+            raise ValueError("Supporting materials have no usable visual previews; inspect or replace the supplied files")
+        kwargs = dict(materials=assets, images=images, material_context=text)
+        material_files = images + [a["path"] for a in assets]
+    result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "", **kwargs)
     dest = write_json(ctx.path("editorial-plan.json"), result)
     ctx.log(f"spoken finishing: {len(result['effects'])} source-grounded visual beats")
-    return dict(plan=dest, effects=result["effects"], files=[dest])
+    return dict(plan=dest, effects=result["effects"], files=[dest, *material_files])
 
 
 def _finish_params(job, spec):
     from vstudio import llm
     route = llm.route("edit")
     return dict(_keyp("finishing", "title", "caption_overrides", "subtitles", "subtitle_lang")(job, spec),
-                provider=route.provider, model=route.model)
+                provider=route.provider, model=route.model,
+                materials=_material_signatures(job, spec))
+
+
+def _has_materials(job, spec):
+    from vstudio import supporting_media
+    return bool(supporting_media.paths(job, spec))
+
+
+def _material_signatures(job, spec):
+    from vstudio import supporting_media
+    from vstudio.project.outputs import file_sig
+    return [(p, file_sig(p)) for p in supporting_media.paths(job, spec)]
 
 
 def run_export(ctx):
@@ -952,7 +974,7 @@ def speech_stages(copy=False):
               params=_proofread_params, enabled=_proofread_on, units=lambda j, s: 1.0, version=2,
               cost=lambda j, s: 0.02 if proofread_opts(s)["provider"] != "none" else 0.0),
         Stage("finish", "cpu", run_finish, deps=("compose", "proofread"),
-              enabled=lambda j, s: _p(j).get("finishing") == "editorial",
+              enabled=lambda j, s: _p(j).get("finishing") == "editorial" or _has_materials(j, s),
               params=_finish_params,
               units=lambda j, s: 1.0, retries=0),
         Stage("export", _export_resource, run_export, deps=exp_deps,

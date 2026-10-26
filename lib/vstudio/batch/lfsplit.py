@@ -316,6 +316,9 @@ def lfc_config(p, spec, geo, out_dir):
 
 # --------------------------------------------------------------------------- expansion
 def expand_split(spec, rows):
+    from vstudio import supporting_media
+    if any(supporting_media.paths(dict(params=row), spec) for row in rows):
+        raise ValueError("Supporting material inserts require layout_mode=reframe; split-screen export does not support them yet")
     from vstudio import media
     from vstudio import platform as PF
     src = (spec.get("inputs") or {}).get("source")

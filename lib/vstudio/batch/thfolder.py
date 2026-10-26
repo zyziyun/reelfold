@@ -24,6 +24,7 @@ config.py -> compose.py all --clean-master: caption-free master + cues with keep
 qc -> preview. The verify re-hearing of the V track is ``strict_pass.py verify`` (manual); the batch's lost-word
 gate is skipped here.
 """
+from dataclasses import replace
 import os
 import subprocess
 import sys
@@ -669,8 +670,9 @@ def th_stages():
               units=lambda j, s: dur(j, s) * 3, params=_compose_params, purge=("*.mp4", "out/*.mp4"), version=6),
         Stage("verify", "asr", _no_verify, deps=("compose",), enabled=lambda j, s: False),
         base["proofread"],
+        replace(base["finish"], enabled=ST._has_materials),
         ST.copy_stage(),                              # post title + body drafted from the final captions
-        Stage("export", ST._export_resource, ST.run_export, deps=("compose", "proofread", "copy"),
+        Stage("export", ST._export_resource, ST.run_export, deps=("compose", "proofread", "copy", "finish"),
               params=ST._export_params,
               units=lambda j, s: dur(j, s) * max(1, len(j["params"].get("platforms") or [])),
               purge=("exports/*.mp4",)),

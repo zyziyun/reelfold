@@ -12,19 +12,21 @@ SCHEMA = {"type": "object", "required": ["beats"], "properties": {"beats": {
     "type": "array", "items": {"type": "object", "required": ["from", "to", "kind", "title", "items", "evidence"],
     "properties": {"from": {"type": "integer"}, "to": {"type": "integer"},
                    "evidence_from": {"type": "integer"},
-                   "kind": {"enum": ["contrast", "chain", "takeaway"]}, "title": {"type": "string"},
+                   "kind": {"enum": ["contrast", "chain", "takeaway", "insert"]}, "title": {"type": "string"},
                    "items": {"type": "array", "items": {"type": "string"}},
-                   "evidence": {"type": "string"}}}}}}
+                   "evidence": {"type": "string"}, "asset": {"type": "string"},
+                   "offset": {"type": "number"}, "fit": {"enum": ["contain", "cover", "card"]}}}}}}
 
 
 def _plain(text):
     return re.sub(r"[\s【】]", "", str(text or "")).lower()
 
 
-def validate(doc, cues, duration):
+def validate(doc, cues, duration, materials=None):
     """Validate every proposed beat; invalid plans fail visibly, never count as applied."""
     if not isinstance(doc, dict) or not isinstance(doc.get("beats"), list):
         raise ValueError("spoken finishing: the visual plan has no beats array")
+    assets = {m["id"]: m for m in materials or []}
     beats = doc["beats"]
     if len(beats) > max(1, math.ceil(duration / 8)):
         raise ValueError("spoken finishing: too many visual beats for this clip")
@@ -43,15 +45,16 @@ def validate(doc, cues, duration):
         if start < end + 1.5:
             raise ValueError("spoken finishing: visual beats overlap or leave no return to the speaker")
         kind, title, items = b.get("kind"), b.get("title"), b.get("items")
-        if kind not in ("contrast", "chain", "takeaway") or not isinstance(title, str) or not 1 <= len(title) <= 44:
-            raise ValueError("spoken finishing: invalid visual type or heading")
-        if not isinstance(items, list) or not 1 <= len(items) <= 3 or any(
-                not isinstance(t, str) or not 1 <= len(t) <= 54 for t in items):
-            raise ValueError("spoken finishing: a card needs 1–3 short readable statements")
-        if kind == "contrast" and len(items) != 2:
-            raise ValueError("spoken finishing: a contrast needs exactly two sides")
-        if kind == "chain" and len(items) < 2:
-            raise ValueError("spoken finishing: a chain needs at least two steps")
+        if kind != "insert":
+            if kind not in ("contrast", "chain", "takeaway") or not isinstance(title, str) or not 1 <= len(title) <= 44:
+                raise ValueError("spoken finishing: invalid visual type or heading")
+            if not isinstance(items, list) or not 1 <= len(items) <= 3 or any(
+                    not isinstance(t, str) or not 1 <= len(t) <= 54 for t in items):
+                raise ValueError("spoken finishing: a card needs 1–3 short readable statements")
+            if kind == "contrast" and len(items) != 2:
+                raise ValueError("spoken finishing: a contrast needs exactly two sides")
+            if kind == "chain" and len(items) < 2:
+                raise ValueError("spoken finishing: a chain needs at least two steps")
         # The on-screen duration is not the length of the supporting argument.
         # Permit nearby prior context, but never borrow a later conclusion.
         ea = b.get("evidence_from", a)
@@ -63,20 +66,38 @@ def validate(doc, cues, duration):
         excerpt = "".join(c["text"] for c in cues[ea:z + 1])
         if not isinstance(b.get("evidence"), str) or len(_plain(b["evidence"])) < 4 or _plain(b["evidence"]) not in _plain(excerpt):
             raise ValueError("spoken finishing: the evidence must quote the selected speech")
-        # Summary labels may paraphrase; they must not introduce a new number.
-        number = r"\d+(?:[.,]\d+)*"
-        source_numbers = set(re.findall(number, excerpt))
-        if any(n not in source_numbers for n in re.findall(number, title + " ".join(items))):
-            raise ValueError("spoken finishing: a card introduces a number absent from its source")
-        effects.append(dict(id=f"spoken-{i + 1}", effect="explanation-card", start=start, end=stop,
-                            params=dict(title=title, items=items, kind=kind)))
+        if kind == "insert":
+            asset_id = b.get("asset")
+            asset = assets.get(asset_id) if isinstance(asset_id, str) else None
+            offset = b.get("offset", 0)
+            fit = b.get("fit", "contain")
+            if asset is None:
+                raise ValueError("spoken finishing: insert must name an available visual asset ID")
+            if type(offset) not in (int, float) or not math.isfinite(offset) or offset < 0:
+                raise ValueError("spoken finishing: insert source offset must be finite and nonnegative")
+            if fit not in ("contain", "cover", "card"):
+                raise ValueError("spoken finishing: unknown insert fit")
+            if asset["kind"] == "video" and offset + stop - start > asset["duration"]:
+                raise ValueError("spoken finishing: insert exceeds its source video")
+            if asset["kind"] == "image" and offset != 0:
+                raise ValueError("spoken finishing: a still image has no source offset")
+            effects.append(dict(id=f"spoken-{i + 1}", effect="media-insert", start=start, end=stop,
+                                params=dict(file=asset["path"], offset=offset, fit=fit)))
+        else:
+            # Summary labels may paraphrase; they must not introduce a new number.
+            number = r"\d+(?:[.,]\d+)*"
+            source_numbers = set(re.findall(number, excerpt))
+            if any(n not in source_numbers for n in re.findall(number, title + " ".join(items))):
+                raise ValueError("spoken finishing: a card introduces a number absent from its source")
+            effects.append(dict(id=f"spoken-{i + 1}", effect="explanation-card", start=start, end=stop,
+                                params=dict(title=title, items=items, kind=kind)))
         end = stop
     if sum(e["end"] - e["start"] for e in effects) > duration * 0.4:
         raise ValueError("spoken finishing: graphics cover too much of the speaker's story")
     return effects
 
 
-def plan(cues, duration, title="", complete=None):
+def plan(cues, duration, title="", complete=None, materials=None, images=None, material_context=""):
     from vstudio import llm
     system = (
         "You edit spoken videos: lessons, interviews, demos and personal or expert stories. "
@@ -114,17 +135,31 @@ def plan(cues, duration, title="", complete=None):
     )
     prompt = f"TITLE (context only): {title}\nDURATION: {duration:.3f}s\nCAPTIONS:\n" + "\n".join(
         f"[{i}] {c['start']:.3f}–{c['end']:.3f} {c['text']}" for i, c in enumerate(cues))
+    if materials:
+        system += (
+            " Supporting material is available as labelled visual sheets. Prefer a relevant real demonstration, "
+            "document or supporting shot over restating that same idea in a text card. Use kind insert with asset "
+            "set to an AVAILABLE asset ID, offset in SOURCE video seconds (0 for stills), fit contain/cover/card, "
+            "and the same from/to/evidence caption anchors. Set title to an empty string and items to []. "
+            "Use contain to preserve the whole image; cover only when cropping loses nothing important; card "
+            "for a tall screenshot shown at full width and scrolled over the insert duration. Ensure reading time. "
+            "Inspect the images, not the filenames. Samples do not verify unseen actions or exact action boundaries. "
+            "Do not manufacture evidence or use unrelated material just to use every file. Inserts and cards "
+            "share the timing/coverage limits. The original narration continues; source clip audio is not used.")
+        prompt += "\nAVAILABLE SUPPORTING MATERIAL:\n" + material_context
     call = complete or llm.complete
     repairs = []
     for attempt in range(2):
-        result = call("edit", system, prompt, schema=SCHEMA, max_tokens=3500)
+        result = call("edit", system, prompt, schema=SCHEMA, max_tokens=3500, **({"images": images} if images else {}))
         doc = (result or {}).get("json")
         try:
-            effects = validate(doc, cues, duration)
+            effects = validate(doc, cues, duration, materials)
             # Use the real typography layout before accepting a plan. A high-resolution
             # export must not hide overflow by shrinking below readable phone scale.
             from vstudio.project import outfx
             for effect in effects:
+                if effect["effect"] == "media-insert":
+                    continue
                 for w, h in ((640, 360), (360, 640), (450, 600)):
                     layer = outfx.make_layer(effect, w, h, (w * .07, h * .07, w * .92, h * .9))
                     try:
@@ -133,6 +168,8 @@ def plan(cues, duration, title="", complete=None):
                         raise ValueError(f"spoken finishing: {w}x{h} layout: {error}") from error
             from vstudio.subs import reading_time
             for effect in effects:
+                if effect["effect"] == "media-insert":
+                    continue
                 params = effect["params"]
                 text = " ".join([params["title"], *params["items"]])
                 required = reading_time(text, lo=0, hi=float("inf"))

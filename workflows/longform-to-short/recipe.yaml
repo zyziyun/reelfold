@@ -29,6 +29,14 @@ inputs:
     required: false
     accept: [.yaml, .yml, .csv, .json]
     scope: project
+  - key: broll
+    kind: file
+    labels: {zh: "补充视频 / 截图", en: "Supporting videos / screenshots"}
+    required: false
+    multiple: true
+    accept: [.mp4, .mov, .m4v, .mkv, .webm, .png, .jpg, .jpeg, .webp, .bmp]
+    scope: project
+    help: {zh: "按原话选用画面；保留原声（长视频使用整画面重构模式）", en: "Visual inserts matched to speech; narration stays (long recordings use reframe mode)"}
 items:
   sources: [segments, csv]
   planner: vstudio.project.adapters.longform:plan_items
