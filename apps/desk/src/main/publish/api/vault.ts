@@ -38,11 +38,18 @@ export class ApiVault {
     return !(this.platform === 'linux' && this.crypto.getSelectedStorageBackend?.() === 'basic_text');
   }
 
-  private readAll(): Record<string, string> {
+  private readAll(forWrite = false): Record<string, string> {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return raw && typeof raw === 'object' ? raw : {};
-    } catch {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+          Object.values(raw).some(value => typeof value !== 'string')) throw new Error('invalid credential store');
+      return raw;
+    } catch (error) {
+      // Only a genuinely absent store can be initialized. A parse/read failure
+      // must not erase other accounts or durable upload recovery information.
+      if (forWrite && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error('Publishing credentials could not be read. Existing saved accounts were not changed.', { cause: error });
+      }
       return {};
     }
   }
@@ -64,7 +71,7 @@ export class ApiVault {
 
   set(id: string, patch: ApiSecret | null) {
     if (patch && !this.keychain()) throw new Error('the OS keychain is not available: nothing is stored');
-    const all = this.readAll();
+    const all = this.readAll(true);
     if (patch === null) delete all[id];
     else all[id] = this.crypto.encryptString(JSON.stringify({ ...this.get(id), ...patch })).toString('base64');
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
