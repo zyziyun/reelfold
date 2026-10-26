@@ -363,7 +363,7 @@ export function useRecorder() {
           r.ondataavailable = (ev) => {
             if (!ev.data || !ev.data.size) return;
             const n = seq++;
-            const startMs = n === 0 ? Date.now() - 1000 : undefined;
+            const startMs = n === 0 ? startedAt : undefined;
             writer.add(async () => {
               const data = new Uint8Array(await ev.data.arrayBuffer());
               await window.desk.rec.chunk(startMs === undefined ? { sessionId, track, seq: n, data } : { sessionId, track, seq: n, data, startMs });
@@ -375,6 +375,9 @@ export function useRecorder() {
             if (mounted.current && sess.current === session) interruptCapture('encoder');
           });
           const lifecycle = recorderLifecycle(r);
+          // Chunk delivery is asynchronous, and timeslice is not an exact clock.
+          // Anchor alignment to start(), using one monotonic clock across inputs.
+          const startedAt = Math.round(performance.timeOrigin + performance.now());
           lifecycle.start(1000);
           session.stops.push(lifecycle.stop);
           session.recorders.push(r);

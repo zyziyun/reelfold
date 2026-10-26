@@ -24,7 +24,7 @@ Errors are `{"error": {"code": "create.<code>", "params": {...}}}` with exit cod
 ## Interrupted recordings
 
 The desktop recorder keeps camera, microphone and optional screen tracks separately, with pause-adjusted
-timing. The same capture hook serves in-place pickups. If a camera, microphone or shared window ends during
+timing. Track alignment uses the monotonic timestamp of each recorder start, not first-chunk arrival minus the requested chunk interval: encoding and event delivery can be delayed independently. The same capture hook serves in-place pickups. If a camera, microphone or shared window ends during
 a take, pause the surviving recorders together: do not silently continue with one missing input, resume a
 partial set, or replace an input mid-take. The UI identifies the lost input and offers **Save this take**;
 the creator can save the recorded part, reconnect or choose the input, and start another take.

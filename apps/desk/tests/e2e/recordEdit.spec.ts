@@ -760,3 +760,62 @@ test.describe('shared window ends during a take', () => {
     await shot(page, 'R8-screen-ended-saved');
   });
 });
+
+test('chunk delivery delay does not shift microphone alignment', async () => {
+  const { app, page } = await launch('delayed-chunk-clock', { DESK_STUDIO: '1' });
+  try {
+    await page.evaluate(() => { location.hash = '#/create/record'; });
+    await page.evaluate(() => {
+      const Native = MediaRecorder;
+      const data = Object.getOwnPropertyDescriptor(Native.prototype, 'ondataavailable')!;
+      window.MediaRecorder = new Proxy(Native, { construct(Target, args) {
+        const recorder = Reflect.construct(Target, args) as MediaRecorder;
+        if (!(args[0] as MediaStream).getVideoTracks().length) {
+          Object.defineProperty(recorder, 'ondataavailable', { set(handler) {
+            data.set!.call(recorder, (event: BlobEvent) => setTimeout(() => handler.call(recorder, event), 650));
+          } });
+          const listen = recorder.addEventListener.bind(recorder);
+          recorder.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject | null, options?: AddEventListenerOptions | boolean) => {
+            if (!listener) return;
+            listen(type, type === 'stop' ? (event: Event) => setTimeout(() => {
+              if (typeof listener === 'function') listener.call(recorder, event); else listener.handleEvent(event);
+            }, 650) : listener, options);
+          }) as MediaRecorder['addEventListener'];
+        }
+        return recorder;
+      } });
+      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+        const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+        const paint = () => { const c = canvas.getContext('2d')!; c.fillStyle = '#238b82'; c.fillRect(0,0,640,360); };
+        paint(); setInterval(paint, 40);
+        const audio = new AudioContext(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        await audio.resume();
+        Object.assign(window, { recordingTestAudio: { audio, tone, dest } });
+        return new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+      } });
+    });
+    await page.getByTestId('create-rec-allow').click();
+    await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+    await page.getByTestId('create-rec-start').click();
+    await page.waitForTimeout(2200);
+    await page.getByTestId('create-rec-stop').click();
+    const root = path.join(tmp, 'vhome-delayed-chunk-clock', 'recordings');
+    await expect.poll(() => fs.existsSync(root) && fs.readdirSync(root).some(name => {
+      const file = path.join(root, name, 'session.json');
+      return fs.existsSync(file) && Boolean(JSON.parse(fs.readFileSync(file, 'utf8')).ended);
+    })).toBeTruthy();
+    const take = path.join(root, fs.readdirSync(root)[0]);
+    const session = JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8'));
+    expect(session.tracks.mic.start_ms).toEqual(expect.any(Number));
+    expect(Math.abs(session.tracks.mic.start_ms - session.tracks.camera.start_ms)).toBeLessThan(100);
+    for (const track of ['camera', 'mic']) {
+      const file = path.join(take, `${track}.webm`);
+      // Streamed WebM may omit container duration; packet timestamps are authoritative.
+      const packets = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_packets', '-show_entries', 'packet=pts_time', '-of', 'json', file], { encoding: 'utf8' })).packets as { pts_time: string }[];
+      const times = packets.map(p => Number(p.pts_time)).filter(Number.isFinite);
+      expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(1);
+      execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-']);
+    }
+  } finally { await closeApp(app); }
+});
