@@ -471,6 +471,11 @@ export class YouTubeApi {
     };
   }
 
+  private uploadState(key: string) {
+    try { return this.d.vault.get(key, true); }
+    catch { throw new UploadOutcomeUnknown('Saved upload information could not be read. Restore keychain access or check YouTube Studio before retrying.'); }
+  }
+
   /** Only non-secret metadata may leave the main process. */
   pendingUpload(postId: string) {
     const session = this.d.vault.get(`youtube-upload/${postId}`).uploadSession;
@@ -481,7 +486,7 @@ export class YouTubeApi {
   /** Query only the saved session. Never create another upload while its outcome is unknown. */
   async recover(postId: string, resume = false, expectedAccount?: string | null, onProgress?: (sent: number, total: number) => void, onCaptions?: (index: number, total: number) => void): Promise<{ account: string; result: YtPublishResult } | null> {
     const key = `youtube-upload/${postId}`;
-    const saved = this.d.vault.get(key);
+    const saved = this.uploadState(key);
     const savedAccount = saved.uploadReceipt?.account ?? saved.uploadSession?.account;
     // Check before requesting a token, querying the session or sending any remaining bytes.
     if (savedAccount && expectedAccount !== undefined && savedAccount !== expectedAccount) {
@@ -518,7 +523,7 @@ export class YouTubeApi {
   /** Caption-only reconciliation bound to the original upload receipt and artifacts. */
   async refreshCaptions(postId: string, account: string, result: YtPublishResult, onCaptions?: (index: number, total: number) => void): Promise<YtPublishResult> {
     const key = `youtube-upload/${postId}`;
-    const saved = this.d.vault.get(key);
+    const saved = this.uploadState(key);
     if (saved.uploadReceipt?.account !== account || saved.uploadReceipt.result.id !== result.id || !result.id) return result;
     const tracks = saved.captionTracks ?? [];
     if (!tracks.length) return result;
@@ -550,7 +555,7 @@ export class YouTubeApi {
   async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string, onCaptions?: (index: number, total: number) => void): Promise<YtResult> {
     const receiptKey = postId ? `youtube-upload/${postId}` : null;
     if (postId) {
-      const saved = this.d.vault.get(receiptKey!);
+      const saved = this.uploadState(receiptKey!);
       if (saved.uploadSession || saved.uploadReceipt) {
         const recovered = await this.recover(postId, false, account, onProgress, onCaptions);
         if (recovered) {

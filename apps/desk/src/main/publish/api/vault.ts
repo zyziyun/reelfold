@@ -59,13 +59,17 @@ export class ApiVault {
     return Object.keys(this.readAll());
   }
 
-  get(id: string): ApiSecret {
-    const v = this.readAll()[id];
-    if (!v || !this.crypto.isEncryptionAvailable()) return {};
+  get(id: string, strict = false): ApiSecret {
+    const v = this.readAll(strict)[id];
+    if (v === undefined) return {};
     try {
-      return JSON.parse(this.crypto.decryptString(Buffer.from(v, 'base64'))) as ApiSecret;
-    } catch {
-      return {}; // written under a keychain item this app can no longer read: ask again
+      if (!this.keychain()) throw new Error('keychain unavailable');
+      const value = JSON.parse(this.crypto.decryptString(Buffer.from(v, 'base64')));
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid saved entry');
+      return value as ApiSecret;
+    } catch (error) {
+      if (strict) throw new Error('Saved publishing information could not be decrypted. It was not changed.', { cause: error });
+      return {}; // Account status remains readable when the keychain is unavailable.
     }
   }
 
@@ -73,7 +77,7 @@ export class ApiVault {
     if (patch && !this.keychain()) throw new Error('the OS keychain is not available: nothing is stored');
     const all = this.readAll(true);
     if (patch === null) delete all[id];
-    else all[id] = this.crypto.encryptString(JSON.stringify({ ...this.get(id), ...patch })).toString('base64');
+    else all[id] = this.crypto.encryptString(JSON.stringify({ ...this.get(id, true), ...patch })).toString('base64');
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = this.file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(all), { mode: 0o600 });

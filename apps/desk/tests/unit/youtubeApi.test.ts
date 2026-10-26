@@ -453,6 +453,21 @@ describe('resumable upload (fake API)', () => {
     expect(g.queries).toBeGreaterThan(0);
   });
 
+  it('does not start another upload when the saved encrypted entry is unreadable', async () => {
+    const { yt, dir } = await connected();
+    const request = { file: video(dir, 100), title: 't', description: '', tags: [], publishAt: null };
+    const file = path.join(dir, 'publish-api.json');
+    const entries = JSON.parse(fs.readFileSync(file, 'utf8'));
+    entries['youtube-upload/post-1'] = Buffer.from('unreadable-ciphertext').toString('base64');
+    const raw = JSON.stringify(entries);
+    fs.writeFileSync(file, raw);
+    await expect(yt.upload('main', request, undefined, 'post-1')).rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    await expect(yt.recover('post-1')).rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    expect(g.sessions.size).toBe(0);
+    expect(g.chunks).toBe(0);
+    expect(fs.readFileSync(file, 'utf8')).toBe(raw);
+  });
+
   it('recovers the original receipt after restart using an encrypted session without reuploading', async () => {
     const { yt, dir, vault } = await connected();
     const request = { file: video(dir, 100), title: 't', description: '', tags: [], publishAt: null };

@@ -37,3 +37,11 @@ describe('publishing credential persistence', () => {
     expect(vault.get('youtube/second').refreshToken).toBe('second');
   });
 });
+
+ it.each(['not-json', 'null', '[]', '42'])('refuses merging an unreadable encrypted entry: %s', decrypted => {
+    const { vault, file } = setup();
+    const raw = JSON.stringify({ 'youtube/main': Buffer.from(decrypted).toString('base64') });
+    fs.writeFileSync(file, raw);
+    expect(() => vault.set('youtube/main', { refreshToken: 'new' })).toThrow();
+    expect(fs.readFileSync(file, 'utf8')).toBe(raw);
+  });
