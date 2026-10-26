@@ -9,7 +9,7 @@ keep     (before the cut) her recording is transcribed (``work/audio.json``, the
          transcript). Review: the transcript as sentences, each kept or cut (with the AI's label), and
          "Keeps 9:40 of 12:44 - cuts the unfinished opening, the joke detour, the Hedra part".
 package  (before the build) captions from the cut (``work/draft_subs.txt``) + where her screen recordings, finished
-         clips and screenshots go (the AI reads the kept transcript and the file names: a screen recording full
+         clips and screenshots go (the AI reads the kept transcript and supplied visual contact sheets: a screen recording full
          screen with her face small in the corner while she talks about it, a finished clip in the montage, a
          screenshot as a card beside her), chapters, the end card, the cover line and the post. Without a model:
          the captions only (the rest is said to be left out). Review: one plain line per part.
@@ -38,8 +38,12 @@ SYSTEM_PACKAGE = (
     "You place the creator's supporting footage in her promo recut. You get her request, the kept transcript (raw "
     "times) and her files: screen recordings (shown full screen with her face small in a corner while she talks "
     "about what is on screen), finished clips (cut into a short montage near the end) and screenshots (a card "
-    "beside her while she talks about it). Match each file to the moment she talks about it (file names and the "
-    "transcript tell you). Never overlap two placements; stay inside the kept times. Reply JSON only: "
+    "beside her while she talks about it). Inspect the attached visual sheets and match visible content to the "
+    "kept speech. File names are labels, not evidence of what happened. Only place material whose visual "
+    "content supports that moment; leave unrelated or visually unavailable files unused. Sheets contain sampled "
+    "stills, not continuous playback: do not infer unseen actions or exact action boundaries. Use the mapped "
+    "original file name in your response, never a sheet file or its photo ID. Never overlap two placements; "
+    "stay inside the kept times. Reply JSON only: "
     '{"pip": [{"file": "<name>", "start": s, "end": s, "media_start": s, "tag": "<short label>"}], '
     '"cards": [{"file": "<name>", "start": s, "end": s}], '
     '"montage": [{"file": "<name>", "start": s, "end": s, "label": "<step label or null>"}], '
@@ -144,7 +148,7 @@ def speeds(request):
 
 
 # --------------------------------------------------------------------------- keep spans
-def _ask(complete, system, lang, body, max_tokens):
+def _ask(complete, system, lang, body, max_tokens, images=None):
     """One model call (task planner, the route's fallbacks) -> (result | None, error | None): no model or a failed
     call is not an error of the draft - the rules draft it, and the review says the AI was not available."""
     if complete is None:
@@ -152,7 +156,8 @@ def _ask(complete, system, lang, body, max_tokens):
         complete = llm.complete
     try:
         return complete("planner", system.replace("{lang}", D.LANGS.get(lang, "English")), body, schema=True,
-                        max_tokens=max_tokens, timeout=300, cli_timeout=300, retries=1), None
+                        max_tokens=max_tokens, timeout=300, cli_timeout=300, retries=1,
+                        **({"images": images} if images else {})), None
     except Exception as e:  # noqa: BLE001
         return None, str(e)[:300]
 
@@ -353,6 +358,31 @@ def _files(ctx):
     return out
 
 
+def _package_eyes(files, work):
+    """Reuse the existing footage/photo sheets; never describe images from names."""
+    from vstudio import footage
+    from . import photo_inputs
+    videos = [f for f in files if f["kind"] != "shot"]
+    photos = [f["path"] for f in files if f["kind"] == "shot"]
+    lines, images = [], []
+    if videos:
+        ids = [f"v{i + 1:04d}" for i in range(len(videos))]
+        text, sheets, _ = footage.context([f["path"] for f in videos],
+            os.path.join(work, "footage"), ids=ids, max_clips=len(videos))
+        lines.append("Video IDs map to original file names:\n" + "\n".join(
+            f"{vid}: {f['name']}" for vid, f in zip(ids, videos)))
+        lines.append(text)
+        images.extend(sheets)
+        available = {os.path.splitext(os.path.basename(p))[0] for p in sheets}
+        lines.extend(f"Visual preview unavailable: {f['name']}; do not place it from its name alone."
+                     for vid, f in zip(ids, videos) if vid not in available)
+    if photos:
+        text, sheets, _ = photo_inputs.context(photos, work)
+        lines.append("Screenshot IDs map to original file names:\n" + text)
+        images.extend(sheets)
+    return "\n".join(lines), images
+
+
 def _inside(a, b, spans):
     return any(x - 0.5 <= a and b <= y + 0.5 for x, y in spans)
 
@@ -374,7 +404,10 @@ def draft_package(ctx, cp, path, template=None, instruction=None, complete=None)
     msg = "\n".join(x for x in [f"Request: {ctx.request() or '(none)'}",
                                 f"Instruction: {instruction}" if instruction else "",
                                 f"Files:\n{flist}", "Kept transcript:", lines] if x)
-    r, ai_error = _ask(complete, SYSTEM_PACKAGE, lang, msg, 6000)
+    visual_text, images = _package_eyes(files, ctx.item_path("work", "package_sheets"))
+    if visual_text:
+        msg += "\nVisual source evidence:\n" + visual_text
+    r, ai_error = _ask(complete, SYSTEM_PACKAGE, lang, msg, 6000, images=images)
     if isinstance(r, dict) and r.get("provider") != "none" and isinstance(r.get("json"), dict):
         js, by, provider, model = r["json"], "ai", r.get("provider"), r.get("model")
     by_name = {f["name"]: f for f in files}

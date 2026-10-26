@@ -50,7 +50,7 @@ def talk(tmp_path_factory):
 def fake_model(reply, seen=None):
     def complete(task, system, prompt, **kw):
         if seen is not None:
-            seen.append(dict(task=task, system=system, prompt=prompt))
+            seen.append(dict(task=task, system=system, prompt=prompt, images=kw.get("images", [])))
         return dict(json=reply, text=json.dumps(reply), provider="claude-code", model="test")
     return complete
 
@@ -245,6 +245,14 @@ def test_packaging_is_drafted_from_the_kept_talk_and_her_files(tmp_path, talk, m
     cp = Project.create(str(tmp_path / "x"), recipe="promo-recut", inputs=dict(talk=[talk["video"]])).checkpoint("package")
     rec_ = DR.ensure(ctx, cp, str(cfg))
     assert rec_["by"] == "ai" and "MiniMax" not in seen[0]["system"] and "Screen Recording" in seen[0]["prompt"]
+    from PIL import Image
+    assert len(seen[0]["images"]) == 3  # two video sheets and the screenshot sheet
+    assert "v0001:" in seen[0]["prompt"] and "p0001:" in seen[0]["prompt"]
+    assert "File names are labels, not evidence" in seen[0]["system"]
+    for image in seen[0]["images"]:
+        assert str(item / "work" / "package_sheets") in image
+        with Image.open(image) as preview:
+            preview.verify()  # actual decoded visual inputs, not merely file names
     out = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     assert out["cut"]["body"] == body                                     # her cut stays as it was
     assert [s[2] for s in out["subtitles"]["body"]] == [sents[1]["text"], sents[3]["text"]]

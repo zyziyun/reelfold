@@ -18,6 +18,12 @@ labels, chapters, stamp and end card, the cover and the post. Start from
 `$VSTUDIO/workflows/promo-recut/examples/promo.config.example.yaml`, which documents every key. Taste
 (rates, loudness, brand colours, title length, tags) comes from the persona (`persona.local.yaml`).
 
+The automatic packaging draft receives contact sheets of supporting videos and screenshots alongside the
+kept transcript. It matches visible content to speech; file names identify sources but do not establish what
+is in them. Video sheets are sampled evidence, not frame-accurate action verification. Unrelated material or
+material without a readable visual preview should remain unused. Previews are stored in the item's
+`work/package_sheets/`; originals stay unchanged. Inspect the resulting placements before publishing.
+
 ## Pipeline (run from the project dir; `$VSTUDIO` = repo root)
 
 ```
