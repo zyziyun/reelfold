@@ -115,7 +115,8 @@ def prep_video(C, sh, name):
     look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
-                 C.pal["paper"], need, "fitted-video-zoom-v1"))
+                 C.pal["paper"], need, "fitted-video-zoom-v1",
+                 "content-detail-heights-v1" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
     out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
     if not os.path.exists(out):

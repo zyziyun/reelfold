@@ -68,3 +68,18 @@ def test_native_details_duplicate_source_without_repeating_audio(tmp_path):
         wave = np.frombuffer(data, dtype=np.float32)[4800:38400]
         return np.sqrt(np.mean(wave ** 2))
     assert abs(20 * np.log10(rms(result['master']) / rms(src))) < .5
+
+
+def test_mixed_aspect_details_share_space_by_content_not_equal_slots():
+    geo = CK.geometry((360, 640), 'screen', (640, 360))
+    regions = [[0, 0, 600, 100], [0, 0, 180, 360]]
+    result = CK.detail_geometry(geo, (640, 360), regions, caption_band=(210, 240))
+    wide, tall = [r['box'] for r in result['details']]
+    # One wide strip must not reserve half the remaining height while a tall
+    # detail is unnecessarily shrunk. Both remain uncropped and above bottom.
+    assert tall[2] >= 140
+    assert abs(wide[3] / wide[2] - 100 / 600) < .02
+    assert abs(tall[3] / tall[2] - 2) < .02
+    assert wide[1] >= 240
+    assert wide[1] + wide[3] < tall[1]
+    assert tall[1] + tall[3] <= 628

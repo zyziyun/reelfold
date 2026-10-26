@@ -282,7 +282,10 @@ course renderer's overview/detail composition. One or two source-pixel rectangle
 against the displayed, rotation-corrected source. Landscape keeps the complete source. Do not combine
 this layout with `VCROP`, `c` or `z`. Photos use their existing framing options instead.
 
-The actual subtitle band is reserved between the overview and details. For short labels,
+The actual subtitle band is reserved between the overview and details. With two details, a wide strip
+uses only its fitted height, leaving more space for a taller neighbour; neither region is cropped or
+stretched. A single wide detail can still leave substantial blank space: choose a different composition
+when the second view adds little information. For short labels,
 `LAYOUT=dict(caption_y=0.35, sub=0.08, caption_style="label")` is a starting point, not a universal
 layout: review the source aspect ratio, text size and detail readability. An impossible band or an
 out-of-source rectangle fails explicitly. This is an authored capability, not proof that automatic

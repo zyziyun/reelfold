@@ -316,13 +316,24 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None)
             raise ValueError("Caption band leaves no room for overview and details")
         ow, oh = _fit(sw, sh, W, y0 - 2 * margin)
         top = y1 + margin
-    slot = (bottom - top) // len(rects)
+    # Give a short, wide detail only the height it can actually use; let a
+    # taller neighbour use the remainder instead of shrinking both into halves.
+    width = W - 2 * margin
+    heights = [0] * len(rects)
+    remaining = bottom - top - margin * len(rects)
+    ordered = sorted(range(len(rects)), key=lambda i: rects[i][3] / rects[i][2])
+    for n, i in enumerate(ordered):
+        natural = width * rects[i][3] / rects[i][2]
+        heights[i] = int(min(natural, remaining / (len(rects) - n)))
+        remaining -= heights[i]
+    sizes = [_fit(r[2], r[3], width, h) for r, h in zip(rects, heights)]
+    y = top + (bottom - top - sum(h for w, h in sizes) - margin * (len(rects) - 1)) // 2
     details = []
-    for j, rect in enumerate(rects):
-        dw, dh = _fit(rect[2], rect[3], W - 2 * margin, slot - margin)
+    for rect, (dw, dh) in zip(rects, sizes):
         if min(dw, dh) < 2:
             raise ValueError("detail_regions cannot fit this canvas")
-        details.append(dict(source=rect, box=[(W - dw) // 2, top + j * slot + (slot - dh) // 2, dw, dh]))
+        details.append(dict(source=rect, box=[(W - dw) // 2, y, dw, dh]))
+        y += dh + margin
     return dict(geo, main=((W - ow) // 2, margin, ow, oh), header=None, details=details)
 
 
