@@ -164,6 +164,7 @@ function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
                   <Dot tone={a.connected ? 'ok' : 'warn'} />
                   {a.connected ? t('yt.acct.connectedPlain') : t('yt.acct.not')}
                 </span>
+                {a.connected && <button className="btn" disabled={busy || !yt.hasClient || !api.keychain} onClick={() => onConnect(a.account)} data-testid="api-youtube-permissions">{t('yt.updatePermissions')}</button>}
                 {a.connected ? (
                   <button className="btn ghost" disabled={busy} onClick={() => void run(() => window.desk.publish.api.disconnect(a.account))} data-testid="api-youtube-disconnect">
                     {t('yt.disconnect')}

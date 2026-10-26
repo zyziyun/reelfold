@@ -705,6 +705,10 @@ it('requests caption permission only when selected, and rejects attachment witho
   await yt.connect('main', { captions: true, timeoutMs: 5000 });
   expect(new URL(seen[1]).searchParams.get('scope')).toContain('youtube.force-ssl');
   expect(new URL(seen[0]).searchParams.get('scope')).not.toContain('youtube.force-ssl');
+  await yt.connect('main', { playlists: true, timeoutMs: 5000 });
+  expect(new URL(seen[2]).searchParams.get('scope')).toBe(`${YT_UPLOAD} ${YT_READONLY} ${YT_MANAGE} https://www.googleapis.com/auth/youtube.force-ssl`);
+  expect(new URL(seen[2]).searchParams.has('include_granted_scopes')).toBe(false);
+  expect(yt.accountStatus('main')).toMatchObject({ connected: true, captions: true, playlists: true });
 });
 
 

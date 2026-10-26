@@ -187,6 +187,9 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
   const [waiting, setWaiting] = useState(false);
   const [playlists, setPlaylists] = useState(false);
   const [captions, setCaptions] = useState(false);
+  const granted = ytAccount(yt, account);
+  const usePlaylists = playlists || !!granted?.playlists;
+  const useCaptions = captions || !!granted?.captions;
   const close = () => {
     if (waiting) void window.desk.publish.api.cancel();
     onClose();
@@ -194,7 +197,7 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
   const go = async () => {
     setWaiting(true);
     try {
-      const s = await window.desk.publish.api.connect(account, playlists, captions);
+      const s = await window.desk.publish.api.connect(account, usePlaylists, useCaptions);
       apply(s);
       const a = ytAccount(s.find((x) => x.id === 'youtube')?.yt ?? null, account);
       ui.toast(t('yt.connected', { channel: a?.channel?.title ?? account }));
@@ -238,13 +241,15 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
           {!yt.hasClient || !yt.builtin ? <YtClientChoice yt={yt} apply={apply} /> : null}
           <p>{t('yt.scopes')}</p>
           <label className="row small" style={{ gap: 6 }}>
-            <input type="checkbox" checked={playlists} onChange={(e) => setPlaylists(e.target.checked)} data-testid="yt-connect-playlists" />
+            <input type="checkbox" checked={usePlaylists} disabled={waiting || !!granted?.playlists} onChange={(e) => setPlaylists(e.target.checked)} data-testid="yt-connect-playlists" />
             {t('yt.playlistsScope')}
           </label>
           <label className="row small" style={{ gap: 6 }}>
-            <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} data-testid="yt-connect-captions" />
+            <input type="checkbox" checked={useCaptions} disabled={waiting || !!granted?.captions} onChange={(e) => setCaptions(e.target.checked)} data-testid="yt-connect-captions" />
             {t('yt.captionsScope')}
           </label>
+          {useCaptions && <p className="muted small" data-testid="yt-caption-permission-hint">{t('yt.captionsScopeHint')}</p>}
+          {granted?.connected && <p className="muted small">{t('yt.existingPermissions')}</p>}
           <p className="muted small">{t('yt.revoke')}</p>
           {!api?.keychain && <p className="pb-amber small">{t('pl.api.noKeychain')}</p>}
         </>

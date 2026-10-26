@@ -31,6 +31,7 @@ const CLIENT = '1234-e2e.apps.googleusercontent.com';
 
 interface Rec {
   opened: string[];
+  requestedScopes?: string;
   shown: string[];
   copied: string[];
   meta: { snippet: { title: string; categoryId: string }; status: Record<string, unknown> } | null;
@@ -70,6 +71,7 @@ test.beforeAll(async () => {
       if (u.hostname === 'accounts.google.com' && u.pathname === '/o/oauth2/v2/auth') {
         // she consents in her browser; Google redirects to the app's loopback port
         const q = u.searchParams;
+        g.__yt.requestedScopes = q.get('scope') ?? '';
         setTimeout(() => void real(`${q.get('redirect_uri')}/?code=e2e-code&state=${q.get('state')}`).catch(() => undefined), 50);
       }
     };
@@ -83,7 +85,7 @@ test.beforeAll(async () => {
         const f = new URLSearchParams(String(init?.body));
         if (f.get('grant_type') === 'authorization_code' && f.get('code') === 'e2e-code' && f.get('client_id') === '1234-e2e.apps.googleusercontent.com') {
           g.__yt.verifier = f.get('code_verifier');
-          return json(200, { access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' });
+          return json(200, { access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: g.__yt.requestedScopes });
         }
         if (f.get('grant_type') === 'refresh_token') return json(200, { access_token: 'at', expires_in: 3600 });
         return json(400, { error: 'invalid_grant' });
@@ -183,7 +185,6 @@ test('Settings: her own Google Cloud client, then YouTube signs in with Google i
   await expect(page.getByTestId('yt-connect')).toBeVisible();
   await expect(page.getByTestId('yt-connect')).toContainText('upload videos');
   await expect(page.getByTestId('yt-connect-captions')).not.toBeChecked();
-  await page.getByTestId('yt-connect-captions').check();
   await page.getByTestId('yt-connect-go').click();
   await expect(page.getByTestId('yt-connect')).toHaveCount(0, { timeout: 15000 });
   await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'in');
@@ -192,7 +193,7 @@ test('Settings: her own Google Cloud client, then YouTube signs in with Google i
   const consent = new URL(r.opened.find((u) => u.startsWith('https://accounts.google.com/'))!);
   expect(consent.searchParams.get('code_challenge_method')).toBe('S256');
   expect(consent.searchParams.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-  expect(consent.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl');
+  expect(consent.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly');
   expect(r.verifier?.length).toBeGreaterThanOrEqual(43);
   // the account list reads the API sign-in; the built-in browser never opens YouTube
   await expect(page.locator('[data-testid="settings-channel"][data-adapter="youtube-studio"] [data-testid="channel-state"]')).toHaveAttribute('data-state', 'in', { timeout: 15000 });
@@ -202,6 +203,24 @@ test('Settings: her own Google Cloud client, then YouTube signs in with Google i
   const disk = fs.readFileSync(path.join(tmp, 'profile', 'publish-api.json'), 'utf8');
   expect(disk).not.toMatch(/GOCSPX|"rt"|1234-e2e/);
   await page.screenshot({ path: path.join(SHOTS, 'yt-settings.png') });
+});
+
+test('connected accounts can add subtitle permission and retain existing grants', async () => {
+  await page.getByTestId('api-youtube-permissions').click();
+  await expect(page.getByTestId('yt-connect-captions')).not.toBeChecked();
+  await page.getByTestId('yt-connect-captions').check();
+  await expect(page.getByTestId('yt-caption-permission-hint')).toContainText('delete');
+  await page.getByTestId('yt-connect-go').click();
+  await expect(page.getByTestId('yt-connect')).toHaveCount(0);
+  await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'in');
+  const consent = new URL((await rec()).opened.filter(u => u.startsWith('https://accounts.google.com/')).at(-1)!);
+  expect(consent.searchParams.get('scope')).toContain('youtube.force-ssl');
+  await page.reload();
+  await page.getByTestId('api-youtube-permissions').click();
+  await expect(page.getByTestId('yt-connect-captions')).toBeChecked();
+  await expect(page.getByTestId('yt-connect-captions')).toBeDisabled();
+  await page.getByTestId('yt-connect-go').click();
+  await expect(page.getByTestId('yt-connect')).toHaveCount(0);
 });
 
 test('Publishing accounts: each platform says its path; Google’s refusal page becomes a plain explanation', async () => {

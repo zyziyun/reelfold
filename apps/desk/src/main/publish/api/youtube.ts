@@ -294,7 +294,9 @@ export class YouTubeApi {
     const client = this.client();
     if (!client) throw new Error('choose how to sign in first: Reelfold’s Google client or your own');
     this.cancelConnect();
-    const scopes = [...YT_SCOPES, ...(opts.playlists ? [YT_MANAGE] : []), ...(opts.captions ? [YT_CAPTIONS] : [])];
+    // Installed-app authorization requests the complete desired scope set.
+    const existing = this.accountStatus(account);
+    const scopes = [...YT_SCOPES, ...(opts.playlists || existing.playlists ? [YT_MANAGE] : []), ...(opts.captions || existing.captions ? [YT_CAPTIONS] : [])];
     const verifier = b64url(crypto.randomBytes(48));
     const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
     const state = b64url(crypto.randomBytes(16));
@@ -347,7 +349,6 @@ export class YouTubeApi {
           code_challenge_method: 'S256',
           state,
           access_type: 'offline',
-          include_granted_scopes: 'true',
           prompt: 'consent select_account',
         });
         void Promise.resolve(this.d.openExternal(`${this.ep.auth}?${q}`)).catch((e: Error) => finish(e, null));
