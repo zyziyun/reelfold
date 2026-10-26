@@ -107,7 +107,10 @@ def plan(cues, duration, title="", complete=None):
         "not a universal promise. These rules apply across subjects; do not impose a personal-story narrative "
         "on a lesson, interview, demo or company presentation. Preserve the opening and natural ending. "
         "Max 44 characters for titles and 54 per item; "
-        "prefer much shorter phrases. [] is valid only if no visual explanation helps. JSON only."
+        "prefer much shorter phrases. The title and all items must be readable within the display: "
+        "budget about 6 Chinese characters or 3.5 English words per second, plus one second for orientation. "
+        "Shorten redundant labels or select a longer valid display span, never remove a necessary qualifier "
+        "to fit. [] is valid only if no visual explanation helps. JSON only."
     )
     prompt = f"TITLE (context only): {title}\nDURATION: {duration:.3f}s\nCAPTIONS:\n" + "\n".join(
         f"[{i}] {c['start']:.3f}–{c['end']:.3f} {c['text']}" for i, c in enumerate(cues))
@@ -128,6 +131,16 @@ def plan(cues, duration, title="", complete=None):
                         layer.setup()
                     except ValueError as error:
                         raise ValueError(f"spoken finishing: {w}x{h} layout: {error}") from error
+            from vstudio.qa import reading_time
+            for effect in effects:
+                params = effect["params"]
+                text = " ".join([params["title"], *params["items"]])
+                required = reading_time(text, lo=0, hi=float("inf"))
+                available = effect["end"] - effect["start"]
+                if required > available + 0.05:
+                    raise ValueError(
+                        f"spoken finishing: reading time {required:.2f}s exceeds {available:.2f}s display; "
+                        "shorten title/items without losing qualifications or choose a longer valid caption span")
         except ValueError as error:
             if attempt:
                 raise ValueError(f"spoken finishing: visual plan still invalid after one repair: {error}") from error

@@ -19,8 +19,8 @@ def isolate(tmp_path, monkeypatch):
 CUES = [dict(start=i, end=i + 1, text=t) for i, t in enumerate([
     "这是我的经历。", "副业改变了我的想法。", "不只是收入。", "认识不同圈子的人。", "交流更深入。", "思路也更开阔。",
     "这对我很重要。", "这是新的可能。", "保持好奇。", "谢谢。", "结束。", "再见。"])]
-BEAT = dict(**{"from": 3, "to": 5}, kind="chain", title="副业带来的变化",
-            items=["认识新圈子", "交流更深入", "思路更开阔"], evidence="认识不同圈子的人。")
+BEAT = dict(**{"from": 3, "to": 5}, kind="chain", title="副业",
+            items=["新圈子", "深交流", "新思路"], evidence="认识不同圈子的人。")
 
 
 def test_plan_uses_actual_edited_cue_indices():
@@ -286,3 +286,26 @@ def test_card_uses_shared_readable_word_boundaries(monkeypatch, size):
     assert any('依然' in line for line in lines)
     assert not any(line.endswith('依') or line.startswith('然') for line in lines)
     assert len(layer.texts) == 1
+
+
+def test_reading_budget_repairs_labels_that_fit_the_canvas():
+    calls = []
+    dense = dict(BEAT, kind="takeaway", title="保留限制", items=["即使网络断开，我依然能继续编辑草稿"])
+    concise = dict(dense, title="离线编辑", items=["断网也能改草稿"])
+    def model(task, system, prompt, **kw):
+        calls.append(prompt)
+        return dict(json=dict(beats=[dense if len(calls) == 1 else concise]))
+    cues = [dict(c) for c in CUES]
+    cues[3]["text"] = "即使网络断开，我依然能继续编辑草稿"
+    dense["evidence"] = concise["evidence"] = cues[3]["text"]
+    result = spoken.plan(cues, 12, complete=model)
+    assert len(calls) == 2
+    assert "reading time" in result["repairs"][0]
+    assert "qualifications" in calls[1]
+    assert result["effects"][0]["params"]["items"] == concise["items"]
+
+
+def test_reading_budget_rejects_repeatedly_unreadable_plan():
+    dense = dict(BEAT, kind="takeaway", title="保留限制", items=["即使网络断开，我依然能继续编辑草稿"])
+    with pytest.raises(ValueError, match="still invalid.*reading time"):
+        spoken.plan(CUES, 12, complete=lambda *a, **k: dict(json=dict(beats=[dense])))
