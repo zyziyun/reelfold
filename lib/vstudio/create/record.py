@@ -130,7 +130,8 @@ def mux(d, sess, out):
     tracks = sess.get("tracks") or {}
     cam = os.path.join(d, (tracks.get("camera") or {}).get("file") or "camera.webm")
     mic = os.path.join(d, (tracks.get("mic") or {}).get("file") or "mic.webm")
-    if not os.path.exists(cam):
+    has_cam = os.path.isfile(cam) and os.path.getsize(cam) > 0
+    if not has_cam and not tracks.get("screen"):
         raise CreateError("not-found", status=404, what="camera track", id=os.path.basename(d))
     screen = os.path.join(d, (tracks.get("screen") or {}).get("file") or "screen.webm")
     if tracks.get("screen"):
@@ -144,37 +145,45 @@ def mux(d, sess, out):
         pw = max(2, int(w * .22) // 2 * 2)
         ph = max(2, int(pw * .75) // 2 * 2)
         gap = max(8, round(w * .015))
-        camera_offset = ((tracks.get("camera") or {}).get("start_ms", 0) -
-                         (tracks.get("screen") or {}).get("start_ms", 0)) / 1000
-        args = [_ff(), "-v", "error", "-y", "-i", screen,
-                "-itsoffset", f"{camera_offset:.3f}", "-i", cam]
+        args = [_ff(), "-v", "error", "-y", "-i", screen]
+        if has_cam:
+            camera_offset = ((tracks.get("camera") or {}).get("start_ms", 0) -
+                             (tracks.get("screen") or {}).get("start_ms", 0)) / 1000
+            args += ["-itsoffset", f"{camera_offset:.3f}", "-i", cam]
         has_mic = os.path.exists(mic) and os.path.getsize(mic) > 0
+        mic_input = 2 if has_cam else 1
         if has_mic:
             off = ((tracks.get("mic") or {}).get("start_ms", 0) - (tracks.get("screen") or {}).get("start_ms", 0)) / 1000
             args += ["-itsoffset", f"{off:.3f}", "-i", mic]
-        graph = (f"[0:v]scale={w}:{h},setsar=1[screen];"
-                 f"[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
-                 f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:eof_action=pass:repeatlast=0[v]")
+        graph = f"[0:v]scale={w}:{h},setsar=1[{'screen' if has_cam else 'v'}]"
+        if has_cam:
+            graph += (f";[1:v]scale={pw}:{ph}:force_original_aspect_ratio=increase,crop={pw}:{ph},setsar=1[cam];"
+                      f"[screen][cam]overlay=W-w-{gap}:H-h-{gap}:eof_action=pass:repeatlast=0[v]")
         # A screen may carry app playback audio, independently of the raw microphone file.
         # Mix only for the viewing copy; both original recordings remain available for editing.
         screen_audio = info.get("has_audio", False)
-        audio_map = "2:a:0" if has_mic else "1:a?"
+        audio_map = f"{mic_input}:a:0" if has_mic else None
+        if not has_mic and not screen_audio and has_cam and media.probe(cam).get("has_audio"):
+            audio_map = "1:a:0"
         if screen_audio and has_mic:
             # amix consumes samples, not the input timestamp gap. Materialize each
             # capture clock as silence/trim before mixing so late speech stays late.
             graph += (";[0:a:0]aresample=async=1:first_pts=0[screen_audio];"
-                      "[2:a:0]aresample=async=1:first_pts=0[mic_audio];"
+                      f"[{mic_input}:a:0]aresample=async=1:first_pts=0[mic_audio];"
                       "[screen_audio][mic_audio]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[a]")
             audio_map = "[a]"
         elif screen_audio:
             audio_map = "0:a:0"
         # Keep the screen as the recording's duration owner even if a device stops.
         # Pad only existing audio; a silent recording must not gain an audio track.
-        if has_mic or screen_audio or media.probe(cam).get("has_audio"):
-            audio_input = audio_map if audio_map.startswith("[") else f"[{audio_map.rstrip('?')}]"
+        if audio_map:
+            audio_input = audio_map if audio_map.startswith("[") else f"[{audio_map}]"
             graph += f";{audio_input}aresample=async=1:first_pts=0,apad[recording_audio]"
             audio_map = "[recording_audio]"
-        args += ["-filter_complex", graph, "-map", "[v]", "-map", audio_map,
+        args += ["-filter_complex", graph, "-map", "[v]"]
+        if audio_map:
+            args += ["-map", audio_map]
+        args += [
                  # Browser MediaRecorder WebMs often have no duration tag even after a normal Stop. Bound the
                  # mux by the screen's frames, not a zero metadata duration that creates an audio-only empty clip.
                  "-shortest", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",

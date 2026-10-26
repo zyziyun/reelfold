@@ -341,3 +341,41 @@ def test_screen_recording_keeps_screen_after_other_track_ends(home, short_track,
         # A stopped camera must disappear, not leave a misleading frozen face.
         red, green, blue = pixels.getpixel((280, 140))
         assert blue > 180 and red < 50 and green < 50
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize('empty_camera', [False, True])
+@pytest.mark.parametrize('sound', ['mic', 'screen', 'both', 'silent'])
+def test_recover_screen_take_without_camera(home, empty_camera, sound):
+    from vstudio import media
+    d = session(str(home), [], seconds=1)
+    cam = os.path.join(d, 'camera.webm')
+    os.remove(cam)
+    if empty_camera:
+        open(cam, 'wb').close()
+    if sound not in ('mic', 'both'):
+        os.remove(os.path.join(d, 'mic.webm'))
+    screen = os.path.join(d, 'screen.webm')
+    audio = ['-f', 'lavfi', '-i', 'sine=frequency=500:duration=1', '-c:a', 'libopus'] if sound in ('screen', 'both') else []
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=blue:size=320x180:rate=24:duration=1', *audio,
+                    '-c:v', 'libvpx-vp9', '-deadline', 'realtime', screen], check=True)
+    sess = store.read_json(os.path.join(d, 'session.json'))
+    sess['tracks']['camera']['start_ms'] = None
+    sess['tracks']['screen'] = dict(file='screen.webm', start_ms=1000)
+    sess['studio'] = False
+    store.write_json(os.path.join(d, 'session.json'), sess)
+    movie = RE.prepare(d, os.path.join(d, 'recovered.mp4'))
+    info = media.probe(movie)
+    assert (info['w'], info['h']) == (320, 180)
+    assert .9 < media.duration(movie) < 1.2
+    assert bool(info['has_audio']) == (sound != 'silent')
+    if sound != 'silent':
+        import numpy as np
+        pcm = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', movie, '-vn', '-ac', '1',
+                                       '-ar', '8000', '-f', 'f32le', '-'])
+        samples = np.frombuffer(pcm, dtype='<f4')[1600:5600]
+        for hz, audible in ((440, sound in ('mic', 'both')), (500, sound in ('screen', 'both'))):
+            magnitude = abs(np.sum(samples * np.exp(-2j * np.pi * hz * np.arange(len(samples)) / 8000))) * 2 / len(samples)
+            assert magnitude > .06 if audible else magnitude < .01
+    assert os.path.isfile(screen)
