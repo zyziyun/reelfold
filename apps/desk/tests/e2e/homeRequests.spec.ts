@@ -184,3 +184,28 @@ test('after a restart, a request that was planning when the app quit is a failur
   await expect(page.locator('[data-testid=studio-row][data-tone=error]').filter({ hasText: '番茄工作法' })).toHaveCount(0);
   await studioIsFree();
 });
+
+test('an empty AI plan can be revised without offering to make nonexistent clips', async () => {
+  await closeApp(app);
+  const id = 'e00000000001';
+  const dir = path.join(profile, 'engine-data', 'intake');
+  fs.mkdirSync(dir, { recursive: true });
+  const needs = [{ code: 'intake.need.plan', message: 'Original camera footage is missing.' }];
+  const plan = { version: 1, kind: 'vstudio.intake.plan', id, prompt: 'Rebuild using originals', projects: [], needs, materials: [], risks: [], questions: [], revisions: [] };
+  fs.writeFileSync(path.join(dir, `${id}.job.json`), JSON.stringify({ id, state: 'needs', step: 'needs', prompt: plan.prompt, inputs: [], started: Date.now() / 1000, mode: 'ask', plan, needs }));
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(plan));
+  await launch('0');
+  await hash(`#/studio?sel=${id}`);
+  await expect(page.getByTestId('plan-card')).toHaveAttribute('data-state', 'needs');
+  await expect(page.getByTestId('plan-start')).toHaveCount(0);
+  const revision = 'Keep the existing canvas and propose a cover-only adaptation';
+  await page.getByTestId('plan-revise').fill(revision);
+  await page.getByTestId('plan-revise-send').click();
+  // The fixture leaves needs unresolved: submitting must not invent a runnable plan.
+  await expect.poll(async () => {
+    const job = await api<{ plan?: { revisions?: { prompt: string }[] } }>(`/api/intake/${id}`);
+    return job.plan?.revisions?.at(-1)?.prompt;
+  }).toBe(revision);
+  await expect(page.getByTestId('plan-card')).toHaveAttribute('data-state', 'needs');
+  await expect(page.getByTestId('plan-start')).toHaveCount(0);
+});

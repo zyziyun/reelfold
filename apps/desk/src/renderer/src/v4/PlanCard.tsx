@@ -1,6 +1,6 @@
 // The AI plan card (mockups/02-plan): one paragraph (the engine's summary, in the content language), the clips it
 // will make, four numbers, the one thing to decide, "just say it" revisions, and ONE primary: start with a pilot.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Check, FolderOpen, Plus, RotateCcw, Send, Sparkles, Square } from 'lucide-react';
 import type { EngineMsg, IntakeJob, IntakePlan } from '../../../shared/v04';
 import { fmtClock, fmtMinutes, fmtMoney, getLang, has, t, type Lang } from '../i18n';
@@ -168,7 +168,6 @@ export function PlanCard({ job, jobId, onRevise, onRetry, onReset, onStarted, on
   const { client } = useEngine();
   const { reload } = useHistory();
   const ui = useUi();
-  const [ask, setAsk] = useState('');
   const [starting, setStarting] = useState(false);
   const plan = job?.plan ?? null;
   const running = !job || job.state === 'running';
@@ -182,7 +181,7 @@ export function PlanCard({ job, jobId, onRevise, onRetry, onReset, onStarted, on
     onReset();
   };
   if (job?.state === 'stopped') return null;
-  if (job?.state === 'needs') return <NeedsCard job={job} jobId={jobId} onReset={onReset} />;
+  if (job?.state === 'needs') return <NeedsCard job={job} jobId={jobId} onReset={onReset} onRevise={onRevise} />;
   if (job?.state === 'error') {
     const code = job.error_code ?? 'unknown';
     const why = plainError(job.error);
@@ -385,27 +384,11 @@ export function PlanCard({ job, jobId, onRevise, onRetry, onReset, onStarted, on
           {plan.warnings.join(' ')}
         </div>
       )}
-      <form
-        className="ask"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (ask.trim()) {
-            onRevise(ask.trim());
-            setAsk('');
-          }
-        }}
-      >
-        <input className="inp" value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={t('plan.reviseHint')} disabled={running} data-testid="plan-revise" />
-        {ask.trim() && (
-          <button className="btn" type="submit" disabled={running} data-testid="plan-revise-send">
-            <Send className="ico" />
-            {t('plan.revise')}
-          </button>
-        )}
+      <PlanRevision onRevise={onRevise} disabled={running}>
         <button className="btn primary lg" type="button" onClick={() => void start()} disabled={running || starting} data-testid="plan-start">
           {starting ? t('plan.starting') : t('plan.start')}
         </button>
-      </form>
+      </PlanRevision>
       <More summary={t('plan.advanced')} testId="plan-advanced">
         <p className="muted">{t('plan.advancedHint')}</p>
         <div className="row">
@@ -450,9 +433,27 @@ export function plainError(err: string | null | undefined): string {
   return s.length > 240 ? `${s.slice(0, 239)}…` : s;
 }
 
+/** The same request can be revised before making it or while waiting for missing materials. */
+function PlanRevision({ onRevise, disabled, children }: { onRevise: (s: string) => void; disabled: boolean; children?: ReactNode }) {
+  const [ask, setAsk] = useState('');
+  return (
+    <form className="ask" onSubmit={(e) => {
+      e.preventDefault();
+      if (!disabled && ask.trim()) {
+        onRevise(ask.trim());
+        setAsk('');
+      }
+    }}>
+      <input className="inp" value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={t('plan.reviseHint')} disabled={disabled} data-testid="plan-revise" />
+      {ask.trim() && <button className="btn" type="submit" disabled={disabled} data-testid="plan-revise-send"><Send className="ico" />{t('plan.revise')}</button>}
+      {children}
+    </form>
+  );
+}
+
 /** A request that waits for something only she can give (``needs``: her recordings, her Notion pages): what it
  * needs in words, a drop target + Add files / a folder, a box for page links, and "Plan without it" when it can. */
-function NeedsCard({ job, jobId, onReset }: { job: IntakeJob; jobId: string; onReset: () => void }) {
+function NeedsCard({ job, jobId, onReset, onRevise }: { job: IntakeJob; jobId: string; onReset: () => void; onRevise: (s: string) => void }) {
   const { client } = useEngine();
   const ui = useUi();
   const [files, setFiles] = useState<string[]>([]);
@@ -496,6 +497,7 @@ function NeedsCard({ job, jobId, onReset }: { job: IntakeJob; jobId: string; onR
         <i className="dot you" />
         <b style={{ fontWeight: 500 }}>{t('plan.needs.title')}</b>
       </div>
+      {plan && <PlanRevision onRevise={onRevise} disabled={busy} />}
       {needs.map((n, i) => (
         <p key={i} className="lead" data-testid="plan-need" data-code={n.code}>
           {emsg(n)}
