@@ -265,6 +265,51 @@ def test_compose_clean_only_skips_the_captioned_render(comp):
     _run("compose.py", "config.py", "all", "--clean-only", cwd=comp)
     assert (comp / "out.clean.mp4").exists() and (comp / "out.cues.json").exists()
     assert not (comp / "out.mp4").exists()
+    from vstudio import media
+    info = media.probe(str(comp / "out.clean.mp4"))
+    assert info["has_audio"] and info["duration"] > 3
+    assert (info["w"], info["h"]) == (1080, 1920)
+    assert not list(comp.glob(".render-*"))
+
+
+@need_ff
+@pytest.mark.parametrize("failure", ["decoder", "encoder", "overlay"])
+def test_compose_failure_preserves_output_and_reaps_processes(comp, failure):
+    """Actual ffmpeg processes: a broken render cannot replace the previous export."""
+    out = comp / "preserved.mp4"
+    out.write_bytes(b"previous completed output")
+    script = f'''import runpy, sys, pathlib
+sys.argv = [{str(V / 'compose.py')!r}, 'config.py', 'cues']
+g = runpy.run_path(sys.argv[0])
+env = g['render'].__globals__
+env['BASE'] = {'missing-base.mov' if failure == 'decoder' else 'body.mp4'!r}
+if {failure!r} == 'overlay':
+    def fail_overlay(*args):
+        raise ValueError('overlay failure sentinel')
+    env['compose'] = fail_overlay
+processes = []
+original_popen = env['subprocess'].Popen
+def track(*args, **kwargs):
+    p = original_popen(*args, **kwargs)
+    processes.append(p)
+    return p
+env['subprocess'].Popen = track
+try:
+    g['render']('preserved.mp4', captions=False,
+                audio_path={'missing-audio.wav' if failure == 'encoder' else 'body_a.wav'!r})
+finally:
+    assert processes and all(p.poll() is not None for p in processes), 'unreaped process'
+    assert not list(pathlib.Path('.').glob('.render-*')), 'left partial render'
+'''
+    r = subprocess.run([sys.executable, "-c", script], cwd=comp, capture_output=True, text=True, timeout=60)
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert "unreaped process" not in r.stderr and "left partial render" not in r.stderr
+    if failure == "overlay":
+        assert "overlay failure sentinel" in r.stderr
+    else:
+        assert "render failed" in r.stderr
+        assert ("missing-base.mov" if failure == "decoder" else "missing-audio.wav") in r.stderr
+    assert out.read_bytes() == b"previous completed output"
 
 
 @need_ff

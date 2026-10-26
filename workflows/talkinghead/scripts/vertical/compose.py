@@ -29,7 +29,7 @@ layout (layout.py) and B-roll (broll.py) are local.
 import sys, pathlib; sys.path[:0] = [str(pathlib.Path(__file__).resolve().parents[4] / "lib"), str(pathlib.Path(__file__).resolve().parents[1]),
                                      str(pathlib.Path(__file__).resolve().parent)]
 if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"): print(__doc__); sys.exit(0)
-import os, json, re, subprocess, importlib.util
+import os, json, re, subprocess, importlib.util, tempfile
 import numpy as np, cv2
 from PIL import Image, ImageDraw
 from vstudio import asr, audio, media, subs as vsubs
@@ -626,18 +626,63 @@ def compose(fr, t, captions=True):
     return fr
 
 def render(out, captions=True, audio_path='mix.wav'):
+    # Publish the new master only after both ffmpeg processes succeed. A failed
+    # overlay/decoder must not destroy the previous completed render.
     ff = media.ffmpeg_bin()
-    src = subprocess.Popen([ff, '-v', 'error', '-i', BASE, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
-    enc = subprocess.Popen([ff, '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
-        '-i', audio_path, '-map', '0:v', '-map', '1:a', *media.delivery_args(crf=17, preset='slow'), out], stdin=subprocess.PIPE)
-    fi = 0; N = W * H * 3
-    while True:
-        buf = src.stdout.read(N)
-        if len(buf) < N: break
-        fr = compose(np.frombuffer(buf, np.uint8).reshape(H, W, 3).astype(np.float32), fi / FPS, captions)
-        enc.stdin.write(np.clip(fr, 0, 255).astype(np.uint8).tobytes()); fi += 1
-        if fi % 900 == 0: print('frame', fi, f'{fi/FPS:.1f}/{TOTAL:.1f}', flush=True)
-    enc.stdin.close(); enc.wait()
+    fd, stage = tempfile.mkstemp(prefix='.render-', suffix=os.path.splitext(out)[1],
+                                 dir=os.path.dirname(os.path.abspath(out)))
+    os.close(fd)
+    try:
+        with tempfile.TemporaryFile() as dec_log, tempfile.TemporaryFile() as enc_log:
+            src = enc = None
+            fi = 0; N = W * H * 3; broken = False
+            try:
+                src = subprocess.Popen([ff, '-v', 'error', '-i', BASE, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+                                       stdout=subprocess.PIPE, stderr=dec_log)
+                enc = subprocess.Popen([ff, '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
+                    '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-', '-i', audio_path, '-map', '0:v', '-map', '1:a',
+                    *media.delivery_args(crf=17, preset='slow'), stage], stdin=subprocess.PIPE, stderr=enc_log)
+                while True:
+                    buf = src.stdout.read(N)
+                    if not buf:
+                        break
+                    if len(buf) != N:
+                        raise media.FFmpegError(f'talking-head render failed: incomplete frame {fi} from {BASE}')
+                    fr = compose(np.frombuffer(buf, np.uint8).reshape(H, W, 3).astype(np.float32), fi / FPS, captions)
+                    enc.stdin.write(np.clip(fr, 0, 255).astype(np.uint8).tobytes()); fi += 1
+                    if fi % 900 == 0: print('frame', fi, f'{fi/FPS:.1f}/{TOTAL:.1f}', flush=True)
+            except BrokenPipeError:
+                broken = True
+            finally:
+                interrupted = sys.exc_info()[0] is not None or broken
+                # Closing the decoder's read end unblocks a writer when an overlay
+                # fails. Logs go to files so stderr cannot fill a pipe and deadlock.
+                for pipe in (src.stdout if src else None, enc.stdin if enc else None):
+                    if pipe is not None:
+                        try:
+                            pipe.close()
+                        except BrokenPipeError:
+                            broken = True
+                for proc in (src, enc):
+                    if proc is not None:
+                        try:
+                            proc.wait(timeout=30 if interrupted or broken else None)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait()
+            if broken or not fi or src.returncode or enc.returncode:
+                logs = []
+                for log in (dec_log, enc_log):
+                    log.seek(0, 2)
+                    log.seek(max(0, log.tell() - 2000))
+                    logs.append(log.read().decode('utf-8', 'replace'))
+                raise media.FFmpegError(
+                    f'talking-head render failed (frames={fi}, decoder={src.returncode}, encoder={enc.returncode}):'
+                    + '\n' + '\n'.join(logs))
+        os.replace(stage, out)
+    finally:
+        if os.path.exists(stage):
+            os.unlink(stage)
 
 def body_to_final(b0, b1, hooks=True):
     """Final-video windows [(t0, t1)] where body time [b0, b1) is on screen (the body, plus every hook that

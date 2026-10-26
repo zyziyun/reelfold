@@ -261,6 +261,8 @@ and the progress bar stay on. Circle / card scenes win over B-roll in the same w
 If an inserted video's frame cannot be decoded, rendering stops with the source path and frame time.
 Repair or replace that source before retrying; a failed decode is never substituted with black or the last
 good frame. `loop=False` still intentionally holds the video's final frame when the insertion outlasts it.
+The compositor checks both decoding and encoding before replacing a completed master. A failed render keeps
+the previous output, removes its partial temporary file, and reports the error instead of writing new cues.
 
 ## Iterating
 Typical asks, each one re-run: swap hooks or their order; 加速; cut 废话 sentences; switch strategies in STYLE;
