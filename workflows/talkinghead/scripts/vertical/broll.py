@@ -51,10 +51,11 @@ class Source:
         if i != self.last + 1:
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, i)
         ok, bgr = self.cap.read()
-        if ok:
-            self.cur = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32)
-        elif self.cur is None:
-            self.cur = np.zeros((self.h, self.w, 3), np.float32)
+        if not ok or bgr is None:
+            raise RuntimeError(
+                f"B-roll could not decode frame {i} ({i / self.fps:.3f}s) of {self.path!r}; "
+                "check or replace the source clip before rendering again")
+        self.cur = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32)
         self.last = i
         return self.cur
 

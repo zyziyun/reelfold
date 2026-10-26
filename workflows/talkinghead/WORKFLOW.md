@@ -258,6 +258,9 @@ Tall images (pages, chats, docs) become **screenshot cards**: they scroll top �
 `highlight=[(t, y0, y1)]` rows, each marker wiping in left → right at its time. `label="演示"` adds a small badge. With
 `sfx` on, whooshes mark cut-away / split in and out. Zoom, stamps and pop words pause during cut / split; subtitles
 and the progress bar stay on. Circle / card scenes win over B-roll in the same window.
+If an inserted video's frame cannot be decoded, rendering stops with the source path and frame time.
+Repair or replace that source before retrying; a failed decode is never substituted with black or the last
+good frame. `loop=False` still intentionally holds the video's final frame when the insertion outlasts it.
 
 ## Iterating
 Typical asks, each one re-run: swap hooks or their order; 加速; cut 废话 sentences; switch strategies in STYLE;
