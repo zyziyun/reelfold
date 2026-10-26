@@ -133,7 +133,8 @@ SPECS = {
         zh="素材切入", en="Supporting footage", kind="fullframe", stage="frame", default_dur=4.0,
         what_zh="插入本地视频或截图，保留主视频原声；长截图按画幅滚动展示",
         params=dict(file=_str(None, "本地素材路径", True), offset=_num(0, 0, 86400, "素材起点（秒）"),
-                    fit=_str("contain", "画面适配", enum=("contain", "cover", "card"))),
+                    fit=_str("contain", "画面适配", enum=("contain", "cover", "card")),
+                    detail_regions={"type": "array", "default": None, "x-zh": "原图像素区域 [x,y,width,height]"}),
         sample={}),
     "overlay-images": dict(
         zh="贴纸 / 标签", en="Sticker / label", kind="overlay", stage="frame", default_dur=2.0, anim="pop",
@@ -385,6 +386,9 @@ def validate(eid, params, partial=False):
     if not k:
         raise ValueError(f"unknown effect {eid!r} (output effects --json lists them)")
     spec = SPECS[k]["params"]
+    if k == "media-insert" and (params or {}).get("detail_regions") is not None:
+        from vstudio.clipkit import detail_rectangles
+        detail_rectangles(params["detail_regions"])
     clean, warns = ({} if partial else {p: d.get("default") for p, d in spec.items()}), []
     for p, v in (params or {}).items():
         if p not in spec and lang_variant(p, spec):
@@ -515,7 +519,12 @@ class MediaInsert(Layer):
             if not src.is_img and (src.ss >= src.n / src.fps or src.ss + dur > src.n / src.fps + 1 / src.fps):
                 self.close()
                 raise ValueError("media-insert: selected interval exceeds the source video; choose a shorter insert")
-        picture = self.item.view(t, self.W, self.H, t)
+        try:
+            picture = broll.detail_view(self.item.src.frame(t), self.W, self.H, self.p["detail_regions"]) \
+                if self.p.get("detail_regions") is not None else self.item.view(t, self.W, self.H, t)
+        except Exception:
+            self.close()
+            raise
         img[:] = np.clip(picture[..., ::-1], 0, 255).astype(np.uint8)
 
     def close(self):

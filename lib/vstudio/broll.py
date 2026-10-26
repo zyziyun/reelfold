@@ -205,3 +205,25 @@ def badge_layer(text, font):
 
 def exists(cfg_list):
     return [d["src"] for d in (cfg_list or []) if not os.path.exists(d["src"])]
+
+
+def detail_view(img, w, h, regions):
+    """Use the course compositor's overview/detail geometry for supporting material."""
+    from vstudio.clipkit import detail_geometry
+    geo = detail_geometry(dict(vertical=h > w, canvas=(w, h), camera=None),
+                          (img.shape[1], img.shape[0]), regions)
+    if not geo.get("details"):
+        # A landscape canvas retains the complete source, regardless of cover/card fit.
+        s = min(w / img.shape[1], h / img.shape[0])
+        dw, dh = max(1, round(img.shape[1] * s)), max(1, round(img.shape[0] * s))
+        geo["main"] = ((w-dw)//2, (h-dh)//2, dw, dh)
+    out = np.full((h, w, 3), (238, 234, 226), np.float32)
+    def paste(source, box):
+        x, y, dw, dh = box
+        out[y:y+dh, x:x+dw] = cv2.resize(source, (dw, dh), interpolation=cv2.INTER_AREA
+            if dw < source.shape[1] else cv2.INTER_CUBIC)
+    paste(img, geo["main"])
+    for detail in geo.get("details", []):
+        x, y, sw, sh = detail["source"]
+        paste(img[y:y+sh, x:x+sw], detail["box"])
+    return out

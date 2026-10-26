@@ -60,7 +60,8 @@ def test_missing_material_is_not_accepted(tmp_path):
         inst(tmp_path / 'missing.mp4')
 
 @pytest.mark.parametrize('size', [(640, 360), (360, 640)])
-def test_native_export_keeps_voice_and_returns_to_speaker(assets, tmp_path, size):
+@pytest.mark.parametrize('regions', [None, [[0, 0, 160, 90]]])
+def test_native_export_keeps_voice_and_returns_to_speaker(assets, tmp_path, size, regions):
     import cv2
     w, h = size
     source = tmp_path / 'speaker.mp4'
@@ -70,7 +71,7 @@ def test_native_export_keeps_voice_and_returns_to_speaker(assets, tmp_path, size
     out = tmp_path / 'out'; out.mkdir()
     prof = platform.profile('youtube', 'horizontal', overrides=dict(w=w, h=h))
     result = export.export_one(str(source), prof, str(out), captions=False, watermark=False,
-        effects=[inst(assets[0], offset=1)], encoder='libx264', preset='ultrafast', mode='letterbox')
+        effects=[inst(assets[0], offset=1, detail_regions=regions)], encoder='libx264', preset='ultrafast', mode='letterbox')
     path = str(out / result['file'])
     info = media.probe(path)
     assert info['has_audio'] and abs(info['duration']-7) < .15
@@ -91,9 +92,10 @@ def test_native_export_keeps_voice_and_returns_to_speaker(assets, tmp_path, size
     ([3, 7], [], 2, .25, 1.5),
     ([0, 7], [[3, 4, 'pause']], 1, 1.25, 2.25),
 ])
-def test_second_edit_tracks_source_time_and_material_changes(assets, trim, cuts, speed, at, expected_time):
+@pytest.mark.parametrize('regions', [None, [[0, 400, 400, 400]]])
+def test_second_edit_tracks_source_time_and_material_changes(assets, trim, cuts, speed, at, expected_time, regions):
     from vstudio.project import outputs as O, outrender as R
-    effect = inst(assets[1], fit='card')
+    effect = inst(assets[1], fit='card', detail_regions=regions)
     st = O.empty_state()
     st['effects'] = [effect]
     st['trim'], st['cuts'], st['speed'] = trim, cuts, speed
@@ -124,3 +126,48 @@ def test_secondary_frame_pass_renders_material(assets, tmp_path):
     cap = cv2.VideoCapture(dest); cap.set(cv2.CAP_PROP_POS_MSEC, 2000)
     ok, frame = cap.read(); cap.release()
     assert ok and frame[20,160,2] > 180 and frame[20,160,0] < 50
+
+
+@pytest.mark.parametrize('regions', [[], [[0, 0, -2, 5]], [[0, 0, True, 5]], [[0, 0, float('nan'), 5]], '0,0,5,5'])
+def test_detail_regions_reject_invalid_shape(assets, regions):
+    with pytest.raises(ValueError, match='detail_regions'):
+        inst(assets[1], detail_regions=regions)
+
+@pytest.mark.parametrize('size', [(360, 640), (640, 360)])
+def test_detail_regions_preserve_overview_and_enlarge_exact_pixels(assets, size):
+    from vstudio.clipkit import detail_geometry
+    w, h = size
+    regions = [[0, 400, 400, 400]]
+    layer = outfx.make_layer(inst(assets[1], detail_regions=regions), w, h)
+    frame = np.zeros((h, w, 3), np.uint8)
+    layer.draw(frame, 1, 3)
+    if h > w:
+        geo = detail_geometry(dict(vertical=True, canvas=(w,h), camera=None), (400,1200), regions)
+        x,y,dw,dh = geo['details'][0]['box']
+        assert frame[y+dh//2,x+dw//2,1] > 230
+        assert frame[y+dh//2,x+dw//2,2] < 40
+    # Out-of-range regions fail even in landscape; no silently cropped details.
+    invalid = outfx.make_layer(inst(assets[0], detail_regions=[[310, 0, 50, 50]]), w, h)
+    with pytest.raises(ValueError, match='outside'):
+        invalid.draw(frame, 0, 3)
+    assert not invalid.item.src.cap.isOpened()
+
+
+def test_secondary_portrait_pass_draws_the_selected_detail(assets, tmp_path):
+    import cv2
+    from vstudio.project import outputs as O, outrender as R
+    from vstudio.clipkit import detail_geometry
+    source, photo = assets
+    regions = [[0,400,400,400]]
+    st = O.empty_state(); st['effects'] = [inst(photo, detail_regions=regions)]
+    rec = dict(mode='pipeline', info=dict(duration=5, w=320, h=180), cues=[])
+    tg = dict(target='primary', w=180, h=320, profile=None, layout='auto')
+    vis = R.visual_spec(rec, st, O.Timeline(st, 5), tg, False)
+    dest = str(tmp_path/'second-detail.mp4')
+    R.frame_pass(str(source), dest, None, vis, tg, 15, 'preview', None, lambda progress: None)
+    cap = cv2.VideoCapture(dest); cap.set(cv2.CAP_PROP_POS_MSEC, 3000)
+    ok, frame = cap.read(); cap.release()
+    assert ok and frame.shape[:2] == (320,180)
+    geo = detail_geometry(dict(vertical=True, canvas=(180,320), camera=None), (400,1200), regions)
+    x,y,w,h = geo['details'][0]['box']
+    assert frame[y+h//2,x+w//2,1] > 210 and frame[y+h//2,x+w//2,2] < 60

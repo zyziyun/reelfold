@@ -190,7 +190,7 @@ frames rendered once into `$VSTUDIO_CACHE/output_fx/`.
 | `callout-bubble` | 标注气泡 / 箭头 | frame | text, arrow_x, arrow_y, theme, anim, x, y |
 | `chapter-card` | 章节卡 | frame | title, index, total, accent |
 | `notes-panel` | 记笔记面板 | frame | title, bullets, theme, width, anim, x, y |
-| `media-insert` | 素材切入（原声保留） | frame | file (existing local image/video), offset (source seconds), fit contain|cover|card |
+| `media-insert` | 素材切入（原声保留） | frame | file (existing local image/video), offset (source seconds), fit contain|cover|card; optional detail_regions [[x,y,width,height]] in source pixels |
 | `overlay-images` | 贴纸 / 标签 | frame | image, text, style tag|chip|badge|star|image, color, scale, angle, anim, x, y |
 | `badge` | 角标 | frame | text, color, scale, anim, x, y |
 | `red-box` | 框选高亮 | frame | x, y, w, h, color, width, anim |
@@ -360,3 +360,12 @@ screenshot at canvas width and scrolls it from top to bottom over the selected i
 time to read it. Existing captions and watermark are drawn after the insert. Trims, cuts and speed
 changes keep the insert tied to its original timeline; changing the asset invalidates the render cache.
 This is the shared rendering operation; it does not itself find or automatically plan supporting footage.
+
+
+`media-insert.detail_regions` accepts one or two source-verified rectangles in decoded
+source pixels. Portrait output shows the source overview plus enlarged details using
+the shared course layout; landscape retains the full source. This overrides `fit`.
+Coordinates must come from the original frame, not its contact-sheet position; bounds
+are checked against decoded frames. Fixed regions do not track motion. Use only a
+stable document or shot, and check reading time and captions in the actual export.
+The spoken planner does not automatically select these regions yet.

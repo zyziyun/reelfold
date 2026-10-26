@@ -280,25 +280,31 @@ def _crop_fill(w, h):
     return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
 
 
-def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None):
-    """Source-pixel rectangles for one continuous source part; preserve its full overview.
-
-    Portrait only: landscape retains the complete source. Regions must be verified against
-    the displayed (rotation-corrected) source, not inferred from its title or transcript.
-    """
+def detail_rectangles(regions, src_wh=None):
+    """Validate source-pixel rectangles; optionally check decoded source bounds."""
     import math
     if not isinstance(regions, list) or not 1 <= len(regions) <= 2:
         raise ValueError("detail_regions needs one or two source rectangles")
-    sw, sh = src_wh
     rects = []
     for r in regions:
         if not isinstance(r, (list, tuple)) or len(r) != 4 or any(
                 isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in r):
             raise ValueError("detail_regions rectangles must be finite [x, y, width, height]")
         x, y, w, h = r
-        if x < 0 or y < 0 or w < 2 or h < 2 or x + w > sw or y + h > sh:
+        if x < 0 or y < 0 or w < 2 or h < 2 or (src_wh is not None and (x + w > src_wh[0] or y + h > src_wh[1])):
             raise ValueError("detail_regions rectangle is outside the displayed source")
         rects.append([int(x), int(y), int(w), int(h)])
+    return rects
+
+
+def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None):
+    """Source-pixel rectangles for one continuous source part; preserve its full overview.
+
+    Portrait only: landscape retains the complete source. Regions must be verified against
+    the displayed (rotation-corrected) source, not inferred from its title or transcript.
+    """
+    sw, sh = src_wh
+    rects = detail_rectangles(regions, src_wh)
     if not geo["vertical"]:
         return geo
     if geo.get("camera"):

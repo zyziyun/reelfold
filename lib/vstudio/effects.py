@@ -372,7 +372,7 @@ _add("media-insert", "Supporting footage", "cards", "Local video or screenshot c
      {PIL: ["vstudio.project.outfx:MediaInsert", "vstudio.broll:Item"]}, "`project/outfx.py:MediaInsert`",
      [("fit", "contain", "contain / cover / card")], "Source-grounded supporting material", "low", "2–8 s",
      "At the matching spoken idea", ["Inspect the source; never invent its content"], "tests/test_media_insert.py",
-     "A timed media-insert effect; card fit scrolls tall documents")
+     "A timed media-insert effect; card fit scrolls tall documents; verified detail_regions enlarge portrait details")
 _add("running-header", "Running header", "text", "Section names, per-section progress, titles", [PIL],
      {PIL: [PS + "subtitles.py:Header"]}, "`photostory/subtitles.py:Header`", [("SECTIONS", "spec", "<= 6 sections or labels crowd")],
      "Photo stories with sections", "low", "whole video", "always on", [], "no", "photo-story")

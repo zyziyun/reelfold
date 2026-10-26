@@ -292,3 +292,14 @@ Missing files or wholly unavailable previews stop the pass. Sampled video sheets
 prove unseen action boundaries: review the selected interval and document reading time
 in the finished export. This does not replace narrative recutting or establish premium
 quality by the number of effects.
+
+
+For verified document/code details, a `media-insert` effect can set
+`detail_regions: [[x, y, width, height]]` (one or two rectangles in the decoded,
+rotation-corrected source pixels). Portrait outputs preserve an overview and enlarge
+those regions using the shared course layout; landscape retains the whole source.
+This is an explicit output-edit option, not automatic region selection by the spoken
+planner. Inspect the original at sufficient resolution before specifying coordinates;
+contact-sheet tile coordinates are not source coordinates. Select the single relevant
+line or detail and allow enough time to understand it. Regions are fixed, not tracked:
+do not use them for moving targets or changing slides. Invalid bounds stop rendering.

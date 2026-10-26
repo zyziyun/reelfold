@@ -94,6 +94,7 @@ if the block is stale. To add an effect or port one to another engine, see [ADDI
 | Camera-off avatar <sub>`camera-off-avatar`</sub> | Full-tile cat avatar | PIL + HTML | `call-clips/assets/cat_avatar.html`, `verify_avatar.py` | `--tile=960x540` | A participant with camera off | n/a | whole clip | unlimited | Render with `render_sticker.py --size 960x540` | - |
 | Photo overlays <sub>`photo-overlays`</sub> | Develop, shimmer, dust, pounce holes, red pen, triangle, loupe, timeline, count-up, label (`develop`, `shimmer`, `dust`, `prick`, `hl`, `tri`, `loupe`, `tl`, `count`, `label`) | PIL | `photostory/overlays.py:overlays(C, sh, f, lt)`; `label` in `render.py` + `subtitles.make_label` | `fx=()`, `hl_t=0.3` | Point at something inside a photo story shot | med | per shot | each overlay stars once (A7) | Use them in a photo-story spec | - |
 | Polaroid / taped card <sub>`polaroid`</sub> | Taped polaroid with a shadow and caption | PIL | `lib/vstudio/cover.py:polaroid`; `photostory/shots.py:make_card` | `rot=0` | Scrapbook / travel looks, covers | low | hold >= 1 s | unlimited in a scrapbook section | `cover.polaroid(img, 600, rot=-4, cap="...")` | `test_visual.py` |
+| Supporting footage <sub>`media-insert`</sub> | Local video or screenshot cutaway with original narration | PIL | `project/outfx.py:MediaInsert` | `fit=contain` | Source-grounded supporting material | low | 2–8 s | At the matching spoken idea | A timed media-insert effect; card fit scrolls tall documents; verified detail_regions enlarge portrait details | `test_media_insert.py` |
 
 ## 4. Text & captions
 
@@ -225,7 +226,7 @@ exact = same look; near = same idea, small visual difference; approx = closest s
 | Photo-story cover <sub>`photo-story-cover`</sub> | Title zone + hero split polaroid + taped polaroid row with red circles | PIL | `photostory/cover.py` | `COVER=spec` | Photo stories | n/a | still | 1 | `polaroid()`, `circled()` | - |
 | Frame scoring <sub>`frame-scoring`</sub> | Picks smiling, eyes-open, centred frames | PIL | `cover.py:score_frames`, `contact_sheet` | `top_n=6`, `min_gap=2.0` | Choosing a cover frame | n/a | - | - | Run on any talking video | `test_visual.py` |
 
-**Count**: 94 registry entries in 11 sections (199 counting named variants). By engine: PIL 45, ffmpeg 21, HF 26, HTML 5, audio 7. Parameter feel, pitfalls and entry points: `python -m vstudio.effects --show <id>`.
+**Count**: 95 registry entries in 11 sections (200 counting named variants). By engine: PIL 46, ffmpeg 21, HF 26, HTML 5, audio 7. Parameter feel, pitfalls and entry points: `python -m vstudio.effects --show <id>`.
 
 <!-- END GENERATED: effects registry -->
 
