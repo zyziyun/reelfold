@@ -219,6 +219,23 @@ def _tokens(text):
     return [(t, [tuple(x) for x in parts]) for t, parts in out]
 
 
+def reading_time(text, lang="en", lo=2.5, hi=6.0):
+    """Rough card dwell time, using the same Unicode word boundaries as captions.
+
+    Han/kana: six characters per second; spaced/dictionary words: 3.5 per
+    second, plus one second to orient. These are layout heuristics, not measured
+    language-specific reading speeds. ``lang`` remains accepted for callers.
+    """
+    text = unicodedata.normalize("NFKC", strip_markup(str(text or "")))
+    characters, words = 0, 0
+    for token, _ in _tokens(text):
+        letters = [c for c in token if unicodedata.category(c)[0] in "LN"]
+        counted = [c for c in letters if _cjk(c) and not unicodedata.name(c, "").startswith("HANGUL")]
+        characters += len(counted)
+        words += bool(len(letters) > len(counted))
+    return round(max(lo, min(hi, 1.0 + characters / 6.0 + words / 3.5)), 2)
+
+
 def _render(toks, style):
     a, b = ("【", "】") if style == "【】" else ("**", "**")
     s, open_ = "", False

@@ -108,7 +108,7 @@ def plan(cues, duration, title="", complete=None):
         "on a lesson, interview, demo or company presentation. Preserve the opening and natural ending. "
         "Max 44 characters for titles and 54 per item; "
         "prefer much shorter phrases. The title and all items must be readable within the display: "
-        "budget about 6 Chinese characters or 3.5 English words per second, plus one second for orientation. "
+        "budget about 6 Han/kana characters or 3.5 space- or dictionary-delimited words per second, plus one second for orientation. "
         "Shorten redundant labels or select a longer valid display span, never remove a necessary qualifier "
         "to fit. [] is valid only if no visual explanation helps. JSON only."
     )
@@ -131,7 +131,7 @@ def plan(cues, duration, title="", complete=None):
                         layer.setup()
                     except ValueError as error:
                         raise ValueError(f"spoken finishing: {w}x{h} layout: {error}") from error
-            from vstudio.qa import reading_time
+            from vstudio.subs import reading_time
             for effect in effects:
                 params = effect["params"]
                 text = " ".join([params["title"], *params["items"]])

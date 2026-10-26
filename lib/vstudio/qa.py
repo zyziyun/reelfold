@@ -405,9 +405,9 @@ QUESTION_KICKER = dict(en="Question", zh="提问")
 
 
 def reading_time(text, lang="en", lo=2.5, hi=6.0):
-    """Seconds to read a question card: ~3.5 English words / 6 Chinese characters per second + 1 s, in [lo, hi]."""
-    n = len(re.findall(r"[一-鿿]", text or "")) / 6.0 + len(re.findall(r"[A-Za-z0-9']+", text or "")) / 3.5
-    return round(max(lo, min(hi, 1.0 + n)), 2)
+    """Compatibility entry point for the shared caption/card reading heuristic."""
+    from .subs import reading_time as estimate
+    return estimate(text, lang=lang, lo=lo, hi=hi)
 
 
 def clip_specs(plan, source, question="audio", mode="bilingual", mask=None, speed=1.0, subs=None, ui="zh",

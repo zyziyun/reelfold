@@ -208,3 +208,31 @@ def test_pixel_wrapping_keeps_semantic_preferences_at_large_font_sizes(monkeypat
     assert any("断开" in line for line in actual)
     assert any("依然" in line for line in actual)
     assert any("继续" in line for line in actual)
+
+
+@pytest.mark.parametrize("text", [
+    "이 영상에서는 화면을 공유하면서 설명하는 방법을 보여드립니다",
+    "このどうがではがめんをきょうゆうしながらせつめいします",
+    "هذا الفيديو يشرح كيفية مشاركة الشاشة أثناء تسجيل الدرس",
+    "Это видео объясняет как записывать экран во время урока",
+    "इस वीडियो में स्क्रीन रिकॉर्ड करने का तरीका बताया गया है",
+])
+def test_reading_time_counts_non_latin_speech(text):
+    assert S.reading_time(text, lo=0, hi=float("inf")) > 2.5
+
+
+def test_reading_time_reuses_dictionary_and_markup_boundaries():
+    thai = "การตัดต่อวิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจ"
+    assert S.reading_time(thai, lo=0, hi=float("inf")) > 2.5
+    assert S.reading_time("**café** déjà vu", lo=0) == S.reading_time("café déjà vu", lo=0)
+    assert S.reading_time("编辑 draft", lo=0) == round(1 + 2/6 + 1/3.5, 2)
+    assert S.reading_time("你好世界", lo=0) == round(1 + 4/6, 2)
+    assert S.reading_time("ＡＢＣ ｄｒａｆｔ", lo=0) == S.reading_time("ABC draft", lo=0)
+
+
+def test_question_card_reading_time_keeps_bounds_and_shared_estimate():
+    from vstudio.qa import reading_time
+    assert reading_time("Hi") == 2.5
+    assert reading_time("word " * 100) == 6
+    assert reading_time("word " * 100, hi=float("inf")) > 6
+    assert reading_time("이 영상에서는 화면을 공유합니다", hi=100) == S.reading_time("이 영상에서는 화면을 공유합니다", hi=100)
