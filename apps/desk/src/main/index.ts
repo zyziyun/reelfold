@@ -1108,7 +1108,7 @@ function registerIpc() {
         if (sent !== total && Date.now() - last < 250) return;
         last = Date.now();
         win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
-      });
+      }, (index, total) => win?.webContents.send('publish:ytProgress', { postId: p.postId, stage: 'captions', index, total }));
       return r ? { ok: true, url: r.result.url, ...r } : null;
     });
     if (!recovered.ok) throw new Error(recovered.error);
@@ -1162,6 +1162,7 @@ function registerIpc() {
           win?.webContents.send('publish:ytProgress', { postId: p.postId, sent, total });
         },
         p.postId,
+        (index, total) => win?.webContents.send('publish:ytProgress', { postId: p.postId, stage: 'captions', index, total }),
       );
       return { ok: true, url: r.url, account: p.account, result: r };
     });

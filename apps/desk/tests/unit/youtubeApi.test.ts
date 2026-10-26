@@ -717,7 +717,9 @@ it('retries caption-only work after video upload, preserving receipt and multipa
   const captions = [{ file, lang: 'fr', role: 'speech' as const, format: 'srt' as const, cues: 1, render_key: 'r', sha256: crypto.createHash('sha256').update(text).digest('hex') }];
   const videoFile = path.join(dir, 'video.mp4'); fs.writeFileSync(videoFile, Buffer.alloc(100));
   g.captionFailure = true;
-  const result = await yt.upload('main', { file: videoFile, title: 't', description: '', tags: [], publishAt: null, captions }, undefined, 'post1');
+  const stages: string[] = [];
+  const result = await yt.upload('main', { file: videoFile, title: 't', description: '', tags: [], publishAt: null, captions }, (sent, total) => { if (sent === total) stages.push('video done'); }, 'post1', (index, total) => stages.push(`captions ${index}/${total}`));
+  expect(stages).toEqual(['video done', 'captions 1/1']);
   expect(result.id).toBe('vid123');
   expect(result.captions?.[0].status).toBe('error');
   expect(vault.get('youtube-upload/post1').uploadReceipt?.result.id).toBe('vid123');

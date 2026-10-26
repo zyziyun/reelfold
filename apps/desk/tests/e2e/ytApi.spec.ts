@@ -472,3 +472,34 @@ test('late package response cannot replace the next post copy or subtitle files'
   await expect(page.getByTestId('publish-captions')).toHaveCount(0);
   await expect(page.getByTestId('ytp-title')).toHaveValue('Next post');
 });
+
+test('caption progress stays busy until completion and ignores late events', async () => {
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [
+    { item, clip: 'A_tip', platform: 'youtube', at: at(new Date(Date.now() + 3 * 86400_000)) },
+  ] });
+  const id = r.ids[0];
+  // Delay the provider response deterministically; exercise the shipped renderer listener.
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('publish:ytPublish');
+    ipcMain.handle('publish:ytPublish', (event, p) => new Promise(resolve => {
+      (globalThis as unknown as { finishCaption: () => void }).finishCaption = () => resolve({
+        id: 'captionVideo', url: 'https://youtu.be/captionVideo', privacy: 'private', publishAt: null,
+        lockedPrivate: false, warnings: [], captions: [{ id: 'track1', language: 'fr', status: 'syncing' }],
+      });
+      event.sender.send('publish:ytProgress', { postId: p.postId, stage: 'captions', index: 1, total: 1 });
+    }));
+  });
+  await hash(`#/publish/post/${id}?now=1`);
+  await page.getByTestId('ytp-kids-no').check();
+  await page.getByTestId('ytp-publish').click();
+  await expect(page.getByTestId('ytp-progress')).toHaveText('Uploading subtitles… 1 of 1');
+  await expect(page.getByTestId('ytp-publish')).toBeDisabled();
+  await app.evaluate(() => (globalThis as unknown as { finishCaption: () => void }).finishCaption());
+  await expect(page.getByTestId('ytp-done')).toBeVisible();
+  await expect(page.getByTestId('ytp-caption-status')).toContainText('Processing');
+  await app.evaluate(({ BrowserWindow }, postId) => BrowserWindow.getAllWindows()[0].webContents.send('publish:ytProgress', {
+    postId, stage: 'captions', index: 1, total: 1,
+  }), id);
+  await expect(page.getByTestId('ytp-done')).toBeVisible();
+  await expect(page.getByTestId('ytp-progress')).toHaveCount(0);
+});

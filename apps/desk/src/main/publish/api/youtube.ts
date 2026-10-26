@@ -471,7 +471,7 @@ export class YouTubeApi {
   }
 
   /** Query only the saved session. Never create another upload while its outcome is unknown. */
-  async recover(postId: string, resume = false, expectedAccount?: string | null, onProgress?: (sent: number, total: number) => void): Promise<{ account: string; result: YtPublishResult } | null> {
+  async recover(postId: string, resume = false, expectedAccount?: string | null, onProgress?: (sent: number, total: number) => void, onCaptions?: (index: number, total: number) => void): Promise<{ account: string; result: YtPublishResult } | null> {
     const key = `youtube-upload/${postId}`;
     const saved = this.d.vault.get(key);
     const savedAccount = saved.uploadReceipt?.account ?? saved.uploadSession?.account;
@@ -479,7 +479,7 @@ export class YouTubeApi {
     if (savedAccount && expectedAccount !== undefined && savedAccount !== expectedAccount) {
       throw new UploadOutcomeUnknown('The saved upload belongs to another publishing account. Restore that account or check YouTube Studio.');
     }
-    if (saved.uploadReceipt) return { ...saved.uploadReceipt, result: await this.refreshCaptions(postId, saved.uploadReceipt.account, saved.uploadReceipt.result) };
+    if (saved.uploadReceipt) return { ...saved.uploadReceipt, result: await this.refreshCaptions(postId, saved.uploadReceipt.account, saved.uploadReceipt.result, onCaptions) };
     const session = saved.uploadSession;
     if (!session) return null;
     const url = new URL(session.url);
@@ -504,11 +504,11 @@ export class YouTubeApi {
     if (session.followups) result.warnings.push('Recovered upload: check the cover and playlist in YouTube Studio.');
     const receipt = { account: session.account, result };
     this.d.vault.set(key, { uploadReceipt: receipt, uploadSession: undefined });
-    return { ...receipt, result: await this.refreshCaptions(postId, session.account, result) };
+    return { ...receipt, result: await this.refreshCaptions(postId, session.account, result, onCaptions) };
   }
 
   /** Caption-only reconciliation bound to the original upload receipt and artifacts. */
-  async refreshCaptions(postId: string, account: string, result: YtPublishResult): Promise<YtPublishResult> {
+  async refreshCaptions(postId: string, account: string, result: YtPublishResult, onCaptions?: (index: number, total: number) => void): Promise<YtPublishResult> {
     const key = `youtube-upload/${postId}`;
     const saved = this.d.vault.get(key);
     if (saved.uploadReceipt?.account !== account || saved.uploadReceipt.result.id !== result.id || !result.id) return result;
@@ -518,6 +518,7 @@ export class YouTubeApi {
     for (const track of tracks) {
       const confirmed = saved.uploadReceipt.result.captions?.find(c => c.status === 'serving' && c.language === track.lang && c.name === `Reelfold ${track.lang} ${track.sha256}`);
       if (confirmed) { captions.push(confirmed); continue; }
+      onCaptions?.(captions.length + 1, tracks.length);
       try { captions.push(await this.caption(account, result.id, track)); }
       catch (error) { captions.push({ language: track.lang, status: 'error', error: String((error as Error).message).slice(0, 300) }); }
     }
@@ -538,12 +539,12 @@ export class YouTubeApi {
   }
 
   /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */
-  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string): Promise<YtResult> {
+  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string, onCaptions?: (index: number, total: number) => void): Promise<YtResult> {
     const receiptKey = postId ? `youtube-upload/${postId}` : null;
     if (postId) {
       const saved = this.d.vault.get(receiptKey!);
       if (saved.uploadSession || saved.uploadReceipt) {
-        const recovered = await this.recover(postId, false, account);
+        const recovered = await this.recover(postId, false, account, onProgress, onCaptions);
         if (recovered) {
           if (recovered.account !== account) throw new UploadOutcomeUnknown('This post was uploaded with another account. Check YouTube Studio.');
           return recovered.result as YtResult;
@@ -600,7 +601,7 @@ export class YouTubeApi {
       try { this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined }); }
       catch { throw new UploadOutcomeUnknown('Video uploaded, but its receipt could not be saved. Check YouTube Studio.'); }
     }
-    return postId ? { ...result, captions: (await this.refreshCaptions(postId, account, result)).captions } : result;
+    return postId ? { ...result, captions: (await this.refreshCaptions(postId, account, result, onCaptions)).captions } : result;
   }
 
   /** Shared bounded transfer for fresh uploads and verified restart recovery. */

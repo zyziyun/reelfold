@@ -253,7 +253,7 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
   );
 }
 
-type Phase = { k: 'form' } | { k: 'uploading'; pct: number } | { k: 'done'; r: YtPublishResult };
+type Phase = { k: 'form' } | { k: 'uploading'; pct: number; captions?: { index: number; total: number } } | { k: 'done'; r: YtPublishResult };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -358,8 +358,10 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   useEffect(
     () =>
       window.desk.on('publish:ytProgress', (d) => {
-        const p = d as { postId: string; sent: number; total: number };
-        if (p.postId === post.id) setPhase({ k: 'uploading', pct: Math.floor((p.sent / Math.max(1, p.total)) * 100) });
+        const p = d as { postId: string; sent: number; total: number; stage?: 'captions'; index: number };
+        if (p.postId === post.id) setPhase(current => current.k !== 'uploading' ? current : p.stage === 'captions'
+          ? { k: 'uploading', pct: 100, captions: { index: p.index, total: p.total } }
+          : { k: 'uploading', pct: Math.floor((p.sent / Math.max(1, p.total)) * 100) });
       }),
     [post.id],
   );
@@ -438,6 +440,9 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
   }
   if (!acct) return null;
   const busy = phase.k === 'uploading';
+  const progressLabel = phase.k === 'uploading' && phase.captions
+    ? t('ytp.uploadingCaptions', phase.captions)
+    : t('ytp.uploading', { pct: phase.k === 'uploading' ? phase.pct : 0 });
   if (pendingError || pending === undefined) return (
     <div className="pl-card" data-testid="ytp-recovery-loading">
       <span>{pendingError || t('ytp.status.checking')}</span>
@@ -457,7 +462,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
         {!pending.canResume && <span>{t('ytp.resume.unavailable')}</span>}
         <button className="btn primary" data-testid="ytp-resume" disabled={busy || pending.busy || !pending.canResume || pending.account !== account} onClick={() => void resume()}>
           {(busy || pending.busy) && <Loader2 className="ico spin" />}
-          {busy || pending.busy ? t('ytp.uploading', { pct: phase.k === 'uploading' ? phase.pct : 0 }) : t('ytp.resume.button')}
+          {busy || pending.busy ? progressLabel : t('ytp.resume.button')}
         </button>
         <button className="pb-link" onClick={() => void window.desk.openExternal('https://studio.youtube.com')}>{t('ytp.resume.studio')} <ExternalLink className="ico" /></button>
       </div>
@@ -579,7 +584,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
           {busy ? <Loader2 className="ico spin" /> : <Upload className="ico" />}
           {when === 'at' ? t('ytp.schedule') : t('ytp.publish')}
         </button>
-        {phase.k === 'uploading' && <span className="muted num" data-testid="ytp-progress">{t('ytp.uploading', { pct: phase.pct })}</span>}
+        {phase.k === 'uploading' && <span className="muted num" data-testid="ytp-progress">{progressLabel}</span>}
       </div>
       <p className="muted small">{t('yt.audit')}</p>
     </div>
