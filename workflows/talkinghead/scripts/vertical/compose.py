@@ -24,7 +24,7 @@ Template config: $VSTUDIO/workflows/talkinghead/examples/v_config_example.py
 Built on vstudio: hook/body dissolves = cut.xfade_assemble (muted pads both sides, see ../montage.py),
 loudness = audio.loudnorm_2pass, SFX = audio.place_sfx, text/badges/stamps/progress bars = draw/overlays,
 subtitle chunk timing = asr.align_script on the strict_pass words. The per-frame animation engine and the
-layout (layout.py) and B-roll (broll.py) are local.
+layout (layout.py) are local; B-roll drawing is shared through vstudio.broll.
 """
 import sys, pathlib; sys.path[:0] = [str(pathlib.Path(__file__).resolve().parents[4] / "lib"), str(pathlib.Path(__file__).resolve().parents[1]),
                                      str(pathlib.Path(__file__).resolve().parent)]
@@ -38,7 +38,7 @@ from vstudio import draw as D, overlays as O
 from montage import Montage
 from bodycut import mux
 from layout import Layout, resolve_profile, pop_platform_arg, pick, face_core, overlap
-import broll as BR
+from vstudio import broll as BR
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _PLAT_ARG, CLEAN = pop_platform_arg(sys.argv)
@@ -433,7 +433,7 @@ if ST['panels']:
         PANI.append((p0, p1, np.asarray(bgs), x - pad, top - pad, [(max(rt, p0), im, x + dx, top + dy) for rt, im, dx, dy in rows]))
         PANBOX.append((p0, p1, x, top, RW, ph))      # the card itself (no soft shadow): the export's caption keep-out
 
-# ---------------- B-roll (broll.py): cut-away / picture-in-picture / split screen at sentence anchors ----------------
+# ---------------- B-roll (vstudio.broll): cut-away / picture-in-picture / split screen at sentence anchors ----------------
 BRI = BR.load(G('BROLL', []), L, YEL)
 _LBLF = F(30)
 for it in BRI:

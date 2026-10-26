@@ -5,13 +5,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vstudio import media
+from vstudio import media, broll as BR
 
 
 spec = importlib.util.spec_from_file_location(
     "broll_source_test", Path(__file__).parents[1] / "workflows/talkinghead/scripts/vertical/broll.py")
-BR = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(BR)
+LEGACY = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(LEGACY)
 
 
 @pytest.fixture
@@ -47,9 +47,10 @@ def test_decode_failure_is_not_black_or_a_cached_frame(clip, monkeypatch, after_
         source_cap.release()
 
 
-def test_native_seek_loop_and_intentional_end_hold(clip):
+@pytest.mark.parametrize("module", [BR, LEGACY], ids=["shared", "legacy-config"])
+def test_native_seek_loop_and_intentional_end_hold(clip, module):
     for loop in (False, True):
-        source = BR.Source(clip, loop=loop)
+        source = module.Source(clip, loop=loop)
         try:
             red, blue = source.frame(.2).copy(), source.frame(1.2).copy()
             assert red[..., 0].mean() > 240 and red[..., 2].mean() < 10
