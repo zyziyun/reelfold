@@ -218,6 +218,11 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 `"img"` photo · `"v<clip>"` / `"video:<clip>"` (opts `off`, `speed`, `grade`, `audio=keep|duck|mute`, `gain`, `cleanup`, `words`) · `collage:a,b,c` · `film:a,b,c` ·
 `split:a|b` (`labels=`) · `grid:a,b,c,d` · `tilt:a` (`yaw=(from,to)`) · `deck:a,b,c` · `quote:a` (`q=(en, zh, who)`) ·
 `route:<leg>` or `route:A>B>C` · `medal:a` (`ring="TEXT · "`) · `rows:a,b,c`.
+Video shot `z` magnifies relative to the crop that fills the output canvas: `z=2` doubles the visible
+subject size on portrait and landscape outputs. Choose `c` from the source and check that the entire
+interaction remains visible; a tighter crop cannot restore missing detail. Legacy `VCROP` width fractions
+remain relative to the displayed source, rather than the fitted crop.
+
 Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zoom`, `label="..."`, `tr=<transition>`, `trd=seconds`.
 
 ### Overlays (any shot)

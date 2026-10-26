@@ -68,3 +68,25 @@ def test_planner_rejects_invalid_detail_options(source, regions, extra):
     options=dict(detail_regions=regions,**extra)
     text=f'SCRIPT=[(0,[("Action","动作")],[({source!r},1,"still",{options!r})])]'
     assert spec_error(text)
+
+@pytest.mark.parametrize('canvas', [(180,320), (240,180)])
+def test_video_zoom_magnifies_relative_to_fitted_crop(tmp_path, canvas):
+    """A requested 2x detail must double a source marker on either canvas."""
+    src = str(tmp_path/'marker.mp4')
+    media.run(['ffmpeg','-y','-f','lavfi','-i',
+        'color=black:s=640x360:r=24:d=1,drawbox=x=310:y=170:w=20:h=20:color=white:t=fill',
+        '-c:v','libx264','-pix_fmt','yuv420p',src])
+    w,h = canvas
+    C = SimpleNamespace(VCROP={}, VEQ={}, VEQ_FILTER='', cache_dir=str(tmp_path),
+        BOX_W=w, BOX_H=h, FPS=24, SUB_Y0=h-30, SUB_H=30, HDR=0,
+        pal={'paper':(240,235,225)}, find_video=lambda n:src, vid_dirs=[str(tmp_path)])
+    sizes=[]
+    for zoom in (1,2):
+        out=prep_video(C,dict(start=0,end=.3,tail=0,off=0,speed=1,motion='still',z=zoom),'marker')
+        data=subprocess.check_output([media.ffmpeg_bin(),'-v','error','-i',out,'-frames:v','1',
+            '-pix_fmt','rgb24','-f','rawvideo','-'])
+        frame=np.frombuffer(data,dtype=np.uint8).reshape(h,w,3)
+        ys,xs=np.where(frame[:,:,0]>200)
+        sizes.append((xs.max()-xs.min()+1,ys.max()-ys.min()+1))
+    for axis in (0,1):
+        assert abs(sizes[1][axis]/sizes[0][axis]-2)<.2, sizes

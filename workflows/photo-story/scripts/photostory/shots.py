@@ -115,7 +115,7 @@ def prep_video(C, sh, name):
     look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
-                 C.pal["paper"], need))
+                 C.pal["paper"], need, "fitted-video-zoom-v1"))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
     out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
     if not os.path.exists(out):
@@ -132,9 +132,12 @@ def prep_video(C, sh, name):
         w, h = ffprobe_size(src)                     # displayed (rotation-applied) frame; ffmpeg auto-rotates
         if name in C.VCROP:
             cx, cy, fr = C.VCROP[name]
+            cw = min(w * fr, h * C.BOX_W / C.BOX_H)
         else:
-            (cx, cy), fr = sh.get("c", (0.5, 0.5)), 1.0 / sh.get("z", 1.0)
-        cw = min(w * fr, h * C.BOX_W / C.BOX_H)
+            cx, cy = sh.get("c", (0.5, 0.5))
+            # Zoom is relative to the fitted cover crop, as for photos. Applying
+            # it before aspect fitting can erase it entirely on portrait outputs.
+            cw = min(w, h * C.BOX_W / C.BOX_H) / sh.get("z", 1.0)
         ch = cw * C.BOX_H / C.BOX_W
         x = int(min(max(cx * w - cw / 2, 0), w - cw))
         y = int(min(max(cy * h - ch / 2, 0), h - ch))
