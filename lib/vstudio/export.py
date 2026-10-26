@@ -784,6 +784,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     cap_report = {}
     pl_geo = pl
     overlay = caption_overlay(prof, cue_list, pl["fps"], keepouts=kos, plan=pl_geo, report=cap_report) if cue_list else None
+    draw_effects = None
     if effects:
         from . import spoken
         fx = [dict(e, start=e["start"] - start, end=e["end"] - start) for e in effects
@@ -841,6 +842,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
             warnings.append(f"captions overlap a burned overlay (keepout) on {cap_report['blocked']} frames: "
                             f"no free spot in the safe box")
     finally:
+        if draw_effects is not None:
+            draw_effects.close()
         if workdir is None:
             shutil.rmtree(tmpd, ignore_errors=True)
     crop_json = os.path.join(out_dir, stem + ".crop.json")

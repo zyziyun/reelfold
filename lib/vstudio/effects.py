@@ -368,6 +368,11 @@ _add("explanation-card", "Argument card", "text", "Source-grounded comparison, c
      [("kind", "chain", "contrast / chain / takeaway")], "Spoken-video visual explanations", "low", "2–5 s",
      "At a relevant spoken argument", ["Never fabricate supporting evidence"], "tests/test_spoken.py",
      "A timed explanation-card effect on the edited timeline")
+_add("media-insert", "Supporting footage", "cards", "Local video or screenshot cutaway with original narration", [PIL],
+     {PIL: ["vstudio.project.outfx:MediaInsert", "vstudio.broll:Item"]}, "`project/outfx.py:MediaInsert`",
+     [("fit", "contain", "contain / cover / card")], "Source-grounded supporting material", "low", "2–8 s",
+     "At the matching spoken idea", ["Inspect the source; never invent its content"], "tests/test_media_insert.py",
+     "A timed media-insert effect; card fit scrolls tall documents")
 _add("running-header", "Running header", "text", "Section names, per-section progress, titles", [PIL],
      {PIL: [PS + "subtitles.py:Header"]}, "`photostory/subtitles.py:Header`", [("SECTIONS", "spec", "<= 6 sections or labels crowd")],
      "Photo stories with sections", "low", "whole video", "always on", [], "no", "photo-story")

@@ -129,6 +129,12 @@ SPECS = {
                     kind=_str("takeaway", "图解形式", enum=("contrast", "chain", "takeaway")),
                     items={"type": "array", "items": {"type": "string"}, "default": [], "x-zh": "观点"}),
         sample=dict(title="副业带来的变化", kind="chain", items=["走进新圈子", "交流更深入", "思路更开阔"])),
+    "media-insert": dict(
+        zh="素材切入", en="Supporting footage", kind="fullframe", stage="frame", default_dur=4.0,
+        what_zh="插入本地视频或截图，保留主视频原声；长截图按画幅滚动展示",
+        params=dict(file=_str(None, "本地素材路径", True), offset=_num(0, 0, 86400, "素材起点（秒）"),
+                    fit=_str("contain", "画面适配", enum=("contain", "cover", "card"))),
+        sample={}),
     "overlay-images": dict(
         zh="贴纸 / 标签", en="Sticker / label", kind="overlay", stage="frame", default_dur=2.0, anim="pop",
         what_zh="图片贴纸，或文字标签（chip / badge / tag）",
@@ -414,6 +420,8 @@ def validate(eid, params, partial=False):
             raise ValueError(f"overlay-images: style image needs an existing image file, got {clean.get('image')!r}")
         if k == "overlay-images" and not clean.get("image") and not clean.get("text"):
             raise ValueError("overlay-images: text or image is required")
+        if k == "media-insert" and not os.path.isfile(str(clean.get("file") or "")):
+            raise ValueError("media-insert: an existing local video or image file is required")
         if k == "explanation-card":
             items = clean.get("items") or []
             if not 1 <= len(items) <= 3 or any(not isinstance(x, str) or not x.strip() or len(x) > 54 for x in items):
@@ -483,6 +491,37 @@ class Layer:
 
     def draw(self, img, t, dur):
         raise NotImplementedError
+
+
+class MediaInsert(Layer):
+    """Full-canvas cutaway through the shared B-roll reader; main audio is untouched.
+
+    Card fit scrolls tall documents at canvas width instead of shrinking all text
+    into a small PiP. Contain preserves the complete image; cover is explicit.
+    """
+    def draw(self, img, t, dur):
+        from vstudio import broll
+        if self.inst.get("_media_spans"):
+            edited = t + self.inst["a"]
+            for a, b, sa, sb in self.inst["_media_spans"]:
+                if a <= edited <= b:
+                    t = sa + (edited - a) * (sb - sa) / (b - a)
+                    break
+            dur = self.inst["end"] - self.inst["start"]
+        if not hasattr(self, "item"):
+            self.item = broll.Item(dict(src=self.p["file"], ss=self.p.get("offset", 0),
+                loop=False, fit=self.p.get("fit", "contain"), t0=0, t1=dur), {}, (34, 180, 150))
+            src = self.item.src
+            if not src.is_img and (src.ss >= src.n / src.fps or src.ss + dur > src.n / src.fps + 1 / src.fps):
+                self.close()
+                raise ValueError("media-insert: selected interval exceeds the source video; choose a shorter insert")
+        picture = self.item.view(t, self.W, self.H, t)
+        img[:] = np.clip(picture[..., ::-1], 0, 255).astype(np.uint8)
+
+    def close(self):
+        item = getattr(self, "item", None)
+        if item is not None and not item.src.is_img:
+            item.src.cap.release()
 
 
 class ImageLayer(Layer):
@@ -993,7 +1032,7 @@ class LowerThird(ImageLayer):
         return _shadow(im, self.u)
 
 
-LAYERS = {"privacy-sticker": FaceMask, "pop-words": PopWords, "stacking-stamps": Stamp, "quote-card": QuoteCard, "callout-bubble": Callout,
+LAYERS = {"media-insert": MediaInsert, "privacy-sticker": FaceMask, "pop-words": PopWords, "stacking-stamps": Stamp, "quote-card": QuoteCard, "callout-bubble": Callout,
           "notes-panel": Notes, "explanation-card": ExplanationCard, "overlay-images": Sticker, "badge": Badge, "red-box": RedBox,
           "chapter-card": ChapterCard, "punch-in": PunchIn, "progress-bar-pil": Progress,
           "marker-sweep": MarkerSweep, "chapter-rule": ChapterRule, "number-counter": NumberCounter,
@@ -1030,7 +1069,7 @@ def thumbnail(eid, out, size=(360, 640)):
     W, H = size
     s = SPECS[k]
     img = _sample_bg(W, H)
-    if k in LAYERS and not (s["kind"] == "look"):          # a look needs a real face: a labelled card
+    if k in LAYERS and k != "media-insert" and not (s["kind"] == "look"):          # a look needs a real face: a labelled card
         params, _ = validate(k, dict(s.get("sample") or {}))
         inst = dict(effect=k, params=params, start=0.0, end=4.0)
         if k == "progress-bar-pil":

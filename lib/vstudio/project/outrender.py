@@ -526,6 +526,10 @@ def visual_spec(rec, st, tl, tg, band):
     for e in st["effects"]:
         if any(str(k).endswith(FX.LANG_SUFFIXES) for k in (e.get("params") or {})):
             e = dict(e, params=FX.localize(e["params"], lang))
+        if e["effect"] == "media-insert":
+            e = dict(e, source_sig=OUT.file_sig(e["params"]["file"]),
+                     _media_spans=[(o / tl.speed, (o + b - a) / tl.speed, a - e["start"], b - e["start"])
+                                   for (a, b), o in zip(tl.segs, tl.offs)])
         sp = FX.SPECS[e["effect"]]
         if sp["stage"] != "frame":
             continue

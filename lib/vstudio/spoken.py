@@ -165,4 +165,8 @@ def overlay(effects, width, height, safe):
             if layer is not None and a <= t < b:
                 layer.draw(img, t - a, b - a)
         return img
+    def close():
+        for _, _, layer in layers:
+            getattr(layer, "close", lambda: None)()
+    draw.close = close
     return draw

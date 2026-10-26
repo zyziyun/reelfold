@@ -190,6 +190,7 @@ frames rendered once into `$VSTUDIO_CACHE/output_fx/`.
 | `callout-bubble` | 标注气泡 / 箭头 | frame | text, arrow_x, arrow_y, theme, anim, x, y |
 | `chapter-card` | 章节卡 | frame | title, index, total, accent |
 | `notes-panel` | 记笔记面板 | frame | title, bullets, theme, width, anim, x, y |
+| `media-insert` | 素材切入（原声保留） | frame | file (existing local image/video), offset (source seconds), fit contain|cover|card |
 | `overlay-images` | 贴纸 / 标签 | frame | image, text, style tag|chip|badge|star|image, color, scale, angle, anim, x, y |
 | `badge` | 角标 | frame | text, color, scale, anim, x, y |
 | `red-box` | 框选高亮 | frame | x, y, w, h, color, width, anim |
@@ -348,3 +349,14 @@ Second-pass renders also return `sidecars` (SRT and WebVTT) and record them in t
 Publishing packages carry verified `sidecars` and `captionIssues`. The edited-file listing checks the video signature, render key, caption location and SHA-256 before returning a subtitle file. Missing, changed or mismatched artifacts are excluded and reported; the video remains available. Older caption manifests without video binding require rendering again. No neighboring subtitle files are discovered by filename guesses. YouTube sign-in offers an optional subtitle permission. Existing accounts can use Settings → Publishing accounts → Update permissions without disconnecting. Permission updates verify the original channel ID before replacing either stored or in-memory credentials; use a separate publishing account for a different channel. Failed verification preserves the existing connection. Previously granted permissions remain selected; each desktop authorization requests the full desired scope set. Google requires the broader `youtube.force-ssl` scope for caption uploads, which also permits editing and deleting videos, ratings and comments; the consent sheet explains this scope rather than describing it as subtitle-only. When granted, verified known-language speech SRT tracks accompany API uploads, including opted-in scheduled posts. Composite/editorial tracks remain local. Caption processing status is separate from video delivery; Check status reconciles or retries the original caption artifacts without uploading the video again. Missing/changed local caption files are reported, and creator-owned tracks are never deleted or overwritten.
 
 Secondary edits retain the shared cue translation (`alt`) and metadata when loading pipeline or file captions. Explicit bilingual display includes both text and translation; monolingual English/Chinese selection can use the retained translation. Cuts and speed changes retime the chosen caption together.
+
+### Supporting material cutaways
+
+Use `media-insert` for a verified local supporting video or screenshot at a relevant spoken moment.
+The insert replaces the picture only; the original narration continues. Inspect the material before
+selecting it, and use an interval within the source video (no automatic looping or end-frame hold).
+`contain` keeps the full material visible, `cover` explicitly crops to fill, and `card` shows a tall
+screenshot at canvas width and scrolls it from top to bottom over the selected interval. Choose enough
+time to read it. Existing captions and watermark are drawn after the insert. Trims, cuts and speed
+changes keep the insert tied to its original timeline; changing the asset invalidates the render cache.
+This is the shared rendering operation; it does not itself find or automatically plan supporting footage.
