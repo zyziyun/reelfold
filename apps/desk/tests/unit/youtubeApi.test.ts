@@ -40,6 +40,7 @@ class FakeGoogle {
   deny = false;
   /** scopes the consent screen grants (null: all asked) */
   grant: string[] | null = null;
+  channelsStatus = 200;
   channels = [{ id: 'UC1', snippet: { title: 'Ziyun Studio' } }];
   /** A provider response that differs from the requested public visibility. */
   lockPrivate = false;
@@ -156,7 +157,7 @@ class FakeGoogle {
       this.captionItems.push(item);
       return this.json(res, 200, item);
     }
-    if (u.pathname === '/youtube/v3/channels') return this.json(res, 200, { items: this.channels });
+    if (u.pathname === '/youtube/v3/channels') return this.json(res, this.channelsStatus, { items: this.channels });
     if (u.pathname === '/youtube/v3/videos') {
       this.statusReads++;
       return this.json(res, this.statusCode, { items: this.videoStatus ? [{ id: u.searchParams.get('id'), status: this.videoStatus }] : [] });
@@ -739,4 +740,37 @@ it('retries caption-only work after video upload, preserving receipt and multipa
   const count = g.captionPosts;
   await yt.refreshCaptions('post1', 'other', result);
   expect(g.captionPosts).toBe(count);
+});
+
+
+it.each(['empty', 'unavailable', 'different', 'missing-read-scope', 'invalid-id', 'save-failed'] as const)('reconnect keeps the original identity and cached token when channel is %s', async failure => {
+  const { yt, vault } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  await yt.connect('main', { timeoutMs: 5000 });
+  const original = vault.get('youtube/main');
+  const tokens = new Set(g.access);
+  if (failure === 'empty') g.channels = [];
+  if (failure === 'unavailable') g.channelsStatus = 503;
+  if (failure === 'different') g.channels = [{ id: 'UC2', snippet: { title: 'Other channel' } }];
+  if (failure === 'missing-read-scope') g.grant = [YT_UPLOAD];
+  if (failure === 'invalid-id') g.channels = [{ id: '', snippet: { title: 'Invalid' } }];
+  if (failure === 'save-failed') vi.spyOn(vault, 'set').mockImplementationOnce(() => { throw new Error('disk full'); });
+  await expect(yt.connect('main', { captions: true, timeoutMs: 5000 })).rejects.toThrow();
+  expect(vault.get('youtube/main')).toEqual(original);
+  // Reject any token from the failed authorization, proving the in-memory cache is untouched too.
+  g.access = tokens;
+  await expect(yt.playlists('main')).resolves.toBeInstanceOf(Array);
+});
+
+
+it('reconnect accepts the same channel after its display name changes', async () => {
+  const { yt, vault } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  await yt.connect('main', { timeoutMs: 5000 });
+  const original = vault.get('youtube/main').refreshToken;
+  g.channels = [{ id: 'UC1', snippet: { title: 'Renamed channel' } }];
+  await expect(yt.connect('main', { captions: true, timeoutMs: 5000 })).resolves.toMatchObject({
+    connected: true, captions: true, channel: { id: 'UC1', title: 'Renamed channel' },
+  });
+  expect(vault.get('youtube/main').refreshToken).not.toBe(original);
 });

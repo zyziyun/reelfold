@@ -370,16 +370,23 @@ export class YouTubeApi {
     if (!r.ok || !j.refresh_token) throw new Error(`Google did not grant access: ${j.error_description || j.error || r.status}`);
     const granted = (j.scope ?? scopes.join(' ')).split(/\s+/);
     if (!granted.includes(YT_UPLOAD)) throw new Error('the permission to upload videos was not ticked in Google’s page: connect again and allow it');
-    if (j.access_token) this.access.set(account, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 });
-    let channel: YtChannel | null = null;
-    if (j.access_token && granted.includes(YT_READONLY)) {
-      const c = await this.f(`${this.ep.api}/channels?part=snippet&mine=true`, { headers: { Authorization: `Bearer ${j.access_token}` } }).catch(() => null);
-      const cj = c && c.ok ? ((await c.json().catch(() => ({}))) as { items?: { id: string; snippet?: { title?: string } }[] }) : null;
-      if (cj && !cj.items?.length) throw new Error('this Google account has no YouTube channel yet: create one on youtube.com, then connect again');
-      if (cj?.items?.[0]) channel = { id: cj.items[0].id, title: cj.items[0].snippet?.title ?? cj.items[0].id };
+    if (!j.access_token || !granted.includes(YT_READONLY)) throw new Error('Allow access to your YouTube channel so Reelfold can verify the publishing account.');
+    const c = await this.f(`${this.ep.api}/channels?part=snippet&mine=true`, {
+      headers: { Authorization: `Bearer ${j.access_token}` }, signal: AbortSignal.timeout(15_000),
+    });
+    if (!c.ok) throw new Error('YouTube could not verify the channel. Your existing connection is unchanged; try again.');
+    const cj = await c.json() as { items?: { id: string; snippet?: { title?: string } }[] };
+    if (Array.isArray(cj.items) && !cj.items.length) throw new Error('this Google account has no YouTube channel yet: create one on youtube.com, then connect again');
+    const found = cj.items?.[0];
+    if (!found || typeof found.id !== 'string' || !found.id.trim()) throw new Error('YouTube did not return a valid channel. Your existing connection is unchanged.');
+    const channel: YtChannel = { id: found.id, title: found.snippet?.title || found.id };
+    if (existing.channel?.id && existing.channel.id !== channel.id) {
+      throw new Error(`Choose the original YouTube channel (${existing.channel.title}) to update this connection. Add a separate publishing account for another channel.`);
     }
-    const rec: ApiSecret = { refreshToken: j.refresh_token, scope: granted.join(' '), connectedAt: new Date().toISOString(), channel: channel ?? undefined };
+    const rec: ApiSecret = { refreshToken: j.refresh_token, scope: granted.join(' '), connectedAt: new Date().toISOString(), channel };
+    // Commit only after identity validation; a failed vault write must also leave the access cache intact.
     this.d.vault.set(vaultKey(account), rec);
+    this.access.set(account, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 });
     this.d.log?.(`[youtube] ${account} connected${channel ? ` (${channel.id})` : ''}`);
     return this.accountStatus(account);
   }
