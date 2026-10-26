@@ -163,7 +163,7 @@ export const ipcSchemas = {
   // her own Google Cloud OAuth client (the secret is optional: Desktop-app clients show one, Google wants it)
   'publish:apiClient': z.strictObject({ id: z.literal('youtube'), clientId: z.string().min(10).max(220), clientSecret: z.string().min(8).max(220).optional() }),
   'publish:apiUseBuiltin': z.strictObject({ id: z.literal('youtube') }),
-  'publish:apiConnect': z.strictObject({ id: z.literal('youtube'), account: accountName, playlists: z.boolean().optional() }),
+  'publish:apiConnect': z.strictObject({ id: z.literal('youtube'), account: accountName, playlists: z.boolean().optional(), captions: z.boolean().optional() }),
   'publish:apiCancel': z.strictObject({ id: z.literal('youtube') }),
   'publish:apiDisconnect': z.strictObject({ id: z.literal('youtube'), account: accountName.optional(), forgetClient: z.boolean().optional() }),
   'publish:apiAuto': z.strictObject({ id: z.literal('youtube'), auto: z.boolean() }),

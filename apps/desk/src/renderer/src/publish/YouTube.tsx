@@ -186,6 +186,7 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
   const { api, yt, apply, error, loading, reload } = useYt();
   const [waiting, setWaiting] = useState(false);
   const [playlists, setPlaylists] = useState(false);
+  const [captions, setCaptions] = useState(false);
   const close = () => {
     if (waiting) void window.desk.publish.api.cancel();
     onClose();
@@ -193,7 +194,7 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
   const go = async () => {
     setWaiting(true);
     try {
-      const s = await window.desk.publish.api.connect(account, playlists);
+      const s = await window.desk.publish.api.connect(account, playlists, captions);
       apply(s);
       const a = ytAccount(s.find((x) => x.id === 'youtube')?.yt ?? null, account);
       ui.toast(t('yt.connected', { channel: a?.channel?.title ?? account }));
@@ -239,6 +240,10 @@ export function YtConnectSheet({ account, onClose, onDone }: { account: string; 
           <label className="row small" style={{ gap: 6 }}>
             <input type="checkbox" checked={playlists} onChange={(e) => setPlaylists(e.target.checked)} data-testid="yt-connect-playlists" />
             {t('yt.playlistsScope')}
+          </label>
+          <label className="row small" style={{ gap: 6 }}>
+            <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} data-testid="yt-connect-captions" />
+            {t('yt.captionsScope')}
           </label>
           <p className="muted small">{t('yt.revoke')}</p>
           {!api?.keychain && <p className="pb-amber small">{t('pl.api.noKeychain')}</p>}
@@ -417,6 +422,11 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
           {processing && apiDeliveryState(r) === 'scheduled' && <span className="muted small">{t('ytp.status.processing')}</span>}
           {r.checkedAt && <span className="muted small" data-testid="ytp-checked">{t('ytp.status.checked', { when: fmtDate(r.checkedAt, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) })}</span>}
           <button className="pb-link" disabled={checking || !acct?.connected} onClick={() => void refresh()} data-testid="ytp-refresh">{checking ? t('ytp.status.checking') : t('ytp.status.refresh')}</button>
+          {r.captions?.map((c, i) => <span className="small" key={c.id ?? i} data-testid="ytp-caption-status">
+            {t('ytp.captionStatus', { language: c.language, status: t(`ytp.caption.${c.status}` as MessageKey) })}
+            {(c.error || c.failureReason) && <span className="muted"> — {c.error || c.failureReason}</span>}
+          </span>)}
+          {!!r.captions?.length && <span className="muted small">{t('ytp.captionRetry')}</span>}
           {r.lockedPrivate && <span className="small">{t('ytp.locked')}</span>}
           {r.warnings.length > 0 && <span className="muted small">{t('ytp.notes', { list: r.warnings.join(' · ') })}</span>}
           <button className="pb-link" onClick={() => void window.desk.openExternal(r.url)} data-testid="ytp-url">
@@ -536,7 +546,7 @@ export function YtPublishForm({ post, account, result, onPosted, onBusy, immedia
           {t('ytp.f.thumb')}
         </label>
       )}
-      <CaptionFiles pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} />
+      <CaptionFiles automatic={!!acct?.captions} pkg={pkg} onReveal={path => { void window.desk.showItem(path).catch(e => ui.toast(errText(e), { error: true })); }} />
       <label className="col small">
         {t('ytp.f.playlist')}
         <span className="row" style={{ gap: 6 }}>

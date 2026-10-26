@@ -108,9 +108,11 @@ export interface YtVideo {
   short?: boolean;
   thumbnail?: string | null;
   playlistId?: string | null;
+  captions?: CaptionArtifact[];
 }
 
 export interface YtResult {
+  captions?: YtPublishResult['captions'];
   id: string;
   url: string;
   /** as YouTube answered; no assumption about the account or API-project restrictions */
@@ -134,6 +136,7 @@ export interface YtAccountStatus {
   connectedAt: string | null;
   channel: YtChannel | null;
   playlists: boolean;
+  captions?: boolean;
 }
 
 export interface YtStatus {
@@ -266,7 +269,7 @@ export class YouTubeApi {
 
   accountStatus(account: string): YtAccountStatus {
     const s = this.d.vault.get(vaultKey(account));
-    return { account, connected: !!s.refreshToken, connectedAt: s.connectedAt ?? null, channel: s.channel ?? null, playlists: (s.scope ?? '').split(/\s+/).includes(YT_MANAGE) };
+    return { account, connected: !!s.refreshToken, connectedAt: s.connectedAt ?? null, channel: s.channel ?? null, captions: (s.scope ?? '').split(/\s+/).includes(YT_CAPTIONS), playlists: (s.scope ?? '').split(/\s+/).includes(YT_MANAGE) };
   }
 
   status(accounts: string[] = []): YtStatus {
@@ -476,7 +479,7 @@ export class YouTubeApi {
     if (savedAccount && expectedAccount !== undefined && savedAccount !== expectedAccount) {
       throw new UploadOutcomeUnknown('The saved upload belongs to another publishing account. Restore that account or check YouTube Studio.');
     }
-    if (saved.uploadReceipt) return saved.uploadReceipt;
+    if (saved.uploadReceipt) return { ...saved.uploadReceipt, result: await this.refreshCaptions(postId, saved.uploadReceipt.account, saved.uploadReceipt.result) };
     const session = saved.uploadSession;
     if (!session) return null;
     const url = new URL(session.url);
@@ -501,7 +504,26 @@ export class YouTubeApi {
     if (session.followups) result.warnings.push('Recovered upload: check the cover and playlist in YouTube Studio.');
     const receipt = { account: session.account, result };
     this.d.vault.set(key, { uploadReceipt: receipt, uploadSession: undefined });
-    return receipt;
+    return { ...receipt, result: await this.refreshCaptions(postId, session.account, result) };
+  }
+
+  /** Caption-only reconciliation bound to the original upload receipt and artifacts. */
+  async refreshCaptions(postId: string, account: string, result: YtPublishResult): Promise<YtPublishResult> {
+    const key = `youtube-upload/${postId}`;
+    const saved = this.d.vault.get(key);
+    if (saved.uploadReceipt?.account !== account || saved.uploadReceipt.result.id !== result.id || !result.id) return result;
+    const tracks = saved.captionTracks ?? [];
+    if (!tracks.length) return result;
+    const captions: NonNullable<YtPublishResult['captions']> = [];
+    for (const track of tracks) {
+      const confirmed = saved.uploadReceipt.result.captions?.find(c => c.status === 'serving' && c.language === track.lang && c.name === `Reelfold ${track.lang} ${track.sha256}`);
+      if (confirmed) { captions.push(confirmed); continue; }
+      try { captions.push(await this.caption(account, result.id, track)); }
+      catch (error) { captions.push({ language: track.lang, status: 'error', error: String((error as Error).message).slice(0, 300) }); }
+    }
+    const updated = { ...result, captions };
+    this.d.vault.set(key, { uploadReceipt: { account, result: updated } });
+    return updated;
   }
 
   /** Attach to an already-uploaded video; this never starts a new video upload. */
@@ -550,7 +572,7 @@ export class YouTubeApi {
 
     if (receiptKey) this.d.vault.set(receiptKey, { uploadSession: { url: loc, size, account, file: v.file, sha256,
       privacy: meta.status.privacyStatus, publishAt: v.publishAt?.toISOString() ?? null,
-      followups: !!(v.thumbnail || v.playlistId) } });
+      followups: !!(v.thumbnail || v.playlistId) }, captionTracks: this.accountStatus(account).captions ? (v.captions ?? []).filter(t => t.role === 'speech' && t.format === 'srt') : [] });
 
     let done: Inserted & { id: string };
     try { done = await this.transfer(account, v.file, loc, size, 0, onProgress); }
@@ -561,6 +583,8 @@ export class YouTubeApi {
     const id = done.id;
     const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
     const asked = meta.status.privacyStatus;
+    const result = uploadResult(done, asked, v.publishAt?.toISOString() ?? null);
+    if (receiptKey) this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined });
     const warnings: string[] = [];
     if (v.thumbnail) {
       const w = await this.setThumbnail(account, id, v.thumbnail);
@@ -571,13 +595,12 @@ export class YouTubeApi {
       if (w) warnings.push(w);
     }
     this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
-    const result = uploadResult(done, asked, v.publishAt?.toISOString() ?? null);
     result.warnings = warnings;
     if (receiptKey) {
       try { this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined }); }
       catch { throw new UploadOutcomeUnknown('Video uploaded, but its receipt could not be saved. Check YouTube Studio.'); }
     }
-    return result;
+    return postId ? { ...result, captions: (await this.refreshCaptions(postId, account, result)).captions } : result;
   }
 
   /** Shared bounded transfer for fresh uploads and verified restart recovery. */

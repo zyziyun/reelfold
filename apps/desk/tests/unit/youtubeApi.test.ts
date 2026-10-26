@@ -58,6 +58,9 @@ class FakeGoogle {
   faults = new Map<number, '503' | 'drop-after-store' | 'stall' | 'invalid-range' | 'pending-final'>();
   retryDelay: string | null = null;
   chunks = 0;
+  captionItems: { id: string; snippet: Record<string, string | boolean> }[] = [];
+  captionPosts = 0;
+  captionFailure = false;
   queries = 0;
   loseReceipt = false;
   thumbs: { videoId: string; type: string; bytes: number }[] = [];
@@ -141,6 +144,18 @@ class FakeGoogle {
       return this.json(res, 200, {});
     }
     if (!this.authed(req)) return this.json(res, 401, { error: { message: 'Invalid Credentials', errors: [{ reason: 'authError' }] } });
+    if (u.pathname === '/youtube/v3/captions') return this.json(res, 200, { items: this.captionItems });
+    if (u.pathname === '/upload/youtube/v3/captions') {
+      this.captionPosts++;
+      if (this.captionFailure) return this.json(res, 503, {});
+      const raw = body.toString();
+      const metadata = raw.split('\r\n\r\n')[1].split('\r\n--')[0];
+      const parsed = JSON.parse(metadata);
+      if (!raw.includes('Bonjour.')) return this.json(res, 400, {});
+      const item = { id: 'cap1', snippet: { ...parsed.snippet, status: 'syncing' } };
+      this.captionItems.push(item);
+      return this.json(res, 200, item);
+    }
     if (u.pathname === '/youtube/v3/channels') return this.json(res, 200, { items: this.channels });
     if (u.pathname === '/youtube/v3/videos') {
       this.statusReads++;
@@ -690,4 +705,32 @@ it('requests caption permission only when selected, and rejects attachment witho
   await yt.connect('main', { captions: true, timeoutMs: 5000 });
   expect(new URL(seen[1]).searchParams.get('scope')).toContain('youtube.force-ssl');
   expect(new URL(seen[0]).searchParams.get('scope')).not.toContain('youtube.force-ssl');
+});
+
+
+it('retries caption-only work after video upload, preserving receipt and multipart contents', async () => {
+  const { yt, dir, vault } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  await yt.connect('main', { captions: true, timeoutMs: 5000 });
+  const file = path.join(dir, 'speech.srt'); const text = '1\n00:00:00,000 --> 00:00:01,000\nBonjour.\n';
+  fs.writeFileSync(file, text);
+  const captions = [{ file, lang: 'fr', role: 'speech' as const, format: 'srt' as const, cues: 1, render_key: 'r', sha256: crypto.createHash('sha256').update(text).digest('hex') }];
+  const videoFile = path.join(dir, 'video.mp4'); fs.writeFileSync(videoFile, Buffer.alloc(100));
+  g.captionFailure = true;
+  const result = await yt.upload('main', { file: videoFile, title: 't', description: '', tags: [], publishAt: null, captions }, undefined, 'post1');
+  expect(result.id).toBe('vid123');
+  expect(result.captions?.[0].status).toBe('error');
+  expect(vault.get('youtube-upload/post1').uploadReceipt?.result.id).toBe('vid123');
+  const chunks = g.chunks;
+  g.captionFailure = false;
+  const refreshed = await yt.refreshCaptions('post1', 'main', result);
+  expect(refreshed.captions?.[0].status).toBe('syncing');
+  expect(g.chunks).toBe(chunks);
+  g.captionItems[0].snippet.status = 'serving';
+  expect((await yt.refreshCaptions('post1', 'main', refreshed)).captions?.[0].status).toBe('serving');
+  expect(g.captionPosts).toBe(2);
+  expect(g.sessions.size).toBe(1);
+  const count = g.captionPosts;
+  await yt.refreshCaptions('post1', 'other', result);
+  expect(g.captionPosts).toBe(count);
 });

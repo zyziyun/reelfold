@@ -93,6 +93,20 @@ def api_result(value):
                  "api_result.checkedAt: timezone required")
         except ValueError:
             need(False, "api_result.checkedAt: ISO timestamp")
+    if "captions" in value:
+        tracks = value["captions"]
+        need(isinstance(tracks, list) and len(tracks) <= 50, "api_result.captions")
+        out["captions"] = []
+        for track in tracks:
+            need(isinstance(track, dict), "api_result.caption")
+            need(track.get("status") in ("serving", "syncing", "failed", "unknown", "error"), "api_result.caption.status")
+            need(isinstance(track.get("language"), str) and re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]+)*", track["language"]), "api_result.caption.language")
+            clean = {k: track[k] for k in ("language", "status")}
+            for key, limit in (("id", 256), ("name", 150), ("error", 300), ("failureReason", 300)):
+                if key in track:
+                    need(isinstance(track[key], str) and len(track[key]) <= limit, f"api_result.caption.{key}")
+                    clean[key] = track[key]
+            out["captions"].append(clean)
     if "uploadStatus" in value:
         need(value["uploadStatus"] in ("uploaded", "processed", "failed", "rejected", "deleted", "unknown"), "api_result.uploadStatus")
         out["uploadStatus"] = value["uploadStatus"]

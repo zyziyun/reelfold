@@ -229,7 +229,7 @@ export interface DeskApi {
       /** sign in with Reelfold's OAuth client */
       useBuiltin(): Promise<ApiStatusMsg[]>;
       /** OAuth in the system browser for one publishing account; resolves when Google answered */
-      connect(account: string, playlists?: boolean): Promise<ApiStatusMsg[]>;
+      connect(account: string, playlists?: boolean, captions?: boolean): Promise<ApiStatusMsg[]>;
       cancel(): Promise<void>;
       /** an account (or, with forgetClient, her own client and every account) */
       disconnect(account?: string, forgetClient?: boolean): Promise<ApiStatusMsg[]>;

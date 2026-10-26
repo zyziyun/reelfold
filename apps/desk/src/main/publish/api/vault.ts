@@ -3,10 +3,11 @@
 // nothing here ever goes to the renderer, a log or the engine. No keychain (Linux without a keyring) = refused.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { YtPublishResult } from '../../../shared/publish/apiPlatforms';
+import type { CaptionArtifact, YtPublishResult } from '../../../shared/publish/apiPlatforms';
 import type { Crypto } from '../../secrets';
 
 export interface ApiSecret {
+  captionTracks?: CaptionArtifact[];
   /** Resumable URI stays encrypted alongside credentials, never in the scheduler journal. */
   uploadSession?: { file?: string; sha256?: string; url: string; size: number; account: string; privacy: string; publishAt: string | null; followups: boolean };
   uploadReceipt?: { account: string; result: YtPublishResult };

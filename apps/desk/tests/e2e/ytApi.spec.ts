@@ -83,7 +83,7 @@ test.beforeAll(async () => {
         const f = new URLSearchParams(String(init?.body));
         if (f.get('grant_type') === 'authorization_code' && f.get('code') === 'e2e-code' && f.get('client_id') === '1234-e2e.apps.googleusercontent.com') {
           g.__yt.verifier = f.get('code_verifier');
-          return json(200, { access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly' });
+          return json(200, { access_token: 'at', refresh_token: 'rt', expires_in: 3600, scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' });
         }
         if (f.get('grant_type') === 'refresh_token') return json(200, { access_token: 'at', expires_in: 3600 });
         return json(400, { error: 'invalid_grant' });
@@ -182,6 +182,8 @@ test('Settings: her own Google Cloud client, then YouTube signs in with Google i
   await page.getByTestId('api-youtube-add').click();
   await expect(page.getByTestId('yt-connect')).toBeVisible();
   await expect(page.getByTestId('yt-connect')).toContainText('upload videos');
+  await expect(page.getByTestId('yt-connect-captions')).not.toBeChecked();
+  await page.getByTestId('yt-connect-captions').check();
   await page.getByTestId('yt-connect-go').click();
   await expect(page.getByTestId('yt-connect')).toHaveCount(0, { timeout: 15000 });
   await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'in');
@@ -190,7 +192,7 @@ test('Settings: her own Google Cloud client, then YouTube signs in with Google i
   const consent = new URL(r.opened.find((u) => u.startsWith('https://accounts.google.com/'))!);
   expect(consent.searchParams.get('code_challenge_method')).toBe('S256');
   expect(consent.searchParams.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-  expect(consent.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly');
+  expect(consent.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl');
   expect(r.verifier?.length).toBeGreaterThanOrEqual(43);
   // the account list reads the API sign-in; the built-in browser never opens YouTube
   await expect(page.locator('[data-testid="settings-channel"][data-adapter="youtube-studio"] [data-testid="channel-state"]')).toHaveAttribute('data-state', 'in', { timeout: 15000 });

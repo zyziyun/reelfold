@@ -113,6 +113,18 @@ class Board(unittest.TestCase):
                 self.cal.add(dict(valid, video_path=file))
         self.assertEqual(self.posts(), [])
 
+    def test_caption_status_survives_reload_without_changing_video_delivery(self):
+        p = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
+        result = dict(url="https://youtu.be/example", privacy="public", publishAt=None,
+                      lockedPrivate=False, warnings=[], uploadStatus="processed",
+                      captions=[dict(language="fr", status="error", error="Try again")])
+        self.cal.update(p["id"], dict(state="posted", via="api", api_result=result))
+        row = Calendar(os.path.join(self.root, "desk"), self.h, self.o).list()["posts"][0]
+        self.assertEqual(row["api_result"]["captions"], result["captions"])
+        self.assertEqual(row["state"], "posted")
+        with self.assertRaises(BadRequest):
+            self.cal.update(p["id"], dict(api_result=dict(result, captions=[dict(language="fr", status="made-up")])))
+
     def test_api_delivery_receipt_survives_restart_restore_and_blocks_local_remote_edits(self):
         p = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
         result = dict(url="https://youtu.be/example", privacy="private", publishAt="2026-10-09T03:00:00Z",

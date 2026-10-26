@@ -692,7 +692,7 @@ async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<ApiU
     const account = ytAccountFor(p);
     if (!account) return { ok: false, error: 'YouTube is not connected' };
     const pkg = await postPackage(p.id);
-    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') }, undefined, p.id);
+    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, captions: pkg.sidecars, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') }, undefined, p.id);
     return { ok: true, url: r.url, account, result: r };
   } catch (e) {
     return apiFailure(e);
@@ -727,7 +727,7 @@ function startScheduler() {
       refresh: async (p, r) => {
         const account = ytAccountFor(p);
         if (!account) throw new Error('YouTube account is disconnected');
-        return youtube.videoStatus(account, r);
+        return youtube.refreshCaptions(p.id, account, await youtube.videoStatus(account, r));
       },
     },
     stateFile: path.join(app.getPath('userData'), 'publish', 'scheduler.json'),
@@ -1062,7 +1062,7 @@ function registerIpc() {
   handle('publish:apiConnect', async (p) => {
     noYouTubeApiInLite();
     if (!ytAccounts().includes(p.account)) throw new Error('add the YouTube account first');
-    await youtube.connect(p.account, { playlists: p.playlists });
+    await youtube.connect(p.account, { playlists: p.playlists, captions: p.captions });
     await refreshLogins(true);
     win?.webContents.send('publish:channels', { adapterId: 'youtube-studio', account: p.account, state: 'in' });
     if (win && !win.isDestroyed() && !testSwitch('DESK_HIDE_WINDOW')) {
@@ -1121,7 +1121,7 @@ function registerIpc() {
     if (!row || !['youtube', 'youtube-shorts'].includes(row.platform.split(':')[0]) || row.via !== 'api' || !row.api_result) throw new Error('No confirmed YouTube upload');
     const account = ytAccountFor(row);
     if (!account || !scheduler) throw new Error('YouTube account is disconnected');
-    return scheduler.refresh(row, r => youtube.videoStatus(account, r));
+    return scheduler.refresh(row, async r => youtube.refreshCaptions(p.postId, account, await youtube.videoStatus(account, r)));
   });
   handle('publish:ytPublish', async (p) => {
     noYouTubeApiInLite();
@@ -1154,6 +1154,7 @@ function registerIpc() {
           short: p.short,
           thumbnail: p.thumbnail ? pkg.cover : null,
           playlistId: p.playlistId,
+          captions: pkg.sidecars,
         },
         (sent, total) => {
           if (sent !== total && Date.now() - last < 250) return;
@@ -1169,7 +1170,7 @@ function registerIpc() {
     const r = uploaded.result;
     void scheduler?.tick();
     mainLog(`[youtube] ${p.postId} -> ${r.url} ${r.privacy}${r.warnings.length ? ` (${r.warnings.join('; ')})` : ''}`);
-    return { url: r.url, privacy: r.privacy, publishAt: r.publishAt, lockedPrivate: r.lockedPrivate, warnings: r.warnings };
+    return { url: r.url, privacy: r.privacy, publishAt: r.publishAt, lockedPrivate: r.lockedPrivate, warnings: r.warnings, captions: r.captions };
   });
   handle('publish:apiAuto', async (p) => {
     if (p.auto && !ytAccountFor()) throw new Error('connect YouTube first');

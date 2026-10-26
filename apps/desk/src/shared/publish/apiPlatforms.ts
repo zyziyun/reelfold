@@ -103,6 +103,7 @@ export interface YtAccountMsg {
   channel: { id: string; title: string } | null;
   /** she allowed adding videos to playlists */
   playlists: boolean;
+  captions?: boolean;
 }
 
 export interface YtStatusMsg {
@@ -152,6 +153,7 @@ export interface YtPublishReq {
 }
 
 export interface YtPublishResult {
+  captions?: { id?: string; language: string; name?: string; status: 'serving' | 'syncing' | 'failed' | 'unknown' | 'error'; error?: string; failureReason?: string }[];
   id?: string;
   url: string;
   privacy: string;
