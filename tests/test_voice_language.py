@@ -313,3 +313,34 @@ def test_planner_language_version_keeps_its_own_platforms():
                                   _proj("vlog", ["youtube", "xiaohongshu"], "黄金时刻 中文版")])
     assert [p["params"]["platforms"] for p in ps] == [["youtube"], ["xiaohongshu"]]
     assert PL.name_lang("zh") == "zh" and PL.name_lang("Trip (EN)") == "en" and PL.name_lang("Trip") is None
+
+
+@pytest.mark.parametrize("locale", ["fr", "de-DE", "es", "ja", "ko", "pt_BR", "hi"])
+def test_voice_plan_preserves_explicit_locale(locale, monkeypatch):
+    monkeypatch.setattr(tts, "available_engine", lambda _: "openai")
+    plan = N.voice_plan(locale, "openai")
+    assert plan["narrate"] == plan["sub_lead"] == locale.lower().replace("_", "-")
+    assert plan["note"] is None
+
+
+def test_voice_plan_local_capabilities(monkeypatch):
+    from vstudio import voicecast, system_voice
+    monkeypatch.setattr(tts, "available_engine", lambda e: e)
+    monkeypatch.setattr(system_voice, "voices", lambda: [dict(id="French",name="French",lang="fr-FR")])
+    assert N.voice_plan("fr-FR", "system")["voice"] == "French"
+    with pytest.raises(RuntimeError, match="No installed"):
+        N.voice_plan("ja", "system")
+    monkeypatch.setattr(voicecast, "available", lambda v: True)
+    with pytest.raises(ValueError, match="No available"):
+        N.voice_plan("fr", "kokoro")
+    with pytest.raises(ValueError):
+        N.voice_plan("ko", "kokoro")
+    assert N.voice_plan("ja", "qwen")["narrate"] == "ja"
+    with pytest.raises(ValueError, match="does not support"):
+        N.voice_plan("hi", "qwen")
+
+
+@pytest.mark.parametrize("locale", ["English", "fr;bad", "--", "123"])
+def test_voice_plan_rejects_invalid_locale(locale):
+    with pytest.raises(ValueError, match="language code"):
+        N.voice_plan(locale)

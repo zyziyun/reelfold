@@ -68,13 +68,35 @@ def default_mode(recipe, request):
 
 
 def voice_plan(version_lang, engine="auto"):
-    """How a narrated version is voiced -> {narrate: "en" | "zh", sub_lead: "en" | "zh", engine, note}.
-    An English version (YouTube ...): English voice, English leads. A Chinese version: Chinese voice when a good one
+    """How a narrated version is voiced -> {narrate: locale, sub_lead: locale, engine, note, voice?}.
+    Preserve an explicit locale for narration and captions. Non-English local plans include
+    a matching voice when the backend requires one; unsupported local languages fail explicitly.
+    This policy does not translate scripts or infer a language from the destination platform.
+    An English version: English voice, English leads. A Chinese version: Chinese voice when a good one
     is set up (``tts.zh_voice_engine``), else English narration with the Chinese subtitles leading and ``note`` (en /
     zh plain words for the plan card, the inbox, the drafter's summary) saying why and how to turn the local Chinese
     voice on."""
-    if version_lang != "zh":
-        return dict(narrate="en", sub_lead="en", engine=tts.available_engine(engine), note=None)
+    locale = str(version_lang or "en").strip().replace("_", "-").lower()
+    if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*", locale):
+        raise ValueError(f"Expected a language code or locale, got {version_lang!r}")
+    base = locale.split("-")[0]
+    if base != "zh":
+        selected = tts.available_engine(engine)
+        plan = dict(narrate=locale, sub_lead=locale, engine=selected, note=None)
+        if base != "en":
+            if selected == "system":
+                from .system_voice import voice_for
+                plan["voice"] = voice_for(locale, preferred=tts.prefs().get("system_voice"))
+            elif selected == "kokoro":
+                from .voicecast import cast
+                choice = cast(locale, selected, complete=False)
+                if not choice:
+                    raise ValueError(f"No available {selected} voice for {locale}")
+                plan["voice"] = choice["speaker"]
+            elif selected in ("qwen", "clone"):
+                from .qwen_synth import language_for
+                language_for("", locale)  # reuse the backend's supported-language contract
+        return plan
     good = tts.zh_voice_engine(engine)
     if good:
         return dict(narrate="zh", sub_lead="zh", engine=good, note=None)
