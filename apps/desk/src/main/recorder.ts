@@ -54,8 +54,14 @@ export class Recorder {
 
   begin(p: IpcPayload<'rec:begin'>) {
     fs.mkdirSync(this.root, { recursive: true });
-    let id = `${stamp()}-${p.slug}`;
-    for (let n = 2; fs.existsSync(path.join(this.root, id)); n++) id = `${stamp()}-${p.slug}-${n}`.slice(0, 56);
+    const prefix = `${stamp()}-`;
+    let id = `${prefix}${p.slug}`;
+    for (let n = 2; fs.existsSync(path.join(this.root, id)); n++) {
+      const suffix = `-${n}`;
+      // Reserve space for the counter; truncating the completed id can remove
+      // it entirely and loop forever when a maximum-length title collides.
+      id = `${prefix}${p.slug.slice(0, 40 - suffix.length)}${suffix}`;
+    }
     const dir = path.join(this.root, id);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'recording.lock'), String(process.pid));

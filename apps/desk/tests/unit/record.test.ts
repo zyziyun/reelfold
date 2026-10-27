@@ -87,6 +87,40 @@ describe('recorder model', () => {
 describe('recorder main side', () => {
   const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rec-unit-'));
 
+  it('saves distinct maximum-length takes created in the same second', () => {
+    const root = tmp();
+    const recorder = new Recorder(root);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-27T12:00:00Z'));
+    const exists = fs.existsSync.bind(fs);
+    let checks = 0;
+    const guard = vi.spyOn(fs, 'existsSync').mockImplementation(file => {
+      // Fail deterministically instead of hanging the test on a collision loop.
+      if (++checks > 200) throw new Error('Session name collision loop');
+      return exists(file);
+    });
+    try {
+      const ids: string[] = [];
+      for (let n = 0; n < 12; n++) {
+        const take = recorder.begin({ slug: 'a'.repeat(40), script: [], tracks: ['camera'] });
+        ids.push(take.sessionId);
+        validateIpc('rec:end', { sessionId: take.sessionId, secs: 1 });
+        recorder.chunk({ sessionId: take.sessionId, track: 'camera', seq: 0, data: new Uint8Array([n]) });
+        recorder.end({ sessionId: take.sessionId, secs: 1 });
+      }
+      expect(new Set(ids).size).toBe(12);
+      expect(fs.readdirSync(root)).toHaveLength(12);
+      for (const [n, id] of ids.entries()) {
+        expect([...fs.readFileSync(path.join(root, id, 'camera.webm'))]).toEqual([n]);
+      }
+    } finally {
+      guard.mockRestore();
+      vi.useRealTimers();
+      recorder.closeAll();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('writes the Studio sound choice into session.json (default on)', () => {
     const r = new Recorder(tmp());
     const a = r.begin({ slug: 'a', script: [], tracks: ['camera', 'mic'], studio: false });
