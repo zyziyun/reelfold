@@ -240,6 +240,39 @@ COVER = dict(SRC="body.mp4", T=1.0, OUT="cover.jpg", TITLE=["封面", "关键词
 
 
 @need_ff
+@pytest.mark.parametrize("language", ["en", "fr", "ja", None])
+def test_compose_preserves_declared_caption_language_through_hook_and_speed(comp, language):
+    segs = json.loads((comp / "segs.json").read_text())
+    if language:
+        segs["language"] = language
+    texts = {"en": "Clear point", "fr": "Idée claire", "ja": "明確な意見"}
+    sentence = texts.get(language, "第二句")
+    for sub in segs["subs"]:
+        sub["text"] = sentence
+    (comp / "segs.json").write_text(json.dumps(segs, ensure_ascii=False))
+    _run("compose.py", "config.py", "cues", cwd=comp)
+    cues = json.loads((comp / "out.cues.json").read_text())["cues"]
+    # The hook replays one sentence; the body retains all four at its own speed.
+    repeated = [c for c in cues if c["text"] == sentence]
+    assert len(repeated) == 5  # one hook replay plus four body sentences
+    assert repeated[0]["start"] == 0
+    assert repeated[0]["end"] == pytest.approx(0.9 / 1.3, abs=0.002)
+    assert repeated[0]["end"] <= repeated[1]["start"]
+    assert repeated[-1]["end"] - repeated[-1]["start"] == pytest.approx(1 / 1.1, abs=0.002)
+    for cue in cues:
+        assert cue.get("meta", {}).get("lang") == language
+    if language:
+        from vstudio import subs
+        from vstudio import export, platform
+        outputs = export.write_sidecars(platform.profile("youtube"),
+                                       [subs.Cue.from_dict(c) for c in cues], str(comp), "spoken")
+        assert [o["lang"] for o in outputs] == [language]
+        written = subs.srt_read(str(comp / outputs[0]["file"]))
+        assert [c.text for c in written] == [c["text"] for c in cues]
+        assert [(c.start, c.end) for c in written] == [(c["start"], c["end"]) for c in cues]
+
+
+@need_ff
 def test_compose_cues_carry_keepouts_and_keyword_markup(comp):
     r = _run("compose.py", "config.py", "cues", cwd=comp)
     assert "moved" in r.stdout                                   # the stamp stack on the face was moved off it

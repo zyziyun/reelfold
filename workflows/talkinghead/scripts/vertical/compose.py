@@ -709,7 +709,8 @@ def final_cues():
     for a, b, text in CHUNKS:
         for t0, t1 in body_to_final(a, b):
             if t1 - t0 > 0.05:
-                out.append(vsubs.Cue(t0, t1, cue_text(text)).to_dict())
+                out.append(vsubs.Cue(t0, t1, cue_text(text),
+                                      meta={'lang': SEGJ['language']} if SEGJ.get('language') else {}).to_dict())
     return sorted(out, key=lambda c: c['start'])
 
 def final_keepouts():
