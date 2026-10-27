@@ -84,12 +84,12 @@ def test_a_whisper_sentence_with_whole_sentences_before_the_fragment_keeps_them(
     words = [dict(word=w, start=s, end=e) for w, s, e in (
         (" If", 60.9, 61.1), (" you", 61.1, 61.3), (" stumble,", 61.3, 61.8), (" restart", 62.0, 62.5),
         (" the", 62.5, 62.6), (" sentence.", 62.6, 63.2), (" The", 67.8, 68.0), (" editor", 68.0, 68.4),
-        (" keeps", 68.4, 68.8), (" the", 68.8, 69.0), (" last", 69.0, 69.3), (" good", 69.3, 69.6), (" take", 69.6, 69.95))]
+        (" keeps", 68.4, 68.8), (" the", 68.8, 69.0), (" last", 69.0, 69.3), (" good", 69.3, 69.6), (" take", 69.6, 69.8), (" and", 69.8, 69.95))]
     rows = [(1, [(53.7, 60.0)], " Leave a short pause between points."),
-            (1, [(60.9, 69.95)], " If you stumble, restart the sentence. The editor keeps the last good take")]
+            (1, [(60.9, 69.95)], " If you stumble, restart the sentence. The editor keeps the last good take and")]
     kept, dropped = drop_broken_sentences(rows, 70.0, last_words=words)
     assert kept[-1] == (1, [(60.9, 63.2)], "If you stumble, restart the sentence.")
-    assert dropped == [("cut-off", "The editor keeps the last good take")]
+    assert dropped == [("cut-off", "The editor keeps the last good take and")]
 
 
 def test_captions_leave_out_the_hesitations_the_sound_lost():
@@ -99,3 +99,25 @@ def test_captions_leave_out_the_hesitations_the_sound_lost():
     assert drop_hesitations("嗯，这个方法很好") == "这个方法很好"
     assert drop_hesitations("summary umbrella") == "summary umbrella"
     assert drop_hesitations("Uh.") == ""
+
+
+def test_unpunctuated_complete_ending_is_not_a_cutoff():
+    for ending in ('done', '吧', 'です', 'terminé'):
+        words, energy = talk(0.5, cut_off=True)
+        words[-1]['w'] = ending
+        edits = C.detect(words, energy=energy, profile='standard')
+        assert not [e for e in edits if e['kind'] == 'cut-off'], ending
+
+
+def test_folder_preserves_unpunctuated_complete_endings():
+    from vstudio.batch.thfolder import drop_broken_sentences
+    for text in ('The editor keeps the last good take', '也算是比较好的一个方式吧', 'これで完成です', 'Le montage est terminé'):
+        rows = [(1, [(0, 2)], 'First point.'), (1, [(3, 6.95)], text)]
+        assert drop_broken_sentences(rows, 7) == (rows, [])
+
+
+def test_cutoff_requires_dangling_clause_and_respects_punctuation():
+    for text, expected in [('我们还需要继续因为', True), ('The next step is required because', True),
+                           ('We call this rock and roll', False), ('That is why.', False),
+                           ('We stop unless…', False)]:
+        assert C.unfinished_ending(text) is expected

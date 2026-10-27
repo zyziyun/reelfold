@@ -78,8 +78,8 @@ def _norm_words(text):
 def drop_broken_sentences(rows, dur=None, cut_off_s=0.3, last_words=None):
     """The sentences a clip never keeps (each whisper sentence is its own range here, so cleanup cannot see across
     them): a false start - a short sentence the next one starts by saying again ("The first habit is." / "The first
-    habit is to plan the beats ...") - and, when the recording stops mid-sentence, that last fragment (no full stop,
-    speech running into the end of the file); a whisper sentence that holds whole sentences before that fragment
+    habit is to plan the beats ...") - and a dangling clause running into the end of the file.
+    Missing punctuation alone is insufficient. A whisper sentence that holds whole sentences before that fragment
     (``last_words``: its words) keeps them and ends at the last full stop. -> (kept rows, [(kind, text)])"""
     import re
     keep, dropped = [], []
@@ -94,7 +94,8 @@ def drop_broken_sentences(rows, dur=None, cut_off_s=0.3, last_words=None):
         keep.append(r)
     if dur and len(keep) >= 2:
         last = keep[-1]
-        if not re.search(r"[。！？!?.…]\s*$", last[2]) and dur - last[1][0][1] <= cut_off_s:
+        from ..cleanup import unfinished_ending
+        if unfinished_ending(last[2]) and dur - last[1][0][1] <= cut_off_s:
             ws = list(last_words or [])
             if ws and abs(float(ws[-1]["end"]) - last[1][0][1]) < 0.01:
                 ends = [k for k, w in enumerate(ws[:-1]) if re.search(r"[。！？!?.…]\s*$", str(w["word"]).strip())]

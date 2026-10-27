@@ -25,6 +25,7 @@ before / after it.
 | `stammer` | 结巴 | 我我们, we we, the the, clipped starts (pro- problem): the full / last copy is kept | auto / confirm |
 | `repeat` | 重复 | n-gram said twice back to back (像这个像这个): the last copy is kept. Deliberate doubling (对对, very very, 慢慢) → keep | auto / keep |
 | `restart` | 说一半重来 | a phrase abandoned and started again (我们明天去 … 我们明天要讲): the abandoned part goes | confirm |
+| `cut-off` | 未完句 | only a dangling clause ending close to the recording boundary; missing punctuation alone never justifies dropping a conclusion. Uncertain endings stay. Verify against audio, not burned captions, which may display the full sentence early | auto / confirm |
 | `retake` | 重录句 | a whole sentence said again within `retake_window` s: the earlier take goes (lower confidence when the later take is much shorter: maybe keep the first) | confirm |
 | `asr-noise` | 识别噪声 | text whisper invented over silence / music (`asr.drop_hallucinations`) | confirm |
 

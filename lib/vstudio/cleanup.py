@@ -689,13 +689,26 @@ def _false_start_rows(R, cx, taken, found=()):
     return out
 
 
-CUT_OFF_S = 0.3        # speech running this close into the end of the recording = cut off mid-sentence
+CUT_OFF_S = 0.3        # proximity alone does not establish an unfinished sentence
+
+
+def unfinished_ending(text):
+    """Conservative textual evidence for a dangling clause, not a punctuation detector.
+
+    ASR frequently omits terminal punctuation on complete speech. Keep uncertain
+    endings, especially in languages for which we have no clause evidence.
+    """
+    text = str(text).strip()
+    if _SENT_END.search(text):
+        return False
+    return bool(re.search(r"(?:\b(?:and|or|because|although|unless|whereas)|(?:因为|但是|而且|所以|如果))$",
+                          text, re.IGNORECASE))
 
 
 def _cut_off_rows(R, cx):
     """A recording that stops mid-sentence ("... The editor keeps the last good take and|"): the last sentence has no
-    end and its last word runs into the end of the audio. A clip never ends mid-sentence: it ends on the sentence
-    before (the fragment is cut; she can keep it)."""
+    end, has a dangling clause marker and runs into the end of the audio. Missing punctuation and proximity
+    alone cannot justify deleting a speaker's conclusion."""
     en = cx.en
     if en is None or not R:
         return []
@@ -704,6 +717,8 @@ def _cut_off_rows(R, cx):
         return []
     last = S[-1][-1]
     if _SENT_END.search(last["w"]) or getattr(en, "end", None) is None or en.end - last["te"] > CUT_OFF_S:
+        return []
+    if not unfinished_ending(_join(S[-1])):
         return []
     if cx.hi < en.end - CUT_OFF_S:                    # a window inside the recording: its end is not the file's
         return []
