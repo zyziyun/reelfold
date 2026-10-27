@@ -333,14 +333,23 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None)
         heights[i] = int(min(natural, remaining / (len(rects) - n)))
         remaining -= heights[i]
     sizes = [_fit(r[2], r[3], width, h) for r, h in zip(rects, heights)]
-    y = top + (bottom - top - sum(h for w, h in sizes) - margin * (len(rects) - 1)) // 2
+    detail_height = sum(h for w, h in sizes) + margin * (len(rects) - 1)
+    main_y = margin
+    if caption_band is None:
+        # Keep the source and its magnified details together. Centering only the
+        # details strands short strips far away from the overview.
+        group_height = oh + margin + detail_height
+        main_y += max(0, (bottom - margin - group_height) // 2)
+        y = main_y + oh + margin
+    else:
+        y = top + (bottom - top - detail_height) // 2
     details = []
     for rect, (dw, dh) in zip(rects, sizes):
         if min(dw, dh) < 2:
             raise ValueError("detail_regions cannot fit this canvas")
         details.append(dict(source=rect, box=[(W - dw) // 2, y, dw, dh]))
         y += dh + margin
-    return dict(geo, main=((W - ow) // 2, margin, ow, oh), header=None, details=details)
+    return dict(geo, main=((W - ow) // 2, main_y, ow, oh), header=None, details=details)
 
 
 def region_geometry(geo, src_wh, region, caption_band=None):

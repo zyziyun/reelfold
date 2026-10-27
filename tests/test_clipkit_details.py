@@ -83,3 +83,23 @@ def test_mixed_aspect_details_share_space_by_content_not_equal_slots():
     assert wide[1] >= 240
     assert wide[1] + wide[3] < tall[1]
     assert tall[1] + tall[3] <= 628
+
+
+@pytest.mark.parametrize('canvas,regions', [
+    ((360, 640), [[145, 320, 1000, 100]]),
+    ((360, 640), [[120, 300, 600, 120], [1050, 360, 450, 120]]),
+    ((540, 720), [[120, 300, 600, 120]]),
+])
+def test_related_overview_and_details_form_one_centered_group(canvas, regions):
+    result = CK.detail_geometry(CK.geometry(canvas, 'screen', (1920, 1080)), (1920, 1080), regions)
+    boxes = [result['main'], *[d['box'] for d in result['details']]]
+    margin = int(canvas[0] * .035)
+    # Related source and enlargement should not be stranded in separate empty
+    # halves of the canvas. Keep their existing scale and source aspect ratio.
+    for first, second in zip(boxes, boxes[1:]):
+        assert second[1] - (first[1] + first[3]) <= margin + 1
+    assert abs(boxes[0][1] - (canvas[1] - boxes[-1][1] - boxes[-1][3])) <= 2
+    for detail in result['details']:
+        x, y, w, h = detail['box']
+        assert 0 <= x < x + w <= canvas[0] and 0 <= y < y + h <= canvas[1]
+        assert abs(h - w * detail['source'][3] / detail['source'][2]) <= 2
