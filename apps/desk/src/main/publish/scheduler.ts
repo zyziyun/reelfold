@@ -46,7 +46,8 @@ export function apiFailure(error: unknown): Extract<ApiUpload, { ok: false }> {
 export interface ApiPoster {
   /** this post goes through an official API (connected + switched on for its platform) */
   wants(p: CalendarPost): boolean;
-  publish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload>;
+  /** Call stillCurrent after asynchronous preparation, immediately before sending an upload. */
+  publish(p: CalendarPost, publishAt: Date | null, stillCurrent: () => Promise<boolean>): Promise<ApiUpload>;
   recover?(p: CalendarPost, resume: boolean): Promise<Extract<ApiUpload, { ok: true }> | null>;
   canRefresh?(p: CalendarPost): boolean;
   refresh?(p: CalendarPost, result: YtPublishResult): Promise<YtPublishResult>;
@@ -246,7 +247,18 @@ export class PublishScheduler {
       const at = localDate(p.at);
       // Preserve every future appointment: omitting publishAt would publish early.
       const publishAt = at.getTime() > t ? at : null;
-      const r = await this.upload(p, () => api.publish(p, publishAt), 'scheduled');
+      const requestFields: (keyof CalendarPost)[] = ['id', 'at', 'account', 'platform', 'item', 'clip',
+        'video_path', 'cover', 'title', 'platform_title', 'title_custom', 'caption', 'caption_custom'];
+      const fingerprint = (post: CalendarPost) => JSON.stringify(requestFields.map(key => post[key] ?? null));
+      const preparedFor = fingerprint(p);
+      const stillCurrent = async () => {
+        const current = (await this.deps.load()).find(row => row.id === p.id);
+        if (!current || fingerprint(current) !== preparedFor || !api.wants(current)) return false;
+        const now = this.deps.now();
+        return upcomingPosts([current], now, lead).length > 0 ||
+          (duePosts([current], now).length > 0 && now.getTime() - localDate(current.at).getTime() <= grace);
+      };
+      const r = await this.upload(p, () => api.publish(p, publishAt, stillCurrent), 'scheduled');
       if (r.ok || this.state.api[p.id]?.lastTry === t) ran.push(p.id);
     }
     return ran;

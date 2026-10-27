@@ -537,7 +537,7 @@ export class YouTubeApi {
   }
 
   /** videos.insert (resumable, chunked, resumed after errors), then the thumbnail and the playlist. */
-  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string, onCaptions?: (index: number, total: number) => void): Promise<YtResult> {
+  async upload(account: string, v: YtVideo, onProgress?: (sent: number, total: number) => void, postId?: string, onCaptions?: (index: number, total: number) => void, beforeUpload?: () => Promise<boolean>): Promise<YtResult> {
     const receiptKey = postId ? `youtube-upload/${postId}` : null;
     if (postId) {
       const saved = this.uploadState(receiptKey!);
@@ -555,6 +555,8 @@ export class YouTubeApi {
     const meta = ytMeta(v);
     const sha256 = receiptKey ? await fileDigest(v.file) : undefined;
     const token = await this.token(account);
+    // Hashing a large file and refreshing credentials can outlive the user's opt-in.
+    if (beforeUpload && !await beforeUpload()) throw new Error('Publishing settings changed during preparation. No upload was sent.');
     const init = await this.f(`${this.ep.upload}/videos?uploadType=resumable&part=snippet,status`, {
       method: 'POST',
       headers: {

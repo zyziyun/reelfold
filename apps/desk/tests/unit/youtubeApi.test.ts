@@ -413,6 +413,25 @@ describe('resumable upload (fake API)', () => {
     expect(g.sessions.size).toBe(1);
   });
 
+  it.each(['cancelled', 'unavailable', 'allowed'])('checks scheduled authorization before creating a session: %s', async (mode) => {
+    const { yt, dir } = await connected();
+    const guard = vi.fn(async () => {
+      expect(g.sessions.size).toBe(0);
+      if (mode === 'unavailable') throw new Error('Calendar unavailable');
+      return mode === 'allowed';
+    });
+    const upload = yt.upload('main', { file: video(dir, 1024), title: 'Guard test', description: '', tags: [], publishAt: null }, undefined, 'guarded', undefined, guard);
+    if (mode === 'allowed') {
+      await expect(upload).resolves.toMatchObject({ id: 'vid123' });
+      expect(g.sessions.size).toBe(1);
+    } else {
+      await expect(upload).rejects.toThrow(mode === 'cancelled' ? /No upload was sent/ : /Calendar unavailable/);
+      expect(g.sessions.size).toBe(0);
+      expect(g.chunks).toBe(0);
+    }
+    expect(guard).toHaveBeenCalledTimes(1);
+  });
+
   it('chunks with Content-Range, resumes after a 503 and after a dropped connection; thumbnail + playlist', async () => {
     const { yt, dir } = await connected();
     const file = video(dir);

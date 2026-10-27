@@ -687,12 +687,15 @@ async function postPackage(postId: string): Promise<PostPackageMsg & { clipTitle
 }
 
 /** The scheduled-posting switch (hers, off by default): a calendar row through the YouTube API at its time. */
-async function apiPublish(p: CalendarPost, publishAt: Date | null): Promise<ApiUpload> {
+async function apiPublish(p: CalendarPost, publishAt: Date | null, stillCurrent: () => Promise<boolean>): Promise<ApiUpload> {
   try {
     const account = ytAccountFor(p);
     if (!account) return { ok: false, error: 'YouTube is not connected' };
     const pkg = await postPackage(p.id);
-    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, captions: pkg.sidecars, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') }, undefined, p.id);
+    if (!await stillCurrent() || ytAccountFor(p) !== account) {
+      return { ok: false, error: 'This post or its publishing settings changed while preparing. No upload was sent.' };
+    }
+    const r = await youtube.upload(account, { file: pkg.video, title: pkg.title, description: pkg.description, tags: pkg.tags, publishAt, thumbnail: pkg.cover, captions: pkg.sidecars, short: shortsFit(pkg).ok && p.platform.startsWith('youtube-shorts') }, undefined, p.id, undefined, async () => await stillCurrent() && ytAccountFor(p) === account);
     return { ok: true, url: r.url, account, result: r };
   } catch (e) {
     return apiFailure(e);

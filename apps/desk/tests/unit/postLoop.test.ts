@@ -81,6 +81,33 @@ describe('scheduler', () => {
     expect(s.apiState('second')).toBeUndefined();
   });
 
+  it.each(['auto off', 'disabled', 'deleted', 'rescheduled', 'account changed', 'posted', 'window expired', 'video changed', 'copy changed', 'unchanged'])('rechecks after upload preparation: %s', async (change) => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    let rows = [post('one', '2026-10-07T20:00', { platform: 'youtube', account: 'main' })];
+    let auto = true;
+    const sent: string[] = [];
+    const { s } = mk(rows, clock, { load: async () => rows.map(p => ({ ...p })), api: {
+      wants: () => auto,
+      publish: async (p, _at, stillCurrent) => {
+        await Promise.resolve();
+        if (change === 'auto off') auto = false;
+        if (change === 'disabled') rows[0].enabled = false;
+        if (change === 'deleted') rows = [];
+        if (change === 'rescheduled') rows[0].at = '2026-10-08T20:00';
+        if (change === 'account changed') rows[0].account = 'brand';
+        if (change === 'posted') rows[0].state = 'posted';
+        if (change === 'window expired') clock.t = new Date(2026, 9, 8, 3);
+        if (change === 'video changed') rows[0].video_path = '/another.mp4';
+        if (change === 'copy changed') rows[0].caption = 'new caption';
+        if (stillCurrent && !await stillCurrent()) return { ok: false, error: 'Post changed during preparation' };
+        sent.push(p.id);
+        return { ok: true, url: 'https://youtu.be/one' };
+      },
+    } });
+    await s.tick();
+    expect(sent).toEqual(change === 'unchanged' ? ['one'] : []);
+  });
+
   it('uses current post copy and current time when the next upload is still eligible', async () => {
     const clock = { t: new Date(2026, 9, 7, 19, 30) };
     const rows = ['first', 'second'].map(id => post(id, '2026-10-07T20:00', { platform: 'youtube' }));
