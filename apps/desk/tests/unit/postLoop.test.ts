@@ -103,6 +103,34 @@ describe('scheduler', () => {
     expect(r.due.map((p) => p.id)).toEqual(['p1']); // still due (she has not posted it)
   });
 
+  it.each([1, 30, 60, 600, 900, 901])('keeps the scheduled time when uploading %i seconds early', async (seconds) => {
+    const at = localDate('2026-10-07T20:00');
+    const clock = { t: new Date(at.getTime() - seconds * 1000) };
+    const yt = post('near', '2026-10-07T20:00', { platform: 'youtube' });
+    let metadata: ReturnType<typeof ytMeta> | undefined;
+    const { s } = mk([yt], clock, { api: {
+      wants: () => true,
+      publish: async (_p, publishAt) => {
+        metadata = ytMeta({ title: 'Scheduled', description: '', tags: [], publishAt });
+        return { ok: true, url: 'https://youtu.be/test' };
+      },
+    } });
+    await s.tick();
+    expect(metadata?.status).toMatchObject({ privacyStatus: 'private', publishAt: at.toISOString() });
+  });
+
+  it.each([0, 1, 600])('uses immediate publication only when due or %i seconds late', async (seconds) => {
+    const at = localDate('2026-10-07T20:00');
+    const clock = { t: new Date(at.getTime() + seconds * 1000) };
+    const publish = vi.fn(async (_p: CalendarPost, publishAt: Date | null) => {
+      expect(publishAt).toBeNull();
+      return { ok: true as const, url: 'https://youtu.be/test' };
+    });
+    const { s } = mk([post('due', '2026-10-07T20:00', { platform: 'youtube' })], clock, { api: { wants: () => true, publish } });
+    await s.tick();
+    expect(publish).toHaveBeenCalledOnce();
+  });
+
   it('API posts upload an hour ahead with publishAt, never show as hers; failures retry, then fall back to her', async () => {
     const clock = { t: new Date(2026, 9, 7, 19, 30) };
     const yt = post('y1', '2026-10-07T20:00', { platform: 'youtube' });

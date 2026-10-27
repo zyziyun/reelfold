@@ -234,8 +234,8 @@ export class PublishScheduler {
         if (prev.status !== 'failed' || prev.tries >= MAX_TRIES || t - prev.lastTry < RETRY_MS) continue;
       }
       const at = localDate(p.at);
-      // YouTube refuses a publishAt in the past or too close: schedule only when it is comfortably ahead
-      const publishAt = at.getTime() - t > 15 * 60_000 ? at : null;
+      // Preserve every future appointment: omitting publishAt would publish early.
+      const publishAt = at.getTime() > t ? at : null;
       const r = await this.upload(p, () => api.publish(p, publishAt), 'scheduled');
       if (r.ok || this.state.api[p.id]?.lastTry === t) ran.push(p.id);
     }
