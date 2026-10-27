@@ -102,6 +102,39 @@ describe('scheduler', () => {
     expect(sent[1]).toEqual({ id: 'second', title: 'Updated title', at: null });
   });
 
+  it.each(['deleted', 'rescheduled', 'account changed', 'manually confirmed'])('preserves current calendar when an upload finishes after it was %s', async (change) => {
+    const original = post('upload', '2026-10-07T20:00', { platform: 'youtube', account: 'main' });
+    let rows = [original];
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const stateFile = path.join(tmp(), 'scheduler.json');
+    const markPosted = vi.fn(async () => undefined);
+    const load = async () => rows;
+    const { s } = mk(rows, clock, { load, stateFile, markPosted });
+    let finish!: () => void;
+    const held = new Promise<void>(resolve => { finish = resolve; });
+    const publishing = s.upload(original, async () => {
+      await held;
+      return { ok: true, url: 'https://youtu.be/receipt', account: 'main' };
+    });
+    if (change === 'deleted') rows = [];
+    if (change === 'rescheduled') rows = [{ ...original, at: '2026-10-07T20:15' }];
+    if (change === 'account changed') rows = [{ ...original, account: 'brand' }];
+    if (change === 'manually confirmed') rows = [{ ...original, state: 'posted', via: 'manual' }];
+    finish();
+    expect(await publishing).toMatchObject({ ok: true });
+    expect(markPosted).not.toHaveBeenCalled();
+    expect(s.apiState(original.id)).toMatchObject({ status: 'done', calendarSynced: false, url: 'https://youtu.be/receipt' });
+    const publish = vi.fn();
+    const restarted = mk(rows, clock, { load, stateFile, markPosted, api: { wants: () => true, publish } });
+    await restarted.s.tick();
+    expect(markPosted).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    rows = [{ ...original }];
+    await restarted.s.tick();
+    expect(markPosted).toHaveBeenCalledOnce();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('announces each post once when its time comes; overdue ones at launch; moving a post re-announces it', async () => {
     const clock = { t: new Date(2026, 9, 7, 19, 59) };
     const ps = [post('p1', '2026-10-07T20:00'), post('old', '2026-10-06T21:00')];

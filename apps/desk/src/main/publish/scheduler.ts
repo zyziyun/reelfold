@@ -369,6 +369,14 @@ export class PublishScheduler {
     // while the previous durable 'uploading' record prevents a restart from re-uploading.
     if (!this.write()) return;
     try {
+      // A remote success remains durable, but must not overwrite a newer calendar
+      // decision made while uploading or waiting for another receipt to sync.
+      const current = (await this.deps.load()).find(row => row.id === p.id);
+      if (this.state.api[p.id] !== receipt || !current || current.at !== receipt.at ||
+          ![receipt.account ?? null, receipt.resolvedAccount ?? receipt.account ?? null].includes(current.account ?? null) ||
+          current.platform !== p.platform || current.item !== p.item || current.clip !== p.clip ||
+          (current.state === 'posted' && current.via === 'manual')) return;
+      p = current;
       if (p.state !== (receipt.result ? apiDeliveryState(receipt.result) : 'posted') || (receipt.result && JSON.stringify(p.api_result) !== JSON.stringify(receipt.result))) {
         await this.deps.markPosted(receipt.resolvedAccount ? { ...p, account: receipt.resolvedAccount } : p, receipt.url ?? receipt.result?.url ?? null, 'api', receipt.result);
       }
