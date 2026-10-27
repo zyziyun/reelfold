@@ -1033,7 +1033,8 @@ def feed_crop_box(p: Profile):
 
 # ----------------------------------------------------------------------------------- text
 def _has_cjk(text):
-    return any(ord(c) >= 0x2E80 for c in text)
+    from .subs import _cjk
+    return any(c.isalpha() and _cjk(c) for c in text)
 
 
 def title_len(p: Profile, title: str) -> float:

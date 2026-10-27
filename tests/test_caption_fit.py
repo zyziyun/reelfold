@@ -35,3 +35,27 @@ def test_keywords_light_up_whole_words_only():
         [("Don't stop the ", False), ("recording", True), (".", False)]          # never "s【to】p"
     assert draw.runs("The editor keeps it", ["editor"]) == [("The ", False), ("editor", True), (" keeps it", False)]
     assert draw.runs("我们用前端组件库", ["组件"]) == [("我们用前端", False), ("组件", True), ("库", False)]
+
+
+def test_split_highlighted_cues_preserve_word_spaces():
+    from vstudio.subs import join_caption, strip_markup
+    samples = [
+        'Record your screen first, then explain 【the main idea】 using your own words and examples.',
+        '먼저 화면을 녹화하세요. 그런 다음 【핵심 내용】을 자신의 말로 설명하세요.',
+        'سجل الشاشة أولاً، ثم اشرح 【الفكرة الرئيسية】 بكلماتك الخاصة.',
+        'Enregistrez votre écran, puis expliquez 【l’idée principale】 avec vos propres mots.',
+    ]
+    p = P.profile('instagram', use_persona=False)
+    for text in samples:
+        text = text + ' ' + text
+        cues = X.fit_cues(p, [Cue(2, 12, text)])
+        assert len(cues) > 1
+        assert strip_markup(join_caption(c.text for c in cues)) == strip_markup(text)
+        assert cues[0].start == 2 and cues[-1].end == 12
+        assert all(a.end == b.start for a, b in zip(cues, cues[1:]))
+
+
+def test_caption_script_detection_ignores_highlight_and_emoji():
+    assert not P._has_cjk('Explain 【the main idea】 🎥')
+    assert P._has_cjk('説明します')
+    assert P._has_cjk('说明')

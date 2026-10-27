@@ -372,7 +372,7 @@ def fit_cues(prof, cues):
     """Cues that do not fit the profile's caption box in ``max_lines`` lines (a whole spoken sentence in one cue) ->
     consecutive cues of at most ``max_lines`` lines each, the cue's time shared by length: captions stay inside the
     platform's safe area at every shape (3:4 cropped a single over-wide line on both sides)."""
-    from .subs import Cue
+    from .subs import Cue, join_caption
     out = []
     n = int(prof.caption.get("max_lines", 2))
     for c in cues:
@@ -381,7 +381,7 @@ def fit_cues(prof, cues):
         if fit["fits"] or len(lines) <= n or c.alt or (c.meta or {}).get("kind") == "hook":
             out.append(c)
             continue
-        parts = [" ".join(lines[k:k + n]) if not P._has_cjk(c.text) else "".join(lines[k:k + n])
+        parts = [join_caption(lines[k:k + n])
                  for k in range(0, len(lines), n)]
         total = sum(max(1, len(x)) for x in parts)
         t = c.start
