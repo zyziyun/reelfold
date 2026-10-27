@@ -39,16 +39,23 @@ def test_plan_reports_every_stage_in_order(tmp_path, monkeypatch):
     import _batch_helpers as H
     d = tmp_path / "in"
     d.mkdir()
-    x, _truth, dur = H.synth_speech([("大家", .4), ("好", .3), ("今天", .4), ("讲", .3)])
+    x, _truth, dur = H.synth_speech([("大家", 1.0), ("好", 1.0), ("今天", 1.0), ("讲", 1.0)])
     H.make_video(str(d / "talk.mp4"), x, 48000, dur)
     (d / "brief.md").write_text("# 选题\n", encoding="utf-8")
     monkeypatch.setattr(I, "TRANSCRIBE", lambda wav, lang: dict(
-        language="zh", segments=[dict(start=0, end=1, text="大家好今天讲一个方法")], words=[{}] * 6))
+        language="zh", segments=[dict(start=0, end=4, text="大家好今天讲一个方法")], words=[{}] * 6))
     monkeypatch.setattr(I, "FACES", lambda img: [0.05])
+    def reply(system, body):
+        assert "TRANSCRIPT of f2" in body
+        return dict(json=dict(projects=[dict(recipe="talkinghead", inputs={"video": ["f2"]},
+                    items=dict(method="focus", rows=[dict(id="method", title="方法", range=[0, 4])]),
+                    params={"platforms": ["xiaohongshu"]})]),
+                    model="mock", cost_usd=0.0)
     evs = []
-    plan = PL.make_plan("把讲方法的部分剪出来发小红书", [str(d)], on_event=evs.append,
-                        call=lambda s, b: dict(json=dict(projects=[]), model="mock", cost_usd=0.0))
-    assert plan["projects"]
+    plan = PL.make_plan("把讲方法的部分剪出来发小红书", [str(d)], on_event=evs.append, call=reply)
+    assert plan["projects"] and plan["planner"]["fallback"] is False
+    ranges = [r["params"]["range"] for r in plan["projects"][0]["items"]["rows"]]
+    assert ranges and all(0 <= start < end <= dur for start, end in ranges)
     assert all(e["event"] in ("stage", "progress") and "ts" in e for e in evs)
     st = _stages(evs)
     # the stages arrive in pipeline order (each first appearance)
@@ -65,8 +72,8 @@ def test_plan_reports_every_stage_in_order(tmp_path, monkeypatch):
     assert "provider" in next(e for e in evs if e["stage"] == "model")
     # a second plan: everything is cached; the transcript is reported as reused, no listening / faces again
     evs2 = []
-    PL.make_plan("把讲方法的部分剪出来发小红书", [str(d)], on_event=evs2.append,
-                 call=lambda s, b: dict(json=dict(projects=[]), model="mock", cost_usd=0.0))
+    second = PL.make_plan("把讲方法的部分剪出来发小红书", [str(d)], on_event=evs2.append, call=reply)
+    assert second["projects"] and second["planner"]["fallback"] is False
     assert "listen" not in _stages(evs2) and "faces" not in _stages(evs2)
     assert all(e.get("cached") for e in evs2 if e["stage"] == "probe" and e.get("cached") is not None)
     assert any(e["stage"] == "transcribe" and e.get("cached") == "analysis" for e in evs2)
