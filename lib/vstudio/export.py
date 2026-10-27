@@ -235,13 +235,26 @@ def _neutral(c):
 def caption_tracks(cues, prof):
     """Every caption language there is -> {lang: [Cue]} (one line each, the platform's language first, then English,
     then Chinese, then other named tracks). A map gives its tracks (each kept to its language's line); one track gives
-    each language it has a line in (a bilingual cues.json -> en + zh)."""
+    each language it has a line in. Per-cue meta.lang / meta.alt_lang take precedence over the legacy
+    English/Chinese script inference; translated source fallbacks retain their original language."""
     from .subs import Cue
     want = P.lang_for(prof.name, "en")
     srcs = list(cues.items()) if is_track_map(cues) else [("*", cues)]
     out = {}
     for k, src in srcs:
-        cl = load_cues(src)
+        cl = []
+        for c in load_cues(src):
+            # Translation already knows each line's language. Script guessing would
+            # mislabel Japanese as Chinese and lose other translated tracks.
+            declared = [(c.meta.get(key), text) for key, text in (("lang", c.text), ("alt_lang", c.alt))
+                        if LANG_KEY.fullmatch(str(c.meta.get(key) or ""))]
+            if declared:
+                for language, text in declared:
+                    if text.strip() and (k == "*" or _lang_base(k) == _lang_base(language)):
+                        out.setdefault(language if k == "*" else k, []).append(
+                            Cue(c.start, c.end, text, "", c.meta))
+            else:
+                cl.append(c)
         langs = [k] if k != "*" else ["en", "zh"]
         for L in langs:
             base = _lang_base(L)
@@ -253,7 +266,9 @@ def caption_tracks(cues, prof):
             else:
                 cs = [Cue(c.start, c.end, c.text, "", c.meta) for c in cl if (c.text or "").strip()]
             if cs:
-                out.setdefault(L, cs)
+                out.setdefault(L, []).extend(cs)
+    for cs in out.values():
+        cs.sort(key=lambda c: (c.start, c.end))
     order = sorted(out, key=lambda L: (_lang_base(L) != want, _lang_base(L) != "en", _lang_base(L) != "zh"))
     return {L: out[L] for L in order}
 

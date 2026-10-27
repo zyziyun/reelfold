@@ -184,3 +184,37 @@ def test_firstpass_caption_language():
     assert {i["id"] for i in t if i["ok"] is False} == {"title-lang", "post-lang"}
     assert not [i for i in FP.check_caption_lang(en, yt, "Gold on the water", "A quiet evening on the lake.")
                 if i["ok"] is False]
+
+
+@pytest.mark.parametrize('language,translation', [('ja', 'まず画面を録画します。'),
+                                                 ('ar', 'سجل الشاشة أولاً.'),
+                                                 ('fr', 'Enregistrez votre écran.')])
+@pytest.mark.parametrize('mode', ['bilingual', 'translated', 'mono'])
+def test_translation_metadata_reaches_language_sidecars(tmp_path, language, translation, mode):
+    from vstudio import bilingual as B
+    original = [dict(start=0, end=1, text='Record your screen.'),
+                dict(start=1, end=2, text='Explain the idea.')]
+    cs, _ = B.translate_cues(original, 'en', language, fix_terms=False, gl={}, call=lambda *a: (
+        {'lines': [{'n': 1, 't': translation}]}, {'provider': 'test'}))
+    shown = B.apply_mode(cs, mode)
+    path = _cues(tmp_path / 'translated.json', [c.to_dict() for c in shown])
+    sidecars = X.write_sidecars(P.profile('youtube'), path, str(tmp_path), 'clip')
+    tracks = {row['lang']: srt_read(tmp_path / row['file']) for row in sidecars}
+    assert set(tracks) == ({'en'} if mode == 'mono' else {'en', language})
+    assert [c.text for c in tracks['en']] == (['Explain the idea.'] if mode == 'translated'
+                                            else ['Record your screen.', 'Explain the idea.'])
+    if mode != 'mono':
+        assert [c.text for c in tracks[language]] == [translation]
+        assert tracks[language][0].start == 0 and tracks[language][0].end == 1
+    assert cs[0].meta == {'lang': 'en', 'alt_lang': language}  # transformations don't mutate input
+
+
+def test_named_track_keeps_declared_language_and_mixed_timeline_order():
+    cs = [Cue(0, 1, 'An older cue.'),
+          Cue(1, 2, 'Explain.', '説明します。', {'lang': 'en', 'alt_lang': 'ja', 'style': {'fill': 'white'}}),
+          Cue(2, 3, 'A final cue.')]
+    tracks = X.caption_tracks(cs, P.profile('youtube'))
+    assert [c.text for c in tracks['en']] == ['An older cue.', 'Explain.', 'A final cue.']
+    named = X.caption_tracks({'ja': cs[1:]}, P.profile('youtube'))
+    assert named['ja'][0].text == '説明します。'
+    assert named['ja'][0].meta['style'] == {'fill': 'white'}

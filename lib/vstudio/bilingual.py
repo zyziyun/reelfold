@@ -231,10 +231,13 @@ def apply_mode(cues, mode="bilingual"):
         raise ValueError(f"caption mode {mode!r}: {' | '.join(MODES)}")
     out = []
     for c in cues:
-        if mode == "mono":
-            out.append(S.Cue(c.start, c.end, c.text, "", dict(c.meta)))
-        elif mode == "translated":
-            out.append(S.Cue(c.start, c.end, c.alt or c.text, "", dict(c.meta)))
+        if mode in ("mono", "translated"):
+            meta = dict(c.meta)
+            target = meta.pop("alt_lang", None)
+            if mode == "translated" and c.alt and target:
+                meta["lang"] = target
+            text = (c.alt or c.text) if mode == "translated" else c.text
+            out.append(S.Cue(c.start, c.end, text, "", meta))
         else:
             out.append(S.Cue(c.start, c.end, c.text, c.alt, dict(c.meta)))
     return out
