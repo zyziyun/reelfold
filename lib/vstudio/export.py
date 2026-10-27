@@ -376,7 +376,7 @@ def fit_cues(prof, cues):
     out = []
     n = int(prof.caption.get("max_lines", 2))
     for c in cues:
-        fit = P.fit_text_size(prof, c.text.replace("\n", " "))
+        fit = P.fit_text_size(prof, c.text.replace("\n", " "), language=(c.meta or {}).get("lang"))
         lines = fit["lines"]
         if fit["fits"] or len(lines) <= n or c.alt or (c.meta or {}).get("kind") == "hook":
             out.append(c)
@@ -409,7 +409,7 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
 
     def layer(k, c):
         if k not in cache:
-            fit = P.fit_text_size(prof, c.text.replace("\n", " "), role)
+            fit = P.fit_text_size(prof, c.text.replace("\n", " "), role, language=(c.meta or {}).get("lang"))
             f = draw.load_font(role, fit["size"])
             stroke = max(2, int(fit["size"] * float(prof.caption.get("stroke", 0.08))))
             st = (c.meta or {}).get("style") or {}
@@ -417,10 +417,18 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
             hl = draw.rgba(st["highlight"]) if st.get("highlight") else None
             prim = _lines_layer(_rebalance(fit["lines"], mk), f, fl, stroke, hl)
             if c.alt and c.alt.strip():
+                from .subs import balanced_wrap
                 fa = draw.load_font("cjk", max(16, int(fit["size"] * 0.66)))
                 # Translation is dialogue, not an ellipsized preview. Keep every
                 # word and include stroke/padding in the available width.
-                alt_lines = draw.wrap(c.alt.strip(), fa, x1 - x0 - 2 * stroke - 12, balance=True)
+                avail = x1 - x0 - 2 * stroke - 12
+                alt_lines = draw.wrap(c.alt.strip(), fa, avail)
+                sec = _lines_layer(alt_lines, fa, _alt_fill(st), max(2, stroke * 2 // 3))
+                if prim.height + sec.height - 8 > sy1 - sy0:
+                    raise ValueError("Caption pair is too large for the safe area; split it into shorter timed cues")
+                alt_lines = balanced_wrap(c.alt.strip(), avail,
+                                          measure=lambda s: draw.text_width(s, fa),
+                                          language=(c.meta or {}).get("alt_lang"))
                 sec = _lines_layer(alt_lines, fa, _alt_fill(st), max(2, stroke * 2 // 3))
                 w = max(prim.width, sec.width)
                 from PIL import Image
@@ -840,7 +848,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
             picture = _f(i, t, img)
             return _c(i, t, picture) if _c else picture
     for c in cue_list:
-        fit = P.fit_text_size(prof, c.text.replace("\n", " "))
+        fit = P.fit_text_size(prof, c.text.replace("\n", " "), language=(c.meta or {}).get("lang"))
         if not fit["fits"]:
             warnings.append(f"caption too long for {prof.caption['max_lines']} lines at min size: {c.text[:24]}…")
     from . import watermark as WM

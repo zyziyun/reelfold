@@ -7,6 +7,32 @@ import re
 import sys
 
 
+@lru_cache(maxsize=1)
+def _english_parser():
+    # This model already ships with the speech runtime. Never download a model
+    # while laying out captions; source-only installations may omit speech extras.
+    try:
+        import spacy
+        return spacy.load('en_core_web_sm', exclude=['ner', 'lemmatizer'])
+    except (ImportError, OSError):
+        return None
+
+
+@lru_cache(maxsize=512)
+def phrase_spans(text, language=None):
+    """Protected noun-phrase character spans for explicitly English captions.
+
+    Unknown/other languages retain their existing Unicode/dictionary layout.
+    Offsets refer to plain text, not highlight markup. No text is rewritten.
+    """
+    if str(language or '').lower().replace('_', '-').split('-')[0] != 'en':
+        return ()
+    parser = _english_parser()
+    if parser is None:
+        return ()
+    return tuple((s.start_char, s.end_char) for s in parser(text).noun_chunks)
+
+
 def dictionary_script(char):
     value = ord(char)
     return (0x0E00 <= value <= 0x0EFF or 0x1000 <= value <= 0x109F or

@@ -344,12 +344,14 @@ def kinsoku_violations(lines):
     return out
 
 
-def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True):
+def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True, language=None):
     """Wrap into the FEWEST lines that fit ``max_width``, then balance them (similar lengths, breaks
     preferred after punctuation, never a one-character orphan line, latin words never split).
     word_aware: CJK breaks avoid splitting a word (jieba segmentation when installed: "前端组件|库"
     rather than "前端组|件库") and prefer breaks after particles (的/了/吧...), before conjunctions /
     prepositions (和/在/把...) and at CJK<->latin changes.
+    language: a declared language code; English noun phrases that fit on a line
+    remain intact using the speech runtime's installed parser.
 
     Args: measure(str) -> width (default ``text_width``: CJK 1, latin 0.5; pass a PIL textlength for
     pixel wrapping); max_lines caps the line count (lines may then overflow). Markup is preserved on
@@ -393,6 +395,14 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
         return span_orphan[i, j]
 
     bonus = _break_bonus(toks, word_aware)
+    from .textbreak import phrase_spans
+    plain = strip_markup(text)
+    phrases = [(a, b) for a, b in phrase_spans(plain, language) if measure(plain[a:b]) <= max_width]
+    blocked, offset = set(), 0
+    for j, (token, _) in enumerate(toks, 1):
+        offset += len(token)
+        if any(a < offset < b for a, b in phrases):
+            blocked.add(j)
     n0 = max(2, math.ceil(total / max_width))
     best = None
     for n in range(n0, min(m, max_lines or m) + 1):
@@ -403,6 +413,8 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
         dp[0][0] = 0.0
         for L in range(1, n + 1):
             for j in range(1, m + 1):
+                if j in blocked:
+                    continue
                 for i in range(L - 1, j):
                     if dp[L - 1][i] == INF:
                         continue
@@ -476,7 +488,7 @@ def join_caption(parts):
     return out
 
 
-def caption_chunks(text, line_width, max_lines=2, measure=None):
+def caption_chunks(text, line_width, max_lines=2, measure=None, language=None):
     """Split one long caption into cue texts of at most ``max_lines`` lines of ``line_width`` (``text_width``
     units unless ``measure`` is given): the shared caption splitter. Lines come from ``balanced_wrap``
     (latin words whole, CJK per character with no-break punctuation, mixed text at script changes), then
@@ -484,7 +496,7 @@ def caption_chunks(text, line_width, max_lines=2, measure=None):
     t = (text or "").strip()
     if not t:
         return []
-    lines = balanced_wrap(t, line_width, measure=measure)
+    lines = balanced_wrap(t, line_width, measure=measure, language=language)
     n = max(1, int(max_lines))
     return [join_caption(lines[i:i + n]) for i in range(0, len(lines), n)]
 

@@ -1182,7 +1182,7 @@ def check_length(p: Profile, seconds: float):
     return w
 
 
-def fit_text_size(p: Profile, text: str, role="cjk-bold", fit_height=True):
+def fit_text_size(p: Profile, text: str, role="cjk-bold", fit_height=True, language=None):
     """Largest caption font size in the profile's range at which ``text`` wraps into at most
     ``max_lines`` lines that fit ``caption_box`` width, the per-line char limit (zh or en by
     content) and (fit_height, default) the caption band HEIGHT as ``export.caption_overlay`` stacks the
@@ -1204,7 +1204,7 @@ def fit_text_size(p: Profile, text: str, role="cjk-bold", fit_height=True):
         f = draw.load_font(role, size)
         avail = (x1 - x0) - 2 * int(size * stroke_frac) - 8
         meas = lambda s: max(draw.text_width(s, f) / max(1.0, avail), chars(s) / max(1, max_chars))  # noqa: E731
-        lines = balanced_wrap(text.strip(), 1.0, measure=meas, max_lines=cap_lines)
+        lines = balanced_wrap(text.strip(), 1.0, measure=meas, max_lines=cap_lines, language=language)
         if cap_lines and len(lines) > cap_lines:
             lines = lines[:cap_lines]
         width_ok = all(draw.text_width(ln, f) <= avail for ln in lines)
