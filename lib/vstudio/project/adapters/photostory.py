@@ -53,6 +53,10 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
   A video may explicitly use fit="contain" to preserve its full source; this does not create a new portrait edit.
+  To show a complete product larger without repeating the overview, a video can use fit="contain" with
+  source_region=[x,y,width,height] in displayed source pixels. Verify that rectangle contains the entire
+  intended subject throughout the interval; the renderer fits it once outside the caption band. Do not
+  combine source_region with c/z or detail_regions. Missing source pixels cannot be restored by this option.
   For a source-verified portrait overview plus detail, video options may use detail_regions=[[x,y,width,height]]
   (one or two rectangles in displayed source pixels). Full source stays above the magnified detail; landscape
   retains the full source. Choose rectangles from actual frames, not a guessed feature. Do not combine with c/z.
@@ -627,6 +631,16 @@ def spec_error(text):
                 return f"SCRIPT[{i}] needs a motion string and dict/None options"
             if opts and opts.get("fit") not in (None, "contain", "cover"):
                 return f"SCRIPT[{i}] fit must be contain or cover"
+            if opts and opts.get("source_region") is not None:
+                from vstudio.clipkit import detail_rectangles
+                if not source.startswith(("v", "video:")) or opts.get("fit") != "contain":
+                    return f"SCRIPT[{i}] source_region requires a video with fit=contain"
+                try:
+                    detail_rectangles([opts["source_region"]])
+                except ValueError as exc:
+                    return f"SCRIPT[{i}] source_region: {exc}"
+                if "c" in opts or opts.get("z", 1) != 1 or opts.get("detail_regions") is not None:
+                    return f"SCRIPT[{i}] source_region cannot combine with c/z or detail_regions"
             if opts and opts.get("detail_regions") is not None:
                 regions = opts["detail_regions"]
                 if not source.startswith(("v", "video:")):

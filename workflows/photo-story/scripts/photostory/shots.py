@@ -114,7 +114,7 @@ def prep_video(C, sh, name):
     # crop / zoom / grade are part of the cache key (editing VCROP re-renders the clip)
     look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
-                 sh.get("fit"), sh.get("detail_regions"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
+                 sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
                  C.pal["paper"], need, "fitted-video-zoom-v1",
                  "content-detail-heights-v1" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
@@ -148,12 +148,17 @@ def prep_video(C, sh, name):
         if name in C.VEQ or sh.get("grade"):
             vf += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
         filters = ["-vf", vf]
-        if sh.get("fit") == "contain" or sh.get("detail_regions") is not None:
+        if sh.get("fit") == "contain" or sh.get("detail_regions") is not None or sh.get("source_region") is not None:
             from vstudio import clipkit as CK
             if name in C.VCROP or "c" in sh or sh.get("z", 1) != 1:
                 raise ValueError("Whole-source video layout cannot also use a crop or zoom")
             geo = dict(canvas=(C.BOX_W, C.BOX_H), vertical=C.BOX_H > C.BOX_W,
                        main=(0, 0, C.BOX_W, C.BOX_H), camera=None)
+            if sh.get("source_region") is not None:
+                if sh.get("detail_regions") is not None or sh.get("fit") != "contain":
+                    raise ValueError("source_region requires fit=contain without detail_regions")
+                geo = CK.region_geometry(geo, (w, h), sh["source_region"],
+                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H) if C.SUB_H > 0 else None)
             if sh.get("detail_regions") is not None:
                 geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))

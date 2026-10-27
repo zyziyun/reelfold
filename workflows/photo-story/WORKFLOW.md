@@ -285,6 +285,13 @@ omit stages, but should be described as excerpts rather than complete demonstrat
 boundaries with denser samples or continuous playback; a contact sheet is not frame-accurate evidence.
 
 Video shots support explicit `fit="contain"` without stretching or silently centre-cropping.
+For a single enlarged subject, use `fit="contain", source_region=[x,y,width,height]`
+in video options. The verified source rectangle is fitted once into the largest space above or
+below the caption band, preserving its proportions on either canvas orientation. Check the
+entire interval: a fixed rectangle does not track movement or restore features cut off in the
+source. Do not combine it with `VCROP`, `c`, `z`, or `detail_regions`. Review remaining blank
+space and choose another shot/layout when the subject cannot fill the composition naturally.
+
 For a portrait demonstration, `detail_regions=[[x,y,width,height]]` in video shot options reuses the
 course renderer's overview/detail composition. One or two source-pixel rectangles must be checked
 against the displayed, rotation-corrected source. Landscape keeps the complete source. Do not combine

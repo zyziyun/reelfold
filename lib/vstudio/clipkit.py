@@ -343,12 +343,36 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None)
     return dict(geo, main=((W - ow) // 2, margin, ow, oh), header=None, details=details)
 
 
+def region_geometry(geo, src_wh, region, caption_band=None):
+    """Fit a verified source region once, keeping it clear of the caption band."""
+    rect = detail_rectangles([region], src_wh)[0]
+    if geo.get("camera") or geo.get("details"):
+        raise ValueError("source_region cannot combine with camera or detail panels")
+    W, H = geo["canvas"]
+    margin = max(2, int(W * .035))
+    top, bottom = margin, H - margin
+    if caption_band is not None:
+        y0, y1 = caption_band
+        if not 0 <= y0 < y1 <= H:
+            raise ValueError("Caption band is outside the canvas")
+        top, bottom = max(((margin, y0 - margin), (y1 + margin, H - margin)),
+                          key=lambda span: span[1] - span[0])
+    if bottom - top < 2 or W - 2 * margin < 2:
+        raise ValueError("Caption band leaves no room for source_region")
+    w, h = _fit(rect[2], rect[3], W - 2 * margin, bottom - top)
+    return dict(geo, source_region=rect, main=((W - w) // 2, top + (bottom - top - h) // 2, w, h), header=None)
+
+
 def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2"):
     """Shared overview/detail graph; caller supplies timing, background and output encoding."""
     x, y, w, h = geo["main"]
     details = geo.get("details") or []
     g = []
     main_input = source
+    if geo.get("source_region") is not None:
+        sx, sy, sw, sh = geo["source_region"]
+        g.append(f"[{source}]crop={sw}:{sh}:{sx}:{sy}:exact=1[region]")
+        main_input = "region"
     if details:
         g.append(f"[{source}]split={len(details) + 1}[overview]" + "".join(f"[detail{j}]" for j in range(len(details))))
         main_input = "overview"

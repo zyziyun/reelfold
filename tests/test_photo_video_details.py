@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wor
 from photostory.shots import prep_video
 
 
-@pytest.mark.parametrize('layout', ['contain', 'detail'])
+@pytest.mark.parametrize('layout', ['contain', 'detail', 'region'])
 def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     src = str(tmp_path/'source.mp4')
     media.run(['ffmpeg','-y','-f','lavfi','-i',
@@ -22,7 +22,8 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
         BOX_W=180, BOX_H=320, FPS=24, SUB_Y0=108, SUB_H=30, HDR=0,
         pal={'paper':(240,235,225)}, find_video=lambda n:src, vid_dirs=[str(tmp_path)])
     sh = dict(start=0,end=.4,tail=0,off=0,speed=2,motion='still')
-    sh.update({'fit':'contain'} if layout=='contain' else {'detail_regions':[[160,0,160,180]]})
+    sh.update({'fit':'contain', 'source_region':[160,0,160,180]} if layout=='region' else
+              {'fit':'contain'} if layout=='contain' else {'detail_regions':[[160,0,160,180]]})
     out = prep_video(C,sh,'source')
     info = media.probe(out)
     assert abs(float(info['fps'])-24)<.01
@@ -33,6 +34,14 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     if layout=='contain':
         assert a[160,30,0]>220 and a[160,150,2]>220
         assert np.all(a[10,90]>200)
+    elif layout == 'region':
+        blue = (a[:,:,2] > 220) & (a[:,:,0] < 30)
+        ys, xs = np.where(blue)
+        assert len(xs) > 15000
+        assert ys.min() >= 138 and ys.max() < 320
+        assert not np.any((a[:,:,0] > 220) & (a[:,:,2] < 30))
+        assert np.all(a[120,90] > 200)
+        assert xs.max() - xs.min() > 140  # complete region fits without extra portrait crop
     else:
         assert a[40,35,0]>220 and a[40,145,2]>220
         assert a[230,90,2]>220 and a[230,90,0]<30
@@ -46,7 +55,7 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     st = os.stat(src)
     os.utime(src, ns=(st.st_atime_ns,st.st_mtime_ns+1000000))
     assert prep_video(C,sh,'source') != new_paper
-    changed = dict(sh,fit='cover'); changed.pop('detail_regions',None)
+    changed = dict(sh,fit='cover'); changed.pop('detail_regions',None); changed.pop('source_region',None)
     assert prep_video(C,changed,'source') != out
 
 
@@ -90,3 +99,33 @@ def test_video_zoom_magnifies_relative_to_fitted_crop(tmp_path, canvas):
         sizes.append((xs.max()-xs.min()+1,ys.max()-ys.min()+1))
     for axis in (0,1):
         assert abs(sizes[1][axis]/sizes[0][axis]-2)<.2, sizes
+
+
+@pytest.mark.parametrize('region,extra', [
+    ([-1,0,100,100], {}), ([0,0,0,100], {}), ([0,0,100], {}),
+    ([0,0,100,100], {'fit':'cover'}),
+    ([0,0,100,100], {'detail_regions':[[0,0,100,100]]}),
+    ([0,0,100,100], {'c':(.5,.5)}),
+])
+def test_planner_rejects_invalid_source_region(region, extra):
+    from vstudio.project.adapters.photostory import spec_error
+    options=dict(fit='contain', source_region=region, **{k:v for k,v in extra.items() if k!='fit'})
+    options.update(extra)
+    assert spec_error(f'SCRIPT=[(0,[("Cup","杯")],[("vsource",1,"still",{options!r})])]')
+
+
+@pytest.mark.parametrize("canvas", [(180,320), (320,180)])
+def test_source_region_bounds_and_caption_geometry(canvas):
+    from vstudio import clipkit as C
+    W,H=canvas
+    geo=dict(canvas=canvas,vertical=H>W,main=(0,0,W,H),camera=None)
+    with pytest.raises(ValueError,match='outside'):
+        C.region_geometry(geo,(320,180),[250,0,100,180])
+    with pytest.raises(ValueError,match='Caption band'):
+        C.region_geometry(geo,(320,180),[0,0,100,100],(0,H))
+    for band in [(0,30),(H-30,H),(H//2,H//2+30)]:
+        g=C.region_geometry(geo,(320,180),[0,0,100,100],band)
+        x,y,w,h=g['main']
+        assert y+h <= band[0] or y >= band[1]
+        assert 0 <= x < x+w <= W and 0 <= y < y+h <= H
+        assert abs(w-h) <= 1
