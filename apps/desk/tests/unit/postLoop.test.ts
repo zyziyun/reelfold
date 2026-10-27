@@ -363,6 +363,37 @@ describe('scheduler', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it.each(['deleted', 'rescheduled', 'account changed', 'posted', 'video changed', 'disabled', 'auto off', 'unchanged'])('rechecks each queued recovery after earlier recovery waits: %s', async (change) => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    let rows = ['first', 'second'].map(id => post(id, '2026-10-07T20:00', { platform: 'youtube', account: 'main' }));
+    let auto = true;
+    const stateFile = path.join(tmp(), 'state.json');
+    fs.writeFileSync(stateFile, JSON.stringify({ notified: {}, api: Object.fromEntries(rows.map(p => [p.id, {
+      at: p.at, account: p.account, source: 'scheduled', status: 'uploading', tries: 1, lastTry: clock.t.getTime() - 60000,
+    }])) }));
+    const recovered: { id: string; resume: boolean }[] = [];
+    const m = mk(rows, clock, { stateFile, load: async () => rows.map(p => ({ ...p })), api: {
+      wants: () => auto, publish: vi.fn(), recover: async (p, resume) => {
+        recovered.push({ id: p.id, resume });
+        if (p.id === 'first') {
+          await Promise.resolve();
+          if (change === 'deleted') rows = rows.slice(0, 1);
+          if (change === 'rescheduled') rows[1].at = '2026-10-08T20:00';
+          if (change === 'account changed') rows[1].account = 'brand';
+          if (change === 'posted') rows[1].state = 'posted';
+          if (change === 'video changed') rows[1].video_path = '/another.mp4';
+          if (change === 'disabled') rows[1].enabled = false;
+          if (change === 'auto off') auto = false;
+        }
+        return null;
+      },
+    } });
+    await m.s.tick();
+    const second = recovered.filter(p => p.id === 'second');
+    expect(second).toEqual(['disabled', 'auto off', 'unchanged'].includes(change)
+      ? [{ id: 'second', resume: change === 'unchanged' }] : []);
+  });
+
   it('shows interrupted uploads as unverified when recovery cannot confirm completion', async () => {
     const clock = { t: new Date(2026, 9, 7, 20, 1) };
     const p = post('interrupted', '2026-10-07T20:00', { platform: 'youtube' });

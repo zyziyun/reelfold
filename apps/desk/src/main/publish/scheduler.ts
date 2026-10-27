@@ -199,9 +199,15 @@ export class PublishScheduler {
           a.at === p.at && (a.account ?? null) === (p.account ?? null) &&
           now.getTime() - (a.lastCheck ?? 0) >= 5 * 60_000 && p.state !== 'posted';
       }).sort((a, b) => (this.state.api[a.id]?.lastCheck ?? 0) - (this.state.api[b.id]?.lastCheck ?? 0)).slice(0, 3);
-      for (const p of pending) {
+      for (const queued of pending) {
+        const p = (await this.deps.load()).find(row => row.id === queued.id);
+        if (!p || p.state === 'posted' || p.at !== queued.at || (p.account ?? null) !== (queued.account ?? null) ||
+            p.platform !== queued.platform || p.item !== queued.item || p.clip !== queued.clip ||
+            (p.video_path ?? null) !== (queued.video_path ?? null)) continue;
         const previous = this.state.api[p.id];
-        await this.recoverUpload(p, () => api.recover!(p, previous.source !== 'manual' && api.wants(p)));
+        if (!previous || !['uploading', 'unverified'].includes(previous.status)) continue;
+        // Disabled posts can still have a remote receipt, but must not send more bytes.
+        await this.recoverUpload(p, () => api.recover!(p, previous.source !== 'manual' && p.enabled !== false && api.wants(p)));
       }
     }
     // Bounded readback independent of opt-in uploads: at most three reads per five minutes.
