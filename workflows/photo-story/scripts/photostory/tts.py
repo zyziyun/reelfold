@@ -49,7 +49,7 @@ OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "on
 def narration_texts(chunks, say, language):
     """The words the narrator speaks for one unit's (en, zh) cues: the 中文 when the narration is Chinese
     (TTS language "zh"), else the English (SAY spoken forms applied to the English only)."""
-    if language == "zh":
+    if str(language).lower().replace("_", "-").split("-")[0] == "zh":
         zh = [(z or e).replace("**", "") for e, z in chunks]
         return zh, zh
     return [spoken(en, say) for en, zh in chunks], [en.replace("**", "") for en, zh in chunks]
@@ -82,7 +82,7 @@ def asr_words(path, cfg):
     alignment wants the raw words). Spec TTS ``whisper`` / ``faster_model`` override the backend model."""
     has = lambda m: importlib.util.find_spec(m) is not None
     model = cfg.get("whisper") if has("mlx_whisper") else cfg.get("faster_model") if has("faster_whisper") else None
-    tr = asr.transcribe(path, language=cfg["language"], model=model, cache=False, fix_terms=False)
+    tr = asr.transcribe(path, language=cfg["language"].replace("_", "-").split("-")[0], model=model, cache=False, fix_terms=False)
     return [(w["w"], w["t"], w["te"]) for w in tr["words"]]
 
 
@@ -107,17 +107,18 @@ def main():
     cfg = dict(DEFAULTS)
     cfg.update(getattr(spec, "TTS", {}) or {})
     cfg.update(getattr(spec, "VOICE", {}) or {})
+    cfg["language"] = str(cfg["language"]).strip().lower().replace("_", "-")
     engine = a.engine if a.engine and a.engine != "auto" else cfg.get("engine") or "auto"
     if engine == "auto":
         engine = vtts.available_engine()
-    if cfg["language"] == "zh" and vtts.prefs().get("zh_engine") == "system" and not (a.voice or a.speaker):
+    if cfg["language"].split("-")[0] == "zh" and vtts.prefs().get("zh_engine") == "system" and not (a.voice or a.speaker):
         engine = "system"
     clone = engine == "clone"
     local = engine not in ("openai", "clone")
     if clone:
         user_cfg = {**(getattr(spec, "TTS", {}) or {}), **(getattr(spec, "VOICE", {}) or {})}
         cfg["tries"] = user_cfg.get("tries", 4)
-        lang = cfg.get("tts_language") or ("Chinese" if cfg["language"] == "zh" else "English")
+        lang = cfg.get("tts_language") or cfg["language"]
         um = user_cfg.get("model")
         um = um if um and not str(um).startswith(("gpt-", "tts-")) else None   # an OpenAI model name is not ours
         cc = vtts.clone_config(C.path(cfg.get("ref_wav")) if cfg.get("ref_wav") else None, cfg.get("ref_text"),
@@ -127,20 +128,26 @@ def main():
     elif engine == "openai" and not os.environ.get("OPENAI_API_KEY"):
         sys.exit("OPENAI_API_KEY is not set in the environment")
     picked_zh = str(a.voice or cfg.get("voice") or "").startswith(("zf_", "zm_"))   # she named a Kokoro Chinese voice
-    if cfg["language"] == "zh" and engine == "kokoro" and not picked_zh:
+    if cfg["language"].split("-")[0] == "zh" and engine == "kokoro" and not picked_zh:
         engine = vtts.zh_engine(engine)       # the free Chinese voice (qwen) when it is on this computer
-    if cfg["language"] == "zh" and engine == "kokoro" and not (picked_zh or vtts.zh_local_opt_in()):
+    if cfg["language"].split("-")[0] == "zh" and engine == "kokoro" and not (picked_zh or vtts.zh_local_opt_in()):
         # the built-in Chinese voice is opt-in (it sounds robotic): the English lines are narrated, the 中文
         # subtitles still lead (Ctx.ZH_LEAD reads the spec's TTS language)
         print("note: " + vtts.ZH_LOCAL_NOTE["en"], flush=True)
         cfg["language"] = "en"
     voice = a.voice or cfg["voice"]
-    if engine == "system" and not (a.voice or a.speaker):
-        voice = vtts.zh_voice(engine)
+    explicit_voice = a.voice or a.speaker or (getattr(spec, "VOICE", {}) or {}).get("voice") or (getattr(spec, "TTS", {}) or {}).get("voice")
+    if cfg["language"].split("-")[0] not in ("en", "zh") and engine != "system" and not explicit_voice:
+        from vstudio.narration import voice_plan
+        plan = voice_plan(cfg["language"], engine)
+        voice = plan.get("voice")
+    if engine == "system" and not explicit_voice:
+        from vstudio.system_voice import voice_for
+        voice = voice_for(cfg["language"], preferred=vtts.prefs().get("system_voice"))
     if engine == "qwen" and str(voice or "").lower() not in vtts.QWEN_ZH_VOICES:
         voice = None                          # a Kokoro / OpenAI voice name means nothing to the Chinese voice
     if local and (not voice or voice in OPENAI_VOICES):   # an OpenAI voice name means nothing to the local voice
-        voice = vtts.zh_voice(engine) if cfg["language"] == "zh" else None
+        voice = vtts.zh_voice(engine) if cfg["language"].split("-")[0] == "zh" else None
         voice = voice or vtts.DEFAULT_VOICE.get(engine)
     if local:
         cfg["tries"] = 1                      # a local voice says a line the same way every time: one take
@@ -162,10 +169,10 @@ def main():
                        language=cc["language"], seed=seed, out=path)
         elif local:
             vtts.synth(text, engine=engine, voice=v, speed=float(cfg.get("speed") or 1.0), out=path,
-                       cache=not fresh, instructions=style)
+                       cache=not fresh, instructions=style, language=cfg["language"])
         else:
             vtts.synth(text, engine="openai", voice=v, instructions=cfg["instructions"], model=cfg["model"],
-                       out=path, cache=not fresh)
+                       out=path, cache=not fresh, language=cfg["language"])
         x, sr = sf.read(path, dtype="float32")
         x = x.mean(1) if x.ndim > 1 else x
         if clone:     # level every take to ~-20 dBFS RMS (cloned takes vary a lot in level)
@@ -194,16 +201,16 @@ def main():
             continue
         texts, disp = narration_texts(chunks, say, cfg["language"])
         # a local voice has no pronunciation for an unknown name (it would spell it): it always reads the spoken forms
-        say_text = ("" if cfg["language"] == "zh" else " ").join(texts if (cfg["use_say"] or local) else disp)
+        say_text = ("" if cfg["language"].split("-")[0] == "zh" else " ").join(texts if (cfg["use_say"] or local) else disp)
         exps = [norm(" ".join(texts)), norm(" ".join(disp))]
         if clone:
             key = hashlib.md5(f"clone|{cc['ref_hash']}|{cc['model']}|{cc['language']}|{say_text}".encode()).hexdigest()[:16]
         elif local:
-            # no style: the key of a take made before the cast (its cache stays valid)
-            key = hashlib.md5((f"{engine}|{voice}|{cfg.get('speed') or 1.0}|{say_text}" +
+            # Locale is part of the take: identical Latin text may be spoken differently.
+            key = hashlib.md5((f"{engine}|{cfg['language']}|{voice}|{cfg.get('speed') or 1.0}|{say_text}" +
                                (f"|{style}" if style else "")).encode()).hexdigest()[:16]
-        else:   # unchanged key -> existing OpenAI caches stay valid
-            key = hashlib.md5(f"{voice}|{cfg['model']}|{cfg['instructions']}|{say_text}".encode()).hexdigest()[:16]
+        else:
+            key = hashlib.md5(f"{voice}|{cfg['language']}|{cfg['model']}|{cfg['instructions']}|{say_text}".encode()).hexdigest()[:16]
         cw, cj = os.path.join(out, "cache", f"{key}.wav"), os.path.join(out, "cache", f"{key}.json")
         if os.path.exists(cw) and os.path.exists(cj):
             c = json.load(open(cj))

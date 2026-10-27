@@ -305,3 +305,15 @@ when the second view adds little information. For short labels,
 layout: review the source aspect ratio, text size and detail readability. An impossible band or an
 out-of-source rectangle fails explicitly. This is an authored capability, not proof that automatic
 region selection or the finished film has passed visual review. Keep original audio handling unchanged.
+
+#### Explicit narration locale
+
+`TTS.language` accepts a locale such as `fr-FR` for the voice command. Keep the
+spoken text in the first cue column for non-Chinese narration; Chinese uses the
+second column. The voice command forwards the locale to synthesis, uses its base
+language for transcription, and separates cached takes by locale. With
+`engine="system"`, an unspecified voice is selected from installed voices in that
+language; an explicit voice is kept. Missing local voices fail instead of silently
+switching to English. This does not translate the script or localize the cover,
+post, or platform-specific caption selection: those still require authored text
+and separate review.
