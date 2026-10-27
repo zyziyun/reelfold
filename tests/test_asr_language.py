@@ -182,3 +182,26 @@ def test_hallucination_removal_keeps_readable_transcript_seams():
     result = asr._finish(raw, None, False, drop_hallucinated=True)
     assert result['text'] == 'Hello. Check captions.'
     assert len(result['dropped']) == 1 and len(raw['segments']) == 3
+
+
+@pytest.mark.parametrize("texts,words,expected", [
+    (["注ぎます。", "三十秒待ってください。"],
+     [("注ぎます。", 5.02, 5.28), ("30", 6.12, 6.46), ("秒待ってください。", 6.46, 9.06)],
+     [{"start": 5.02, "end": 5.28}, {"start": 6.12, "end": 9.06}]),
+    (["Wait thirty.", "Serve now."],
+     [("Wait", .2, .6), ("30", .6, 1.1), ("Serve", 3, 3.5), ("now", 3.5, 4)],
+     [{"start": .2, "end": 1.1}, {"start": 3, "end": 4}]),
+    (["Versez l’eau."], [("Versez", .2, .6), ("l", .7, .8), ("'eau", .8, 1)],
+     [{"start": .2, "end": 1}]),
+])
+def test_cue_replacements_use_observed_speech_not_adjacent_silence(texts, words, expected):
+    original = list(texts)
+    assert asr.align_script(texts, words, 10) == expected
+    assert texts == original
+
+
+def test_replacement_does_not_invent_split_across_cues():
+    # Without an observed sentence boundary, retain the existing interpolation.
+    assert asr.align_script(["Start one", "two end"],
+                            [("Start", 0, 1), ("other", 2, 3), ("end", 4, 5)], 5) == [
+        {"start": 0, "end": 4}, {"start": 4, "end": 5}]

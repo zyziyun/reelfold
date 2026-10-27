@@ -1009,7 +1009,8 @@ def align_script(texts, words, dur):
     """Map script cues onto ASR word timestamps (difflib on normalised tokens; CJK per character).
 
     Args: texts = [cue text, ...] in reading order; words = [{"w","t","te"}] or [(word, start, end)];
-    dur = audio length (bounds interpolation). Unmatched tokens are interpolated between neighbours.
+    dur = audio length (bounds interpolation). Single-cue replacements with a matching cue anchor
+    use the observed ASR span; other unmatched tokens are interpolated between neighbours.
     Returns [{"start", "end"}] per cue. From photo-story ``tts.align`` (TTS narration timing).
     """
     ws = [(w["w"], w["t"], w["te"]) if isinstance(w, dict) else tuple(w) for w in words]
@@ -1022,9 +1023,21 @@ def align_script(texts, words, dur):
         for tok in alignment_tokens(wd):
             got.append(tok); gt.append((s, e))
     tmap = [None] * len(exp)
-    for blk in difflib.SequenceMatcher(None, exp, got, autojunk=False).get_matching_blocks():
+    matcher = difflib.SequenceMatcher(None, exp, got, autojunk=False)
+    for blk in matcher.get_matching_blocks():
         for j in range(blk.size):
             tmap[blk.a + j] = gt[blk.b + j]
+    anchored_cues = {owner[j] for j, time in enumerate(tmap) if time is not None}
+    for tag, a, b, c, d in matcher.get_opcodes():
+        if tag != "replace" or len(set(owner[a:b])) != 1:
+            continue
+        cue = owner[a]
+        # A replacement is an observed speech span, not the silence between its
+        # neighbours. Require a matching anchor in this cue; do not guess how a
+        # replacement spanning multiple cues should be divided into sentences.
+        if cue in anchored_cues:
+            span = (gt[c][0], gt[d - 1][1])
+            tmap[a:b] = [span] * (b - a)
     for j in range(len(exp)):
         if tmap[j] is None:
             prev = next((tmap[x][1] for x in range(j - 1, -1, -1) if tmap[x]), 0.0)
