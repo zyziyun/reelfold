@@ -209,7 +209,7 @@ def run_apply(ctx):
 def _cues_from(sidecar, max_chars=None):
     from vstudio import subs
     S_ = read_json(sidecar) or {}
-    return subs.cues_from_words(S_.get("words") or [], max_chars=max_chars)
+    return subs.cues_from_words(S_.get("words") or [], max_chars=max_chars, language=S_.get("language"))
 
 
 def run_compose(ctx):
@@ -226,11 +226,11 @@ def run_compose(ctx):
             step = hd / len(lines)
             cues += [subs.Cue(k * step, (k + 1) * step, ln, meta={"kind": "hook"}) for k, ln in enumerate(lines)]
         else:
-            cues += [subs.Cue(c.start / hs, c.end / hs, c.text, meta={"kind": "hook"})
+            cues += [subs.Cue(c.start / hs, c.end / hs, c.text, meta=dict(c.meta, kind="hook"))
                      for c in _cues_from(ins["hook_sidecar"], mc)]
         pieces.append((ins["hook"], hs))
         t = hd
-    cues += [subs.Cue(t + c.start / s, t + c.end / s, c.text) for c in _cues_from(ins["body_sidecar"], mc)]
+    cues += [subs.Cue(t + c.start / s, t + c.end / s, c.text, meta=dict(c.meta)) for c in _cues_from(ins["body_sidecar"], mc)]
     pieces.append((ins["body"], s))
     master = ctx.path("master.mp4")
     if len(pieces) == 1 and abs(s - 1.0) < 1e-6:
@@ -972,7 +972,7 @@ def speech_stages(copy=False):
         Stage("apply", "cpu-render", run_apply, deps=("cleanup",), params=_smooth_key(_keyp("cleanup_reply", "cleanup_profile")),
               units=_dur, purge=("*.mp4", "*.wav", "*.asr.json")),
         Stage("compose", "cpu-render", run_compose, deps=("apply",), params=_compose_params,
-              units=_dur, purge=("master.mp4",)),
+              units=_dur, purge=("master.mp4",), version=2),
         Stage("glossary", _proofread_resource, run_glossary, deps=("asr",), shared=True, params=_glossary_params,
               enabled=_glossary_on, units=lambda j, s: 1.0, cost=lambda j, s: 0.05, retries=2),
         Stage("proofread", _proofread_resource, run_proofread, deps=("compose", "verify", "glossary"),
