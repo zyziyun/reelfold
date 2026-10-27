@@ -59,12 +59,15 @@ def verdict(card):
     low = [key for key in ("A", "B", "C")
            if type(sc.get(key)) in (int, float) and 1 <= sc[key] < 4]
     failures = [f"hard: {key}" for key in hard] + [f"score {key}={sc[key]} < 4" for key in low]
+    checks = card.get("soft")
+    soft = [key for key in SOFT if isinstance(checks, dict) and checks.get(key) is True]
+    soft_reasons = [f"soft: {key}" for key in soft]
     if failures or reasons:
-        return "redo", failures + reasons
-    soft = [key for key in SOFT if card["soft"][key]]
+        # A redo should address all observed defects, not only the blocking ones.
+        return "redo", failures + soft_reasons + reasons
     if len(soft) >= 3:
         return "fix-in-post", [f"{len(soft)} soft flaws: {', '.join(soft)} - grade/grain/trim or redo"]
-    return "pass", [f"soft: {key}" for key in soft]
+    return "pass", soft_reasons
 
 
 def blank_card(take):

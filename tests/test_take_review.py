@@ -154,3 +154,33 @@ def test_invalid_flaw_values_are_not_promoted_to_confirmed_defects():
     decision, reasons = R.verdict(card)
     assert decision == 'redo'
     assert not any(reason.startswith('hard:') or '< 4' in reason for reason in reasons)
+
+
+@pytest.mark.parametrize('blocker', ['hard', 'score', 'incomplete'])
+def test_rejected_take_payload_preserves_confirmed_soft_flaws(tmp_path, blocker):
+    rows, env = fixture(tmp_path)
+    card = json.load(open(rows[0]['card']))
+    card['soft']['lighting_mismatch'] = True
+    card['soft']['template_camera'] = True
+    if blocker == 'hard':
+        card['hard']['physics'] = True
+    elif blocker == 'score':
+        card['scores']['C'] = 2
+    else:
+        card['hard']['lipsync_or_line'] = None
+        card['soft']['sound_mismatch'] = 'true'  # unverified, not a confirmed flaw
+    open(rows[0]['card'], 'w').write(json.dumps(card))
+    candidate = A.takes_payload(env, dict(after='judge'))['options'][0]['takes'][0]
+    assert candidate['review'] == 'redo'
+    assert 'soft: lighting_mismatch' in candidate['reasons']
+    assert 'soft: template_camera' in candidate['reasons']
+    assert 'soft: sound_mismatch' not in candidate['reasons']
+
+
+@pytest.mark.parametrize('count,decision', [(0, 'pass'), (2, 'pass'), (3, 'fix-in-post')])
+def test_soft_feedback_does_not_change_complete_review_threshold(tmp_path, count, decision):
+    rows, _ = fixture(tmp_path)
+    card = json.load(open(rows[0]['card']))
+    for key in list(R.SOFT)[:count]:
+        card['soft'][key] = True
+    assert R.verdict(card)[0] == decision
