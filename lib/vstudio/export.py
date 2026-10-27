@@ -418,7 +418,9 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
             prim = _lines_layer(_rebalance(fit["lines"], mk), f, fl, stroke, hl)
             if c.alt and c.alt.strip():
                 fa = draw.load_font("cjk", max(16, int(fit["size"] * 0.66)))
-                alt_lines = draw.wrap(c.alt.strip(), fa, x1 - x0, balance=True, max_lines=2)
+                # Translation is dialogue, not an ellipsized preview. Keep every
+                # word and include stroke/padding in the available width.
+                alt_lines = draw.wrap(c.alt.strip(), fa, x1 - x0 - 2 * stroke - 12, balance=True)
                 sec = _lines_layer(alt_lines, fa, _alt_fill(st), max(2, stroke * 2 // 3))
                 w = max(prim.width, sec.width)
                 from PIL import Image
@@ -430,6 +432,14 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
         return cache[k]
 
     spans = sorted(((c.start, c.end, k, c) for k, c in enumerate(cues) if c.text.strip()), key=lambda s: s[0])
+
+    def position(w, h):
+        if w > sx1 - sx0 or h > sy1 - sy0:
+            raise ValueError("Caption pair is too large for the safe area; split it into shorter timed cues")
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        cx = max(sx0 + w / 2, min(cx, sx1 - w / 2))
+        y = min(cy - h / 2, y1 - h) if h <= y1 - y0 else cy - h / 2
+        return cx, max(sy0, min(y, sy1 - h))
 
     def _place(i, t, w, h, cx, y, count=True):
         boxes = [map_box(plan, k["box"], i) for k in kos if k["t0"] <= t < k["t1"]]
@@ -460,8 +470,7 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
                     continue
                 L = layer(k, c)
                 h, w = L.shape[:2]
-                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-                y = min(cy - h / 2, y1 - h) if h <= y1 - y0 else cy - h / 2   # over-tall: centred on the band
+                cx, y = position(w, h)
                 if kos:
                     y = _place(i, t, w, h, cx, y)
                 draw.alpha_paste(img, L, (cx - w / 2, y), opacity=op, bgr=True)
@@ -472,8 +481,7 @@ def caption_overlay(prof, cues, fps, role="cjk-bold", fill=(255, 255, 255, 255),
             if a >= end or b <= start:
                 continue
             h, w = layer(k, c).shape[:2]
-            cx, cy = (x0+x1)/2, (y0+y1)/2
-            y = min(cy-h/2, y1-h) if h <= y1-y0 else cy-h/2
+            cx, y = position(w, h)
             # Caption keep-outs can move with a reframed source. Include every
             # rendered position over this insert, not just the first cue.
             times = range(max(0, int(max(a,start)*fps)), int(min(b,end)*fps)+1) if kos else [0]

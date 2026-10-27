@@ -59,3 +59,39 @@ def test_caption_script_detection_ignores_highlight_and_emoji():
     assert not P._has_cjk('Explain 【the main idea】 🎥')
     assert P._has_cjk('説明します')
     assert P._has_cjk('说明')
+
+
+def test_bilingual_overlay_keeps_complete_translation_inside_safe_area(monkeypatch):
+    import numpy as np
+    from vstudio.subs import join_caption, strip_markup
+    original = X._lines_layer
+    drawn = []
+
+    def record(lines, *args, **kwargs):
+        drawn.append(lines)
+        return original(lines, *args, **kwargs)
+
+    monkeypatch.setattr(X, '_lines_layer', record)
+    main = '先录制屏幕，再用自己的话解释重点。'
+    alt = 'Record your screen first, then explain the main idea in your own words and show a concrete example.'
+    for name in ('instagram', 'youtube:horizontal', 'xiaohongshu:vertical'):
+        p = P.profile(name, use_persona=False)
+        drawn.clear()
+        overlay = X.caption_overlay(p, X.fit_cues(p, [Cue(0, 12, main, alt)]), 30)
+        frame = np.full((p.h, p.w, 3), 50, dtype=np.uint8)
+        output = overlay(180, 6, frame)
+        assert strip_markup(join_caption(drawn[-1])) == alt
+        ys, xs = np.where(np.any(output != 50, axis=2))
+        x0, y0, x1, y1 = P.safe_box(p)
+        assert xs.min() >= x0 and xs.max() < x1
+        assert ys.min() >= y0 and ys.max() < y1
+        top, bottom = overlay.bounds(0, 12)
+        assert y0 <= top <= ys.min() and ys.max() < bottom <= y1
+
+
+def test_oversized_translation_fails_instead_of_silently_clipping():
+    import pytest
+    p = P.profile('instagram', use_persona=False)
+    overlay = X.caption_overlay(p, [Cue(0, 12, '重点', 'Keep every word. ' * 200)], 30)
+    with pytest.raises(ValueError, match='shorter timed cues'):
+        overlay.bounds(0, 12)
