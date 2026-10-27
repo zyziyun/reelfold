@@ -58,6 +58,13 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   retains the full source. Choose rectangles from actual frames, not a guessed feature. Do not combine with c/z.
   Reserve a short-label gap with LAYOUT caption_y=0.35, sub=0.08 as a starting point, and inspect the actual
   source shape and text length; invalid gaps fail rather than obscure the source. Never add regions to photos.
+  Overview plus detail is an instructional layout, not the default for a product film: use it only when the
+  overview supplies context the detail cannot convey. Otherwise prefer one source-verified framing per shot;
+  do not repeat the same product in two panels merely to fill a portrait canvas.
+  For a complete-product closing hero, inspect the beginning, middle and end of the chosen source interval.
+  Keep its silhouette and identifying features visible throughout; fit="contain" cannot restore a product
+  already cut off by the source camera. End before it leaves frame or choose another supplied view instead
+  of stretching a poor closing shot to meet an arbitrary duration. Preserve an explicitly requested duration.
   For process demonstrations, select the source interval containing the interaction and its visible result.
   A glove, tool or machine in a contact sheet does not prove loading, filling, testing or assembly occurred.
   Check that the relevant hand/tool and object remain readable together in each requested aspect ratio;
