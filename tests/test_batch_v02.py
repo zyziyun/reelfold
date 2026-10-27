@@ -141,6 +141,15 @@ def synth_transcript(path, reps=4):
     return t
 
 
+@pytest.mark.parametrize("duration", [4.0, 8.8, 13.0])
+@pytest.mark.parametrize("lang,text", [("en", "Practice makes the next interview easier."),
+                                      ("zh", "帮助别人补齐知识，也让自己的面试更有底气。")])
+def test_rule_hook_fallback_keeps_the_complete_sentence(duration, lang, text):
+    sentence = dict(t=12.0, te=12.0 + duration, text=text)
+    _, hooks, _, _ = SP.extract_copy([], [sentence], [{}], {}, 0, 0, 30, "youtube", "", lang=lang)
+    assert hooks == [dict(start=12.0, end=12.0 + duration, text=text)]
+
+
 def test_plan_segments_rule_based(tmp_path):
     tp = str(tmp_path / "tr.json")
     synth_transcript(tp)

@@ -471,7 +471,9 @@ def extract_copy(W, sents, per, idf, a, b, limit, platform, chapter, prefer_tags
             break
     if not hooks:
         s = sents[a]
-        hooks = [dict(start=round(s["t"], 3), end=round(min(s["te"], s["t"] + 8), 3), text=s["text"])]
+        # Duration is a preference, not permission to cut a sentence mid-word
+        # while advertising its complete text to downstream caption/render stages.
+        hooks = [dict(start=round(s["t"], 3), end=round(s["te"], 3), text=s["text"])]
     notes = []
     for k in sorted(sorted(idx, key=lambda k: -ws[k])[:3]):
         nt = shorten(sents[k]["text"], 24, "douyin")
