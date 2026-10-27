@@ -4,6 +4,8 @@ translates English speech into it, and when no translation model answers the cap
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from vstudio import bilingual as B  # noqa: E402
@@ -63,3 +65,38 @@ def test_no_model_keeps_the_speech_and_says_so(tmp_path, monkeypatch):
     man.write_text('{"exports": []}')
     qc = run_gates(dict(id="j", params={}), {}, dict(export=dict(manifest=str(man), exports=[], caption_lang=rep)))
     assert any("captions asked in zh, made in en" in w for w in qc["warnings"]), qc["warnings"]
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_translation_coverage_is_visible_in_export_qc(tmp_path, monkeypatch, complete):
+    # Exercise real translation parsing and caption-file serialization; only the
+    # provider response is fixed. One missing line must not look fully translated.
+    import json
+    lines = [{'n': 1, 't': 'Vous enregistrez une fois.'}]
+    if complete:
+        lines.append({'n': 2, 't': 'Vous découpez des clips.'})
+    monkeypatch.setattr(B, '_llm_call', lambda *a, **kw: lambda *a: (
+        {'lines': lines}, {'provider': 'test'}))
+    source = tmp_path / 'cues.json'
+    source.write_text(json.dumps({'cues': CUES + [dict(start=4, end=5, text='')]}))
+    for mode in ('translated', 'bilingual'):
+        ctx = Ctx(dict(subtitle_lang='fr', language='en', subtitles=mode), str(tmp_path))
+        ctx.inputs = {'compose': {'cues': str(source)}}
+        path = ST.caption_cues(ctx)
+        saved = json.loads(open(path).read())['cues']
+        assert len(saved) == 3
+        if not complete:
+            assert saved[1]['text'] == CUES[1]['text']
+        assert ctx.caption_lang['missing'] == (0 if complete else 1)
+        assert ctx.caption_lang['of'] == 2  # blank cues need no translation
+        assert any('1 of 2' in m for m in ctx.logs) == (not complete)
+        man = tmp_path / 'manifest.json'
+        man.write_text('{"exports": []}')
+        qc = run_gates(dict(id='j', params={}), {}, dict(export=dict(
+            manifest=str(man), exports=[], caption_lang=ctx.caption_lang)))
+        checks = [c for c in qc['checks'] if c['name'] == 'caption-language']
+        if complete:
+            assert checks == []
+        else:
+            assert len(checks) == 1 and not checks[0]['ok']
+            assert '1 of 2' in checks[0]['reason'] and 'fr' in checks[0]['reason']

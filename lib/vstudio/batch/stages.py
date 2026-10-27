@@ -803,10 +803,15 @@ def caption_language(ctx, cues):
     except Exception as e:  # noqa: BLE001 - the captions stay as spoken, said out loud
         out, info = [], dict(error=f"{type(e).__name__}: {e}"[:300])
     done = sum(1 for c in out if (c.alt or "").strip())
-    rep = dict(asked=tgt, spoken=spoken, mode=mode, translated=done, of=len(cues), error=info.get("error"))
+    total = sum(bool(t.strip()) for t in texts)
+    missing = max(0, total - done)
+    rep = dict(asked=tgt, spoken=spoken, mode=mode, translated=done, of=total, missing=missing,
+               error=info.get("error"))
     if not done:
         ctx.log(f"captions: asked for {tgt}, speech is {spoken}; not translated ({info.get('error') or 'no output'})")
         return cues, rep
+    if missing:
+        ctx.log(f"captions: only {done} of {total} translated to {tgt}; {missing} remain in {spoken}")
     return [c.to_dict() for c in B.apply_mode(out, mode)], rep
 
 
