@@ -68,10 +68,12 @@ def plan(source, request, work, speech=False, complete=None):
         raise ValueError("performance edit: source frames are unavailable; cannot verify the performance")
     info = media.probe(source)
     transcript = ""
+    dialogue = []
     if speech and info["has_audio"]:
         from vstudio import asr
         heard = asr.transcribe(source, cache=False, language="auto")
-        transcript = "\n".join(f"{s['start']:.3f}–{s['end']:.3f} {s['text']}" for s in heard.get("segments", []))
+        dialogue = [{k: s[k] for k in ("start", "end", "text")} for s in heard.get("segments", [])]
+        transcript = "\n".join(f"{s['start']:.3f}–{s['end']:.3f} {s['text']}" for s in dialogue)
     system = ("Edit a filmed comedy performance from its real source. Inspect all supplied contact sheets and "
         "the transcript when provided. Preserve the causal setup, development, payoff, surprise and reaction "
         "pauses; pauses are not automatically dead air. Identify protected source ranges for the actual story "
@@ -98,7 +100,8 @@ def plan(source, request, work, speech=False, complete=None):
             prompt += "\nPREVIOUS PLAN:\n" + json.dumps(doc, ensure_ascii=False) + "\nVALIDATION ERROR: " + str(e)
             continue
         doc.update(provider=result.get("provider"), model=result.get("model"), repairs=repairs,
-                   source_duration=info["duration"], source_has_audio=info["has_audio"], speed=1.0)
+                   source_duration=info["duration"], source_has_audio=info["has_audio"], speed=1.0,
+                   source_dialogue=dialogue)
         return review_boundaries(source, doc, work, call)
 
 
@@ -153,8 +156,18 @@ def review_boundaries(source, doc, work, complete, precise=False):
         'Do not claim visible action in a measured near-black sample. Keep all protected beats and roles in '
         'their original order. You may correct a beat endpoint only within 1 second of a proposed cut, '
         'with evidence; keep every other endpoint unchanged. Return choices and the complete beats list. '
+        'Nearby dialogue is source ASR evidence, with approximate phrase times. Preserve complete spoken '
+        'phrases and intentional interruptions; do not move a cut into a phrase based only on a still. '
+        'ASR can be wrong: it is not word-accurate timing or proof of listening. '
         'This is visual sampling, not verification of audio continuity or continuous playback.')
-    prompt = json.dumps(doc, ensure_ascii=False) + '\n' + text
+    # Keep the same source speech through both review passes, but only show nearby phrases.
+    edges = [s[e] for s in doc['segments'] for e in ('start', 'end')]
+    nearby = [s for s in doc.get('source_dialogue', [])
+              if any(s['start'] <= t + 1 and s['end'] >= t - 1 for t in edges)]
+    review_doc = {k: v for k, v in doc.items() if k != 'source_dialogue'}
+    prompt = (json.dumps(review_doc, ensure_ascii=False) + '\n' + text
+              + '\nNEARBY SOURCE DIALOGUE (empty means unavailable):\n'
+              + json.dumps(nearby, ensure_ascii=False))
     errors = []
     for attempt in range(2):
         result = complete('segment_plan', system, prompt, schema=schema, images=images, max_tokens=6000)

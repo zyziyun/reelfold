@@ -160,7 +160,8 @@ def test_dialogue_transcript_is_local_and_source_bound(tmp_path, monkeypatch):
         assert task == "segment_plan"
         calls.append(prompt)
         return dict(json=document())
-    P.plan("spoken.mp4", "Preserve dialogue", str(tmp_path), speech=True, complete=complete)
+    result = P.plan("spoken.mp4", "Preserve dialogue", str(tmp_path), speech=True, complete=complete)
+    assert result["source_dialogue"] == [dict(start=0, end=1, text="An actual source line")]
     assert "0.000–1.000 An actual source line" in calls[0]
 
 

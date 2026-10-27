@@ -12,6 +12,10 @@ Use source actions rather than a quota of cuts, zooms or sound effects. A contig
 when an uninterrupted action is the joke. Keep later consequences and reactions; do not turn a near miss into
 an ending that omits the actual payoff. The original frame and sound are retained at 1×, including existing text.
 
+Both boundary-review passes receive the source ASR phrases around each proposed cut, including
+phrases crossing it. These are approximate recognition times, not verified word boundaries or a
+substitute for listening. Silent sources remain valid without dialogue evidence.
+
 Plans are checked against actual source duration before rendering. Every protected beat must be fully retained;
 invalid plans get one correction using the original source context. An invalid correction fails visibly. Model
 claims of what a scene shows remain subject to playback review: a contact sheet is not proof of comic timing.

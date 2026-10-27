@@ -116,3 +116,30 @@ def test_coarse_boundary_review_can_sample_last_frame(tmp_path, fps):
     assert len(images) == 2
     assert eof['sampled_time'] == pytest.approx((fps - 1)/fps)
     assert eof['mean_luma'] > 245
+
+
+def test_both_boundary_passes_receive_nearby_source_dialogue(tmp_path, monkeypatch):
+    import json
+    from vstudio import performance as P
+    from test_performance import document
+    doc = document()
+    doc.update(source_duration=4, source_dialogue=[
+        dict(start=.8, end=1.2, text="Keep my whole phrase"),
+        dict(start=90, end=91, text="Unrelated distant phrase")])
+    records = [dict(id=f'{i}{e}', segment=i, edge=e, time=s[e], near_black=False)
+               for i, s in enumerate(doc['segments']) for e in ('start', 'end')]
+    monkeypatch.setattr(B, 'context', lambda *a, **kw: ('measured', ['sheet.jpg'], records))
+    prompts = []
+    def complete(task, system, prompt, **kw):
+        prompts.append(prompt)
+        assert 'approximate phrase times' in system
+        assert 'Keep my whole phrase' in prompt
+        assert 'Unrelated distant phrase' not in prompt
+        nearby = json.loads(prompt.split('NEARBY SOURCE DIALOGUE (empty means unavailable):\n')[1])
+        assert nearby == doc['source_dialogue'][:1]
+        return dict(json=dict(choices=[{e: dict(id=f'{i}{e}', near_black=False, reason='Whole phrase')
+            for e in ('start', 'end')} for i in range(2)], beats=doc['beats']))
+    result = P.review_boundaries('source', doc, str(tmp_path), complete)
+    assert len(prompts) == 2
+    assert result['source_dialogue'] == doc['source_dialogue']
+    assert result['segments'] == doc['segments']
