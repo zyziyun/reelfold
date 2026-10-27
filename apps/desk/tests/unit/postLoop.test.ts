@@ -357,7 +357,7 @@ describe('scheduler', () => {
     await restarted.s.tick();
     expect(restarted.s.apiState(p.id)).toMatchObject({ status: 'done', calendarSynced: true, result, resolvedAccount: 'main' });
     expect(restarted.posted).toEqual(['recover']);
-    expect(recover).toHaveBeenCalledWith(p, false);
+    expect(recover).toHaveBeenCalledWith(p, false, expect.any(Function));
     await restarted.s.tick();
     expect(recover).toHaveBeenCalledTimes(1);
     expect(publish).not.toHaveBeenCalled();
@@ -394,6 +394,30 @@ describe('scheduler', () => {
       ? [{ id: 'second', resume: change === 'unchanged' }] : []);
   });
 
+  it.each(['auto off', 'disabled', 'copy changed', 'unchanged'])('supplies current authorization to recovery transport: %s', async (change) => {
+    const clock = { t: new Date(2026, 9, 7, 20, 1) };
+    const p = post('one', '2026-10-07T20:00', { platform: 'youtube' });
+    const stateFile = path.join(tmp(), 'state.json');
+    fs.writeFileSync(stateFile, JSON.stringify({ notified: {}, api: { one: {
+      at: p.at, source: 'scheduled', status: 'uploading', tries: 1, lastTry: clock.t.getTime() - 60000,
+    } } }));
+    let auto = true;
+    const decisions: boolean[] = [];
+    const m = mk([p], clock, { stateFile, load: async () => [{ ...p }], api: {
+      wants: () => auto, publish: vi.fn(), recover: async (_post, resume, stillCurrent) => {
+        expect(resume).toBe(true);
+        await Promise.resolve();
+        if (change === 'auto off') auto = false;
+        if (change === 'disabled') p.enabled = false;
+        if (change === 'copy changed') p.caption = 'new copy';
+        decisions.push(await stillCurrent());
+        return null;
+      },
+    } });
+    await m.s.tick();
+    expect(decisions).toEqual([change === 'unchanged']);
+  });
+
   it('shows interrupted uploads as unverified when recovery cannot confirm completion', async () => {
     const clock = { t: new Date(2026, 9, 7, 20, 1) };
     const p = post('interrupted', '2026-10-07T20:00', { platform: 'youtube' });
@@ -405,7 +429,7 @@ describe('scheduler', () => {
     const m = mk([p], clock, { stateFile, api: { wants: () => true, publish: vi.fn(), recover } });
     expect((await m.s.tick()).due.map(p => p.id)).toEqual(['interrupted']);
     expect(m.s.apiState(p.id)?.status).toBe('unverified');
-    expect(recover).toHaveBeenCalledWith(p, true);
+    expect(recover).toHaveBeenCalledWith(p, true, expect.any(Function));
     await m.s.tick();
     expect(recover).toHaveBeenCalledTimes(1);
   });

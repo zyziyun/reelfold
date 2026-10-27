@@ -469,7 +469,7 @@ export class YouTubeApi {
   }
 
   /** Query only the saved session. Never create another upload while its outcome is unknown. */
-  async recover(postId: string, resume = false, expectedAccount?: string | null, onProgress?: (sent: number, total: number) => void, onCaptions?: (index: number, total: number) => void): Promise<{ account: string; result: YtPublishResult } | null> {
+  async recover(postId: string, resume = false, expectedAccount?: string | null, onProgress?: (sent: number, total: number) => void, onCaptions?: (index: number, total: number) => void, beforeResume?: () => Promise<boolean>): Promise<{ account: string; result: YtPublishResult } | null> {
     const key = `youtube-upload/${postId}`;
     const saved = this.uploadState(key);
     const savedAccount = saved.uploadReceipt?.account ?? saved.uploadSession?.account;
@@ -493,7 +493,7 @@ export class YouTubeApi {
       if (!resume) return null;
       if (!session.file || !session.sha256 || !fs.existsSync(session.file) || fs.statSync(session.file).size !== session.size ||
           await fileDigest(session.file) !== session.sha256) throw new Error('The original upload file is unavailable or changed; check YouTube Studio');
-      done = await this.transfer(session.account, session.file, session.url, session.size, nextOffset(r, session.size), onProgress);
+      done = await this.transfer(session.account, session.file, session.url, session.size, nextOffset(r, session.size), onProgress, beforeResume);
     } else {
       if (r.status !== 200 && r.status !== 201) throw new Error('Upload result is still unconfirmed; check YouTube Studio');
       done = await r.json() as Inserted;
@@ -605,9 +605,10 @@ export class YouTubeApi {
   }
 
   /** Shared bounded transfer for fresh uploads and verified restart recovery. */
-  private async transfer(account: string, file: string, loc: string, size: number, start: number, onProgress?: (sent: number, total: number) => void): Promise<Inserted & { id: string }> {
+  private async transfer(account: string, file: string, loc: string, size: number, start: number, onProgress?: (sent: number, total: number) => void, beforeResume?: () => Promise<boolean>): Promise<Inserted & { id: string }> {
     onProgress?.(start, size);
     let token = await this.token(account);
+    if (beforeResume && !await beforeResume()) throw new Error('Publishing settings changed during recovery. No upload was resumed.');
     const unit = Math.max(1, Math.round((this.d.chunkBytes ?? 32 * CHUNK_UNIT) / CHUNK_UNIT)) * CHUNK_UNIT;
     const maxRetries = this.d.maxRetries ?? 6;
     let offset = start;

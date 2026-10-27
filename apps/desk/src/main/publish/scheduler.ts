@@ -48,7 +48,7 @@ export interface ApiPoster {
   wants(p: CalendarPost): boolean;
   /** Call stillCurrent after asynchronous preparation, immediately before sending an upload. */
   publish(p: CalendarPost, publishAt: Date | null, stillCurrent: () => Promise<boolean>): Promise<ApiUpload>;
-  recover?(p: CalendarPost, resume: boolean): Promise<Extract<ApiUpload, { ok: true }> | null>;
+  recover?(p: CalendarPost, resume: boolean, stillCurrent: () => Promise<boolean>): Promise<Extract<ApiUpload, { ok: true }> | null>;
   canRefresh?(p: CalendarPost): boolean;
   refresh?(p: CalendarPost, result: YtPublishResult): Promise<YtPublishResult>;
 }
@@ -68,6 +68,13 @@ export interface SchedulerDeps {
   leadMs?: number;
   /** after the time, still auto-post through an API for this long (default 6 h); later: ask her */
   apiGraceMs?: number;
+}
+
+/** Publishing inputs, excluding display-only status decorations and statistics. */
+function requestFingerprint(post: CalendarPost): string {
+  const fields: (keyof CalendarPost)[] = ['id', 'at', 'account', 'platform', 'item', 'clip',
+    'video_path', 'cover', 'title', 'platform_title', 'title_custom', 'caption', 'caption_custom'];
+  return JSON.stringify(fields.map(key => post[key] ?? null));
 }
 
 const MAX_TRIES = 3;
@@ -207,7 +214,13 @@ export class PublishScheduler {
         const previous = this.state.api[p.id];
         if (!previous || !['uploading', 'unverified'].includes(previous.status)) continue;
         // Disabled posts can still have a remote receipt, but must not send more bytes.
-        await this.recoverUpload(p, () => api.recover!(p, previous.source !== 'manual' && p.enabled !== false && api.wants(p)));
+        const preparedFor = requestFingerprint(p);
+        const stillCurrent = async () => {
+          const current = (await this.deps.load()).find(row => row.id === p.id);
+          return !!current && requestFingerprint(current) === preparedFor && current.enabled !== false &&
+            current.state !== 'posted' && previous.source !== 'manual' && api.wants(current);
+        };
+        await this.recoverUpload(p, () => api.recover!(p, previous.source !== 'manual' && p.enabled !== false && api.wants(p), stillCurrent));
       }
     }
     // Bounded readback independent of opt-in uploads: at most three reads per five minutes.
@@ -253,13 +266,10 @@ export class PublishScheduler {
       const at = localDate(p.at);
       // Preserve every future appointment: omitting publishAt would publish early.
       const publishAt = at.getTime() > t ? at : null;
-      const requestFields: (keyof CalendarPost)[] = ['id', 'at', 'account', 'platform', 'item', 'clip',
-        'video_path', 'cover', 'title', 'platform_title', 'title_custom', 'caption', 'caption_custom'];
-      const fingerprint = (post: CalendarPost) => JSON.stringify(requestFields.map(key => post[key] ?? null));
-      const preparedFor = fingerprint(p);
+      const preparedFor = requestFingerprint(p);
       const stillCurrent = async () => {
         const current = (await this.deps.load()).find(row => row.id === p.id);
-        if (!current || fingerprint(current) !== preparedFor || !api.wants(current)) return false;
+        if (!current || requestFingerprint(current) !== preparedFor || !api.wants(current)) return false;
         const now = this.deps.now();
         return upcomingPosts([current], now, lead).length > 0 ||
           (duePosts([current], now).length > 0 && now.getTime() - localDate(current.at).getTime() <= grace);

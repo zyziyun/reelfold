@@ -548,6 +548,28 @@ describe('resumable upload (fake API)', () => {
     expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
   });
 
+  it.each(['cancelled', 'unavailable'])('rechecks authorization after recovery preparation: %s', async (mode) => {
+    const { yt, dir, vault } = await connected();
+    const file = video(dir);
+    for (let i = 1; i < 20; i++) g.faults.set(i, '503');
+    await expect(yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null }, undefined, 'guard-resume'))
+      .rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    const chunks = g.chunks, received = g.sessions.get('S1')!.received;
+    g.faults.clear();
+    const guard = vi.fn(async () => {
+      if (mode === 'unavailable') throw new Error('Calendar unavailable');
+      return false;
+    });
+    await expect(mk(dir).yt.recover('guard-resume', true, 'main', undefined, undefined, guard))
+      .rejects.toThrow(mode === 'cancelled' ? /No upload was resumed/ : /Calendar unavailable/);
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(g.chunks).toBe(chunks);
+    expect(g.sessions.get('S1')!.received).toBe(received);
+    expect(vault.get('youtube-upload/guard-resume').uploadSession).toBeDefined();
+    expect((await mk(dir).yt.recover('guard-resume', true, 'main', undefined, undefined, async () => true))?.result.id).toBe('vid123');
+    expect(g.sessions.size).toBe(1);
+  });
+
   it('checks the current account before resuming or querying a saved upload', async () => {
     const { yt, dir, vault } = await connected();
     const file = video(dir);
