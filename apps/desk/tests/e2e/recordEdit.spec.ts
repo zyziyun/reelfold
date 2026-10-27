@@ -590,6 +590,57 @@ test.describe('screen sharing with Screen Recording off', () => {
   });
 });
 
+test.describe('screen capture readiness', () => {
+  for (const failed of ['missing-video', 'ended-video', 'ended-audio'] as const) {
+    test(`rejects ${failed} before showing sharing and allows retry`, async () => {
+      const { app, page } = await launch(`screen-ready-${failed}`, { DESK_STUDIO: '1' });
+      try {
+        await page.evaluate(() => { location.hash = '#/create/record'; });
+        await page.evaluate(failed => {
+          const makeStream = () => {
+            const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+            const context = canvas.getContext('2d')!;
+            const paint = () => { context.fillStyle = '#238b82'; context.fillRect(0, 0, 640, 360); };
+            paint(); setInterval(paint, 40);
+            const audio = new AudioContext(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+            tone.connect(dest); tone.start();
+            return new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+          };
+          Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => makeStream() });
+          let attempts = 0;
+          Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
+            const stream = makeStream();
+            if (++attempts === 1) {
+              Object.assign(window, { rejectedScreenTracks: stream.getTracks() });
+              if (failed === 'ended-audio') stream.getAudioTracks()[0].stop();
+              else {
+                const video = stream.getVideoTracks()[0]; video.stop();
+                if (failed === 'missing-video') stream.removeTrack(video);
+              }
+            }
+            return stream;
+          } });
+        }, failed);
+        await page.getByTestId('create-rec-allow').click();
+        await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+        await page.getByTestId('create-rec-screen').click();
+        await page.getByTestId('rec-screen-toggle').click();
+        await page.getByTestId('rec-screen-source').click();
+        await expect(page.getByTestId('rec-screen-error')).toContainText(
+          failed === 'ended-audio' ? 'Material sound was not available' : 'stopped before sharing began');
+        await expect(page.getByTestId('rec-screen-preview')).toHaveCount(0);
+        await expect(page.getByTestId('create-rec-screen')).not.toContainText('Sharing');
+        expect(await page.evaluate(() => (window as unknown as { rejectedScreenTracks: MediaStreamTrack[] }).rejectedScreenTracks.map(track => track.readyState)))
+          .toEqual(['ended', 'ended']);
+        await page.getByTestId('rec-screen-toggle').click();
+        await page.getByTestId('rec-screen-source').click();
+        await expect(page.getByTestId('rec-screen-preview')).toBeVisible();
+        await expect(page.getByTestId('create-rec-screen')).toContainText('Sharing');
+      } finally { await closeApp(app); }
+    });
+  }
+});
+
 test.describe('record -> edit -> pickup', () => {
   let app: ElectronApplication;
   let page: Page;

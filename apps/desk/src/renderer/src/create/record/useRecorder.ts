@@ -289,7 +289,11 @@ export function useRecorder() {
           stopStream(st);
           return { error: t('rec.screenFinishTake') };
         }
-        if (appAudio && !st.getAudioTracks().length) {
+        if (!st.getVideoTracks().length || st.getVideoTracks().some(track => track.readyState !== 'live')) {
+          stopStream(st);
+          return { error: t('rec.screenEndedBeforeStart') };
+        }
+        if ((appAudio && !st.getAudioTracks().length) || st.getAudioTracks().some(track => track.readyState !== 'live')) {
           stopStream(st);
           return { error: t('learning.materialAudioMissing') };
         }
