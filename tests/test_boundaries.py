@@ -99,3 +99,20 @@ def test_planner_runs_coarse_and_exact_boundary_review(tmp_path, monkeypatch):
                 for e in ('start', 'end')} for i in range(2)], beats=document()['beats']))
     result = P.plan('source', 'Keep the story', str(tmp_path), complete=complete)
     assert phases == [False, True] and result['boundary_review']['frame_pts']
+
+
+@pytest.mark.parametrize("fps", [24, 30, 60])
+def test_coarse_boundary_review_can_sample_last_frame(tmp_path, fps):
+    """Rounding the 24fps final frame to .96 seeks past its PTS (.958333)."""
+    import shutil
+    if not shutil.which('ffmpeg'):
+        pytest.skip('ffmpeg unavailable')
+    source = str(tmp_path / 'last-frame.mp4')
+    B.media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', f'color=black:s=320x180:r={fps}:d=1',
+                 '-vf', f"drawbox=color=white:t=fill:enable='gte(n,{fps - 1})'",
+                 *B.media.delivery_args(preset='ultrafast', audio=False, encoder='libx264'), source])
+    _, images, records = B.context(source, [dict(start=0, end=1)], str(tmp_path / 'sheets'))
+    eof = next(r for r in records if r['edge'] == 'end' and r['time'] == 1)
+    assert len(images) == 2
+    assert eof['sampled_time'] == pytest.approx((fps - 1)/fps)
+    assert eof['mean_luma'] > 245

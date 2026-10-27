@@ -110,8 +110,10 @@ def facts(path):
 def _frame(src, t, width):
     from . import media
     ff = media.ffmpeg_bin() if hasattr(media, "ffmpeg_bin") else "ffmpeg"
+    # Do not round a final-frame PTS forward past the last decodable frame.
+    seek = math.floor(t * 1_000_000) / 1_000_000
     try:
-        r = subprocess.run([ff, "-v", "error", "-ss", f"{t:.2f}", "-i", src, "-frames:v", "1", "-vf",
+        r = subprocess.run([ff, "-v", "error", "-ss", f"{seek:.6f}", "-i", src, "-frames:v", "1", "-vf",
                             f"scale={width}:-2", "-f", "image2pipe", "-vcodec", "png", "-"],
                            capture_output=True, timeout=90)
     except (subprocess.TimeoutExpired, OSError):
