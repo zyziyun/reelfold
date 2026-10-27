@@ -36,6 +36,15 @@ Autopilot chooses and records routine editorial decisions itself.
    semantic lines, verified terms, readable phone scale and space around the mouth. A cover is an intentional
    design, not an arbitrary export frame.
 
+## Partial-sentence hooks and captions
+
+The custom talking-head compositor uses the same final-time caption plan for previews and exported cues.
+When a hook retains only part of a caption, provide body-clock word times that match the corrected text,
+and place hook boundaries between whole words. The compositor retains only those words and preserves
+caption highlights. If alignment is missing, stale, or cuts through a word, it stops before rendering;
+choose a complete caption range or repair the word alignment. Do not replace corrected text with old ASR,
+show the entire sentence over a fragment, or invent word times from character proportions.
+
 ## Execution contract
 
 Keep `editorial-plan.json` (or equivalent documented timeline) in the new project's work area, describing

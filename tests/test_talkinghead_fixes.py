@@ -229,7 +229,7 @@ HOOK_SPEED = 1.3; BODY_SPEED = 1.1; XF = 0.3
 KEYWORDS = ["关键词"]
 STYLE = dict(pops=True, stamps=True, panels=True, sfx=False)
 HOOK_TITLE = ["标题一", "标题二"]
-HOOKS = [[(1.0, 1.9)]]
+HOOKS = [[(1.0, 2.0)]]
 CHAPTERS = [(0, S(2), "开场"), (S(2), E(3), "结论")]
 POPS = [(S(1, .2), "重点", "Y", 540, 1320, 170, 0.6)]
 STAMPS = [(S(0, .2), E(0), "第一", 420, 900, -6), (S(0, .4), E(0), "第二", 440, 990, 5)]
@@ -256,7 +256,7 @@ def test_compose_preserves_declared_caption_language_through_hook_and_speed(comp
     repeated = [c for c in cues if c["text"] == sentence]
     assert len(repeated) == 5  # one hook replay plus four body sentences
     assert repeated[0]["start"] == 0
-    assert repeated[0]["end"] == pytest.approx(0.9 / 1.3, abs=0.002)
+    assert repeated[0]["end"] == pytest.approx(1.0 / 1.3, abs=0.002)
     assert repeated[0]["end"] <= repeated[1]["start"]
     assert repeated[-1]["end"] - repeated[-1]["start"] == pytest.approx(1 / 1.1, abs=0.002)
     for cue in cues:
@@ -381,3 +381,43 @@ def test_cover_platform_names_do_not_overwrite(comp):
     from PIL import Image
     assert Image.open(comp / "cover.douyin-vertical.jpg").size == (1080, 1920)
     assert Image.open(comp / "cover.jpg").size == (1080, 1920)     # 9:16 video (xiaohongshu:full) -> 9:16 cover
+
+
+def test_trim_caption_words_preserves_authored_text_and_highlights():
+    from vstudio.subs import trim_caption_words
+    words = [dict(w=w, t=i, te=i + .8) for i, w in enumerate(['We', 'build', 'useful', 'tools'])]
+    assert trim_caption_words('We 【build useful】 tools.', words, 1, 3) == '【build useful】'
+    assert trim_caption_words('We build useful tools.', words, 3, 4) == 'tools.'
+    assert trim_caption_words('We build better tools.', words, 1, 3) is None
+    assert trim_caption_words('We build useful tools.', words, 1.2, 3) is None
+    assert trim_caption_words('We build useful tools.', [], 1, 3) is None
+    assert trim_caption_words('We build useful tools.', words, .81, .99) == ''
+
+
+@need_ff
+def test_partial_hook_caption_plan_is_shared_by_preview_and_export(comp):
+    segs = dict(language='zh', total=4.0, stage='strict',
+                subs=[dict(sid=0, text='先观察再行动', start=0, end=1)],
+                words=[dict(sid=0, w=w, b0=a, b1=b) for w, a, b in
+                       [('先', 0, .15), ('观察', .15, .45), ('再', .45, .6), ('行动', .6, 1)]])
+    (comp / 'segs.json').write_text(json.dumps(segs, ensure_ascii=False))
+    (comp / 'config.py').write_text("BODY='body.mp4'; AUDIO='body_a.wav'; FACE='face.npy'; OUT='out.mp4'\n"
+                                   "HOOKS=[[(.15,.45)],[(.6,1)]]\nHOOK_SPEED=1.3; BODY_SPEED=1.1; XF=.3\n")
+    code = f'''import runpy, sys, json
+sys.argv = [{str(V / 'compose.py')!r}, 'config.py', 'cues']
+n = runpy.run_path(sys.argv[0], run_name='__main__')
+assert [(a,b) for a,b,_ in n['SUBIMG']] == [(c['start'],c['end']) for c in n['FINAL_CUES']]
+assert n['FINAL_CUES'] == json.load(open('out.cues.json'))['cues']
+'''
+    r = subprocess.run([sys.executable, '-c', code], cwd=comp, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    cues = json.loads((comp / 'out.cues.json').read_text())['cues']
+    assert [c['text'] for c in cues] == ['观察', '行动', '先观察再行动']
+    assert cues[0]['end'] == pytest.approx(.3 / 1.3, abs=.002)
+    assert cues[1]['end'] - cues[1]['start'] == pytest.approx(.4 / 1.3, abs=.002)
+    # Stale ASR must not overwrite the author's correction or fabricate timing.
+    segs['subs'][0]['text'] = '先思考再行动'
+    (comp / 'segs.json').write_text(json.dumps(segs, ensure_ascii=False))
+    r = _run('compose.py', 'config.py', 'cues', cwd=comp, ok=False)
+    assert r.returncode != 0 and 'Cannot align partial caption' in r.stderr
+    assert json.loads((comp / 'out.cues.json').read_text())['cues'] == cues

@@ -282,13 +282,13 @@ def chunk_times(s, ch):
         for c in ch[:-1]: a += (s['end'] - s['start']) * vsubs.text_width(c) / tot; cuts.append(a)
     edges = [s['start']] + cuts + [s['end']]
     return list(zip(edges[:-1], edges[1:]))
-SUBIMG = []; CHUNKS = []
+CHUNKS = []
 for s in SUBS:
     ch = split_sub(s['text'])
     for (a, b), c in zip(chunk_times(s, ch), ch):
         if b > a:
-            CHUNKS.append((a, b, c))
-            SUBIMG.append((a, b, fit_layer(lambda sz: text_layer(colorize(c), F(sz), stroke=ST['sub_stroke'], pad=10), ST['sub_size'], L.sub_max_w)))
+            CHUNKS.append((a, b, c, [dict(w=w['w'], t=w['b0'], te=w['b1']) for w in WORDS
+                                     if w.get('sid') == s['sid'] and a <= (w['b0'] + w['b1']) / 2 < b]))
 HT = G('HOOK_TITLE', [])
 _TW = W if L.legacy else (L.safe[2] - L.safe[0]) - 20   # legacy: the measured layout never shrank titles
 HTI = [fit_layer(lambda sz: text_layer([(HT[0], WHITE)], F(sz), stroke=7), 76, _TW)] if HT else []
@@ -620,7 +620,7 @@ def compose(fr, t, captions=True):
         elif CH and ST['progress'] == 'classic': progress_classic(fr, b, pa)
     if captions:
         for a0, a1, im in SUBIMG:
-            if a0 <= b < a1:
+            if a0 <= t < a1:
                 cx, cy = split_caption_xy(br, b, im) if br is not None and br.mode == 'split' else (CXM, ST['sub_y'])
                 blitc(fr, im, cx, cy); break
     return fr
@@ -704,14 +704,32 @@ def cue_text(text):
     return ''.join(f'{a}{t}{z}' if h else t for t, h in D.runs(text, _KW))
 
 def final_cues():
-    """Caption chunks in FINAL-video seconds (hooks included), as subs.Cue dicts for vstudio.export."""
+    """One final-clock caption plan for both preview pixels and exported subtitles."""
     out = []
-    for a, b, text in CHUNKS:
-        for t0, t1 in body_to_final(a, b):
-            if t1 - t0 > 0.05:
-                out.append(vsubs.Cue(t0, t1, cue_text(text),
-                                      meta={'lang': SEGJ['language']} if SEGJ.get('language') else {}).to_dict())
+    for a, b, text, words in CHUNKS:
+        for i, it in enumerate(M.tm.items):
+            if it['kind'] != 'clip': continue
+            lo = it['src0'] + it.get('mute_head', 0.0) + M.off[i]
+            hi = it['src1'] - it.get('mute_tail', 0.0) + M.off[i]
+            start, end = max(a, lo), min(b, hi)
+            if (end - start) / it['speed'] <= .05: continue
+            caption = text
+            if start > a + .001 or end < b - .001:
+                caption = vsubs.trim_caption_words(text, words, start, end)
+                if caption is None:
+                    raise ValueError(f'Cannot align partial caption at body {start:.3f}–{end:.3f}s. '
+                                     'Use whole caption boundaries or provide matching word times; '
+                                     'corrected text will not be replaced by old transcription.')
+            if not caption: continue
+            tf = lambda x: it['dst0'] + (x - M.off[i] - it['src0']) / it['speed']
+            out.append(vsubs.Cue(tf(start), tf(end), cue_text(caption),
+                                  meta={'lang': SEGJ['language']} if SEGJ.get('language') else {}).to_dict())
     return sorted(out, key=lambda c: c['start'])
+
+FINAL_CUES = final_cues()
+SUBIMG = [(c['start'], c['end'], fit_layer(
+    lambda sz, text=c['text']: text_layer(colorize(text), F(sz), stroke=ST['sub_stroke'], pad=10),
+    ST['sub_size'], L.sub_max_w)) for c in FINAL_CUES]
 
 def final_keepouts():
     """Burned overlays an export must not put captions on: [{t0, t1, box: [x, y, w, h], kind}] in master
@@ -735,7 +753,7 @@ def final_keepouts():
 
 def write_cues(path):
     """<OUT>.cues.json for `python -m vstudio.export --cues`: {cues, keepouts, size, platform}."""
-    json.dump(dict(cues=final_cues(), keepouts=final_keepouts(), size=[W, H], platform=PROF.key),
+    json.dump(dict(cues=FINAL_CUES, keepouts=final_keepouts(), size=[W, H], platform=PROF.key),
               open(path, 'w'), ensure_ascii=False, indent=1)
 
 def preview(ts):

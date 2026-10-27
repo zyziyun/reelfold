@@ -880,6 +880,48 @@ def retime(cues, timemap, min_dur=0.28, tag=None):
     return out
 
 
+def trim_caption_words(text, words, start, end):
+    """Trim authored text to whole timed words, preserving spelling and highlight markup.
+
+    Words must match the caption (ignoring only spacing/punctuation), on the same clock.
+    Return None for unverified alignment or a cut through a spoken word; an empty string
+    means a verified interval contains no words. Never interpolate character timestamps.
+    """
+    import math
+    import unicodedata
+    runs = parse_highlight(text)
+    chars = [(c, highlight) for run, highlight in runs for c in run]
+    significant = lambda c: c.isalnum() or unicodedata.category(c).startswith('M')
+    offsets = [i for i, (c, _) in enumerate(chars) if significant(c)]
+    target = ''.join(chars[i][0] for i in offsets)
+    tokens = [''.join(c for c in w['w'] if significant(c)) for w in words]
+    if not tokens or any(not t for t in tokens) or ''.join(tokens) != target:
+        return None
+    if not all(math.isfinite(w['t']) and math.isfinite(w['te']) and w['te'] > w['t'] for w in words):
+        return None
+    if any(b['t'] < a['te'] - .001 for a, b in zip(words, words[1:])):
+        return None
+    chosen = [i for i, w in enumerate(words) if w['te'] > start + .001 and w['t'] < end - .001]
+    if not chosen:
+        return ''
+    if any(words[i]['t'] < start - .001 or words[i]['te'] > end + .001 for i in chosen):
+        return None
+    first, last = chosen[0], chosen[-1]
+    n0 = sum(len(t) for t in tokens[:first]); n1 = sum(len(t) for t in tokens[:last + 1])
+    a = offsets[n0] if first else 0
+    b = offsets[n1] if n1 < len(offsets) else len(chars)
+    kept = chars[a:b]
+    while kept and kept[0][0].isspace(): kept.pop(0)
+    while kept and kept[-1][0].isspace(): kept.pop()
+    out, run, previous = [], '', None
+    for c, highlight in kept:
+        if previous is not None and highlight != previous:
+            out.append(f'【{run}】' if previous else run); run = ''
+        previous = highlight; run += c
+    if run: out.append(f'【{run}】' if previous else run)
+    return ''.join(out)
+
+
 def pair_bilingual(primary, secondary, min_overlap=0.1):
     """Attach ``secondary`` cues (other language) to ``primary`` as ``alt`` by largest time overlap;
     several secondaries landing on one primary are joined with a space. Returns new cues."""
