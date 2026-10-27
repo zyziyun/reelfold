@@ -41,7 +41,7 @@ items:
   sources: [segments, csv]
   planner: vstudio.project.adapters.longform:plan_items
   per_item: [range, title, chapter, hook, notes, tags, cuts, body, cleanup_reply]
-  shared: [layout_mode, platforms, series_name, speed, cleanup_profile, privacy_exclude, subtitles, subtitle_lang, captions, finishing, preserve_source_aspect]
+  shared: [layout_mode, layout, platforms, series_name, speed, cleanup_profile, privacy_exclude, subtitles, subtitle_lang, captions, finishing, preserve_source_aspect]
   variants: [platform, hook]
   share_cache: [probe, extract, asr, geometry, glossary]
 engine:
@@ -72,6 +72,10 @@ params:
       default: split
       title: Layout (split = title band + screen crop; reframe = whole frame)
       x-zh: 版式（分栏：标题带 + 屏幕裁切；整画面重构）
+    layout:
+      enum: [face, center, pad-blur, letterbox]
+      title: Aspect conversion in whole-frame mode (face tracking, centre crop, blurred fill, or plain bars)
+      x-zh: 整画面模式的画幅转换（人脸跟随、居中裁切、模糊填充或纯色留边）
     platforms:
       type: array
       items: {type: string}

@@ -30,7 +30,12 @@ takeaway cards from the proofread captions (`finish/editorial-plan.json`) and dr
 times after each platform's reframe. Intake selects editorial for identified solo talking-head recordings.
 `captions: false` retains baked source subtitles without adding another track; `preserve_source_aspect: true`
 selects the platform's matching original shape instead of manufacturing a vertical version with padding.
-An incompatible platform needs a real remake. Argument-level recutting, contextual B-roll and final listening
+An incompatible platform needs a real remake. In `layout_mode: reframe`, `layout` selects the actual aspect
+conversion: `face` tracks a face, `center` crops the centre, `letterbox` keeps the whole picture with plain bars,
+and `pad-blur` uses blurred fill. This choice is separate from the split/reframe pipeline selector. Preserve
+source aspect when required text or composition cannot survive a crop; inspect the exported frame before
+accepting a crop. Plain bars are still padding and do not satisfy a request for a fully redesigned portrait edit.
+Argument-level recutting, contextual B-roll and final listening
 still require the editorial passes in the reference; cards alone do not establish premium quality.
 
 ## Setup

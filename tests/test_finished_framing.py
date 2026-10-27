@@ -88,3 +88,46 @@ def test_actual_export_keeps_source_corners_and_landscape_canvas(tmp_path, monke
     rgb = np.frombuffer(raw, np.uint8).reshape(info["display_h"], info["display_w"], 3).astype(int)
     for colour in colours:
         assert np.any(np.all(np.abs(rgb - colour) < 8, axis=2))
+
+@pytest.mark.parametrize("layout", ["center", "face", "letterbox", "pad-blur"])
+def test_longform_explicit_reframe_choice_survives_project_expansion(tmp_path, layout):
+    from vstudio.project.core import Project
+    from test_batch_p1 import tiny
+    source = tiny(tmp_path / "source.mp4", 2.0, "640x360")
+    project = Project.create(str(tmp_path / "project"), recipe="longform-to-short",
+                             inputs=dict(source=source),
+                             params=dict(layout_mode="reframe", layout=layout, preserve_source_aspect=False,
+                                         platforms=["xiaohongshu:full"]),
+                             items=[dict(id="clip", params=dict(range=[0, 2]))])
+    assert project.batch() == "longform-slices"
+    assert project.spec()["defaults"]["layout"] == layout
+
+    if layout in ("center", "letterbox"):
+        import numpy as np
+        from vstudio.batch import stages
+        from vstudio.batch.recipes import Ctx
+        from vstudio import media
+        post = tmp_path / "post.json"
+        post.write_text(json.dumps(dict(title="Frame choice", body="A supplied post", tags=[])))
+        params = dict(project.spec()["defaults"], captions=False, watermark=False, preset="ultrafast")
+        ctx = Ctx(dict(params=params), {}, str(tmp_path),
+                  dict(compose=dict(master=source, post=str(post), duration=2)), str(tmp_path))
+        result = stages.run_export(ctx)
+        manifest = json.loads(open(result["manifest"]).read())["exports"][0]
+        assert manifest["reframe"]["mode_used"] == layout
+        raw = subprocess.check_output([media.ffmpeg_bin(), "-v", "error", "-ss", "0.8", "-i",
+                                       result["exports"][0]["file"], "-frames:v", "1", "-pix_fmt", "rgb24",
+                                       "-f", "rawvideo", "-"])
+        rgb = np.frombuffer(raw, np.uint8).reshape(manifest["h"], manifest["w"], 3)
+        top = float(rgb[20:100].mean())
+        assert top < 5 if layout == "letterbox" else top > 30
+
+
+def test_longform_split_default_does_not_inherit_a_reframe_layout(tmp_path):
+    from vstudio.project.core import Project
+    from test_batch_p1 import tiny
+    source = tiny(tmp_path / "source.mp4", 2.0, "640x360")
+    project = Project.create(str(tmp_path / "project"), recipe="longform-to-short",
+                             inputs=dict(source=source), items=[dict(id="clip", params=dict(range=[0, 2]))])
+    assert project.batch() == "longform-split"
+    assert "layout" not in project.spec()["defaults"]
