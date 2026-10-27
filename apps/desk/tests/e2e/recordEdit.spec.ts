@@ -841,14 +841,18 @@ test.describe('shared window ends during a take', () => {
       };
       Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
         const audio = new AudioContext(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
-        tone.connect(dest); tone.start();
+        tone.frequency.value = 440;
+        const gain = audio.createGain(); gain.gain.value = 0.15;
+        tone.connect(gain); gain.connect(dest); tone.start(); await audio.resume();
         return new MediaStream([makeVideo('#238b82'), ...dest.stream.getAudioTracks()]);
       }});
       Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
         const track = makeVideo('#fafafa');
         const audio = new AudioContext();
         const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
-        tone.connect(dest); tone.start();
+        tone.frequency.value = 880;
+        const gain = audio.createGain(); gain.gain.value = 0.15;
+        tone.connect(gain); gain.connect(dest); tone.start(); await audio.resume();
         const sharedAudio = dest.stream.getAudioTracks()[0];
         (window as unknown as { sharedAudio: MediaStreamTrack }).sharedAudio = sharedAudio;
         (window as unknown as { endSharedWindow: () => void }).endSharedWindow = () => {
@@ -892,6 +896,34 @@ test.describe('shared window ends during a take', () => {
     const duration = probe(path.join(takes[0].dir, 'final', 'recording.mp4'));
     expect(duration).toBeGreaterThan(5);
     expect(duration).toBeLessThan(9);
+    const final = path.join(takes[0].dir, 'final', 'recording.mp4');
+    // Check the actual viewing copy, not just source tracks or the UI's PiP class.
+    const rgb = execFileSync('ffmpeg', ['-v', 'error', '-ss', '2', '-i', final,
+      '-frames:v', '1', '-vf', 'scale=640:360', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-']);
+    const pixel = (x: number, y: number) => [...rgb.subarray((y * 640 + x) * 3, (y * 640 + x) * 3 + 3)];
+    expect(pixel(20, 20).every(value => value > 230)).toBe(true);
+    const cameraPixel = pixel(570, 310);
+    expect(cameraPixel[0]).toBeLessThan(70);
+    expect(cameraPixel[1]).toBeGreaterThan(100);
+    expect(cameraPixel[2]).toBeGreaterThan(100);
+    // Distinct low-level tones prove both microphone and shared audio survive
+    // MediaRecorder, chunk writes, ingest and final mux without clipping.
+    const pcm = execFileSync('ffmpeg', ['-v', 'error', '-ss', '2', '-i', final,
+      '-t', '1', '-vn', '-ac', '1', '-ar', '16000', '-f', 'f32le', '-']);
+    const samples = Array.from({ length: pcm.length / 4 }, (_, i) => pcm.readFloatLE(i * 4));
+    expect(samples.length).toBe(16000);
+    const amplitude = (hz: number) => {
+      let re = 0, im = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const phase = 2 * Math.PI * hz * i / 16000;
+        re += samples[i] * Math.cos(phase); im += samples[i] * Math.sin(phase);
+      }
+      return 2 * Math.hypot(re, im) / samples.length;
+    };
+    expect(amplitude(440)).toBeGreaterThan(0.08);
+    expect(amplitude(880)).toBeGreaterThan(0.08);
+    expect(amplitude(660)).toBeLessThan(0.01);
+    expect(Math.max(...samples.map(Math.abs))).toBeLessThan(0.9);
     expect(errors).toEqual([]);
     await shot(page, 'R8-screen-ended-saved');
   });
