@@ -787,11 +787,51 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 # ------------------------------------------------------------------ building / timing
-def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None):
+def _timed_phrase_units(ws, max_chars, max_gap, language):
+    if str(language or '').lower().replace('_', '-').split('-')[0] != 'en':
+        return [w for w in ws if w[0].strip()], set()
+    # Keep phrase units on their original word clocks. A real pause always wins
+    # over syntax; no interpolation or text-length allocation is introduced.
+    from .textbreak import phrase_spans, sentence_ends
+    groups = []
+    for w in ws:
+        if not w[0].strip():
+            continue
+        if not groups or w[1] - groups[-1][-1][2] > max_gap:
+            groups.append([])
+        groups[-1].append(w)
+    units, stops = [], set()
+    for group in groups:
+        plain, ends = "", []
+        for w in group:
+            plain = join_caption([plain, w[0]])
+            ends.append(len(plain))
+        phrases = [(a, b) for a, b in phrase_spans(plain, language)
+                   if text_width(plain[a:b]) <= max_chars]
+        sentences = set(sentence_ends(plain, language))
+        unit = []
+        for i, w in enumerate(group):
+            if unit and text_width(join_caption(t for t, _, _ in unit + [w])) > max_chars:
+                units.append((join_caption(t for t, _, _ in unit), unit[0][1], unit[-1][2]))
+                unit = []
+            unit.append(w)
+            boundary = ends[i]
+            if not any(a < boundary < b for a, b in phrases):
+                units.append((join_caption(t for t, _, _ in unit), unit[0][1], unit[-1][2]))
+                unit = []
+                if boundary in sentences:
+                    stops.add(len(units) - 1)
+        if unit:
+            units.append((join_caption(t for t, _, _ in unit), unit[0][1], unit[-1][2]))
+    return units, stops
+
+
+def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None, language=None):
     """Draft cues from ASR words: a new cue at a gap > max_gap or when the line would exceed
     max_chars (CJK width); spaced-script words keep a space between them (also after punctuation,
     "everyone, welcome"; CJK punctuation and "3.5" / "1,000" stay tight); each cue lingers up to ``linger``
-    s into the following pause. fixes: passed to ``asr.apply_term_fixes`` (None = persona+generic,
+    s into the following pause. Declared English uses sentence/phrase boundaries
+    without changing word timestamps; other languages retain gap/width splitting. fixes: passed to ``asr.apply_term_fixes`` (None = persona+generic,
     False = none). Words: {"w","t","te"} or whisper {"word","start","end"}.
     From promo ``tight_cut.draft_subs``, call-clips ``build_subs`` / ``build_clips.load_subs``."""
     max_chars = max_chars or _persona_subs().get("max_cjk_chars", 18)
@@ -803,15 +843,14 @@ def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None)
             ws.append((w["word"].strip(), w["start"], w["end"]))
         else:
             ws.append(tuple(w))
+    units, stops = _timed_phrase_units(ws, max_chars, max_gap, language)
     cues, cur = [], []
 
     def join(items):
         return join_caption(t for t, _, _ in items)
 
-    for w in ws:
-        if not w[0].strip():
-            continue
-        if cur and (w[1] - cur[-1][2] > max_gap or text_width(join(cur + [w])) > max_chars):
+    for i, w in enumerate(units):
+        if cur and (i - 1 in stops or w[1] - cur[-1][2] > max_gap or text_width(join(cur + [w])) > max_chars):
             cues.append(Cue(cur[0][1], cur[-1][2], join(cur))); cur = []
         cur.append(w)
     if cur:
@@ -822,6 +861,9 @@ def cues_from_words(words, max_chars=None, max_gap=0.45, linger=0.3, fixes=None)
             c.text = apply_term_fixes(c.text, fixes or None)
     for i, c in enumerate(cues[:-1]):
         c.end = min(cues[i + 1].start, c.end + linger)
+    if language:
+        for c in cues:
+            c.meta["lang"] = language
     return [c for c in cues if c.text]
 
 

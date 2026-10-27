@@ -19,6 +19,23 @@ def _english_parser():
 
 
 @lru_cache(maxsize=512)
+def _english_boundaries(text):
+    parser = _english_parser()
+    if parser is None:
+        return (), ()
+    doc = parser(text)
+    return (tuple((s.start_char, s.end_char) for s in doc.noun_chunks),
+            tuple(s.end_char for s in doc.sents))
+
+
+def sentence_ends(text, language=None):
+    """Sentence end offsets for declared English, from the existing parser."""
+    if str(language or '').lower().replace('_', '-').split('-')[0] != 'en':
+        return ()
+    return _english_boundaries(text)[1]
+
+
+@lru_cache(maxsize=512)
 def phrase_spans(text, language=None):
     """Protected noun-phrase character spans for explicitly English captions.
 
@@ -27,10 +44,7 @@ def phrase_spans(text, language=None):
     """
     if str(language or '').lower().replace('_', '-').split('-')[0] != 'en':
         return ()
-    parser = _english_parser()
-    if parser is None:
-        return ()
-    return tuple((s.start_char, s.end_char) for s in parser(text).noun_chunks)
+    return _english_boundaries(text)[0]
 
 
 def dictionary_script(char):

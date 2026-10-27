@@ -514,3 +514,17 @@ def test_assembly_rechecks_file_bound_review(tmp_path):
     assert AS.validate_edl(timeline) == []
     _clip(video, 1.0, color="red")
     assert any("current video" in e for e in AS.validate_edl(timeline))
+
+
+def test_captions_use_detected_language_and_word_timing(tmp_path, monkeypatch):
+    from vstudio import asr
+    pytest.importorskip('en_core_web_sm')
+    text = 'Show a concrete example. Before publishing, check the captions.'
+    words = [dict(word=t, start=i * .4, end=(i + 1) * .4) for i, t in enumerate(text.split())]
+    monkeypatch.setattr(asr, 'transcribe', lambda *a, **k: {'language': 'en', 'segments': [{'words': words}]})
+    path = AS.captions({'_dir': str(tmp_path), 'canvas': [1080, 1920],
+                        'captions': {'max_chars': 100}}, 'synthetic.wav', out=lambda *a: None)
+    cues = json.load(open(path))['cues']
+    assert [c['text'] for c in cues] == ['Show a concrete example.', 'Before publishing, check the captions.']
+    assert cues[1]['start'] == words[4]['start']
+    assert all(c['meta']['lang'] == 'en' for c in cues)

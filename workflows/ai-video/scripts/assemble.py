@@ -161,7 +161,8 @@ def captions(t, master, out=print):
     from vstudio import subs as S
     cap = t.get("captions") or {}
     tr = A.transcribe(master, language=cap.get("language"))
-    cues = S.cues_from_words(A.words_of(tr), max_chars=cap.get("max_chars"))
+    cues = S.cues_from_words(A.words_of(tr), max_chars=cap.get("max_chars"),
+                             language=cap.get("language") or tr.get("language"))
     path = _p(t, cap.get("out", "cues.json"))
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"cues": [c.to_dict() for c in cues], "size": list(t["canvas"])}, f, ensure_ascii=False, indent=1)
