@@ -45,6 +45,7 @@ class FakeGoogle {
   /** A provider response that differs from the requested public visibility. */
   lockPrivate = false;
   omitStatus = false;
+  insertedStatus: Record<string, string> | null = null;
   videoStatus: Record<string, string> | null = { privacyStatus: 'public', uploadStatus: 'processed' };
   statusCode = 200;
   statusReads = 0;
@@ -190,7 +191,7 @@ class FakeGoogle {
         s.done = true;
         if (this.loseReceipt) { req.socket.destroy(); return; }
         const privacy = this.lockPrivate ? 'private' : s.meta.status.privacyStatus;
-        return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: { privacyStatus: privacy, uploadStatus: 'processed', ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
+        return this.json(res, 201, { id: 'vid123', ...(this.omitStatus ? {} : { status: this.insertedStatus ?? { privacyStatus: privacy, uploadStatus: 'processed', ...(s.meta.status.publishAt && !this.lockPrivate ? { publishAt: s.meta.status.publishAt } : {}) } }) });
       };
       const incomplete = () => res.writeHead(308, { ...(s.received ? { Range: `bytes=0-${s.received - 1}` } : {}), ...(this.retryDelay ? { 'Retry-After': this.retryDelay } : {}) }).end();
       if (range.startsWith('bytes */')) {
@@ -393,6 +394,24 @@ describe('resumable upload (fake API)', () => {
     await m.yt.connect('main', { playlists: true, timeoutMs: 5000 });
     return m;
   };
+
+  it.each([
+    { privacyStatus: 'private', uploadStatus: 'processed', publishAt: 'invalid' },
+    { privacyStatus: 'private', uploadStatus: 'processed', publishAt: '2026-11-20T12:00:00+08:00' },
+    { privacyStatus: 'public', uploadStatus: 'failed', failureReason: 'codec' },
+    { privacyStatus: 'public', uploadStatus: 'rejected', rejectionReason: 'copyright' },
+  ] as Record<string, string>[])('normalizes insert and status receipts consistently: %j', async (status) => {
+    const { yt, dir } = await connected();
+    g.insertedStatus = status;
+    g.videoStatus = status;
+    const initial = await yt.upload('main', { file: video(dir, 1024), title: 'Receipt test', description: '', tags: [], publishAt: null, privacy: 'private' });
+    const refreshed = await yt.videoStatus('main', initial);
+    for (const key of ['privacy', 'uploadStatus', 'publishAt', 'failureReason'] as const) {
+      expect(initial[key]).toEqual(refreshed[key]);
+    }
+    expect(apiDeliveryState(initial)).toBe(apiDeliveryState(refreshed));
+    expect(g.sessions.size).toBe(1);
+  });
 
   it('chunks with Content-Range, resumes after a 503 and after a dropped connection; thumbnail + playlist', async () => {
     const { yt, dir } = await connected();

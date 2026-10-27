@@ -111,19 +111,8 @@ export interface YtVideo {
   captions?: CaptionArtifact[];
 }
 
-export interface YtResult {
-  captions?: YtPublishResult['captions'];
-  id: string;
-  url: string;
-  /** as YouTube answered; no assumption about the account or API-project restrictions */
-  privacy: string;
-  publishAt: string | null;
-  /** asked public / unlisted but YouTube returned private, or did not retain the requested schedule */
-  lockedPrivate: boolean;
-  /** the thumbnail / playlist steps that did not work (the video itself is up) */
-  warnings: string[];
-  uploadStatus?: YtPublishResult['uploadStatus'];
-}
+/** A successful upload receipt always has a verified video ID. */
+export type YtResult = YtPublishResult & { id: string };
 
 export interface YtChannel {
   id: string;
@@ -457,17 +446,13 @@ export class YouTubeApi {
       headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000),
     });
     if (!r.ok) throw new Error(`YouTube status unavailable: ${await errText(r)}`);
-    const j = await r.json() as { items?: { id: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string; failureReason?: string; rejectionReason?: string } }[] };
+    const j = await r.json() as { items?: { id: string; status?: VideoStatus }[] };
     const status = j.items?.find(v => v.id === id)?.status;
     if (!status) throw new Error('Video unavailable to this account; check YouTube Studio');
-    const privacy = ['public', 'private', 'unlisted'].includes(status.privacyStatus ?? '') ? status.privacyStatus! : 'unknown';
-    const publishAt = typeof status.publishAt === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(status.publishAt) && Number.isFinite(Date.parse(status.publishAt)) ? new Date(status.publishAt).toISOString() : null;
-    const uploadStatus = ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(status.uploadStatus ?? '') ? status.uploadStatus as NonNullable<YtPublishResult['uploadStatus']> : 'unknown';
-    const reason = uploadStatus === 'failed' ? status.failureReason : uploadStatus === 'rejected' ? status.rejectionReason : null;
-    return { id, url: `https://youtu.be/${id}`, privacy, publishAt, uploadStatus,
-      lockedPrivate: privacy === 'private' && !publishAt && previous.lockedPrivate,
+    const parsed = parseVideoStatus(status);
+    return { id, url: `https://youtu.be/${id}`, ...parsed,
+      lockedPrivate: parsed.privacy === 'private' && !parsed.publishAt && previous.lockedPrivate,
       warnings: previous.warnings, checkedAt: new Date().toISOString(),
-      ...(typeof reason === 'string' ? { failureReason: reason.slice(0, 200) } : {}),
     };
   }
 
@@ -742,15 +727,23 @@ export class YouTubeApi {
   }
 }
 
-type Inserted = { id?: string; status?: { privacyStatus?: string; publishAt?: string; uploadStatus?: string } };
+type VideoStatus = { privacyStatus?: string; publishAt?: string; uploadStatus?: string; failureReason?: string; rejectionReason?: string };
+type Inserted = { id?: string; status?: VideoStatus };
+
+/** Upload, recovery and subsequent readback must interpret the same provider status identically. */
+function parseVideoStatus(status?: VideoStatus): Pick<YtPublishResult, 'privacy' | 'publishAt' | 'uploadStatus' | 'failureReason'> {
+  const privacy = ['public', 'private', 'unlisted'].includes(status?.privacyStatus ?? '') ? status!.privacyStatus! : 'unknown';
+  const publishAt = typeof status?.publishAt === 'string' && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(status.publishAt) && Number.isFinite(Date.parse(status.publishAt)) ? new Date(status.publishAt).toISOString() : null;
+  const uploadStatus = ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(status?.uploadStatus ?? '') ? status!.uploadStatus as NonNullable<YtPublishResult['uploadStatus']> : 'unknown';
+  const reason = uploadStatus === 'failed' ? status?.failureReason : uploadStatus === 'rejected' ? status?.rejectionReason : null;
+  return { privacy, publishAt, uploadStatus, ...(typeof reason === 'string' ? { failureReason: reason.slice(0, 200) } : {}) };
+}
 
 function uploadResult(done: Inserted, askedPrivacy: string, askedPublishAt: string | null): YtResult {
   if (!done.id || !/^[\w-]{1,64}$/.test(done.id)) throw new UploadOutcomeUnknown('YouTube did not return a valid video ID. Check YouTube Studio.');
-  const privacy = ['public', 'private', 'unlisted'].includes(done.status?.privacyStatus ?? '') ? done.status!.privacyStatus! : 'unknown';
-  return { id: done.id, url: `https://youtu.be/${done.id}`, privacy,
-    uploadStatus: ['uploaded', 'processed', 'failed', 'rejected', 'deleted'].includes(done.status?.uploadStatus ?? '') ? done.status!.uploadStatus as YtPublishResult['uploadStatus'] : 'unknown',
-    publishAt: done.status?.publishAt ?? null,
-    lockedPrivate: askedPrivacy !== 'private' ? privacy === 'private' : !!askedPublishAt && !!done.status && !done.status.publishAt,
+  const status = parseVideoStatus(done.status);
+  return { id: done.id, url: `https://youtu.be/${done.id}`, ...status,
+    lockedPrivate: askedPrivacy !== 'private' ? status.privacy === 'private' : !!askedPublishAt && !!done.status && !status.publishAt,
     warnings: [],
   };
 }
