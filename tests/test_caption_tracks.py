@@ -218,3 +218,33 @@ def test_named_track_keeps_declared_language_and_mixed_timeline_order():
     named = X.caption_tracks({'ja': cs[1:]}, P.profile('youtube'))
     assert named['ja'][0].text == '説明します。'
     assert named['ja'][0].meta['style'] == {'fill': 'white'}
+
+
+def test_declared_japanese_is_not_selected_as_chinese():
+    from vstudio import export as X, platform as P
+    from vstudio.subs import Cue
+    source = Cue(0, 2, '豆を量る', '称量咖啡豆', {'lang': 'ja-JP', 'alt_lang': 'zh-CN'})
+    shown, warnings = X.cues_for_platform(P.profile('xiaohongshu'), [source], bilingual=False)
+    assert not warnings and shown[0].text == '称量咖啡豆'
+    assert shown[0].meta == {'lang': 'zh-CN'} and shown[0].alt == ''
+    assert source.meta == {'lang': 'ja-JP', 'alt_lang': 'zh-CN'}
+    assert list(X.caption_tracks(shown, P.profile('xiaohongshu'))) == ['zh-CN']
+
+
+def test_declared_french_without_translation_is_not_called_english():
+    from vstudio import export as X, platform as P
+    from vstudio.subs import Cue
+    source = Cue(0, 2, 'Peser le café', '', {'lang': 'fr-FR'})
+    shown, warnings = X.cues_for_platform(P.profile('youtube'), [source], bilingual=False)
+    assert shown[0].text == source.text and shown[0].meta == source.meta
+    assert warnings and 'no English line' in warnings[0]
+
+
+def test_declared_translation_updates_primary_language_after_selection():
+    from vstudio import export as X, platform as P
+    from vstudio.subs import Cue
+    source = Cue(0, 2, '豆を量る', 'Weigh the beans', {'lang': 'ja-JP', 'alt_lang': 'en-US'})
+    shown, warnings = X.cues_for_platform(P.profile('youtube'), [source])
+    assert not warnings and shown[0].text == 'Weigh the beans'
+    assert shown[0].meta == {'lang': 'en-US'}
+    assert list(X.caption_tracks(shown, P.profile('youtube'))) == ['en-US']

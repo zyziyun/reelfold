@@ -136,9 +136,19 @@ def cues_for_platform(prof, cues, bilingual=None):
         return list(cues), []
     out, bare = [], 0
     for c in cues:
-        text, alt, found = pick_lang(c.text, c.alt, lang)
+        declared = _declared_lines(c)
+        meta = c.meta
+        if declared:
+            selected = next(((language, text) for language, text in declared
+                             if _lang_base(language) == lang), declared[0])
+            language, text = selected
+            alt, found = "", _lang_base(language) == lang
+            meta = {k: v for k, v in c.meta.items() if k not in ("lang", "alt_lang")}
+            meta["lang"] = language
+        else:
+            text, alt, found = pick_lang(c.text, c.alt, lang)
         bare += not found and bool(text)
-        out.append(Cue(c.start, c.end, text, alt, c.meta))
+        out.append(Cue(c.start, c.end, text, alt, meta))
     name = "English" if lang == "en" else "Chinese"
     warn = [f"{prof.name}: captions are {name} only, but {bare} cue(s) have no {name} line"] if bare else []
     return out, warn
@@ -232,6 +242,12 @@ def _neutral(c):
     return bool(s.strip()) and not _ZH.search(s) and not _LATIN.search(s)
 
 
+def _declared_lines(cue):
+    """Validated, nonempty language-tagged lines; shared by burn and sidecar selection."""
+    return [(cue.meta[key], text) for key, text in (("lang", cue.text), ("alt_lang", cue.alt))
+            if LANG_KEY.fullmatch(str(cue.meta.get(key) or "")) and text.strip()]
+
+
 def caption_tracks(cues, prof):
     """Every caption language there is -> {lang: [Cue]} (one line each, the platform's language first, then English,
     then Chinese, then other named tracks). A map gives its tracks (each kept to its language's line); one track gives
@@ -246,8 +262,7 @@ def caption_tracks(cues, prof):
         for c in load_cues(src):
             # Translation already knows each line's language. Script guessing would
             # mislabel Japanese as Chinese and lose other translated tracks.
-            declared = [(c.meta.get(key), text) for key, text in (("lang", c.text), ("alt_lang", c.alt))
-                        if LANG_KEY.fullmatch(str(c.meta.get(key) or ""))]
+            declared = _declared_lines(c)
             if declared:
                 for language, text in declared:
                     if text.strip() and (k == "*" or _lang_base(k) == _lang_base(language)):
