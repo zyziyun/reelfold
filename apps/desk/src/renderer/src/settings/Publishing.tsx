@@ -178,7 +178,7 @@ function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
             ))}
             {api.connected && (
               <Row label={t('pl.api.auto')} hint={t('ytp.f.atHint')}>
-                <Toggle checked={api.auto} onChange={(v) => void run(() => window.desk.publish.api.setAuto(v))} label={t('pl.api.auto')} testId="api-youtube-auto" />
+                <Toggle checked={api.auto} optimistic={false} disabled={busy} onChange={(v) => void run(() => window.desk.publish.api.setAuto(v))} label={t('pl.api.auto')} testId="api-youtube-auto" />
               </Row>
             )}
             {!api.keychain && <div className="s2-row s2-rhint pb-amber">{t('pl.api.noKeychain')}</div>}

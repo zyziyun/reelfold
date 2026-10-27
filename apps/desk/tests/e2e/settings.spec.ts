@@ -166,3 +166,48 @@ for (const lang of ['zh-CN', 'fr', 'en'] as const) {
     }
   });
 }
+
+test('scheduled API posting switch reflects saved state after failure or success', async () => {
+  await hash('#/settings/general');
+  await expect(page.getByTestId('api-youtube-auto')).toHaveCount(0);
+  await app.evaluate(({ ipcMain }) => {
+    const state = { id: 'youtube', availability: 'available', platforms: ['youtube'], scopes: [],
+      hasClient: true, connected: true, connectedAt: null, auto: false, keychain: true,
+      yt: { source: 'own', hasClient: true, builtin: false, ownClientId: 'test.apps.googleusercontent.com', accounts: [] } };
+    const g = globalThis as unknown as { finishAuto?: (success: boolean) => void };
+    ipcMain.removeHandler('publish:apiStatus');
+    ipcMain.handle('publish:apiStatus', () => [state]);
+    ipcMain.removeHandler('publish:apiAuto');
+    ipcMain.handle('publish:apiAuto', (_e, { auto }: { auto: boolean }) => new Promise((resolve, reject) => {
+      g.finishAuto = success => {
+        if (!success) return reject(new Error('Could not save scheduled posting'));
+        state.auto = auto;
+        resolve([state]);
+      };
+    }));
+  });
+  await hash('#/settings/accounts');
+  const toggle = page.getByTestId('api-youtube-auto');
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
+  await expect(toggle).toBeDisabled();
+  await expect(toggle).not.toBeChecked();
+  const finish = (success: boolean) => app.evaluate((_electron, ok) => {
+    (globalThis as unknown as { finishAuto: (v: boolean) => void }).finishAuto(ok);
+  }, success);
+  await finish(false);
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByText('Could not save scheduled posting', { exact: false })).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toBeDisabled();
+  await finish(true);
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).toBeDisabled();
+  await expect(toggle).toBeChecked();
+  await finish(false);
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).toBeChecked();
+});

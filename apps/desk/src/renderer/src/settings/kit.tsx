@@ -64,18 +64,20 @@ export function Swatches<T extends string>({ value, options, onChange }: { value
 }
 
 /** A switch that is a real checkbox (keyboard, screen readers and Playwright's check() all work). It flips at once;
- * the saved value catches up when the setting comes back. */
-export function Toggle({ checked, onChange, label, testId }: { checked: boolean; onChange: (v: boolean) => void; label: string; testId?: string }) {
+ * the saved value catches up when the setting comes back. Use optimistic=false for controls whose displayed
+ * state must acknowledge a successful save, such as permission to publish scheduled posts. */
+export function Toggle({ checked, onChange, label, testId, optimistic = true, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; label: string; testId?: string; optimistic?: boolean; disabled?: boolean }) {
   const [on, setOn] = useState(checked);
   useEffect(() => setOn(checked), [checked]);
   return (
-    <label className={`s2-tgl ${on ? 'on' : ''}`}>
+    <label className={`s2-tgl ${(optimistic ? on : checked) ? 'on' : ''}`}>
       <input
         type="checkbox"
         role="switch"
-        checked={on}
+        checked={optimistic ? on : checked}
+        disabled={disabled}
         onChange={(e) => {
-          setOn(e.target.checked);
+          if (optimistic) setOn(e.target.checked);
           onChange(e.target.checked);
         }}
         aria-label={label}
