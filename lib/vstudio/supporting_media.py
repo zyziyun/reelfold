@@ -42,7 +42,10 @@ def context(paths, work):
             pid = f"p{i+1:04d}"
             dest = os.path.join(work, "source_photos", pid + "-render.png")
             with Image.open(path) as im:
-                ImageOps.exif_transpose(im).convert("RGB").save(dest)
-            assets.append(dict(id=pid, kind="image", path=dest))
+                oriented = ImageOps.exif_transpose(im).convert("RGB")
+                oriented.save(dest)
+                size = list(oriented.size)
+            assets.append(dict(id=pid, kind="image", path=dest, size=size))
+            lines.append(f"{pid}: displayed source pixels {size[0]}x{size[1]}; detail rectangles use these coordinates, not sheet pixels.")
     lines.append("Available IDs: " + ", ".join(a["id"] for a in assets))
     return "\n".join(lines), images, assets

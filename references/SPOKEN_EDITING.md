@@ -103,3 +103,20 @@ The visual plan may use `evidence_from` to include the beginning of the same arg
 Before accepting a graphic plan, the native renderer checks its typography at landscape, portrait and 3:4 phone-scale sizes. Overflow enters the same one-repair planning flow: shorten the wording rather than shrinking text below the scaled minimum. High-resolution export uses the same proportional minimum; successful rendering alone is not a readability review.
 
 The planner also checks the combined title and item text against the shared caption/card reading-time heuristic (approximately six Han/kana characters or 3.5 spaced/dictionary words per second, plus one second to orient). It does not cap the estimate at the permitted display duration. If the estimate exceeds the selected span, the same repair pass asks for shorter labels or a longer valid caption span while retaining qualifications. It reuses Unicode caption tokens and ICU dictionary boundaries, so non-Latin text is counted too. These rates are rough planning defaults, not measured language-specific reading speeds or evidence that every viewer can read the card; inspect the rendered timing and animation as well.
+
+
+### Explain the referenced visual
+
+When speech points to a method, button, chart or other supplied visual, the planner should show that visual
+at the reference rather than substitute a text summary. Still-image inserts may include one or two
+`detail_regions` in the EXIF-oriented source's pixel dimensions. Reuse the existing overview/detail renderer;
+validate source bounds before rendering and reserve caption space through the shared layout. The contact sheet
+is only a preview: its pixel coordinates are not source coordinates. Fixed regions are not automatically
+planned for moving footage. If the region is uncertain, preserve the whole image rather than invent a crop.
+A valid rectangle proves bounds, not semantic selection or readability: inspect actual phone-scale exports
+and the hold duration. This capability does not create supporting assets when none were supplied.
+
+Real supporting-material inserts retain the beat timing and source validation, but do not consume the
+40% summary-card budget. Showing the object being discussed is not a redundant summary. Prefer compact
+regions around the explained labels over a full-width dense crop; two separated labels can use two
+panels. Judge readability on the actual export, not only on the source-resolution slide.

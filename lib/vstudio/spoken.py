@@ -15,6 +15,7 @@ SCHEMA = {"type": "object", "required": ["beats"], "properties": {"beats": {
                    "kind": {"enum": ["contrast", "chain", "takeaway", "insert"]}, "title": {"type": "string"},
                    "items": {"type": "array", "items": {"type": "string"}},
                    "evidence": {"type": "string"}, "asset": {"type": "string"},
+                   "detail_regions": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
                    "offset": {"type": "number"}, "fit": {"enum": ["contain", "cover", "card"]}}}}}}
 
 
@@ -81,8 +82,18 @@ def validate(doc, cues, duration, materials=None):
                 raise ValueError("spoken finishing: insert exceeds its source video")
             if asset["kind"] == "image" and offset != 0:
                 raise ValueError("spoken finishing: a still image has no source offset")
-            effects.append(dict(id=f"spoken-{i + 1}", effect="media-insert", start=start, end=stop,
-                                params=dict(file=asset["path"], offset=offset, fit=fit)))
+            params = dict(file=asset["path"], offset=offset, fit=fit)
+            regions = b.get("detail_regions")
+            if regions is not None:
+                if asset["kind"] != "image":
+                    raise ValueError("spoken finishing: automatic detail regions require a verified still image")
+                if fit != "contain":
+                    raise ValueError("spoken finishing: detail regions require contain fit")
+                if not asset.get("size"):
+                    raise ValueError("spoken finishing: detail regions require verified source dimensions")
+                from vstudio.clipkit import detail_rectangles
+                params["detail_regions"] = detail_rectangles(regions, tuple(asset["size"]))
+            effects.append(dict(id=f"spoken-{i + 1}", effect="media-insert", start=start, end=stop, params=params))
         else:
             # Summary labels may paraphrase; they must not introduce a new number.
             number = r"\d+(?:[.,]\d+)*"
@@ -92,7 +103,7 @@ def validate(doc, cues, duration, materials=None):
             effects.append(dict(id=f"spoken-{i + 1}", effect="explanation-card", start=start, end=stop,
                                 params=dict(title=title, items=items, kind=kind)))
         end = stop
-    if sum(e["end"] - e["start"] for e in effects) > duration * 0.4:
+    if sum(e["end"] - e["start"] for e in effects if e["effect"] == "explanation-card") > duration * 0.4:
         raise ValueError("spoken finishing: graphics cover too much of the speaker's story")
     return effects
 
@@ -122,7 +133,7 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
         "in the visible label, not only the evidence. No invented facts, claims, statistics, "
         "testimonials, receipts, or added call to action. Use the speech's language. Each beat starts after "
         "2.5 seconds, spans 2–5 seconds (choose suitable caption boundaries), and leaves at least 1.5 seconds "
-        "of speaker between beats. Graphics occupy at most 40% of the clip; fewer well-placed beats are better "
+        "of speaker between beats. Summary cards occupy at most 40% of the clip; fewer well-placed beats are better "
         "than a quota. Caption boundaries may split words or sentences: read the WHOLE argument, including "
         "later qualifications or corrections, before summarizing a selected span. A personal experience is "
         "not a universal promise. These rules apply across subjects; do not impose a personal-story narrative "
@@ -138,14 +149,32 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
     if materials:
         system += (
             " Supporting material is available as labelled visual sheets. Prefer a relevant real demonstration, "
-            "document or supporting shot over restating that same idea in a text card. Use kind insert with asset "
+            "document or supporting shot over restating that same idea in a text card. "
+            "When the speech points at 'this method', 'here', a button, a chart or another visible object, "
+            "show the matching supplied visual during that reference; use a verified detail region when needed. "
+            "A takeaway repeating the conclusion does not resolve what the speaker is pointing at. "
+            "Only choose a text card instead when no supplied visual actually supports that reference. "
+            "Use kind insert with asset "
             "set to an AVAILABLE asset ID, offset in SOURCE video seconds (0 for stills), fit contain/cover/card, "
             "and the same from/to/evidence caption anchors. Set title to an empty string and items to []. "
             "Use contain to preserve the whole image; cover only when cropping loses nothing important; card "
             "for a tall screenshot shown at full width and scrolled over the insert duration. Ensure reading time. "
+            "For a still screenshot or slide whose relevant detail would be unreadable at phone size, use "
+            "optional detail_regions with one or two [x,y,width,height] rectangles in the stated DISPLAYED SOURCE "
+            "pixel dimensions (not contact-sheet coordinates), and fit contain. The shared renderer retains the "
+            "overview and enlarges those regions. Select only visible content directly explained by the cue, "
+            "with margin so labels are not cut. Prefer one short detail over an entire dense document; "
+            "at 360-pixel phone viewing size, a portrait panel is only about 330 pixels wide. A rectangle spanning nearly the slide width "
+            "barely enlarges its text. For a relationship between separated labels, choose two compact "
+            "regions instead of enclosing all intervening whitespace and code. Keep enough context to "
+            "identify each label, but do not include an entire function when only its signature or call "
+            "explains the point. "
+            "The hold must suffice for the specific point, not reading the whole slide. Omit regions if uncertain. "
+            "Do not select fixed regions for moving video. "
             "Inspect the images, not the filenames. Samples do not verify unseen actions or exact action boundaries. "
-            "Do not manufacture evidence or use unrelated material just to use every file. Inserts and cards "
-            "share the timing/coverage limits. The original narration continues; source clip audio is not used.")
+            "Do not manufacture evidence or use unrelated material just to use every file. Inserts share the timing "
+            "limits but do not consume the summary-card coverage budget. The original narration continues; "
+            "source clip audio is not used.")
         prompt += "\nAVAILABLE SUPPORTING MATERIAL:\n" + material_context
     call = complete or llm.complete
     repairs = []

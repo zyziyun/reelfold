@@ -45,6 +45,7 @@ def test_context_freezes_exif_orientation_and_distinguishes_names(tmp_path):
     text, sheets, assets = supporting_media.context(paths, str(tmp_path / 'context'))
     assert [a['id'] for a in assets] == ['p0001', 'p0002']
     assert all(Image.open(a['path']).size == (60, 120) for a in assets)
+    assert all(a['size'] == [60, 120] for a in assets)
     assert sheets and all(Path(p).exists() for p in sheets)
     assert [Path(p).read_bytes() for p in paths] == originals
     assert 'p0001' in text and 'p0002' in text
@@ -140,3 +141,62 @@ def test_real_video_preview_maps_to_bounded_insert(tmp_path):
     result = spoken.plan(CUES, 10, materials=assets, images=images, material_context=text,
         complete=lambda *a, **kw: dict(json=dict(beats=[dict(BEAT, asset='v0001', offset=1)])))
     assert result['effects'][0]['params'] == dict(file=str(path), offset=1, fit='contain')
+
+
+def test_planned_detail_uses_oriented_source_pixels(tmp_path):
+    photo = tmp_path / 'slide.png'
+    Image.new('RGB', (640, 360), 'white').save(photo)
+    context, images, assets = supporting_media.context([str(photo)], str(tmp_path / 'work'))
+    assert assets[0]['size'] == [640, 360]
+    assert '640x360' in context
+    beat = dict(BEAT, detail_regions=[[80, 90, 240, 100]])
+    result = spoken.plan(CUES, 10, materials=assets, images=images, material_context=context,
+                         complete=lambda *a, **kw: dict(json=dict(beats=[beat])))
+    assert result['effects'][0]['params']['detail_regions'] == beat['detail_regions']
+
+
+@pytest.mark.parametrize('regions', [[[600, 0, 80, 40]], [[0, 0, float('nan'), 40]],
+                                     [[True, 0, 40, 40]], [], [[0, 0, 30, 30]] * 3])
+def test_planned_detail_rejects_invalid_bounds(regions):
+    with pytest.raises(ValueError):
+        spoken.validate(dict(beats=[dict(BEAT, detail_regions=regions)]), CUES, 10,
+                        [dict(id='p0001', kind='image', path='unused', size=[640, 360])])
+
+
+def test_planned_detail_cannot_assume_video_region_is_still():
+    with pytest.raises(ValueError, match='still'):
+        spoken.validate(dict(beats=[dict(BEAT, detail_regions=[[0, 0, 30, 30]])]), CUES, 10,
+                        [dict(id='p0001', kind='video', path='unused', duration=10, size=[640, 360])])
+
+
+def test_bad_detail_region_uses_existing_repair_flow():
+    calls = []
+    def model(task, system, prompt, **kw):
+        calls.append(prompt)
+        regions = [[630, 0, 80, 40]] if len(calls) == 1 else [[100, 40, 80, 40]]
+        return dict(json=dict(beats=[dict(BEAT, detail_regions=regions)]))
+    result = spoken.plan(CUES, 10, materials=[dict(id='p0001', kind='image', path='unused', size=[640, 360])],
+                         complete=model)
+    assert len(calls) == 2 and len(result['repairs']) == 1
+    assert 'outside the displayed source' in calls[1]
+    assert result['effects'][0]['params']['detail_regions'] == [[100, 40, 80, 40]]
+
+
+@pytest.mark.parametrize('fit,size,message', [('cover', [640, 360], 'contain'),
+                                             ('card', [640, 360], 'contain'),
+                                             ('contain', None, 'dimensions')])
+def test_detail_requires_full_source_coordinate_contract(fit, size, message):
+    with pytest.raises(ValueError, match=message):
+        spoken.validate(dict(beats=[dict(BEAT, fit=fit, detail_regions=[[0, 0, 30, 30]])]), CUES, 10,
+                        [dict(id='p0001', kind='image', path='unused', size=size)])
+
+
+def test_referenced_material_is_not_counted_as_summary_card_coverage():
+    cues = [dict(start=3, end=7.7, text='This method uses the callback shown here.')]
+    beat = dict(BEAT, **{'from': 0, 'to': 0}, evidence=cues[0]['text'])
+    effects = spoken.validate(dict(beats=[beat]), cues, 10,
+                              [dict(id='p0001', kind='image', path='unused')])
+    assert effects[0]['start'] == 3 and effects[0]['end'] == 7.7
+    card = dict(beat, kind='takeaway', title='Callback', items=['Required here'])
+    with pytest.raises(ValueError, match='cover too much'):
+        spoken.validate(dict(beats=[card]), cues, 10)
