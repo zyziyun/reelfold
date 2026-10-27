@@ -845,10 +845,12 @@ def add_respellings(text, complete):
 def spec_language(path):
     """The narration language a spec asks for (TTS language), for tests and the review."""
     try:
-        m = re.search(r"language\s*=\s*['\"](\w+)['\"]", open(path, encoding="utf-8").read())
+        with open(path, encoding="utf-8") as f:
+            config = _spec_value(f.read(), "TTS")
     except OSError:
         return None
-    return m.group(1) if m else None
+    lang = config.get("language") if isinstance(config, dict) else None
+    return (lang.strip().lower().replace("_", "-") or None) if isinstance(lang, str) else None
 
 
 
@@ -992,10 +994,10 @@ def _script_text(spec_path, lang):
     for unit in _spec_value(text, "SCRIPT") or []:
         try:
             for en, zh in unit[1]:
-                out.append(((zh or en) if lang == "zh" else (en or zh)).replace("**", ""))
+                out.append(((zh or en) if lang.split("-")[0] == "zh" else (en or zh)).replace("**", ""))
         except (TypeError, ValueError, IndexError):
             continue
-    return ("" if lang == "zh" else " ").join(out)
+    return ("" if lang.split("-")[0] == "zh" else " ").join(out)
 
 
 def _voice_lang(params, spec_path):
@@ -1003,9 +1005,9 @@ def _voice_lang(params, spec_path):
     here: the free Chinese voice falls back to English narration like tts.py does)."""
     from vstudio import tts
     from vstudio import voicecast as VC
-    lang = "zh" if spec_language(spec_path) == "zh" else "en"
+    lang = spec_language(spec_path) or "en"
     engine = VC.narration_engine(lang, params.get("tts_engine") or "auto")
-    if lang == "zh" and engine == "kokoro" and not tts.zh_local_opt_in():
+    if lang.split("-")[0] == "zh" and engine == "kokoro" and not tts.zh_local_opt_in():
         lang, engine = "en", VC.narration_engine("en", params.get("tts_engine") or "auto")
     return lang, engine
 
@@ -1038,7 +1040,7 @@ def voice_payload(env, cp, ai=True):
     plats = list(p.get("platforms") or [])
     ctx = dict(lang=lang, engine=engine, platforms=plats, title=str(p.get("title") or ""), request=request[:800])
     ui = ((d.get("autopilot") or {}) if isinstance(d.get("autopilot"), dict) else {}).get("lang") or \
-        ("zh" if lang == "zh" else "en")
+        ("zh" if lang.split("-")[0] == "zh" else "en")
     if mine and not any(v["speaker"] == mine["speaker"] for v in cands):
         # her voice cannot speak here (not installed in the app / another language): the closest one, said so
         c = VC.cast(lang, engine, platforms=plats, title=ctx["title"], request=request, script=_script_text(spec, lang),

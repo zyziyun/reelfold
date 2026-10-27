@@ -342,3 +342,55 @@ def test_installed_native_qwen_used_for_japanese_and_korean(monkeypatch):
     assert VC.narration_engine("ja", "kokoro") == "kokoro"  # explicit engine remains explicit
     monkeypatch.setattr(tts, "qwen_ready", lambda: False)
     assert VC.narration_engine("ko") == "kokoro"
+
+
+@pytest.mark.parametrize("spec,want", [
+    ('TTS = dict(language="fr-FR")', 'fr-fr'),
+    ('TTS = {"language": "ja_JP"}', 'ja-jp'),
+    ('# language="en"\nTTS = dict(language="zh")', 'zh'),
+    ('OTHER = dict(language="en")\nTTS = dict(language="fr")', 'fr'),
+    ('TITLE_EN = \'language="en"\'\nTTS = dict(language="de")', 'de'),
+])
+def test_spec_language_reads_tts_configuration_not_arbitrary_text(tmp_path, spec, want):
+    path = tmp_path / 'spec.py'
+    path.write_text(spec)
+    assert PS.spec_language(path) == want
+
+
+@pytest.mark.parametrize('locale,expected', [('fr-FR', 'fr-fr'), ('ja_JP', 'ja-jp'), ('de', 'de')])
+def test_photo_voice_cast_keeps_declared_locale(tmp_path, monkeypatch, locale, expected):
+    path = tmp_path / 'spec.py'
+    path.write_text(f'TTS = dict(language={locale!r})')
+    seen = []
+    monkeypatch.setattr(VC, 'narration_engine', lambda lang, engine: seen.append((lang, engine)) or 'kokoro')
+    assert PS._voice_lang({'tts_engine': 'kokoro'}, path) == (expected, 'kokoro')
+    assert seen == [(expected, 'kokoro')]
+
+
+@pytest.mark.parametrize('locale,engine,native', [('ja-JP', 'qwen', 'ja'),
+                                                ('zh-CN', 'qwen', 'zh')])
+def test_photo_cast_payload_uses_only_declared_native_candidates(tmp_path, locale, engine, native):
+    env = env_for(tmp_path, voice='auto')
+    env.params['tts_engine'] = engine
+    path = os.path.join(env.item_dir, 'work', 'spec.py')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(SPEC.replace('language="zh"', f'language={locale!r}'))
+    payload = PS.voice_payload(env, {}, ai=False)
+    assert payload['cast']['lang'] == locale.lower()
+    assert payload['options']
+    for option in payload['options']:
+        assert native in VC.find(option['speaker'], engine)['native']
+    assert native in VC.find(payload['default']['speaker'], engine)['native']
+    if native == 'zh':
+        assert PS._script_text(path, locale.lower()) == '1962 年，世博会来到西雅图。'
+
+
+def test_photo_cast_without_native_catalog_never_offers_english(tmp_path):
+    env = env_for(tmp_path, voice='auto')
+    env.params['tts_engine'] = 'kokoro'
+    with open(os.path.join(env.item_dir, 'work', 'spec.py'), 'w', encoding='utf-8') as f:
+        f.write(SPEC.replace('language="zh"', 'language="fr-FR"'))
+    payload = PS.voice_payload(env, {}, ai=False)
+    assert payload['skip'] is True
+    assert payload['options'] == []
+    assert 'default' not in payload
