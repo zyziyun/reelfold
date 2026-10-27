@@ -223,7 +223,17 @@ export class PublishScheduler {
       ...duePosts(posts, now).filter((p) => t - localDate(p.at).getTime() <= grace),
     ].filter((p) => api.wants(p));
     const ran: string[] = [];
-    for (const p of candidates) {
+    for (const queued of candidates) {
+      // Earlier uploads can take minutes. Do not act on a cancelled or retargeted
+      // calendar snapshot; changed destinations/times are considered on the next tick.
+      const p = (await this.deps.load()).find(row => row.id === queued.id);
+      if (!p || p.at !== queued.at || (p.account ?? null) !== (queued.account ?? null) ||
+          p.platform !== queued.platform || p.item !== queued.item || p.clip !== queued.clip) continue;
+      const currentTime = this.deps.now();
+      const t = currentTime.getTime();
+      const eligible = upcomingPosts([p], currentTime, lead).length > 0 ||
+        (duePosts([p], currentTime).length > 0 && t - localDate(p.at).getTime() <= grace);
+      if (!eligible || !api.wants(p)) continue;
       const prev = this.state.api[p.id];
       // A manual form can contain different visibility/audience choices. Never retry it
       // with the scheduler's defaults after a failure.

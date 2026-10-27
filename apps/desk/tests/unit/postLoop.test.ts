@@ -49,6 +49,59 @@ describe('scheduler', () => {
     return { s, notified, posted };
   };
 
+  it.each(['auto off', 'disabled', 'deleted', 'rescheduled', 'account changed', 'posted', 'window expired'])('rechecks queued uploads after an awaited upload: %s', async (change) => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    let rows = ['first', 'second'].map(id => post(id, '2026-10-07T20:00', { platform: 'youtube', account: 'main' }));
+    let auto = true;
+    let release!: () => void;
+    let started!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const entered = new Promise<void>(resolve => { started = resolve; });
+    const sent: string[] = [];
+    const { s } = mk(rows, clock, { load: async () => rows.map(p => ({ ...p })), api: {
+      wants: () => auto,
+      publish: async p => {
+        sent.push(p.id);
+        if (p.id === 'first') { started(); await waiting; }
+        return { ok: true, url: 'https://youtu.be/' + p.id };
+      },
+    } });
+    const tick = s.tick();
+    await entered;
+    if (change === 'auto off') auto = false;
+    if (change === 'disabled') rows[1] = { ...rows[1], enabled: false };
+    if (change === 'deleted') rows = rows.slice(0, 1);
+    if (change === 'rescheduled') rows[1] = { ...rows[1], at: '2026-10-08T20:00' };
+    if (change === 'account changed') rows[1] = { ...rows[1], account: 'brand' };
+    if (change === 'posted') rows[1] = { ...rows[1], state: 'posted' };
+    if (change === 'window expired') clock.t = new Date(2026, 9, 8, 3);
+    release();
+    await tick;
+    expect(sent).toEqual(['first']);
+    expect(s.apiState('second')).toBeUndefined();
+  });
+
+  it('uses current post copy and current time when the next upload is still eligible', async () => {
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const rows = ['first', 'second'].map(id => post(id, '2026-10-07T20:00', { platform: 'youtube' }));
+    const sent: { id: string; title: string; at: Date | null }[] = [];
+    const { s } = mk(rows, clock, { load: async () => rows.map(p => ({ ...p })), api: {
+      wants: () => true,
+      publish: async (p, at) => {
+        sent.push({ id: p.id, title: p.title, at });
+        if (p.id === 'first') {
+          rows[1] = { ...rows[1], title: 'Updated title' };
+          clock.t = new Date(2026, 9, 7, 20, 1);
+        }
+        return { ok: true, url: 'https://youtu.be/' + p.id };
+      },
+    } });
+    await s.tick();
+    expect(sent).toHaveLength(2);
+    expect(sent[0].at).toEqual(new Date(2026, 9, 7, 20));
+    expect(sent[1]).toEqual({ id: 'second', title: 'Updated title', at: null });
+  });
+
   it('announces each post once when its time comes; overdue ones at launch; moving a post re-announces it', async () => {
     const clock = { t: new Date(2026, 9, 7, 19, 59) };
     const ps = [post('p1', '2026-10-07T20:00'), post('old', '2026-10-06T21:00')];
