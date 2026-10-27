@@ -167,6 +167,7 @@ stages:
   - {id: proofread, resource: cpu, from_batch: true, produces: [proofread captions]}
   - {id: finish, resource: cpu, from_batch: true, labels: {zh: "视觉编排", en: "Visual finishing"},
      produces: [source-grounded editorial-plan.json]}
+  - {id: copy, resource: cpu, from_batch: true, produces: [draft title and post body from final captions]}
   - {id: export, resource: cpu-render, from_batch: true, produces: ["<platform>-<orientation>.mp4 + cover + post"]}
   - {id: qc, resource: cpu, from_batch: true, produces: [qc.json], preview: {kind: json, path: "out:report"}}
   - {id: preview, resource: cpu-render, from_batch: true, produces: [sheet.jpg, snippet.mp4],

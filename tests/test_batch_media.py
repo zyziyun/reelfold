@@ -103,8 +103,10 @@ def _spec(tmp, talk, **kw):
 @pytest.mark.slow  # a long real render: CI's full tier only (pyproject.toml)
 def test_longform_slices_end_to_end(tmp_path, talk, monkeypatch):
     monkeypatch.setenv("VSTUDIO_TEST_TRUTH", talk["truth"])
-    r = plan_batch(_spec(tmp_path, talk), echo=False)
+    r = plan_batch(_spec(tmp_path, talk, copy={"call": "test_post_copy:fake_copy"}), echo=False)
     bdir = r["batch_dir"]
+    from vstudio.batch.recipes import get
+    assert "copy" in get("longform-slices").stage("export").deps
     assert r["jobs"] == ["a.h1", "b"]
     res = run_batch(bdir, echo=False)
     assert res["exit_code"] == 0, res
@@ -114,6 +116,13 @@ def test_longform_slices_end_to_end(tmp_path, talk, monkeypatch):
     st = Store(bdir)
     for j in st.jobs():
         assert j["state"] == "done" and j["qc"] == "green", (j["id"], j["qc_reasons"])
+    # A supplied title/body is preserved; the other slice receives a usable post body.
+    assert st.stage("a.h1", "copy")["out"]["drafted"] == []
+    cp = st.stage("b", "copy")["out"]
+    assert cp["title"] == "第二个例子" and cp["body"] and cp["drafted"] == ["body"]
+    bx = st.stage("b", "export")["out"]
+    assert cp["body"] in open(bx["exports"][0]["post"], encoding="utf-8").read()
+    assert bx["body"] == cp["body"]
     ex = st.stage("a.h1", "export")["out"]["exports"][0]
     assert os.path.exists(ex["file"]) and os.path.exists(ex["cover"])
     comp = st.stage("a.h1", "compose")["out"]
@@ -129,7 +138,7 @@ def test_longform_slices_end_to_end(tmp_path, talk, monkeypatch):
     review.apply_decisions(bdir, {"cleanup": {"a.h1": "全部确认"}, "decisions": {"b": {"decision": "approve"}}})
     res2 = run_batch(bdir, echo=False)
     assert res2["exit_code"] == 0
-    assert {s for _, s in res2["ran"]} <= {"apply", "compose", "verify", "proofread", "export", "qc", "preview"}
+    assert {s for _, s in res2["ran"]} <= {"apply", "compose", "verify", "proofread", "copy", "export", "qc", "preview"}
     assert ("a.h1", "apply") in res2["ran"] and not any(j == "b" for j, _ in res2["ran"])
     review.apply_decisions(bdir, {"decisions": {"a.h1": {"decision": "approve"}}})
     pk = package(bdir, per_day=1, start="2026-10-10")

@@ -1080,7 +1080,7 @@ IN_SEGMENTS = dict(key="segments", label="Job list", kind="file", required=True,
 COMMON_ROW = ["id", "range", "start", "end", "title", "body", "tags", "hook", "hooks", "platforms", "layout", "speed",
               "cleanup_profile", "cleanup_reply", "cover", "captions", "max_chars", "max_len", "trims"]
 
-register(Recipe("longform-slices", speech_stages(), expand_longform,
+register(Recipe("longform-slices", speech_stages(copy=True), expand_longform,
                 "one long recording + a job list of ranges -> cleaned, captioned vertical slices per platform",
                 label="Long recording -> vertical slices",
                 inputs=[dict(key="inputs.source", label="Long recording", kind="file", required=True, accept=VIDEO_ACCEPT,
