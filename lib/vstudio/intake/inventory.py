@@ -545,6 +545,9 @@ def analyze(inputs, asr="sample", use_cache=True, language=None, max_files=MAX_F
     request selects content inside it). ``on_event``: progress events (module docstring)."""
     t0 = time.time()
     asr = "sample" if asr in (None, "auto") else asr
+    if language is None and asr != "off":
+        from vstudio.asr import default_language
+        language = default_language()
     root = cache_root()
     emit(on_event, stage="scan", inputs=len(inputs))
     files, notes = walk(inputs, max_files=max_files)

@@ -761,3 +761,30 @@ def test_empty_model_revision_keeps_no_project_and_can_recover(tmp_path, monkeyp
         dict(json=dict(projects=plan['projects'], risks=[], questions=[]), model='mock'))
     assert restored['projects']
     assert not restored.get('needs')
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+def test_inventory_cache_tracks_default_asr_language(tmp_path, monkeypatch):
+    import _batch_helpers as H
+    from vstudio import asr
+    monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
+    x, _, dur = H.synth_speech([("hello", .4), ("everyone", .5)])
+    H.make_video(str(tmp_path / "talk.mp4"), x, 48000, dur)
+    calls = []
+    def transcribe(wav, language):
+        selected = language or asr.default_language()
+        calls.append(selected)
+        return dict(language="en" if selected == "auto" else selected,
+                    segments=[] if selected == "zh" else [dict(start=0, end=1, text="hello everyone")])
+    monkeypatch.setattr(I, "TRANSCRIBE", transcribe)
+    monkeypatch.setattr(I, "FACES", lambda img: [])
+    src = [str(tmp_path / "talk.mp4")]
+    monkeypatch.setenv("VSTUDIO_ASR_LANGUAGE", "zh")
+    assert I.analyze(src)["files"][0]["speech"] is False
+    monkeypatch.setenv("VSTUDIO_ASR_LANGUAGE", "auto")
+    detected = I.analyze(src)["files"][0]
+    assert detected["speech"] is True and detected["language"] == "en"
+    assert calls == ["zh", "auto"]
+    assert I.analyze(src)["files"][0]["cached"]
+    assert I.analyze(src, language="zh")["files"][0]["speech"] is False
+    assert calls == ["zh", "auto"]
