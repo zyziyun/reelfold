@@ -119,3 +119,15 @@ def test_flash_report_exposes_spatial_support_without_waiving_gate(region, expec
     assert not report["ok"]
     assert event["active_cell_fraction"] == expected
     assert 100/FPS <= event["peak_t"] <= 115/FPS
+
+
+@pytest.mark.parametrize("kind,span", [("flash_region", 15), ("blink", 3)])
+def test_local_event_reports_grid_bounds_without_clearing_failure(kind, span):
+    grid = np.full((240, 8, 8), 50, dtype=np.float32)
+    grid[100:100 + span, 4:6, 2:4] += 180
+    report = FL.measure(grid, FPS, "calm")
+    event = next(e for e in report["events"] if e["kind"] == kind)
+    assert not report["ok"]
+    assert event["active_bounds"] == [.25, .5, .5, .75]
+    assert event["active_cell_fraction"] == .062
+    assert round(100/FPS, 3) <= event["peak_t"] < (100 + span)/FPS

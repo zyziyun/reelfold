@@ -178,22 +178,29 @@ def measure(F, fps, profile="calm", C=None):
     # A change in the frame mean is not proof that every part flashed. Preserve
     # the gate, but expose spatial support so reviewers can distinguish localized
     # object/occlusion changes from a broadly distributed exposure transient.
-    if any(e["kind"] == "flash" for e in ev):
-        for event in ev:
-            if event["kind"] != "flash":
-                continue
-            a = min(len(fl) - 1, max(0, round(event["t"] * fps) - s0))
-            b = max(a + 1, min(len(fl), round(event["end"] * fps) - s0 + 1))
-            peak = a + int(np.argmax(fl[a:b]))
+    traces = {"flash": fl, "flash_region": fq, "blink": bl}
+    for event in ev:
+        trace = traces.get(event["kind"])
+        if trace is not None:
+            a = min(len(trace) - 1, max(0, round(event["t"] * fps) - s0))
+            b = max(a + 1, min(len(trace), round(event["end"] * fps) - s0 + 1))
+            peak = a + int(np.argmax(trace[a:b]))
             frame = peak + s0
             event["peak_t"] = round(frame / fps, 3)
             # Only inspect the event neighbourhood, not a second full-length
             # per-cell rolling window for a potentially hours-long recording.
             radius = int(np.ceil(.6 * fps)) + 2
             lo, hi = max(0, frame - radius), min(n, frame + radius + 1)
-            cells = score(F[lo:hi].reshape(hi - lo, -1), fps)[frame - lo]
-            event["active_cell_fraction"] = round(float(
-                np.mean(cells > lim["flash"])), 3)
+            near, far = (.1, .3) if event["kind"] == "blink" else (.35, .6)
+            cells = score(F[lo:hi].reshape(hi - lo, -1), fps, near, far)[frame - lo]
+            active = (cells > lim[event["kind"]]).reshape(g, g)
+            event["active_cell_fraction"] = round(float(np.mean(active)), 3)
+            ys, xs = np.nonzero(active)
+            # Normalized, coarse grid bounds for inspection, not a face/object
+            # detector or a mask that can safely be repaired automatically.
+            event["active_bounds"] = ([float(xs.min() / g), float(ys.min() / g),
+                                       float((xs.max() + 1) / g), float((ys.max() + 1) / g)]
+                                      if len(xs) else None)
     rep["events"] = sorted(ev, key=lambda e: e["t"])
     rep["ok"] = not rep["events"]
     return rep
