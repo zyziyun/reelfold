@@ -375,7 +375,7 @@ _COPY_KEYS = ("title", "hook", "body", "tags", "chapters", "links")
 def localize_post(post, platform, content_lang=None, lang=None, bilingual=None, warn=print):
     """post.json -> the flat {title, hook, body, tags, chapters, links, lang} for one platform.
 
-    post may hold per-language blocks ``{"en": {title, hook, body, tags}, "zh": {...}}`` next to (or instead of)
+    post may hold language-tagged blocks (e.g. ``en``, ``zh``, ``fr``, ``ja``, ``pt-BR``) next to (or instead of)
     the flat keys, plus ``lang`` / ``bilingual`` / ``lang_by_platform`` {platform: "en"}; a ``per_platform``
     {platform: {title, body, tags, lang}} block (vstudio.postcopy) is that platform's finished copy and wins.
     Language: ``lang`` arg > ``lang_by_platform`` > ``post.lang`` > the content language (``content_lang``, e.g.
@@ -405,12 +405,16 @@ def localize_post(post, platform, content_lang=None, lang=None, bilingual=None, 
         b = dict(flat, **{k: v for k, v in own.items() if k in _COPY_KEYS and v not in (None, "")})
         b["lang"] = own.get("lang") or lang or content_lang
         return b
-    blocks = {k: dict(flat, **post[k]) for k in ("en", "zh") if isinstance(post.get(k), dict)}
+    # Language-tagged copy is not limited to the two legacy bilingual languages.
+    # Require a language-shaped key and copy fields so metadata maps are never posts.
+    blocks = {k: dict(flat, **post[k]) for k in dict.fromkeys(("en", "zh", *post))
+              if re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", k)
+              and isinstance(post.get(k), dict) and any(field in post[k] for field in _COPY_KEYS)}
     want = (lang or (post.get("lang_by_platform") or {}).get(pl) or post.get("lang") or content_lang
             or ("en" if pl in INTL_PLATFORMS and "en" in blocks else None) or ("zh" if "zh" in blocks else None))
     if bilingual is None:
         bilingual = bi_post
-    if bilingual and len(blocks) == 2:
+    if bilingual and "en" in blocks and "zh" in blocks:
         en, zh = blocks["en"], blocks["zh"]
 
         def paras(b):

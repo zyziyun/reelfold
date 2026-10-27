@@ -31,6 +31,16 @@
 The selectors of every assisted-fill page are marked **unverified** until someone checks them against the live page
 with a logged-in account. The desk keeps the adapter files.
 
+## Authored translations in post files
+
+`post.json` can keep separate copy blocks keyed by language tags such as `en`, `zh`, `fr`, `ja`, `ar` or `pt-BR`.
+Each block contains the usual title, hook, body, tags, chapters and links. The existing `lang`,
+`lang_by_platform`, and content-language selectors choose the matching block for formatting; this does not
+translate missing text. A missing requested block emits a warning before using an available block.
+The legacy `bilingual` option combines English and Chinese only, even when other translations are present.
+YouTube/Shorts still use the current English-only policy; this file support does not change that policy or
+promise arbitrary-language narration or automatic translation in every workflow.
+
 ## Duplicate a post
 
 Duplicating a calendar card to tomorrow or next week creates new drafts. Each enabled platform keeps its selected
