@@ -246,17 +246,18 @@ def detect(text, materials=None):
     t = (text or "").lower()
     if not t.strip():
         return None
+    try:
+        from vstudio.intake.rules import recipe_scores, negations
+        excluded = negations(t)
+        scores = {rid: score for rid, score in recipe_scores(t).items() if rid not in excluded}
+    except Exception:                                   # noqa: BLE001 - the phrase table is optional here
+        scores = {}
     from vstudio.content_kind import detect as content_kind
     purpose = content_kind(t)
-    if purpose and not any(w in t for w in ("aigc", "ai生成", "ai 生成", "ai-generated", "ai generated", "ai skit", "ai short", "可灵", "即梦", "产品发布", "launch", "release video")):
+    if purpose and not (set(scores) & {"ai-video", "launch-kit"}):
         if purpose == "sketch" and ((materials or {}).get("videos") or re.search(r"剪|拍好|\bedit\b|recut|recorded|footage", t)):
             return "sketch-edit"
         return {"product": "product-film", "company": "company-film", "sketch": "sketch"}[purpose]
-    try:
-        from vstudio.intake.rules import recipe_scores
-        scores = recipe_scores(t)
-    except Exception:                                   # noqa: BLE001 - the phrase table is optional here
-        scores = {}
     fs = {}
     for rid, s in scores.items():
         fid = BY_RECIPE.get(rid)

@@ -3,6 +3,9 @@
 `vstudio.formats detect` names the editorial intent. `vstudio.intake` combines that intent with the inspected
 sources to choose an executable recipe. Preserve an explicit workflow, requested language and source performance.
 Mode recognition is not evidence that its final film has passed a quality audit.
+“短剧” alone does not request AI generation. A filmed comedy short stays in performance editing;
+a request to write its script stays in preproduction. Explicit generation requests select ai-video,
+and negated generation requests are excluded from both format detection and recipe selection.
 
 | Purpose / actual material | Execution | What the edit must prove |
 |---|---|---|

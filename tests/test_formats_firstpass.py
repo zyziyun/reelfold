@@ -306,3 +306,10 @@ def test_promo_post_copy_script_drops_career_tags(tmp_path, monkeypatch):
     text = (tmp_path / "post.md").read_text(encoding="utf-8")
     assert "#AI视频" in text and "#可灵" in text
     assert "北美求职" not in text and "AIEngineer" not in text
+
+
+def test_filmed_sketch_and_negated_generation_format():
+    from vstudio import formats
+    assert formats.detect("剪这个已经拍好的搞笑短剧，保留原声和笑点", {"videos": 1}) == "sketch-edit"
+    assert formats.detect("不要AI生成，用这些产品照片做电商视频", {"photos": 2}) == "product-film"
+    assert formats.detect("用AI生成一条搞笑短剧") == "ai-skit"

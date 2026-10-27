@@ -19,7 +19,7 @@ from . import inventory as I
 PHRASES = [
     ("learning-commentary", ["学习分享", "边学边讲", "边学习边介绍", "读书分享", "读书感想", "原片加讲解",
         "访谈加口播", "播客加感想", "learn and share", "learning commentary", "book commentary", "reaction video"], 5),
-    ("ai-video", ["ai短剧", "ai 短剧", "短剧", "aigc", "ai生成", "ai 生成", "可灵", "即梦", "seedance", "海螺", "定妆照", "分镜prompt",
+    ("ai-video", ["ai短剧", "ai 短剧", "aigc", "ai生成", "ai 生成", "可灵", "即梦", "seedance", "海螺", "定妆照", "分镜prompt",
                   "积分", "连载", "ai skit", "ai-generated", "ai generated", "ai short", "text-to-video"], 3),
     ("explainer", ["讲解视频", "讲解短视频", "讲解", "3b1b", "3blue1brown", "解释一个概念", "原理讲解", "科普", "explainer"], 2),
     ("lesson-clips", ["切成知识点", "按知识点", "知识点切片", "知识点", "教学点", "今日短语", "每日短语", "每个短语", "学习笔记",
@@ -468,8 +468,6 @@ def _resolve(r, sc, intent, present, clause):
         return "vlog"
     if r == "vlog" and "photo" in present and "footage" not in present:
         return "photo-story"
-    if r == "preproduction" and re.search(r"剧本", text) and "短剧" in text:
-        return "ai-video"
     return r
 
 
