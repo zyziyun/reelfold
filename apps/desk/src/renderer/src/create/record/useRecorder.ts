@@ -257,11 +257,16 @@ export function useRecorder() {
       setState('ready');
     } catch (e) {
       if (!active()) return;
+      // Capture may already be open when meter setup fails. Release it before
+      // offering a retry, including a partially initialized audio context.
+      releaseCamera();
+      setStream(null);
+      setLevel(0);
       const name = (e as Error).name;
       setState(name === 'NotAllowedError' ? 'denied' : 'error');
       setError((e as Error).message);
     }
-  }, [listDevices, stopStream, interruptCapture]);
+  }, [listDevices, stopStream, interruptCapture, releaseCamera]);
 
   /** Switch the camera or the microphone (not while recording). */
   const switchDevice = useCallback(

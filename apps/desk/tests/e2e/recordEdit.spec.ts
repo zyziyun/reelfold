@@ -252,6 +252,44 @@ test.describe('recording final data delivery', () => {
 test.describe('recording permission lifecycle', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
+  for (const failure of ['constructor', 'source'] as const) {
+    test(`releases camera and microphone when meter ${failure} fails and can retry`, async () => {
+      const launched = await launch(`meter-${failure}`, { DESK_STUDIO: '1' });
+      app = launched.app;
+      const page = launched.page;
+      await page.evaluate((failure) => {
+        const Native = window.AudioContext;
+        const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+        const audio = new Native(); const tone = audio.createOscillator(); const dest = audio.createMediaStreamDestination();
+        tone.connect(dest); tone.start();
+        const state = window as unknown as { meterTracks: MediaStreamTrack[][]; meterContext?: AudioContext };
+        state.meterTracks = [];
+        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => {
+          const stream = new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...dest.stream.clone().getAudioTracks()]);
+          state.meterTracks.push(stream.getTracks());
+          return stream;
+        } });
+        window.AudioContext = new Proxy(Native, { construct(Target) {
+          window.AudioContext = Native;
+          if (failure === 'constructor') throw new Error('Meter initialization failed');
+          const context = new Target(); state.meterContext = context;
+          context.createMediaStreamSource = () => { throw new Error('Meter initialization failed'); };
+          return context;
+        } });
+        location.hash = '#/create/record';
+      }, failure);
+      await page.getByTestId('create-rec-allow').click();
+      await expect(page.getByTestId('create-rec-allow')).toBeEnabled();
+      await expect(page.getByText('Meter initialization failed').first()).toBeVisible();
+      await expect.poll(() => page.evaluate(() => (window as unknown as { meterTracks: MediaStreamTrack[][] }).meterTracks[0].map(t => t.readyState))).toEqual(['ended', 'ended']);
+      if (failure === 'source') await expect.poll(() => page.evaluate(() => (window as unknown as { meterContext: AudioContext }).meterContext.state)).toBe('closed');
+      await page.getByTestId('create-rec-allow').click();
+      await expect(page.getByTestId('create-rec-preview')).toBeVisible();
+      expect(await page.evaluate(() => (window as unknown as { meterTracks: MediaStreamTrack[][] }).meterTracks[1].map(t => t.readyState))).toEqual(['live', 'live']);
+      await page.evaluate(() => { location.hash = '#/'; });
+      await expect.poll(() => page.evaluate(() => (window as unknown as { meterTracks: MediaStreamTrack[][] }).meterTracks.flat().map(t => t.readyState))).toEqual(['ended', 'ended', 'ended', 'ended']);
+    });
+  }
   for (const capture of ['camera', 'screen'] as const) {
     test(`releases a late ${capture} stream after leaving the recording page`, async () => {
       const launched = await launch(`late-${capture}`, { DESK_STUDIO: '1' });
