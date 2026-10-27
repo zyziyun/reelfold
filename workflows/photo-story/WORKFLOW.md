@@ -317,3 +317,15 @@ language; an explicit voice is kept. Missing local voices fail instead of silent
 switching to English. This does not translate the script or localize the cover,
 post, or platform-specific caption selection: those still require authored text
 and separate review.
+
+
+For an explicitly authored non-English/non-Chinese narration locale (for example
+`TTS.language="ja-JP"`), leave `SUBS` unset or `"auto"`: the first cue column,
+`TITLE_EN`, `SECTIONS_EN`, labels and `POST` hold that language despite the legacy
+field names. Picture labels are preserved, and cue JSON records the locale in
+`meta.lang` with the primary text in `text`; both sidecar export and clean-master
+export share this representation. Platform layout remains independent of that
+explicit language. Existing en/zh specs keep their platform language rules;
+explicit `SUBS="en"`, `"zh"`, or `"both"` keeps the legacy selection. No translation
+is performed. Author and review cover text separately; automatic planning and
+arbitrary multilingual translation maps are not provided by this spec mode.

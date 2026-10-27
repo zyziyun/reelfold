@@ -25,7 +25,6 @@ from PIL import Image
 from vstudio import audio, media
 from vstudio import platform as vplat
 from vstudio.config import persona
-from vstudio.subs import strip_markup
 
 from photostory import overlays as ov
 from photostory import audiomix
@@ -209,8 +208,7 @@ def main():
         except flicker.FlickerError as e:
             sys.exit(f"!! render failed - {e}")
     if a.clean_master:
-        from vstudio.subs import Cue
-        cues = [Cue(s["start"] - t_from, s["end"] - t_from, strip_markup(s["zh"] or ""), strip_markup(s["en"] or "")).to_dict()
+        cues = [C.export_cue(s, t_from).to_dict()
                 for s in T.subs if s["end"] > t_from and s["start"] < end_t]
         cp_ = os.path.splitext(out)[0] + ".cues.json"
         json.dump(cues, open(cp_, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

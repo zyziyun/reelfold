@@ -93,7 +93,7 @@ def main():
     pairs = [(s, *C.sub_pair(s["en"] or "", s["zh"] or "")) for s in T.subs]
     srt_write([Cue(s["start"], s["end"], z, e) if C.ZH_LEAD else Cue(s["start"], s["end"], e, z)
                for s, e, z in pairs], os.path.join(out, "subtitles.srt"), which="both")
-    json.dump([Cue(s["start"], s["end"], clean(s["zh"]), clean(s["en"])).to_dict() for s in T.subs],
+    json.dump([C.export_cue(s).to_dict() for s in T.subs],
               open(os.path.join(out, "cues.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     title = C.TITLE_EN or C.TITLE_ZH
@@ -114,7 +114,8 @@ def main():
 
     post = dict(getattr(spec, "POST", {}) or {})
     pl = publish.platform_name(post.get("platform") or (C.prof.name if C.prof is not None else None))
-    post = post_for(spec, post, pl)
+    if not C.TEXT_LANGUAGE:
+        post = post_for(spec, post, pl)
     post_en = not re.search(r"[\u4e00-\u9fff]", f"{post.get('title', '')}{post.get('intro', '')}")
     cap = publish.XHS_CHAPTER_LABEL_MAX if pl in ("xiaohongshu", "xhs") else None
     chapters = []
