@@ -120,3 +120,10 @@ Real supporting-material inserts retain the beat timing and source validation, b
 40% summary-card budget. Showing the object being discussed is not a redundant summary. Prefer compact
 regions around the explained labels over a full-width dense crop; two separated labels can use two
 panels. Judge readability on the actual export, not only on the source-resolution slide.
+
+Automatic still-detail plans receive a bounded visual review using the full frozen source plus native
+360×640 and 450×600 previews. The reviewer may adjust only the source rectangles; timing, source identity
+and quoted evidence stay fixed. A correction is rendered and checked once more, with no further correction
+loop. Missing findings, invalid rectangles, changed source bytes or a still-unverified crop fail visibly.
+The plan records findings and inspected rectangles. This checks static visual clarity only: final caption
+placement, motion, speech quality and whole-video acceptance still need the ordinary export audit.

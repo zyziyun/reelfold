@@ -150,8 +150,12 @@ def test_planned_detail_uses_oriented_source_pixels(tmp_path):
     assert assets[0]['size'] == [640, 360]
     assert '640x360' in context
     beat = dict(BEAT, detail_regions=[[80, 90, 240, 100]])
-    result = spoken.plan(CUES, 10, materials=assets, images=images, material_context=context,
-                         complete=lambda *a, **kw: dict(json=dict(beats=[beat])))
+    def model(*a, **kw):
+        if 'acceptable' in kw['schema']['properties']:
+            return dict(json=dict(acceptable=True, findings=['The target is clear.'], detail_regions=beat['detail_regions']))
+        return dict(json=dict(beats=[beat]))
+    result = spoken.plan(CUES, 10, materials=assets, images=images, material_context=context, complete=model)
+    assert len(result['detail_reviews']) == 1
     assert result['effects'][0]['params']['detail_regions'] == beat['detail_regions']
 
 
@@ -169,13 +173,17 @@ def test_planned_detail_cannot_assume_video_region_is_still():
                         [dict(id='p0001', kind='video', path='unused', duration=10, size=[640, 360])])
 
 
-def test_bad_detail_region_uses_existing_repair_flow():
+def test_bad_detail_region_uses_existing_repair_flow(tmp_path):
+    photo = tmp_path / 'source.png'
+    Image.new('RGB', (640, 360), 'white').save(photo)
     calls = []
     def model(task, system, prompt, **kw):
+        if 'acceptable' in kw['schema']['properties']:
+            return dict(json=dict(acceptable=True, findings=['The crop is complete.'], detail_regions=[[100, 40, 80, 40]]))
         calls.append(prompt)
         regions = [[630, 0, 80, 40]] if len(calls) == 1 else [[100, 40, 80, 40]]
         return dict(json=dict(beats=[dict(BEAT, detail_regions=regions)]))
-    result = spoken.plan(CUES, 10, materials=[dict(id='p0001', kind='image', path='unused', size=[640, 360])],
+    result = spoken.plan(CUES, 10, materials=[dict(id='p0001', kind='image', path=str(photo), size=[640, 360])],
                          complete=model)
     assert len(calls) == 2 and len(result['repairs']) == 1
     assert 'outside the displayed source' in calls[1]
@@ -200,3 +208,45 @@ def test_referenced_material_is_not_counted_as_summary_card_coverage():
     card = dict(beat, kind='takeaway', title='Callback', items=['Required here'])
     with pytest.raises(ValueError, match='cover too much'):
         spoken.validate(dict(beats=[card]), cues, 10)
+
+
+@pytest.mark.parametrize('bad', ['missing', 'outside', 'unresolved', 'second_correction', 'source_changed'])
+def test_detail_review_fails_visibly_without_replanning(tmp_path, bad):
+    photo = tmp_path / 'detail.png'
+    Image.new('RGB', (640, 360), 'white').save(photo)
+    calls = []
+    old, new = [[0, 0, 200, 100]], [[100, 20, 200, 100]]
+    effect = dict(id='spoken-1', start=3, end=7, params=dict(file=str(photo), detail_regions=old))
+    def model(*a, **kw):
+        calls.append(kw)
+        if bad == 'source_changed':
+            Image.new('RGB', (640, 360), 'red').save(photo)
+        if bad == 'missing':
+            return dict(json={})
+        regions = [[600, 0, 100, 100]] if bad == 'outside' else old if bad == 'unresolved' else new
+        return dict(json=dict(acceptable=False, findings=['An annotation is clipped.'], detail_regions=regions))
+    with pytest.raises(ValueError):
+        spoken._review_detail(effect, dict(evidence='This method'), model)
+    assert len(calls) <= 2
+    assert effect['params']['detail_regions'] == old
+
+
+def test_detail_review_renders_correction_before_acceptance(tmp_path):
+    import json
+    photo = tmp_path / 'detail.png'
+    Image.new('RGB', (640, 360), 'white').save(photo)
+    old, new = [[0, 0, 200, 100]], [[100, 20, 300, 200]]
+    effect = dict(id='spoken-1', start=3, end=7, params=dict(file=str(photo), detail_regions=old))
+    calls, pixels, paths = [], [], []
+    def model(task, system, prompt, **kw):
+        calls.append(json.loads(prompt))
+        assert [Image.open(p).size for p in kw['images']] == [(640, 360), (360, 640), (450, 600)]
+        pixels.append(Path(kw['images'][1]).read_bytes())
+        paths.extend(kw['images'])
+        return dict(json=dict(acceptable=len(calls) == 2, findings=['Crop checked.'], detail_regions=new))
+    regions, reviews = spoken._review_detail(effect, dict(evidence='This method'), model)
+    assert regions == new and len(reviews) == 2
+    assert calls[0]['detail_regions'] == old and calls[1]['detail_regions'] == new
+    assert calls[0]['hold_seconds'] == calls[1]['hold_seconds'] == 4
+    assert pixels[0] != pixels[1]
+    assert all(not Path(p).exists() for p in paths)
