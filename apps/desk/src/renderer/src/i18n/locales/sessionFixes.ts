@@ -4,6 +4,8 @@
 import { reviewEn, reviewFr, reviewZh } from './review';
 
 export const sessionFixesEn = {
+  'issue.screen-content-cropped': 'Some screen content is outside the frame',
+  'issue.do.screen-content-cropped': 'Check the ends of lines and annotations. Widen the crop or show the whole screen.',
   'issue.flicker': "The picture flashes or flickers",
   'issue.do.flicker': "Review the flagged moments and their source shots. Correct exposure changes or transitions, then render and check again.",
   'fail.reason.stage-gpu-stream': "Slow-motion rendering failed in the graphics worker. Update Reelfold before retrying.",
@@ -107,6 +109,8 @@ export const sessionFixesEn = {
 };
 
 export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
+  'issue.screen-content-cropped': '部分屏幕内容被裁掉了',
+  'issue.do.screen-content-cropped': '检查行尾和批注，扩大取景范围，或保留完整屏幕。',
   'issue.flicker': "画面出现闪光或闪烁",
   'issue.do.flicker': "检查标记的时间点及对应原素材，修正曝光变化或转场后，重新渲染并检查。",
   'fail.reason.stage-gpu-stream': "慢动作渲染的图形处理线程出错，请更新千剪后再重试。",
@@ -199,6 +203,8 @@ export const sessionFixesZh: Record<keyof typeof sessionFixesEn, string> = {
 };
 
 export const sessionFixesFr: Record<keyof typeof sessionFixesEn, string> = {
+  'issue.screen-content-cropped': 'Une partie de l’écran est hors cadre',
+  'issue.do.screen-content-cropped': 'Vérifiez les fins de ligne et les annotations. Élargissez le cadrage ou montrez tout l’écran.',
   'issue.flicker': "L’image présente des flashs ou scintille",
   'issue.do.flicker': "Examinez les instants signalés et leurs plans sources. Corrigez les changements d’exposition ou les transitions, puis refaites le rendu et le contrôle.",
   'fail.reason.stage-gpu-stream': "Le rendu du ralenti a échoué dans le traitement graphique. Mettez Reelfold à jour avant de réessayer.",
