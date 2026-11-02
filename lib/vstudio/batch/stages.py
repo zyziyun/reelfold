@@ -38,10 +38,14 @@ def _src(job):
     return _p(job)["source"]
 
 
+def _asr_prompt(p, spec):
+    return p.get("asr_prompt") or (spec.get("asr") or {}).get("prompt")
+
+
 def _asr_opts(job, spec):
     a = dict(spec.get("asr") or {})
     p = _p(job)
-    return dict(language=p.get("language") or a.get("language"), prompt=p.get("asr_prompt") or a.get("prompt"),
+    return dict(language=p.get("language") or a.get("language"), prompt=_asr_prompt(p, spec),
                 backend=a.get("backend", "auto"), transcriber=a.get("transcriber"))
 
 
@@ -568,7 +572,7 @@ def _proofread_params(job, spec):
              term_fixes=(spec.get("subtitles") or {}).get("term_fixes"), filler_edges=o["filler_edges"], v=2)
     if o["provider"] != "none" or o["call"]:          # the LLM prompt's context (a review copy edit does not re-ask;
         from .edits import key_copy                   # the notes are a hint only: a notes edit never re-proofreads)
-        d.update(asr=(spec.get("asr") or {}).get("prompt"), title=key_copy(_p(job), "title"), chapter=_p(job).get("chapter"),
+        d.update(asr=_asr_prompt(_p(job), spec), title=key_copy(_p(job), "title"), chapter=_p(job).get("chapter"),
                  series=_p(job).get("series"))
     return d
 
@@ -583,15 +587,15 @@ def _glossary_model(o):
 
 
 def _glossary_params(job, spec):
-    """Shared per source: everything here must be the same for every job cut from that source."""
+    """Share across cuts of a source when their glossary inputs agree."""
     o = proofread_opts(spec)
     return dict(provider=o["glossary_provider"], model=_glossary_model(o), call=o["call"],
-                term_fixes=(spec.get("subtitles") or {}).get("term_fixes"), asr=(spec.get("asr") or {}).get("prompt"),
+                term_fixes=(spec.get("subtitles") or {}).get("term_fixes"), asr=_asr_prompt(_p(job), spec),
                 series=(spec.get("vertical") or {}).get("series") or _p(job).get("series"), v=1)
 
 
-def _gloss_context(spec, series=None):
-    gl = [x.strip() for x in str((spec.get("asr") or {}).get("prompt") or "").split(",") if x.strip()]
+def _gloss_context(spec, p):
+    gl = [x.strip() for x in str(_asr_prompt(p, spec) or "").split(",") if x.strip()]
     gl += [str(f[1]) for f in (spec.get("subtitles") or {}).get("term_fixes") or [] if isinstance(f, (list, tuple))]
     from vstudio.asr import persona_terms
     gl += [t for t in persona_terms() if t not in gl]   # her glossary: the proofreader knows her own words
@@ -629,7 +633,7 @@ def run_glossary(ctx):
     text = transcript_text(tr, tf)
     series = (ctx.spec.get("vertical") or {}).get("series") or ctx.params.get("series")
     call = import_ref(o["call"]) if o["call"] else None
-    gctx = dict(topic=series, glossary=_gloss_context(ctx.spec))
+    gctx = dict(topic=series, glossary=_gloss_context(ctx.spec, ctx.params))
     try:
         res = PR.build_glossary(text, context=gctx, provider=o["glossary_provider"], model=_glossary_model(o),
                                 call=call, prices=ctx.spec.get("prices"))
@@ -716,7 +720,7 @@ def proofread_context(spec, p):
     notes (a hint only - not part of the cache key)."""
     from .edits import key_copy
     topic = [(spec.get("vertical") or {}).get("series"), p.get("series"), p.get("chapter"), key_copy(p, "title")]
-    return dict(topic=" / ".join(dict.fromkeys(str(x) for x in topic if x)), glossary=_gloss_context(spec),
+    return dict(topic=" / ".join(dict.fromkeys(str(x) for x in topic if x)), glossary=_gloss_context(spec, p),
                 notes=[str(x) for x in list(p.get("notes") or [])[:6]])
 
 

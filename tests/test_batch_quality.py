@@ -312,3 +312,25 @@ def test_flag_at_a_cut_joint_is_a_real_loss(tmp_path):
     got = [w for w in exp if w["w"] != "模型"]
     rep = C.verify(out, transcriber=lambda p: got, write=False)
     assert not rep["ok"] and rep["missing"][0]["text"] == "模型"
+
+
+def test_course_terms_follow_asr_override_into_caption_stages(tmp_path, monkeypatch):
+    from vstudio import asr
+    monkeypatch.setattr(asr, "persona_terms", lambda: [])
+    spec = {"asr": {"prompt": "default_topic"}, "proofread": {"provider": "openai"}}
+    job = {"params": {"asr_prompt": "count_code_lines, handler"}}
+    default = {"params": {}}
+    for params in (ST._glossary_params, ST._proofread_params):
+        assert params(job, spec)["asr"] == ST._asr_opts(job, spec)["prompt"]
+        assert params(default, spec)["asr"] == "default_topic"
+    assert ST.proofread_context(spec, job["params"])["glossary"] == ["count_code_lines", "handler"]
+    captured = []
+    def glossary(text, *, context, **kwargs):
+        captured.append(context["glossary"])
+        return dict(provider="none", terms=[], fixes=[], rejected=[], cost_usd=0)
+    monkeypatch.setattr(PR, "build_glossary", glossary)
+    tr = tmp_path / "transcript.json"
+    tr.write_text(json.dumps({"segments": [{"text": "count count lines"}]}))
+    for entry in (job, default):
+        ST.run_glossary(Ctx(entry, spec, str(tmp_path), {"asr": {"transcript": str(tr)}}, str(tmp_path)))
+    assert captured == [["count_code_lines", "handler"], ["default_topic"]]

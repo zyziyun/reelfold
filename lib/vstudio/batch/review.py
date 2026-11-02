@@ -70,13 +70,13 @@ def cleanup_view(rows, params, pol=None):
     return dict(confirm=[_row(e) for e in edits if e["action"] == "confirm"], edits=edits, policy=pc)
 
 
-def _captions(rows, store, prr):
+def _captions(rows, store, prr, params):
     from vstudio import proofread as PR
     changes = [dict(c) for c in prr.get("changes") or []]
     if changes and any("guess" not in c for c in changes):        # reports written before the guess flags
         g = ((rows.get("glossary") or {}).get("out") or {}).get("glossary")
         from .stages import _gloss_context
-        PR.flag_guesses(changes, read_json(g, {}) if g else None, dict(glossary=_gloss_context(store.spec)))
+        PR.flag_guesses(changes, read_json(g, {}) if g else None, dict(glossary=_gloss_context(store.spec, params)))
     return dict(provider=prr.get("provider"), model=prr.get("model"),
                 changes=[dict(i=c["i"], start=c.get("start"), before=c["before"], after=c["after"],
                               source=c.get("source"), why=c.get("why", ""), guess=bool(c.get("guess")),
@@ -104,7 +104,7 @@ def collect(store, also=()):
         confirm = view["confirm"]
         pr = (rows.get("proofread") or {}).get("out") or {}
         prr = read_json(pr.get("report"), {}) if pr.get("report") else {}
-        captions = _captions(rows, store, prr)
+        captions = _captions(rows, store, prr, j["params"] or {})
         p = j["params"] or {}
         out.append(dict(
             id=j["id"], item=j["item"], variant=j["variant"], state=j["state"], qc=j["qc"] or "none",
