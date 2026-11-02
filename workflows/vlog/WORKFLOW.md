@@ -310,6 +310,16 @@ in the report. Still check A3 (first version too fast? use `pace: "relaxed"`) an
 "less text" -> drop `word_pops`/`date`/`map`; "no SFX" -> `sfx: false`; "too loud music" -> `music_lufs:
 -22`; "speech too quiet" -> `duck_db: -16`.
 
+**Readable evidence in a portrait vlog.** When the speaker points out a time, price, or route,
+show the actual ticket, timetable or map at that moment. If the full image is illegible at
+360 px wide, use a photo shot with `detail_regions`, e.g.
+`{"photo":"schedule.png","detail_regions":[[20,140,800,410]]}`. Measure one or two
+`[x,y,width,height]` rectangles in the displayed, EXIF-oriented source pixels; the numbers
+in this example are not defaults. Include the row label and value together. The fun renderer
+holds the overview and enlarged detail steady in portrait and reserves room for burned captions.
+Check the exported frame at phone size while the cue is active. For language variants, distinguish
+translated captions from dubbed audio in the handoff; matching durations do not prove a dub.
+
 ## Platforms
 `platform` in edit.json (or `--platform` on `build_vlog.py` / `build_fun.py` / `add_music.py` /
 `make_cover.py`): `xiaohongshu:full`, `xiaohongshu:vertical` (3:4), `douyin`, `tiktok`, `youtube`,

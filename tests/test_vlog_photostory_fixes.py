@@ -474,3 +474,16 @@ def test_final_narrated_shot_has_no_invisible_animation_extension():
         [("p0",1,"in",{})])], PACING={}), SECTIONS=["End"], cinema=True)
     t = Timeline(c, {0:dict(dur=4,path=None,chunks=[dict(start=0,end=4)])})
     assert t.shots[-1]["end"] == t.total and t.shots[-1]["tail"] == 0
+
+
+def test_detail_photo_keeps_source_colors_and_excludes_caption_band():
+    from funvlog.frames import photo_frames
+    rgb = np.full((300, 600, 3), 255, np.uint8)
+    rgb[100:140, 20:120] = [250, 10, 20]
+    frames = list(photo_frames(rgb, 2, 360, 640, 1, detail_regions=[[20, 100, 100, 40]], caption_band=(410, 550)))
+    red = np.all(frames[0] == [20, 10, 250], axis=2)
+    assert red.sum() > 12000 and not red[410:550].any()
+    frames[0][:] = 0
+    assert frames[1].any()
+    with pytest.raises(ValueError, match="outside"):
+        list(photo_frames(rgb, 1, 360, 640, 1, detail_regions=[[510, 100, 100, 40]]))

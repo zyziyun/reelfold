@@ -333,11 +333,19 @@ def card_renderer(W, H, unit, angle=-3.0, flash=True):
     return card
 
 
-def photo_frames(photo_rgb, n, W, H, unit, style="card", k_index=0, fps=30):
+def photo_frames(photo_rgb, n, W, H, unit, style="card", k_index=0, fps=30, detail_regions=None, caption_band=None):
     """Ken Burns frames for a still: zoom 1.0 -> 1.1 (alternating direction), card drop for style card."""
     import cv2
     from vstudio import draw as D
     bgr = photo_rgb[..., ::-1].copy()
+    if detail_regions is not None:
+        from vstudio.broll import detail_view
+        from vstudio.clipkit import detail_rectangles
+        regions = detail_rectangles(detail_regions, (bgr.shape[1], bgr.shape[0]))
+        frame = detail_view(bgr, W, H, regions, caption_band=caption_band).astype(np.uint8)
+        for _ in range(n):
+            yield frame.copy()  # downstream titles and transitions may modify their input
+        return
     z0, z1 = (1.0, 1.1) if k_index % 2 == 0 else (1.1, 1.0)
     dx = 0.03 if k_index % 2 == 0 else -0.03
     if style == "full":

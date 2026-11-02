@@ -251,7 +251,8 @@ def render(cfg, base, out, prof, pl, tl, cuts, meta, els, cues, clean, report, p
         if s["kind"] == "photo":
             img = FR.load_photo(s["src"], pl.cache)
             gen = FR.photo_frames(img, n, W, H, g_unit, style=s.get("style", cfg.get("photo_style", "card")),
-                                  k_index=photo_k, fps=fps)
+                                  k_index=photo_k, fps=fps, detail_regions=s.get("detail_regions"),
+                                  caption_band=P.caption_box(prof)[1::2] if cues else None)
             photo_k += 1
         else:
             if s.get("speech"):
