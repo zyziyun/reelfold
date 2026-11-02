@@ -26,8 +26,8 @@ function withQuery(h: string, q: URLSearchParams): string {
 }
 
 /** A request / project selected in All projects (the Studio's whole list, or the control room). */
-export function selHref(id: string): string {
-  return withQuery(href({ name: 'projects' }), new URLSearchParams({ sel: id }));
+export function selHref(id: string, recording = false): string {
+  return withQuery(href({ name: 'projects' }), new URLSearchParams(recording ? { sel: id, from: "recording" } : { sel: id }));
 }
 
 /** A scheduled post on the Publish board. */

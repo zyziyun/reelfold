@@ -420,6 +420,7 @@ export interface ProgressFeed {
 }
 export const WORK_TYPES = ['talkinghead', 'slices', 'explainer', 'photo-story', 'vlog', 'podcast', 'aigc', 'script', 'batch', 'promo', 'slides', 'other'] as const;
 export interface HistoryItem {
+  recording_source?: boolean;
   /** Recorded finished files are unavailable; live file discovery found none. */
   missing_outputs?: boolean;
   kind: 'batch' | 'project' | 'work';

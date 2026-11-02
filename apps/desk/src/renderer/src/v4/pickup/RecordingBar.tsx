@@ -98,7 +98,7 @@ export function FinishButton({ item, clip, flush, primary }: { item: string; cli
       const auto = (await window.desk.getSettings()).autopilot !== false;
       const req = await client.startIntake(t('rec.finishPrompt'), [file], undefined, getLang(), { mode: auto ? 'autopilot' : 'ask' });
       hist.reload();
-      const to = selHref(req.id);
+      const to = selHref(req.id, true);
       ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });
       location.hash = to;
     } catch (e) {

@@ -180,7 +180,7 @@ def summarize(d):
                             failed=0),
                 status="done" if found["outputs"] else "in-progress",
                 missing_outputs=bool((rec or {}).get("outputs") and not found["outputs"]), thumb=thumb,
-                deliveries=0, adopted=bool(rec))
+                recording_source=isinstance((rec or {}).get("recording"), dict), deliveries=0, adopted=bool(rec))
 
 
 def detail(d, max_text=40000):

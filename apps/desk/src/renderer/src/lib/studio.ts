@@ -197,6 +197,10 @@ export function studioRows(
       const mine = posts.filter((x) => x.item === i.id && x.clip === c.id);
       const missing = p.state === 'failed' && i.status === 'done' && !c.files.length && c.state !== 'failed';
       const g = clipGroup(missing ? { ...c, state: 'failed' } : c, mine, !!ask, running);
+      if (i.recording_source && c.id === 'recording' && g.group === 'ready') {
+        g.group = 'draft';
+        g.tone = 'off';
+      }
       if (ask?.kind === 'failed') g.tone = 'error';
       out.push({
         key: `${i.id}/${c.id}`,

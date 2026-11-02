@@ -311,3 +311,12 @@ test('with the Studio on, Home starts Create: the formats, a script, Record your
   await page.getByTestId('composer-record').click();
   await expect(page).toHaveURL(/#\/create\/record/);
 });
+
+test('a saved recording stays selected when its generation request is slow to appear', async () => {
+  const target = '#/studio?f=all&sel=aaaaaaaa0123&from=recording';
+  await hash(target);
+  await expect(page.getByTestId('studio')).toBeVisible();
+  await expect(page.getByTestId('recording-handoff')).toContainText('Recording saved');
+  await expect(page.getByTestId('recording-handoff')).toContainText('Refresh its status', { timeout: 30000 });
+  expect(await page.evaluate(() => location.hash)).toBe(target);
+});

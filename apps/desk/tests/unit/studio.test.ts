@@ -38,6 +38,13 @@ describe('studio rows', () => {
   const inbox = [ask('k1', 'aaaaaaaaaaaa', 'a1')];
   const rows = studioRows(items, [req('rrrrrrrrrrrr')], clips, posts, inbox, NOW);
 
+  it('keeps the editable take out of finished outputs without hiding its scheduled post', () => {
+    const take = item('take', { kind: 'work', recording_source: true });
+    const files = { take: [clip('recording')] };
+    expect(studioRows([take], [], files, [], [], NOW)[0].group).toBe('draft');
+    expect(studioRows([take], [], files, [post('take', 'recording', 'planned')], [], NOW)[0].group).toBe('scheduled');
+  });
+
   it('one row per clip; a project without clips yet (or a request) is one row', () => {
     expect(rows.map((r) => r.key).sort()).toEqual(['aaaaaaaaaaaa/a1', 'aaaaaaaaaaaa/a2', 'aaaaaaaaaaaa/a3', 'p:bbbbbbbbbbbb', 'r:rrrrrrrrrrrr']);
     expect(rows.find((r) => r.key === 'aaaaaaaaaaaa/a2')!.pos).toEqual([2, 3]);

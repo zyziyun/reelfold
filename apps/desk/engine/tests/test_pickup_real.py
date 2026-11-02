@@ -72,7 +72,7 @@ class PickupRealTest(unittest.TestCase):
         res = CreateApi(self.root, None)._after_ingest(res)
         self.assertEqual(res["item"], batch_id(self.take))
         self.assertEqual(res["clip"], "recording")
-        self.assertIn(res["item"], [r["id"] for r in self.h.list()["items"]])            # in All projects
+        self.assertTrue(next(r for r in self.h.list()["items"] if r["id"] == res["item"])["recording_source"])            # in All projects
         doc = self.o.show(res["item"], res["clip"])
         self.assertEqual(doc["engine"], "real")
         self.assertEqual(doc["recording"]["session"], os.path.basename(self.take))

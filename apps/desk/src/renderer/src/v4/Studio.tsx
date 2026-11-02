@@ -110,7 +110,7 @@ function useMadeFrom(sel: string | null, items: HistoryItem[] | undefined): stri
 }
 
 export function Studio({ id, clip }: { id?: string; clip?: string }) {
-  const { data: hist, archived: archDoc, archivedRequests, nArchivedRequests, wantArchived } = useHistory();
+  const { data: hist, archived: archDoc, archivedRequests, nArchivedRequests, wantArchived, reload } = useHistory();
   const ui = useUi();
   const inbox = useInbox();
   const { rows: allRows, posts, ready } = useStudioData();
@@ -253,6 +253,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   // a row until the history reloads: wait for it instead of jumping to an unrelated video (give up after 20 s)
   const first = list[0] ?? null;
   const [gaveUp, setGaveUp] = useState<string | null>(null);
+  const recordingHandoff = !id && !!q.sel && q.from === 'recording';
   const waiting = !!goalSel || (!!q.sel && !selKey && !cur && !id && gaveUp !== q.sel) || (!!askKey && !askRow && (!!askItem || !inbox.loaded));
   useEffect(() => {
     if (!q.sel || selKey) return;
@@ -263,7 +264,7 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
   useEffect(() => {
     // the address already names a video or a goal (a render between the address changing and the page following
     // it): never replaced by the first row
-    if (/^#\/studio\/[0-9a-f]{12}/.test(location.hash) || routeQuery(location.hash).goal) return;
+    if (/^#\/studio\/[0-9a-f]{12}/.test(location.hash) || routeQuery(location.hash).goal || routeQuery(location.hash).from === 'recording') return;
     if (!selKey && !cur && !waiting && first && hist) history.replaceState(null, '', rowHref(first));
     if (!selKey && !cur && !waiting && first && hist) window.dispatchEvent(new HashChangeEvent('hashchange'));
   }, [selKey, !!cur, waiting, first?.key, !!hist]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -575,6 +576,11 @@ export function Studio({ id, clip }: { id?: string; clip?: string }) {
           <Page key={cur.key} r={cur} posts={posts} more={(e) => menuAt(e, targetOf(cur))} ra={ra} />
         ) : askItem && !askRow ? (
           <AskPage key={askItem.key} x={askItem} where={t('st.projectAsk')} title={askItem.project.name ?? inboxTitle(askItem)} />
+        ) : recordingHandoff ? (
+          <div role="status" data-testid="recording-handoff">
+            <Empty title={t('rec.savedLocal')} hint={t(gaveUp === q.sel ? 'rec.requestDelayed' : 'rec.openGeneration')}
+              action={gaveUp === q.sel ? <button className="btn" onClick={reload}>{t('c.retry')}</button> : undefined} />
+          </div>
         ) : !ready || waiting ? (
           <PageSkeleton />
         ) : (
@@ -606,7 +612,7 @@ function lineOf(r: StudioRow): string {
   if (r.kind === 'request') return stateLine(r.p, undefined, r.r);
   if (r.i?.missing_outputs && r.p.state === 'idle') return stateLine(r.p, r.i);
   if (r.ask) return inboxTitle(r.ask);
-  if (r.group === 'draft') return t('vs.draft');
+  if (r.group === 'draft') return t(r.i?.recording_source ? 'rec.sourceTake' : 'vs.draft');
   if (r.group === 'you') return r.tone === 'error' ? t('hub.s.failed') : t('hub.s.you');
   if (r.group === 'run') {
     // not in the run line (no queue place): it has simply not been started - never "waiting its turn"

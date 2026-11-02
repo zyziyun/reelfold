@@ -164,7 +164,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const live = rec.state === 'recording' || rec.state === 'paused' || rec.state === 'stopping' || rec.state === 'save-error';
   const off = !rec.stream || rec.state === 'idle' || rec.state === 'asking' || rec.state === 'denied' || rec.state === 'error';
   const phase: Phase = off && !live ? 'off' : count !== null ? 'countdown' : rec.state === 'recording' ? 'recording' : rec.state === 'paused' ? 'paused' : rec.state === 'stopping' ? 'stopping' : rec.state === 'save-error' ? 'save-error' : 'ready';
-  const blocked = blockReason({ phase, useScript, lines: lines.length, busy: finishing.busy || rec.starting });
+  const blocked = blockReason({ phase, useScript, lines: lines.length, busy: !!stage || finishing.busy || rec.starting });
   const setTpBoth = (v: { cur: number; progress: number }) => {
     tpRef.current = v;
     setTp(v);
@@ -362,7 +362,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const finish = () =>
     void finishing.run(async () => {
       const tk = chosenTake(takes, chosen);
-      if (!tk || !client) return;
+      if (!tk || !client || stage) return;
       setErr(null);
       setStage('working');
       try {
@@ -393,7 +393,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
         const plats = homePlatforms(st.defaultPlatforms, Object.keys(st.accounts ?? {}).filter((k) => (st.accounts[k] ?? []).length));
         const r = await client.startIntake(ask.trim() || t('rec.finishPrompt'), [res.assembled], plats, getLang(), { mode: auto ? 'autopilot' : 'ask', recipe: ask.trim() ? undefined : 'talkinghead' });
         history.reload();
-        const to = selHref(r.id);
+        const to = selHref(r.id, true);
         ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });
         location.hash = to;
       } catch (e) {
@@ -544,9 +544,9 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                 </div>
               )}
               {phase === 'stopping' && <div className="rs-saving">{t('rec.saving')}</div>}
-              {stage === 'editing' && (
+              {stage && (
                 <div className="rs-count rs-preparing" role="status" data-testid="rec-preparing">
-                  <span>{t('rec.preparing')}</span>
+                  <span>{t('rec.savedLocal')}<br />{stage === 'editing' ? t('rec.preparing') : stage === 'models' ? t('rec.waitModels') : t('rec.working', { n: using?.n ?? 1 })}</span>
                 </div>
               )}
             </div>
@@ -703,7 +703,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                     {t('rec.edit')}
                   </button>
                 )}
-                <button type="button" className="rs-icon del" disabled={finishing.busy} onClick={() => void discard(tk)} aria-label={t('rec.delete', { n: tk.n })} title={t('rec.delete', { n: tk.n })} data-testid="rec-take-delete">
+                <button type="button" className="rs-icon del" disabled={!!stage || finishing.busy} onClick={() => void discard(tk)} aria-label={t('rec.delete', { n: tk.n })} title={t('rec.delete', { n: tk.n })} data-testid="rec-take-delete">
                   <Trash2 className="ico" />
                 </button>
               </div>
@@ -726,7 +726,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
           ) : (
             <>
               {!learning && !(eid && shot) && <textarea className="rs-ask" rows={2} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder={t('rec.askPh')} disabled={finishing.busy} data-testid="rec-ask" />}
-              <button type="button" className="btn primary lg rs-go" disabled={!using || live || finishing.busy} onClick={finish} data-testid="rec-finish">
+              <button type="button" className="btn primary lg rs-go" disabled={!using || live || !!stage || finishing.busy} onClick={finish} data-testid="rec-finish">
                 {learning ? t('learning.useRecording') : eid && shot ? t('rec.finishShot', { no: shot }) : t('rec.finish')}
               </button>
               <div className="rs-note" data-testid="rec-finish-note">

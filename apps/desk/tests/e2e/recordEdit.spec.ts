@@ -722,6 +722,8 @@ test.describe('record -> edit -> pickup', () => {
     await page.waitForTimeout(6500);
     await page.keyboard.press('Space');
     await expect(page.getByTestId('rec-preparing')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('rec-preparing')).toContainText('Recording saved');
+    await expect(page.getByTestId('rec-finish')).toBeDisabled();
     await expect(page.getByTestId('editor')).toBeVisible({ timeout: 180000 });
     await expect(page.getByTestId('transcript-body')).toContainText('everyone', { timeout: 60000 });
     await expect(page.getByTestId('editor-finish')).toBeVisible();
