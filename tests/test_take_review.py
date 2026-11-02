@@ -184,3 +184,21 @@ def test_soft_feedback_does_not_change_complete_review_threshold(tmp_path, count
     for key in list(R.SOFT)[:count]:
         card['soft'][key] = True
     assert R.verdict(card)[0] == decision
+
+
+@pytest.mark.parametrize("aspect,canvas", [("1:1", [1080, 1080]), ("3:4", [1080, 1440]),
+                                           ("9:16", [1080, 1920]), ("16:9", [1920, 1080])])
+def test_auto_timeline_uses_project_canvas_and_first_planned_unit_order(tmp_path, monkeypatch, aspect, canvas):
+    from vstudio import media
+    monkeypatch.setattr(media, "duration", lambda _: 1)
+    rows, _ = fixture(tmp_path)
+    root = tmp_path / "work" / "ai"
+    root.mkdir(parents=True)
+    shots = [{"id": "b"}, {"id": "second", "unit": "b"}, {"id": "a"}]
+    (root / "project.yaml").write_text(yaml.safe_dump(dict(aspect=aspect, shots=shots)))
+    env = SimpleNamespace(item_dir=str(tmp_path), params=dict(
+        takes_pick={"a": rows[0]["take"], "b": rows[2]["take"]},
+        takes_reviews={r["take"]: r["card"] for r in rows}))
+    timeline = yaml.safe_load(open(A.timeline(env)["timeline"]))
+    assert timeline["canvas"] == canvas
+    assert [e["take"].split("/")[-1] for e in timeline["edl"]] == ["b_v1.mp4", "a_v1.mp4"]

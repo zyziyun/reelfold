@@ -224,9 +224,14 @@ def timeline(env):
         raise RuntimeError("timeline: no picked takes and no work/ai/timeline.yaml")
     with open(_proj(env), encoding="utf-8") as f:
         proj = yaml.safe_load(f) or {}
-    w, h = (1080, 1920) if str(proj.get("aspect", "9:16")) in ("9:16", "3:4") else (1920, 1080)
+    aspect = str(proj.get("aspect", "9:16"))
+    w, h = {"9:16": (1080, 1920), "3:4": (1080, 1440), "1:1": (1080, 1080),
+            "4:3": (1440, 1080), "4:5": (1080, 1350)}.get(aspect, (1920, 1080))
+    # Shots in a generation unit share a single take. Keep its first storyboard position.
+    planned = dict.fromkeys(str(s.get("unit") or s.get("id")) for s in proj.get("shots") or [])
+    ordered = [u for u in planned if u in picks] + sorted(picks.keys() - planned.keys())
     edl = []
-    for unit in sorted(picks):
+    for unit in ordered:
         f = picks[unit]
         take_review.require(f, reviews.get(os.path.abspath(f), ""))
         edl.append({"take": _relpath(f, os.path.join(d, "takes")), "in": 0.0,
