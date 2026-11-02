@@ -311,6 +311,17 @@ recording of your own voice, a free local reference works: a 10-15 s Kokoro `zf_
 sentences as `tts.clone.ref_wav` + its text as `ref_text` (a synthetic voice, no real person's). Measured on an M5
 Mac: about 3.3 x real time (a 6-minute narration in 20 minutes), sentence check by ASR included.
 
+**Audition the language you will deliver.** For an offline audition, select a local engine explicitly.
+A provider key used for other tasks can affect automatic voice selection. Check the resolved engine and speaker
+*before* synthesis; stop if the engine is not the one you intended. For Qwen, point
+`VSTUDIO_QWEN_TTS_MODEL` at the installed model directory and use `HF_HUB_OFFLINE=1` during the check.
+Keep one short test line per target language with a person's name, a place and a time or quantity.
+Listen to the exported audio and compare those words with the intended reading. An independent transcript
+without the expected words as hints can flag a mismatch; it cannot tell you by itself whether the speaker
+or the recognizer was wrong. Record timing/word accuracy separately from native-listener judgments of
+stress, pacing and naturalness. If a name needs a pronunciation override, change the synthesis text only
+(e.g. a photo-story `SAY_TTS` override) and listen again. Preserve the original spelling in captions.
+
 **The free voice in the desktop app (Apple silicon).** The app's runtime bundles Kokoro (mlx-audio + misaki, MIT /
 Apache-2.0); the weights (Kokoro-82M v1.0, Apache-2.0, ~330 MB with the voices `zf_xiaobei`, `af_heart`,
 `am_michael`, `bf_emma`) are not in the installer: they are the optional first-run download `tts-kokoro`
