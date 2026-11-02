@@ -81,6 +81,13 @@ list first (a timeout may still have been charged), then ask.
    ```
    Covers: `workflows/cover` from clear approved frames, whole heads at the delivery ratio. Copy:
    `vstudio.publish.post_body` / `check_title`; for comedy lead with the contradiction, not a lesson.
+   Compare the **used** part of each take with the delivered frame. Use the edit list to map source
+   in/out to the export timeline; a take in the folder might never have been used. Inspect the shot
+   between transitions on each delivered aspect, then play through its joins. Check whether reframing,
+   captions or a presenter inset hide the sign, label or action that made the shot useful. If so,
+   adjust the final crop or overlay first; regenerating a faithful take will not fix a delivery crop.
+   Keep final-cut findings separate from the take verdict.
+
 9. **投稿 packages (default) and per-post upload.** Copy `templates/series.yaml` next to the exports, add the
    episode (`status: ready`, sources per caption variant, covers per ratio, zh/en title/hook/body, `publish_at`).
    ```bash

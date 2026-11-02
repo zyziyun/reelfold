@@ -18,7 +18,7 @@ extended with every failure the creator caught that the reviewer had passed.
 2. Premise missing - the action or spatial relation the shot exists for is not on screen.
 3. Hands / limbs - extra or fused fingers, hand shape morphing, limbs through objects.
 4. Physics - objects through bodies, appearing / vanishing / duplicating, gliding instead of walking.
-5. Generated text - any readable or garbled text (all text is added in post).
+5. Generated text - invented, garbled or changing lettering. For a reference-guided shot, compare the same sign or label at full size in the source and in the take. Unchanged source lettering is allowed. If the reference or take is too small to read, record uncertainty rather than asserting a match. Add new titles and captions in post.
 6. Lip-sync or line - mouth does not match, wrong words, wrong speaker.
 7. Body integrity - a hidden part is gone when revealed; person merged into an object; half a body.
 8. Scene master - set, positions, props, which hand holds what, screen direction differ from the master.

@@ -8,7 +8,7 @@ HARD = {
     "premise_missing": "the action or spatial relation this shot must establish is not on screen",
     "hands_limbs": "extra/fused fingers, hand shape morphing, limbs through objects",
     "physics": "objects pass through bodies, appear/vanish/duplicate, gliding instead of walking",
-    "generated_text": "readable or garbled text on screens, signs, paper (all text is added in post)",
+    "generated_text": "invented, garbled or changing lettering on screens, signs or labels. When a reference shows the original lettering, compare the same region: unchanged source text is allowed. If a claimed match cannot be read, mark it unknown. Add new titles and captions in post.",
     "lipsync_or_line": "mouth does not match, wrong words, or the wrong character speaks the line",
     "body_integrity": "a body part hidden then revealed is gone; person merged into an object; half a body",
     "scene_master": "set, positions, props or screen direction differ from the scene master",
