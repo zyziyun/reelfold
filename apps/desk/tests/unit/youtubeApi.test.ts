@@ -433,6 +433,26 @@ describe('resumable upload (fake API)', () => {
     expect(sessionCounts).toEqual(mode === 'allowed' ? [0, 1] : [0]);
   });
 
+  it.each(['before cover', 'after cover', 'calendar unavailable'])('keeps the video receipt when follow-ups stop: %s', async mode => {
+    const { yt, dir, vault } = await connected();
+    const file = video(dir, 100), cover = path.join(dir, 'cover.jpg');
+    fs.writeFileSync(cover, crypto.randomBytes(2048));
+    const guard = async () => {
+      if (!vault.get('youtube-upload/followups').uploadReceipt) return true;
+      if (mode === 'calendar unavailable') throw new Error('Calendar unavailable');
+      return mode === 'after cover' && !g.thumbs.length;
+    };
+    const result = await yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null,
+      thumbnail: cover, playlistId: 'PL1' }, undefined, 'followups', undefined, guard);
+    expect(result.id).toBe('vid123');
+    expect(g.thumbs).toHaveLength(mode === 'after cover' ? 1 : 0);
+    expect(g.playlistItems).toHaveLength(0);
+    expect(result.warnings.join(';')).toContain('playlist:');
+    if (mode !== 'after cover') expect(result.warnings.join(';')).toContain('thumbnail:');
+    expect(vault.get('youtube-upload/followups').uploadReceipt?.result).toMatchObject({ id: result.id, warnings: result.warnings });
+    expect(g.sessions.size).toBe(1);
+  });
+
   it('chunks with Content-Range, resumes after a 503 and after a dropped connection; thumbnail + playlist', async () => {
     const { yt, dir } = await connected();
     const file = video(dir);

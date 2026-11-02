@@ -588,11 +588,11 @@ export class YouTubeApi {
     if (receiptKey) this.d.vault.set(receiptKey, { uploadReceipt: { account, result }, uploadSession: undefined });
     const warnings: string[] = [];
     if (v.thumbnail) {
-      const w = await this.setThumbnail(account, id, v.thumbnail);
+      const w = await this.setThumbnail(account, id, v.thumbnail, beforeUpload);
       if (w) warnings.push(w);
     }
     if (v.playlistId) {
-      const w = await this.addToPlaylist(account, id, v.playlistId);
+      const w = await this.addToPlaylist(account, id, v.playlistId, beforeUpload);
       if (w) warnings.push(w);
     }
     this.d.log?.(`[youtube] uploaded ${id} (${privacy}${'publishAt' in meta.status ? `, at ${meta.status.publishAt}` : ''})`);
@@ -693,7 +693,7 @@ export class YouTubeApi {
   }
 
   /** thumbnails.set: JPEG / PNG up to 2 MB; a channel that is not phone-verified cannot set one. -> a warning or null */
-  async setThumbnail(account: string, videoId: string, file: string): Promise<string | null> {
+  async setThumbnail(account: string, videoId: string, file: string, stillCurrent?: () => Promise<boolean>): Promise<string | null> {
     try {
       const ext = path.extname(file).toLowerCase();
       const type = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : null;
@@ -701,6 +701,7 @@ export class YouTubeApi {
       const body = fs.readFileSync(file);
       if (body.length > 2 * 1024 * 1024) return 'thumbnail: the cover is over 2 MB, set it in YouTube Studio';
       const token = await this.token(account);
+      if (stillCurrent && !await stillCurrent()) return 'thumbnail: publishing settings changed; the cover was not uploaded';
       const r = await this.f(`${this.ep.upload}/thumbnails/set?videoId=${encodeURIComponent(videoId)}&uploadType=media`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': type, 'Content-Length': String(body.length) },
@@ -715,10 +716,11 @@ export class YouTubeApi {
   }
 
   /** playlistItems.insert (needs the playlists permission). -> a warning or null */
-  async addToPlaylist(account: string, videoId: string, playlistId: string): Promise<string | null> {
+  async addToPlaylist(account: string, videoId: string, playlistId: string, stillCurrent?: () => Promise<boolean>): Promise<string | null> {
     if (!this.accountStatus(account).playlists) return 'playlist: allow Reelfold to manage playlists (connect again with playlists on)';
     try {
       const token = await this.token(account);
+      if (stillCurrent && !await stillCurrent()) return 'playlist: publishing settings changed; the video was not added';
       const r = await this.f(`${this.ep.api}/playlistItems?part=snippet`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
