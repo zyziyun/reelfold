@@ -5,7 +5,7 @@
     python3 judge.py sheet takes/u13_v1.mp4 --dense                        # falls / collapses: a frame every 0.25 s
     python3 judge.py sheet takes/u03_v1.mp4 --expect "Morning coffee. Simple."   # line check vs approved transcript
     python3 judge.py card u03_v1 --out work/ai/judge/                      # blank scorecard JSON to fill in
-    python3 judge.py verdict work/ai/judge/u03_v1.card.json                # pass / redo / fix-in-post
+    python3 judge.py verdict work/ai/judge/u03_v1.card.json                # pass / needs-review / redo / fix-in-post
 
 Rubric (references/JUDGE_RUBRIC.md): any HARD flaw -> redo; >= 3 SOFT flaws -> redo or fix in post;
 per-take scores A identity, B continuity, C shot completeness on 1-5; a take passes at A, B and C >= 4 after every check is explicitly reviewed

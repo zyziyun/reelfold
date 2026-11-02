@@ -35,7 +35,7 @@ def references(project, shots, base):
             if path and os.path.isfile(path):
                 images.append(dict(kind=kind, id=identifier, path=path, sha256=R.media_digest(path)))
             else:
-                missing.append(dict(kind=kind, id=identifier))
+                missing.append(dict(kind=kind, id=identifier, path=path))
     if len(images) > 12:
         raise ValueError('take review: split a unit with more than 12 reference images')
     return images, missing
@@ -72,25 +72,33 @@ def normalize(result, video, digest, info, shots, refs, missing):
             raise ValueError('take review: invalid score')
         card['scores'][k] = value
     limitations = ['Visual review uses sampled frames, not continuous playback.']
-    lines = any(s.get('lines') for s in shots)
+    def set_evidence(section, key, flaw, reason):
+        field = f'{section}.{key}'
+        evidence[field] = dict(flaw=flaw, reason=reason, time=None, model_observation=evidence[field])
+        card[section][key] = flaw
+
+    expected_audio = any(s.get('lines') or s.get('audio') == 'native' for s in shots)
     if info['has_audio']:
-        card['hard']['lipsync_or_line'] = None
-        card['soft']['sound_mismatch'] = None
-        limitations.append('Audio and lip synchronization require listening review; images cannot verify them.')
+        audio_flaw = None
+        audio_reason = 'Play the take with sound to check dialogue, synchronization and scene sound.'
     else:
-        card['hard']['lipsync_or_line'] = bool(lines or any(s.get('audio') == 'native' for s in shots))
-        card['soft']['sound_mismatch'] = bool(lines or any(s.get('audio') == 'native' for s in shots))
-        limitations.append('No audio stream: expected dialogue/native audio is missing when requested.')
-    # Keep machine-enforced limits alongside the model's original evidence, rather than silently endorsing it.
-    if any(r['kind'] == 'characters' for r in missing):
-        card['hard']['identity_drift'] = None
-        card['scores']['A'] = None
-        limitations.append('Character reference unavailable; identity cannot be verified.')
-    if any(r['kind'] == 'scenes' for r in missing):
-        card['hard']['scene_master'] = None
-        limitations.append('Scene master unavailable; scene matching cannot be verified.')
+        audio_flaw = expected_audio
+        audio_reason = ('The take has no audio stream despite the requested dialogue or native sound.'
+                        if expected_audio else 'The take has no audio stream and none was requested.')
+    limitations.append(audio_reason)
+    set_evidence('hard', 'lipsync_or_line', audio_flaw, audio_reason)
+    set_evidence('soft', 'sound_mismatch', audio_flaw, audio_reason)
+    for kind, key in (('characters', 'identity_drift'), ('scenes', 'scene_master')):
+        unavailable = [r.get('id') for r in missing if r['kind'] == kind]
+        if unavailable:
+            ids = ', '.join(str(id_) for id_ in unavailable if id_)
+            reason = f'Restore the missing {kind} reference images' + (f' ({ids})' if ids else '') + ' and review again.'
+            set_evidence('hard', key, None, reason)
+            limitations.append(reason)
+            if kind == 'characters':
+                card['scores']['A'] = None
     card.update(media_sha256=digest, notes=result.get('notes', ''), evidence=evidence,
-                limitations=limitations, review_source='ai-sampled-visual', references=refs)
+                limitations=limitations, review_source='ai-sampled-visual', references=refs, missing_references=missing)
     return card
 
 
@@ -120,7 +128,7 @@ def review(video, project, unit, directory, base, complete=None):
     result = (complete or llm.complete)('planner', system, json.dumps(body, ensure_ascii=False),
         schema=_schema(), images=images + [r['path'] for r in refs], max_tokens=6000, retries=0, repair=False)
     card = normalize(result.get('json'), video, digest, info, shots, refs, missing)
-    if digest != R.media_digest(video) or any(r['sha256'] != R.media_digest(r['path']) for r in refs):
+    if R.binding_reasons(video, card):
         raise ValueError('take review: footage or reference changed during review; retry on stable files')
     if brief_digest is not None:
         if brief_digest != R.media_digest(brief):

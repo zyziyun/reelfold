@@ -65,7 +65,7 @@ def test_missing_or_broken_card_cannot_pass(tmp_path):
     for data in (None, '{bad', '[]', '{}'):
         if data is not None:
             card.write_text(data)
-        assert R.inspect(str(video), str(card))[0] == 'redo'
+        assert R.inspect(str(video), str(card))[0] == 'needs-review'
 
 
 def test_review_changes_invalidate_cached_gate(tmp_path):
@@ -152,7 +152,7 @@ def test_invalid_flaw_values_are_not_promoted_to_confirmed_defects():
     card['hard']['premise_missing'] = 'true'
     card['scores']['C'] = True
     decision, reasons = R.verdict(card)
-    assert decision == 'redo'
+    assert decision == 'needs-review'
     assert not any(reason.startswith('hard:') or '< 4' in reason for reason in reasons)
 
 
@@ -171,7 +171,7 @@ def test_rejected_take_payload_preserves_confirmed_soft_flaws(tmp_path, blocker)
         card['soft']['sound_mismatch'] = 'true'  # unverified, not a confirmed flaw
     open(rows[0]['card'], 'w').write(json.dumps(card))
     candidate = A.takes_payload(env, dict(after='judge'))['options'][0]['takes'][0]
-    assert candidate['review'] == 'redo'
+    assert candidate['review'] == ('needs-review' if blocker == 'incomplete' else 'redo')
     assert 'soft: lighting_mismatch' in candidate['reasons']
     assert 'soft: template_camera' in candidate['reasons']
     assert 'soft: sound_mismatch' not in candidate['reasons']

@@ -21,7 +21,8 @@ def test_audio_claims_cannot_pass_image_only_review():
     card = normalize(audio=True)
     assert card['hard']['lipsync_or_line'] is None
     assert card['soft']['sound_mismatch'] is None
-    assert R.verdict(card)[0] != 'pass'
+    assert 'Play the take with sound' in card['evidence']['soft.sound_mismatch']['reason']
+    assert R.verdict(card)[0] == 'needs-review'
     assert normalize(audio=False)['hard']['lipsync_or_line'] is False
     assert normalize(shots=[dict(lines=[dict(text='Hello')])])['hard']['lipsync_or_line'] is True
     assert R.verdict(normalize(shots=[dict(audio='native')]))[0] == 'redo'
@@ -31,7 +32,7 @@ def test_missing_references_remain_unknown():
     card = normalize(missing=[dict(kind='characters'), dict(kind='scenes')])
     assert card['scores']['A'] is None
     assert card['hard']['scene_master'] is None
-    assert R.verdict(card)[0] != 'pass'
+    assert R.verdict(card)[0] == 'needs-review'
 
 
 @pytest.mark.parametrize('key,value', [('time', 3), ('time', float('nan')), ('flaw', 'false'), ('reason', '')])
@@ -67,9 +68,9 @@ def test_real_route_receives_sequence_and_invalidates_plan(tmp_path, monkeypatch
     path = tmp_path/'card.json'; path.write_text(json.dumps(card))
     assert R.inspect(str(video), str(path))[0] == 'pass'
     ref.write_bytes(b'changed')
-    assert R.inspect(str(video), str(path))[0] == 'redo'
+    assert R.inspect(str(video), str(path))[0] == 'needs-review'
     ref.write_bytes(b'ref'); brief.write_text('shots: changed')
-    assert R.inspect(str(video), str(path))[0] == 'redo'
+    assert R.inspect(str(video), str(path))[0] == 'needs-review'
 
 
 def test_adapter_runs_visual_review_not_just_sheet(tmp_path, monkeypatch):
@@ -172,3 +173,50 @@ def test_concurrent_human_review_is_not_overwritten(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match='changed while reviewing'):
         A.judge(env)
     assert json.load(open(path)) == human
+
+
+def test_restoring_only_the_missing_reference_invalidates_review_and_selection(tmp_path):
+    root = tmp_path / 'work' / 'ai'
+    judge = root / 'judge'
+    judge.mkdir(parents=True)
+    video = root / 'u1.mp4'
+    video.write_bytes(b'video')
+    refs, missing = AI.references({'characters': {'A': {'ref': 'face.jpg'}}},
+                                  [{'chars': ['A']}], str(root))
+    card = AI.normalize(response(), str(video), R.media_digest(video), dict(duration=2, has_audio=False),
+                        [{}], refs, missing)
+    (judge / 'u1.card.json').write_text(json.dumps(card))
+    params = dict(_item_dir=str(tmp_path))
+    before = A.takes_recheck(params)
+    identity = card['evidence']['hard.identity_drift']
+    assert identity['flaw'] is None and '(A)' in identity['reason']
+    assert identity['model_observation']['flaw'] is False
+    assert not R.binding_reasons(video, card)
+    (root / 'face.jpg').write_bytes(b'restored reference')
+    assert 'now available' in R.binding_reasons(video, card)[0]
+    assert A.takes_recheck(params) != before
+
+
+def test_legacy_partial_card_uses_restored_reference_on_next_judge(tmp_path, monkeypatch):
+    root = tmp_path / 'work' / 'ai'
+    (root / 'takes').mkdir(parents=True)
+    (root / 'judge').mkdir()
+    video = root / 'takes' / 'u1_v1.mp4'
+    video.write_bytes(b'video')
+    (root / 'project.yaml').write_text('shots: [{id: u1, chars: [A]}]\ncharacters: {A: {ref: face.jpg}}')
+    card = R.bound_card(str(video))
+    card.update(review_source='ai-sampled-visual', references=[])
+    card['hard']['physics'] = False
+    path = root / 'judge' / 'u1_v1.card.json'
+    path.write_text(json.dumps(card))
+    (root / 'face.jpg').write_bytes(b'restored')
+    calls = []
+    def review(*args):
+        calls.append(args)
+        return dict(card, missing_references=[])
+    monkeypatch.setattr(AI, 'review', review)
+    env = SimpleNamespace(item_dir=str(tmp_path), workflow_dir='unused', params={}, fmt=lambda x: x,
+                          run=lambda *a, **k: None)
+    A.judge(env)
+    A.judge(env)
+    assert len(calls) == 1

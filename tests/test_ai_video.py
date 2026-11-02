@@ -234,9 +234,9 @@ def test_retries_only_transport_errors_and_missing_key(monkeypatch):
 # ------------------------------------------------------------------------------------------- judge
 def test_judge_verdicts_and_line_match():
     card = J.blank_card("u1_v1")
-    assert J.verdict(card)[0] == "redo"                         # unscored = not reviewed
+    assert J.verdict(card)[0] == "needs-review"                         # unscored = not reviewed
     card["scores"] = {"A": 5, "B": 4, "C": 4}
-    assert J.verdict(card)[0] == "redo"  # scores alone do not review the checklist
+    assert J.verdict(card)[0] == "needs-review"  # scores alone do not review the checklist
     card["hard"] = dict.fromkeys(J.HARD, False)
     card["soft"] = dict.fromkeys(J.SOFT, False)
     assert J.verdict(card)[0] == "pass"
@@ -482,7 +482,7 @@ def test_review_rejects_invalid_scores(score):
     card = J.blank_card("take")
     card.update(hard=dict.fromkeys(J.HARD, False), soft=dict.fromkeys(J.SOFT, False),
                 scores=dict(A=5, B=5, C=score))
-    assert J.verdict(card)[0] == "redo"
+    assert J.verdict(card)[0] == "needs-review"
 
 
 def test_review_rejects_omissions_and_incomplete_shot():
@@ -491,13 +491,13 @@ def test_review_rejects_omissions_and_incomplete_shot():
     assert J.verdict(card) == ("redo", ["score C=2 < 4"])
     card["scores"]["C"] = 5
     del card["hard"]["physics"]
-    assert J.verdict(card)[0] == "redo"
+    assert J.verdict(card)[0] == "needs-review"
     card["hard"]["physics"] = "false"
-    assert J.verdict(card)[0] == "redo"
+    assert J.verdict(card)[0] == "needs-review"
     card["hard"]["physics"] = False
     card["soft"]["unrecognized"] = False
-    assert J.verdict(card)[0] == "redo"
-    assert J.verdict(None)[0] == "redo"
+    assert J.verdict(card)[0] == "needs-review"
+    assert J.verdict(None)[0] == "needs-review"
 
 
 @needs_ffmpeg

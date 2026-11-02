@@ -30,9 +30,9 @@ SOFT = {
 
 def verdict(card):
     """card: {"hard": {key: bool flaw}, "soft": {key: bool flaw}, "scores": {"A": 1-5, "B": 1-5, "C": 1-5}}.
-    -> (decision, reasons). decision in {"pass", "redo", "fix-in-post"}."""
+    -> (decision, reasons). decision in {"pass", "needs-review", "redo", "fix-in-post"}."""
     if not isinstance(card, dict):
-        return "redo", ["review card must be an object"]
+        return "needs-review", ["review card must be an object"]
     reasons = []
     for section, keys in (("hard", HARD), ("soft", SOFT)):
         checks = card.get(section)
@@ -64,7 +64,7 @@ def verdict(card):
     soft_reasons = [f"soft: {key}" for key in soft]
     if failures or reasons:
         # A redo should address all observed defects, not only the blocking ones.
-        return "redo", failures + soft_reasons + reasons
+        return ("redo" if failures else "needs-review"), failures + soft_reasons + reasons
     if len(soft) >= 3:
         return "fix-in-post", [f"{len(soft)} soft flaws: {', '.join(soft)} - grade/grain/trim or redo"]
     return "pass", soft_reasons
@@ -96,6 +96,9 @@ def binding_reasons(path, card):
         for ref in card.get('references', []):
             if not isinstance(ref, dict) or ref.get('sha256') != media_digest(ref.get('path', '')):
                 return ['Review reference changed; review the take again']
+        if any(isinstance(ref, dict) and ref.get('path') and os.path.isfile(ref['path'])
+               for ref in card.get('missing_references', [])):
+            return ['A missing reference is now available; review the take again']
         if card.get('brief_path') and card.get('brief_sha256') != media_digest(card['brief_path']):
             return ['Shot plan changed; review the take again']
     except (OSError, ValueError, TypeError):
@@ -108,9 +111,9 @@ def inspect(path, card_path):
         with open(card_path, encoding='utf-8') as f:
             card = json.load(f)
         reasons = binding_reasons(path, card)
-        return ('redo', reasons) if reasons else verdict(card)
+        return ('needs-review', reasons) if reasons else verdict(card)
     except (OSError, ValueError, TypeError):
-        return 'redo', ['Video or review card is missing or unreadable']
+        return 'needs-review', ['Video or review card is missing or unreadable']
 
 
 def require(path, card_path):

@@ -90,6 +90,14 @@ def judge(env):
             for value in (existing.get(section) or {}).values())
         # Reuse current partial/rejected reviews too: retrying the workflow must not keep
         # asking a model until it approves. Changed inputs need a new review, preserving history.
+        # Older AI cards recorded present references only. When their missing reference
+        # appears, the stage key changes but the old card would otherwise look current.
+        if (not stale and existing.get("review_source") == "ai-sampled-visual"
+                and "missing_references" not in existing):
+            from vstudio import take_review_ai
+            shots = [s for s in project.get("shots", []) if str(s.get("unit") or s.get("id")) == unit]
+            refs, _ = take_review_ai.references(project, shots, os.path.dirname(_proj(env)))
+            stale = refs != existing.get("references", [])
         if stale or not populated:
             from vstudio import take_review_ai
             revision = file_sha(card, 40)
@@ -131,7 +139,8 @@ def takes_recheck(params):
     for card in glob.glob(os.path.join(root, "judge", "*.card.json")):
         data = read_json(card, {}) or {}
         if isinstance(data, dict):
-            paths.extend(r["path"] for r in data.get("references", []) if isinstance(r, dict) and r.get("path"))
+            for field in ("references", "missing_references"):
+                paths.extend(r["path"] for r in data.get(field, []) if isinstance(r, dict) and r.get("path"))
     return {path: file_sha(path) for path in paths}
 
 
