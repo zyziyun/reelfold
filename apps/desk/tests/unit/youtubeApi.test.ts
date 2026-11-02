@@ -415,8 +415,9 @@ describe('resumable upload (fake API)', () => {
 
   it.each(['cancelled', 'unavailable', 'allowed'])('checks scheduled authorization before creating a session: %s', async (mode) => {
     const { yt, dir } = await connected();
+    const sessionCounts: number[] = [];
     const guard = vi.fn(async () => {
-      expect(g.sessions.size).toBe(0);
+      sessionCounts.push(g.sessions.size);
       if (mode === 'unavailable') throw new Error('Calendar unavailable');
       return mode === 'allowed';
     });
@@ -429,7 +430,7 @@ describe('resumable upload (fake API)', () => {
       expect(g.sessions.size).toBe(0);
       expect(g.chunks).toBe(0);
     }
-    expect(guard).toHaveBeenCalledTimes(1);
+    expect(sessionCounts).toEqual(mode === 'allowed' ? [0, 1] : [0]);
   });
 
   it('chunks with Content-Range, resumes after a 503 and after a dropped connection; thumbnail + playlist', async () => {
@@ -544,6 +545,21 @@ describe('resumable upload (fake API)', () => {
     expect(progress).toHaveBeenCalledWith(fs.statSync(file).size, fs.statSync(file).size);
     expect(restarted.yt.pendingUpload('partial')).toBeNull();
     expect(recovered?.result).toMatchObject({ id: 'vid123', privacy: 'private', publishAt: at.toISOString() });
+    expect(g.sessions.size).toBe(1);
+    expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
+  });
+
+  it.each([0, 1])('stops sending bytes when approval changes after %i accepted chunks', async (accepted) => {
+    const { yt, dir, vault } = await connected();
+    const file = video(dir);
+    const guard = async () => g.sessions.size === 0 || g.chunks < accepted;
+    await expect(yt.upload('main', { file, title: 't', description: '', tags: [], publishAt: null },
+      undefined, 'chunk-guard', undefined, guard)).rejects.toBeInstanceOf(UploadOutcomeUnknown);
+    expect(g.sessions.size).toBe(1);
+    expect(g.sessions.get('S1')!.received).toBe(accepted * 256 * 1024);
+    expect(vault.get('youtube-upload/chunk-guard').uploadReceipt).toBeUndefined();
+    const recovered = await yt.recover('chunk-guard', true, 'main', undefined, undefined, async () => true);
+    expect(recovered?.result.id).toBe('vid123');
     expect(g.sessions.size).toBe(1);
     expect(Buffer.concat(g.sessions.get('S1')!.got)).toEqual(fs.readFileSync(file));
   });

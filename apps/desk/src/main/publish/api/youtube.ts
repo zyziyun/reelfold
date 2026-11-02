@@ -576,7 +576,7 @@ export class YouTubeApi {
       followups: !!(v.thumbnail || v.playlistId) }, captionTracks: this.accountStatus(account).captions ? (v.captions ?? []).filter(t => t.role === 'speech' && t.format === 'srt') : [] });
 
     let done: Inserted & { id: string };
-    try { done = await this.transfer(account, v.file, loc, size, 0, onProgress); }
+    try { done = await this.transfer(account, v.file, loc, size, 0, onProgress, beforeUpload); }
     catch (e) {
       if (receiptKey) throw new UploadOutcomeUnknown('Upload interrupted; its saved session will be checked before retrying.');
       throw e;
@@ -608,7 +608,6 @@ export class YouTubeApi {
   private async transfer(account: string, file: string, loc: string, size: number, start: number, onProgress?: (sent: number, total: number) => void, beforeResume?: () => Promise<boolean>): Promise<Inserted & { id: string }> {
     onProgress?.(start, size);
     let token = await this.token(account);
-    if (beforeResume && !await beforeResume()) throw new Error('Publishing settings changed during recovery. No upload was resumed.');
     const unit = Math.max(1, Math.round((this.d.chunkBytes ?? 32 * CHUNK_UNIT) / CHUNK_UNIT)) * CHUNK_UNIT;
     const maxRetries = this.d.maxRetries ?? 6;
     let offset = start;
@@ -620,6 +619,8 @@ export class YouTubeApi {
     const fd = fs.openSync(file, 'r');
     try {
       while (!done) {
+        // A session can outlive a schedule edit, including during backoff or credential refresh.
+        if (beforeResume && !await beforeResume()) throw new Error('Publishing settings changed. No upload was resumed; no further bytes were sent.');
         const end = Math.min(offset + unit, size);
         const buf = Buffer.alloc(end - offset);
         if (fs.readSync(fd, buf, 0, buf.length, offset) !== buf.length) throw new Error('The video file changed during upload');
