@@ -824,7 +824,7 @@ it('requests caption permission only when selected, and rejects attachment witho
 });
 
 
-it('retries caption-only work after video upload, preserving receipt and multipart contents', async () => {
+it.each(['server failure', 'permission withdrawn'])('retries caption-only work after %s without re-uploading video', async mode => {
   const { yt, dir, vault } = mk();
   yt.setClient(CLIENT, 'GOCSPX-desktop');
   await yt.connect('main', { captions: true, timeoutMs: 5000 });
@@ -832,21 +832,26 @@ it('retries caption-only work after video upload, preserving receipt and multipa
   fs.writeFileSync(file, text);
   const captions = [{ file, lang: 'fr', role: 'speech' as const, format: 'srt' as const, cues: 1, render_key: 'r', sha256: crypto.createHash('sha256').update(text).digest('hex') }];
   const videoFile = path.join(dir, 'video.mp4'); fs.writeFileSync(videoFile, Buffer.alloc(100));
-  g.captionFailure = true;
+  g.captionFailure = mode === 'server failure';
   const stages: string[] = [];
-  const result = await yt.upload('main', { file: videoFile, title: 't', description: '', tags: [], publishAt: null, captions }, (sent, total) => { if (sent === total) stages.push('video done'); }, 'post1', (index, total) => stages.push(`captions ${index}/${total}`));
+  const result = await yt.upload('main', { file: videoFile, title: 't', description: '', tags: [], publishAt: null, captions }, (sent, total) => { if (sent === total) stages.push('video done'); }, 'post1', (index, total) => stages.push(`captions ${index}/${total}`), async () => mode === 'server failure' || !stages.includes('video done'));
   expect(stages).toEqual(['video done', 'captions 1/1']);
   expect(result.id).toBe('vid123');
   expect(result.captions?.[0].status).toBe('error');
   expect(vault.get('youtube-upload/post1').uploadReceipt?.result.id).toBe('vid123');
   const chunks = g.chunks;
   g.captionFailure = false;
+  const attempted = g.captionPosts;
+  expect(attempted).toBe(mode === 'server failure' ? 1 : 0);
+  const readOnly = await mk(dir).yt.recover('post1', false, 'main', undefined, undefined, async () => false);
+  expect(g.captionPosts).toBe(attempted);
+  expect(readOnly?.result).toMatchObject({ id: 'vid123', captions: [{ status: 'error' }] });
   const refreshed = await yt.refreshCaptions('post1', 'main', result);
   expect(refreshed.captions?.[0].status).toBe('syncing');
   expect(g.chunks).toBe(chunks);
   g.captionItems[0].snippet.status = 'serving';
-  expect((await yt.refreshCaptions('post1', 'main', refreshed)).captions?.[0].status).toBe('serving');
-  expect(g.captionPosts).toBe(2);
+  expect((await yt.refreshCaptions('post1', 'main', refreshed, undefined, async () => false)).captions?.[0].status).toBe('serving');
+  expect(g.captionPosts).toBe(attempted + 1);
   expect(g.sessions.size).toBe(1);
   const count = g.captionPosts;
   await yt.refreshCaptions('post1', 'other', result);

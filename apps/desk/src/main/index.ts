@@ -732,7 +732,7 @@ function startScheduler() {
       refresh: async (p, r) => {
         const account = ytAccountFor(p);
         if (!account) throw new Error('YouTube account is disconnected');
-        return youtube.refreshCaptions(p.id, account, await youtube.videoStatus(account, r));
+        return youtube.refreshCaptions(p.id, account, await youtube.videoStatus(account, r), undefined, async () => false);
       },
     },
     stateFile: path.join(app.getPath('userData'), 'publish', 'scheduler.json'),

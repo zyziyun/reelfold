@@ -30,7 +30,7 @@ function receipt(r: Resource, videoId: string, language: string, name: string): 
 
 /** Upload one verified speech track. Reconcile an ambiguous POST by name before any retry;
  * never overwrite/delete creator tracks or assume that accepted means serving. */
-export async function ensureCaption(t: Transport, videoId: string, track: CaptionArtifact): Promise<CaptionReceipt> {
+export async function ensureCaption(t: Transport, videoId: string, track: CaptionArtifact, beforeInsert?: () => Promise<boolean>): Promise<CaptionReceipt> {
   if (!/^[\w-]+$/.test(videoId) || track.role !== 'speech' || !/^[a-z]{2,3}(?:-[A-Za-z0-9]+)*$/.test(track.lang) || track.lang === 'und' ||
       !['srt', 'vtt'].includes(track.format) || !/^[a-f0-9]{64}$/.test(track.sha256)) throw new Error('Invalid speech caption artifact');
   const size = fs.statSync(track.file).size;
@@ -51,6 +51,7 @@ export async function ensureCaption(t: Transport, videoId: string, track: Captio
   const boundary = `reelfold_${crypto.randomBytes(16).toString('hex')}`;
   const meta = JSON.stringify({ snippet: { videoId, language: track.lang, name, isDraft: false } });
   const body = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`), bytes, Buffer.from(`\r\n--${boundary}--\r\n`)]);
+  if (beforeInsert && !await beforeInsert()) throw new Error('Subtitle not uploaded. Retry subtitles to attach this track.');
   try {
     const r = await t.request(`${t.upload}/captions?uploadType=multipart&part=snippet`, {
       method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
