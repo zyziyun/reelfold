@@ -158,9 +158,6 @@ def publish_copy(env):
 
 
 def publish_payload(env, cp):
-    files = []
-    for dep, out in (env.inputs or {}).items():
-        files += [f for f in (out or {}).get("files") or [] if os.path.exists(str(f))]
     exports = _exports_of(env)
     qc = env.inputs.get("qc") or {}
     previews = []
@@ -169,7 +166,18 @@ def publish_payload(env, cp):
         if e.get("cover"):
             previews.append(dict(kind="image", path=e["cover"], platform=e["platform"]))
     if not previews:
-        previews = [dict(kind=_kind_of(f), path=f) for f in files[:12]]
+        files = []
+        for out in (env.inputs or {}).values():
+            for f in (out or {}).get("files") or []:
+                f = str(f)
+                if os.path.isdir(f):
+                    # Stills stages declare a directory. Review the images themselves,
+                    # so their content hashes invalidate an answer after a rerender.
+                    files.extend(os.path.join(f, name) for name in sorted(os.listdir(f))
+                                 if _kind_of(name) == "image" and os.path.isfile(os.path.join(f, name)))
+                elif os.path.isfile(f):
+                    files.append(f)
+        previews = [dict(kind=_kind_of(f), path=f) for f in dict.fromkeys(files)]
     pv = env.inputs.get("preview") or {}
     for k in ("sheet", "snippet"):
         if pv.get(k):
