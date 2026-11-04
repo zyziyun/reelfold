@@ -161,6 +161,7 @@ def publish_payload(env, cp):
     exports = _exports_of(env)
     qc = env.inputs.get("qc") or {}
     previews = []
+    contexts = {}
     for e in exports:
         previews += [dict(kind="video", path=e["file"], platform=e["platform"])]
         if e.get("cover"):
@@ -171,6 +172,17 @@ def publish_payload(env, cp):
             for f in (out or {}).get("files") or []:
                 f = str(f)
                 if os.path.isdir(f):
+                    manifest = read_json(os.path.join(f, "review-frames.json"), {})
+                    if (isinstance(manifest, dict) and manifest.get("version") == 1
+                            and isinstance(manifest.get("frames"), list)):
+                        for row in manifest.get("frames", []):
+                            if not isinstance(row, dict) or not isinstance(row.get("file"), str):
+                                continue
+                            path = os.path.join(f, row["file"])
+                            if os.path.basename(row["file"]) != row["file"] or not row.get("sha") or file_sha(path) != row["sha"]:
+                                continue
+                            contexts[path] = {k: row[k] for k in ("frame", "time", "shot_index", "source",
+                                             "shot_start", "shot_end", "closing_fade") if k in row}
                     # Stills stages declare a directory. Review the images themselves,
                     # so their content hashes invalidate an answer after a rerender.
                     files.extend(os.path.join(f, name) for name in sorted(os.listdir(f))
@@ -182,7 +194,8 @@ def publish_payload(env, cp):
     for k in ("sheet", "snippet"):
         if pv.get(k):
             previews.append(dict(kind="image" if k == "sheet" else "video", path=pv[k]))
-    return dict(options=[dict(file=x["path"], sha=file_sha(x["path"])) for x in previews],
+    return dict(options=[dict(file=x["path"], sha=file_sha(x["path"]),
+                                  **({"context": contexts[x["path"]]} if x["path"] in contexts else {})) for x in previews],
                 exports=exports, qc=dict(status=qc.get("status"), reasons=qc.get("reasons") or [],
                                          warnings=qc.get("warnings") or []),
                 copy=publish_copy(env),

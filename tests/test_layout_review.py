@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 import pytest
 from vstudio.project import autopilot as AP, manifests
@@ -11,9 +12,10 @@ def test_layout_judge_receives_images_and_never_defaults_past_unknown(tmp_path, 
     cp = dict(id='layout', kind='review', scope='item', visual_review=True)
     project = SimpleNamespace(data={'autopilot':True, 'prompt':'product'}, checkpoint=lambda _:cp)
     pay = dict(id='layout', item='one', default={'approve':True},
-               previews=[dict(kind='image', path=str(p))], options=[dict(file=str(p),sha=file_sha(p))])
+               previews=[dict(kind='image', path=str(p))], options=[dict(file=str(p),sha=file_sha(p), context=dict(time=1.9, closing_fade=True))])
     def complete(*args, **kwargs):
         assert kwargs['images'] == [str(p)]
+        assert json.loads(args[2])['frames'][0]['context'] == dict(time=1.9, closing_fade=True)
         if verdict == 'error':
             raise RuntimeError('offline')
         if verdict == 'changed':

@@ -15,6 +15,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import argparse
 import json
+import hashlib
 import math
 import os
 import re
@@ -151,6 +152,7 @@ def main():
         frames = range(int(t_from * C.FPS), int(end_t * C.FPS))
 
     with (tempfile.TemporaryDirectory(prefix=".review-", dir=sdir) if stills else nullcontext()) as staging:
+        samples = []
         live, shots = {}, T.shots
         for fi in frames:
             gt = fi / C.FPS
@@ -213,11 +215,17 @@ def main():
                     im = im.resize((C.W // 3, C.H // 3), Image.LANCZOS)
                 p = os.path.join(staging, f"st_frame_{fi:08d}.jpg")
                 im.save(p, quality=90)
+                samples.append(dict(file=os.path.basename(p), sha=hashlib.sha1(pathlib.Path(p).read_bytes()).hexdigest()[:16],
+                                    frame=fi, time=gt, shot_index=k, source=sh["src"],
+                                    shot_start=sh["start"], shot_end=sh["end"],
+                                    closing_fade=bool(end_fade > 0 and gt > total - end_fade)))
                 continue
             enc.stdin.write(img.tobytes())
             if fi % (C.FPS * 30) == 0:
                 print(f"  {gt:6.1f}s / {end_t:.1f}s", flush=True)
         if stills:
+            pathlib.Path(staging, "review-frames.json").write_text(json.dumps(
+                dict(version=1, fps=C.FPS, canvas=[C.W, C.H], duration=total, frames=samples)), encoding="utf-8")
             names = set(os.listdir(staging))
             for name in sorted(names):
                 target = os.path.join(sdir, name)

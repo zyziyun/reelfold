@@ -62,6 +62,15 @@ PRESERVE_COLOUR = True
     run('0.2,1.1,1.8')
     assert {p.name for p in dest.glob('st_frame_*.jpg')} == {
         'st_frame_00000006.jpg', 'st_frame_00000033.jpg', 'st_frame_00000054.jpg'}
+    import json
+    import hashlib
+    metadata = json.loads((dest / 'review-frames.json').read_text())
+    assert metadata['version'] == 1
+    assert [r['shot_index'] for r in metadata['frames']] == [0, 1, 1]
+    assert [r['frame'] for r in metadata['frames']] == [6, 33, 54]
+    for row in metadata['frames']:
+        assert row['time'] == row['frame'] / metadata['fps']
+        assert row['sha'] == hashlib.sha1((dest / row['file']).read_bytes()).hexdigest()[:16]
     run('1.1')
     assert {p.name for p in dest.glob('st_frame_*.jpg')} == {'st_frame_00000033.jpg'}
     assert unrelated.read_bytes() == b'keep'
@@ -70,6 +79,7 @@ PRESERVE_COLOUR = True
     # A failed new generation must not replace any of the previous evidence.
     import pytest
     saved = (dest / 'st_frame_00000033.jpg').read_bytes()
+    saved_manifest = (dest / 'review-frames.json').read_bytes()
     build = render.build
     def fail_second(C, shot, index):
         if index == 1:
@@ -80,4 +90,5 @@ PRESERVE_COLOUR = True
         run('0.2,1.1')
     assert {p.name for p in dest.glob('st_frame_*.jpg')} == {'st_frame_00000033.jpg'}
     assert (dest / 'st_frame_00000033.jpg').read_bytes() == saved
+    assert (dest / 'review-frames.json').read_bytes() == saved_manifest
     assert not list(dest.glob('.review-*'))

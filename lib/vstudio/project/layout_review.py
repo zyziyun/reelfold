@@ -10,6 +10,7 @@ def review(pay, context, lang=None, complete=None):
                                if p.get('kind') == 'image' and p.get('path')))
     hashes = [file_sha(p) for p in images]
     expected = {o.get('file'): o.get('sha') for o in pay.get('options', [])}
+    contexts = {o.get('file'): o.get('context') for o in pay.get('options', [])}
     def blocked(reason):
         return dict(blocker='needs-input', reason=reason)
     if not images or not all(hashes) or any(expected.get(p) != h for p, h in zip(images, hashes)):
@@ -21,10 +22,12 @@ def review(pay, context, lang=None, complete=None):
         'summary:"concise assessment and corrections"}. Include exactly one entry for every zero-based image index. '
         'Use fix for visible defects and unknown where evidence is insufficient. Do not invent unseen detail. '
         'These stills cannot establish continuous motion, audio, factual accuracy, or publication readiness. '
-        'Respect the requested style; do not demand effects without a purpose.')
+        'Respect the requested style; do not demand effects without a purpose. Render context identifies '
+        'intentional closing fades and shot positions; assess fade readability using adjacent unfaded samples, '
+        'not by requiring a deliberately fading frame to remain fully bright.')
     try:
         result = (complete or llm.complete)('planner', system, json.dumps(
-            dict(brief=context, language=lang or 'en', frames=[dict(index=i, file=p) for i, p in enumerate(images)]),
+            dict(brief=context, language=lang or 'en', frames=[dict(index=i, file=p, context=contexts.get(p)) for i, p in enumerate(images)]),
             ensure_ascii=False), images=images, schema=True, max_tokens=6000, retries=0, repair=False)
         data = result.get('json') or {}
         rows = data.get('frames')
@@ -39,7 +42,7 @@ def review(pay, context, lang=None, complete=None):
             return blocked('Layout images changed during review; review the new preview.')
         reason = str(data.get('summary') or 'Sampled layout review')
         report = dict(frames=rows, provider=result.get('provider'), model=result.get('model'),
-                      evidence=[dict(path=p, sha=h) for p, h in zip(images, hashes)])
+                      evidence=[dict(path=p, sha=h, context=contexts.get(p)) for p, h in zip(images, hashes)])
         if any(r['verdict'] != 'pass' for r in rows):
             return dict(blocked(reason), visual_review=report)
         return dict(value=dict(approve=True), by='ai', reason=reason, reason_code='ai',
@@ -73,7 +76,8 @@ def repair(project, pay, decision, complete=None):
         'source intervals only when the available source frames justify them. This is a repair, not a new film. '
         'The appended review images show the current output in the indexed order below. The source images '
         'earlier in this request are different evidence. The result will be rendered and reviewed again.\n' +
-        json.dumps(dict(summary=decision.get('reason'), frames=report.get('frames')), ensure_ascii=False))
+        json.dumps(dict(summary=decision.get('reason'), frames=report.get('frames'),
+                        render_context=[e.get('context') for e in evidence]), ensure_ascii=False))
     from vstudio import llm
     def with_review_images(*args, **kwargs):
         kwargs['images'] = list(kwargs.get('images') or []) + [e['path'] for e in evidence]
