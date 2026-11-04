@@ -235,6 +235,9 @@ python3 -m vstudio.export out/master.mp4 --platforms douyin,tiktok --cues out/ma
 | `SUB_LEAD`, `SUBS` | which subtitle line leads (`"zh"`: 中文 on top - a Chinese narration, or a Chinese version narrated in English) / which lines show: `"both"` (default), `"en"`, `"zh"` (YouTube: always `"en"`) |
 | `COVER_EN`, `POST_EN`, `POST_ZH` | the cover texts / post in the other language (YouTube posts English, 小红书 / B站 Chinese) |
 | `BGM`, `BGM_LUFS`, `BGM_DUCK`, `OUT`, `AUDIO_BITRATE`, `FPS`, `PACING` | music bed (your own licensed file) at `BGM_LUFS` loudness (default persona `audio.music_lufs`, -30), `BGM_DUCK` dB while the voice speaks (default 0 = static bed), output; `PACING` = `gap sec_gap tail lead end_fade`. `BGM_VOLUME` is no longer used |
+| `SUB_SHADE`, `TITLE_SHADOW`, `TITLE_GLOW`, `TITLE_GLOW_ALPHA` | caption band darkness (default cinema 120), title shadow alpha (0.7), a soft dark pill behind quiet titles (px at 2160, 0 = off) and its alpha (0.55): raise them when light type sits on white screenshots |
+| `KEEP_DISSOLVES` | keep the dissolves the join review would shorten into hard cuts (same subject, two framings): a hard cut between them blinks under the calm flicker check |
+| `UNITS`, `VO`, `VO_DIR`, `RAW`, `FACECAM`, `TEXTFX`, `SHUTTER`, `HOOK` | the story-vlog passes (see Story vlog below) |
 | `COVER`, `POST`, `VOCAB` | cover.py layout data / post copy (`title intro outro tags platform use_persona_tags tag_set`; `platform` picks the `vstudio.publish` format, default persona `platforms.default`; `tags` are the post's own, persona `publish.tags` are appended unless `use_persona_tags=False`; `tag_set="art"` appends persona `publish.tag_sets.art` instead) / optional study table |
 
 ### Shot sources
@@ -246,7 +249,7 @@ subject size on portrait and landscape outputs. Choose `c` from the source and c
 interaction remains visible; a tighter crop cannot restore missing detail. Legacy `VCROP` width fractions
 remain relative to the displayed source, rather than the fitted crop.
 
-Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zoom`, `label="..."`, `tr=<transition>`, `trd=seconds`.
+Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zoom`, `span=(0, 1)` (panL / panR / up / down travel the whole width or height: a wide map or a shop front read edge to edge; default (0.15, 0.85)), `label="..."`, `tr=<transition>`, `trd=seconds`.
 
 ### Overlays (any shot)
 `fx=("sketch","develop","shimmer","dust","prick")`, `hl=(cx,cy,rx,ry)` red-pen circle (`hl_t`),
@@ -255,6 +258,52 @@ Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zo
 
 ### Transitions (`tr=`)
 `fade push whip flash zoom iris leak ink blinds tear slideup cut`.
+
+## Story vlog (her own voice, her face, big text, design cards)
+
+For a day out / market / trip she narrates herself: the photos and clips carry the place, her recorded voice carries
+an opinion, her face shows on the opinion beats. A diary ("then I went to ...") is not watched; a question is.
+
+**Structure** (about 2-3 min): 1 cold open on the real conflict (the funniest true moment, with its own sound) and a
+big title line; 2 her one-sentence stakes ("I want to build my own X, so I came here first"); 3 the search as a fast
+montage, the obstacles as stamped numbers; 4 the discovery (open something up, show what is inside); 5 her take, on
+her face at its biggest; 6 the payoff back at the opening conflict; 7 next episode, no summary. Pictures stay in
+shooting order inside a section; each app / object sits with its own subject. Cut what does not serve the question.
+
+**Pipeline** (from the project folder; `PS=$VSTUDIO/workflows/photo-story/scripts/photostory`)
+1. Voice from one long recording: cut per unit at word boundaries, `vstudio.cleanup analyze --profile tight` ->
+   `apply` approving the plain fillers; **read every restart / cut-off edit first** (they cut deliberate parallel
+   phrasing and complete endings: `--keep` them); `python3 $PS/own_voice.py sweep in.mp4 out.mp4 --words 然后`
+   for connectors the cleanup's ASR glued to other words; speed both picture and sound together (atempo + setpts)
+   so the face stays in sync; re-transcribe, proofread every line into `VO`.
+2. `python3 $PS/own_voice.py timing work/spec.py` (writes the TTS timing from `VO` / `RAW` / `UNITS`).
+3. `render.py work/spec.py` -> `facecam.py spec film nobubble.mp4 face.mp4` -> `textfx.py spec face.mp4 fx.mp4`
+   -> `finish.py spec fx.mp4 final.mp4 --cues cues.json` (hook, loudness, srt). Renders share one cache: run the
+   languages' renders one after the other; the passes after it can overlap.
+4. `cover.py work/spec.py` with `COVER["style"]` = `receipt` | `magazine` | `inside-outside` | `narrator-sticker`
+   (persona `style.cover` still picks designed / cinema / scrapbook). The candidates she likes but does not pick become
+   `card` items in `TEXTFX` at the lines they belong to.
+
+**Spec keys**: `UNITS` (one name per SCRIPT item) · `VO` {unit: [(start, end, 中文, English)]} voice clips at
+`<VO_DIR>/<unit>c.wav` with the face video `<unit>c.mp4` · `RAW` {unit: (seconds, cues)} clip-sound / music-only
+units (labelled who speaks: 「我：…」「小猫：…」) · `FACECAM` {unit: (circle|round|polaroid|sticker, [BR|TR|TL|ML, ...])} ·
+`TEXTFX` [(unit, cue text or None, (中文, English), title|tag|num|end|card, sfx)] · `SHUTTER` (montage units) ·
+`HOOK` dict(segments, speed) only when there is no cold open. Effects: `narrator-facecam`, `narrator-sticker`,
+`number-stamp`, `design-card`, `story-covers` in references/EFFECTS.md.
+
+**Her rules from the first one** (each was a correction)
+- Pictures in true time order; the panda's app goes with the panda, the cat's with the cat.
+- Calm flicker check on the final: no strong memory-film look on long sections (it wobbles every frame); a white
+  screenshot into a dark photo needs a 0.9 s dissolve and both shots long enough for it (the renderer caps a dissolve
+  at 1/3 of the shorter shot); handheld swings and same-subject hard cuts blink - use a composite clip (her audio over
+  a calm picture) or a dissolve.
+- Big text: numbers land 0.35 s after the word, never with a face pop-in; 0.4 s fades; tag style (not the yellow
+  number) over white screens. Face glides take >= 2.4 s.
+- The face crop must include the chin; a sticker needs the shoulders.
+- Label who says what in dialogue captions; never attribute her line to the toy.
+- Strict cleanup when she asks: every 然后, fillers, repeats, pauses; her voice speed is her call (1.5x was asked
+  for); the hook at most ~1.6x of the raw speech.
+- Covers carry the video's own facts; a collage stands out more than one photo in a feed.
 
 ## Gotchas
 - **Transitions overlap the previous shot**: each shot keeps rendering for the next shot's transition time. Very
