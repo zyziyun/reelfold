@@ -32,7 +32,7 @@ items:
   sources: [single, files]
   from_input: source
   per_item: [title]
-  shared: [language, subtitles, subtitle_lang, layout, platforms, count, min_s, max_s, mask, mask_target, speed]
+  shared: [language, asr_prompt, subtitles, subtitle_lang, layout, platforms, count, min_s, max_s, mask, mask_target, speed]
 params:
   type: object
   properties:
@@ -41,6 +41,11 @@ params:
       default: auto
       title: Lesson language
       x-zh: 课堂语言
+    asr_prompt:
+      type: string
+      default: ""
+      title: Speech recognition terms
+      x-zh: 语音识别术语
     subtitles:
       enum: [bilingual, mono, translated]
       default: bilingual
@@ -131,9 +136,10 @@ stages:
   - id: plan
     resource: asr
     deps: [prepare]
-    keys: [language, planner, count, min_s, max_s]
+    keys: [language, asr_prompt, planner, count, min_s, max_s]
     run:
       argv: ["{python}", "-m", "vstudio.lesson", "plan", "--source", "{input.source}", "--language", "{language}",
+             {if: asr_prompt, args: ["--asr-prompt", "{asr_prompt}"]},
              {if: input.transcript, args: ["--transcript", "{input.transcript}"]},
              "--count", "{count}", "--min", "{min_s}", "--max", "{max_s}", "--provider", "{planner}",
              "--out", "{item_dir}/work/points.json", "--keep-edited"]

@@ -34,7 +34,7 @@ Or by hand (same modules the stages run):
    --out work/sync.json`. Audio cross-correlation of the two tracks; `confidence` < 0.3 = a guess, then the
    container timestamps are used (or pass `--offset`, camera = source + offset).
 2. **Plan**: `python -m vstudio.lesson plan --source lesson.mp4 --out work/points.json [--count 6]
-   [--provider auto|none]`. Transcribes once (shared cache), then finds the points: `phrase`, `vocab`,
+   [--provider auto|none] [--asr-prompt "domain terms, exact identifiers"]`. Transcribes once (shared cache), then finds the points: `phrase`, `vocab`,
    `concept`, `correction` (examples attach to the point they illustrate). The routed model (task
    `lesson_plan`) picks sentence ranges + kinds + glosses; the rules fill in and always work offline.
 3. **Review** `work/points.json` with her (checkpoint `points`): kind, start / end, title, gloss (the
@@ -53,6 +53,12 @@ Or by hand (same modules the stages run):
 One master per canvas among the platforms (9:16 and 16:9 render separately), so nothing is cropped later.
 
 ## Captions
+Use the project `asr_prompt` (CLI `--asr-prompt`) for verified domain names and technical
+identifiers from the lesson brief or slides. It is recognition context, not a replacement script.
+Changing it selects a different shared transcript cache entry; an explicitly supplied transcript
+remains authoritative. Check technical words against the audio and visible slides before export:
+recognition hints can improve spelling but do not prove a correct transcript.
+
 `vstudio.bilingual`: the source line + the translation as a smaller second line in the theme's secondary
 ink (`over_ink2`); `translated` shows only the translation. The translation goes through `vstudio.llm`
 task `translate` (its fallback chain); persona `subtitles.glossary` ({source: target}) is enforced and

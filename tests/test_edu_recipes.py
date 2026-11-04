@@ -473,7 +473,7 @@ def test_lesson_project_runs_to_publish_and_export(tmp_path, lesson_media):
     p = Project.create(str(tmp_path / "proj"), recipe="lesson-clips",
                        inputs=dict(source=[lesson_media["src"]], transcript=[lesson_media["tr"]]),
                        params=dict(planner="none", platforms=["douyin"], subtitles="mono", min_s=5, max_s=20, count=2,
-                                   recap=False, title="Small talk"))
+                                   recap=False, title="Small talk", asr_prompt="break the ice, reluctant"))
     r = p.run()
     assert r["exit_code"] == 7 and r["pending"][0]["id"] == "points"
     pts = json.loads(open(p.pending("points")[0]["file"], encoding="utf-8").read())
@@ -639,3 +639,18 @@ def test_protected_lesson_camera_and_caption_rail_do_not_cover_slides(tmp_path, 
     x, y, w, h = cam
     assert frame[y+h//2, x+w//2, 0] > 230 and frame[y+h//2, x+w//2, 1] < 20
     assert {k["kind"] for k in result["keepouts"]} == {"source-content", "camera"}
+
+
+def test_lesson_cli_passes_domain_terms_to_shared_transcriber(tmp_path, monkeypatch):
+    from vstudio.batch import segplan
+    calls = []
+    def get(source, transcript_path=None, **kwargs):
+        calls.append((source, transcript_path, kwargs))
+        return transcript(LESSON), None, None
+    monkeypatch.setattr(segplan, "get_transcript", get)
+    out = tmp_path / "points.json"
+    assert L._cli(["plan", "--source", "lecture.mp4", "--language", "en",
+                   "--asr-prompt", "sys.settrace, exception, opcode", "--provider", "none",
+                   "--out", str(out)]) == 0
+    assert calls == [("lecture.mp4", None, {"language": "en", "prompt": "sys.settrace, exception, opcode"})]
+    assert json.loads(out.read_text())["points"]

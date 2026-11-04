@@ -630,6 +630,7 @@ def _cli(argv=None):
     p.add_argument("--source", default=None)
     p.add_argument("--transcript", default=None)
     p.add_argument("--language", default=None, help="en | zh | auto (detected)")
+    p.add_argument("--asr-prompt", default=None, help="domain terms for speech recognition, not a replacement transcript")
     p.add_argument("--count", type=int, default=None)
     p.add_argument("--min", dest="min_s", type=float, default=20.0)
     p.add_argument("--max", dest="max_s", type=float, default=90.0)
@@ -707,7 +708,7 @@ def _cli(argv=None):
             pass
     from vstudio.batch.segplan import get_transcript
     lang = None if a.language in (None, "", "auto") else a.language
-    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang)
+    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang, prompt=a.asr_prompt)
     sents = sentences(tr)
     plan = plan_points(sents, lang, a.count, a.min_s, a.max_s, a.provider, a.gloss_lang)
     plan.update(source=os.path.abspath(a.source) if a.source else None, transcript=tpath)
