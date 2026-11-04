@@ -50,7 +50,7 @@ These sheets do not establish frame-accurate or continuous-playback acceptance.
    in spec tables, not code: `ROUTE` (cities/legs), `TIMELINE` (range/ticks), `FOCUS`, `VCROP`, `VEQ`, `FILM_SECTIONS`.
 3. **Layout check before paying for TTS.** Without `timing.json`, durations are estimated (silent):
    ```bash
-   python3 $VSTUDIO/workflows/photo-story/scripts/photostory/render.py work/spec.py --stills 2,10,25,40
+   python3 $VSTUDIO/workflows/photo-story/scripts/photostory/render.py work/spec.py --stills auto
    ```
    Stills go to `work/stills/` at 1/3 size (`--full` for full size). Look at each one. Check mid-transition times too.
    For product/process footage, replace the example times with each selected action's onset, contact,
@@ -380,3 +380,5 @@ is performed. Author and review cover text separately; automatic planning and
 arbitrary multilingual translation maps are not provided by this spec mode.
 
 For product/company music edits, `LAYOUT.video_caption_safe=True` fits complete `fit="contain"` video shots into the larger area outside the caption band. The planner enables this by default. This keeps process labels off the footage. Inspect subject size at phone resolution and adjust the label band or supply a verified `source_region` if the product is too small. An explicit `False` retains an authored overlay layout.
+
+Layout previews default to `--stills auto`: the first, middle and last output frame of every shot, including short closing shots, plus a readable frame before the ending fade. Frame-index filenames preserve distinct frames around rapid cuts. Explicit comma-separated seconds remain available. These samples support checking crops, captions and transitions; they do not establish continuous visual or audio quality.

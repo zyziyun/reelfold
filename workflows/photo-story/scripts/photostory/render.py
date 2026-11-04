@@ -15,6 +15,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -64,12 +65,33 @@ def finish(C, T):
     grade.plan(C, T)
 
 
+def review_frames(shots, total, fps, end_fade=0):
+    """First, middle and last output frame of every shot, including short closing shots.
+
+    These are sampled evidence, not continuous visual verification. Use integer
+    frame indices so sub-second cuts cannot collapse into the same JPEG name.
+    """
+    last = max(0, math.ceil(total * fps) - 1)
+    frames = set()
+    for shot in shots:
+        start = max(0, math.ceil(float(shot["start"]) * fps))
+        end = min(last, math.ceil(float(shot["end"]) * fps) - 1)
+        if start <= end:
+            frames.update((start, (start + end) // 2, end))
+    # Keep a readable pre-fade frame as well as the true closing frame.
+    if frames and 0 < end_fade < total:
+        before_fade = max(0, math.ceil((total - end_fade) * fps) - 1)
+        if any(float(sh["start"]) <= before_fade / fps < float(sh["end"]) for sh in shots):
+            frames.add(before_fade)
+    return sorted(frames)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec", help="story spec .py (paths inside are relative to its folder)")
     ap.add_argument("--preview", type=float, help="render only this many seconds")
     ap.add_argument("--from", dest="t_from", type=float, default=0.0, help="start time (s)")
-    ap.add_argument("--stills", help="comma-separated times (s): write JPEG stills instead of a video")
+    ap.add_argument("--stills", help="auto: sample every shot; or comma-separated times (s) for JPEG stills")
     ap.add_argument("--full", action="store_true", help="stills at full canvas size (default 1/3)")
     ap.add_argument("--stills-dir", default=None, help="where stills go (default <spec dir>/stills)")
     ap.add_argument("--out", default=None, help="output mp4 (default spec OUT, or cache/preview.mp4 for --preview)")
@@ -107,7 +129,9 @@ def main():
     chap_len = float(getattr(C.spec, "CHAPTER_CARD", 2.2) or 0)
     end_fade = T.pace["end_fade"]
 
-    stills = [float(x) for x in a.stills.split(",")] if a.stills else None
+    auto_frames = review_frames(T.shots, total, C.FPS, end_fade) if a.stills == "auto" else None
+    stills = ([f / C.FPS for f in auto_frames] if auto_frames is not None else
+              [float(x) for x in a.stills.split(",")] if a.stills else None)
     if stills and any(t >= total for t in stills):   # past the end = a black (faded) frame, not a layout check
         print(f"! stills past the end ({total:.1f}s) skipped: {[t for t in stills if t >= total]}")
         stills = [t for t in stills if t < total] or [max(0.0, total - 1.0)]
@@ -116,7 +140,7 @@ def main():
     if stills:
         sdir = a.stills_dir or C.path("stills")
         os.makedirs(sdir, exist_ok=True)
-        frames = [int(t * C.FPS) for t in stills]
+        frames = auto_frames if auto_frames is not None else sorted({int(t * C.FPS) for t in stills})
     else:
         enc = subprocess.Popen([media.ffmpeg_bin(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
                                 "-s", f"{C.W}x{C.H}", "-r", str(C.FPS), "-i", "-",
@@ -184,7 +208,7 @@ def main():
             im = Image.fromarray(img)
             if not a.full:
                 im = im.resize((C.W // 3, C.H // 3), Image.LANCZOS)
-            p = os.path.join(sdir, f"st_{gt:06.1f}.jpg")
+            p = os.path.join(sdir, f"st_frame_{fi:08d}.jpg")
             im.save(p, quality=90)
             print("still", p)
             continue

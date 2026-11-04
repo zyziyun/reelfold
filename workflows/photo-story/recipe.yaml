@@ -49,9 +49,9 @@ params:
       x-zh: 平台
     stills:
       type: string
-      default: "2,10,25"
-      title: Layout still times (s)
-      x-zh: 预览静帧时间点
+      default: "auto"
+      title: Layout samples (auto = every shot, or times in seconds)
+      x-zh: 预览抽帧（auto 检查每个镜头，或指定秒数）
     voice:
       # a voice name (her pick: kept), an engine ("qwen": the cast picks the speaker) or the cast the voice step
       # recorded: {engine, speaker, style, reason, by: ai | rules | you} (vstudio.voicecast)
