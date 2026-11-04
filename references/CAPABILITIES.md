@@ -15,6 +15,7 @@ capability lives.
 | 问答切片, 一问一答, Q&A clips, questions and answers (each clip opens on the question) | `interview-qa` |
 | 文艺片, 看展, 照片做成视频, 配旁白, 胶片感, 双语字幕故事 | `photo-story` |
 | 剪成一个 vlog, 旅游 vlog, 卡点, 快节奏, 去掉不好的部分, 加效果转场, 调色, 配乐, 无人机/DJI 素材 | `vlog` (`style: calm` or `fun`) |
+| 电影感, 胶片效果, 幻灯片效果, 效果丰富切换快, 不要屏闪, 不要俗气, 胶片封面 | `vlog` cine style (`vstudio.cinefx`, `workflows/vlog/examples/cine.example.py`) |
 | 讲解视频, 3b1b, 解释一个概念, 原理讲解 | `explainer` (16:9 long or vertical short) |
 | Descript/CapCut/剪映 导出后收尾, 第一帧黑, 响度, 加速 1.2×, 导出后再去气口 | `polish` (`--cleanup pauses\|gentle\|standard\|tight`, default off) |
 | 做封面, 缩略图, thumbnail | `cover` |

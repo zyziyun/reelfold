@@ -15,18 +15,18 @@ optional still photos (JPG/PNG/HEIC) and, for the fun style, a music track.
 `work/vlog_music.mp4`, `work/cover.png` (+ `cover_1920.jpg`), `music/*.mp3` + `music/ATTRIBUTION.txt`.
 Fun style: `work/fun_vlog.mp4` (+ `.nomusic.mp4`, `.report.json`, `.cues.json`/`.srt`, `.clean.mp4`).
 
-## Choose a style: calm or fun
+## Choose a style: calm, fun or cine
 Follow the current request mode. In Autopilot, choose from the footage, request and platform and record the
 style in `edit.json`; do not add a style confirmation gate. In Ask me first, recommend a style and ask only
 when the choice is genuinely unclear:
 
-| | **calm** (default, `build_vlog.py`) | **fun** (`"style": "fun"`, `build_fun.py`) |
-|---|---|---|
-| feel | slow crossfades, long holds, ambience, music laid on after | cut to the beat of the track, speed ramps, whips, text pops, SFX |
-| footage | drone / nature / walks, long smooth takes, little action | trips with many places, people, food, action, 60/120 fps clips, photos |
-| sound | silent or ambient master, music muxed by `add_music.py` | music-led: bed + SFX + talking-to-camera speech (ducked, captioned) |
-| length | 1-5 min, horizontal 4K is common | 20-90 s short, vertical first (小红书 / 抖音 / Shorts / Reels), also YouTube |
-| pick when the user says | "安静 / 治愈 / cinematic / 慢一点 / 空镜" | "卡点 / 快节奏 / 有趣 / 旅行vlog / fun / fast / travel reel" |
+| | **calm** (default, `build_vlog.py`) | **fun** (`"style": "fun"`, `build_fun.py`) | **cine** (`vstudio.cinefx`, a project file) |
+|---|---|---|---|
+| feel | slow crossfades, long holds, ambience, music laid on after | cut to the beat of the track, speed ramps, whips, text pops, SFX | film look on every frame, one effect family per chapter (letterbox, Super 8, film strip, slides, stacked bands, print), hard cuts on beats, no flashes |
+| footage | drone / nature / walks, long smooth takes, little action | trips with many places, people, food, action, 60/120 fps clips, photos | one place or activity plus a city / night walk; phone clips of mixed orientation, full-resolution photos, a few talking-to-camera lines |
+| sound | silent or ambient master, music muxed by `add_music.py` | music-led: bed + SFX + talking-to-camera speech (ducked, captioned) | her own voice lines as narration (cleaned), music bed ducked under them, a few quiet SFX (shutter, camera, typewriter) |
+| length | 1-5 min, horizontal 4K is common | 20-90 s short, vertical first (小红书 / 抖音 / Shorts / Reels), also YouTube | 60-100 s vertical, plus an optional 15 s short cut |
+| pick when the user says | "安静 / 治愈 / slow cinematic / 慢一点 / 空镜" | "卡点 / 快节奏 / 有趣 / 旅行vlog / fun / fast / travel reel" | "电影感 + 效果丰富 / 胶片 / 幻灯片 / 各种效果 / 切换快但不俗气 / 不要屏闪" |
 
 Both read the same `edit.json` shape (`clips`, `src_dir`, `grade`, `hdr`, `platform`); `build_vlog.py` hands a
 `"style": "fun"` config to `build_fun.py`, so one command works for both.
@@ -38,6 +38,7 @@ Read `references/recipes.md` before writing edit.json or hand-rolling any filter
 ## Entry points
 - "merge / 剪个vlog / 去掉不好的部分" -> full pipeline (calm), after asking calm vs fun.
 - "卡点 / 快节奏 / fun travel vlog / reel / 有我说话的片段" -> Fun style section (`build_fun.py`).
+- "电影感 / 胶片 / 幻灯片 / 效果丰富 / 多种效果切换 / 不要太多屏闪 / 不要俗气" -> Cine style section (`vstudio.cinefx`).
 - "for 小红书 / 抖音 / YouTube / Shorts" -> Platforms section (`platform` / `--platform`).
 - "make a cover / 封面 / 剪贴报" -> step 6.
 - "add music / 配乐 / 换首曲子" -> step 7.
@@ -320,6 +321,64 @@ holds the overview and enlarged detail steady in portrait and reserves room for 
 Check the exported frame at phone size while the cue is active. For language variants, distinguish
 translated captions from dubbed audio in the handoff; matching durations do not prove a dub.
 
+## Cine style (电影感, many effects, few flashes)
+
+Engine: `lib/vstudio/cinefx.py` (numpy frames + ffmpeg, 1080x1920, 30 fps). A project is one Python file:
+copy `examples/cine.example.py` to `<project>/work/project.py`, rename the clips, edit the timeline.
+Helpers: `scripts/cine_tools.py` (`ingest`, `voice`, `covers`, `practice`). Effects and their pitfalls:
+`references/EFFECTS.md`, ids `cine-*`.
+
+```bash
+python3 $VSTUDIO/workflows/vlog/scripts/cine_tools.py ingest raw/*.MOV raw/*.HEIC --work work  # sdr/, photos_full/, sheets/
+python3 work/project.py stills 1 9 20 35 50     # look at every effect and every caption before rendering
+python3 work/project.py video                   # one scene per shot, rendered in parallel; `video 3 7` re-renders two
+python3 $VSTUDIO/workflows/vlog/scripts/cine_tools.py voice raw/TALK.MOV --work work   # before `audio`
+python3 work/project.py audio && python3 work/project.py final   # loudnorm -14, bt709 tags, cover on frames 1-3
+```
+
+**Pipeline**
+1. **Ingest and read every contact sheet** (1 tile per second). Transcribe every clip that might hold speech;
+   whisper invents text over ambient sound ("我可以看到..."), so a clip counts as speech only when the words make sense.
+2. **Find the story in the material, then the title.** The structure that worked: the activity told in order of
+   arrival (lift, floor number, view, her, the action itself), then the city afterwards. The one shot the story
+   cannot do without (her actually swimming, eating, climbing) must be in it; if the footage lacks it, ask for it.
+   Title: conversational and specific, with a number, 7-12 characters plus an 8-10 character subtitle; a pun that
+   can become a series name is best ("换个方式游上海" beat "特殊方式游上海": it talks, implies the contrast with ordinary
+   sightseeing, and does not praise itself).
+3. **Hook = highlights under her own sentence.** The first 7-10 s are 1-2 beat cuts of the best shots, each with a
+   different treatment, played under the line where she says what and where it is; the cover title appears as a big
+   line in the first second (`Project.hook`). Never half-beat cuts: she called them unreadable. Shots with text or a
+   layout (strip, slides, print, triptych) get 2 beats. The hook ends on a band closing; the Opening reopens it.
+4. **One look per chapter, one shared finish.** `finish()` runs on every frame (curve, split tone, halation, grain).
+   Chapters change the treatment: stacked bands for the activity, Super8 for a transition, beat montage + FilmStrip
+   for a landmark, Slides for a second landmark, widescreen bands + Print for the ending. A chapter label (中文 +
+   small English) marks each change.
+5. **Landscape clips: stack 2-3 in `Dual` / `Triptych` bands.** Cover-cropping a landscape take of a person to 9:16
+   cut faces at the frame edge twice. Pick takes of the same subject or motion so the bands read as one moment.
+6. **Not tacky**: no white flash, no glitch, no whip. One warm light leak in the whole video, chapter breaks dip to
+   black for a few frames, cuts sit on beats. Text is one serif family plus one mono, never coloured.
+7. **Captions** from her own voice, proofread (ASR mishears place names), bottom at y 1560; when she is on camera
+   keep her lips in sync (the VO timeline time equals the clip's source time).
+8. **Cover**: offer `cover_negative`, `cover_still` and `cover_strip` (three different subjects in the strip, not two
+   takes of one scene). Film covers measure dark (0.2-0.3); say so instead of lifting until the grain looks dirty.
+   `final` burns the chosen cover into the first 3 frames (replace, not insert: duration and sync unchanged), so the
+   hook line starts after 0.1 s.
+
+**Clarity** (she noticed every time): photos at full resolution, never a 1600 px export; video zooms <= 1.05 (a 1080p
+source cannot be enlarged); open on a sharp photo rather than a blurry clip; 30 fps (24 drops a third of the frames);
+grain <= 2 with a mild sharpen, because the platform re-encode turns heavier grain into mush; export CRF 16 capped at
+16 Mbps (`ENC`). A tone-map other than avconvert does not add detail: compare 1:1 crops before switching.
+
+**Voice**: `cine_tools.py voice` runs DeepFilterNet then studiosound "light", re-transcribes the result and measures
+its lag. Indoor takes take full strength (SNR 12 -> 57 dB); a street take at 7 dB SNR starts losing words above
+`--atten-lim 10`, so stop there. Give her before / after files to judge by ear.
+
+**Short cut and English version** (on request): a 15 s cut of long holds with three big story lines over them and a
+no-music export for a platform trending sound; an English script per VO slot with each slot's duration, practice audio
+from `cine_tools.py practice` (spell hard names phonetically for the TTS), and b-roll over the slots where she was
+speaking Chinese on camera. What made a reference post spread was one striking shot held, one emotional line with
+concrete numbers and a sound that names the place, not the length; copy the lesson, not the length.
+
 ## Platforms
 `platform` in edit.json (or `--platform` on `build_vlog.py` / `build_fun.py` / `add_music.py` /
 `make_cover.py`): `xiaohongshu:full`, `xiaohongshu:vertical` (3:4), `douyin`, `tiktok`, `youtube`,
@@ -351,6 +410,9 @@ translated captions from dubbed audio in the handoff; matching durations do not 
 - `scripts/make_cover.py` - torn-paper scrapbook cover, any size, optional title; Chrome/Chromium/Playwright.
 - `scripts/fetch_music.sh` - CC-BY Incompetech tracks by title + `ATTRIBUTION.txt`.
 - `scripts/add_music.py` - loop/fade/two-pass-loudnorm music mux (optional ambient bed), video copied.
+- `scripts/cine_tools.py` - cine style: `ingest` (SDR clips, full-res photos, 1 s sheets), `voice` (DeepFilterNet +
+  studiosound, checked by ASR and lag), `covers` (negative / still / strip), `practice` (English VO practice audio).
+- `examples/cine.example.py` - a cine project file to copy; the engine is `lib/vstudio/cinefx.py`.
 
 ## Persona keys (all optional)
 `vlog.speed_subject` (1.0), `vlog.speed_empty` (1.0), `vlog.grade` ({brightness, contrast,
@@ -364,3 +426,5 @@ saturation, gamma}), `vlog.cover_tape` (title label underline colour), `vlog.fun
 "speech" clip, a 120 BPM drum track, generated photos + HEIC; ~6 min): fun renders for xiaohongshu:full and
 youtube (beats, spikes, transitions, loudness, caption box, SFX peaks, ducking, slow-mo), calm output
 identical to git HEAD, calm platform wiring. `VLOG_TEST_DIR=/tmp/vt` keeps media and renders between runs.
+Cine: `python3 -m pytest tests/test_cinefx.py -q` (every shot class, looks, overlays, covers, cover burn-in,
+the example timeline on whole beats, voice lag, full-resolution photo import; ~15 s).

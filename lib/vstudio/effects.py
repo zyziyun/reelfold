@@ -673,6 +673,93 @@ _add("frame-scoring", "Frame scoring", "covers", "Picks smiling, eyes-open, cent
 # API
 # ------------------------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------------------------
+# Cine vlog (vstudio.cinefx): one look per chapter, a shared film finish, few flashes
+# ------------------------------------------------------------------------------------------------
+CX = "vstudio.cinefx"
+_add("cine-film-finish", "Film finish (curve, split tone, halation, grain)", "looks",
+     "Soft film curve, teal shadows / warm highlights, red-orange glow around lights, luma grain", [PIL],
+     {PIL: [CX + ":finish"]}, "`lib/vstudio/cinefx.py:finish` (looks clean / night / super8 / paper / bw)",
+     [("look", "clean", "night = stronger halation + a faint blue streak on point lights; super8 = faded warm, "
+       "heavy grain; bw = monochrome insert; paper = covers / cards"),
+      ("grain", 2.0, "2 survives platform re-encoding; 4+ turns to mush after the second compression"),
+      ("hal", 0.32, "0.3 reads as film, 0.55 suits night skylines, >0.8 looks like a filter")],
+     "Every frame of a cine vlog; it is what makes mixed phone clips feel like one film", "n/a", "whole video",
+     "always on; vary the look per chapter, not per shot",
+     ["Grain is the first thing a platform re-encode destroys: keep the motion grain low and the sharpen mild",
+      "Halation needs real highlights; on a flat daylight clip it only greys the image"],
+     "tests/test_cinefx.py", "`cinefx.finish(frame, frame_index, 'night')` on any float32 1080x1920 frame",
+     variants=["clean", "night", "super8", "paper", "bw"])
+_add("cine-letterbox-open", "Letterbox open + expand", "transitions",
+     "A 2.39:1 band opens on a landscape clip with the title around it, then expands to full frame into the "
+     "next vertical clip", [PIL], {PIL: [CX + ":Opening"]}, "`cinefx.Opening`",
+     [("hfull", 452, "the 2.39 band height on a 1080 wide canvas"),
+      ("expand", "2.5 beats", "shorter feels like a wipe, longer like a slow reveal")],
+     "The title card after the hook; bookend it with a band that closes before the end", "med", "8 beats",
+     "1 per video (+1 closing band)",
+     ["The next shot must continue the vertical clip at into_start + B(2.5) or the expand jumps"],
+     "tests/test_cinefx.py", "`Opening(0, B(8), (wide_clip, s), (vertical_clip, s), title, en, date)`")
+_add("cine-band-stack", "Stacked landscape bands (triptych / dual)", "layout",
+     "Two or three landscape clips as wide bands on the vertical canvas, sliding in from alternating sides",
+     [PIL], {PIL: [CX + ":Triptych", CX + ":Dual"]}, "`cinefx.Triptych`, `cinefx.Dual`",
+     [("stagger", "0.14 s - 1.5 beats", "short = one layout snapping in, long = three beats of reveal"),
+      ("band", "456 (3) / 560 (2) px", "keeps the stack inside the y 240..1680 feed crop")],
+     "Every landscape clip on a vertical video: stack 2-3 related takes instead of cropping one", "med",
+     "1-8 beats", "as many as the landscape material needs",
+     ["Never cover-crop a landscape take of a person to 9:16: faces end up cut at the frame edge",
+      "Pick takes with the same subject or motion so the bands read as one moment"],
+     "tests/test_cinefx.py", "`Dual(t0, t1, (clip_a, s), (clip_b, s), delay)`")
+_add("cine-super8-gate", "Super 8 gate", "looks",
+     "Rounded aperture on black, 18 fps step, gate weave, flicker, faded warm grade, optional date stamp",
+     [PIL], {PIL: [CX + ":Super8"]}, "`cinefx.Super8`",
+     [("speed", 1.0, "1.5-2.5 turns a walk into a quick memory"), ("date", "", "small orange stamp, once per chapter")],
+     "One memory-like chapter (walking out, the commute between places)", "low", "4-16 beats",
+     "1 chapter", ["Do not use it for the main subject's best moment; the gate hides detail"],
+     "tests/test_cinefx.py", "`Super8(t0, t1, clip, start, speed=2.0, date=\"11 2 '26\")`")
+_add("cine-film-strip", "Film strip scroll", "cards",
+     "A tilted 35mm strip with sprockets and orange edge print scrolls upward through photos", [PIL],
+     {PIL: [CX + ":FilmStrip"]}, "`cinefx.FilmStrip`",
+     [("names", "2-5 photos", "2 for a hook cut, 5 for an 8-beat breather"), ("edge", "400T", "edge print text")],
+     "Tall subjects (towers, people) from full-resolution photos", "med", "1-8 beats", "1-2 per video",
+     ["Feed it full-resolution photos: a 1600 px export shows soft frames"], "tests/test_cinefx.py",
+     "`FilmStrip(t0, t1, [photo_a, photo_b], edge='400T')`")
+_add("cine-slide-projector", "Slide projector", "cards",
+     "Photos in cream card mounts with a handwritten label advance with a mechanical push", [PIL],
+     {PIL: [CX + ":Slides"]}, "`cinefx.Slides` (sfx `shutter_b` on each advance)",
+     [("per slide", "2.5 beats", "under 2 beats the label cannot be read")],
+     "A breather of photos of one landmark or place (幻灯片)", "low", "2-10 beats", "1 sequence",
+     ["A slide sequence is a breather; do not put it inside a fast montage of more than one slide"],
+     "tests/test_cinefx.py", "`Slides(t0, t1, [(photo, 'label'), ...])`")
+_add("cine-print-settle", "Freeze into a print", "freeze",
+     "The last photo shrinks into a bordered print with a handwritten line on a dark table, then fades", [PIL],
+     {PIL: [CX + ":Print"]}, "`cinefx.Print` (sfx `camera` as it settles)",
+     [("settle", "1-4 beats", "short in a hook, slow as the ending"), ("label", "", "place + date in the hand font")],
+     "The ending, or one beat of a hook", "low", "2-10 beats", "1-2", [], "tests/test_cinefx.py",
+     "`Print(t0, t1, photo, settle=B(4), fade_from=B(7.5), label='...')`")
+_add("cine-double-exposure", "Double exposure", "transitions",
+     "Two clips screen-blended: a tower over the river, a skyline over a window", [PIL],
+     {PIL: [CX + ":DoubleExp"]}, "`cinefx.DoubleExp`", [("weight", 0.85, "the second clip's share")],
+     "One beat inside a hook montage to link two places", "med", "1 beat", "1-2",
+     ["Both clips need dark areas or the blend washes out"], "tests/test_cinefx.py",
+     "`DoubleExp(t0, t1, (clip_a, s), (clip_b, s))`")
+_add("cine-hook-text", "Hook line over the highlights", "text",
+     "A big bold serif line with a soft dark band behind it for the first seconds, under the creator's own hook voice",
+     [PIL], {PIL: [CX + ":overlays"]}, "`cinefx.overlays` (`Project.hook`)",
+     [("size", 96, "readable at feed size; keep it under 8 characters"),
+      ("hold", "7 beats", "until the hook sentence ends")],
+     "Every cine vlog: the cover title said in the first second", "high", "3 s", "1",
+     ["Do not start it on frame 0 when the cover is burned into the first frames"], "tests/test_cinefx.py",
+     "`Project(..., hook=(0.15, B(7), '换个方式游上海'))`")
+_add("cine-film-covers", "Film covers (negative / still / strip)", "covers",
+     "Same-canvas covers: a 35mm negative scan, a 2.39 film still, or a tilted three-frame strip", [PIL],
+     {PIL: [CX + ":cover_negative", CX + ":cover_still", CX + ":cover_strip"]},
+     "`cinefx.cover_negative / cover_still / cover_strip`",
+     [("title", "", "main 7-12 characters, a number helps"), ("sub", "", "8-10 characters")],
+     "When the creator wants a 胶片 / 电影感 cover; offer all three", "n/a", "still", "1",
+     ["The strip needs three different subjects (activity, place, landmark), not two takes of one scene",
+      "Film covers measure dark (0.2-0.3); say so rather than lifting until grain gets dirty"],
+     "tests/test_cinefx.py", "`save_cover(cover_strip([a, b, c], title, sub, en), 'cover.png')`")
+
 def get(id):
     try:
         return REGISTRY[id]

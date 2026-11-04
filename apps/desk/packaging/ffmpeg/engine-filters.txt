@@ -4,6 +4,7 @@ acompressor
 acrossfade
 adelay
 afade
+afftdn
 aformat
 alimiter
 amix

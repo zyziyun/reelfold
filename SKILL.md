@@ -1,7 +1,7 @@
 ---
 name: video-studio
 description: >-
-  Open-source one-stop workbench (开源自媒体工作台, 一站式) for creators and course makers: create from notes/Notion/a topic, edit your footage, publish to every platform (YouTube/TikTok/Instagram/X/LinkedIn, then 小红书/抖音/B站/视频号) on a calendar; hundreds per batch. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm or 卡点快节奏, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
+  Open-source one-stop workbench (开源自媒体工作台, 一站式) for creators and course makers: create from notes/Notion/a topic, edit your footage, publish to every platform (YouTube/TikTok/Instagram/X/LinkedIn, then 小红书/抖音/B站/视频号) on a calendar; hundreds per batch. Talking-head 口播 (去气口, 去 filler/重复/口误, 加速, 字幕, 记笔记面板, 气泡, 进度条, 高光预告/快剪 hooks, 精剪风, 修图/美颜, 封面, 发布文案); long recordings → 切片/分集/剪成课程 (去浏览器头/书签栏, 学员变声, 竖屏切片); calls/interviews/podcasts → clips + 遮脸/打码/放个小猫; promo recuts with 左右分栏/split screen, 截图卡片高亮, 定格放大, 精选插片; 文艺片/photo stories with effects; travel vlogs (calm, 卡点快节奏 or 电影感多效果 胶片/幻灯片, 调色, 转场, 配乐); 3Blue1Brown-style explainers; AI-generated skits; covers/thumbnails, slides, scripts, pronunciation drills. Use whenever the user hands over footage, photos, screenshots or a topic and wants it edited, cut shorter, captioned, given effects, music, a cover or post copy, or wants to tweak one stage of such a video.
 ---
 
 # video-studio
@@ -44,7 +44,7 @@ Creator-led exploration, notes, voice/video thoughts, demo material and post dra
 | A **lesson** (teacher / tutor / coach; screen share and / or camera) → one clip per teaching point (今日短语 / 知识点), recap, study notes, 中英字幕 | `workflows/lesson-clips` |
 | Interview / podcast / coaching → **Q&A clips** (一问一答: opens on the question, answer cut tight, role labels) | `workflows/interview-qa` |
 | Filmed comedy / sketch, with or without dialogue → source-grounded cuts preserving setup, payoff and reactions | `workflows/performance-edit` |
-| Her own voice-over + clips / photos → vlog (`calm` or `fun` 卡点) | `workflows/vlog` |
+| Her own voice-over + clips / photos → vlog (`calm`, `fun` 卡点, or `cine` 电影感多效果: 胶片 / 幻灯片 / 分屏, no flashes) | `workflows/vlog` |
 | Photos / clips + narration or music → 文艺片 / photo story | `workflows/photo-story` |
 | A topic → 3b1b-style explainer (AI voice, bilingual captions) | `workflows/explainer` |
 | Her product + release notes → launch / update kit: recorded demo (16:9, 9:16, 1:1), README GIF, feature clips, PH stills, EN + 中文 post copy, schedule | `workflows/launch-kit` |
