@@ -4,6 +4,7 @@ import math
 import os
 import re
 import threading
+import tempfile
 import time
 import uuid
 from urllib.parse import urlsplit
@@ -19,6 +20,7 @@ PAGE = {'.png', '.jpg', '.jpeg', '.webp'}
 class Learning:
     def __init__(self, inbox):
         self.inbox = inbox
+        self._capture_locks = {}
 
     def _project(self, ident):
         from vstudio.batch.clients import home
@@ -98,12 +100,28 @@ class Learning:
         d=record.need_session(session_dir)
         need(os.path.dirname(os.path.realpath(d))==os.path.realpath(store.recordings_root()),'choose a recording made here')
         need(not os.path.exists(os.path.join(d,'recording.lock')),'finish the recording first')
-        sess=read_json(os.path.join(d,'session.json'),{})
-        out=os.path.join(d,'work','learning-take.mp4')
-        os.makedirs(os.path.dirname(out),exist_ok=True)
-        record.mux(d,sess,out)
-        # Preserve the camera, microphone and screen tracks; the mux is a convenient editable derivative.
-        return self.update(ident,dict(action='take',files=[out]))
+        with _LOCK:
+            lock = self._capture_locks.setdefault(os.path.realpath(d), threading.Lock())
+        with lock:
+            out=os.path.join(d,'work','learning-take.mp4')
+            takes = (self._project(ident).data.get('inputs') or {}).get('takes') or []
+            if out in takes and os.path.isfile(out):
+                from vstudio import media
+                try:
+                    ready = (media.probe(out).get('duration') or 0) > 0
+                except (OSError, ValueError, media.FFmpegError):
+                    ready = False
+                if ready:
+                    return self.get(ident)
+            sess=read_json(os.path.join(d,'session.json'),{})
+            os.makedirs(os.path.dirname(out),exist_ok=True)
+            # A failed mux must not replace a previously saved viewing copy.
+            with tempfile.TemporaryDirectory(prefix='learning-mux-', dir=os.path.dirname(out)) as tmp:
+                staged = os.path.join(tmp, 'take.mp4')
+                record.mux(d,sess,staged)
+                os.replace(staged, out)
+            # Preserve original camera, microphone and screen tracks.
+            return self.update(ident,dict(action='take',files=[out]))
 
     def create(self, b):
         from vstudio.batch.clients import home

@@ -149,4 +149,55 @@ class Workspace(unittest.TestCase):
             self.assertEqual(out['text'],'My exact words.')
             self.assertEqual(transcribe.call_args.kwargs['backend'],'faster')
 
+    def test_concurrent_capture_and_retry_mux_once(self):
+        import json
+        import shutil
+        from concurrent.futures import ThreadPoolExecutor
+        from vstudio.create import record, store
+        d = self.api.create(dict(idea='One recording'))
+        rec = os.path.join(store.recordings_root(), 'one-take')
+        os.makedirs(rec)
+        shutil.copyfile(self.source, os.path.join(rec, 'camera.mp4'))
+        with open(os.path.join(rec, 'session.json'), 'w') as f:
+            json.dump(dict(tracks=dict(camera=dict(file='camera.mp4'))), f)
+        with mock.patch.object(record, 'mux', wraps=record.mux) as mux:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(lambda _: self.api.capture(d['id'], rec), range(2)))
+            self.api.capture(d['id'], rec)
+            self.assertEqual(mux.call_count, 1)
+        self.assertEqual(list(results[0]['sources']), list(results[1]['sources']))
+        self.assertEqual(len(results[0]['sources']), 1)
+        take = next(iter(results[0]['sources'].values()))
+        self.assertGreater(media.probe(take['path'])['duration'], 2)
+        self.assertTrue(os.path.isfile(os.path.join(rec, 'camera.mp4')))
+        os.remove(take['path'])
+        restored = self.api.capture(d['id'], rec)
+        self.assertEqual(list(restored['sources']), list(results[0]['sources']))
+        self.assertGreater(media.probe(take['path'])['duration'], 2)
+
+    def test_failed_capture_preserves_previous_file_and_can_retry(self):
+        import json
+        import shutil
+        from pathlib import Path
+        from vstudio.create import store
+        d = self.api.create(dict(idea='Recover a saved recording'))
+        rec = Path(store.recordings_root()) / 'retry-take'
+        (rec / 'work').mkdir(parents=True)
+        shutil.copyfile(self.source, rec / 'camera.mp4')
+        (rec / 'session.json').write_text(json.dumps(dict(tracks=dict(camera=dict(file='camera.mp4')))))
+        out = rec / 'work' / 'learning-take.mp4'
+        shutil.copyfile(self.source, out)
+        before = out.read_bytes()
+        def fail_mux(directory, session, target):
+            Path(target).write_bytes(b'incomplete encode')
+            raise RuntimeError('interrupted')
+        with mock.patch('vstudio.create.record.mux', side_effect=fail_mux):
+            with self.assertRaisesRegex(RuntimeError, 'interrupted'):
+                self.api.capture(d['id'], str(rec))
+        self.assertEqual(out.read_bytes(), before)
+        self.assertEqual(self.api.get(d['id'])['sources'], {})
+        self.assertEqual(list((rec / 'work').glob('learning-mux-*')), [])
+        result = self.api.capture(d['id'], str(rec))
+        self.assertEqual(len(result['sources']), 1)
+
 if __name__=='__main__':unittest.main()
