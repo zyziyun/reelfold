@@ -296,6 +296,36 @@ test('a lost camera pauses the workspace take and offers saving instead of resum
   await page.screenshot({ path: path.join(tmp, 'camera-saved.png') });
 });
 
+test('stop and immediate navigation attach a recorded take only once', async () => {
+  test.setTimeout(120000);
+  const doc = await api('POST', '/api/create/learning', { idea: 'Concurrent recording handoff' });
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
+  await page.getByTestId('learning-camera-open').click();
+  await expect(page.getByTestId('learning-camera-preview')).toBeVisible();
+  await page.getByTestId('learning-camera-record').click();
+  await expect(page.getByTestId('learning-camera-clock')).not.toHaveText('0:00');
+  await page.evaluate(() => {
+    const originalStop = MediaRecorder.prototype.stop;
+    MediaRecorder.prototype.stop = function () { setTimeout(() => originalStop.call(this), 200); };
+    const originalFetch = window.fetch;
+    sessionStorage.setItem('test-capture-calls', '0');
+    window.fetch = async (...args) => {
+      if (String(args[0]).endsWith('/capture')) {
+        sessionStorage.setItem('test-capture-calls', String(Number(sessionStorage.getItem('test-capture-calls')) + 1));
+      }
+      return originalFetch(...args);
+    };
+    document.querySelector<HTMLButtonElement>('[data-testid="learning-camera-record"]')!.click();
+    location.hash = '#/';
+  });
+  await expect.poll(async () => {
+    const saved = await api('GET', `/api/create/learning/${doc.id}`);
+    return Object.values(saved.sources).length;
+  }).toBe(1);
+  expect(await page.evaluate(() => sessionStorage.getItem('test-capture-calls'))).toBe('1');
+  await page.reload();
+});
+
 for (const leave of [false, true]) test(`saved take retries workspace handoff after ${leave ? 'leaving' : 'stopping'} without recording again`, async () => {
   test.setTimeout(120000);
   const doc = await api('POST', '/api/create/learning', { idea: 'Recording handoff recovery' });

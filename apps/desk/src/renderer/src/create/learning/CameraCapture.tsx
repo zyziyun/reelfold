@@ -17,12 +17,23 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const [error, setError] = useState('');
   const pendingKey = `learning-capture:${id}`;
   const [pendingDir, setPendingDir] = useState<string | null>(() => sessionStorage.getItem(pendingKey));
-  const attachTake = useCallback(async (dir: string) => {
-    sessionStorage.setItem(pendingKey, dir);
-    if (!client) throw new Error(t('learning.capturePending'));
-    const doc = await client.captureLearning(id, dir);
-    sessionStorage.removeItem(pendingKey);
-    return doc;
+  const attachments = useRef(new Map<string, Promise<LearningWorkspace>>());
+  const attachTake = useCallback((dir: string) => {
+    // Explicit stop and navigation cleanup may finish the same recorder together.
+    const existing = attachments.current.get(dir);
+    if (existing) return existing;
+    const pending = (async () => {
+      sessionStorage.setItem(pendingKey, dir);
+      if (!client) throw new Error(t('learning.capturePending'));
+      const doc = await client.captureLearning(id, dir);
+      if (sessionStorage.getItem(pendingKey) === dir) sessionStorage.removeItem(pendingKey);
+      return doc;
+    })().catch((error) => {
+      attachments.current.delete(dir);
+      throw error;
+    });
+    attachments.current.set(dir, pending);
+    return pending;
   }, [client, id, pendingKey]);
   const stopRecording = rec.stop;
   useEffect(() => () => {
