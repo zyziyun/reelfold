@@ -132,10 +132,12 @@ def rules(cp, pay, spend_cap=0.0):
                      total=total, cap=spend_cap)
     if kind in APPROVE_KINDS:
         qc = pay.get("qc") or {}
-        if default is None:
+        if qc.get("status") == "red" or default is None:
             return _block("qc-red", "; ".join(str(r) for r in qc.get("reasons") or []) or "the checks did not pass",
                           reasons=[str(r) for r in qc.get("reasons") or []][:5])
-        return _rule("qc-passed" if qc.get("status") else "approve", f"checks {qc.get('status') or 'passed'}", default,
+        if qc.get("status") == "green":
+            return _rule("qc-passed", "checks green", default, qc="green")
+        return _rule("approve", "continued with the suggested answer; no passing QC result recorded", default,
                      qc=qc.get("status"))
     if kind == "filler-confirm":
         opts = pay.get("options") or []

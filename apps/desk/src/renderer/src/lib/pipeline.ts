@@ -183,7 +183,7 @@ export function decisionWords(d: AutopilotDecision): { key: string; params: Reco
       return p.choice === 'ai' ? { key: 'ap.d.copyAi', params: { provider: String(p.provider ?? 'AI') } } : { key: 'ap.d.copyRules', params: {} };
     case 'publish':
     case 'review':
-      return { key: 'ap.d.approved', params: {} };
+      return { key: p.qc === 'green' ? 'ap.d.approved' : 'ap.d.default', params: {} };
     case 'budget-approval':
       return { key: 'ap.d.budget', params: { n: n('total') } };
     case 'voice-pick':

@@ -187,3 +187,19 @@ def test_projects_registered_at_once_all_stay_listed(tmp_path, monkeypatch):
     with ProcessPoolExecutor(6) as ex:
         list(ex.map(HM.register, dirs))
     assert {p["dir"] for p in HM.projects()} == set(dirs)
+
+
+@pytest.mark.parametrize("kind", ["publish", "review"])
+def test_red_qc_overrides_stale_approval_default(kind):
+    result = AP.rules(cp(kind), dict(default=dict(approve=True), qc=dict(status="red", reasons=["missing frames"])))
+    assert result["blocker"] == "qc-red"
+    assert result["params"]["reasons"] == ["missing frames"]
+    assert "value" not in result
+
+
+@pytest.mark.parametrize("status", [None, "unknown"])
+def test_default_review_does_not_claim_missing_checks_passed(status):
+    result = AP.rules(cp("review"), dict(default=dict(approve=True), qc=dict(status=status)))
+    assert result["value"] == dict(approve=True)
+    assert result["reason_code"] == "approve"
+    assert "no passing QC result" in result["reason"]

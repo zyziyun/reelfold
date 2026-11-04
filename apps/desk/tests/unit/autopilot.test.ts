@@ -140,3 +140,13 @@ describe('publish cards open their clip', () => {
     expect(renderToStaticMarkup(createElement(PostLink, { url: null }))).toBe('');
   });
 });
+
+
+it('requires recorded green QC before describing a decision as checks passed', () => {
+  for (const kind of ['publish', 'review']) {
+    for (const qc of [undefined, null, 'red', 'unknown']) {
+      expect(decisionWords({ checkpoint: 'layout', item: 'c1', kind, reason_code: 'qc-passed', params: { qc } }).key).toBe('ap.d.default');
+    }
+    expect(decisionWords({ checkpoint: 'layout', item: 'c1', kind, params: { qc: 'green' } }).key).toBe('ap.d.approved');
+  }
+});
