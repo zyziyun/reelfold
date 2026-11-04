@@ -288,7 +288,8 @@ class ImageShot:
         lo_x, hi_x, lo_y, hi_y = ww / 2, iw - ww / 2, wh / 2, ih - wh / 2
         if mo in ("panR", "panL"):
             a, b = (lo_x, hi_x) if mo == "panR" else (hi_x, lo_x)
-            cx = a + (b - a) * (0.15 + 0.7 * u)
+            s0, s1 = sh.get("span", (0.15, 0.85))        # span=(0, 1): pan edge to edge (show the whole width)
+            cx = a + (b - a) * (s0 + (s1 - s0) * u)
         if mo in ("up", "down"):
             a, b = (hi_y, lo_y) if mo == "up" else (lo_y, hi_y)
             cy = a + (b - a) * (0.15 + 0.7 * u)

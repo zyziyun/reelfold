@@ -106,7 +106,7 @@ def make_process_label(C, en, zh):
 def _sub_lines(C, d, en, zh, k, maxw, title=False):
     """Font sizes scaled by k -> (fe, fz, le, lz, LE, LZ, G, total height)."""
     if title:      # music mode: 中文 serif first, English italic below
-        zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * 0.62
+        zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * (0.62 if zh else 0.9)   # English alone reads at near full size
         fz = font_for(zh, zs, "cjk-serif", "cjk-serif")
         fe = font_for(en, es, "serif-italic", "cjk")
     elif getattr(C, "cinema", False):     # refined: regular weight, a little smaller, no stroke (soft shadow)
@@ -151,8 +151,28 @@ def _make_sub_fit(C, en, zh, title=False):
             draw_runs(C, d, (x0 + x1 - d.textlength(strip_markup(ln), font=f)) / 2, y, ln, f, col, stroke)
             y += lh
     if cine or title:
-        lay = soft_shadow(lay, radius=max(3, C.t(10)), alpha=0.7 if cine else 0.5)
+        alpha = float(getattr(C.spec, "TITLE_SHADOW", 0.7 if cine else 0.5))   # spec TITLE_SHADOW: 0-1
+        lay = soft_shadow(lay, radius=max(3, C.t(10)), alpha=alpha)
+        glow = float(getattr(C.spec, "TITLE_GLOW", 0) or 0)       # spec TITLE_GLOW: wide soft halo (px at 2160)
+        if glow:                                                   # keeps light type readable on white frames
+            lay = _glow_pill(lay, C.t(glow), float(getattr(C.spec, "TITLE_GLOW_ALPHA", 0.55)))
     return to_arr(lay)
+
+
+def _glow_pill(lay, r, alpha):
+    """A blurred dark pill under the type's bounding box: a soft local shade, no hard box."""
+    from PIL import ImageFilter
+    bb = lay.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
+    if not bb:
+        return lay
+    sh = Image.new("L", lay.size, 0)
+    ImageDraw.Draw(sh).rounded_rectangle((bb[0] - r, bb[1] - r // 2, bb[2] + r, bb[3] + r // 2), radius=r,
+                                         fill=int(255 * alpha))
+    sh = sh.filter(ImageFilter.GaussianBlur(r * 0.8))
+    out = Image.new("RGBA", lay.size, (0, 0, 0, 0))
+    out.putalpha(sh)
+    out.alpha_composite(lay)
+    return out
 
 
 def make_title_text(C, en, zh):
@@ -167,6 +187,7 @@ def sub_backdrop(C):
     """Soft dark gradient behind subtitles when they are overlaid on the picture (landscape)."""
     h = C.SUB_H if C.prof is None else C.H - C.SUB_Y0 + int(0.35 * C.SUB_H)   # platform: band to the bottom edge
     peak = 120 if getattr(C, "cinema", False) else 200     # cinema: a breath of shade, the type has its own shadow
+    peak = float(getattr(C.spec, "SUB_SHADE", peak) or peak)  # spec SUB_SHADE: darker band for bright footage
     a = (np.linspace(0, 1, h) ** 1.6 * peak).astype(np.float32)
     arr = np.zeros((h, C.W, 4), np.float32)
     arr[..., 3] = a[:, None]
