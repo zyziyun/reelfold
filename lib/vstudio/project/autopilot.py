@@ -308,6 +308,10 @@ def decide(project, pay, complete=None):
             base = rules(cp, again, s["spend_cap"])
             if not base.get("blocker") and base.get("by") == "ai":
                 return base
+    if cp.get("visual_review") and not base.get("blocker") and s["judge"]:
+        from .layout_review import review
+        return review(pay, project.data.get("prompt") or project.data.get("name") or "",
+                      s.get("lang"), complete=complete)
     if base.get("blocker") or not s["judge"] or cp["kind"] not in AI_KINDS:
         return base
     ctx = project.data.get("prompt") or project.data.get("name") or ""
@@ -347,7 +351,7 @@ def history(project):
 
 def answer_meta(d):
     """The fields an auto-answer adds to the answer record."""
-    return {k: d[k] for k in ("by", "reason", "reason_code", "provider", "params") if d.get(k) not in (None, {}, "")}
+    return {k: d[k] for k in ("by", "reason", "reason_code", "provider", "params", "visual_review") if d.get(k) not in (None, {}, "")}
 
 
 def decisions(project):

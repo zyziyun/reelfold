@@ -614,7 +614,8 @@ class Project:
                     if d.get("blocker"):
                         blocked.add((p["id"], target))
                         AP.log(self, dict(event="blocked", checkpoint=p["id"], kind=p.get("kind"), item=target,
-                                          blocker=d["blocker"], reason=d.get("reason"), params=d.get("params")))
+                                          blocker=d["blocker"], reason=d.get("reason"), params=d.get("params"),
+                                          visual_review=d.get("visual_review")))
                         emit(dict(event="autopilot-blocked", ts=now(), checkpoint=p["id"], item=target,
                                   blocker=d["blocker"], reason=d.get("reason")))
                         continue

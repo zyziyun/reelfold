@@ -407,6 +407,7 @@
      "description": "JSON Schema of the answer the app sends"
     },
     "default": {},
+    "visual_review": {"type": "boolean", "description": "Autopilot inspects supplied layout images using the configured planner before approval"},
     "auto": {
      "enum": [
       "never",
