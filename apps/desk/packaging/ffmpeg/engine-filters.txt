@@ -49,6 +49,7 @@ pad
 palettegen
 scale
 select
+sendcmd
 setpts
 setsar
 settb
