@@ -313,6 +313,38 @@ _add("photo-overlays", "Photo overlays", "cards", "Develop, shimmer, dust, pounc
      "Point at something inside a photo story shot", "med", "per shot", "each overlay stars once (A7)",
      ["Coordinates are 0-1 fractions of the box"], "no", "Use them in a photo-story spec",
      ["develop", "shimmer", "dust", "prick", "hl", "tri", "loupe", "tl", "count", "label"])
+_add("narrator-facecam", "Narrator face card (moving)", "cards",
+     "The creator's own face from her recording as a small circle / rounded square / tilted polaroid that pops in on her "
+     "opinion beats, floats, and glides between screen slots", [PIL, FF],
+     {PIL: ["vstudio.storyfx:face_card", "vstudio.storyfx:glide", PS + "facecam.py:main"]},
+     "`vstudio.storyfx`; photo-story `facecam.py` (spec FACECAM)",
+     [("style", "circle", "circle = friendly; round = calmer; polaroid = playful, matches photo cards"),
+      ("slots", "BR", "one slot = steady; two = it drifts across while she talks (glide 2.4 s)"),
+      ("crop", "(100, 380, 920)", "must include the chin; a tight square cuts her mouth off")],
+     "A narrated photo story or vlog where her face supports her opinions, not the scenery", "low", "a whole voice unit",
+     "on opinion units only (scenery stays clean)",
+     ["A glide faster than ~2.4 s across the frame trips the calm flicker check",
+      "Vary style and slot per unit; one fixed corner reads like a webcam"],
+     "tests/test_storyfx.py", "`facecam.py spec.py film.mp4 out.mp4` after render.py",
+     variants=["circle", "round", "polaroid"])
+_add("narrator-sticker", "Narrator cutout sticker", "cards",
+     "Head-and-shoulders cutout of the creator (selfie matte, EMA-smoothed), white sticker outline, soft bottom fade, "
+     "grows 85 -> 105 % over the unit", [PIL],
+     {PIL: ["vstudio.storyfx:Sticker", PS + "facecam.py:main"]}, "`vstudio.storyfx.Sticker`; FACECAM style sticker",
+     [("height", 640, "~1/3 of the frame; smaller reads as a floating head"),
+      ("ema", 0.45, "more = calmer edge, lags fast hand moves")],
+     "Her longest opinion stretch, or when her hands explain something", "med", "a whole voice unit", "1-2 per video",
+     ["Keep the shoulders: a head alone looks wrong", "The matte needs a clear person/background split"],
+     "tests/test_storyfx.py", "FACECAM = {\"u09\": (\"sticker\", [\"BR\", \"ML\"])}")
+_add("design-card", "Design card insert", "cards",
+     "A full-frame design (one of the cover styles) shown for ~2 s as a tilted, shadowed card at the line it belongs "
+     "to, ending above the caption box so the subtitle stays readable", [PIL, FF],
+     {PIL: ["vstudio.storyfx:design_card", PS + "textfx.py:main"]}, "`storyfx.design_card`; TEXTFX style card",
+     [("angle", "-2.5 / +2", "alternate the tilt card to card"), ("hold", "2 s", "longer reads as a slide")],
+     "Reuse the cover candidates she liked as highlights inside the video", "med", "2 s", "4-5 per video",
+     ["Fade 0.3 s; a snap-in over a bright frame flickers"], "tests/test_storyfx.py",
+     "TEXTFX entry (unit, cue, (\"cards/receipt_zh.png\", \"cards/receipt_en.png\"), \"card\", \"shutter\")")
+
 _add("polaroid", "Polaroid / taped card", "cards", "Taped polaroid with a shadow and caption", [PIL],
      {PIL: ["vstudio.cover:polaroid", PS + "shots.py:make_card"]}, "`lib/vstudio/cover.py:polaroid`; `photostory/shots.py:make_card`",
      [("rot", 0, "+-2-6 deg feels hand-placed; >10 deg feels thrown")], "Scrapbook / travel looks, covers", "low",
@@ -403,6 +435,18 @@ _add("stamp-hf", "Stamp", "highlight", "Bordered word slams in from 2.2x", [HF],
      [("angle", -12, "0 is a label, -12 a rubber stamp, beyond -20 slapstick"), ("size", 96, "headline size")],
      "Verdict words ('works', 'tested')", "high", "slam 0.3 s, hold >= 1 s", "1-2 per video (A7)", ["Add stamp.wav at the same time (A11)"],
      "tests/test_hf.py", '`hf.stamp("...", s, d, at)`')
+_add("number-stamp", "Big number / line stamp", "highlight",
+     "One big line on a soft dark pill, anchored to the spoken words: accent-coloured numbers (MOQ 50, ESP32), "
+     "a serif title for the cold open, a price tag, an end card; with a stamp / pop / ding", [PIL, FF, AU],
+     {PIL: ["vstudio.storyfx:text_card", PS + "textfx.py:main"], AU: ["vstudio.audio:sfx_bank"]},
+     "`storyfx.text_card`; photo-story `textfx.py` (spec TEXTFX, SHUTTER)",
+     [("style", "num", "num = heavy accent number; title / tag = serif upper third; end = next-episode card"),
+      ("delay", "0.35 s", "numbers land just after the word, never on a face card popping in")],
+     "Every hard fact the voice says (prices, minimums, model names) and the cold-open hook line", "med",
+     "the spoken line (min 1.4 s)", "about one per 10 s",
+     ["Fade 0.4 s; a yellow number over a white screen still flickers - use tag style there"],
+     "tests/test_storyfx.py", "TEXTFX = [(\"u03\", \"50 个起批\", (\"50 个起批\", \"MOQ 50\"), \"num\", \"stamp\")]")
+
 _add("stacking-stamps", "Stacking stamps", "highlight", "White plate + accent stamp slam-ins; same end time = stack", [PIL],
      {PIL: ["vstudio.overlays:stamp", TH + ":STAMPS"]}, "`overlays.py:stamp`; `compose.py` (`STAMPS`)",
      [("angle", 8, "alternate signs when stacking"), ("size", 56, "")], "Per-frame verdicts", "high", "slam 0.25 s each", "1 stack per video",
@@ -585,6 +629,17 @@ _add("progress-ffmpeg", "Static bar + ffmpeg fill", "progress", "Dim bar PNG + l
 # ------------------------------------------------------------------------------------------------
 # 11. Covers
 # ------------------------------------------------------------------------------------------------
+_add("story-covers", "Story covers (receipt / magazine / inside-outside / narrator sticker)", "covers",
+     "Covers made of the video's own facts: a torn thermal receipt (photo dithered blue-black, real prices and "
+     "numbers as items), a magazine cover with cover lines, a diagonal outside / inside cut, the creator as a sticker",
+     [PIL], {PIL: ["vstudio.cover_styles:receipt", "vstudio.cover_styles:magazine", "vstudio.cover_styles:inside_outside",
+                   "vstudio.cover_styles:narrator_sticker", PS + "cover.py:story_cover"]},
+     "`vstudio.cover_styles`; photo-story `cover.py` with COVER[\"style\"]",
+     [("style", "receipt", "receipt stands out in a feed; inside-outside reads in half a second; sticker adds her face")],
+     "A story with numbers or an opened-up object; the same images become in-video design cards", "n/a", "still",
+     "1 cover", ["Rows must be the video's real numbers", "Pick a sticker frame with the mouth closed"],
+     "tests/test_storyfx.py", "COVER = dict(style=\"receipt\", receipt=dict(photo=..., rows=[...], total=(...)))",
+     variants=["receipt", "magazine", "inside-outside", "narrator-sticker"])
 _add("split-cover", "Split cover", "covers", "Retouched photo + quote + title + thumbnail + chips + stamp, several sizes", [PIL],
      {PIL: ["vstudio.cover:split_cover", "workflows/cover/scripts/split_cover.py"]}, "`lib/vstudio/cover.py:split_cover`",
      [("title_highlight", "", "one highlighted word")], "Talking-head covers", "n/a", "still", "1 per video", [], "tests/test_visual.py", "`split_cover(cfg)`")
