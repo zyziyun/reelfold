@@ -387,3 +387,12 @@ arbitrary multilingual translation maps are not provided by this spec mode.
 For product/company music edits, `LAYOUT.video_caption_safe=True` fits complete `fit="contain"` video shots into the larger area outside the caption band. The planner enables this by default. This keeps process labels off the footage. Inspect subject size at phone resolution and adjust the label band or supply a verified `source_region` if the product is too small. An explicit `False` retains an authored overlay layout.
 
 Layout previews default to `--stills auto`: the first, middle and last output frame of every shot, including short closing shots, plus a readable frame before the ending fade. Frame-index filenames preserve distinct frames around rapid cuts. Explicit comma-separated seconds remain available. These samples support checking crops, captions and transitions; they do not establish continuous visual or audio quality.
+
+### Flicker review profile
+
+Both narrated and music-mode stories use the `calm` flicker profile by default.
+Music mode can also mean a silent process study; it does not imply energetic editing.
+For an intentionally fast beat reel, set `QC = dict(flicker_profile="energetic")`.
+Choose this from the intended style before rendering, not to suppress a failed check.
+A detected event can originate in the source: compare its time against the source
+interval before changing transitions or removing meaningful action.

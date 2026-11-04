@@ -377,6 +377,12 @@ def test_photo_story_music_mode_with_the_built_in_bed_renders(tmp_path, clips):
     but the spec's BGM was whatever the model wrote (None), and a music-mode piece without a music word got no bed
     at all. The spec now always names the bed in music mode, and it renders."""
     from vstudio.project.adapters import photostory as PS
+    # This regression exercises the music bed, not testsrc2's flashing colour pattern.
+    calm = tmp_path / 'calm.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=c=0x306050:s=320x180:r=30:d=12', '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p', str(calm)], check=True)
+    clips = [str(calm)]
     proj = tmp_path / "proj"
     proj.mkdir()
     ctx = DR.Ctx(str(proj), "main", dict(_inputs=dict(clips=list(clips)), _item_dir=str(tmp_path / "item"),
@@ -400,6 +406,7 @@ def test_photo_story_music_mode_with_the_built_in_bed_renders(tmp_path, clips):
                         "--out", str(out), "--platform", "youtube", "--mode", "music"], capture_output=True, text=True,
                        timeout=600, env=env)
     assert r.returncode == 0, r.stderr[-2000:] + r.stdout[-2000:]
+    assert "flicker QC (calm)" in r.stdout
     assert "needs BGM" not in r.stderr and out.is_file() and out.stat().st_size > 1000
     # a spec that names an existing file of hers keeps it
     keep = PS.enforce_bgm('BGM = "mine.mp3"\n', str(tmp_path), "music_calm.wav")

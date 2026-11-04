@@ -85,6 +85,8 @@ GUIDE = """Notes for this spec (they override the template where they differ):
 - Voice: {lang_note}
 - Each cue is (English, 中文); keep the English <= ~90 characters and the 中文 <= ~38 characters per cue, 1-3 cues per unit.
   Length: about {target} s {length_of} in total (Chinese ~4.3 characters per second, English ~2.6 words per second).
+- Flicker review defaults to calm, including silent or music-mode stories. Only an intentionally fast beat reel
+  should set QC = dict(flicker_profile="energetic"); do not relax QC merely to pass a failed render.
 - Do not write PLATFORM, CANVAS, OUT, TTS voice / model / engine, VOICE, ROUTE or SAY. {bgm_note}
 - This version is for {platforms}: its words are in {words_lang}. TITLE_ZH / TITLE_EN, SECTIONS / SECTIONS_EN (2-4
   short chapter names), COVER (kicker, title, subtitle, tagline (before, keyword, after), hero=dict(src=<frame>),

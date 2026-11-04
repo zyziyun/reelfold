@@ -246,8 +246,8 @@ def main():
     if not a.preview:
         from vstudio import flicker
         try:
-            flicker.check(out, "energetic" if C.MODE == "music" else "calm",
-                          flicker.mode_for({"qc": getattr(C.spec, "QC", None) or {}}))
+            qc = {"qc": getattr(C.spec, "QC", None) or {}}
+            flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc))
         except flicker.FlickerError as e:
             sys.exit(f"!! render failed - {e}")
     if a.clean_master:

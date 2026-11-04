@@ -131,3 +131,11 @@ def test_local_event_reports_grid_bounds_without_clearing_failure(kind, span):
     assert event["active_bounds"] == [.25, .5, .5, .75]
     assert event["active_cell_fraction"] == .062
     assert round(100/FPS, 3) <= event["peak_t"] < (100 + span)/FPS
+
+
+def test_editorial_profile_defaults_to_calm_and_requires_explicit_energy():
+    assert FL.profile_for() == 'calm'
+    assert FL.profile_for({'mode': 'music'}) == 'calm'
+    assert FL.profile_for({'qc': {'flicker_profile': 'energetic'}}) == 'energetic'
+    with pytest.raises(ValueError, match='Unknown flicker profile'):
+        FL.profile_for({'qc': {'flicker_profile': 'typo'}})

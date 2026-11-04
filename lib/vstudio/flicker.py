@@ -234,6 +234,15 @@ def describe(rep, n=6):
     return "flicker: " + "; ".join(parts)
 
 
+def profile_for(cfg=None):
+    """Explicit editorial QC profile; absence of narration does not imply fast cuts."""
+    qc = (cfg or {}).get("qc") or {}
+    profile = qc.get("flicker_profile", "calm")
+    if profile not in LIMITS:
+        raise ValueError(f"Unknown flicker profile: {profile!r}; expected calm or energetic")
+    return profile
+
+
 def mode_for(cfg=None):
     """$VSTUDIO_FLICKER_QC, else ``qc.flicker`` of the recipe config, else the persona's, else "fail"."""
     import os
