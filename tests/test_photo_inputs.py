@@ -45,6 +45,7 @@ def test_photo_only_draft_sees_inputs_and_binds_valid_sources(tmp_path, monkeypa
             'SCRIPT = [(0, [("A daily cup.", "日常水杯。")], [("p0001", 1, "still", None)])]\n'), summary="Product shown"))
     rec = PS.draft_spec(ctx, dict(id="story", author={}), path, complete=complete)
     assert rec and rec["photos"] == 1
+    assert "Format guide:\n# photo-story" in seen["body"]
     assert len(seen["images"]) == 1 and os.path.isfile(seen["images"][0])
     assert "p0001: cup.png" in seen["body"] and "Do not invent price" in seen["body"]
     media = PS._spec_value(open(path).read(), "MEDIA")

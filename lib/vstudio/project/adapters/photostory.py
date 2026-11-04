@@ -229,7 +229,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     bgm_note = (f'Music: BGM = "{bgm}", BGM_LUFS = -28, BGM_DUCK = -6 (already set for this video).' if bgm
                 else "BGM = None.")
     tpl = DR._read(template, DR.TEMPLATE_CHARS) if template else ""
-    doc = DR._read(os.path.join(M.ROOT, (cp.get("author") or {}).get("doc") or "workflows/photo-story/WORKFLOW.md"),
+    workflow_doc = DR._read(os.path.join(M.ROOT, (cp.get("author") or {}).get("doc") or "workflows/photo-story/WORKFLOW.md"),
                    20000)
     cur = DR._read(path, DR.TEMPLATE_CHARS) if instruction and DR.state(path, template, cp, ctx.recipe) in (
         "drafted", "hers") else ""
@@ -269,7 +269,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         f"Current spec (change only what the instruction asks):\n{cur}" if cur else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
         f"Template (structure only):\n{tpl}" if tpl else "",
-        f"Format guide:\n{doc}" if doc else "",
+        f"Format guide:\n{workflow_doc}" if workflow_doc else "",
         f"Write the summary in {DR.LANGS.get(ctx.lang(), 'English')}."] if x)
     if complete is None:
         from vstudio import llm

@@ -181,6 +181,7 @@ def test_photo_story_spec_is_drafted_as_data_with_frames_and_music(tmp_path, cli
                             complete=complete)
     finally:
         os.environ.pop("VSTUDIO_ZH_LOCAL_VOICE", None)
+    assert "Format guide:\n# photo-story" in seen["body"]
     assert rec["by"] == "ai" and rec["frames"] == 1 and rec["language"] == "zh" and rec["bgm"].startswith("music_")
     assert os.path.isfile(tmp_path / "item" / "work" / "frames" / "cover_a.jpg") and len(seen["images"]) == 2
     assert 'language="zh"' in seen["body"] and "BGM = \"music_" in seen["body"] and PS.spec_language(path) == "zh"
