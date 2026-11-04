@@ -93,13 +93,41 @@ def main():
     else:
         W, H = tuple(cfg.get("size", (C.W, C.H)))
     out = a.out or C.path(cfg.get("out", "cover.png"))
-    style = cover_style()
-    if style == "designed":
+    style = str(cfg.get("style") or cover_style()).lower()
+    from vstudio import cover_styles as CS
+    if style in CS.STYLES:
+        print("cover:", story_cover(C, cfg, style, W, H, out))
+    elif style == "designed":
         print("cover:", designed_cover(spec, C, cfg, W, H, out))
     elif style == "cinema":
         print("cover:", cinema_cover(C, cfg, W, H, out))
     else:
         print("cover:", scrapbook_cover(C, cfg, W, H, out))
+
+
+def story_cover(C, cfg, style, W, H, out):
+    """A story cover that carries the video's own facts (vstudio.cover_styles). cfg (spec COVER / COVER_EN):
+    style receipt | magazine | inside-outside | narrator-sticker, plus a dict under the style's name:
+      receipt          photo, focus, title, head=[shop, subtitle], stamp, rows=[(item, value)], total=(label, value)
+      magazine         photo, focus, masthead, issue, lines=[(big, small)], title, subtitle
+      inside-outside   outside, inside (photo ids), labels=(outside, inside), line1, line2
+      narrator-sticker video (her recording, relative to the spec), at (seconds; a frame with the mouth closed),
+                       photo, title=(line1, line2), subtitle
+    Photo ids are the story's images (my_photos/<id>.jpg ...)."""
+    from vstudio import cover_styles as CS
+    c = dict(cfg.get(style) or {})
+    img = lambda k: C.open_img(c[k])
+    if style == "receipt":
+        im = CS.receipt(img("photo"), c, (W, H), tuple(c.get("focus", (0.5, 0.3))))
+    elif style == "magazine":
+        im = CS.magazine(img("photo"), c, (W, H), tuple(c.get("focus", (0.5, 0.42))))
+    elif style == "inside-outside":
+        im = CS.inside_outside(img("outside"), img("inside"), c, (W, H))
+    else:
+        cut = CS.cutout_from_video(C.path(c["video"]), float(c.get("at", 1.0)))
+        im = CS.narrator_sticker(cut, img("photo"), c, (W, H))
+    im.convert("RGB").save(out)
+    return out
 
 
 def cover_style():
