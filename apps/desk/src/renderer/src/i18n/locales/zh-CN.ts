@@ -692,6 +692,8 @@ const learningStrings = {
   "learning.stopDictation": "说完了，转成文字",
   "learning.transcribing": "正在本机转写…",
   "learning.micDenied": "未获得麦克风权限",
+  "learning.retryCapture": "重试加入录制",
+  "learning.capturePending": "录制已保存在这台电脑上，尚未加入当前工作区。",
   "learning.captureTitle": "用自己的话讲一讲",
   "learning.openCamera": "录一段讲解",
   "learning.recordHere": "录下我的讲解",

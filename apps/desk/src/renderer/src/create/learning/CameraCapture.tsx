@@ -19,6 +19,10 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const [appAudio, setAppAudio] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const pendingKey = `learning-capture:${id}`;
+  const [pendingDir, setPendingDir] = useState<string | null>(() => sessionStorage.getItem(pendingKey));
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (video.current) video.current.srcObject = rec.stream; }, [rec.stream]);
   const live = ['recording', 'paused', 'stopping', 'save-error'].includes(rec.state);
   const start = async () => {
@@ -31,8 +35,17 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
     setBusy(true);
     setError('');
     try {
-      const take = await rec.stop();
-      if (take) onSaved(await client.captureLearning(id, take.dir));
+      const dir = pendingDir ?? (await rec.stop())?.dir;
+      if (dir) {
+        sessionStorage.setItem(pendingKey, dir);
+        setPendingDir(dir);
+        const doc = await client.captureLearning(id, dir);
+        sessionStorage.removeItem(pendingKey);
+        if (mounted.current) {
+          setPendingDir(null);
+          onSaved(doc);
+        }
+      }
     } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
   };
@@ -40,7 +53,7 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
     <h3>{t('learning.captureTitle')}</h3>
     {rec.stream && <video ref={video} autoPlay muted playsInline style={{ width: 180, maxHeight: 160 }} data-testid="learning-camera-preview" />}
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-      {!rec.stream ? <button className="btn" onClick={() => void rec.open()} data-testid="learning-camera-open">{t('learning.openCamera')}</button> : <>
+      {pendingDir ? <button className="btn" disabled={busy} onClick={() => void stop()} data-testid="learning-camera-retry">{t('learning.retryCapture')}</button> : !rec.stream ? <button className="btn" onClick={() => void rec.open()} data-testid="learning-camera-open">{t('learning.openCamera')}</button> : <>
         <button className="btn" disabled={busy || rec.state === 'stopping'} onClick={() => void (live ? stop() : start())} data-testid="learning-camera-record">{rec.state === 'save-error' ? t('rec.retrySave') : live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('learning.recordHere')}</button>
         {live && <span className="learning-capture-clock" data-testid="learning-camera-clock">{fmtClock(rec.elapsed)}</span>}
         {!live && <button className="btn ghost" onClick={() => setScreen(!screen)} data-testid="learning-screen">{t('learning.shareScreen')}</button>}
@@ -53,6 +66,7 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
       <p className="small muted">{t('learning.materialAudioHint')}</p>
       <ScreenPicker on={rec.screenOn} share={(source) => rec.shareScreen(source, appAudio)} stop={rec.stopScreen} done={() => setScreen(false)} />
     </>}
+    {pendingDir && <p role="status" data-testid="learning-camera-pending">{t('learning.capturePending')}</p>}
     {rec.screenOn && <p className="muted">{t('rec.screenSharing')}</p>}
     {rec.interruptionMessage && <p role="alert" data-testid="learning-capture-interrupted">{rec.interruptionMessage}</p>}
     {(error || rec.error) && <p role="alert">{error || rec.error}</p>}

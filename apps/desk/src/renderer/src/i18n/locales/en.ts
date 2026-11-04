@@ -691,6 +691,8 @@ const learningStrings = {
   "learning.stopDictation": "Finish and transcribe",
   "learning.transcribing": "Transcribing on this computer…",
   "learning.micDenied": "Microphone access was not granted",
+  "learning.retryCapture": "Retry adding recording",
+  "learning.capturePending": "Your recording is saved on this computer. It still needs to be added to this workspace.",
   "learning.captureTitle": "Say it in your own words",
   "learning.openCamera": "Record an explanation",
   "learning.recordHere": "Record my explanation",

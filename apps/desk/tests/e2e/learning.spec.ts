@@ -295,3 +295,39 @@ test('a lost camera pauses the workspace take and offers saving instead of resum
   expect(fs.statSync(commentary!.path).size).toBeGreaterThan(0);
   await page.screenshot({ path: path.join(tmp, 'camera-saved.png') });
 });
+
+test('saved take retries workspace handoff without recording again', async () => {
+  test.setTimeout(120000);
+  const doc = await api('POST', '/api/create/learning', { idea: 'Recording handoff recovery' });
+  await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
+  await expect(page.getByTestId('learning-workspace')).toBeVisible();
+  await page.getByTestId('learning-camera-open').click();
+  await expect(page.getByTestId('learning-camera-preview')).toBeVisible();
+  await page.getByTestId('learning-camera-record').click();
+  await expect(page.getByTestId('learning-camera-record')).toContainText('Stop');
+  await expect(page.getByTestId('learning-camera-clock')).not.toHaveText('0:00');
+  await page.evaluate(() => {
+    const original = window.fetch;
+    let failed = false;
+    window.fetch = async (...args) => {
+      if (String(args[0]).endsWith('/capture') && !failed) {
+        failed = true;
+        throw new Error('Test handoff disconnected');
+      }
+      return original(...args);
+    };
+  });
+  await page.getByTestId('learning-camera-record').click();
+  await expect(page.getByTestId('learning-camera-retry')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId('learning-camera-pending')).toContainText('saved on this computer');
+  await expect(page.getByTestId('learning-camera-record')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('learning-camera-retry')).toBeVisible();
+  await page.getByTestId('learning-camera-retry').click();
+  await expect(page.getByTestId('learning-camera-pending')).toHaveCount(0, { timeout: 30000 });
+  await expect(page.getByTestId('learning-source-select')).toContainText('My recorded contribution');
+  const saved = await api('GET', `/api/create/learning/${doc.id}`);
+  const takes = (Object.values(saved.sources) as { role: string; path: string }[]).filter(s => s.role === 'commentary');
+  expect(takes).toHaveLength(1);
+  expect(fs.statSync(takes[0].path).size).toBeGreaterThan(1000);
+});

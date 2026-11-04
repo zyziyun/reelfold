@@ -149,7 +149,7 @@ export function LearningCreate() {
         <div className="row" style={{ gap: 8 }}><button className={`btn sm ${kind === 'thought' ? 'primary' : ''}`} onClick={() => setKind('thought')}>{t('learning.myThought')}</button><button className={`btn sm ${kind === 'quote' ? 'primary' : ''}`} onClick={() => setKind('quote')}>{t('learning.sourceQuote')}</button></div>
         <textarea value={thought} onFocus={() => { setPause((n) => n + 1); anchor.current ??= { source: source || null, at: source && !reading && !current?.image && timeKnown ? time : null }; }} onChange={(e) => setThought(e.target.value)} placeholder={t('learning.thoughtsHint')} style={{ width: '100%', minHeight: 140, margin: '12px 0' }} data-testid="learning-thought" />
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}><VoiceNote key={doc.id} id={doc.id} disabled={busy} onStart={() => { setPause((n) => n + 1); anchor.current = { source: source || null, at: source && !reading && !current?.image && timeKnown ? time : null }; }} onText={(text, audio) => { setThought((old) => old ? old + '\n' + text : text); setVoiceAudio(audio); }} /><button className="btn primary" disabled={busy || !thought.trim()} onClick={saveThought} data-testid="learning-save-thought">{t('learning.saveThought')}</button>{editingNote && <button className="btn ghost" onClick={() => { setEditingNote(null); setThought(''); anchor.current = null; }}>{t('learning.newThought')}</button>}</div>
-        <CameraCapture id={doc.id} onSaved={(d) => {
+        <CameraCapture key={doc.id} id={doc.id} onSaved={(d) => {
           setDoc(d);
           const latest = Object.values(d.sources).filter((s) => s.role === 'commentary').at(-1);
           setLatestTake(latest?.id ?? null);

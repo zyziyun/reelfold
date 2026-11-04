@@ -1976,6 +1976,8 @@ const learningStrings = {
   "learning.stopDictation": "Terminer et transcrire",
   "learning.transcribing": "Transcription sur cet ordinateur…",
   "learning.micDenied": "Accès au micro refusé",
+  "learning.retryCapture": "Réessayer l’ajout",
+  "learning.capturePending": "Votre enregistrement est sauvegardé sur cet ordinateur. Il reste à l’ajouter à cet espace.",
   "learning.captureTitle": "Avec vos propres mots",
   "learning.openCamera": "Enregistrer une explication",
   "learning.recordHere": "Filmer mon explication",
