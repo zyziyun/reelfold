@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wor
 from photostory.shots import prep_video
 
 
-@pytest.mark.parametrize('layout', ['contain', 'detail', 'region'])
+@pytest.mark.parametrize('layout', ['contain', 'detail', 'region', 'caption-safe'])
 def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     src = str(tmp_path/'source.mp4')
     media.run(['ffmpeg','-y','-f','lavfi','-i',
@@ -21,9 +21,12 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     C = SimpleNamespace(VCROP={}, VEQ={}, VEQ_FILTER='', cache_dir=str(tmp_path),
         BOX_W=180, BOX_H=320, FPS=24, SUB_Y0=108, SUB_H=30, HDR=0,
         pal={'paper':(240,235,225)}, find_video=lambda n:src, vid_dirs=[str(tmp_path)])
+    if layout == 'caption-safe':
+        C.spec = SimpleNamespace(LAYOUT=dict(video_caption_safe=True))
+        C.overlay_subs = True
     sh = dict(start=0,end=.4,tail=0,off=0,speed=2,motion='still')
     sh.update({'fit':'contain', 'source_region':[160,0,160,180]} if layout=='region' else
-              {'fit':'contain'} if layout=='contain' else {'detail_regions':[[160,0,160,180]]})
+              {'fit':'contain'} if layout in ('contain', 'caption-safe') else {'detail_regions':[[160,0,160,180]]})
     out = prep_video(C,sh,'source')
     info = media.probe(out)
     assert abs(float(info['fps'])-24)<.01
@@ -34,6 +37,13 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     if layout=='contain':
         assert a[160,30,0]>220 and a[160,150,2]>220
         assert np.all(a[10,90]>200)
+    elif layout == 'caption-safe':
+        assert np.all(a[108:138, :, :] > 200)
+        assert np.any((a[:, :, 0] > 220) & (a[:, :, 2] < 30))
+        assert np.any((a[:, :, 2] > 220) & (a[:, :, 0] < 30))
+        C.spec.LAYOUT['video_caption_safe'] = False
+        assert prep_video(C, sh, 'source') != out
+        C.spec.LAYOUT['video_caption_safe'] = True
     elif layout == 'region':
         blue = (a[:,:,2] > 220) & (a[:,:,0] < 30)
         ys, xs = np.where(blue)

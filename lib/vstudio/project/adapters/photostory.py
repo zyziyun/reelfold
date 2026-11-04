@@ -382,7 +382,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         # Short process labels need hierarchy and contrast, not a second set of
         # scenic chapters. Explicit authored layout/palette choices still win.
         layout = dict(_spec_value(text, "LAYOUT") or {})
-        for key, value in (("caption_style", "label"), ("caption_y", 0.68), ("sub", 0.18)):
+        for key, value in (("caption_style", "label"), ("caption_y", 0.68), ("sub", 0.18), ("video_caption_safe", True)):
             layout.setdefault(key, value)
         text = _set_global(text, "LAYOUT", layout)
         palette = dict(_spec_value(text, "PALETTE") or {})

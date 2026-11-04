@@ -401,7 +401,7 @@ def test_side_photo_layout_increases_subject_height_without_cropping(tmp_path, m
     assert heights[1] > heights[0] * 1.2
 
 
-@pytest.mark.parametrize("layout", ["", 'LAYOUT=dict(caption_style="plain", caption_y=0.3)\n'])
+@pytest.mark.parametrize("layout", ["", 'LAYOUT=dict(caption_style="plain", caption_y=0.3, video_caption_safe=False)\n'])
 def test_product_demo_video_uses_process_labels(tmp_path, monkeypatch, layout):
     from vstudio import footage
     monkeypatch.setenv("VSTUDIO_CACHE", str(tmp_path / "cache"))
@@ -426,5 +426,6 @@ def test_product_demo_video_uses_process_labels(tmp_path, monkeypatch, layout):
     result = PS._spec_value(text, "LAYOUT")
     assert result["caption_style"] == ("plain" if layout else "label")
     assert result["caption_y"] == (0.3 if layout else 0.68)
+    assert result["video_caption_safe"] is (not bool(layout))
     assert "photo_caption_side" not in result
     assert PS._spec_value(text, "BGM") is None

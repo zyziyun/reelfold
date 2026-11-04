@@ -112,7 +112,9 @@ def prep_video(C, sh, name):
     need = (sh["end"] - sh["start"] + sh["tail"] + 0.6) * speed
     tag = re.sub(r"[^\w.-]", "_", name) + "_" + hashlib.sha1(identity.encode()).hexdigest()[:12]
     # crop / zoom / grade are part of the cache key (editing VCROP re-renders the clip)
-    look = repr((C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
+    layout = getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}
+    caption_safe = bool(layout.get("video_caption_safe") and getattr(C, "overlay_subs", False) and C.SUB_H > 0)
+    look = repr((caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
                  C.pal["paper"], need, "fitted-video-zoom-v1",
@@ -159,6 +161,9 @@ def prep_video(C, sh, name):
                     raise ValueError("source_region requires fit=contain without detail_regions")
                 geo = CK.region_geometry(geo, (w, h), sh["source_region"],
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H) if C.SUB_H > 0 else None)
+            if caption_safe and sh.get("source_region") is None and sh.get("detail_regions") is None:
+                geo = CK.region_geometry(geo, (w, h), [0, 0, w, h],
+                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))
             if sh.get("detail_regions") is not None:
                 geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))

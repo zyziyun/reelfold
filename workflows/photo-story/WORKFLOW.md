@@ -329,3 +329,5 @@ explicit language. Existing en/zh specs keep their platform language rules;
 explicit `SUBS="en"`, `"zh"`, or `"both"` keeps the legacy selection. No translation
 is performed. Author and review cover text separately; automatic planning and
 arbitrary multilingual translation maps are not provided by this spec mode.
+
+For product/company music edits, `LAYOUT.video_caption_safe=True` fits complete `fit="contain"` video shots into the larger area outside the caption band. The planner enables this by default. This keeps process labels off the footage. Inspect subject size at phone resolution and adjust the label band or supply a verified `source_region` if the product is too small. An explicit `False` retains an authored overlay layout.
