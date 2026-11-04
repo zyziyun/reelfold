@@ -27,3 +27,57 @@ def test_outside_and_zero_length_shots_do_not_leak_into_review():
 
 def test_end_fade_keeps_a_readable_hero_frame_and_the_actual_final_frame():
     assert review_frames([dict(start=19, end=20)], 20, 30, end_fade=.4) == [570, 584, 587, 599]
+
+
+def test_chapter_stills_refresh_without_retaining_old_frames(tmp_path, monkeypatch):
+    from PIL import Image
+    from photostory import render
+    Image.new('RGB', (640, 480), '#408080').save(tmp_path / 'photo.jpg')
+    spec = tmp_path / 'spec.py'
+    spec.write_text('''
+CANVAS = (640, 480)
+FPS = 30
+MODE = 'music'
+TITLE_EN = 'Preview'
+TITLE_ZH = 'Preview'
+TITLE_CARD = False
+CHAPTER_CARD = .5
+MEDIA = dict(images=['.'])
+MUSIC = dict(grid='seconds', length=2, tail=0, captions='all')
+SECTIONS = ['Start', 'Finish']
+SECTIONS_EN = ['Start', 'Finish']
+SCRIPT = [(0, [('First', '')], [('photo', 1, 'still', dict(tr='cut'))]),
+          (1, [('Second', '')], [('photo', 1, 'still', dict(tr='cut'))])]
+GRADE_LOOK = None
+COLOR_MATCH = 0
+PRESERVE_COLOUR = True
+''')
+    dest = tmp_path / 'stills'
+    dest.mkdir()
+    unrelated = dest / 'reference.jpg'
+    unrelated.write_bytes(b'keep')
+    def run(times):
+        monkeypatch.setattr(sys, 'argv', ['render', str(spec), '--stills', times, '--stills-dir', str(dest)])
+        render.main()
+    run('0.2,1.1,1.8')
+    assert {p.name for p in dest.glob('st_frame_*.jpg')} == {
+        'st_frame_00000006.jpg', 'st_frame_00000033.jpg', 'st_frame_00000054.jpg'}
+    run('1.1')
+    assert {p.name for p in dest.glob('st_frame_*.jpg')} == {'st_frame_00000033.jpg'}
+    assert unrelated.read_bytes() == b'keep'
+    with Image.open(dest / 'st_frame_00000033.jpg') as im:
+        assert im.width > 0
+    # A failed new generation must not replace any of the previous evidence.
+    import pytest
+    saved = (dest / 'st_frame_00000033.jpg').read_bytes()
+    build = render.build
+    def fail_second(C, shot, index):
+        if index == 1:
+            raise RuntimeError('failed second shot')
+        return build(C, shot, index)
+    monkeypatch.setattr(render, 'build', fail_second)
+    with pytest.raises(RuntimeError, match='failed second shot'):
+        run('0.2,1.1')
+    assert {p.name for p in dest.glob('st_frame_*.jpg')} == {'st_frame_00000033.jpg'}
+    assert (dest / 'st_frame_00000033.jpg').read_bytes() == saved
+    assert not list(dest.glob('.review-*'))

@@ -17,6 +17,8 @@ import argparse
 import json
 import math
 import os
+import re
+from contextlib import nullcontext
 import subprocess
 import tempfile
 
@@ -148,75 +150,84 @@ def main():
                                 *media.delivery_args(audio=False, faststart=False), vid_tmp], stdin=subprocess.PIPE)
         frames = range(int(t_from * C.FPS), int(end_t * C.FPS))
 
-    live, shots = {}, T.shots
-    for fi in frames:
-        gt = fi / C.FPS
-        need = [k for k, sh in enumerate(shots) if sh["start"] <= gt < sh["end"] + sh["tail"]] or [len(shots) - 1]
-        for k in list(live):
-            if k not in need:
-                del live[k]
-        for k in need:
-            if k not in live:
-                live[k] = build(C, shots[k], k)
-        k = max(need)                                  # current shot = the latest one that started
-        sh = shots[k]
-        N = live[k].frame(gt - sh["start"])
-        N = ov.overlays(C, sh, N.copy() if sh["_video"] else N, gt - sh["start"])
-        if k - 1 in live and gt - sh["start"] < sh["trd"]:
-            pv = shots[k - 1]
-            P = live[k - 1].frame(gt - pv["start"])
-            P = ov.overlays(C, pv, P.copy() if pv["_video"] else P, gt - pv["start"])
-            box = transition(C, P, N, (gt - sh["start"]) / sh["trd"], sh["tr"])
-        else:
-            box = N.copy()
-        sec = T.section_at(gt)
-        box = film_look(C, box, gt, sec in C.FILM_SECTIONS or sh["src"].startswith("film:"))
-        if "_lab" in sh:                               # picture label, bottom-left (upper-left: label_at="upper",
-            fl = 0.6 if C.cinema else 0.3              # where the shot plan found room above the subject)
-            la = ease(min(1, (gt - sh["start"] - 0.45) / fl, (sh["end"] - gt) / fl))
-            if la > 0:
-                m = C.b(44)
-                lab_y = C.LAB_BOT - m - sh["_lab"].shape[0]
-                if sh.get("label_at") == "upper":            # under the platform's top safe line
-                    lab_y = max(m, C.SAFE[1] - C.HDR + m)
-                rise = int((1 - la) * C.b(12)) if C.cinema else 0     # cinema: a quiet 12 px settle as it fades in
-                paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y + rise, la)
-        if chap_len and sec >= 1 and gt - T.sec_bounds[sec] < chap_len:     # chapter card
-            lt = gt - T.sec_bounds[sec]
-            fi, fo = (0.6, 0.7) if C.cinema else (0.3, 0.45)
-            ca = ease(min(1, lt / fi, (chap_len - lt) / fo))
-            paste_rgba(box, chapters[sec], 0, int((1 - ca) * C.b(16)) if C.cinema and lt < fi else 0, ca)
-        if title_card is not None and gt < TITLE_HOLD[1]:                    # cinema: the film's title, once
-            ta = ease(min((gt - TITLE_HOLD[0]) / 0.9, (TITLE_HOLD[1] - gt) / 0.9))
-            if ta > 0:
-                paste_rgba(box, title_card, 0, 0, ta)
-        frame = C.BG.copy()
-        frame[C.HDR:C.HDR + C.BOX_H] = box
-        if header is not None:
-            header.draw(frame, sec, gt, T.sec_bounds)
-        cue = [] if a.clean_master else [s for s in T.subs if s["start"] <= gt < s["end"]]
-        if backdrop is not None and not a.clean_master:
-            ba = backdrop_alpha(T.subs, gt)
-            if ba > 0:
-                paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0], ba)
-        for s in cue:
-            paste_rgba(frame, s["_lay"], 0, C.SUB_Y0, cue_alpha(s, gt))
-        if gt > total - end_fade:
-            frame *= max(0, (total - gt) / end_fade)
-        img = np.clip(frame, 0, 255).astype(np.uint8)
+    with (tempfile.TemporaryDirectory(prefix=".review-", dir=sdir) if stills else nullcontext()) as staging:
+        live, shots = {}, T.shots
+        for fi in frames:
+            gt = fi / C.FPS
+            need = [k for k, sh in enumerate(shots) if sh["start"] <= gt < sh["end"] + sh["tail"]] or [len(shots) - 1]
+            for k in list(live):
+                if k not in need:
+                    del live[k]
+            for k in need:
+                if k not in live:
+                    live[k] = build(C, shots[k], k)
+            k = max(need)                                  # current shot = the latest one that started
+            sh = shots[k]
+            N = live[k].frame(gt - sh["start"])
+            N = ov.overlays(C, sh, N.copy() if sh["_video"] else N, gt - sh["start"])
+            if k - 1 in live and gt - sh["start"] < sh["trd"]:
+                pv = shots[k - 1]
+                P = live[k - 1].frame(gt - pv["start"])
+                P = ov.overlays(C, pv, P.copy() if pv["_video"] else P, gt - pv["start"])
+                box = transition(C, P, N, (gt - sh["start"]) / sh["trd"], sh["tr"])
+            else:
+                box = N.copy()
+            sec = T.section_at(gt)
+            box = film_look(C, box, gt, sec in C.FILM_SECTIONS or sh["src"].startswith("film:"))
+            if "_lab" in sh:                               # picture label, bottom-left (upper-left: label_at="upper",
+                fl = 0.6 if C.cinema else 0.3              # where the shot plan found room above the subject)
+                la = ease(min(1, (gt - sh["start"] - 0.45) / fl, (sh["end"] - gt) / fl))
+                if la > 0:
+                    m = C.b(44)
+                    lab_y = C.LAB_BOT - m - sh["_lab"].shape[0]
+                    if sh.get("label_at") == "upper":            # under the platform's top safe line
+                        lab_y = max(m, C.SAFE[1] - C.HDR + m)
+                    rise = int((1 - la) * C.b(12)) if C.cinema else 0     # cinema: a quiet 12 px settle as it fades in
+                    paste_rgba(box, sh["_lab"], max(m, C.SAFE[0]), lab_y + rise, la)
+            if chap_len and sec >= 1 and gt - T.sec_bounds[sec] < chap_len:     # chapter card
+                lt = gt - T.sec_bounds[sec]
+                fade_in, fade_out = (0.6, 0.7) if C.cinema else (0.3, 0.45)
+                ca = ease(min(1, lt / fade_in, (chap_len - lt) / fade_out))
+                paste_rgba(box, chapters[sec], 0, int((1 - ca) * C.b(16)) if C.cinema and lt < fade_in else 0, ca)
+            if title_card is not None and gt < TITLE_HOLD[1]:                    # cinema: the film's title, once
+                ta = ease(min((gt - TITLE_HOLD[0]) / 0.9, (TITLE_HOLD[1] - gt) / 0.9))
+                if ta > 0:
+                    paste_rgba(box, title_card, 0, 0, ta)
+            frame = C.BG.copy()
+            frame[C.HDR:C.HDR + C.BOX_H] = box
+            if header is not None:
+                header.draw(frame, sec, gt, T.sec_bounds)
+            cue = [] if a.clean_master else [s for s in T.subs if s["start"] <= gt < s["end"]]
+            if backdrop is not None and not a.clean_master:
+                ba = backdrop_alpha(T.subs, gt)
+                if ba > 0:
+                    paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0], ba)
+            for s in cue:
+                paste_rgba(frame, s["_lay"], 0, C.SUB_Y0, cue_alpha(s, gt))
+            if gt > total - end_fade:
+                frame *= max(0, (total - gt) / end_fade)
+            img = np.clip(frame, 0, 255).astype(np.uint8)
+            if stills:
+                im = Image.fromarray(img)
+                if not a.full:
+                    im = im.resize((C.W // 3, C.H // 3), Image.LANCZOS)
+                p = os.path.join(staging, f"st_frame_{fi:08d}.jpg")
+                im.save(p, quality=90)
+                continue
+            enc.stdin.write(img.tobytes())
+            if fi % (C.FPS * 30) == 0:
+                print(f"  {gt:6.1f}s / {end_t:.1f}s", flush=True)
         if stills:
-            im = Image.fromarray(img)
-            if not a.full:
-                im = im.resize((C.W // 3, C.H // 3), Image.LANCZOS)
-            p = os.path.join(sdir, f"st_frame_{fi:08d}.jpg")
-            im.save(p, quality=90)
-            print("still", p)
-            continue
-        enc.stdin.write(img.tobytes())
-        if fi % (C.FPS * 30) == 0:
-            print(f"  {gt:6.1f}s / {end_t:.1f}s", flush=True)
-    if stills:
-        return
+            names = set(os.listdir(staging))
+            for name in sorted(names):
+                target = os.path.join(sdir, name)
+                os.replace(os.path.join(staging, name), target)
+                print("still", target)
+            # Only retire renderer-owned frames, after the full replacement renders.
+            for name in os.listdir(sdir):
+                if re.fullmatch(r"st_frame_\d{8,}\.jpg", name) and name not in names:
+                    os.unlink(os.path.join(sdir, name))
+            return
     enc.stdin.close()
     enc.wait()
     out = a.out or (os.path.join(C.cache_dir, "preview.mp4") if a.preview else C.path(getattr(C.spec, "OUT", "out/story.mp4")))
