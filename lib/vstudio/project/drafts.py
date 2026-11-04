@@ -518,6 +518,7 @@ def redraft(project, cp_id, item, instruction=None, complete=None, request=None)
     if not path:
         raise ValueError(f"{cp_id}: no file to draft")
     tpl = os.path.join(M.ROOT, a["template"]) if a.get("template") else None
+    before_digest = file_sha(path)
     rec = ensure(ctx, cp, path, tpl, instruction=instruction, complete=complete, force=True)
     st = state(path, tpl, cp, ctx.recipe)
     rv = review(ctx, cp, path, tpl)
@@ -536,4 +537,5 @@ def redraft(project, cp_id, item, instruction=None, complete=None, request=None)
     from . import autopilot as AP
     AP.log(project, dict(event="redrafted", checkpoint=cp_id, item=target, instruction=instruction,
                          by=(rec or {}).get("by"), state=st))
-    return dict(ok=st in ("drafted", "hers"), state=st, review=rv, failed=(rec or {}).get("failed"))
+    return dict(ok=st in ("drafted", "hers"), changed=before_digest != file_sha(path),
+                state=st, review=rv, failed=(rec or {}).get("failed"))

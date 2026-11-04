@@ -603,6 +603,7 @@ class Project:
                 return dict(status="busy", exit_code=EXIT["busy"], error=str(e))
             pend = self.pending()
             ap = AP.refresh(self)["on"]                # switched in the app while this run goes: from now on
+            repaired = False
             if ap:
                 todo = []
                 for p in pend:
@@ -612,6 +613,12 @@ class Project:
                     _live_deciding(self.dir, p, target)
                     d = AP.decide(self, p, complete=judge)
                     if d.get("blocker"):
+                        if rounds < max_rounds and res["status"] not in ("paused", "over-budget") and d.get("visual_review"):
+                            from .layout_review import repair
+                            if repair(self, p, d, complete=judge):
+                                repaired = True
+                                emit(dict(event="layout-repair", ts=now(), checkpoint=p["id"], item=target))
+                                continue
                         blocked.add((p["id"], target))
                         AP.log(self, dict(event="blocked", checkpoint=p["id"], kind=p.get("kind"), item=target,
                                           blocker=d["blocker"], reason=d.get("reason"), params=d.get("params"),
@@ -624,7 +631,7 @@ class Project:
                 todo = [(p, None) for p in pend if self._auto_answerable(p, pol)]
             # a pilot that stopped at an auto-answerable checkpoint ends its batch run as "pilot-review" too: answer
             # and go on (the next round re-runs the same pilot jobs), else a desk pilot never gets past its first one
-            if not todo or rounds >= max_rounds or res["status"] in ("paused", "over-budget"):
+            if (not todo and not repaired) or rounds >= max_rounds or res["status"] in ("paused", "over-budget"):
                 break
             for p, d in todo:
                 target = "*" if p["scope"] == "project" else p["item"]

@@ -175,6 +175,7 @@ checkpoints:
     auto: never
   - id: layout
     visual_review: true
+    visual_repair: story
     kind: review
     scope: item
     after: stills

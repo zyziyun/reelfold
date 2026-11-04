@@ -70,6 +70,11 @@ These sheets do not establish frame-accurate or continuous-playback acceptance.
    - **Motion:** play the action and its cuts continuously, and keep flicker checks enabled. A larger
      crop can make source exposure changes more prominent even when the wider version passed.
 
+   With Autopilot's AI judge enabled, the layout checkpoint inspects the supplied images using the configured
+   planner. Visible defects trigger up to two automatic revisions of the story spec, followed by fresh
+   rendering and review. The attempt limit survives resume. Unknown-only evidence, failed/unchanged revisions,
+   or unresolved defects remain for review; sampled approval does not verify continuous motion or audio.
+
    If a layout fails, revise its framing or shot choice and repeat the comparison. Record what remains
    unverified; a successful encode or flicker pass does not approve the composition. These are review
    steps, not an automated semantic-quality guarantee. See TikTok's

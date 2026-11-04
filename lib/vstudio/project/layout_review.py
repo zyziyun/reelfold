@@ -47,3 +47,45 @@ def review(pay, context, lang=None, complete=None):
                     params=dict(sampled_frames=len(images)), visual_review=report)
     except Exception as exc:
         return blocked(f'Layout review could not finish: {str(exc)[:200]}')
+
+
+def repair(project, pay, decision, complete=None):
+    """Reuse the author's redraft path, at most twice per checkpoint/item across resumes."""
+    from . import autopilot as AP, drafts
+    cp = project.checkpoint(pay['id'])
+    author = cp.get('visual_repair')
+    report = decision.get('visual_review') or {}
+    if not author or not any(r.get('verdict') == 'fix' for r in report.get('frames', [])):
+        return False
+    evidence = report.get('evidence') or []
+    if not evidence or any(not e.get('sha') or file_sha(e.get('path')) != e['sha'] for e in evidence):
+        return False
+    attempts = [r for r in AP.history(project) if r.get('event') == 'layout-repair-started'
+                and r.get('checkpoint') == pay['id'] and r.get('item') == pay.get('item')]
+    if len(attempts) >= 2:
+        return False
+    AP.log(project, dict(event='layout-repair-started', checkpoint=pay['id'], item=pay.get('item'),
+                         attempt=len(attempts) + 1, visual_review=report))
+    instruction = (
+        'Automatic layout review found defects in the current rendered samples. Fix the observed defects in the '
+        'current spec, retaining the intended story, language, factual wording and original media. Do not invent '
+        'new source content or switch to paid generation. Keep complete subjects and actions; choose better '
+        'source intervals only when the available source frames justify them. This is a repair, not a new film. '
+        'The appended review images show the current output in the indexed order below. The source images '
+        'earlier in this request are different evidence. The result will be rendered and reviewed again.\n' +
+        json.dumps(dict(summary=decision.get('reason'), frames=report.get('frames')), ensure_ascii=False))
+    from vstudio import llm
+    def with_review_images(*args, **kwargs):
+        kwargs['images'] = list(kwargs.get('images') or []) + [e['path'] for e in evidence]
+        return (complete or llm.complete)(*args, **kwargs)
+    try:
+        result = drafts.redraft(project, author, pay.get('item'), instruction=instruction,
+                                complete=with_review_images)
+        ok = bool(result.get('ok') and result.get('changed') and not result.get('failed'))
+        AP.log(project, dict(event='layout-repair-finished', checkpoint=pay['id'], item=pay.get('item'),
+                             ok=ok, error=result.get('failed')))
+        return ok
+    except Exception as exc:
+        AP.log(project, dict(event='layout-repair-finished', checkpoint=pay['id'], item=pay.get('item'),
+                             ok=False, error=str(exc)[:300]))
+        return False
