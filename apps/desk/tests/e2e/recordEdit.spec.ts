@@ -99,6 +99,7 @@ test.describe('recording device interruption', () => {
           paint(); setInterval(paint, 40);
           const audio = new AudioContext(); const oscillator = audio.createOscillator(); const destination = audio.createMediaStreamDestination();
           oscillator.connect(destination); oscillator.start();
+          await audio.resume();
           const stream = new MediaStream([...canvas.captureStream(24).getVideoTracks(), ...destination.stream.getAudioTracks()]);
           (window as unknown as { inputTracks: MediaStreamTrack[] }).inputTracks = stream.getTracks();
           (window as unknown as { disconnectInput: () => void }).disconnectInput = () => {
@@ -150,6 +151,8 @@ test.describe('recording device interruption', () => {
       await shot(page, `device-${kind}-${lang}-paused`);
       const group = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('group')!);
       await page.getByTestId('create-rec-stop').click();
+      await expect(page.getByTestId('rec-preparing')).toBeVisible();
+      await expect(page.getByTestId('create-rec-perm')).toHaveCount(0);
       await expect(page.getByTestId('editor')).toBeVisible({ timeout: 120000 });
       const takes = await page.evaluate((value) => window.desk.rec.list(value), group);
       expect(takes).toHaveLength(1);
@@ -170,12 +173,27 @@ test.describe('recording device interruption', () => {
 test.describe('recording final data delivery', () => {
   let app: ElectronApplication;
   test.afterEach(async () => closeApp(app));
-  for (const navigate of [false, true]) test(`waits for final data and stop events after devices become inactive${navigate ? ' when navigating away' : ''}`, async () => {
+  for (const leave of ['stay', 'recording', 'saving', 'editing']) test(`waits for final data and stop events after devices become inactive (${leave})`, async () => {
     test.setTimeout(120000);
-    const profile = navigate ? 'final-events-nav' : 'final-events';
+    const profile = 'final-events-' + leave;
+    let ingests = 0;
     const launched = await launch(profile, { DESK_STUDIO: '1' });
     app = launched.app;
     const page = launched.page;
+    if (leave === 'editing') await page.evaluate(() => {
+      const state = { ready: false, release: () => {} };
+      (window as unknown as { heldJob: typeof state }).heldJob = state;
+      const held = new Promise<void>(resolve => { state.release = resolve; });
+      const fetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const response = await fetch(...args);
+        if (String(args[0]).includes('/api/create/jobs/') && response.ok) {
+          const data = await response.clone().json();
+          if (data.state === 'done') { state.ready = true; await held; }
+        }
+        return response;
+      };
+    });
     await page.evaluate(() => { location.hash = '#/create/record'; });
     await page.evaluate(() => {
       const state = { pending: [] as (() => void)[], recorders: [] as MediaRecorder[], nativeStops: 0 };
@@ -218,7 +236,11 @@ test.describe('recording final data delivery', () => {
     await expect(page.getByTestId('create-rec-preview')).toBeVisible();
     await page.getByTestId('create-rec-start').click();
     await page.waitForTimeout(1800);
-    if (navigate) await page.evaluate(() => (location.hash = '#/'));
+    // A held Space key must not turn the initial Start into an immediate Stop.
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: true })));
+    await expect(page.getByTestId('create-rec-stop')).toBeEnabled();
+    page.on('request', req => { if (req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/ingest')) ingests++; });
+    if (leave === 'recording') await page.evaluate(() => (location.hash = '#/'));
     else await page.evaluate(() => (window as unknown as { endFinalInputs: () => void }).endFinalInputs());
     await expect.poll(() => page.evaluate(() => {
       const s = (window as unknown as { finalEvents: { pending: unknown[]; recorders: MediaRecorder[]; nativeStops: number } }).finalEvents;
@@ -226,15 +248,27 @@ test.describe('recording final data delivery', () => {
     })).toBe(true);
     const recordings = path.join(tmp, `vhome-${profile}`, 'recordings');
     const take = path.join(recordings, fs.readdirSync(recordings)[0]);
-    if (!navigate) await page.getByTestId('create-rec-stop').click();
+    if (leave !== 'recording') await page.getByTestId('create-rec-stop').click();
+    if (leave === 'saving') await page.evaluate(() => (location.hash = '#/'));
     await page.waitForTimeout(250); // deliberately longer than the old arbitrary 50ms wait
     expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).ended).toBeUndefined();
     await page.evaluate(() => {
       const s = (window as unknown as { finalEvents: { pending: (() => void)[] } }).finalEvents;
       s.pending.splice(0).forEach((deliver) => deliver());
     });
-    if (navigate) {
+    if (leave === 'editing') {
+      await expect(page.getByTestId('rec-preparing')).toBeVisible();
+      await expect.poll(() => page.evaluate(() => (window as unknown as { heldJob: { ready: boolean } }).heldJob.ready), { timeout: 90000 }).toBe(true);
+      await page.evaluate(() => (location.hash = '#/'));
+      await page.evaluate(() => (window as unknown as { heldJob: { release: () => void } }).heldJob.release());
+      await page.waitForTimeout(700);
+      expect(await page.evaluate(() => location.hash)).toBe('#/');
+      expect(ingests).toBe(1);
+      expect(probe(path.join(take, 'final', 'recording.mp4'))).toBeGreaterThan(1.4);
+    } else if (leave !== 'stay') {
       await expect.poll(() => fs.existsSync(path.join(take, 'recording.lock'))).toBe(false);
+      await page.waitForTimeout(250);
+      expect(ingests).toBe(0);
       expect(JSON.parse(fs.readFileSync(path.join(take, 'session.json'), 'utf8')).secs).toBeGreaterThan(1.4);
       for (const track of ['camera', 'mic']) {
         // MediaRecorder WebM has no duration header; inspect the actual packet timeline.

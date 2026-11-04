@@ -158,6 +158,13 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   const [stage, setStage] = useState<'working' | 'models' | 'editing' | null>(null);
   const [shotDone, setShotDone] = useState<Ingested | null>(null);
   const finishing = useAction();
+  const stopping = useRef(false);
+  const visit = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const current = new AbortController();
+    visit.current = current;
+    return () => current.abort();
+  }, [group, eid, shot, learning]);
   const video = useRef<HTMLVideoElement | null>(null);
   const screenVideo = useRef<HTMLVideoElement | null>(null);
 
@@ -253,11 +260,14 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
   };
 
   const stop = async () => {
+    if (stopping.current) return;
+    stopping.current = true;
+    const signal = visit.current?.signal;
     setErr(null);
     const thumb = grab();
     try {
       const out = await rec.stop();
-      if (!out) return;
+      if (!out || signal?.aborted) return;
       takeNo.current += 1;
       const tk: Take = {
         id: out.sessionId,
@@ -274,6 +284,8 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
       if (!(eid && shot) && !learning) void edit(tk); // straight to the second pass
     } catch (e) {
       setErr(errText(e));
+    } finally {
+      stopping.current = false;
     }
   };
 
@@ -282,9 +294,11 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
     if (!client) return;
     setErr(null);
     setStage('editing');
+    const signal = visit.current?.signal;
     try {
       const { job } = await client.create.ingest(tk.dir, 'edit', sid ?? ep?.series);
-      const res = await waitJob<Edited>(client.create, job);
+      const res = await waitJob<Edited>(client.create, job, () => signal?.throwIfAborted());
+      if (signal?.aborted) return;
       if (!res.item || !res.clip) throw new Error(t('rec.editFailed'));
       history.reload();
       location.hash = href({ name: 'clip', id: res.item, clip: res.clip });
@@ -323,6 +337,10 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
     const el = e.target as HTMLElement | null;
     const a = keyAction({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, altKey: e.altKey, tag: el?.tagName, editable: !!el?.isContentEditable });
     if (!a) return;
+    if (e.repeat && (a === 'main' || a === 'pause' || a === 'retake')) {
+      e.preventDefault();
+      return;
+    }
     if (a === 'main') {
       if (phase === 'off') return;
       e.preventDefault();
@@ -365,18 +383,21 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
       if (!tk || !client || stage) return;
       setErr(null);
       setStage('working');
+      const signal = visit.current?.signal;
       try {
         const series = sid ?? ep?.series;
         if (eid && shot) {
           const { job } = await client.create.ingest(tk.dir, `shot:${eid}/${shot}`, series);
-          setShotDone(await waitJob<Ingested>(client.create, job));
+          setShotDone(await waitJob<Ingested>(client.create, job, () => signal?.throwIfAborted()));
           return;
         }
         const { job } = await client.create.ingest(tk.dir, 'assembled', series);
-        const res = await waitJob<Ingested>(client.create, job);
+        const res = await waitJob<Ingested>(client.create, job, () => signal?.throwIfAborted());
+        if (signal?.aborted) return;
         if (!res.assembled) throw new Error('no assembled file');
         if (learning) {
           await client.attachLearningTake(learning, res.assembled);
+          if (signal?.aborted) return;
           history.reload();
           ui.toast(t('learning.takeAdded'));
           location.hash = `#/inbox?item=${encodeURIComponent(learning)}`;
@@ -384,15 +405,18 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
         }
         if (!modelsRef.current) {
           setStage('models');
-          while (!modelsRef.current) await new Promise((r) => setTimeout(r, 1000));
+          while (!modelsRef.current && !signal?.aborted) await new Promise((r) => setTimeout(r, 1000));
         }
-        const auto = (await window.desk.getSettings()).autopilot !== false;
+        if (signal?.aborted) return;
         // her own words are planned as usual; the plain 「make it a talking-head video」 is a fixed intent: the
         // talking-head recipe straight away (no ~2 min planning call), to her platforms (international first)
         const st = await window.desk.getSettings();
+        if (signal?.aborted) return;
+        const auto = st.autopilot !== false;
         const plats = homePlatforms(st.defaultPlatforms, Object.keys(st.accounts ?? {}).filter((k) => (st.accounts[k] ?? []).length));
         const r = await client.startIntake(ask.trim() || t('rec.finishPrompt'), [res.assembled], plats, getLang(), { mode: auto ? 'autopilot' : 'ask', recipe: ask.trim() ? undefined : 'talkinghead' });
         history.reload();
+        if (signal?.aborted) return;
         const to = selHref(r.id, true);
         ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });
         location.hash = to;
@@ -507,7 +531,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
 
       {/* ---------------------------------------------------------------- the stage */}
       <section className="rs-stage">
-        {phase === 'off' ? (
+        {phase === 'off' && !stage ? (
           <div className="rs-perm" data-testid="create-rec-perm">
             <Camera className="ico lg" />
             <div className="t1">{t('rec.permTitle')}</div>
