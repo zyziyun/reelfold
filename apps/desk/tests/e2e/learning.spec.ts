@@ -296,7 +296,7 @@ test('a lost camera pauses the workspace take and offers saving instead of resum
   await page.screenshot({ path: path.join(tmp, 'camera-saved.png') });
 });
 
-test('saved take retries workspace handoff without recording again', async () => {
+for (const leave of [false, true]) test(`saved take retries workspace handoff after ${leave ? 'leaving' : 'stopping'} without recording again`, async () => {
   test.setTimeout(120000);
   const doc = await api('POST', '/api/create/learning', { idea: 'Recording handoff recovery' });
   await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
@@ -317,7 +317,13 @@ test('saved take retries workspace handoff without recording again', async () =>
       return original(...args);
     };
   });
-  await page.getByTestId('learning-camera-record').click();
+  if (leave) {
+    await page.evaluate(() => { location.hash = '#/'; });
+    await expect.poll(() => page.evaluate((id) => sessionStorage.getItem(`learning-capture:${id}`), doc.id)).toBeTruthy();
+    await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
+  } else {
+    await page.getByTestId('learning-camera-record').click();
+  }
   await expect(page.getByTestId('learning-camera-retry')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('learning-camera-pending')).toContainText('saved on this computer');
   await expect(page.getByTestId('learning-camera-record')).toHaveCount(0);

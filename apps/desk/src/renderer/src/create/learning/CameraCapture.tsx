@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LearningWorkspace } from '../../../../shared/learning';
 import { t, fmtClock } from '../../i18n';
 import { useEngine } from '../../lib/engine';
@@ -10,10 +10,6 @@ import { ScreenPicker } from '../record/ScreenPicker';
 export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (doc: LearningWorkspace) => void; script: string }) {
   const { client } = useEngine();
   const rec = useRecorder();
-  const stopRecording = rec.stop;
-  useEffect(() => () => {
-    void stopRecording().then((take) => take && client?.captureLearning(id, take.dir)).catch(() => undefined);
-  }, [id, client, stopRecording]);
   const video = useRef<HTMLVideoElement | null>(null);
   const [screen, setScreen] = useState(false);
   const [appAudio, setAppAudio] = useState(false);
@@ -21,6 +17,17 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const [error, setError] = useState('');
   const pendingKey = `learning-capture:${id}`;
   const [pendingDir, setPendingDir] = useState<string | null>(() => sessionStorage.getItem(pendingKey));
+  const attachTake = useCallback(async (dir: string) => {
+    sessionStorage.setItem(pendingKey, dir);
+    if (!client) throw new Error(t('learning.capturePending'));
+    const doc = await client.captureLearning(id, dir);
+    sessionStorage.removeItem(pendingKey);
+    return doc;
+  }, [client, id, pendingKey]);
+  const stopRecording = rec.stop;
+  useEffect(() => () => {
+    void stopRecording().then((take) => take && attachTake(take.dir)).catch(() => undefined);
+  }, [attachTake, stopRecording]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (video.current) video.current.srcObject = rec.stream; }, [rec.stream]);
@@ -37,10 +44,8 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
     try {
       const dir = pendingDir ?? (await rec.stop())?.dir;
       if (dir) {
-        sessionStorage.setItem(pendingKey, dir);
         setPendingDir(dir);
-        const doc = await client.captureLearning(id, dir);
-        sessionStorage.removeItem(pendingKey);
+        const doc = await attachTake(dir);
         if (mounted.current) {
           setPendingDir(null);
           onSaved(doc);
