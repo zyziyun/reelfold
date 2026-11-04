@@ -534,7 +534,8 @@ def _cli(argv=None):
     from vstudio.batch.segplan import get_transcript
     from vstudio.cleanup import load_words
     lang0 = None if a.language in (None, "", "auto") else a.language
-    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang0)
+    # Keep automatic recognition independent of the creator's default language.
+    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang0 or "auto")
     W = load_words(tr)
     from vstudio.batch.segplan import sentences_of
     sents = sentences_of(W)

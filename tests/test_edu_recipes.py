@@ -654,3 +654,27 @@ def test_lesson_cli_passes_domain_terms_to_shared_transcriber(tmp_path, monkeypa
                    "--out", str(out)]) == 0
     assert calls == [("lecture.mp4", None, {"language": "en", "prompt": "sys.settrace, exception, opcode"})]
     assert json.loads(out.read_text())["points"]
+
+
+@pytest.mark.parametrize("module,lines", [(L, LESSON), (QA, INTERVIEW)])
+@pytest.mark.parametrize("requested,expected", [(None, "auto"), ("auto", "auto"), ("en", "en")])
+def test_education_cli_preserves_auto_recognition(tmp_path, monkeypatch, module, lines, requested, expected):
+    from vstudio.batch import segplan
+    calls = []
+    monkeypatch.setenv("VSTUDIO_ASR_LANGUAGE", "zh")
+    def get(source, transcript_path=None, **kwargs):
+        calls.append(kwargs["language"])
+        return transcript(lines), None, None
+    monkeypatch.setattr(segplan, "get_transcript", get)
+    monkeypatch.setattr(QA, "diarize", lambda *args: dict(labels=None, method="none", note="test"))
+    out = tmp_path / "plan.json"
+    args = ["plan", "--source", "speech.mp4", "--out", str(out)]
+    if module is L:
+        args += ["--provider", "none"]
+    else:
+        args += ["--no-tighten"]
+    if requested is not None:
+        args += ["--language", requested]
+    assert module._cli(args) == 0
+    assert calls == [expected]
+    assert json.loads(out.read_text())["lang"] == "en"

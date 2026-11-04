@@ -708,7 +708,8 @@ def _cli(argv=None):
             pass
     from vstudio.batch.segplan import get_transcript
     lang = None if a.language in (None, "", "auto") else a.language
-    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang, prompt=a.asr_prompt)
+    # None means the creator's default to ASR; this workflow promises detection.
+    tr, tpath, _ = get_transcript(a.source, a.transcript, language=lang or "auto", prompt=a.asr_prompt)
     sents = sentences(tr)
     plan = plan_points(sents, lang, a.count, a.min_s, a.max_s, a.provider, a.gloss_lang)
     plan.update(source=os.path.abspath(a.source) if a.source else None, transcript=tpath)
