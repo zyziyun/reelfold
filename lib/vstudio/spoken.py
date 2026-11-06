@@ -326,3 +326,27 @@ def overlay(effects, width, height, safe):
             getattr(layer, "close", lambda: None)()
     draw.close = close
     return draw
+
+
+def source_overlay(effects):
+    """Timed source-region outlines on the master's clock, before framing.
+
+    Build layers at the actual decoded size (which can be prescaled). Screen-space
+    cards and captions belong in overlay(), not in this source-pixel pass.
+    """
+    if any(e.get("effect") != "red-box" for e in effects):
+        raise ValueError("source annotations currently support red-box only")
+    layers = {}
+
+    def draw(i, t, img):
+        h, w = img.shape[:2]
+        if (w, h) not in layers:
+            layers[w, h] = overlay(effects, w, h, (0, 0, w, h))
+        return layers[w, h](i, t, img)
+
+    def close():
+        for layer in layers.values():
+            layer.close()
+        layers.clear()
+    draw.close = close
+    return draw

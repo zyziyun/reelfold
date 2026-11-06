@@ -815,7 +815,7 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
                cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", clip_id=None,
-               caption_role="rendered-captions", caption_lang=None, **reframe_opts):
+               caption_role="rendered-captions", caption_lang=None, source_effects=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
@@ -824,7 +824,9 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     never drawn when none is set up). cover_canvas="video" keeps the cover on the video canvas,
     with a preview of the platform feed crop. caption_role="speech" is for callers exporting a known
     speech transcript or its translation; general visual text retains the rendered-captions role.
-    caption_lang overrides platform subtitle defaults, independently of post_lang."""
+    caption_lang overrides platform subtitle defaults, independently of post_lang.
+    source_effects: source-region outlines on the master clock, drawn before framing;
+    effects remain output-space graphics. Source annotations are not retimed by start."""
     from . import audio
     caption_language(prof, caption_lang)  # validate before probing or rendering
     if caption_role not in ("speech", "rendered-captions"):
@@ -880,6 +882,10 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     pl_geo = pl
     overlay = caption_overlay(prof, cue_list, pl["fps"], keepouts=kos, plan=pl_geo, report=cap_report) if cue_list else None
     draw_effects = None
+    draw_source = None
+    if source_effects:
+        from . import spoken
+        draw_source = spoken.source_overlay(source_effects)
     if effects:
         from . import spoken
         fx = [dict(e, start=e["start"] - start, end=e["end"] - start) for e in effects
@@ -918,7 +924,7 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     has_a = info["has_audio"]
     tmpd = workdir or tempfile.mkdtemp(prefix="vexport-")
     try:
-        fast = same_aspect and not effects and (overlay is None or (wm_cfg and not cue_list)) and not info.get("hdr")
+        fast = same_aspect and not effects and not source_effects and (overlay is None or (wm_cfg and not cue_list)) and not info.get("hdr")
         wm_png = WM.write_png(wm_cfg, prof.w, prof.h, prof, os.path.join(tmpd, stem + ".wm.png")) \
             if (fast and wm_cfg) else None
         if has_a:
@@ -926,14 +932,15 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
             if fast:
                 _scale_only(master, mid, prof, info, start, dur, vargs, fps_out, wm_png)
             else:
-                R.render(master, mid, pl_geo, overlay=overlay,
+                R.render(master, mid, pl_geo, overlay=overlay, source_overlay=draw_source,
                          encode_args=vargs + ["-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2"], fps=fps_out)
             audio.loudnorm_2pass(mid, out_mp4, lufs=prof.loudness["lufs"], tp=prof.loudness["tp"])
         else:
             if fast:
                 _scale_only(master, out_mp4, prof, info, start, dur, vargs, fps_out, wm_png)
             else:
-                R.render(master, out_mp4, pl_geo, overlay=overlay, encode_args=vargs + ["-an", "-movflags", "+faststart"],
+                R.render(master, out_mp4, pl_geo, overlay=overlay, source_overlay=draw_source,
+                         encode_args=vargs + ["-an", "-movflags", "+faststart"],
                          fps=fps_out)
             warnings.append("master has no audio")
         if cap_report.get("blocked"):
@@ -942,6 +949,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     finally:
         if draw_effects is not None:
             draw_effects.close()
+        if draw_source is not None:
+            draw_source.close()
         if workdir is None:
             shutil.rmtree(tmpd, ignore_errors=True)
     crop_json = os.path.join(out_dir, stem + ".crop.json")
