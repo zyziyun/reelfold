@@ -92,6 +92,7 @@ class CreateApi:
         self.data_dir, self.bus, self.runner, self.mode = data_dir, bus, runner, mode
         self.history, self.calendar, self.outputs = history, calendar, outputs
         self.jobs = {}
+        self._ingesting = {}
         self.used = False
         self.recovered = []
         self._lock = threading.Lock()
@@ -123,14 +124,23 @@ class CreateApi:
 
     def job(self, kind, args, meta=None, after=None, limit=None):
         """Background job: -> {job}. ``after(result)`` runs here when it succeeds (calendar, history). ``limit``:
-        seconds before a real-mode job's process is stopped (``create.job-timeout``) - a job never spins forever."""
+        seconds before a real-mode job's process is stopped (``create.job-timeout``) - a job never spins forever.
+        Identical recording ingests share their running job; terminal jobs can be retried."""
         self.used = True
         jid = uuid.uuid4().hex[:12]
         rec = dict(id=jid, kind=kind, state="running", started=time.time(), meta=meta or {}, events=[],
                    result=None, error=None)
+        request = tuple(args) if kind == "ingest" else None
         with self._lock:
+            if request is not None:
+                active = self._ingesting.get(request)
+                if active and active["state"] == "running":
+                    return dict(job=active["id"], kind=kind)
+                self._ingesting[request] = rec
             self.jobs[jid] = rec
-            for old in sorted(self.jobs.values(), key=lambda j: j["started"])[:-50]:
+            # Running jobs must remain pollable, including a coalesced ingest.
+            finished = [j for j in self.jobs.values() if j["state"] != "running"]
+            for old in sorted(finished, key=lambda j: j["started"])[:-50]:
                 self.jobs.pop(old["id"], None)
 
         def on_event(ev):
@@ -149,6 +159,10 @@ class CreateApi:
             except Exception as e:  # noqa: BLE001
                 rec.update(state="error", error=dict(code="create.failed", params=dict(error=str(e)[:300])))
             rec["finished"] = time.time()
+            if request is not None:
+                with self._lock:
+                    if self._ingesting.get(request) is rec:
+                        self._ingesting.pop(request, None)
             self.bus.publish("create", event="create.job", job=jid, job_kind=kind, state=rec["state"],
                              error=rec["error"])
         threading.Thread(target=go, daemon=True).start()

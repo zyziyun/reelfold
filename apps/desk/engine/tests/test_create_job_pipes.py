@@ -69,5 +69,37 @@ class JobPipesTest(unittest.TestCase):
         self.assertIn("ffmpeg: no such file", str(r.doc))
 
 
+class RecordingJobRetryTest(unittest.TestCase):
+    def test_concurrent_identical_ingests_share_one_job_and_failure_can_retry(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import time
+        api = CreateApi(tempfile.mkdtemp(), EventBus())
+        release = threading.Event()
+        calls = []
+        def run(args, event, limit):
+            calls.append(args)
+            if not release.wait(5):
+                raise RuntimeError("test timed out")
+            raise RuntimeError("disk unavailable")
+        api._run_job = run
+        args = ["record", "ingest", "/tmp/example-session", "--target", "edit"]
+        try:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                results = list(pool.map(lambda _: api.job("ingest", args), range(8)))
+            self.assertEqual(len({r["job"] for r in results}), 1)
+            self.assertEqual(len(calls), 1)
+            other = api.job("ingest", args[:-1] + ["assembled"])
+            self.assertNotEqual(other["job"], results[0]["job"])
+        finally:
+            release.set()
+        deadline = time.monotonic() + 5
+        while any(j["state"] == "running" for j in api.jobs.values()) and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(all(j["state"] == "error" for j in api.jobs.values()))
+        api._run_job = lambda *args: {"ok": True}
+        retry = api.job("ingest", args)
+        self.assertNotEqual(retry["job"], results[0]["job"])
+
+
 if __name__ == "__main__":
     unittest.main()
