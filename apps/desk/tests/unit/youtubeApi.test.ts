@@ -69,6 +69,7 @@ class FakeGoogle {
   playlistItems: { playlistId: string; videoId: string }[] = [];
   revoked: string[] = [];
   tokenRequests: URLSearchParams[] = [];
+  refreshFailure: { status: number; error: string } | null = null;
 
   async start() {
     this.server = http.createServer((req, res) => void this.handle(req, res));
@@ -132,6 +133,7 @@ class FakeGoogle {
         return this.json(res, 200, { access_token: at, refresh_token: rt, expires_in: 3599, scope: c.scope, token_type: 'Bearer' });
       }
       if (f.get('grant_type') === 'refresh_token') {
+        if (this.refreshFailure) return this.json(res, this.refreshFailure.status, { error: this.refreshFailure.error });
         if (!this.refresh.has(f.get('refresh_token') ?? '')) return this.json(res, 400, { error: 'invalid_grant' });
         const at = `at-${b64url(crypto.randomBytes(6))}`;
         this.access.add(at);
@@ -909,4 +911,51 @@ it('reconnect accepts the same channel after its display name changes', async ()
     connected: true, captions: true, channel: { id: 'UC1', title: 'Renamed channel' },
   });
   expect(vault.get('youtube/main').refreshToken).not.toBe(original);
+});
+
+
+it.each([503, 429])('keeps the saved connection after a temporary token failure (%s)', async status => {
+  const { yt, vault } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  vault.set('youtube/main', { refreshToken: 'saved-token' });
+  g.refresh.set('saved-token', YT_UPLOAD);
+  g.refreshFailure = { status, error: 'temporarily_unavailable' };
+  await expect(yt.playlists('main')).rejects.toThrow(/try again/i);
+  expect(vault.get('youtube/main').refreshToken).toBe('saved-token');
+  g.refreshFailure = null;
+  await expect(yt.playlists('main')).resolves.toBeInstanceOf(Array);
+});
+
+
+it('clears a revoked token but preserves it for a rejected OAuth client', async () => {
+  const { yt, vault } = mk();
+  yt.setClient(CLIENT, 'GOCSPX-desktop');
+  vault.set('youtube/main', { refreshToken: 'saved-token' });
+  g.refreshFailure = { status: 401, error: 'invalid_client' };
+  await expect(yt.playlists('main')).rejects.toThrow(/connection settings/);
+  expect(vault.get('youtube/main').refreshToken).toBe('saved-token');
+  g.refreshFailure = { status: 400, error: 'invalid_grant' };
+  await expect(yt.playlists('main')).rejects.toThrow(/sign in with Google again/);
+  expect(yt.accountStatus('main').connected).toBe(false);
+});
+
+it('bounds token refresh and keeps credentials when the request times out', async () => {
+  const controller = new AbortController();
+  const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+  try {
+    const { yt, vault } = mk(undefined, { fetch: async (_url, init) => {
+      if (!init?.signal) throw new Error('Missing request deadline');
+      return new Promise((_resolve, reject) => {
+        init.signal!.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
+        controller.abort(new DOMException('Token request timed out', 'TimeoutError'));
+      });
+    } });
+    yt.setClient(CLIENT, 'GOCSPX-desktop');
+    vault.set('youtube/main', { refreshToken: 'saved-token' });
+    await expect(yt.playlists('main')).rejects.toThrow(/timed out/);
+    expect(timeout).toHaveBeenCalledWith(15_000);
+    expect(vault.get('youtube/main').refreshToken).toBe('saved-token');
+  } finally {
+    timeout.mockRestore();
+  }
 });

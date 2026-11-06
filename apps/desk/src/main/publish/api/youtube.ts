@@ -350,7 +350,7 @@ export class YouTubeApi {
       });
     });
     const r = await this.f(this.ep.token, {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
@@ -402,14 +402,21 @@ export class YouTubeApi {
     const client = this.client();
     if (!s.refreshToken || !client) throw new Error('YouTube is not connected: sign in with Google in your browser first');
     const r = await this.f(this.ep.token, {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(15_000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ client_id: client.clientId, ...(client.clientSecret ? { client_secret: client.clientSecret } : {}), refresh_token: s.refreshToken, grant_type: 'refresh_token' }),
     });
     const j = (await r.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: string };
     if (!r.ok || !j.access_token) {
-      if (j.error === 'invalid_grant') this.d.vault.set(vaultKey(account), null);
-      throw new Error(`YouTube sign-in expired or was revoked (${j.error ?? r.status}): sign in with Google again`);
+      if (j.error === 'invalid_grant') {
+        this.d.vault.set(vaultKey(account), null);
+        this.access.delete(account);
+        throw new Error('YouTube sign-in expired or was revoked: sign in with Google again');
+      }
+      if (j.error === 'invalid_client' || j.error === 'unauthorized_client') {
+        throw new Error('Google rejected the OAuth client. Check the YouTube connection settings; your saved account is unchanged.');
+      }
+      throw new Error(`YouTube could not refresh access (HTTP ${r.status}). Your saved connection is unchanged; try again.`);
     }
     this.access.set(account, { token: j.access_token, until: Date.now() + (j.expires_in ?? 3000) * 1000 - 60_000 });
     return j.access_token;
