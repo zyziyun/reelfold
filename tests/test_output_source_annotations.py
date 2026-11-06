@@ -35,3 +35,36 @@ def test_replaced_shot_keeps_header_without_old_source_outline(tmp_path, monkeyp
     cap.release()
     assert counts[0] > 100 and counts[2] > 100
     assert counts[1] == 0, "old annotation leaked into the replacement's preserved header"
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_second_edit_portrait_keeps_source_region_and_audio(tmp_path):
+    from vstudio import spoken
+    source = tmp_path / "landscape.mp4"
+    media.run([media.ffmpeg_bin(), "-y", "-v", "error", "-f", "lavfi", "-i",
+               "color=c=0x303030:s=320x180:r=15:d=3", "-f", "lavfi", "-i",
+               "sine=frequency=440:duration=3", "-c:v", "libx264", "-c:a", "aac", str(source)])
+    effects = [dict(effect="red-box", start=1, end=2, params=dict(
+        anchor="source", x=.2, y=.3, w=.2, h=.2, color="#FF0000", width=18, anim="fade"))]
+    annotated = R.run_source_annotations(dict(src=str(source), effects=effects),
+                                         str(tmp_path / "annotated.mp4"), "preview")
+    out = R.run_canvas(dict(op="reframe", src=annotated, w=180, h=320, fallback="center",
+                            source_regions=spoken.source_regions(effects)),
+                       str(tmp_path / "portrait.mp4"), "preview", [0, 0, 180, 320])
+    cap = cv2.VideoCapture(out)
+    for t in (.5, 1.5, 2.5):
+        cap.set(cv2.CAP_PROP_POS_MSEC, t*1000)
+        ok, frame = cap.read()
+        assert ok
+        red = (frame[:, :, 2] > 140) & (frame[:, :, 1] < 90) & (frame[:, :, 0] < 90)
+        if t == 1.5:
+            import numpy as np
+            ys, xs = np.where(red)
+            assert red.sum() > 50
+            assert xs.mean() == pytest.approx(36, abs=2)
+            assert ys.mean() == pytest.approx((320-180*180/320)/2 + .3*180*180/320, abs=2)
+        else:
+            assert red.sum() == 0
+    cap.release()
+    info = media.probe(out)
+    assert info["has_audio"] and info["duration"] == pytest.approx(3, abs=.1)
