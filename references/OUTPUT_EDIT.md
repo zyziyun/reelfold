@@ -218,6 +218,13 @@ new source separately. Do not guess source coordinates from a cropped preview.
 Source-anchored outlines add a cached `source-annotations` stage before shot assembly and `canvas`.
 Changing one invalidates downstream stages; ordinary output-space effects retain their cheaper final-pass edits.
 
+Spoken editorial finishing can propose `source-outline` beats for stationary notes or diagrams already in
+the composed video. These become source-anchored `red-box` effects instead of duplicate summary cards.
+The planner must use full-source coordinates and quote the relevant speech; local validation checks the
+region's bounds, visible detail and frame-by-frame stability over the proposed interval. This rejects
+visibly changing regions but does not verify their semantic relevance, guarantee legibility after a crop,
+or provide object tracking. Review the actual target render for those qualities.
+
 Stages per target: `canvas` (reframe the master / file to the target canvas) -> `timeline` (trim, cuts, joins,
 speed, grade, end fade) -> `audio` (SFX, music bed, two-pass loudness) -> `final` (frame pass: mask / band layout,
 punch-in, overlays, cards, title band, captions, progress bar; encode) -> `cover`. Each stage key hashes its input
