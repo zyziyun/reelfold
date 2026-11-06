@@ -189,26 +189,31 @@ def _cue_languages(cue):
     return {language for language in (_script(cue.get("text")), _script(cue.get("alt"))) if language}
 
 
-def check_caption_lang(cues, prof, title=None, text=None):
+def check_caption_lang(cues, prof, title=None, text=None, caption_lang=None):
     """Captions in the platform's language (references/AESTHETICS.md P9: YouTube / Shorts English, 小红书 / B站 / 抖音
     Chinese; vstudio.platform.lang_for). A cue counts for the language its text or alt line is in (export keeps that
     line); lines of only numbers / names count for none. The majority of the worded cues must have a line in the
     platform's language: red on a fixed-language platform (YouTube), warn elsewhere. The title / post copy in another
-    language than the platform's is a warning."""
+    language than the platform's is a warning. An explicit caption_lang overrides only the subtitle target;
+    it does not translate content or change the title/post language."""
     from vstudio import platform as PL
-    want = PL.lang_for(prof.name)
+    from vstudio.export import caption_language
+    want = caption_language(prof, caption_lang)
     if not want:
         return []
-    name = {"en": ("英文", "English"), "zh": ("中文", "Chinese")}[want]
+    name = {"en": ("英文", "English"), "zh": ("中文", "Chinese")}.get(want, (want, want))
     out = []
     worded = [languages for c in cues or [] if (languages := _cue_languages(c))]
     if worded:
         hit = sum(want in languages for languages in worded)
         out.append(_item("caption-lang", hit * 2 >= len(worded),
-                         f"字幕是{name[0]}（{prof.name} 只用{name[0]}字幕：{hit}/{len(worded)} 条有{name[0]}）",
-                         f"captions are {name[1]} ({prof.name} takes {name[1]} captions: {hit}/{len(worded)} cues)",
-                         severity="red" if PL.lang_fixed(prof.name) else "warn", value=f"{hit}/{len(worded)}",
-                         fix_zh=f"给这个平台单独一条{name[0]}字幕轨：vstudio.export --cues {want}=cues.{want}.json"))
+                         f"字幕是{name[0]}（{prof.name} 字幕目标为{name[0]}：{hit}/{len(worded)} 条有{name[0]}）",
+                         f"captions are {name[1]} ({prof.name} subtitle target: {name[1]}; {hit}/{len(worded)} cues)",
+                         severity="red" if caption_lang or PL.lang_fixed(prof.name) else "warn", value=f"{hit}/{len(worded)}",
+                         fix_zh=f"给这个平台单独一条{name[0]}字幕轨：vstudio.export --caption-lang {want} --cues {want}=cues.{want}.json"))
+    # Subtitle overrides do not change the requested post-copy language.
+    want = PL.lang_for(prof.name)
+    name = {"en": ("英文", "English"), "zh": ("中文", "Chinese")}.get(want, (want, want))
     for id_, s, zh, en in (("title-lang", title, "标题", "title"), ("post-lang", text, "文案", "post copy")):
         got = _script(s) if id_ == "title-lang" else (None if not s else
                                                         "zh" if len(_CJK.findall(s)) * 3 >= len(_WORD.findall(s))
@@ -349,7 +354,7 @@ def _profile(platform, info):
 
 
 def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover=None, post=None, title=None,
-        hook_seconds=0.0, media_checks=True, locale=None, hf=None, look=None):
+        hook_seconds=0.0, media_checks=True, locale=None, hf=None, look=None, caption_lang=None):
     """-> {ok, video, format, summary, platform, items: [{id, ok, severity, value, zh, en, fix_zh}]}.
     ok is False when any red item failed (ok None = skipped / info). ``hf``: the HyperFrames project the video was
     rendered from (an explainer item, a launch-kit build): its look is checked too (``vstudio.look``: frames drawn
@@ -367,11 +372,12 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     items += check_media(video, prof, media_checks and info.get("has_audio"))
     items += check_speed(info["duration"], [s["duration"] for s in srcs], sp, hook_seconds)
     items += check_captions(load_cues(cues), f, locale)
-    items += check_text(load_cues(cues), prof)
+    items += [item for item in check_text(load_cues(cues), prof)
+              if not caption_lang or item["id"] != "type-lang"]
     items += check_cover(cover, info, f)
     t, txt = load_post(post)
     items += check_post(title or t, txt, prof, f, post_given=bool(post or title))
-    items += check_caption_lang(load_cues(cues), prof, title or t, txt)
+    items += check_caption_lang(load_cues(cues), prof, title or t, txt, caption_lang=caption_lang)
     items += check_style(f, hook_seconds)
     if look is None and hf and os.environ.get("VSTUDIO_LOOK", "1") != "0" and os.path.isdir(hf):
         from vstudio import look as LK
@@ -428,6 +434,7 @@ def _cli(argv=None):
     ap.add_argument("--post", help="post.md / post.json")
     ap.add_argument("--title")
     ap.add_argument("--locale")
+    ap.add_argument("--caption-lang", help="explicit subtitle language; overrides platform default")
     ap.add_argument("--no-media", action="store_true", help="skip loudness / sync / black-frame measurements")
     ap.add_argument("--hf", help="the HyperFrames project the video was rendered from: check its look too "
                     "(vstudio.look)")
@@ -435,7 +442,7 @@ def _cli(argv=None):
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     res = run(a.video, a.fmt, a.platform, a.source, a.speed, a.cues, a.cover, a.post, a.title, a.hook_seconds,
-              not a.no_media, a.locale, hf=a.hf)
+              not a.no_media, a.locale, hf=a.hf, caption_lang=a.caption_lang)
     print(json.dumps(res, ensure_ascii=False, indent=1, default=str) if a.json else report(res, a.lang))
     return 0 if res["ok"] else 1
 

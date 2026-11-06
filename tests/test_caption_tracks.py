@@ -271,3 +271,49 @@ def test_firstpass_counts_declared_bilingual_alt_and_ignores_empty_lines(tmp_pat
     cues = FP.load_cues(path)
     check = FP.check_caption_lang(cues, P.profile('youtube'))[0]
     assert check['ok'] is True and check['value'] == '1/1'
+
+
+@pytest.mark.parametrize('language,text', [('zh-CN', '把想法说清楚'), ('fr-FR', 'Expliquez votre idée.')])
+def test_explicit_caption_language_overrides_platform_default(language, text):
+    prof = P.profile('youtube')
+    cues = [Cue(0, 2, 'Explain your idea.', text, {'lang': 'en', 'alt_lang': language})]
+    chosen, warnings = X.cues_for_platform(prof, cues, caption_lang=language)
+    assert not warnings and chosen[0].text == text and not chosen[0].alt
+    checked = FP.check_caption_lang([c.to_dict() for c in chosen], prof, caption_lang=language)
+    assert checked[0]['ok'] is True
+    assert FP.check_caption_lang([dict(text='Explain your idea.', meta={'lang': 'en'})],
+                                 prof, caption_lang=language)[0]['ok'] is False
+    source, track, warnings = X.pick_track(prof, {'en': 'english.json', language: 'requested.json'},
+                                           caption_lang=language)
+    assert (source, track, warnings) == ('requested.json', language, [])
+
+
+@media
+def test_explicit_french_export_burns_requested_line_and_passes_language_qc(tmp_path, monkeypatch):
+    master = _clip(tmp_path / 'master.mp4')
+    cues = _cues(tmp_path / 'captions.json', [dict(start=0, end=1.5, text='Explain your idea.',
+        alt='Expliquez votre idée.', meta={'lang': 'en', 'alt_lang': 'fr'})])
+    drawn = []
+    real_overlay = X.caption_overlay
+
+    def observe_overlay(prof, selected, *args, **kwargs):
+        drawn.extend(selected)
+        return real_overlay(prof, selected, *args, **kwargs)
+
+    monkeypatch.setattr(X, 'caption_overlay', observe_overlay)
+    directory = str(tmp_path / 'export')
+    os.makedirs(directory)
+    prof = P.profile('youtube')
+    entry = X.export_one(master, prof, directory, cues=cues, caption_lang='fr', mode='pad-blur')
+    assert [c.text for c in drawn] == ['Expliquez votre idée.']
+    assert _caption_drawn(os.path.join(directory, entry['file']), prof)
+    assert [c.text for c in srt_read(os.path.join(directory, 'youtube-horizontal.fr.srt'))] == ['Expliquez votre idée.']
+    result = FP.run(os.path.join(directory, entry['file']), platform='youtube',
+                    cues=[c.to_dict() for c in drawn], caption_lang='fr', media_checks=False)
+    assert next(i for i in result['items'] if i['id'] == 'caption-lang')['ok'] is True
+    assert not [i for i in result['items'] if i['id'] == 'type-lang' and i['ok'] is False]
+
+
+def test_invalid_explicit_caption_language_fails_before_media_access(tmp_path):
+    with pytest.raises(ValueError, match='invalid caption language'):
+        X.export_one('missing.mp4', P.profile('youtube'), str(tmp_path), caption_lang='French')

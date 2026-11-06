@@ -122,17 +122,19 @@ def _is_zh(text):
     return any("\u3400" <= c <= "\u9fff" for c in str(text or ""))
 
 
-def cues_for_platform(prof, cues, bilingual=None):
+def cues_for_platform(prof, cues, bilingual=None, caption_lang=None):
     """Captions in the platform's language, ONE language per platform (2026-10-12): English on YouTube / Shorts and
     the international platforms, Chinese on 小红书 / B站 / 抖音 ... (vstudio.platform.lang_for). A bilingual cue keeps
     the line in that language (中文 text + English alt -> the alt alone on YouTube); a cue with no line in it is kept
     and named in a warning. ``bilingual`` (default ``subs.bilingual_wanted()``: persona subtitles.bilingual) keeps
-    both lines - never on YouTube, which is English only. -> (cues, warnings)"""
+    both lines except on fixed-default platforms. ``caption_lang`` explicitly selects one language instead of
+    the platform default (including YouTube); language tags are required to distinguish other languages reliably.
+    -> (cues, warnings)"""
     if not cues:
         return [], []
     from .subs import Cue, bilingual_wanted, pick_lang
-    lang = P.lang_for(prof.name, "en")
-    if (bilingual if bilingual is not None else bilingual_wanted()) and not P.lang_fixed(prof.name):
+    lang = caption_language(prof, caption_lang)
+    if not caption_lang and (bilingual if bilingual is not None else bilingual_wanted()) and not P.lang_fixed(prof.name):
         return list(cues), []
     out, bare = [], 0
     for c in cues:
@@ -145,11 +147,13 @@ def cues_for_platform(prof, cues, bilingual=None):
             alt, found = "", _lang_base(language) == lang
             meta = {k: v for k, v in c.meta.items() if k not in ("lang", "alt_lang")}
             meta["lang"] = language
-        else:
+        elif lang in ("en", "zh"):
             text, alt, found = pick_lang(c.text, c.alt, lang)
+        else:
+            text, alt, found = c.text or c.alt, "", False
         bare += not found and bool(text)
         out.append(Cue(c.start, c.end, text, alt, meta))
-    name = "English" if lang == "en" else "Chinese"
+    name = _lang_name(lang)
     warn = [f"{prof.name}: captions are {name} only, but {bare} cue(s) have no {name} line"] if bare else []
     return out, warn
 
@@ -197,17 +201,24 @@ def _lang_base(k):
     return str(k or "").split("-")[0].lower()
 
 
+def caption_language(prof, requested=None):
+    """Explicit subtitle language wins over platform defaults; reject invalid tags."""
+    if requested is not None and not LANG_KEY.fullmatch(str(requested)):
+        raise ValueError(f"invalid caption language: {requested!r}")
+    return _lang_base(requested) if requested else P.lang_for(prof.name, "en")
+
+
 def _lang_name(lang):
     return {"en": "English", "zh": "Chinese"}.get(_lang_base(lang), str(lang))
 
 
-def pick_track(prof, cues):
+def pick_track(prof, cues, caption_lang=None):
     """The caption source for one platform -> (source, track_lang, warnings). One track: (cues, None, []). A map: the
     track of the platform's language (``zh`` serves ``zh-Hans``), else the ``"*"`` track, else the first other track
     with a warning naming it (cues_for_platform then keeps the line in the platform's language where a cue has one)."""
     if not is_track_map(cues):
         return cues, None, []
-    lang = P.lang_for(prof.name, "en")
+    lang = caption_language(prof, caption_lang)
     named = [(k, v) for k, v in cues.items() if k != "*"]
     for k, v in named:
         if k == lang:
@@ -794,7 +805,7 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
                cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", clip_id=None,
-               caption_role="rendered-captions", **reframe_opts):
+               caption_role="rendered-captions", caption_lang=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
@@ -802,8 +813,10 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
     never drawn when none is set up). cover_canvas="video" keeps the cover on the video canvas,
     with a preview of the platform feed crop. caption_role="speech" is for callers exporting a known
-    speech transcript or its translation; general visual text retains the rendered-captions role."""
+    speech transcript or its translation; general visual text retains the rendered-captions role.
+    caption_lang overrides platform subtitle defaults, independently of post_lang."""
     from . import audio
+    caption_language(prof, caption_lang)  # validate before probing or rendering
     if caption_role not in ("speech", "rendered-captions"):
         raise ValueError("caption_role must be speech or rendered-captions")
     mode = MODE_ALIASES.get(mode, mode)
@@ -840,10 +853,10 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                         + "; ".join(dict.fromkeys(x["reason"] for x in wide)))
     cmode = captions_mode(captions)
     upload = bool(prof.extra.get("caption_upload"))
-    src, track_lang, track_warn = pick_track(prof, cues)
+    src, track_lang, track_warn = pick_track(prof, cues, caption_lang=caption_lang)
     burn = cmode in ("both", "burn") or (cmode == "sidecar" and not upload)
     all_cues = load_cues(src) if (src is not None and cmode != "off") else []
-    shown, lang_warn = cues_for_platform(prof, all_cues)
+    shown, lang_warn = cues_for_platform(prof, all_cues, caption_lang=caption_lang)
     cue_list = shown if burn else []
     if all_cues:
         warnings += track_warn + (lang_warn if burn else [])
@@ -1159,6 +1172,7 @@ def main(argv=None):
                     help="do not burn --cues (the master already carries its captions)")
     ap.add_argument("--title", help="post title (checked against each platform's limit)")
     ap.add_argument("--post", help="post.json {title, hook, body, chapters, links, tags} -> <target>.post.md")
+    ap.add_argument("--caption-lang", help="explicit subtitle language, e.g. zh or fr; overrides platform default")
     ap.add_argument("--lang", default=None, help="post copy language (en | zh); default: the content language "
                     "detected from the cues (English content -> English copy on X / Instagram / TikTok / YouTube)")
     ap.add_argument("--bilingual", action="store_true", help="post copy in English + Chinese (post.json en + zh blocks)")
@@ -1193,7 +1207,7 @@ def main(argv=None):
     if post is not None and (a.lang or a.bilingual):
         post = dict(post, _lang=a.lang, _bilingual=a.bilingual or None)
     man = export(a.master, targets, a.out, cues=parse_cues_arg(a.cues), covers=a.cover, post=post, account=a.account,
-                 mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
+                 caption_lang=a.caption_lang, mode=MODE_ALIASES.get(a.mode, a.mode), fallback=a.fallback, transitions=load_shots(a.shots),
                  start=a.start, dur=a.dur, encoder=a.encoder, preset=a.preset, captions="off" if a.no_captions else a.captions,
                  watermark=None if a.watermark == "auto" else a.watermark == "on", cover_ab=a.cover_ab or None, cover_canvas=a.cover_canvas)
     for e in man["exports"]:

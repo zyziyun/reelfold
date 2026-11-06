@@ -55,8 +55,12 @@ and out after ~5 s. The end fades to black over 1.5-1.8 s; no "Thanks for watchi
 no blurred pad), a quiet gradient at the bottom, the title in the serif with generous spacing, a small spaced
 place line. No stickers, no arrows, no heavy boxes.
 
-**P9. YouTube is English.** Title, on-screen lines, captions, narration and post copy on YouTube / Shorts are
-English whatever the request's language; Chinese versions go to Xiaohongshu / Bilibili.
+**P9. YouTube defaults to English.** This is an editorial default, not a platform language restriction.
+The language used to write a request does not by itself change the output language. An explicit subtitle-language
+choice takes precedence: pass the same `--caption-lang` to `vstudio.export` and `vstudio.firstpass` (for example
+`--caption-lang fr`). Translation cues retain `meta.lang` / `meta.alt_lang`, so Japanese, French and other
+languages are not guessed from their script. This subtitle override does not translate or change narration,
+titles or post copy. Without an explicit choice, keep the existing English YouTube / Chinese domestic-platform defaults.
 
 ## Rhythm
 

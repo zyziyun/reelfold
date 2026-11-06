@@ -818,7 +818,8 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         covers = _covers(spec, keys, (W, H), res, os.path.join(workdir, f"{W}x{H}"))
         man = EX.export(res["master"], keys, out_dir, cues=None if captions.get("off") else cj, covers=covers,
                         post=post, clip_id=spec["id"],
-                        caption_role="speech" if source_language in LANG_NAMES else "rendered-captions")
+                        caption_role="speech" if source_language in LANG_NAMES else "rendered-captions",
+                        caption_lang=captions.get("tgt") if captions.get("mode") == "translated" else None)
         # Each canvas exports separately. Preserve this run's earlier canvases,
         # while excluding entries left by a previous delivery.
         export_entries.extend(man["exports"])
@@ -838,7 +839,8 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
             if firstpass:
                 from . import firstpass as FP
                 fp = FP.run(e["file"], fmt=fmt, platform=f"{e['platform']}:{e['orientation']}", cues=cj,
-                            cover=covers[0] if covers else e.get("cover"), post=e.get("post"), speed=1.0)
+                            cover=covers[0] if covers else e.get("cover"), post=e.get("post"), speed=1.0,
+                            caption_lang=captions.get("tgt") if captions.get("mode") == "translated" else None)
                 report["firstpass"].append(dict(file=e["file"], ok=fp["ok"],
                                                 red=[i["id"] for i in fp["items"] if i["ok"] is False and
                                                      i["severity"] == "red"],
