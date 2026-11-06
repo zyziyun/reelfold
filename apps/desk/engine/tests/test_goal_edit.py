@@ -216,10 +216,25 @@ class MoreVideos(Base):
     def test_the_planner_failing_says_so(self):
         G, gid = self.made_goal()
         G._extend = lambda *a: (_ for _ in ()).throw(RuntimeError("model timed out"))
-        G.more(gid, 2)
-        v = self.until(lambda: (lambda x: x if x["more"]["state"] == "failed" else None)(G.view(gid)), "failed")
-        self.assertIn("timed out", v["more"]["error"])
-        G.more(gid, 1)                                             # she can ask again
+        thread_type = GO.threading.Thread
+        workers = []
+
+        def worker(*args, **kwargs):
+            thread = thread_type(*args, **kwargs)
+            workers.append(thread)
+            return thread
+
+        with mock.patch.object(GO.threading, "Thread", side_effect=worker):
+            for count in (2, 1):                                  # she can ask again
+                G.more(gid, count)
+                # State changes before the worker finishes saving. Join before
+                # retrying or deleting the temporary project during cleanup.
+                workers[-1].join(timeout=5)
+                self.assertFalse(workers[-1].is_alive())
+                v = G.view(gid)
+                self.assertEqual(v["more"]["state"], "failed")
+                self.assertIn("timed out", v["more"]["error"])
+        self.assertEqual(len(workers), 2)
 
 
 class Recut(Base):
