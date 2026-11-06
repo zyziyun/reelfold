@@ -75,6 +75,20 @@ test('camera and screen sharing stay beside the material; a new take remains edi
   await page.getByTestId('rec-screen-toggle').click();
   const first = page.getByTestId('rec-screen-source').first();
   await expect(first).toBeVisible(); await first.click();
+  const cameraPreview = page.getByTestId('learning-camera-preview');
+  const playingCamera = () => expect.poll(() => cameraPreview.evaluate((v: HTMLVideoElement) =>
+    v.srcObject instanceof MediaStream && v.srcObject.getVideoTracks().some((track) => track.readyState === 'live') && v.readyState >= 2 && !v.paused)).toBe(true);
+  await playingCamera();
+  // Stopping display capture must leave the camera alive, and re-sharing must
+  // bind the new display stream without losing the existing camera element.
+  await page.getByTestId('learning-screen').click();
+  await page.getByTestId('rec-screen-toggle').click();
+  await expect(page.getByTestId('learning-screen-preview')).toHaveCount(0);
+  await playingCamera();
+  await page.getByTestId('learning-screen').click();
+  await page.getByTestId('rec-screen-toggle').click();
+  await first.click();
+  await playingCamera();
   const screenPreview = page.getByTestId('learning-screen-preview');
   await expect(screenPreview).toBeVisible();
   await expect.poll(() => screenPreview.evaluate((v: HTMLVideoElement) => v.srcObject instanceof MediaStream && v.readyState >= 2)).toBe(true);
