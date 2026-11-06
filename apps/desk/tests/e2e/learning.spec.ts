@@ -326,7 +326,8 @@ test('stop and immediate navigation attach a recorded take only once', async () 
   await page.reload();
 });
 
-for (const leave of [false, true]) test(`saved take retries workspace handoff after ${leave ? 'leaving' : 'stopping'} without recording again`, async () => {
+for (const mode of ['stopping', 'leaving', 'restarting']) test(`saved take retries workspace handoff after ${mode} without recording again`, async () => {
+  const leave = mode === 'leaving';
   test.setTimeout(120000);
   const doc = await api('POST', '/api/create/learning', { idea: 'Recording handoff recovery' });
   await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
@@ -349,7 +350,7 @@ for (const leave of [false, true]) test(`saved take retries workspace handoff af
   });
   if (leave) {
     await page.evaluate(() => { location.hash = '#/'; });
-    await expect.poll(() => page.evaluate((id) => sessionStorage.getItem(`learning-capture:${id}`), doc.id)).toBeTruthy();
+    await expect.poll(() => page.evaluate((id) => localStorage.getItem(`learning-capture:${id}`), doc.id)).toBeTruthy();
     await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
   } else {
     await page.getByTestId('learning-camera-record').click();
@@ -357,7 +358,15 @@ for (const leave of [false, true]) test(`saved take retries workspace handoff af
   await expect(page.getByTestId('learning-camera-retry')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('learning-camera-pending')).toContainText('saved on this computer');
   await expect(page.getByTestId('learning-camera-record')).toHaveCount(0);
-  await page.reload();
+  if (mode === 'restarting') {
+    await closeApp(app);
+    app = await electron.launch({ args: [path.resolve(import.meta.dirname, '../..')], env });
+    page = await app.firstWindow();
+    await page.waitForURL(/^app:\/\/desk\//);
+    await page.evaluate((id) => { location.hash = `#/create/learning?id=${id}`; }, doc.id);
+  } else {
+    await page.reload();
+  }
   await expect(page.getByTestId('learning-camera-retry')).toBeVisible();
   await page.getByTestId('learning-camera-retry').click();
   await expect(page.getByTestId('learning-camera-pending')).toHaveCount(0, { timeout: 30000 });
@@ -366,4 +375,5 @@ for (const leave of [false, true]) test(`saved take retries workspace handoff af
   const takes = (Object.values(saved.sources) as { role: string; path: string }[]).filter(s => s.role === 'commentary');
   expect(takes).toHaveLength(1);
   expect(fs.statSync(takes[0].path).size).toBeGreaterThan(1000);
+  expect(await page.evaluate(id => localStorage.getItem(`learning-capture:${id}`), doc.id)).toBeNull();
 });

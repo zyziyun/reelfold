@@ -16,16 +16,22 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pendingKey = `learning-capture:${id}`;
-  const [pendingDir, setPendingDir] = useState<string | null>(() => sessionStorage.getItem(pendingKey));
+  const [pendingDir, setPendingDir] = useState<string | null>(() => {
+    const dir = localStorage.getItem(pendingKey) ?? sessionStorage.getItem(pendingKey);
+    // Retain a saved take across app restarts, including an older session-only handoff.
+    if (dir) localStorage.setItem(pendingKey, dir);
+    return dir;
+  });
   const attachments = useRef(new Map<string, Promise<LearningWorkspace>>());
   const attachTake = useCallback((dir: string) => {
     // Explicit stop and navigation cleanup may finish the same recorder together.
     const existing = attachments.current.get(dir);
     if (existing) return existing;
     const pending = (async () => {
-      sessionStorage.setItem(pendingKey, dir);
+      localStorage.setItem(pendingKey, dir);
       if (!client) throw new Error(t('learning.capturePending'));
       const doc = await client.captureLearning(id, dir);
+      if (localStorage.getItem(pendingKey) === dir) localStorage.removeItem(pendingKey);
       if (sessionStorage.getItem(pendingKey) === dir) sessionStorage.removeItem(pendingKey);
       return doc;
     })().catch((error) => {
