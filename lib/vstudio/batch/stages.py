@@ -785,7 +785,7 @@ def sha1_file(path):
 def caption_language(ctx, cues):
     """The captions in the language she asked for (``subtitle_lang``; ``subtitles`` mono | bilingual | translated):
     the speech's language needs nothing; another one is translated (the routed ``translate`` model, persona glossary
-    kept). No model / a failed call: the captions stay as spoken and ``ctx.caption_lang`` says so (QC warns) - never
+    kept). No model / a failed call: the captions stay as spoken and ``ctx.caption_lang`` says so (QC blocks approval) - never
     silently the wrong language. -> (cues, report or None)"""
     p = ctx.params
     want = p.get("subtitle_lang") or "auto"

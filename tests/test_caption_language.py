@@ -64,7 +64,8 @@ def test_no_model_keeps_the_speech_and_says_so(tmp_path, monkeypatch):
     man = tmp_path / "manifest.json"
     man.write_text('{"exports": []}')
     qc = run_gates(dict(id="j", params={}), {}, dict(export=dict(manifest=str(man), exports=[], caption_lang=rep)))
-    assert any("captions asked in zh, made in en" in w for w in qc["warnings"]), qc["warnings"]
+    assert any("captions asked in zh, made in en" in r for r in qc["reasons"]), qc["reasons"]
+    assert next(c for c in qc["checks"] if c["name"] == "caption-language")["severity"] == "red"
 
 
 @pytest.mark.parametrize("complete", [False, True])
@@ -99,4 +100,5 @@ def test_translation_coverage_is_visible_in_export_qc(tmp_path, monkeypatch, com
             assert checks == []
         else:
             assert len(checks) == 1 and not checks[0]['ok']
+            assert checks[0]['severity'] == 'red'
             assert '1 of 2' in checks[0]['reason'] and 'fr' in checks[0]['reason']

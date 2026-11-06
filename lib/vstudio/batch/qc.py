@@ -235,11 +235,11 @@ def run_gates(job, spec, ins, extra=()):
     if cl and cl.get("asked") != cl.get("spoken") and not cl.get("translated"):
         checks.append(_c("caption-language", False, cl.get("spoken"),
                          f"captions asked in {cl.get('asked')}, made in {cl.get('spoken')} (not translated: "
-                         f"{cl.get('error') or 'no translation model'})", severity="warn"))
+                         f"{cl.get('error') or 'no translation model'})"))
     elif cl and cl.get("asked") != cl.get("spoken") and cl.get("missing"):
         checks.append(_c("caption-language", False, cl.get("spoken"),
                          f"captions: only {cl['translated']} of {cl['of']} translated to {cl['asked']}; "
-                         f"{cl['missing']} remain in {cl['spoken']}", severity="warn"))
+                         f"{cl['missing']} remain in {cl['spoken']}"))
     checks += list(extra or ())
     red = [c for c in checks if c["ok"] is False and c["severity"] == "red"]
     warn = [c for c in checks if c["ok"] is False and c["severity"] == "warn"]
