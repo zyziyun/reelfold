@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PLUGIN_KEY_RE, SOURCE_RE, swatch, type CreateClient, type CreateJob } from '../../src/shared/create';
 import { EngineClient } from '../../src/shared/engineClient';
 import { splitCommand } from '../../src/renderer/src/create/settings/PluginsCard';
-import { JobError, lastStep, waitJob } from '../../src/renderer/src/create/api';
+import { errText, JobError, lastStep, waitJob } from '../../src/renderer/src/create/api';
 
 function fakeFetch(reply: unknown = { ok: true }, status = 200) {
   const calls: { url: string; init?: RequestInit }[] = [];
@@ -79,5 +79,20 @@ describe('plan progress', () => {
     } catch (e) {
       expect((e as JobError).msg.code).toBe('create.job-timeout');
     }
+  });
+});
+
+
+describe('background job errors', () => {
+  it('keeps the engine failure reason when recording catches a failed job', async () => {
+    const c = { job: async () => ({ state: 'error', error: { code: 'create.failed', params: { error: 'No space left on device' } } }) } as unknown as CreateClient;
+    let message = '';
+    try {
+      await waitJob(c, 'abcdefabcdef');
+    } catch (error) {
+      message = errText(error);
+    }
+    expect(message).toContain('No space left on device');
+    expect(message).not.toContain('create.failed');
   });
 });

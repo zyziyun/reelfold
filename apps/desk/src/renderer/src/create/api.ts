@@ -17,6 +17,7 @@ export function useCreateLoad<T>(fn: (c: CreateClient) => Promise<T>, deps: unkn
 
 /** An engine refusal or failure in the UI language. */
 export function errText(e: unknown): string {
+  if (e instanceof JobError) return msgText(e.msg);
   if (e instanceof EngineError && e.code && has(e.code)) return tk(e.code, (e.params ?? {}) as Record<string, string | number>);
   if (e && typeof e === 'object' && 'code' in e && typeof (e as Msg).code === 'string') return msgText(e as Msg);
   const m = e instanceof Error ? e.message : String(e);
@@ -76,7 +77,7 @@ export function useAction() {
     try {
       return await fn();
     } catch (e) {
-      if (alive.current) setError(e instanceof JobError ? msgText(e.msg) : errText(e));
+      if (alive.current) setError(errText(e));
       return undefined;
     } finally {
       if (alive.current) setBusy(false);
