@@ -61,6 +61,14 @@ For a complete product/artwork photo, `opts=dict(fit="contain")` preserves the w
 from its edge colours. This is photo composition, not permission to pad an already finished movie for a new ratio.
 Recompose each requested canvas and inspect the product, label and copy there.
 
+An overview/detail pair needs a specific information purpose: the overview establishes the complete object or
+hand/tool interaction, while the detail makes an otherwise unreadable feature visible. Do not stack two similar
+crops just to fill a portrait canvas. Inspect both at phone size; reject tiny overviews, repeated information,
+and details that cut off the action/result. Prefer a single clear shot when a second pane adds nothing. Keep a
+requested aspect ratio; if the available source cannot support it without losing evidence, record that limitation
+and offer a source-aspect alternative rather than silently substituting it. Landscape acceptance does not prove
+portrait acceptance. Keep the action's visible result even if removing it would make a technical QC score pass.
+
 For finished speech films, automatic talkinghead and longform slicing retain the source aspect and baked captions.
 The talkinghead route uses the native-frame fast pipeline, with optional editorial finishing, rather than first
 creating a portrait V-track master. Explicit requested shapes override the default; inspect their recomposition
