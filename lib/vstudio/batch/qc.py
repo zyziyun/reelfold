@@ -142,10 +142,11 @@ def check_safe_zone(entry, prof, label=None):
                   f"is not the {prof.key} canvas {prof.w}x{prof.h}", target=label))
     sx0, sy0, sx1, sy1 = entry.get("safe_box") or P.safe_box(prof)
     cx0, cy0, cx1, cy1 = entry.get("caption_box") or P.caption_box(prof)
-    inside = sx0 <= cx0 and sy0 <= cy0 and cx1 <= sx1 and cy1 <= sy1
+    inside = (0 <= sx0 <= cx0 < cx1 <= sx1 <= entry.get("w", prof.w)
+              and 0 <= sy0 <= cy0 < cy1 <= sy1 <= entry.get("h", prof.h))
     bad = [w for w in entry.get("warnings") or [] if "overlap" in w or "caption too long" in w]
     out.append(_c("safe-zone", inside and not bad, len(bad),
-                  "; ".join(bad) or "caption box outside the safe box", target=label))
+                  "; ".join(bad) or "caption or safe box is empty, reversed, or outside the canvas", target=label))
     return out
 
 

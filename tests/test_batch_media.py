@@ -162,3 +162,20 @@ def test_talkinghead_clips_expand(tmp_path, talk, monkeypatch):
     assert c2["title"] == "第二条" and c2["range"] == [0.5, 5.0] and abs(c2["_dur"] - 4.5) < 1e-6
     assert st.job("c1")["params"]["source"].endswith("c1.mp4")
     st.close()
+
+
+@pytest.mark.parametrize('boxes', [
+    dict(caption_box=[100, 880, 1820, 515]),  # stale vertical coordinates after a smaller render
+    dict(caption_box=[100, 900, 1820, 900]),
+    dict(caption_box=[1800, 880, 100, 1000]),
+    dict(safe_box=[-10, 0, 1920, 1080]),
+    dict(safe_box=[0, 0, 1930, 1080]),
+    dict(safe_box=[0, 0, 1920, 1090]),
+])
+def test_safe_zone_rejects_degenerate_or_off_canvas_geometry(boxes):
+    prof = P.profile('youtube', use_persona=False)
+    entry = dict(w=prof.w, h=prof.h, safe_box=list(P.safe_box(prof)),
+                 caption_box=list(P.caption_box(prof)), warnings=[])
+    entry.update(boxes)
+    gate = next(c for c in qc.check_safe_zone(entry, prof) if c['name'] == 'safe-zone')
+    assert gate['ok'] is False and gate['severity'] == 'red'
