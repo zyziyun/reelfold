@@ -375,6 +375,10 @@ def load_keepouts(path, master_size=None):
 def map_box(pl, box, i=0):
     """Master-px box (x, y, w, h) -> target-px (x0, y0, x1, y1) through a reframe plan at frame ``i``."""
     x, y, w, h = box
+    if pl.get("region") is not None:
+        # frame_fn crops to this full-source region before applying its local plan.
+        x -= pl["region"][0]
+        y -= pl["region"][1]
     tw, th = pl["target"]
     sw, sh = pl["src_w"], pl["src_h"]
     r = R.rect_at(pl, i)

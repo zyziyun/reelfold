@@ -265,6 +265,23 @@ def test_map_box_through_plans():
     assert X.map_box(crop, (100, 340, 200, 100)) == (100, 100, 300, 200)
 
 
+@pytest.mark.parametrize("mode", ["letterbox", "face", "subject"])
+def test_map_box_matches_pixels_inside_source_region(mode):
+    from vstudio import reframe
+    # A screen-recording camera tile starts away from the full source origin.
+    plan = dict(target=[100, 100], src_w=200, src_h=100, full_w=400, full_h=240,
+                region=[80, 60, 200, 100], mode_used=mode, fixed=[50, 0, 100, 100])
+    if mode == "subject":
+        plan["rects"] = [None, [50, 0, 100, 100]]
+    source = np.zeros((240, 400, 3), np.uint8)
+    source[90:110, 150:170] = (0, 255, 0)
+    for i in range(2 if mode == "subject" else 1):
+        frame = reframe.frame_fn(plan)(i, source)
+        ys, xs = np.where(frame[:, :, 1] > 200)
+        actual = (xs.min(), ys.min(), xs.max()+1, ys.max()+1)
+        assert X.map_box(plan, (150, 90, 20, 20), i) == pytest.approx(actual, abs=1)
+
+
 @need_ff
 def test_export_same_aspect_scales_and_captions_avoid_keepouts(tmp_path):
     try:
