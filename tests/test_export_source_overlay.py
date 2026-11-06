@@ -28,7 +28,7 @@ def test_export_source_outline_survives_framing_and_trim(tmp_path, vertical):
     entry = export.export_one(str(source), prof, str(out), start=1, dur=2.5,
                               captions=False, watermark=False,
                               **({"effects": [effect]} if vertical else {"source_effects": [effect]}),
-                              mode="letterbox", encoder="libx264", preset="ultrafast")
+                              mode="center" if vertical else "letterbox", encoder="libx264", preset="ultrafast")
     cap = cv2.VideoCapture(str(out / entry["file"]))
     def red_at(t):
         cap.set(cv2.CAP_PROP_POS_MSEC, t*1000)
@@ -48,6 +48,8 @@ def test_export_source_outline_survives_framing_and_trim(tmp_path, vertical):
     info = media.probe(out / entry["file"])
     assert info["has_audio"] == vertical
     assert info["duration"] == pytest.approx(2.5, abs=.12)
+    if vertical:
+        assert any("emphasized source region" in s for s in entry["warnings"])
 
 
 def test_source_pass_rejects_output_cards():

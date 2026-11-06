@@ -712,6 +712,38 @@ def rect_at(pl, i):
     return rects[min(i, len(rects) - 1)] if rects else None
 
 
+def preserve_regions(pl, regions):
+    """Keep timed normalized full-source regions visible throughout an automatic crop.
+
+    Regions are (start, end, left, top, width, height) on the source clock.
+    If the crop would lose one, fit the whole source for this export rather than
+    switching framing mid-sentence. Visibility does not establish text readability.
+    """
+    import math
+    sw, sh = pl.get("full_w") or pl["src_w"], pl.get("full_h") or pl["src_h"]
+    start, fps = pl.get("start") or 0, pl["fps"]
+    end = start + pl["dur"] if pl.get("dur") is not None else float("inf")
+    region = pl.get("region") or [0, 0, sw, sh]
+    for a, b, x, y, w, h in regions:
+        if b <= start or a >= end:
+            continue
+        if (not all(math.isfinite(v) for v in (a, b, x, y, w, h)) or
+                w <= 0 or h <= 0 or x < 0 or y < 0 or x+w > 1+1e-9 or y+h > 1+1e-9):
+            raise ValueError("source emphasis region must be inside the complete source frame")
+        box = (x*sw, y*sh, (x+w)*sw, (y+h)*sh)
+        indices = range(max(0, math.floor((a-start)*fps)), max(1, math.ceil((min(b, end)-start)*fps)))
+        if pl.get("rects") is None:
+            indices = (0,)  # static framing: one comparison is sufficient
+        for i in indices:
+            crop = rect_at(pl, i)
+            cx, cy, cw, ch = crop if crop is not None else (0, 0, region[2], region[3])
+            cx, cy = cx+region[0], cy+region[1]
+            if box[0] < cx-.5 or box[1] < cy-.5 or box[2] > cx+cw+.5 or box[3] > cy+ch+.5:
+                return dict(pl, src_w=sw, src_h=sh, region=None, mode_used="letterbox", rects=None,
+                            framing_reason="Full source retained so the emphasized source region stays visible")
+    return pl
+
+
 def plan_region(src, region, target_w, target_h, mode="face", **kw):
     """``plan`` constrained to ``region`` = (x, y, w, h) of the source (a camera tile in a screen
     recording): faces are searched and the crop moves only inside it; no temp clip is encoded."""

@@ -864,9 +864,14 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         m = "letterbox" if same_aspect else mode   # same aspect: a fit == a plain scale, no face tracking
     pl = R.plan(master, prof.w, prof.h, mode=m, safe=P.safe_box(prof), start=start, dur=dur,
                 fallback=fallback, caption=P.caption_box(prof), **reframe_opts)
+    if source_effects:
+        from . import spoken
+        pl = R.preserve_regions(pl, spoken.source_regions(source_effects))
+        if pl.get("framing_reason"):
+            warnings.append(pl["framing_reason"])
     if band:
         same_aspect = False
-    if pl["mode_used"] != m:
+    if pl["mode_used"] != m and not pl.get("framing_reason"):
         warnings.append(f"reframe fell back to {pl['mode_used']}: {pl.get('fallback_reason')}")
     wide = [x for x in pl.get("shots") or [] if x["kind"] == "pad-blur"]
     if wide and pl["mode_used"] == "subject":

@@ -407,3 +407,12 @@ def source_overlay(effects):
         layers.clear()
     draw.close = close
     return draw
+
+
+def source_regions(effects, spans=None):
+    """Timed source rectangles shared by first export and second-pass framing."""
+    return [(a, b, e["params"]["x"]-e["params"]["w"]/2,
+             e["params"]["y"]-e["params"]["h"]/2, e["params"]["w"], e["params"]["h"])
+            for e in effects
+            for a, b in ([(e["start"], e["end"])] if spans is None else
+                         [(max(e["start"], s), min(e["end"], t)) for s, t in spans]) if b > a]

@@ -165,6 +165,9 @@ def plan(rec, doc, st, tg, quality, watermark=None):
                   safe=[round(x, 2) for x in _safe(tg)])
     if canvas["op"] == "reframe":
         canvas["fallback"] = framing_fallback(rec)
+        if source_stage:
+            from vstudio import spoken
+            canvas["source_regions"] = spoken.source_regions(source_effects, source_stage.get("spans"))
     if pieces and pieces["op"] == "sources":
         canvas.update(op="sources", pieces=pieces["pieces"], fps=pieces["fps"])
     if splice:
@@ -679,6 +682,7 @@ def run_canvas(spec, out, quality, safe):
     from vstudio import reframe as R
     pl = R.plan(spec["src"], spec["w"], spec["h"], mode="face", safe=tuple(safe),
                 fallback=spec.get("fallback") or "pad-blur")
+    pl = R.preserve_regions(pl, spec.get("source_regions") or [])
     R.render(spec["src"], out, pl, encode_args=_enc("inter", quality))
     return out
 

@@ -224,6 +224,11 @@ The planner must use full-source coordinates and quote the relevant speech; loca
 region's bounds, visible detail and frame-by-frame stability over the proposed interval. This rejects
 visibly changing regions but does not verify their semantic relevance, guarantee legibility after a crop,
 or provide object tracking. Review the actual target render for those qualities.
+Automatic first-export and second-pass reframing checks the source outline over its active interval.
+When the crop would cut it off, the renderer fits the full source throughout the export to avoid an
+abrupt framing change. The first-export manifest records why. This preserves visibility, not phone-size
+readability or a finished vertical layout; inspect the target frame before accepting it. Replaced shot
+intervals do not constrain the new footage's crop.
 
 Stages per target: `canvas` (reframe the master / file to the target canvas) -> `timeline` (trim, cuts, joins,
 speed, grade, end fade) -> `audio` (SFX, music bed, two-pass loudness) -> `final` (frame pass: mask / band layout,
