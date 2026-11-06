@@ -76,6 +76,13 @@ These sheets do not establish frame-accurate or continuous-playback acceptance.
      moving hands/tools across the interval, not just the first frame.
    - **Motion:** play the action and its cuts continuously, and keep flicker checks enabled. A larger
      crop can make source exposure changes more prominent even when the wider version passed.
+     For a failed event, use `<out>.edl.json` to map output time into the affected source shot
+     (for a non-looping hard-cut shot: `src_in + (output_time - t0) * speed`). For dissolves,
+     inspect both contributing shots and their overlap timing in the rendered timeline. Compare a temporal
+     window in the source and the actual output crop; an uncropped source pass is not proof that a
+     magnified version is safe. Try a wider view or a stable source interval while preserving the
+     action and result. Rerender with the same QC profile: removing a cut alone cannot fix an
+     exposure change already present in the source. Passing this check still requires the layout review.
 
    With Autopilot's AI judge enabled, the layout checkpoint inspects the supplied images using the configured
    planner. Visible defects trigger up to two automatic revisions of the story spec, followed by fresh
