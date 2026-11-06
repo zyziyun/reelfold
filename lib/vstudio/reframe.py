@@ -791,14 +791,18 @@ def frame_fn(pl, blur_dim=None):
     return fn
 
 
-def render(src, dst, pl, overlay=None, encode_args=None, audio=True, fps=None, frames=None, hdr="auto"):
+def render(src, dst, pl, overlay=None, encode_args=None, audio=True, fps=None, frames=None, hdr="auto",
+           *, source_overlay=None):
     """Decode ``src`` (from plan start/dur) as raw BGR, apply the plan (+ ``overlay(i, t, img)`` that
     may draw on the target frame in place), encode to ``dst``. encode_args default
     ``media.delivery_args()`` (H.264 + AAC). audio: map the source audio (same window) if present.
     frames: already-decoded BGR frames (sequence / iterator) used instead of decoding ``src`` (src then
     only supplies the audio; may be None). hdr: "auto" tone-maps an HLG/PQ source to SDR bt709 in the
     decoder (``media.hdr_to_sdr_args``; for avconvert quality pre-convert with ``media.to_sdr``),
-    False/"keep" leaves it. Returns dst."""
+    False/"keep" leaves it. source_overlay(i, source_t, frame) runs BEFORE crop/region/padding;
+    source_t includes plan start. Its writable BGR frame may be decoder-prescaled: use the
+    actual frame shape for normalized source coordinates. Return a frame or draw in place.
+    Caller-owned in-memory frames are never mutated by this hook. Returns dst."""
     info = media.probe(src) if src is not None else dict(fps_q=None, has_audio=False, hdr=False, transfer="")
     sw, sh = pl.get("full_w") or pl["src_w"], pl.get("full_h") or pl["src_h"]
     tw, th = pl["target"]
@@ -843,6 +847,10 @@ def render(src, dst, pl, overlay=None, encode_args=None, audio=True, fps=None, f
                 if len(buf) < fsize:
                     break
                 fr = np.frombuffer(buf, np.uint8).reshape(sh, sw, 3)
+            if source_overlay is not None:
+                fr = fr.copy()  # decoded bytes can be read-only; frames may belong to the caller
+                r = source_overlay(i, start + i / pl["fps"], fr)
+                fr = fr if r is None else r
             img = fn(i, fr)
             if overlay is not None:
                 img = np.ascontiguousarray(img)
