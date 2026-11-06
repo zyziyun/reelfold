@@ -737,27 +737,6 @@ def _covers(spec, keys, canvas, res, workdir):
     return out
 
 
-def _prefix_exports(man, out_dir, cid):
-    """``<platform>-<orientation>.*`` -> ``<id>-<platform>-<orientation>.*`` (several clips of one lesson land in
-    one export folder without overwriting each other); manifest.json rewritten to match."""
-    for e in man["exports"]:
-        stem = os.path.splitext(e["file"])[0]
-        for f in sorted(os.listdir(out_dir)):
-            if f.startswith(stem + ".") and not f.startswith(cid + "-"):
-                os.replace(os.path.join(out_dir, f), os.path.join(out_dir, f"{cid}-{f}"))
-        for k in ("file", "cover", "post"):
-            if e.get(k) and not e[k].startswith(cid + "-"):
-                e[k] = f"{cid}-{e[k]}"
-        if (e.get("reframe") or {}).get("plan"):
-            e["reframe"]["plan"] = f"{cid}-{e['reframe']['plan']}"
-        for sc in e.get("sidecars") or []:              # the caption files (<stem>.<lang>.srt) were renamed too
-            if not sc["file"].startswith(cid + "-"):
-                sc["file"] = f"{cid}-{sc['file']}"
-    with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
-        json.dump(man, f, ensure_ascii=False, indent=2)
-    return man
-
-
 def _cue_dicts(cues):
     return [c.to_dict() for c in cues]
 
@@ -828,11 +807,10 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
                       f, ensure_ascii=False, indent=1)
         covers = _covers(spec, keys, (W, H), res, os.path.join(workdir, f"{W}x{H}"))
         man = EX.export(res["master"], keys, out_dir, cues=None if captions.get("off") else cj, covers=covers,
-                        post=post)
+                        post=post, clip_id=spec["id"])
         report["masters"].append(dict(size=[W, H], master=res["master"], duration=res["duration"],
                                       mask_report=res["mask_report"], cues=cj, content_policy=res["content_policy"],
                                       deferred_overlays=res["deferred_overlays"], geometry=res["geometry"]))
-        man = _prefix_exports(man, out_dir, spec["id"])
         for e in man["exports"]:
             e = dict(e, file=os.path.join(out_dir, e["file"]),
                      cover=os.path.join(out_dir, e["cover"]) if e.get("cover") else None,

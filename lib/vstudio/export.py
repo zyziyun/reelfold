@@ -793,7 +793,7 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
-               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", **reframe_opts):
+               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", clip_id=None, **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
@@ -805,6 +805,10 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     mode = MODE_ALIASES.get(mode, mode)
     info = media.probe(master)
     stem = f"{prof.name}-{prof.orientation}"
+    if clip_id is not None:
+        if not clip_id or any(c in clip_id for c in "/\\:"):
+            raise ValueError("clip_id must be a filename component")
+        stem = f"{clip_id}-{stem}"
     out_mp4 = os.path.join(out_dir, stem + ".mp4")
     warnings = []
     same_aspect = abs(np.log(_aspect((info["display_w"], info["display_h"])) / _aspect(prof.size))) < 0.01
@@ -1017,7 +1021,8 @@ def write_post(prof, out_dir, post, entry, cues=None, post_lang=None):
         note = f"{prof.label} has no native chapters; timeline kept as plain text"
         if note not in entry.setdefault("notes", []):
             entry["notes"].append(note)
-    pp = os.path.join(out_dir, f"{prof.name}-{prof.orientation}.post.md")
+    video_name = os.path.basename(entry.get("file") or f"{prof.name}-{prof.orientation}.mp4")
+    pp = os.path.join(out_dir, os.path.splitext(video_name)[0] + ".post.md")
     text = body
     if entry.get("sidecars"):                        # the upload notes, outside the measured post text; a short-post
         note = sidecar_note(prof, entry["sidecars"])    # platform (X: 280) keeps post.md the exact text to paste
