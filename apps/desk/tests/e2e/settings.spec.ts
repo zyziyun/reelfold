@@ -6,7 +6,6 @@
 // downloads have their own buttons, diagnostics copy a report without secrets, and the language switch includes
 // Français with no missing message in any section.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,7 +16,7 @@ const VERSION: string = JSON.parse(fs.readFileSync(path.join(import.meta.dirname
 let app: ElectronApplication;
 let page: Page;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vsdesk-set-'));
-const python = execFileSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim();
+let python: string;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -30,6 +29,7 @@ test.beforeAll(async () => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForURL(/^app:\/\/desk\//);
   await page.evaluate(() => localStorage.setItem('i18n.strict', '1'));
+  python = (await page.evaluate(() => window.desk.getSettings())).resolved!.python;
 });
 
 test.afterAll(async () => {
@@ -106,11 +106,31 @@ test('Advanced: collapsed sections, engine in words, Python change -> Restart no
   await page.getByTestId('snav-advanced').click();
   await expect(page.getByTestId('restart-bar')).toBeVisible();
   const before = await page.evaluate(async () => (await window.desk.engineInfo()).token);
+  // A failed restart must stay actionable without an unhandled rejection.
+  const pageErrors: string[] = [];
+  const onPageError = (error: Error) => pageErrors.push(error.message);
+  page.on('pageerror', onPageError);
+  const removedPython = path.join(tmp, 'missing-python');
+  fs.writeFileSync(removedPython, 'temporary test executable');
+  await page.evaluate((p) => window.desk.setSettings({ python: p }), removedPython);
+  fs.unlinkSync(removedPython); // Removed after selection, before restart.
+  await page.getByTestId('restart-now').click();
+  await expect(page.getByTestId('restart-error')).toContainText('The engine could not restart');
+  await expect(page.getByTestId('restart-error').locator('details')).not.toHaveAttribute('open');
+  await page.getByTestId('restart-error').locator('summary').click();
+  await expect(page.getByTestId('restart-error')).toContainText('cannot start');
+  await page.getByTestId('restart-error').locator('summary').click();
+  await page.screenshot({ path: path.join(tmp, 'restart-error.png') });
+  await expect(page.getByTestId('restart-now')).toBeEnabled();
+  await expect(page.getByTestId('restart-bar')).toBeVisible();
+  await page.evaluate((p) => window.desk.setSettings({ python: p }), python);
   await page.getByTestId('restart-now').click();
   await expect.poll(async () => page.evaluate(async () => (await window.desk.engineInfo()).token).catch(() => before), { timeout: 30000 }).not.toBe(before);
   await page.waitForURL(/^app:\/\/desk\//);
   await expect(page.getByTestId('settings-advanced')).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId('restart-bar')).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+  page.off('pageerror', onPageError);
 });
 
 test('Advanced: downloads per row, diagnostics report has no secrets', async () => {

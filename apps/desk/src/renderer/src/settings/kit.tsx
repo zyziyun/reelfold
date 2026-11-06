@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { t } from '../i18n';
+import { errText } from '../v4/msg';
 
 export function Page({ title, lead, children, testId }: { title: string; lead?: string; children: ReactNode; testId?: string }) {
   return (
@@ -123,18 +124,28 @@ export function Disclosure({
   );
 }
 
-export function RestartBar({ text, onRestart, testId = 'restart-bar' }: { text: string; onRestart: () => void; testId?: string }) {
+export function RestartBar({ text, onRestart, testId = 'restart-bar' }: { text: string; onRestart: () => void | Promise<void>; testId?: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
     <div className="s2-restart" data-testid={testId}>
-      <span>{text}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {text}
+        {error && <div className="s2-note error" role="alert" data-testid="restart-error">
+          {t('s2.restart.failed')}
+          <details style={{ overflowWrap: 'anywhere' }}><summary>{t('s2.si.details')}</summary>{error}</details>
+        </div>}
+      </div>
       <button
         className="btn primary"
         disabled={busy}
         onClick={async () => {
           setBusy(true);
+          setError(null);
           try {
             await onRestart();
+          } catch (e) {
+            setError(errText(e));
           } finally {
             setBusy(false);
           }
