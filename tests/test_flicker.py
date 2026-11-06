@@ -51,14 +51,21 @@ def test_subtitle_blink_fails_and_eased_change_passes():
     assert FL.measure(eased, FPS)["ok"]
 
 
-def test_busy_motion_is_not_a_flash():
+def test_busy_activity_reduces_transient_scores_without_exempting_the_tail():
     r = np.random.default_rng(3)
     y = 100 + np.cumsum(r.normal(0, 6, 300))                # spray / glitter: busy everywhere
     y[150:156] += r.normal(0, 8, 6)
-    assert FL.measure(_grid(np.clip(y, 0, 255)), FPS, "energetic")["flash"] < FL.LIMITS["energetic"]["flash"]
+    grid = _grid(np.clip(y, 0, 255))
+    report = FL.measure(grid, FPS, "energetic")
+    raw = FL.transients(grid.mean((1, 2)), FPS).max()
+    assert report["flash"] < raw  # local activity still suppresses busy changes
+    # This random walk has a broad dip near 8 s; the old last-two-second
+    # exemption hid it. Uniform frame brightness is not evidence of object motion.
+    assert any(e["kind"] == "flash" and 8 <= e["t"] < 8.2 for e in report["events"])
+    assert not any(e["t"] < 8 for e in report["events"])
 
 
-def test_head_and_tail_fades_are_not_judged():
+def test_monotonic_opening_and_closing_fades_pass():
     y = np.r_[np.linspace(0, 100, 12), np.full(200, 100.0), np.linspace(100, 0, 45)]
     assert FL.measure(_grid(y), FPS)["ok"]
 
@@ -161,3 +168,13 @@ def test_cut_context_uses_each_detectors_window():
     assert 'nearby_cuts' not in report['events'][0]
     assert report['events'][1]['nearby_cuts'] == [3.5]
     assert report['events'][2]['nearby_cuts'] == [3.5]
+
+
+@pytest.mark.parametrize('duration', [4, 8])
+def test_flash_near_end_is_not_hidden_by_a_closing_fade_exemption(duration):
+    y = np.full(duration * FPS, 80.0)
+    start = len(y) - 45  # 1.5 seconds before the end; enough context on both sides
+    y[start:start + 6] = 230
+    report = FL.measure(_grid(y), FPS)
+    assert not report['ok']
+    assert any(e['kind'] == 'flash' and e['t'] >= duration - 1.6 for e in report['events'])

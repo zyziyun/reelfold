@@ -21,8 +21,9 @@ What it measures (every frame, scaled down to an 8x8 grid of mean luma, 0-255):
   colour     the same as flash on the picture's mean colour cast (Cb / Cr): a warm light leak or a tinted dip that
              barely changes the brightness (DJI 06's leak: 5.7; every remade film <= 3.7).
 
-A cut, a crossfade between two shots, a slow fade in / out (the first 0.5 s and the last 2 s are not judged) and
-real motion in the picture are steps or slow changes, not transients; each excursion is also reduced by 4x the
+A cut, a crossfade between two shots and a monotonic fade in / out are steps or slow changes, not transients.
+The first 0.5 s are not judged; closing frames are tested wherever their comparison windows fit.
+There is no blanket closing-fade exemption that could hide a real flash near the end; each excursion is also reduced by 4x the
 picture's own frame-to-frame activity around it (busy water spray or a fast drone pass is not a flash). On the six
 DJI test films the clean ones scored at most 7.6 (flash), 16.5 (one quarter), 4.5 (blink); the flawed ones (white
 flash hits, a light-leak transition, subtitle blinks, a timeline box popping) 7.7 to 178.
@@ -46,7 +47,7 @@ LIMITS = {
     # its clean remake: 14 / 64 / 35)
     "energetic": dict(flash=16.0, flash_region=90.0, blink=60.0, colour=8.0),
 }
-HEAD_S, TAIL_S = 0.5, 2.0            # the opening and the closing fade are not judged
+HEAD_S = 0.5                        # opening grace; transients require valid context on both sides
 ACT_K = 4.0                          # a transient counts above 4x the picture's own frame-to-frame activity
 
 
@@ -154,7 +155,7 @@ def measure(F, fps, profile="calm", C=None):
     n = len(F)
     full = F.reshape(n, -1).mean(1) if n else np.zeros(0)
     jumps = np.abs(np.diff(full)) if n > 1 else np.zeros(1)
-    s0, s1 = int(round(HEAD_S * fps)), max(0, n - int(round(TAIL_S * fps)))
+    s0, s1 = int(round(HEAD_S * fps)), n
     rep = dict(frames=n, fps=round(float(fps), 3), profile=profile, limits=lim,
                max_jump=round(float(jumps.max()) if len(jumps) else 0.0, 1),
                p99_jump=round(float(np.percentile(jumps, 99)) if len(jumps) else 0.0, 2),
