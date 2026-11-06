@@ -46,7 +46,7 @@ def load_cues(path_or_cues):
         return []
     if isinstance(path_or_cues, (list, tuple)):
         return [dict(start=float(c.get("start", 0)), end=float(c.get("end", 0)), text=str(c.get("text", "")),
-                     alt=str(c.get("alt") or "")) for c in path_or_cues]
+                     alt=str(c.get("alt") or ""), meta=dict(c.get("meta") or {})) for c in path_or_cues]
     p = os.fspath(path_or_cues)
     if p.lower().endswith(".srt"):
         from vstudio import subs
@@ -179,6 +179,16 @@ def _script(text):
     return "zh" if _CJK.search(t) else "en" if _WORD.search(t) else None
 
 
+def _cue_languages(cue):
+    # Use the same validated language tags as export, before legacy script guessing.
+    from vstudio.export import declared_caption_lines
+    from vstudio.subs import Cue
+    declared = declared_caption_lines(Cue.from_dict({"start": 0, "end": 0, **cue}))
+    if declared:
+        return {language.split("-")[0] for language, _ in declared}
+    return {language for language in (_script(cue.get("text")), _script(cue.get("alt"))) if language}
+
+
 def check_caption_lang(cues, prof, title=None, text=None):
     """Captions in the platform's language (references/AESTHETICS.md P9: YouTube / Shorts English, 小红书 / B站 / 抖音
     Chinese; vstudio.platform.lang_for). A cue counts for the language its text or alt line is in (export keeps that
@@ -191,9 +201,9 @@ def check_caption_lang(cues, prof, title=None, text=None):
         return []
     name = {"en": ("英文", "English"), "zh": ("中文", "Chinese")}[want]
     out = []
-    worded = [c for c in cues or [] if _script(c.get("text")) or _script(c.get("alt"))]
+    worded = [languages for c in cues or [] if (languages := _cue_languages(c))]
     if worded:
-        hit = sum(1 for c in worded if want in (_script(c.get("text")), _script(c.get("alt"))))
+        hit = sum(want in languages for languages in worded)
         out.append(_item("caption-lang", hit * 2 >= len(worded),
                          f"字幕是{name[0]}（{prof.name} 只用{name[0]}字幕：{hit}/{len(worded)} 条有{name[0]}）",
                          f"captions are {name[1]} ({prof.name} takes {name[1]} captions: {hit}/{len(worded)} cues)",

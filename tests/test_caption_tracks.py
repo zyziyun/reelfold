@@ -249,3 +249,25 @@ def test_declared_translation_updates_primary_language_after_selection():
     assert not warnings and shown[0].text == 'Weigh the beans'
     assert shown[0].meta == {'lang': 'en-US'}
     assert list(X.caption_tracks(shown, P.profile('youtube'))) == ['en-US']
+
+
+@pytest.mark.parametrize('language,text,platform', [
+    ('fr-FR', 'Les reflets dansent sur le lac.', 'youtube'),
+    ('ja-JP', '水面に光が映る', 'xiaohongshu'),
+])
+def test_firstpass_respects_declared_caption_language(tmp_path, language, text, platform):
+    path = _cues(tmp_path / 'declared.json', [dict(
+        start=0, end=2, text=text, meta={'lang': language})])
+    cues = FP.load_cues(path)
+    check = FP.check_caption_lang(cues, P.profile(platform))[0]
+    assert check['id'] == 'caption-lang' and check['ok'] is False
+
+
+def test_firstpass_counts_declared_bilingual_alt_and_ignores_empty_lines(tmp_path):
+    path = _cues(tmp_path / 'bilingual.json', [dict(
+        start=0, end=2, text='水面に光が映る', alt='Light on the water.',
+        meta={'lang': 'ja-JP', 'alt_lang': 'en-US'}), dict(
+        start=2, end=3, text='', meta={'lang': 'ja'})])
+    cues = FP.load_cues(path)
+    check = FP.check_caption_lang(cues, P.profile('youtube'))[0]
+    assert check['ok'] is True and check['value'] == '1/1'

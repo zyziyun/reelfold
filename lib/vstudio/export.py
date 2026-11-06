@@ -136,7 +136,7 @@ def cues_for_platform(prof, cues, bilingual=None):
         return list(cues), []
     out, bare = [], 0
     for c in cues:
-        declared = _declared_lines(c)
+        declared = declared_caption_lines(c)
         meta = c.meta
         if declared:
             selected = next(((language, text) for language, text in declared
@@ -242,7 +242,7 @@ def _neutral(c):
     return bool(s.strip()) and not _ZH.search(s) and not _LATIN.search(s)
 
 
-def _declared_lines(cue):
+def declared_caption_lines(cue):
     """Validated, nonempty language-tagged lines; shared by burn and sidecar selection."""
     return [(cue.meta[key], text) for key, text in (("lang", cue.text), ("alt_lang", cue.alt))
             if LANG_KEY.fullmatch(str(cue.meta.get(key) or "")) and text.strip()]
@@ -262,7 +262,7 @@ def caption_tracks(cues, prof):
         for c in load_cues(src):
             # Translation already knows each line's language. Script guessing would
             # mislabel Japanese as Chinese and lose other translated tracks.
-            declared = _declared_lines(c)
+            declared = declared_caption_lines(c)
             if declared:
                 for language, text in declared:
                     if text.strip() and (k == "*" or _lang_base(k) == _lang_base(language)):
