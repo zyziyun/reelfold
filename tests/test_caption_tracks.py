@@ -317,3 +317,16 @@ def test_explicit_french_export_burns_requested_line_and_passes_language_qc(tmp_
 def test_invalid_explicit_caption_language_fails_before_media_access(tmp_path):
     with pytest.raises(ValueError, match='invalid caption language'):
         X.export_one('missing.mp4', P.profile('youtube'), str(tmp_path), caption_lang='French')
+
+
+@pytest.mark.parametrize("requested,other", [("pt-BR", "pt-PT"), ("zh-Hant", "zh-Hans")])
+def test_explicit_regional_caption_prefers_exact_track_and_line(requested, other):
+    prof = P.profile("youtube")
+    tracks = {other: "other.json", requested.split("-")[0]: "generic.json", requested: "requested.json"}
+    assert X.pick_track(prof, tracks, caption_lang=requested) == ("requested.json", requested, [])
+    cue = Cue(0, 1, "Other regional wording", "Requested regional wording",
+              {"lang": other, "alt_lang": requested})
+    chosen, warnings = X.cues_for_platform(prof, [cue], caption_lang=requested)
+    assert chosen[0].text == "Requested regional wording"
+    assert chosen[0].meta["lang"] == requested
+    assert warnings == []

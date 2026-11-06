@@ -141,8 +141,12 @@ def cues_for_platform(prof, cues, bilingual=None, caption_lang=None):
         declared = declared_caption_lines(c)
         meta = c.meta
         if declared:
+            requested = str(caption_lang or lang).lower()
             selected = next(((language, text) for language, text in declared
-                             if _lang_base(language) == lang), declared[0])
+                             if language.lower() == requested), None)
+            if selected is None:
+                selected = next(((language, text) for language, text in declared
+                                 if _lang_base(language) == lang), declared[0])
             language, text = selected
             alt, found = "", _lang_base(language) == lang
             meta = {k: v for k, v in c.meta.items() if k not in ("lang", "alt_lang")}
@@ -214,12 +218,18 @@ def _lang_name(lang):
 
 def pick_track(prof, cues, caption_lang=None):
     """The caption source for one platform -> (source, track_lang, warnings). One track: (cues, None, []). A map: the
-    track of the platform's language (``zh`` serves ``zh-Hans``), else the ``"*"`` track, else the first other track
+    exact requested language tag first, then the platform/base language (``zh`` serves ``zh-Hans``),
+    else the ``"*"`` track, else the first other track
     with a warning naming it (cues_for_platform then keeps the line in the platform's language where a cue has one)."""
     if not is_track_map(cues):
         return cues, None, []
     lang = caption_language(prof, caption_lang)
     named = [(k, v) for k, v in cues.items() if k != "*"]
+    # Preserve a requested region/script before falling back to the base language.
+    requested = str(caption_lang or lang).lower()
+    for k, v in named:
+        if k.lower() == requested:
+            return v, k, []
     for k, v in named:
         if k == lang:
             return v, k, []
