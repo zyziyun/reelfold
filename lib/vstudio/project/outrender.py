@@ -141,16 +141,20 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     sig = OUT.file_sig(src)
     source_effects = [e for e in st["effects"] if source_anchored(e)]
     source_stage = None
-    if source_effects:
-        source_stage = dict(src=src, effects=source_effects)
-        source_stage["key"] = sha1_json(["source-annotations", sig, source_effects, quality], 16)
-        sig = [sig, source_stage["key"]]
     dur = rec["info"]["duration"]
     tl = OUT.Timeline(st, dur)
     band = rec["mode"] == "flattened" and (tg["layout"] == "band" or
                                            (st["captions"].get("placement") or {}).get("mode") == "band")
     same = (info["w"], info["h"]) == (tg["w"], tg["h"])
     pieces = shot_pieces(rec, st, tg)
+    if source_effects:
+        source_stage = dict(src=src, effects=source_effects)
+        if pieces:
+            # Replacement shots can keep strips of the original title bar. Do not
+            # burn old source annotations into those strips at replacement times.
+            source_stage["spans"] = [[p["a"], p["b"]] for p in pieces["pieces"] if p["kind"] == "file"]
+        source_stage["key"] = sha1_json(["source-annotations", sig, source_stage, quality], 16)
+        sig = [sig, source_stage["key"]]
     splice = None
     if pieces and pieces["op"] == "splice":
         splice = dict(pieces, src=src, sig=sig, keep="title-bar:2")
@@ -294,8 +298,13 @@ def run_source_annotations(spec, out, quality):
     info = _media().probe(spec["src"])
     pl = reframe.plan(spec["src"], info["display_w"], info["display_h"], mode="letterbox")
     draw = spoken.source_overlay(spec["effects"])
+    spans = spec.get("spans")
+
+    def draw_kept(i, t, frame):
+        return draw(i, t, frame) if spans is None or any(a <= t < b for a, b in spans) else frame
+
     try:
-        return reframe.render(spec["src"], out, pl, source_overlay=draw, encode_args=_enc("inter", quality))
+        return reframe.render(spec["src"], out, pl, source_overlay=draw_kept, encode_args=_enc("inter", quality))
     finally:
         draw.close()
 

@@ -167,6 +167,26 @@ def test_source_outline_precedes_timeline_and_invalidates_cache(tmp_path, synth)
 
 
 @media
+def test_source_annotation_cache_tracks_replaced_intervals(tmp_path, synth, monkeypatch):
+    w, oid = _work(tmp_path, synth)
+    O.edit(w, oid, dict(op="effect_add", effect="red-box", start=1, end=3,
+                        params=dict(anchor="source", x=.5, y=.2, w=.4, h=.1)))
+    rec, doc = O._load(w, oid)
+    tg = R.targets_of(rec, doc.state(), ["primary"])[0]
+    unchanged = R.plan(rec, doc, doc.state(), tg, "preview", watermark=False)
+    parts = [dict(kind="file", a=0, b=1), dict(kind="source", a=1, b=3),
+             dict(kind="file", a=3, b=synth["dur"])]
+    monkeypatch.setattr(R, "shot_pieces", lambda *a: dict(op="splice", pieces=parts))
+    replaced = R.plan(rec, doc, doc.state(), tg, "preview", watermark=False)
+    assert replaced["source_annotations"]["spans"] == [[0, 1], [3, synth["dur"]]]
+    assert replaced["source_annotations"]["key"] != unchanged["source_annotations"]["key"]
+    parts[:] = [dict(kind="source", a=0, b=synth["dur"])]
+    rebuilt = R.plan(rec, doc, doc.state(), tg, "preview", watermark=False)
+    assert rebuilt["source_annotations"]["spans"] == []  # no old footage, no old region
+    assert rebuilt["source_annotations"]["key"] != replaced["source_annotations"]["key"]
+
+
+@media
 def test_flattened_every_op_caps_and_render(tmp_path, synth):
     w, oid = _work(tmp_path, synth)
     s = O.show(w, oid)
