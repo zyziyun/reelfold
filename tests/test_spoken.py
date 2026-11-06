@@ -82,20 +82,26 @@ def test_finishing_stage_uses_proofread_captions_and_routes_into_export(tmp_path
     from vstudio.batch.recipes import Ctx
     raw = tmp_path / "raw.json"; raw.write_text(json.dumps(dict(cues=[dict(start=0, end=1, text="wrong")])))
     proof = tmp_path / "proof.json"; proof.write_text(json.dumps(dict(cues=CUES), ensure_ascii=False))
+    source = tmp_path / "master.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "color=c=blue:s=320x180:r=15:d=12", "-c:v", "libx264", str(source)], check=True)
     params = dict(finishing="editorial", title="我的经历")
     ctx = Ctx(dict(params=params), {}, str(tmp_path),
-              dict(compose=dict(cues=str(raw), duration=12), proofread=dict(cues=str(proof))), str(tmp_path))
+              dict(compose=dict(master=str(source), cues=str(raw), duration=12), proofread=dict(cues=str(proof))), str(tmp_path))
     got = []
     real_plan = spoken.plan
-    def local_plan(cues, duration, title):
+    def local_plan(cues, duration, title, **kwargs):
         got.extend(cues)
-        return real_plan(cues, duration, title, complete=lambda *a, **kw: dict(json=dict(beats=[BEAT])))
+        assert kwargs["images"] and "sampling gap" in kwargs["source_context"]
+        return real_plan(cues, duration, title, **kwargs, complete=lambda *a, **kw: dict(json=dict(beats=[BEAT])))
     monkeypatch.setattr(spoken, "plan", local_plan)
     # The stage uses the same planner implementation; only the external text-model boundary is replaced.
     result = stages.run_finish(ctx)
     assert got == CUES
     assert result["effects"][0]["params"]["items"] == BEAT["items"]
-    assert json.loads((tmp_path / "editorial-plan.json").read_text())["effects"] == result["effects"]
+    saved = json.loads((tmp_path / "editorial-plan.json").read_text())
+    assert saved["effects"] == result["effects"]
+    assert "sampling gap" in saved["source_visual_context"]
     dag = {s.name: s for s in stages.speech_stages()}
     assert "finish" in dag["export"].deps and dag["finish"].enabled(ctx.job, {})
     assert not dag["finish"].enabled(dict(params={}), {})

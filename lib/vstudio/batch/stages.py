@@ -403,6 +403,15 @@ def run_finish(ctx):
             raise ValueError("Supporting materials have no usable visual previews; inspect or replace the supplied files")
         kwargs = dict(materials=assets, images=images, material_context=text)
         material_files = images + [a["path"] for a in assets]
+    from vstudio import footage
+    master = c.get("master")
+    if not master or not os.path.isfile(master):
+        raise ValueError("Spoken finishing needs the composed video to inspect existing visuals")
+    source_text, source_images, _ = footage.sequence_context(
+        master, ctx.path("source-visuals"), every=2, max_frames=40, fid="composed-source")
+    kwargs["images"] = source_images + kwargs.get("images", [])
+    kwargs["source_context"] = source_text
+    material_files = source_images + material_files
     result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "", **kwargs)
     dest = write_json(ctx.path("editorial-plan.json"), result)
     ctx.log(f"spoken finishing: {len(result['effects'])} source-grounded visual beats")
@@ -984,7 +993,7 @@ def speech_stages(copy=False):
               cost=lambda j, s: 0.02 if proofread_opts(s)["provider"] != "none" else 0.0),
         Stage("finish", "cpu", run_finish, deps=("compose", "proofread"),
               enabled=lambda j, s: _p(j).get("finishing") == "editorial" or _has_materials(j, s),
-              params=_finish_params,
+              params=_finish_params, version=2,
               units=lambda j, s: 1.0, retries=0),
         Stage("export", _export_resource, run_export, deps=exp_deps,
               params=_export_params,

@@ -63,12 +63,19 @@ def test_native_export_uses_planned_material_and_retains_audio(tmp_path, monkeyp
     from vstudio import export, platform, media
     photo = tmp_path / 'red.png'; Image.new('RGB', (320, 180), 'red').save(photo)
     cuepath = tmp_path / 'cues.json'; cuepath.write_text(json.dumps(dict(cues=CUES)))
+    source = tmp_path / 'source.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+        'color=c=black:s=320x180:r=15:d=10', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', '-shortest', str(source)], check=True)
     job = dict(params=dict(_inputs=dict(broll=[str(photo)])))
-    ctx = Ctx(job, {}, str(tmp_path), dict(compose=dict(cues=str(cuepath), duration=10)), str(tmp_path))
+    ctx = Ctx(job, {}, str(tmp_path), dict(compose=dict(master=str(source), cues=str(cuepath), duration=10)), str(tmp_path))
     calls = []
     def model(task, system, prompt, **kw):
         calls.append(kw)
         assert kw['images'] and 'p0001' in prompt
+        assert 'COMPOSED SOURCE' in prompt and 'composed-source' in prompt
+        assert 'sequence-' in kw['images'][0]
+        assert 'burned subtitles' in system
         return dict(json=dict(beats=[BEAT]))
     from vstudio import llm
     monkeypatch.setattr(llm, 'complete', model)
@@ -80,10 +87,6 @@ def test_native_export_uses_planned_material_and_retains_audio(tmp_path, monkeyp
     Image.new('RGB', (320, 180), 'blue').save(photo)
     assert stages._material_signatures(job, {}) != sig
     # The plan's frozen image still has the pixels shown to the model.
-    source = tmp_path / 'source.mp4'
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
-        'color=c=black:s=320x180:r=15:d=10', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', '-shortest', str(source)], check=True)
     out = tmp_path / 'out'; out.mkdir()
     prof = platform.profile('youtube', 'horizontal', overrides=dict(w=320, h=180))
     rendered = export.export_one(str(source), prof, str(out), effects=result['effects'],
@@ -250,3 +253,25 @@ def test_detail_review_renders_correction_before_acceptance(tmp_path):
     assert calls[0]['hold_seconds'] == calls[1]['hold_seconds'] == 4
     assert pixels[0] != pixels[1]
     assert all(not Path(p).exists() for p in paths)
+
+
+def test_finishing_without_composed_picture_stops_before_model(tmp_path, monkeypatch):
+    from vstudio import llm
+    cuepath = tmp_path / 'cues.json'
+    cuepath.write_text(json.dumps(dict(cues=CUES)))
+    ctx = Ctx(dict(params=dict(finishing='editorial')), {}, str(tmp_path),
+              dict(compose=dict(cues=str(cuepath), duration=10)), str(tmp_path))
+    monkeypatch.setattr(llm, 'complete', lambda *a, **kw: pytest.fail('must inspect picture first'))
+    with pytest.raises(ValueError, match='needs the composed video'):
+        stages.run_finish(ctx)
+
+
+def test_source_context_is_evidence_not_an_insert_asset():
+    def model(task, system, prompt, **kw):
+        assert kw['images'] == ['source-sheet.jpg']
+        assert 'not selectable insert IDs' in system
+        assert 'Existing caption and note panel' in prompt
+        return dict(json=dict(beats=[dict(BEAT, asset='composed-source')]))
+    with pytest.raises(ValueError, match='available visual asset ID'):
+        spoken.plan(CUES, 10, source_context='Existing caption and note panel',
+                    images=['source-sheet.jpg'], complete=model)

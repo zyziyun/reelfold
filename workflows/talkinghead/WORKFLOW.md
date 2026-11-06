@@ -277,6 +277,15 @@ ffmpeg flag changes, frame-exact cutting, MLS warp streaks, landmark jitter, sta
 
 ### Supplied supporting material
 
+Before choosing additions, the finishing stage inspects ordered samples of the composed
+speech video (at most 40 frames, with the actual sampling gap reported). These are visual
+context, not selectable insert assets. It considers existing burned subtitles, notes and
+demonstrations, and is instructed to avoid duplicate explanations or full-frame replacements
+that hide necessary information. Missing or undecodable composed pictures stop planning.
+This is sampled planning context, not guaranteed subtitle preservation: review the final
+interval, especially where source text appears between samples. Full-frame cards and inserts
+cover burned text; they do not extract or reconstruct that text automatically.
+
 Attach optional `broll` images or videos alongside the primary speech recording. The
 finishing stage previews the actual material and selects source IDs against proofread
 caption spans, then renders full-frame inserts with the original voice continuing.
