@@ -230,7 +230,8 @@ def _project_outputs(pdir, *, playable=True):
                                 platform=e.get("platform"), orientation=e.get("orientation"),
                                 title=(j["params"] or {}).get("title"), cover=e.get("cover"), post=e.get("post"),
                                 duration=e.get("duration"),
-                                **{k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box", "platforms", "posts")
+                                **{k: e[k] for k in ("w", "h", "fps", "safe_box", "caption_box", "platforms", "posts",
+                                                    "sidecars", "video_sig", "key")
                                    if e.get(k) is not None},
                                 _rows=rows, _params=j["params"] or {}))
     finally:

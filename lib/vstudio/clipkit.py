@@ -751,6 +751,7 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
     from . import export as EX
     from . import subs as S
     from .batch.util import write_json
+    from .tts import LANG_NAMES
     captions = dict(captions or {})
     os.makedirs(out_dir, exist_ok=True)
     workdir = workdir or os.path.join(out_dir, "work")
@@ -801,6 +802,10 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         if not report["tracks"] and cues:
             report["tracks"] = BL.write_tracks(cues, os.path.join(out_dir, spec["id"]), captions.get("src") or "en",
                                                captions.get("tgt") if captions.get("mode") != "mono" else None)
+        source_language = captions.get("src")
+        if source_language in LANG_NAMES:
+            cues = [S.Cue(c.start, c.end, c.text, c.alt,
+                          dict(c.meta or {}, lang=(c.meta or {}).get("lang") or source_language)) for c in cues]
         shown = BL.apply_mode(cues, captions.get("mode") or "mono") if cues else []
         shown = BL.highlight(shown, captions.get("highlight") or spec.get("highlight"))
         cj = os.path.join(out_dir, f"cues.{W}x{H}.json")
@@ -809,7 +814,8 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
                       f, ensure_ascii=False, indent=1)
         covers = _covers(spec, keys, (W, H), res, os.path.join(workdir, f"{W}x{H}"))
         man = EX.export(res["master"], keys, out_dir, cues=None if captions.get("off") else cj, covers=covers,
-                        post=post, clip_id=spec["id"])
+                        post=post, clip_id=spec["id"],
+                        caption_role="speech" if source_language in LANG_NAMES else "rendered-captions")
         # Each canvas exports separately. Preserve this run's earlier canvases,
         # while excluding entries left by a previous delivery.
         export_entries.extend(man["exports"])

@@ -314,6 +314,13 @@ def _file_row(p, e):
                platform=own or (pls[0] if pls else None), safe_box=e.get("safe_box"), caption_box=e.get("caption_box"))
     if pls:
         row["platforms"] = pls
+    if e.get("sidecars"):
+        from vstudio.project.outrender import checked_sidecars
+        directory = os.path.dirname(os.path.abspath(p))
+        tracks = [dict(t, file=os.path.join(directory, t["file"]))
+                  for t in e["sidecars"] if isinstance(t, dict) and isinstance(t.get("file"), str)]
+        row["sidecars"], row["caption_issues"] = checked_sidecars(
+            dict(e, file=p, sidecars=tracks), directory)
     return row
 
 

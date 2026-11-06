@@ -698,8 +698,10 @@ def test_ai_remote_sticker_is_local_before_apply_and_render(tmp_path, synth, mon
 @pytest.mark.parametrize("lang,text", [("fr", "Bonjour tout le monde."),
                                       ("ja", "今日は字幕を確認します。"),
                                       ("ko", "오늘 자막을 확인합니다.")])
-def test_translated_pipeline_uses_replacement_captions(th, lang, text):
+def test_translated_pipeline_uses_replacement_captions(th, lang, text, monkeypatch):
     from vstudio import platform as P
+    # Caption timing is independent of the voices installed on the test machine.
+    monkeypatch.setattr(R, "_voice_for", lambda *a: ("system", None))
     oid, _ = _pipeline(th)
     rec, doc = O._load(th, oid)
     st = O.empty_state()

@@ -132,8 +132,9 @@ def test_sidecar_mode_clean_youtube_burned_xiaohongshu(tmp_path):
     assert yt["platform"] == "youtube" and xhs["platform"] == "xiaohongshu"
     assert yt["captions"] == 0 and yt["captions_mode"] == "sidecar" and yt["caption_track"] == "en"
     assert not _caption_drawn(os.path.join(out, yt["file"]), P.profile("youtube"))
-    assert yt["sidecars"] == [dict(lang="en", file="youtube-horizontal.en.srt"),
-                              dict(lang="zh", file="youtube-horizontal.zh.srt")]
+    assert [(s["lang"], s["file"]) for s in yt["sidecars"]] == [
+        ("en", "youtube-horizontal.en.srt"), ("zh", "youtube-horizontal.zh.srt")]
+    assert all(s["role"] == "rendered-captions" and s["sha256"] for s in yt["sidecars"])
     en = srt_read(os.path.join(out, "youtube-horizontal.en.srt"))
     assert [c.text for c in en] == ["Gold on the water", "Let the light take its time"]
     assert [c.text for c in srt_read(os.path.join(out, "youtube-horizontal.zh.srt"))][0] == "金色落在水面"

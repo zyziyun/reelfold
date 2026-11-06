@@ -18,12 +18,13 @@ def test_final_caption_correction_reaches_translation_sidecar_and_burn_input(tmp
     monkeypatch.setattr(PR, '_call_openai', no_model)
     def translate(cues, src, tgt):
         assert cues[0].text == 'Try TraceHook today.'
-        return [S.Cue(c.start, c.end, c.text, '试用 TraceHook', c.meta) for c in cues], {}
+        return [S.Cue(c.start, c.end, c.text, '试用 TraceHook',
+                      dict(c.meta, lang=src, alt_lang=tgt)) for c in cues], {}
     def export(master, keys, directory, **kw):
         burn = json.loads(open(kw['cues']).read())['cues'][0]
         assert burn['text'] == 'Try TraceHook today.'
         assert (burn['start'], burn['end']) == (.2, 1.8)
-        assert burn['meta'] == {'source': 'asr'}
+        assert burn['meta'] == {'source': 'asr', 'lang': 'en', 'alt_lang': 'zh'}
         return {'exports': []}
     monkeypatch.setattr(EX, 'export', export)
     report = CK.deliver({'id': 'p01'}, [], ['youtube'], str(tmp_path),

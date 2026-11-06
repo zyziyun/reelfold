@@ -803,7 +803,8 @@ def collect_vstudio_exports(project, job, rows):
             j = lambda x: x and (x if os.path.isabs(x) else os.path.join(base, x))  # noqa: E731
             out.append(dict(platform=e.get("platform"), orientation=e.get("orientation"), kind="video",
                             file=j(e["file"]), cover=j(e.get("cover")), post=j(e.get("post")),
-                            duration=e.get("duration"), **_geometry(e)))
+                            duration=e.get("duration"), **_geometry(e),
+                            **{k: e[k] for k in ("sidecars", "video_sig", "key") if k in e}))
     return out + collect_files(project, job, rows)
 
 

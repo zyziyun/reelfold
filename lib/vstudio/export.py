@@ -793,15 +793,19 @@ def _scale_only(master, dst, prof, info, start, dur, vargs, fps_out, wm_png=None
 
 def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="face", fallback="pad-blur",
                start=0.0, dur=None, workdir=None, encoder=None, preset="medium", captions=True,
-               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", clip_id=None, **reframe_opts):
+               cover_targets=None, post_lang=None, watermark=None, cover_ab=None, effects=None, cover_canvas="platform", clip_id=None,
+               caption_role="rendered-captions", **reframe_opts):
     """Export ``master`` for one Profile. Returns the manifest entry (dict).
     cues: one track (cues.json / .srt path or a list) or {lang: track} (pick_track takes the platform's language).
     captions: "both" (True, default) | "burn" | "sidecar" | "off" (False: never burn ``cues``, the master already has
     them) - see the module doc, step 7. cover_targets: {target: path}
     per-target covers (see make_cover). watermark: True / False / None (= the creator's default, vstudio.watermark;
     never drawn when none is set up). cover_canvas="video" keeps the cover on the video canvas,
-    with a preview of the platform feed crop."""
+    with a preview of the platform feed crop. caption_role="speech" is for callers exporting a known
+    speech transcript or its translation; general visual text retains the rendered-captions role."""
     from . import audio
+    if caption_role not in ("speech", "rendered-captions"):
+        raise ValueError("caption_role must be speech or rendered-captions")
     mode = MODE_ALIASES.get(mode, mode)
     info = media.probe(master)
     stem = f"{prof.name}-{prof.orientation}"
@@ -959,7 +963,13 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     if track_lang:
         entry["caption_track"] = track_lang
     if sidecars:
-        entry["sidecars"] = [dict(lang=s["lang"], file=s["file"]) for s in sidecars]
+        from .batch.util import sha1_json, sha256_file
+        from .project.outputs import file_sig
+        entry["video_sig"] = file_sig(out_mp4)
+        tracks = [dict(s, format="srt", role=caption_role,
+                       sha256=sha256_file(os.path.join(out_dir, s["file"]))) for s in sidecars]
+        entry["key"] = sha1_json(dict(video=entry["video_sig"], tracks=tracks))
+        entry["sidecars"] = [dict(s, render_key=entry["key"]) for s in tracks]
         entry["notes"].append(f"caption files to upload on {prof.label} (one per language): "
                               + ", ".join(s["file"] for s in sidecars))
     if prof.feed_crop:
