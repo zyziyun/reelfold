@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -86,15 +87,9 @@ async function downloadOnce(url, dest, sha256) {
   const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok || !res.body) throw new Error(`GET ${url}: ${res.status}`);
   const tmp = `${dest}.part`;
-  const out = fs.createWriteStream(tmp);
-  try {
-    for await (const chunk of res.body) out.write(chunk);
-  } catch (e) {
-    out.destroy(); // release the file before a retry rewrites it
-    await new Promise((r) => (out.closed ? r() : out.once('close', r)));
-    throw e;
-  }
-  await new Promise((r, j) => out.end((e) => (e ? j(e) : r())));
+  // Propagate source AND disk failures, respect backpressure and close both
+  // streams before retrying or verifying the completed file.
+  await pipeline(res.body, fs.createWriteStream(tmp));
   if (sha256) {
     const got = sha256File(tmp);
     if (got !== sha256) {

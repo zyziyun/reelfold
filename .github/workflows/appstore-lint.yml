@@ -72,6 +72,8 @@ jobs:
         working-directory: .
       - name: Lint unit tests
         run: python3 -m unittest discover -s scripts/appstore
+      - name: Runtime download regression tests
+        run: node --test scripts/runtime/test_download.mjs
       - name: Cache runtime downloads (python, wheels, conda packages, the free voice it verifies with)
         uses: actions/cache@v6
         with:
