@@ -139,3 +139,25 @@ def test_editorial_profile_defaults_to_calm_and_requires_explicit_energy():
     assert FL.profile_for({'qc': {'flicker_profile': 'energetic'}}) == 'energetic'
     with pytest.raises(ValueError, match='Unknown flicker profile'):
         FL.profile_for({'qc': {'flicker_profile': 'typo'}})
+
+
+def test_cut_context_explains_comparison_window_without_waiving_failure(tmp_path, monkeypatch):
+    report = dict(ok=False, limits=FL.LIMITS['calm'], events=[dict(kind='blink', t=3., end=3.03, peak_t=3.033, level=8.2)])
+    monkeypatch.setattr(FL, 'analyze', lambda *a: report)
+    path = tmp_path / 'qc.json'
+    with pytest.raises(FL.FlickerError):
+        FL.check('render.mp4', mode='fail', report_path=path, log=None, cuts=[3.1, 7.6])
+    import json
+    saved = json.loads(path.read_text())
+    assert saved['ok'] is False
+    assert saved['events'][0]['nearby_cuts'] == [3.1]
+    assert saved['events'][0]['level'] == 8.2
+    assert 'cuts at 3.10s' in FL.describe(saved)
+
+
+def test_cut_context_uses_each_detectors_window():
+    events = [dict(kind=kind, t=3, peak_t=3) for kind in ('blink', 'flash', 'colour')]
+    report = FL.add_cut_context(dict(ok=False, events=events), [3.5])
+    assert 'nearby_cuts' not in report['events'][0]
+    assert report['events'][1]['nearby_cuts'] == [3.5]
+    assert report['events'][2]['nearby_cuts'] == [3.5]

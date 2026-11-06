@@ -206,6 +206,22 @@ def measure(F, fps, profile="calm", C=None):
     return rep
 
 
+def add_cut_context(report, cuts):
+    """Annotate cuts inside the detector's comparison window; never waive an event.
+
+    ``cuts`` are verified hard-cut times in this rendered output, not source times
+    or dissolve midpoints. A nearby cut is a review clue, not proof of a false alarm.
+    """
+    cuts = sorted({float(t) for t in cuts if np.isfinite(t) and float(t) >= 0})
+    for event in report.get("events", []):
+        radius = .3 if event["kind"] == "blink" else .6
+        peak = event.get("peak_t", event["t"])
+        nearby = [t for t in cuts if abs(t - peak) <= radius]
+        if nearby:
+            event["nearby_cuts"] = nearby
+    return report
+
+
 def analyze(path, profile="calm"):
     """Measure a video file (see the module doc)."""
     F, fps, C = luma_grid(path, chroma=True)
@@ -231,6 +247,10 @@ def describe(rep, n=6):
             at = ", ".join(f"{e['t']:.1f}s" for e in ev[:n]) + (" ..." if len(ev) > n else "")
             parts.append(f"{WHAT[kind]} at {at} (up to {max(e['level'] for e in ev):.0f} levels, "
                          f"limit {rep['limits'][kind]:.0f})")
+    cuts = sorted({t for e in rep["events"] for t in e.get("nearby_cuts", [])})
+    if cuts:
+        times = ", ".join(f"{t:.2f}s" for t in cuts[:n])
+        parts.append(f"comparison windows include cuts at {times}; review both sides before changing effects")
     return "flicker: " + "; ".join(parts)
 
 
@@ -266,13 +286,13 @@ def _persona():
         return {}
 
 
-def check(path, profile="calm", mode=None, report_path=None, log=print):
+def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=()):
     """Analyze ``path``; write the report next to it (``<out>.flicker.json``); raise FlickerError when it flickers
     and ``mode`` is "fail". Returns the report (None when mode is "off")."""
     mode = mode or mode_for()
     if mode == "off":
         return None
-    rep = analyze(path, profile)
+    rep = add_cut_context(analyze(path, profile), cuts)
     rp = report_path or (str(path).rsplit(".", 1)[0] + ".flicker.json")
     try:
         with open(rp, "w") as f:

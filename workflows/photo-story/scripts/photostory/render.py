@@ -250,7 +250,9 @@ def main():
         from vstudio import flicker
         try:
             qc = {"qc": getattr(C.spec, "QC", None) or {}}
-            flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc))
+            cuts = [float(sh["start"]) - t_from for sh in T.shots[1:]
+                    if sh.get("tr") == "cut" and t_from < float(sh["start"]) < end_t]
+            flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc), cuts=cuts)
         except flicker.FlickerError as e:
             sys.exit(f"!! render failed - {e}")
     if a.clean_master:
