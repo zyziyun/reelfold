@@ -24,7 +24,11 @@ def review(pay, context, lang=None, complete=None):
         'These stills cannot establish continuous motion, audio, factual accuracy, or publication readiness. '
         'Respect the requested style; do not demand effects without a purpose. Render context identifies '
         'intentional closing fades and shot positions; assess fade readability using adjacent unfaded samples, '
-        'not by requiring a deliberately fading frame to remain fully bright.')
+        'not by requiring a deliberately fading frame to remain fully bright. '
+        'Layout context uses full-canvas pixel coordinates even when review images are downscaled. '
+        'The actual caption band may be clamped to platform safe_box rather than the requested position. '
+        'Recommend positions within that safe box; moving text farther down may not move it at all. '
+        'These constraints do not excuse subject collisions or excessive empty space.')
     try:
         result = (complete or llm.complete)('planner', system, json.dumps(
             dict(brief=context, language=lang or 'en', frames=[dict(index=i, file=p, context=contexts.get(p)) for i, p in enumerate(images)]),

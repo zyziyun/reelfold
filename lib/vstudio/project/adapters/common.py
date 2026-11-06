@@ -183,6 +183,10 @@ def publish_payload(env, cp):
                                 continue
                             contexts[path] = {k: row[k] for k in ("frame", "time", "shot_index", "source",
                                              "shot_start", "shot_end", "closing_fade") if k in row}
+                            if isinstance(manifest.get("layout"), dict):
+                                contexts[path]["layout"] = {k: manifest["layout"][k] for k in
+                                    ("canvas", "safe_box", "caption_band", "header_bottom", "requested_caption_y")
+                                    if k in manifest["layout"]}
                     # Stills stages declare a directory. Review the images themselves,
                     # so their content hashes invalidate an answer after a rerender.
                     files.extend(os.path.join(f, name) for name in sorted(os.listdir(f))

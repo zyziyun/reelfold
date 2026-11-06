@@ -225,7 +225,10 @@ def main():
                 print(f"  {gt:6.1f}s / {end_t:.1f}s", flush=True)
         if stills:
             pathlib.Path(staging, "review-frames.json").write_text(json.dumps(
-                dict(version=1, fps=C.FPS, canvas=[C.W, C.H], duration=total, frames=samples)), encoding="utf-8")
+                dict(version=1, fps=C.FPS, canvas=[C.W, C.H], duration=total, frames=samples,
+                     layout=dict(canvas=[C.W, C.H], safe_box=list(C.SAFE),
+                                 caption_band=[C.SUB_Y0, C.SUB_Y0 + C.SUB_H], header_bottom=C.HDR,
+                                 requested_caption_y=(getattr(C.spec, "LAYOUT", {}) or {}).get("caption_y")))), encoding="utf-8")
             names = set(os.listdir(staging))
             for name in sorted(names):
                 target = os.path.join(sdir, name)

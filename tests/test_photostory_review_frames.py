@@ -66,6 +66,9 @@ PRESERVE_COLOUR = True
     import hashlib
     metadata = json.loads((dest / 'review-frames.json').read_text())
     assert metadata['version'] == 1
+    assert metadata['layout']['canvas'] == [640, 480]
+    assert metadata['layout']['safe_box'] == [0, 0, 640, 480]
+    assert len(metadata['layout']['caption_band']) == 2
     assert [r['shot_index'] for r in metadata['frames']] == [0, 1, 1]
     assert [r['frame'] for r in metadata['frames']] == [6, 33, 54]
     for row in metadata['frames']:

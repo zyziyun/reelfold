@@ -43,9 +43,11 @@ def test_context_requires_matching_image_and_valid_manifest(tmp_path):
     env = SimpleNamespace(params={}, inputs={'stills': {'files': [str(tmp_path)]}})
     row = dict(file=image.name, sha=common.file_sha(str(image)), time=1, shot_index=2,
                closing_fade=True)
-    manifest.write_text(json.dumps(dict(version=1, frames=[row])))
+    layout = dict(canvas=[1080, 1920], safe_box=[60, 150, 960, 1436],
+                  caption_band=[1282, 1436], requested_caption_y=.88)
+    manifest.write_text(json.dumps(dict(version=1, frames=[row], layout=layout)))
     payload = common.publish_payload(env, {})
-    assert payload['options'][0]['context'] == dict(time=1, shot_index=2, closing_fade=True)
+    assert payload['options'][0]['context'] == dict(time=1, shot_index=2, closing_fade=True, layout=layout)
     image.write_bytes(b'rendered again')
     assert 'context' not in common.publish_payload(env, {})['options'][0]
     for frames in (None, 3, 'invalid', [None, {}]):
