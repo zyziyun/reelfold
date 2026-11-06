@@ -313,3 +313,22 @@ def test_filmed_sketch_and_negated_generation_format():
     assert formats.detect("剪这个已经拍好的搞笑短剧，保留原声和笑点", {"videos": 1}) == "sketch-edit"
     assert formats.detect("不要AI生成，用这些产品照片做电商视频", {"photos": 2}) == "product-film"
     assert formats.detect("用AI生成一条搞笑短剧") == "ai-skit"
+
+
+@pytest.mark.parametrize("black_start,black_end", [(0, 0.4), (0.8, 1.5), (3, 4)])
+def test_silent_outputs_still_receive_picture_checks(tmp_path, black_start, black_end):
+    video = tmp_path / "silent.mp4"
+    subprocess.run([
+        "ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=2",
+        "-vf", f"drawbox=color=black:t=fill:enable='between(t,{black_start},{black_end})'",
+        "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video),
+    ], check=True, capture_output=True)
+    result = FP.run(str(video), fmt="sketch-edit", platform="youtube:horizontal")
+    checks = {item["id"]: item for item in result["items"]}
+    assert checks["audio"]["ok"] is None  # Intentional silence remains supported.
+    assert "first-frame" in checks and "black" in checks
+    assert checks["first-frame"]["ok"] is (black_start != 0)
+    assert checks["black"]["ok"] is (black_start != 0.8)
+    assert not ({"loudness", "true-peak", "av-sync"} & checks.keys())
+    skipped = FP.run(str(video), fmt="sketch-edit", platform="youtube:horizontal", media_checks=False)
+    assert not ({"first-frame", "black"} & {item["id"] for item in skipped["items"]})

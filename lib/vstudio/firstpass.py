@@ -104,15 +104,16 @@ def check_video(info, prof, sources_info, fmt=None):
     return out
 
 
-def check_media(path, prof, media_checks=True):
+def check_media(path, prof, media_checks=True, *, has_audio=True):
     if not media_checks:
         return []
     from vstudio.batch import qc
     out = []
-    zh = {"loudness": f"响度 {prof.loudness['lufs']} LUFS（±1）", "true-peak": f"峰值不超过 {prof.loudness['tp']} dBTP"}
-    for c in qc.check_loudness(path, prof.loudness):
-        out.append(_from_qc(c, zh.get(c["name"], c["name"]), "two-pass loudnorm：vstudio.audio.loudnorm_2pass"))
-    out.append(_from_qc(qc.check_av_sync(path), "音画时长对齐", "按较短的流裁齐后重新封装"))
+    if has_audio:
+        zh = {"loudness": f"响度 {prof.loudness['lufs']} LUFS（±1）", "true-peak": f"峰值不超过 {prof.loudness['tp']} dBTP"}
+        for c in qc.check_loudness(path, prof.loudness):
+            out.append(_from_qc(c, zh.get(c["name"], c["name"]), "two-pass loudnorm：vstudio.audio.loudnorm_2pass"))
+        out.append(_from_qc(qc.check_av_sync(path), "音画时长对齐", "按较短的流裁齐后重新封装"))
     black, _fr = qc.detect_black_frozen(path, black_min=0.1, freeze_min=1e9)
     first = [b for b in black if b[0] <= 0.05]
     out.append(_item("first-frame", not first, "第一帧不是黑帧（封面要能当第一帧）", "first frame is not black",
@@ -369,7 +370,7 @@ def run(video, fmt=None, platform=None, sources=(), speed=None, cues=None, cover
     sp = speed if speed is not None else ((f or {}).get("speed") or {}).get("body")
     items = []
     items += check_video(info, prof, srcs, f)
-    items += check_media(video, prof, media_checks and info.get("has_audio"))
+    items += check_media(video, prof, media_checks, has_audio=bool(info.get("has_audio")))
     items += check_speed(info["duration"], [s["duration"] for s in srcs], sp, hook_seconds)
     items += check_captions(load_cues(cues), f, locale)
     items += [item for item in check_text(load_cues(cues), prof)
