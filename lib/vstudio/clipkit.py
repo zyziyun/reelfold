@@ -750,6 +750,7 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
     from . import bilingual as BL
     from . import export as EX
     from . import subs as S
+    from .batch.util import write_json
     captions = dict(captions or {})
     os.makedirs(out_dir, exist_ok=True)
     workdir = workdir or os.path.join(out_dir, "work")
@@ -758,6 +759,7 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
                   protect_content=bool(spec.get("protect_content")), content_why=spec.get("content_why"))
     tr_info = None
     corrections = {}
+    export_entries = []
     for (W, H), keys in canvases(platforms).items():
         burn_required = not captions.get("off")
         render_spec = dict(spec, _caption_rail=burn_required)
@@ -808,6 +810,13 @@ def deliver(spec, words, platforms, out_dir, captions=None, fmt=None, post=None,
         covers = _covers(spec, keys, (W, H), res, os.path.join(workdir, f"{W}x{H}"))
         man = EX.export(res["master"], keys, out_dir, cues=None if captions.get("off") else cj, covers=covers,
                         post=post, clip_id=spec["id"])
+        # Each canvas exports separately. Preserve this run's earlier canvases,
+        # while excluding entries left by a previous delivery.
+        export_entries.extend(man["exports"])
+        write_json(os.path.join(out_dir, "manifest.json"), dict(
+            man, exports=export_entries,
+            warnings=[f"{e['platform']}:{e['orientation']}: {w}"
+                      for e in export_entries for w in e.get("warnings", [])]))
         report["masters"].append(dict(size=[W, H], master=res["master"], duration=res["duration"],
                                       mask_report=res["mask_report"], cues=cj, content_policy=res["content_policy"],
                                       deferred_overlays=res["deferred_overlays"], geometry=res["geometry"]))
