@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wor
 from photostory.shots import prep_video
 
 
-@pytest.mark.parametrize('layout', ['contain', 'detail', 'region', 'caption-safe'])
+@pytest.mark.parametrize('layout', ['contain', 'detail', 'region', 'caption-safe', 'caption-label'])
 def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     src = str(tmp_path/'source.mp4')
     media.run(['ffmpeg','-y','-f','lavfi','-i',
@@ -21,12 +21,13 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     C = SimpleNamespace(VCROP={}, VEQ={}, VEQ_FILTER='', cache_dir=str(tmp_path),
         BOX_W=180, BOX_H=320, FPS=24, SUB_Y0=108, SUB_H=30, HDR=0,
         pal={'paper':(240,235,225)}, find_video=lambda n:src, vid_dirs=[str(tmp_path)])
-    if layout == 'caption-safe':
-        C.spec = SimpleNamespace(LAYOUT=dict(video_caption_safe=True))
+    if layout in ('caption-safe', 'caption-label'):
+        C.spec = SimpleNamespace(LAYOUT=dict(video_caption_safe=True,
+            caption_style='label' if layout == 'caption-label' else 'plain'))
         C.overlay_subs = True
     sh = dict(start=0,end=.4,tail=0,off=0,speed=2,motion='still')
     sh.update({'fit':'contain', 'source_region':[160,0,160,180]} if layout=='region' else
-              {'fit':'contain'} if layout in ('contain', 'caption-safe') else {'detail_regions':[[160,0,160,180]]})
+              {'fit':'contain'} if layout in ('contain', 'caption-safe', 'caption-label') else {'detail_regions':[[160,0,160,180]]})
     out = prep_video(C,sh,'source')
     info = media.probe(out)
     assert abs(float(info['fps'])-24)<.01
@@ -37,10 +38,16 @@ def test_native_video_layout_preserves_source_and_fps(tmp_path, layout):
     if layout=='contain':
         assert a[160,30,0]>220 and a[160,150,2]>220
         assert np.all(a[10,90]>200)
-    elif layout == 'caption-safe':
+    elif layout in ('caption-safe', 'caption-label'):
         assert np.all(a[108:138, :, :] > 200)
         assert np.any((a[:, :, 0] > 220) & (a[:, :, 2] < 30))
         assert np.any((a[:, :, 2] > 220) & (a[:, :, 0] < 30))
+        if layout == 'caption-label':
+            subject = (a[:, :, 0] > 220) & (a[:, :, 2] < 30)
+            assert np.where(subject)[0].min() == 144
+            C.spec.LAYOUT['caption_style'] = 'plain'
+            assert prep_video(C, sh, 'source') != out
+            C.spec.LAYOUT['caption_style'] = 'label'
         C.spec.LAYOUT['video_caption_safe'] = False
         assert prep_video(C, sh, 'source') != out
         C.spec.LAYOUT['video_caption_safe'] = True
@@ -139,3 +146,18 @@ def test_source_region_bounds_and_caption_geometry(canvas):
         assert y+h <= band[0] or y >= band[1]
         assert 0 <= x < x+w <= W and 0 <= y < y+h <= H
         assert abs(w-h) <= 1
+
+
+@pytest.mark.parametrize('band', [(30, 60), (240, 270)])
+def test_contained_label_and_subject_stay_adjacent(band):
+    from vstudio import clipkit as C
+    geo = dict(canvas=(180, 320), vertical=True, main=(0, 0, 180, 320), camera=None)
+    region = [0, 0, 320, 180]
+    centered = C.region_geometry(geo, (320, 180), region, band)
+    adjacent = C.region_geometry(geo, (320, 180), region, band, caption_adjacent=True)
+    x, y, w, h = adjacent['main']
+    assert (w, h) == centered['main'][2:]
+    assert adjacent['source_region'] == centered['source_region']
+    margin = max(2, int(180 * .035))
+    gap = y - band[1] if band[0] < 160 else band[0] - (y + h)
+    assert gap == margin

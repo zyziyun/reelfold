@@ -35,6 +35,12 @@ identity and inspect labels against the actual machinery/people at phone size. T
 layout, not a sample-specific title, source path or timestamp. Match the first label to the action visible now;
 cover/post text must disclose stock reference footage where appropriate.
 
+Contained videos using the label caption style sit adjacent to the reserved caption band. Check that the picture
+and label form one readable group on each canvas. For horizontal process footage in a portrait film, establish
+the action before moving into a verified detail, then show the result. Inspect the full interval of each crop
+for tool contact and material flow, including where the caption will sit. Labels describing completion require
+visible completion; use an ongoing-action label while that action continues. Recheck flicker after magnification.
+
 For these video purposes, automatic planning also receives ordered temporal sheets in addition to
 quality-ranked moments: at most 80 sampled frames per clip and 240 across the default 24-clip request.
 The actual sampling gap is reported. Preserve action onset, interaction and result; a sharp frame is

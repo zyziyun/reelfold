@@ -352,7 +352,7 @@ def detail_geometry(geo, src_wh, regions, caption_rail=False, caption_band=None)
     return dict(geo, main=((W - ow) // 2, main_y, ow, oh), header=None, details=details)
 
 
-def region_geometry(geo, src_wh, region, caption_band=None):
+def region_geometry(geo, src_wh, region, caption_band=None, *, caption_adjacent=False):
     """Fit a verified source region once, keeping it clear of the caption band."""
     rect = detail_rectangles([region], src_wh)[0]
     if geo.get("camera") or geo.get("details"):
@@ -369,7 +369,10 @@ def region_geometry(geo, src_wh, region, caption_band=None):
     if bottom - top < 2 or W - 2 * margin < 2:
         raise ValueError("Caption band leaves no room for source_region")
     w, h = _fit(rect[2], rect[3], W - 2 * margin, bottom - top)
-    return dict(geo, source_region=rect, main=((W - w) // 2, top + (bottom - top - h) // 2, w, h), header=None)
+    y = top + (bottom - top - h) // 2
+    if caption_adjacent and caption_band is not None:
+        y = bottom - h if bottom <= caption_band[0] else top
+    return dict(geo, source_region=rect, main=((W - w) // 2, y, w, h), header=None)
 
 
 def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2"):
