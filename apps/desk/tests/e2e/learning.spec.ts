@@ -75,6 +75,16 @@ test('camera and screen sharing stay beside the material; a new take remains edi
   await page.getByTestId('rec-screen-toggle').click();
   const first = page.getByTestId('rec-screen-source').first();
   await expect(first).toBeVisible(); await first.click();
+  const screenPreview = page.getByTestId('learning-screen-preview');
+  await expect(screenPreview).toBeVisible();
+  await expect.poll(() => screenPreview.evaluate((v: HTMLVideoElement) => v.srcObject instanceof MediaStream && v.readyState >= 2)).toBe(true);
+  const screenBox = await screenPreview.boundingBox();
+  const cameraBox = await page.getByTestId('learning-camera-preview').boundingBox();
+  expect(cameraBox!.width).toBeLessThan(screenBox!.width / 3);
+  expect(cameraBox!.x).toBeGreaterThan(screenBox!.x + screenBox!.width / 2);
+  expect(cameraBox!.y).toBeGreaterThan(screenBox!.y + screenBox!.height / 2);
+  await page.getByTestId('learning-camera').screenshot({ path: path.join(tmp, 'screen-sharing-preview.png') });
+
   await page.getByTestId('learning-source-video').evaluate(async (v: HTMLVideoElement) => { v.currentTime = 0; v.loop = true; v.muted = false; await v.play(); });
   await page.getByTestId('learning-camera-record').click();
   await expect(page.getByTestId('learning-camera-record')).toContainText('Stop');

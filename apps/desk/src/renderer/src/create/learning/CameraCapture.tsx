@@ -11,6 +11,7 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const { client } = useEngine();
   const rec = useRecorder();
   const video = useRef<HTMLVideoElement | null>(null);
+  const screenVideo = useRef<HTMLVideoElement | null>(null);
   const [screen, setScreen] = useState(false);
   const [appAudio, setAppAudio] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,6 +49,7 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (video.current) video.current.srcObject = rec.stream; }, [rec.stream]);
+  useEffect(() => { if (screenVideo.current) screenVideo.current.srcObject = rec.screenStream; }, [rec.screenStream]);
   const live = ['recording', 'paused', 'stopping', 'save-error'].includes(rec.state);
   const start = async () => {
     setError('');
@@ -73,7 +75,10 @@ export function CameraCapture({ id, onSaved, script }: { id: string; onSaved: (d
   };
   return <section className="learning-capture" data-testid="learning-camera">
     <h3>{t('learning.captureTitle')}</h3>
-    {rec.stream && <video ref={video} autoPlay muted playsInline style={{ width: 180, maxHeight: 160 }} data-testid="learning-camera-preview" />}
+    {rec.stream && <div className={`learning-capture-preview${rec.screenStream ? ' sharing' : ''}`}>
+      {rec.screenStream && <video ref={screenVideo} autoPlay muted playsInline className="learning-screen-preview" data-testid="learning-screen-preview" />}
+      <video ref={video} autoPlay muted playsInline className="learning-camera-preview" data-testid="learning-camera-preview" />
+    </div>}
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
       {pendingDir ? <button className="btn" disabled={busy} onClick={() => void stop()} data-testid="learning-camera-retry">{t('learning.retryCapture')}</button> : !rec.stream ? <button className="btn" onClick={() => void rec.open()} data-testid="learning-camera-open">{t('learning.openCamera')}</button> : <>
         <button className="btn" disabled={busy || rec.state === 'stopping'} onClick={() => void (live ? stop() : start())} data-testid="learning-camera-record">{rec.state === 'save-error' ? t('rec.retrySave') : live ? t(rec.interruption ? 'rec.saveTake' : 'rec.stop') : t('learning.recordHere')}</button>
