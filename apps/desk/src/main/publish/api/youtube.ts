@@ -120,6 +120,7 @@ export interface YtChannel {
 }
 
 export interface YtAccountStatus {
+  credentialError?: 'unreadable';
   account: string;
   connected: boolean;
   connectedAt: string | null;
@@ -257,7 +258,11 @@ export class YouTubeApi {
   }
 
   accountStatus(account: string): YtAccountStatus {
-    const s = this.d.vault.get(vaultKey(account));
+    let s: ApiSecret;
+    try { s = this.d.vault.get(vaultKey(account), true); }
+    catch {
+      return { account, connected: false, connectedAt: null, channel: null, playlists: false, captions: false, credentialError: 'unreadable' };
+    }
     return { account, connected: !!s.refreshToken, connectedAt: s.connectedAt ?? null, channel: s.channel ?? null, captions: (s.scope ?? '').split(/\s+/).includes(YT_CAPTIONS), playlists: (s.scope ?? '').split(/\s+/).includes(YT_MANAGE) };
   }
 
@@ -280,6 +285,7 @@ export class YouTubeApi {
 
   /** OAuth in the system browser; resolves once Google redirected back to the loopback port (or after 5 minutes). */
   async connect(account: string, opts: { playlists?: boolean; captions?: boolean; timeoutMs?: number } = {}): Promise<YtAccountStatus> {
+    this.d.vault.get(vaultKey(account), true); // Fail before opening OAuth when saved credentials need recovery.
     const client = this.client();
     if (!client) throw new Error('choose how to sign in first: Reelfold’s Google client or your own');
     this.cancelConnect();

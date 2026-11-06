@@ -242,6 +242,26 @@ const mk = (dir = tmp(), extra: Partial<ConstructorParameters<typeof YouTubeApi>
 };
 
 describe('OAuth in the system browser (fake Google)', () => {
+  it('distinguishes unreadable sign-in from a missing account and recovers without OAuth', async () => {
+    const { yt, vault, dir, seen } = mk();
+    yt.setClient(CLIENT, 'GOCSPX-desktop');
+    vault.set('youtube/main', { refreshToken: 'saved-token', channel: { id: 'UC1', title: 'Test' } });
+    const file = path.join(dir, 'publish-api.json');
+    const saved = fs.readFileSync(file, 'utf8');
+    const rows = JSON.parse(saved);
+    rows['youtube/main'] = Buffer.from('invalid encrypted account').toString('base64');
+    fs.writeFileSync(file, JSON.stringify(rows));
+    const corrupted = fs.readFileSync(file, 'utf8');
+    expect(yt.accountStatus('main')).toMatchObject({ connected: false, credentialError: 'unreadable' });
+    expect(yt.accountStatus('new')).not.toHaveProperty('credentialError');
+    await expect(yt.connect('main')).rejects.toThrow(/could not be decrypted/);
+    expect(seen).toEqual([]);
+    expect(fs.readFileSync(file, 'utf8')).toBe(corrupted);
+    fs.writeFileSync(file, saved);
+    expect(yt.accountStatus('main')).toMatchObject({ connected: true });
+    expect(yt.accountStatus('main')).not.toHaveProperty('credentialError');
+  });
+
   it('reads actual video processing and visibility without another upload', async () => {
     const { yt } = mk();
     yt.setClient(CLIENT, 'GOCSPX-desktop');

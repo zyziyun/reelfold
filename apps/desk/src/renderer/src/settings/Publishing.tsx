@@ -157,15 +157,17 @@ function ApiGroup({ onConnect }: { onConnect: (account: string) => void }) {
               <Row
                 key={a.account}
                 label={nameOf(a.account)}
-                hint={a.connected ? (a.channel ? t('yt.acct.connected', { channel: a.channel.title }) : t('yt.acct.connectedPlain')) : t('yt.acct.not')}
+                hint={a.credentialError ? t('yt.acct.unreadableHint') : a.connected ? (a.channel ? t('yt.acct.connected', { channel: a.channel.title }) : t('yt.acct.connectedPlain')) : t('yt.acct.not')}
                 testId="api-youtube"
               >
-                <span className={`s2-pill ${a.connected ? 'ok' : 'warn'}`} data-testid="api-youtube-state" data-state={a.connected ? 'in' : 'out'}>
+                <span className={`s2-pill ${a.connected ? 'ok' : 'warn'}`} data-testid="api-youtube-state" data-state={a.credentialError ? 'error' : a.connected ? 'in' : 'out'}>
                   <Dot tone={a.connected ? 'ok' : 'warn'} />
-                  {a.connected ? t('yt.acct.connectedPlain') : t('yt.acct.not')}
+                  {a.credentialError ? t('yt.acct.unreadable') : a.connected ? t('yt.acct.connectedPlain') : t('yt.acct.not')}
                 </span>
                 {a.connected && <button className="btn" disabled={busy || !yt.hasClient || !api.keychain} onClick={() => onConnect(a.account)} data-testid="api-youtube-permissions">{t('yt.updatePermissions')}</button>}
-                {a.connected ? (
+                {a.credentialError ? (
+                  <button className="btn" disabled={loading} onClick={() => void reload()} data-testid="api-youtube-recheck">{t('yt.acct.recheck')}</button>
+                ) : a.connected ? (
                   <button className="btn ghost" disabled={busy} onClick={() => void run(() => window.desk.publish.api.disconnect(a.account))} data-testid="api-youtube-disconnect">
                     {t('yt.disconnect')}
                   </button>

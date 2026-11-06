@@ -97,6 +97,7 @@ export const BROWSER_UPLOAD_URL: Record<string, string> = {
 };
 
 export interface YtAccountMsg {
+  credentialError?: 'unreadable';
   account: string;
   connected: boolean;
   connectedAt: string | null;

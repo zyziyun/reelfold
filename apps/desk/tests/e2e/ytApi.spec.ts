@@ -522,3 +522,39 @@ test('caption progress stays busy until completion and ignores late events', asy
   await expect(page.getByTestId('ytp-done')).toBeVisible();
   await expect(page.getByTestId('ytp-progress')).toHaveCount(0);
 });
+
+test('unreadable saved sign-in offers recheck and preserves the account', async () => {
+  await page.evaluate(async (client) => {
+    await window.desk.publish.api.setClient(client, 'GOCSPX-e2e-secret');
+    const statuses = await window.desk.publish.api.status();
+    if (!statuses.find(s => s.id === 'youtube')?.yt?.accounts.some(a => a.account === 'main')) {
+      await window.desk.publish.addAccount('youtube-studio', 'main');
+    }
+    await window.desk.publish.api.connect('main');
+  }, CLIENT);
+  const file = path.join(tmp, 'profile', 'publish-api.json');
+  const saved = fs.readFileSync(file, 'utf8');
+  const entries = JSON.parse(saved);
+  entries['youtube/main'] = Buffer.from('invalid encrypted entry').toString('base64');
+  fs.writeFileSync(file, JSON.stringify(entries));
+  const corrupted = fs.readFileSync(file, 'utf8');
+  try {
+    await hash('#/settings/accounts');
+    await page.reload();
+    await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'error');
+    await expect(page.getByTestId('api-youtube')).toContainText('Saved sign-in unavailable');
+    await expect(page.getByTestId('api-youtube-connect')).toHaveCount(0);
+    const opened = (await rec()).opened.length;
+    await page.getByTestId('api-youtube-recheck').click();
+    await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'error');
+    expect((await rec()).opened.length).toBe(opened);
+    expect(fs.readFileSync(file, 'utf8')).toBe(corrupted);
+    await page.screenshot({ path: path.join(SHOTS, 'yt-unreadable.png') });
+    fs.writeFileSync(file, saved);
+    await page.getByTestId('api-youtube-recheck').click();
+    await expect(page.getByTestId('api-youtube-state')).toHaveAttribute('data-state', 'in');
+    expect((await rec()).opened.length).toBe(opened);
+  } finally {
+    fs.writeFileSync(file, saved);
+  }
+});
