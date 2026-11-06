@@ -11,7 +11,8 @@
 
 Translation goes through ``vstudio.llm`` task ``translate`` (persona / client ``llm.tasks.translate`` or
 ``llm.default``, its ``fallback`` chain: claude-code -> codex -> ...). Lines go in numbered batches and come back
-one translation per line, so a cue never borrows its neighbour's words. Before translating, the source text gets
+one translation per line. Missing rows receive one bounded repair call per batch, with the same IDs; completed
+rows are retained. Provider errors are not retried here. This keeps a cue from borrowing its neighbour's words. Before translating, the source text gets
 the persona ``subtitles.term_fixes`` (ASR mis-hearings); the glossary (persona ``subtitles.glossary``
 {source term: target term} + the job's own terms) is given to the model and then enforced: a glossary term that
 came back untranslated is swapped for its target, one that is missing is reported in ``info["glossary_misses"]``.
@@ -179,27 +180,39 @@ def translate_texts(texts, src, tgt, gl=None, provider=None, config=None, contex
                                context=(f"Context: {context.strip()}\n" if context and context.strip() else ""))
         for b0 in range(0, len(todo), batch):
             idx = todo[b0:b0 + batch]
-            prompt = "\n".join(f"{k + 1}. {texts[i].strip()}" for k, i in enumerate(idx))
-            try:
-                js, ci = fn(system, prompt)
-            except Exception as e:  # noqa: BLE001 - every provider failed: mono captions, said out loud
-                info["error"] = f"{type(e).__name__}: {str(e)[:300]}"
+            pending = list(range(len(idx)))
+            for attempt in range(2):
+                # Keep original batch IDs on repair; ignore already translated rows.
+                prompt = "\n".join(f"{k + 1}. {texts[idx[k]].strip()}" for k in pending)
+                if attempt:
+                    prompt = "Translate only these missing numbered lines; preserve their IDs.\n" + prompt
+                try:
+                    js, ci = fn(system, prompt)
+                except Exception as e:  # noqa: BLE001 - provider failures are not retried here
+                    info["error"] = f"{type(e).__name__}: {str(e)[:300]}"
+                    break
+                info["calls"].append(ci)
+                info["provider"] = info["provider"] or (ci or {}).get("provider")
+                got = _parse_lines(js, len(idx))
+                if (ci or {}).get("provider") == "none" and not any(got):
+                    info["error"] = "no translation provider configured (llm.tasks.translate / llm.default)"
+                    break
+                missing = []
+                for k in pending:
+                    i, t = idx[k], got[k]
+                    if not t:
+                        missing.append(k)
+                        continue
+                    t, miss = enforce_glossary(texts[i], t, gl)
+                    info["glossary_misses"] += miss
+                    out[i] = t
+                    store[_key(texts[i].strip(), src, tgt, gl)] = t
+                    info["translated"] += 1
+                pending = missing
+                if not pending:
+                    break
+            if info["error"]:
                 break
-            info["calls"].append(ci)
-            info["provider"] = info["provider"] or (ci or {}).get("provider")
-            got = _parse_lines(js, len(idx))
-            if (ci or {}).get("provider") == "none" and not any(got):
-                info["error"] = "no translation provider configured (llm.tasks.translate / llm.default)"
-                break
-            for k, i in enumerate(idx):
-                t = got[k]
-                if not t:
-                    continue
-                t, miss = enforce_glossary(texts[i], t, gl)
-                info["glossary_misses"] += miss
-                out[i] = t
-                store[_key(texts[i].strip(), src, tgt, gl)] = t
-                info["translated"] += 1
         _save_cache(cache, store)
     info["missing"] = sum(1 for t, o in zip(texts, out) if (t or "").strip() and not o)
     return out, info

@@ -102,3 +102,37 @@ def test_translation_coverage_is_visible_in_export_qc(tmp_path, monkeypatch, com
             assert len(checks) == 1 and not checks[0]['ok']
             assert checks[0]['severity'] == 'red'
             assert '1 of 2' in checks[0]['reason'] and 'fr' in checks[0]['reason']
+
+
+def test_missing_translation_repair_keeps_ids_completed_rows_and_cache(tmp_path):
+    prompts = []
+    def call(system, prompt):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return {'lines': [{'n': 1, 't': 'Première.'}, {'n': 3, 't': 'Troisième.'}]}, {'provider': 'test'}
+        return {'lines': [{'n': 1, 't': 'Do not replace'}, {'n': 2, 't': 'Deuxième.'}]}, {'provider': 'test'}
+    cache = str(tmp_path / 'translation.json')
+    texts = ['First.', 'Second.', 'Third.']
+    out, info = B.translate_texts(texts, 'en', 'fr', call=call, cache=cache)
+    assert out == ['Première.', 'Deuxième.', 'Troisième.']
+    assert len(prompts) == 2 and '2. Second.' in prompts[1]
+    assert 'First.' not in prompts[1] and 'Third.' not in prompts[1]
+    assert info['translated'] == 3 and info['missing'] == 0 and len(info['calls']) == 2
+    cached, report = B.translate_texts(texts, 'en', 'fr', cache=cache,
+                                     call=lambda *args: pytest.fail('completed translations must stay cached'))
+    assert cached == out and report['cached'] == 3
+
+
+def test_missing_translation_repair_is_bounded_and_preserves_failure():
+    calls = []
+    def call(*args):
+        calls.append(args)
+        return {'lines': []}, {'provider': 'test'}
+    out, info = B.translate_texts(['First.'], 'en', 'fr', call=call)
+    assert out == [''] and info['missing'] == 1 and len(calls) == 2
+    def unavailable(*args):
+        calls.append(args)
+        raise RuntimeError('provider unavailable')
+    calls.clear()
+    out, info = B.translate_texts(['First.'], 'en', 'fr', call=unavailable)
+    assert len(calls) == 1 and info['missing'] == 1 and 'unavailable' in info['error']
