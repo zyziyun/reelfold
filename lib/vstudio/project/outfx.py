@@ -155,7 +155,7 @@ SPECS = {
         what_zh="圆角描边框圈出画面一块区域",
         params=dict(x=_num(0.5, 0.0, 1.0, "中心 x"), y=_num(0.5, 0.0, 1.0, "中心 y"), w=_num(0.4, 0.02, 1.0, "宽"),
                     h=_num(0.12, 0.02, 1.0, "高"), color=COLOR, width=_num(4, 2, 24, "线宽 (px, 1080 宽)"),
-                    anim=ANIM),
+                    anim=ANIM, anchor=_str("canvas", "坐标空间", enum=("canvas", "source"))),
         sample=dict(x=0.5, y=0.55, w=0.6, h=0.12)),
     "progress-bar-pil": dict(
         zh="进度条", en="Progress bar", kind="progress", stage="frame", default_dur=None,

@@ -139,6 +139,12 @@ def plan(rec, doc, st, tg, quality, watermark=None):
     info = rec["master_info"] if rec["mode"] == "pipeline" else rec["info"]
     src = _src(rec)
     sig = OUT.file_sig(src)
+    source_effects = [e for e in st["effects"] if source_anchored(e)]
+    source_stage = None
+    if source_effects:
+        source_stage = dict(src=src, effects=source_effects)
+        source_stage["key"] = sha1_json(["source-annotations", sig, source_effects, quality], 16)
+        sig = [sig, source_stage["key"]]
     dur = rec["info"]["duration"]
     tl = OUT.Timeline(st, dur)
     band = rec["mode"] == "flattened" and (tg["layout"] == "band" or
@@ -276,7 +282,22 @@ def plan(rec, doc, st, tg, quality, watermark=None):
         cover = dict(cv, edit_t=tl.to_edit(cv["t"], "start"), size=size)
         cover["key"] = sha1_json(["cover", timeline["key"], cover, rec["mode"]], 16)
     return dict(target=tg["target"], quality=quality, canvas=canvas, timeline=timeline, audio=audio, final=final,
-                cover=cover, tl=tl, band=band, splice=splice)
+                cover=cover, tl=tl, band=band, splice=splice, source_annotations=source_stage)
+
+
+def source_anchored(effect):
+    return effect["effect"] == "red-box" and effect.get("params", {}).get("anchor") == "source"
+
+
+def run_source_annotations(spec, out, quality):
+    from vstudio import reframe, spoken
+    info = _media().probe(spec["src"])
+    pl = reframe.plan(spec["src"], info["display_w"], info["display_h"], mode="letterbox")
+    draw = spoken.source_overlay(spec["effects"])
+    try:
+        return reframe.render(spec["src"], out, pl, source_overlay=draw, encode_args=_enc("inter", quality))
+    finally:
+        draw.close()
 
 
 def shot_pieces(rec, st, tg):
@@ -524,6 +545,8 @@ def visual_spec(rec, st, tl, tg, band):
     from vstudio.subs import bilingual_wanted
     both = bilingual_wanted() and not (tg.get("profile") is not None and _P.lang_fixed(tg["profile"].key))
     for e in st["effects"]:
+        if source_anchored(e):
+            continue
         if any(str(k).endswith(FX.LANG_SUFFIXES) for k in (e.get("params") or {})):
             e = dict(e, params=FX.localize(e["params"], lang))
         if e["effect"] == "media-insert":
@@ -1458,14 +1481,18 @@ def render(d, output, quality="preview", targets=None, on_event=None, with_ops=N
             work = tempfile.mkdtemp(prefix="voutedit-")
             try:
                 src = p["canvas"]["src"]
+                if p.get("source_annotations"):
+                    annotation = p["source_annotations"]
+                    src = _stage(doc, stages, "source-annotations", annotation["key"], ".mp4",
+                                 lambda o: run_source_annotations(annotation, o, quality), status)
                 if p.get("splice"):                    # swapped shots: the file with their new takes, first
                     src = _stage(doc, stages, "splice", p["splice"]["key"], ".mp4",
-                                 lambda o: run_pieces(p["splice"], p["splice"]["src"], o, quality, work), status)
+                                 lambda o, s=src: run_pieces(p["splice"], s, o, quality, work), status)
                     emit(dict(event="stage-done", target=tg["target"], **{k: v for k, v in stages[-1].items()
                                                                           if k != "file"}))
                 if p["canvas"]["op"] == "sources":
                     src = _stage(doc, stages, "canvas", p["canvas"]["key"], ".mp4",
-                                 lambda o: run_pieces(dict(p["canvas"], w=tg["w"], h=tg["h"]), p["canvas"]["src"], o,
+                                 lambda o, s=src: run_pieces(dict(p["canvas"], w=tg["w"], h=tg["h"]), s, o,
                                                       quality, work), status)
                     emit(dict(event="stage-done", target=tg["target"], **{k: v for k, v in stages[-1].items()
                                                                           if k != "file"}))

@@ -22,11 +22,12 @@ def test_export_source_outline_survives_framing_and_trim(tmp_path, vertical):
     prof = platform.profile("youtube", "horizontal", overrides=dict(
         w=w, h=h, safe=dict(left=0, right=0, top=0, bottom=0)))
     effect = dict(effect="red-box", start=2, end=3, params=dict(
-        x=.3, y=.3, w=.2, h=.2, color="#FF0000", width=12, anim="fade"))
+        x=.3, y=.3, w=.2, h=.2, color="#FF0000", width=12, anim="fade", anchor="source"))
     out = tmp_path / "out"
     out.mkdir()
     entry = export.export_one(str(source), prof, str(out), start=1, dur=2.5,
-                              captions=False, watermark=False, source_effects=[effect],
+                              captions=False, watermark=False,
+                              **({"effects": [effect]} if vertical else {"source_effects": [effect]}),
                               mode="letterbox", encoder="libx264", preset="ultrafast")
     cap = cv2.VideoCapture(str(out / entry["file"]))
     def red_at(t):

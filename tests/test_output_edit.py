@@ -142,6 +142,31 @@ def test_effect_catalogue_is_registry_backed(tmp_path):
 
 # --------------------------------------------------------------------------- flattened
 @media
+def test_source_outline_precedes_timeline_and_invalidates_cache(tmp_path, synth):
+    w, oid = _work(tmp_path, synth)
+    params = dict(anchor="source", x=.3, y=.3, w=.2, h=.2, color="#FF0000", width=12)
+    O.edit(w, oid, [dict(op="effect_add", effect="red-box", start=1, end=3, params=params),
+                    dict(op="trim", start=.5, snap=False), dict(op="speed", value=1.5)])
+    rec, doc = O._load(w, oid)
+    tg = R.targets_of(rec, doc.state(), ["primary"])[0]
+    first = R.plan(rec, doc, doc.state(), tg, "preview", watermark=False)
+    assert first["source_annotations"]["effects"][0]["start"] == 1
+    assert not first["final"]["visual"]["layers"]  # never also drawn after framing
+    rendered = R.render(w, oid, watermark=False)
+    stages = rendered["targets"][0]["stages"]
+    assert [s["stage"] for s in stages][:2] == ["source-annotations", "timeline"]
+    assert R.render(w, oid, watermark=False)["targets"][0]["cached"]
+    fid = doc.state()["effects"][0]["id"]
+    O.edit(w, oid, dict(op="effect_update", id=fid, params=dict(params, x=.7)))
+    rec, doc = O._load(w, oid)
+    updated = R.plan(rec, doc, doc.state(), tg, "preview", watermark=False)
+    for stage in ("source_annotations", "canvas", "timeline", "audio", "final"):
+        assert first[stage]["key"] != updated[stage]["key"]
+    O.undo(w, oid)
+    assert R.render(w, oid, watermark=False)["targets"][0]["cached"]
+
+
+@media
 def test_flattened_every_op_caps_and_render(tmp_path, synth):
     w, oid = _work(tmp_path, synth)
     s = O.show(w, oid)

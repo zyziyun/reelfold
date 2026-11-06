@@ -828,6 +828,11 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
     source_effects: source-region outlines on the master clock, drawn before framing;
     effects remain output-space graphics. Source annotations are not retimed by start."""
     from . import audio
+    anchored = [e for e in effects or [] if e.get("effect") == "red-box"
+                and e.get("params", {}).get("anchor") == "source"]
+    if anchored:
+        source_effects = list(source_effects or []) + anchored
+        effects = [e for e in effects if e not in anchored]
     caption_language(prof, caption_lang)  # validate before probing or rendering
     if caption_role not in ("speech", "rendered-captions"):
         raise ValueError("caption_role must be speech or rendered-captions")

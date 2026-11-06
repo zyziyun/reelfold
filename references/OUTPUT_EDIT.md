@@ -193,7 +193,7 @@ frames rendered once into `$VSTUDIO_CACHE/output_fx/`.
 | `media-insert` | 素材切入（原声保留） | frame | file (existing local image/video), offset (source seconds), fit contain|cover|card; optional detail_regions [[x,y,width,height]] in source pixels |
 | `overlay-images` | 贴纸 / 标签 | frame | image, text, style tag|chip|badge|star|image, color, scale, angle, anim, x, y |
 | `badge` | 角标 | frame | text, color, scale, anim, x, y |
-| `red-box` | 框选高亮 | frame | x, y, w, h, color, width, anim |
+| `red-box` | 框选高亮 | frame | x, y, w, h, color, width, anim, anchor |
 | `progress-bar-pil` | 进度条 | frame | style line|classic|refined (empty = theme hairline), chapters [{start, end, label}], y, theme (whole clip) |
 | `marker-sweep` | 马克笔划重点 | frame | text (【kw】), size, surface auto|paper|card, sweep, anim, x, y |
 | `chapter-rule` | 章节细线 | frame | label, title, index, width, anim, x, y |
@@ -207,6 +207,16 @@ frames rendered once into `$VSTUDIO_CACHE/output_fx/`.
 | `portrait-retouch` | 磨皮美颜 | frame | strength 0.1-1, mode skin \| beauty (whole clip; face-tracked `vstudio.retouch.VideoRetoucher`, texture kept, no face = untouched; aliases 磨皮 / 美颜 / skin / beauty) |
 
 ## 5. Render (`output render [--quality preview|final] [--targets primary,douyin:vertical|all] [--json-events]`)
+
+`red-box.params.anchor` defaults to `canvas` (normalized output coordinates). Use `source` only for a
+verified region in the clean master (pipeline output) or imported file (flattened output). Its normalized
+coordinates refer to that entire source frame, not the preview crop. It is drawn before framing and timeline
+edits, so it follows their crop, scaling, cuts and speed. This is a fixed source region, not object tracking.
+Swapped or rebuilt shots use their new footage without the old source annotation; locate and annotate the
+new source separately. Do not guess source coordinates from a cropped preview.
+
+Source-anchored outlines add a cached `source-annotations` stage before shot assembly and `canvas`.
+Changing one invalidates downstream stages; ordinary output-space effects retain their cheaper final-pass edits.
 
 Stages per target: `canvas` (reframe the master / file to the target canvas) -> `timeline` (trim, cuts, joins,
 speed, grade, end fade) -> `audio` (SFX, music bed, two-pass loudness) -> `final` (frame pass: mask / band layout,
