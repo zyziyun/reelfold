@@ -305,6 +305,7 @@ class MusicTimeline:
         # ---- on-screen text: each item's lines share the item's span
         style = cfg["captions"]
         if style:
+            process_label = (getattr(C.spec, "LAYOUT", {}) or {}).get("caption_style") == "label" and style != "title"
             for i, (sec, chunks, _) in enumerate(script):
                 mine = [sh for sh in self.shots if sh["item"] == i]
                 if not mine or not chunks:
@@ -313,7 +314,10 @@ class MusicTimeline:
                 part = (e - a) / len(chunks)
                 for k, (en, zh) in enumerate(chunks):
                     st = a + k * part + min(0.6, 0.15 * part) + (mine[0]["trd"] if k == 0 else 0) * 0.5
-                    self.subs.append(dict(en=tidy_punct(en), zh=tidy_punct(zh), start=st, end=a + (k + 1) * part - min(0.5, 0.12 * part),
+                    end = a + (k + 1) * part - min(0.5, 0.12 * part)
+                    if process_label:
+                        st, end = a + k * part, a + (k + 1) * part
+                    self.subs.append(dict(en=tidy_punct(en), zh=tidy_punct(zh), start=st, end=end,
                                           sec=sec, style="title" if style == "title" else "subs"))
 
     def section_at(self, gt):

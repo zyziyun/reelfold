@@ -36,7 +36,8 @@ layout, not a sample-specific title, source path or timestamp. Match the first l
 cover/post text must disclose stock reference footage where appropriate.
 
 Contained videos using the label caption style sit adjacent to the reserved caption band. Check that the picture
-and label form one readable group on each canvas. For horizontal process footage in a portrait film, establish
+and label form one readable group on each canvas. In music mode, label-style step captions cover their
+complete item span; decorative `MUSIC.captions="title"` keeps its title timing. For horizontal process footage in a portrait film, establish
 the action before moving into a verified detail, then show the result. Inspect the full interval of each crop
 for tool contact and material flow, including where the caption will sit. Labels describing completion require
 visible completion; use an ongoing-action label while that action continues. Recheck flicker after magnification.

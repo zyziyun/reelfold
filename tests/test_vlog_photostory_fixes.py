@@ -487,3 +487,20 @@ def test_detail_photo_keeps_source_colors_and_excludes_caption_band():
     assert frames[1].any()
     with pytest.raises(ValueError, match="outside"):
         list(photo_frames(rgb, 1, 360, 640, 1, detail_regions=[[510, 100, 100, 40]]))
+
+
+@pytest.mark.parametrize("label,style,continuous", [(True,"all",True), (False,"all",False), (True,"title",False)])
+def test_process_labels_cover_each_step_without_title_gaps(tmp_path, label, style, continuous):
+    from photostory.ctx import Ctx
+    from photostory.music import MusicTimeline
+    spec = types.SimpleNamespace(__file__=str(tmp_path / "spec.py"), SECTIONS=["Process"],
+        SCRIPT=[(0, [("Prepare", "准备"), ("Press", "压实")], [("p0",4,"still",{"tr":"cut"})]),
+                (0, [("Result", "成品")], [("p1",2,"still",{"tr":"cut"})])],
+        BGM=None, MUSIC=dict(grid="seconds", length=6, tail=0, captions=style),
+        MODE="music", CANVAS=(320,180), LAYOUT={"caption_style":"label" if label else "plain"})
+    t = MusicTimeline(Ctx(spec))
+    spans = [(s["start"],s["end"]) for s in t.subs]
+    if continuous:
+        assert spans == [(0,2),(2,4),(4,6)]
+    else:
+        assert all(a > start and b < end for (a,b),(start,end) in zip(spans,[(0,2),(2,4),(4,6)]))
