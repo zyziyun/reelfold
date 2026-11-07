@@ -96,7 +96,7 @@ export function FinishButton({ item, clip, flush, primary }: { item: string; cli
       const file = r.targets[0]?.file;
       if (!file) throw new Error(t('pk.finishFailed'));
       const auto = (await window.desk.getSettings()).autopilot !== false;
-      const req = await client.startIntake(t('rec.finishPrompt'), [file], undefined, getLang(), { mode: auto ? 'autopilot' : 'ask' });
+      const req = await client.startIntake(t('rec.finishPrompt'), [file], undefined, getLang(), { mode: auto ? 'autopilot' : 'ask', recipe: 'talkinghead' });
       hist.reload();
       const to = selHref(req.id, true);
       ui.toast(t(auto ? 'rec.sent' : 'rec.sentAsk'), { action: { label: t('rec.open'), href: to }, ms: 8000 });

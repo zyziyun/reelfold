@@ -847,6 +847,38 @@ test.describe('record -> edit -> pickup', () => {
     await expect(page.getByTestId('pickup-tag')).toHaveText('Pickup 1', { timeout: 20000 });
   });
 
+  test('Finish sends the edited render once as a talking-head request', async () => {
+    test.setTimeout(240000);
+    const editorHash = await page.evaluate(() => location.hash);
+    const match = /#\/p\/([^/]+)\/clip\/([^/?]+)/.exec(editorHash)!;
+    const doc = await api<{ duration: number; cuts: { start: number; end: number }[]; pickups: unknown[] }>(page, `/api/outputs/${match[1]}/${match[2]}`);
+    expect(doc.pickups).toHaveLength(1);
+    expect(doc.cuts.length).toBeGreaterThan(0);
+    const requests: { recipe: string; inputs: string[] }[] = [];
+    const capture = (request: import('@playwright/test').Request) => {
+      if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/intake') requests.push(request.postDataJSON());
+    };
+    page.on('request', capture);
+    try {
+      const response = page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/intake');
+      await page.getByTestId('editor-finish').click();
+      await expect(page.getByTestId('editor-finish')).toBeDisabled();
+      const result = await response;
+      expect(result.ok()).toBe(true);
+      const body = await result.json();
+      await expect.poll(() => page.evaluate(() => location.hash)).toContain(body.id);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].recipe).toBe('talkinghead');
+      expect(requests[0].inputs).toHaveLength(1);
+      const kept = doc.duration - doc.cuts.reduce((sum, cut) => sum + cut.end - cut.start, 0);
+      expect(Math.abs(probe(requests[0].inputs[0]) - kept)).toBeLessThan(0.5);
+    } finally {
+      page.off('request', capture);
+      await page.evaluate((hash) => { location.hash = hash; }, editorHash);
+      await expect(page.getByTestId('editor')).toBeVisible();
+    }
+  });
+
   test('Takes: the visit\'s takes; Record another take goes back to the recorder with them', async () => {
     await page.getByTestId('editor-takes').click();
     await expect(page.getByTestId('editor-take')).toHaveCount(1);
