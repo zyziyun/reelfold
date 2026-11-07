@@ -369,6 +369,8 @@ omit stages, but should be described as excerpts rather than complete demonstrat
 boundaries with denser samples or continuous playback; a contact sheet is not frame-accurate evidence.
 
 Video shots support explicit `fit="contain"` without stretching or silently centre-cropping.
+Uncovered video space uses `PALETTE.ground`, including selected-region and detail layouts;
+`PALETTE.paper` remains the colour for paper/collage treatments.
 For a single enlarged subject, use `fit="contain", source_region=[x,y,width,height]`
 in video options. The verified source rectangle is fitted once into the largest space above or
 below the caption band, preserving its proportions on either canvas orientation. Check the

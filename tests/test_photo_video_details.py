@@ -219,6 +219,17 @@ def test_side_label_video_preserves_full_source_without_changing_wide_shots(tmp_
     frame = np.frombuffer(raw,dtype=np.uint8).reshape(180,320,3)
     assert frame[y+5,x+5,0] > 220 and frame[y+h-5,x+w-5,2] > 220
     assert np.all(frame[120:150,10:shot['_caption_context'].CAP[2]] > 200)
+    # Film matte follows the canvas palette, not the collage paper colour.
+    C.pal['ground'] = (22, 18, 15)
+    dark = prep_video(C,shot,'narrow')
+    assert dark != out
+    raw = subprocess.check_output([media.ffmpeg_bin(), '-v', 'error', '-i', dark,
+        '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-'])
+    dark_frame = np.frombuffer(raw,dtype=np.uint8).reshape(180,320,3)
+    assert np.max(np.abs(dark_frame[30,30].astype(int) - np.array([22,18,15]))) < 5
+    assert dark_frame[y+5,x+5,0] > 220 and dark_frame[y+h-5,x+w-5,2] > 220
+    C.pal['paper'] = (1, 2, 3)
+    assert prep_video(C,shot,'narrow') == dark
     # The old reserved-band cache must not be reused for the new geometry.
     old = dict(shot); old.pop('_video_box')
     assert prep_video(C,old,'narrow') != out

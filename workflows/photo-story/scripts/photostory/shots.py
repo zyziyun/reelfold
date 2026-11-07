@@ -118,10 +118,12 @@ def prep_video(C, sh, name):
     captions_active = captions_enabled(C)
     caption_safe = caption_safe and captions_active
     caption_adjacent = layout.get("caption_style") == "label"
+    # Uncovered moving-video canvas follows the film ground, not collage paper.
+    matte_colour = C.pal.get("ground", C.pal["paper"])
     look = repr((sh.get("_video_box"), caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
-                 C.pal["paper"], need, "fitted-video-zoom-v1", (caption_adjacent, "caption-adjacent-v1"),
+                 matte_colour, need, "fitted-video-ground-v2", (caption_adjacent, "caption-adjacent-v1"),
                  (captions_active, "region-active-captions-v1"),
                  "active-caption-detail-heights-v2" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
@@ -179,7 +181,7 @@ def prep_video(C, sh, name):
                 geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H)
                     if C.SUB_H > 0 and captions_active else None)
-            matte = "0x" + "".join(f"{int(v):02x}" for v in C.pal["paper"])
+            matte = "0x" + "".join(f"{int(v):02x}" for v in matte_colour)
             timing = hdr + "setpts=PTS-STARTPTS," + FF.retime(info["fps"], speed, C.FPS)
             if name in C.VEQ or sh.get("grade"):
                 timing += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
