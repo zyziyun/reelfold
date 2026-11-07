@@ -26,7 +26,8 @@ describe('adapter JSON schema', () => {
     expect(by.douyin.status).toBe('unverified');
     expect(by.xiaohongshu.fields.title?.maxLength).toBe(20);
     expect(by.xiaohongshu.session?.cookies.length).toBeGreaterThan(0);
-    expect(by.douyin.success?.urls.length).toBeGreaterThan(0);
+    expect((by.douyin.success?.urls.length ?? 0) + (by.douyin.success?.texts.length ?? 0)).toBeGreaterThan(0);
+    expect(by.douyin.success?.urls.some(pattern => new RegExp(pattern).test('https://creator.douyin.com/creator-micro/content/manage'))).toBe(false);
     for (const a of adapters) {
       expect(a.disclosure.zh.length).toBeGreaterThan(10);
       expect(a.disclosure.en.length).toBeGreaterThan(10);
