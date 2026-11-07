@@ -5,6 +5,8 @@ import type { FillControl } from './fillControl';
 // the page: when she has pressed Publish herself (a success URL or text from the adapter), the row becomes
 // "posted" with the post's link when the page shows one. The app never clicks Publish.
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { findJs } from '../../shared/publish/selectors';
 import type { WebContents } from 'electron';
 import type { EngineClient } from '../../shared/engineClient';
 import { loginState } from '../../shared/channels';
@@ -47,15 +49,49 @@ async function readReceipt(wc: WebContents): Promise<ReceiptSnapshot> {
 const watchers = new Map<number, () => void>();
 
 /** Watch one platform page until it shows the adapter's success signal (or 45 minutes pass / the page closes). */
-export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: string | null) => void, opts: { timeoutMs?: number; pollMs?: number; baseline?: ReceiptSnapshot } = {}): () => void {
+export async function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: string | null) => void, opts: { timeoutMs?: number; pollMs?: number; baseline?: ReceiptSnapshot } = {}): Promise<() => void> {
   watchers.get(wc.id)?.();
   if (!adapter.success) return () => undefined;
   let done = false;
   let baseline = opts.baseline;
   let checking = false;
+  let armed = false;
+  let clickRevision = 0;
+  const token = `reelfold-publish-${randomUUID()}:`;
+  // This listener and nonce live in the isolated world, not the platform's JS.
+  const install = async () => {
+    if (done || wc.isDestroyed() || !onUploadPage(wc.getURL(), adapter)) return;
+    const button = findJs(adapter.publishButton?.selectors ?? [], true);
+    await wc.executeJavaScriptInIsolatedWorld(1002, [{ code: `(() => {
+      const key = ${JSON.stringify(token)};
+      if (globalThis[key]) return;
+      const listener = event => {
+        if (!event.isTrusted) return;
+        const button = ${button};
+        if (!button || !event.composedPath().includes(button) || button.disabled || button.getAttribute('aria-disabled') === 'true') return;
+        console.debug(key + JSON.stringify({...(${successSnapshot.toString()})(), url: location.href}));
+      };
+      document.addEventListener('click', listener, true);
+      globalThis[key] = () => { document.removeEventListener('click', listener, true); delete globalThis[key]; };
+    })()` }]);
+  };
+  const clicked = (details: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) => {
+    if (done || details.frame !== wc.mainFrame || !details.message.startsWith(token) || !onUploadPage(wc.getURL(), adapter)) return;
+    try {
+      const snapshot = JSON.parse(details.message.slice(token.length)) as ReceiptSnapshot;
+      if (typeof snapshot.url !== 'string' || typeof snapshot.text !== 'string' || !Array.isArray(snapshot.links)) return;
+      baseline = snapshot;
+      armed = true;
+      clickRevision++;
+    } catch { /* malformed messages never prove a publish action */ }
+  };
+  const loaded = () => { void install().catch(() => undefined); };
+  wc.on('console-message', clicked);
+  wc.on('did-finish-load', loaded);
   const check = async () => {
     if (done || checking || wc.isDestroyed()) return;
     checking = true;
+    const revision = clickRevision;
     let page: ReceiptSnapshot;
     try {
       page = await readReceipt(wc);
@@ -64,13 +100,14 @@ export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: s
     } finally {
       checking = false;
     }
-    if (done || wc.isDestroyed()) return;
+    // An in-flight pre-click read cannot replace the receipt captured at click time.
+    if (done || wc.isDestroyed() || revision !== clickRevision) return;
     if (!baseline) { baseline = page; return; }
     const sig = freshPostedSignal(page, baseline, adapter.success);
     // Once an old signal disappears, a later occurrence may describe this upload.
     baseline = { url: baseline.url === page.url ? baseline.url : '',
       text: receiptLines(baseline.text).filter(line => receiptLines(page.text).includes(line)).join('\n'), links: [] };
-    if (sig.posted) {
+    if (armed && sig.posted) {
       stop();
       onPosted(sig.url);
     }
@@ -86,6 +123,9 @@ export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: s
     clearInterval(timer);
     clearTimeout(limit);
     if (!wc.isDestroyed()) {
+      wc.removeListener('console-message', clicked);
+      wc.removeListener('did-finish-load', loaded);
+      void wc.executeJavaScriptInIsolatedWorld(1002, [{ code: `globalThis[${JSON.stringify(token)}]?.()` }]).catch(() => undefined);
       wc.removeListener('did-navigate', nav);
       wc.removeListener('did-navigate-in-page', nav);
     }
@@ -94,6 +134,7 @@ export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: s
   };
   wc.once('destroyed', stop);
   watchers.set(wc.id, stop);
+  await install().catch(() => undefined); // Unsupported pages require manual confirmation.
   return stop;
 }
 
@@ -161,7 +202,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   await deps.control?.checkpoint();
   if (results.some((r) => r.field === 'file' && r.status === 'ok')) {
     await deps.client.updatePost(post.id, { state: 'filled' });
-    watchPosted(wc, adapter, (url) => {
+    await watchPosted(wc, adapter, (url) => {
       void deps.client.calendar(undefined, { queue: false }).then((cal) => {
         // Ignore receipts from an obsolete upload, including already delivered rows.
         if (!matchesAssistedUpload(cal.posts.find((p) => p.id === post.id), post, account)) return;

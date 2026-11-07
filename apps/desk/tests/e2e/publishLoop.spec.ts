@@ -255,6 +255,19 @@ test('time to post: overdue banner, one notification, click -> the form fills it
       document.body.insertAdjacentHTML('beforeend', '<div role="status">发布成功！</div>');
     }; document.querySelector('.x9a1-red').click()`);
   });
+  await page.waitForTimeout(2300);
+  expect((await rows()).find((x) => x.id === id)?.state).toBe('filled');
+  // Synthetic clicks cannot confirm delivery; a real input event can.
+  await app.evaluate(async ({ webContents }) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    const point = await wc.executeJavaScript(`(() => {
+      for (const node of document.querySelectorAll('[role="status"]')) if (node.textContent === '发布成功！') node.remove();
+      const r = document.querySelector('.x9a1-red').getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+    })()`);
+    wc.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 });
+    wc.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 });
+  });
   await expect(pn).toHaveAttribute('data-phase', 'posted', { timeout: 15000 });
   await expect.poll(async () => (await rows()).find((x) => x.id === id)).toMatchObject({ state: 'posted', via: 'assisted' });
   await page.screenshot({ path: path.join(SHOTS, 'post-now-posted.png') });
