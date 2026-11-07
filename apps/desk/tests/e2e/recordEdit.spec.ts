@@ -854,7 +854,8 @@ test.describe('record -> edit -> pickup', () => {
     const doc = await api<{ duration: number; cuts: { start: number; end: number }[]; pickups: unknown[] }>(page, `/api/outputs/${match[1]}/${match[2]}`);
     expect(doc.pickups).toHaveLength(1);
     expect(doc.cuts.length).toBeGreaterThan(0);
-    const requests: { recipe: string; inputs: string[] }[] = [];
+    await page.evaluate(() => window.desk.setSettings({ defaultPlatforms: ['youtube'], autopilot: false }));
+    const requests: { recipe: string; inputs: string[]; platforms: string[]; mode: string; lang: string }[] = [];
     const capture = (request: import('@playwright/test').Request) => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/intake') requests.push(request.postDataJSON());
     };
@@ -869,6 +870,9 @@ test.describe('record -> edit -> pickup', () => {
       await expect.poll(() => page.evaluate(() => location.hash)).toContain(body.id);
       expect(requests).toHaveLength(1);
       expect(requests[0].recipe).toBe('talkinghead');
+      expect(requests[0].platforms).toEqual(['youtube']);
+      expect(requests[0].mode).toBe('ask');
+      expect(requests[0].lang).toBe('en');
       expect(requests[0].inputs).toHaveLength(1);
       const kept = doc.duration - doc.cuts.reduce((sum, cut) => sum + cut.end - cut.start, 0);
       expect(Math.abs(probe(requests[0].inputs[0]) - kept)).toBeLessThan(0.5);
