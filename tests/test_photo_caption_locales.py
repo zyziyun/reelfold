@@ -121,3 +121,15 @@ def test_invalid_music_role_reports_authored_setting(tmp_path, roles):
         SCRIPT=[(0,[('Hello','你好')],[('p0',3,'still',{})])]))
     with pytest.raises(ValueError,match='MUSIC.text_roles'):
         MusicTimeline(c)
+
+
+@pytest.mark.parametrize('platform', ['youtube', 'tiktok', 'xiaohongshu'])
+@pytest.mark.parametrize('text', ['\n'.join(['A separate authored line']*12),
+                                 '超长的品牌宣传文字需要完整显示不能截断'*40])
+def test_oversized_commercial_copy_fails_before_silent_clipping(tmp_path, platform, text):
+    from photostory.subtitles import title_context, make_title_text
+    c=Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'),PLATFORM=platform,
+        LOOK='cinema',TTS={'language':'en'},TEXT_LANGUAGE='en'))
+    c.sub_pair=lambda en, zh:(en,zh)
+    with pytest.raises(ValueError,match='Shorten the copy or split'):
+        make_title_text(title_context(c,'headline'),text,'')

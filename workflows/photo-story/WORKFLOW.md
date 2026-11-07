@@ -49,7 +49,8 @@ assigns typography to zero-based `SCRIPT` item indices (all text chunks in that 
 exist. These opt-in roles reuse measured bold Latin/CJK text, safe-area fitting and native title fades:
 `headline` is large in the upper-middle area, `statement` medium lower down, `label` compact near the bottom.
 Unspecified items retain the global caption style; `captions=False` still hides all cue text. Check placement
-against the actual subject: roles do not track subjects or guarantee contrast. They do not add diagrams or
+against the actual subject: roles do not track subjects or guarantee contrast. Copy that still exceeds the safe band after fitting fails with a shorten/split instruction instead of
+silently clipping; split long copy into separate text chunks with enough reading time. They do not add diagrams or
 claim that a service is visually demonstrated. Review beginning/middle/end frames and actual playback.
 
 

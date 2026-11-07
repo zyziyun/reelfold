@@ -15,10 +15,10 @@ from .util import has_cjk as has_cjk_text, layer, soft_shadow, spaced, to_arr
 _D = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
 
 
-def bwrap(d, text, f, maxw):
+def bwrap(d, text, f, maxw, max_lines=None):
     """Pixel-measured balanced wrap (fewest lines, similar lengths, no 1-char orphan, latin words whole);
     **highlight** / 【】 markers are closed and reopened on every line."""
-    return balanced_wrap(text, maxw, measure=lambda t: d.textlength(t, font=f))
+    return balanced_wrap(text, maxw, measure=lambda t: d.textlength(t, font=f), max_lines=max_lines)
 
 
 def draw_runs(C, d, x, y, line, f, base, stroke):
@@ -124,8 +124,9 @@ def _sub_lines(C, d, en, zh, k, maxw, title=False):
         zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * 56 / 66
         fz = font("cjk-bold", zs)
         fe = font_for(en, es, "sans-bold", "cjk-bold")
-    le = bwrap(d, en, fe, maxw) if en else []
-    lz = bwrap(d, zh, fz, maxw) if zh else []
+    line_limit = 2 if getattr(C, "TEXT_ROLE", None) else None
+    le = bwrap(d, en, fe, maxw, line_limit) if en else []
+    lz = bwrap(d, zh, fz, maxw, line_limit) if zh else []
     LE, LZ = int(round(es * 1.25)), int(round(zs * (1.5 if title else 1.24)))
     G = int(round(zs * (0.32 if title else 0.21))) if le and lz else 0
     return fe, fz, le, lz, LE, LZ, G, LE * len(le) + G + LZ * len(lz)
@@ -141,9 +142,17 @@ def _make_sub_fit(C, en, zh, title=False):
     k = 1.0
     while True:
         fe, fz, le, lz, LE, LZ, G, tot = _sub_lines(C, d, en, zh, k, maxw, title)
-        if (tot <= C.SUB_H * 0.94 and len(le) <= 2 and len(lz) <= 2) or k < 0.55:
+        widths = [d.textlength(strip_markup(line), font=face)
+                  for lines, face in ((le, fe), (lz, fz)) for line in lines]
+        width_fits = not getattr(C, "TEXT_ROLE", None) or all(width <= maxw for width in widths)
+        if (tot <= C.SUB_H * 0.94 and len(le) <= 2 and len(lz) <= 2 and width_fits) or k < 0.55:
             break
         k -= 0.05
+    if getattr(C, "TEXT_ROLE", None):
+        if tot > C.SUB_H * 0.94 or any(width > maxw for width in widths):
+            raise ValueError(
+                f"Music text role {C.TEXT_ROLE!r} cannot fit this cue in the platform safe area. "
+                "Shorten the copy or split it into separate SCRIPT text chunks; no text was cropped.")
     cine = getattr(C, "cinema", False)
     stroke = 0 if title or cine else max(1, round(2 * C.S + 0.3))
     y = (lay.height - tot) // 2
