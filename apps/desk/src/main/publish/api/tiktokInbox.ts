@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import type { ApiVault } from './vault';
-import { TikTokTransport, tikTokChunks, type TikTokUpload } from './tiktok';
+import { TikTokTransport, TikTokRequestRejected, tikTokChunks, type TikTokUpload } from './tiktok';
 import { UploadOutcomeUnknown } from '../outcome';
 
 export interface TikTokAttempt {
@@ -53,8 +53,17 @@ export class TikTokInbox {
         else {
           signal?.throwIfAborted();
           attempt = { account, file, size: stat.size, sha256 };
-          this.vault.set(key, { tiktokAttempt: attempt });
-          const session = await api.initInbox(stat.size, signal);
+          let session: TikTokUpload;
+          try {
+            session = await api.initInbox(stat.size, signal, () => {
+              this.vault.set(key, { tiktokAttempt: attempt });
+            });
+          } catch (error) {
+            // Authentication failures before sending leave no intent. Explicit
+            // provider rejection can clear intent; ambiguous outcomes retain it.
+            if (error instanceof TikTokRequestRejected) this.vault.set(key, null);
+            throw error;
+          }
           attempt = { ...attempt, session };
           // If this write fails, the prior init marker survives and prohibits a duplicate.
           this.vault.set(key, { tiktokAttempt: attempt });

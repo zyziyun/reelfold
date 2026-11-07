@@ -4,6 +4,9 @@
 import { z } from 'zod';
 import { UploadOutcomeUnknown } from '../outcome';
 
+/** Provider explicitly rejected the request; no upload was accepted. */
+export class TikTokRequestRejected extends Error {}
+
 const API = 'https://open.tiktokapis.com/v2/post/publish/';
 const id = z.string().min(1).max(64);
 const envelope = z.object({ error: z.object({ code: z.string() }), data: z.unknown().optional() });
@@ -45,11 +48,12 @@ function uploadUrl(raw: string) {
 export class TikTokTransport {
   constructor(private token: () => Promise<string>, private fetcher: typeof fetch = fetch) {}
 
-  private async request(route: string, body: unknown, signal?: AbortSignal, mutation = false): Promise<unknown> {
+  private async request(route: string, body: unknown, signal?: AbortSignal, mutation = false, beforeSend?: () => void): Promise<unknown> {
     // Acquire credentials before entering the ambiguous remote-mutation boundary.
     const token = await this.token();
     if (!token || /[\r\n]/.test(token)) throw new Error('TikTok sign-in is required');
     signal?.throwIfAborted();
+    beforeSend?.();
     let response: Response;
     try {
       response = await this.fetcher(API + route, {
@@ -69,17 +73,20 @@ export class TikTokTransport {
     if (!response.ok || parsed.data.error.code !== 'ok') {
       // Do not include arbitrary server messages, signed URLs or tokens in errors.
       const code = /^[a-z_]{1,80}$/.test(parsed.data.error.code) ? parsed.data.error.code : 'request_failed';
-      throw new Error(`TikTok request failed: ${code} (HTTP ${response.status})`);
+      const message = `TikTok request failed: ${code} (HTTP ${response.status})`;
+      if (response.status >= 400 && response.status < 500) throw new TikTokRequestRejected(message);
+      if (mutation) throw new UploadOutcomeUnknown(message);
+      throw new Error(message);
     }
     return parsed.data.data;
   }
 
   /** Creates an inbox draft; this does NOT publish a video. Persist before sending bytes. */
-  async initInbox(size: number, signal?: AbortSignal): Promise<TikTokUpload> {
+  async initInbox(size: number, signal?: AbortSignal, beforeSend?: () => void): Promise<TikTokUpload> {
     const plan = tikTokChunks(size);
     const raw = await this.request('inbox/video/init/', { source_info: {
       source: 'FILE_UPLOAD', video_size: size, chunk_size: plan.chunkSize, total_chunk_count: plan.chunks,
-    } }, signal, true);
+    } }, signal, true, beforeSend);
     try {
       const data = initialized.parse(raw);
       return { provider: 'tiktok', publishId: data.publish_id, uploadUrl: uploadUrl(data.upload_url), ...plan };

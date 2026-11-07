@@ -76,3 +76,27 @@ it('resumes only the remaining chunk at a confirmed remote boundary', async () =
   expect((f.mock.calls[4][1]?.headers as Record<string, string>)['Content-Range']).toBe('bytes 10000000-20000122/20000123');
   expect(f.mock.calls.filter(c => String(c[0]).endsWith('inbox/video/init/'))).toHaveLength(1);
 });
+it('allows retry after local token acquisition fails without contacting TikTok', async () => {
+  const { file, f, vault } = setup();
+  const token = vi.fn<() => Promise<string>>().mockRejectedValueOnce(new Error('sign in again')).mockResolvedValue('token');
+  const inbox = new TikTokInbox(vault, () => new TikTokTransport(token, f));
+  await expect(inbox.upload('post', 'account', file)).rejects.toThrow('sign in again');
+  expect(vault.get('tiktok-upload/post').tiktokAttempt).toBeUndefined();
+  expect(f).not.toHaveBeenCalled();
+  f.mockResolvedValueOnce(ok({ publish_id: 'id', upload_url: 'https://open-upload.tiktokapis.com/video/' })).mockResolvedValueOnce(new Response(null, { status: 201 })).mockResolvedValueOnce(ok({ status: 'SEND_TO_USER_INBOX' }));
+  expect((await inbox.upload('post', 'account', file)).state).toBe('draft');
+});
+it('clears intent only after an explicit provider rejection', async () => {
+  const { file, f, make, vault } = setup();
+  f.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'access_token_invalid' } }), { status: 401 }));
+  await expect(make().upload('post', 'account', file)).rejects.toThrow('access_token_invalid');
+  expect(vault.get('tiktok-upload/post').tiktokAttempt).toBeUndefined();
+});
+it('does not leave an ambiguous intent when cancelled during token refresh', async () => {
+  const { file, f, vault } = setup();
+  const controller = new AbortController();
+  const inbox = new TikTokInbox(vault, () => new TikTokTransport(async () => { controller.abort(); return 'token'; }, f));
+  await expect(inbox.upload('post', 'account', file, controller.signal)).rejects.toThrow();
+  expect(vault.get('tiktok-upload/post').tiktokAttempt).toBeUndefined();
+  expect(f).not.toHaveBeenCalled();
+});
