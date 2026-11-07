@@ -12,7 +12,7 @@ import { adapterFor, type Adapter } from '../../shared/publish/adapterSchema';
 import { apiOnly } from '../../shared/publish/apiPlatforms';
 import { postAccount } from '../../shared/publish/account';
 import { planFill } from '../../shared/publish/fillPlan';
-import { copyForPost, pickFile, freshPostedSignal, receiptLines } from '../../shared/publish/postNow';
+import { copyForPost, pickFile, freshPostedSignal, receiptLines, matchesAssistedUpload } from '../../shared/publish/postNow';
 import type { CalendarPost } from '../../shared/v04';
 import type { PublishBrowser } from './browser';
 import { runFill, type StepResult } from './cdpFill';
@@ -163,8 +163,8 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
     await deps.client.updatePost(post.id, { state: 'filled' });
     watchPosted(wc, adapter, (url) => {
       void deps.client.calendar(undefined, { queue: false }).then((cal) => {
-        // An old upload page must not mark a task now assigned to another account.
-        if (cal.posts.find((p) => p.id === post.id)?.account !== account) return;
+        // Ignore receipts from an obsolete upload, including already delivered rows.
+        if (!matchesAssistedUpload(cal.posts.find((p) => p.id === post.id), post, account)) return;
         return deps.client.updatePost(post.id, { state: 'posted', via: 'assisted', ...(url ? { url } : {}) })
           .then(() => deps.onPosted?.(post.id, url));
       }).catch((e) => deps.log?.(`[publish] could not mark ${post.id} posted: ${(e as Error).message}`));

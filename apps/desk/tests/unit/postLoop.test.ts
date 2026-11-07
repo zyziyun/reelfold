@@ -15,7 +15,7 @@ import { saveCapture } from '../../src/main/publish/capture';
 import { sessionLoginState } from '../../src/shared/channels';
 import { partitionFor, validateIpc } from '../../src/shared/ipc';
 import { parseAdapter } from '../../src/shared/publish/adapterSchema';
-import { copyForPost, freshPostedSignal, duePosts, localDate, pickFile, postedSignal, titleLength, upcomingPosts } from '../../src/shared/publish/postNow';
+import { copyForPost, matchesAssistedUpload, freshPostedSignal, duePosts, localDate, pickFile, postedSignal, titleLength, upcomingPosts } from '../../src/shared/publish/postNow';
 import { findJs, parseSelector, selectorError } from '../../src/shared/publish/selectors';
 import type { CalendarPost } from '../../src/shared/v04';
 
@@ -893,4 +893,26 @@ it('requires an actual Xiaohongshu completion URL, not a redirect or partial fla
     'https://creator.xiaohongshu.com/publish/publish?published=true',
     'https://creator.xiaohongshu.com/publish/publish?source=upload&published=true&x=1',
   ]) expect(postedSignal(url, '', [], success).posted, url).toBe(true);
+});
+
+
+describe('delayed assisted upload receipts', () => {
+  const original = post('upload-1', '2026-11-07T12:00', { account: 'main', video_path: '/finished/a.mp4' });
+  const filled = { ...original, state: 'filled' as const };
+  it('accepts the same filled task and rejects removed tasks', () => {
+    expect(matchesAssistedUpload(filled, original, 'main')).toBe(true);
+    expect(matchesAssistedUpload(undefined, original, 'main')).toBe(false);
+  });
+  it.each(['planned', 'ready', 'uploaded', 'scheduled', 'posted'] as const)('does not overwrite %s delivery state', state => {
+    expect(matchesAssistedUpload({ ...filled, state }, original, 'main')).toBe(false);
+  });
+  it.each([
+    { id: 'other' }, { account: 'other' }, { item: 'other' }, { clip: 'B' },
+    { platform: 'bilibili' }, { video_path: '/finished/b.mp4' }, { video_path: null },
+  ])('rejects a repurposed row: %j', change => {
+    expect(matchesAssistedUpload({ ...filled, ...change }, original, 'main')).toBe(false);
+  });
+  it('allows presentation updates without confusing the upload identity', () => {
+    expect(matchesAssistedUpload({ ...filled, title: 'New title', cover: '/cover.png' }, original, 'main')).toBe(true);
+  });
 });

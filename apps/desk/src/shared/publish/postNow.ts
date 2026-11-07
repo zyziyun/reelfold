@@ -118,3 +118,12 @@ export function titleLength(platform: string, title: string): number {
   if (base === 'xiaohongshu') return Array.from(title).reduce((n, c) => n + ((c.codePointAt(0) ?? 0) < 0x2e80 ? 0.5 : 1), 0);
   return Array.from(title).length;
 }
+
+/** A delayed browser receipt belongs only to the upload that opened that page.
+ * Never overwrite a newer delivery or a row repurposed for another video. */
+export function matchesAssistedUpload(current: CalendarPost | undefined, original: CalendarPost, account: string): boolean {
+  return !!current && current.state === 'filled' && current.account === account
+    && current.id === original.id && current.item === original.item && current.clip === original.clip
+    && current.platform === original.platform
+    && (current.video_path ?? null) === (original.video_path ?? null);
+}
