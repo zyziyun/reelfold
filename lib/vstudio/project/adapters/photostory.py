@@ -277,8 +277,13 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         from vstudio import llm
         complete = llm.complete
     limit = min(1200.0, 300.0 + len(body) / 300.0 + 20.0 * len(imgs))
-    r = complete("planner", SYSTEM, body, schema=True, max_tokens=16000, timeout=limit, cli_timeout=limit,
-                 retries=1, effort="medium", **({"images": imgs} if imgs else {}))
+    def plan(prompt):
+        # Repair and length revisions still make visual claims: keep the same
+        # source evidence attached to every stateless planner request.
+        return complete("planner", SYSTEM, prompt, schema=True, max_tokens=16000, timeout=limit, cli_timeout=limit,
+                        retries=1, effort="medium", **({"images": imgs} if imgs else {}))
+
+    r = plan(body)
     if not isinstance(r, dict) or r.get("provider") == "none":
         return None
     js = r.get("json") if isinstance(r.get("json"), dict) else {}
@@ -289,8 +294,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         error = spec_error(text) if DR.data_module_ok(text) else None
         repair = ("Your previous content has unsupported story data: " + error + ". Rewrite the complete spec using "
                   "the SCRIPT tuple contract above. Previous spec:\n" + text) if error else _repair_note(text)
-        r2 = complete("planner", SYSTEM, body + "\n\n" + repair, schema=True, max_tokens=16000,
-                      timeout=limit, cli_timeout=limit, retries=1, effort="medium")
+        r2 = plan(body + "\n\n" + repair)
         js2 = r2.get("json") if isinstance(r2, dict) and isinstance(r2.get("json"), dict) else {}
         if isinstance(js2.get("content"), str) and DR.data_module_ok(js2["content"]):
             r, js, text = r2, dict(js, **js2), js2["content"]
@@ -305,9 +309,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         extra = {}
 
         def redraft(cur_text, est, k):
-            r3 = complete("planner", SYSTEM, body + f"\n\nYour current spec:\n{cur_text}\n\n" +
-                          TU.ask(est, target), schema=True, max_tokens=16000, timeout=limit, cli_timeout=limit,
-                          retries=1, effort="medium")
+            r3 = plan(body + f"\n\nYour current spec:\n{cur_text}\n\n" + TU.ask(est, target))
             j3 = r3.get("json") if isinstance(r3, dict) and isinstance(r3.get("json"), dict) else {}
             c3 = j3.get("content")
             if isinstance(c3, str) and DR.data_module_ok(c3) and not spec_error(c3) and "SYNTHETIC" not in c3[:600]:

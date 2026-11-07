@@ -133,6 +133,8 @@ def test_valid_python_with_wrong_timeline_is_repaired_before_render(tmp_path, mo
     calls = []
     def complete(*args, **kw):
         calls.append(args[2])
+        assert len(kw.get("images", [])) == 1
+        assert os.path.isfile(kw["images"][0])
         return dict(provider="test", json=dict(content=bad if len(calls) == 1 else good))
     dest = str(tmp_path / "item/work/spec.py")
     assert PS.draft_spec(ctx, dict(id="story", author={}), dest, complete=complete)
@@ -430,3 +432,29 @@ def test_product_demo_video_uses_process_labels(tmp_path, monkeypatch, layout):
     assert result["video_caption_safe"] is (not bool(layout))
     assert "photo_caption_side" not in result
     assert PS._spec_value(text, "BGM") is None
+
+
+def test_length_revision_keeps_source_images(tmp_path, monkeypatch):
+    from vstudio import narration
+    monkeypatch.setenv('VSTUDIO_CACHE', str(tmp_path / 'cache'))
+    photo = tmp_path / 'cup.png'
+    Image.new('RGB', (120, 160), 'white').save(photo)
+    ctx = DR.Ctx(str(tmp_path), 'main', dict(_inputs=dict(photos=[str(photo)]),
+        _item_dir=str(tmp_path / 'item'), mode='narration'), 'photo-story')
+    ctx.request_text = 'Create a short product film. No background music.'
+    monkeypatch.setattr(narration, 'voice_plan', lambda *a, **kw: dict(narrate='en', note=None))
+    calls = []
+    spec = 'SCRIPT = [(0, [("A cup", "杯子")], [("p0001", 1, "still", None)])]'
+    def complete(*args, **kw):
+        calls.append(kw)
+        return dict(provider='test', json=dict(content=spec))
+    def extend(text, target, measure, redraft):
+        revised = redraft(text, {}, 0)
+        assert revised == spec
+        return revised, None
+    monkeypatch.setattr(PS.TU, 'extend', extend)
+    monkeypatch.setattr(PS.TU, 'ask', lambda *a: 'Extend using only the visible material.')
+    assert PS.draft_spec(ctx, dict(id='story', author={}), str(tmp_path / 'item/work/spec.py'), complete=complete)
+    assert len(calls) == 2
+    assert calls[0]['images'] == calls[1]['images']
+    assert len(calls[1]['images']) == 1 and os.path.isfile(calls[1]['images'][0])
