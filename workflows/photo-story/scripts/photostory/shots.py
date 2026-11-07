@@ -123,7 +123,7 @@ def prep_video(C, sh, name):
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
                  C.pal["paper"], need, "fitted-video-zoom-v1", (caption_adjacent, "caption-adjacent-v1"),
                  (captions_active, "region-active-captions-v1"),
-                 "content-detail-heights-v1" if sh.get("detail_regions") is not None else None))
+                 "active-caption-detail-heights-v2" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
     out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
     if not os.path.exists(out):
@@ -177,7 +177,8 @@ def prep_video(C, sh, name):
                         caption_adjacent=caption_adjacent)
             if sh.get("detail_regions") is not None:
                 geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
-                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))
+                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H)
+                    if C.SUB_H > 0 and captions_active else None)
             matte = "0x" + "".join(f"{int(v):02x}" for v in C.pal["paper"])
             timing = hdr + "setpts=PTS-STARTPTS," + FF.retime(info["fps"], speed, C.FPS)
             if name in C.VEQ or sh.get("grade"):

@@ -229,3 +229,30 @@ def test_side_label_video_preserves_full_source_without_changing_wide_shots(tmp_
         cues = [dict(start=0,end=.2,style='title')] if change == 'title' else []
         plan(C,SimpleNamespace(shots=[fresh],subs=cues))
         assert '_video_box' not in fresh
+
+
+def test_detail_video_removes_disabled_caption_gap_and_invalidates_cache(tmp_path):
+    src = str(tmp_path/'detail.mp4')
+    media.run(['ffmpeg','-y','-f','lavfi','-i',
+        'color=red:s=320x180:r=30:d=1,drawbox=x=160:y=0:w=160:h=180:color=blue:t=fill',
+        '-c:v','libx264','-pix_fmt','yuv420p',src])
+    C = SimpleNamespace(MODE='music',spec=SimpleNamespace(
+        LAYOUT={}, MUSIC=dict(captions='all')), VCROP={},VEQ={},VEQ_FILTER='',
+        cache_dir=str(tmp_path),BOX_W=180,BOX_H=320,FPS=30,SUB_Y0=110,SUB_H=40,HDR=0,
+        overlay_subs=True,pal={'paper':(240,235,225)},find_video=lambda n:src,vid_dirs=[str(tmp_path)])
+    shot=dict(start=0,end=.2,tail=0,off=0,speed=1,detail_regions=[[160,0,160,180]])
+    def render():
+        path=prep_video(C,shot,'detail')
+        raw=subprocess.check_output([media.ffmpeg_bin(),'-v','error','-i',path,
+            '-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
+        return path,np.frombuffer(raw,dtype=np.uint8).reshape(320,180,3)
+    before,active=render()
+    assert np.all(active[110:150,:,:] > 200)
+    C.spec.MUSIC['captions']=False
+    after,disabled=render()
+    assert before != after
+    blue=(disabled[:,:,2]>220)&(disabled[:,:,0]<30)
+    assert blue[130:150,60:120].all()
+    # Both the complete overview and the verified enlarged detail survive.
+    assert ((disabled[:,:,0]>220)&(disabled[:,:,2]<30)).any()
+    assert blue.sum() > ((active[:,:,2]>220)&(active[:,:,0]<30)).sum()
