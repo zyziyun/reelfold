@@ -70,6 +70,17 @@ class PlatformLengthsApiTest(unittest.TestCase):
             st, _ = self.req("POST", "/api/platform-lengths", bad)
             self.assertEqual(st, 400, bad)
 
+    def test_clear_one_bound_preserves_the_other(self):
+        self.req("POST", "/api/platform-lengths", dict(platform="xiaohongshu", min_s=40, max_s=100))
+        for key, expected in (("min_s", {"max_s": 100}), ("max_s", {})):
+            st, d = self.req("POST", "/api/platform-lengths", dict(platform="xiaohongshu", clear=key))
+            self.assertEqual(st, 200)
+            row = next(r for r in d["platforms"] if r["platform"] == "xiaohongshu")
+            self.assertEqual(row["limits"], expected)
+        self.assertEqual(row["source"], "file")
+        st, _ = self.req("POST", "/api/platform-lengths", dict(platform="xiaohongshu", clear="all"))
+        self.assertEqual(st, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

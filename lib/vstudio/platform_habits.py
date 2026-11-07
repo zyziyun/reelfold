@@ -93,9 +93,11 @@ def settings():
     return {P.canonical(k): v for k, v in (d.get("platforms") or {}).items() if isinstance(v, dict)}
 
 
-def set_limits(name, min_s=None, max_s=None, reset=False):
+def set_limits(name, min_s=None, max_s=None, reset=False, clear=None):
     """Her own length range for one platform (Settings › Publishing): every kind's band is clamped into it.
-    ``reset``: back to the platform file's habits. -> the settings."""
+    ``reset`` restores both bounds; ``clear`` removes only min_s or max_s. -> the settings."""
+    if clear not in (None, "min_s", "max_s"):
+        raise ValueError("clear: min_s or max_s")
     n = P.canonical(name)
     if n not in P.PLATFORMS:
         raise ValueError(f"unknown platform {name!r}")
@@ -106,6 +108,8 @@ def set_limits(name, min_s=None, max_s=None, reset=False):
         cur.pop(n, None)
     else:
         row = dict(cur.get(n) or {})
+        if clear:
+            row.pop(clear, None)
         for key, v in (("min_s", min_s), ("max_s", max_s)):
             if v is None:
                 continue
@@ -114,7 +118,10 @@ def set_limits(name, min_s=None, max_s=None, reset=False):
             row[key] = int(round(float(v)))
         if row.get("min_s") and row.get("max_s") and row["min_s"] > row["max_s"]:
             raise ValueError("min_s is above max_s")
-        cur[n] = row
+        if row:
+            cur[n] = row
+        else:
+            cur.pop(n, None)
     os.makedirs(_home(), exist_ok=True)
     tmp = settings_path() + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

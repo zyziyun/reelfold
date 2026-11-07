@@ -5,7 +5,7 @@ import type { LearningWorkspace } from './learning';
 // page could reach.
 import type { WatermarkDoc, WatermarkSettings } from './watermark';
 import type { MusicDoc } from './music';
-import type { PlatformLengthsDoc } from './platformLengths';
+import type { PlatformLengthsDoc, PlatformLengthUpdate } from './platformLengths';
 import type {
   ApplyResult,
   BatchStatus,
@@ -544,7 +544,7 @@ export class EngineClient {
     return this.req<PlatformLengthsDoc>('GET', '/api/platform-lengths');
   }
   /** her own shortest / longest for one platform (reset: back to the platform's habits) */
-  setPlatformLength(platform: string, v: { min_s?: number; max_s?: number; reset?: boolean }) {
+  setPlatformLength(platform: string, v: PlatformLengthUpdate) {
     return this.req<PlatformLengthsDoc>('POST', '/api/platform-lengths', { platform, ...v });
   }
   /** Settings › Watermark: the engine's watermark settings + previews over sample 9:16 / 16:9 frames */

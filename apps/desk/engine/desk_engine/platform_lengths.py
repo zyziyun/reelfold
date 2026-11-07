@@ -3,7 +3,7 @@ content kind from references/platforms/<name>.md, persona overrides) and her own
 (``$VSTUDIO_HOME/platforms.json``, shared with the CLI skill: every kind's band is clamped into it).
 
     GET  /api/platform-lengths      {kinds, platforms [{platform, label, form, source, limits, hard, lengths}]}
-    POST /api/platform-lengths      {platform, min_s?, max_s?, reset?} -> the same document
+    POST /api/platform-lengths      {platform, min_s?, max_s?, reset?, clear?} -> the same document
 """
 from .common import BadRequest, need
 
@@ -23,15 +23,16 @@ class PlatformLengths:
 
     def set(self, body):
         H = _h()
-        need(isinstance(body, dict), "body: {platform, min_s?, max_s?, reset?}")
+        need(isinstance(body, dict), "body: {platform, min_s?, max_s?, reset?, clear?}")
         name = body.get("platform")
         need(isinstance(name, str) and 0 < len(name) < 40, "platform: a platform id")
         for k in ("min_s", "max_s"):
             v = body.get(k)
             need(v is None or (isinstance(v, (int, float)) and not isinstance(v, bool)), f"{k}: seconds or absent")
         need(body.get("reset") in (None, True, False), "reset: true, false or absent")
+        need(body.get("clear") in (None, "min_s", "max_s"), "clear: min_s, max_s or absent")
         try:
-            H.set_limits(name, min_s=body.get("min_s"), max_s=body.get("max_s"), reset=bool(body.get("reset")))
+            H.set_limits(name, min_s=body.get("min_s"), max_s=body.get("max_s"), reset=bool(body.get("reset")), clear=body.get("clear"))
         except ValueError as e:
             need(False, str(e))
         return self.doc()

@@ -60,3 +60,11 @@ export function parseSecs(text: string, lo: number, hi: number): number | null {
   if (!String(text).trim() || !Number.isFinite(n) || n < lo || n > hi) return null;
   return n;
 }
+
+/** Update one bound, clear one bound, or reset the entire platform range. */
+export interface PlatformLengthUpdate {
+  min_s?: number;
+  max_s?: number;
+  clear?: 'min_s' | 'max_s';
+  reset?: boolean;
+}

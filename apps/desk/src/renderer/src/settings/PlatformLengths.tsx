@@ -3,7 +3,7 @@
 // TikTok short ones); here she sets her own shortest / longest per platform, which every plan then keeps to. The
 // platforms she posts to come first; the rest open on demand. Applies at once ($VSTUDIO_HOME/platforms.json).
 import { useEffect, useState } from 'react';
-import { fmtDuration, parseSecs, typicalRange, type PlatformLengthRow, type PlatformLengthsDoc } from '../../../shared/platformLengths';
+import { fmtDuration, parseSecs, typicalRange, type PlatformLengthRow, type PlatformLengthsDoc, type PlatformLengthUpdate } from '../../../shared/platformLengths';
 import { getLang, t } from '../i18n';
 import { useEngine } from '../lib/engine';
 import { platformName } from '../lib/platformName';
@@ -54,7 +54,7 @@ export function VideoLengthGroup({ chosen }: { chosen: string[] | null }) {
   const lang = getLang();
   const mine = chosen?.length ? doc.platforms.filter((r) => chosen.includes(r.platform)) : doc.platforms;
   const rows = all || !chosen?.length ? doc.platforms : mine;
-  const set = (r: PlatformLengthRow, v: { min_s?: number; max_s?: number; reset?: boolean }) => {
+  const set = (r: PlatformLengthRow, v: PlatformLengthUpdate) => {
     if (!client) return;
     void client.setPlatformLength(r.platform, v).then(setDoc, (e) => ui.toast(errText(e), { error: true }));
   };
@@ -89,9 +89,9 @@ export function VideoLengthGroup({ chosen }: { chosen: string[] | null }) {
             }
             testId={`video-length-${r.platform}`}
           >
-            <SecsInput value={r.limits.min_s} placeholder={lo} lo={loOf(r)} hi={hiOf(r)} label={t('pls.min', { name: platformName(r.platform) })} onSet={(n) => (n == null ? set(r, { reset: true }) : set(r, { min_s: n }))} testId={`video-length-min-${r.platform}`} />
+            <SecsInput value={r.limits.min_s} placeholder={lo} lo={loOf(r)} hi={hiOf(r)} label={t('pls.min', { name: platformName(r.platform) })} onSet={(n) => (n == null ? set(r, { clear: 'min_s' }) : set(r, { min_s: n }))} testId={`video-length-min-${r.platform}`} />
             <span className="faint">–</span>
-            <SecsInput value={r.limits.max_s} placeholder={hi} lo={loOf(r)} hi={hiOf(r)} label={t('pls.max', { name: platformName(r.platform) })} onSet={(n) => (n == null ? set(r, { reset: true }) : set(r, { max_s: n }))} testId={`video-length-max-${r.platform}`} />
+            <SecsInput value={r.limits.max_s} placeholder={hi} lo={loOf(r)} hi={hiOf(r)} label={t('pls.max', { name: platformName(r.platform) })} onSet={(n) => (n == null ? set(r, { clear: 'max_s' }) : set(r, { max_s: n }))} testId={`video-length-max-${r.platform}`} />
             <span className="faint small">{t('pls.secs')}</span>
             {own && (
               <button className="s2-link" onClick={() => set(r, { reset: true })} data-testid={`video-length-reset-${r.platform}`}>

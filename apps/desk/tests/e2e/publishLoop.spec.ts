@@ -501,3 +501,25 @@ for (const rejected of [false, true]) test(`a late fill ${rejected ? 'error' : '
   await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'posted');
   await expect(page.getByTestId('post-filled')).toHaveCount(0);
 });
+
+
+test('clearing one duration setting preserves the other bound', async () => {
+  await api('/api/platform-lengths', { platform: 'xiaohongshu', min_s: 40, max_s: 100 });
+  await hash('#/settings/accounts');
+  const min = page.getByTestId('video-length-min-xiaohongshu');
+  const max = page.getByTestId('video-length-max-xiaohongshu');
+  await expect(min).toHaveValue('40');
+  await expect(max).toHaveValue('100');
+  await min.fill('');
+  await min.press('Tab');
+  const limits = async () => {
+    const doc = await api<{ platforms: { platform: string; limits: Record<string, number> }[] }>('/api/platform-lengths');
+    return doc.platforms.find((r) => r.platform === 'xiaohongshu')!.limits;
+  };
+  await expect.poll(limits).toEqual({ max_s: 100 });
+  await expect(max).toHaveValue('100');
+  await max.fill('');
+  await max.press('Tab');
+  await expect.poll(limits).toEqual({});
+  await expect(page.getByTestId('video-length-reset-xiaohongshu')).toHaveCount(0);
+});
