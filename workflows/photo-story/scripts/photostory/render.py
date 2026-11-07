@@ -35,7 +35,7 @@ from photostory import audiomix, speechclean
 from photostory.ctx import Ctx, check_profile, load_spec
 from photostory.looks import film_look
 from photostory.shots import build, parse_src
-from photostory.subtitles import (Header, make_chapter, make_label, make_sub, make_title_card, make_title_text,
+from photostory.subtitles import (Header, make_chapter, make_label, make_sub, make_title_card, make_title_text, title_context,
                                   sub_backdrop)
 from photostory.timeline import Timeline, load_timing, place_voice
 from photostory.transitions import transition
@@ -124,7 +124,10 @@ def main():
     title_card = make_title_card(C) if header is None and getattr(C.spec, "TITLE_CARD", True) else None
     chapters = {s: make_chapter(C, s) for s in range(1, len(C.SECTIONS))}
     for s in T.subs:
-        s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(C, s["en"], s["zh"])
+        context = title_context(C, s.get("text_role"))
+        s["_y"] = context.SUB_Y0
+        s["_box"] = list(context.CAP)
+        s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(context, s["en"], s["zh"])
         s["_shot_layers"] = {i: make_sub(sh["_caption_context"], s["en"], s["zh"])
                              for i, sh in enumerate(T.shots) if "_caption_context" in sh
                              and s.get("style") != "title" and s["start"] < sh["end"] and s["end"] > sh["start"]}
@@ -209,7 +212,7 @@ def main():
                 if ba > 0:
                     paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0], ba)
             for s in cue:
-                paste_rgba(frame, s["_shot_layers"].get(k, s["_lay"]), 0, C.SUB_Y0, cue_alpha(s, gt))
+                paste_rgba(frame, s["_shot_layers"].get(k, s["_lay"]), 0, s["_y"], cue_alpha(s, gt))
             if gt > total - end_fade:
                 frame *= max(0, (total - gt) / end_fade)
             img = np.clip(frame, 0, 255).astype(np.uint8)
@@ -224,6 +227,7 @@ def main():
                                     shot_start=sh["start"], shot_end=sh["end"],
                                     source_box=sh.get("_video_box"),
                                     caption_box=list(sh.get("_caption_context", C).CAP),
+                                    text_boxes=[s["_box"] for s in T.subs if s["start"] <= gt < s["end"]],
                                     closing_fade=bool(end_fade > 0 and gt > total - end_fade)))
                 continue
             enc.stdin.write(img.tobytes())

@@ -84,3 +84,40 @@ def test_music_title_respects_authored_colour(tmp_path, palette, expected):
     solid = rendered[:,:,3] > 250
     assert solid.any()
     assert np.any(np.all(rendered[:,:,:3][solid] == np.array(expected), axis=1))
+
+
+@pytest.mark.parametrize('platform', ['youtube', 'tiktok', 'xiaohongshu'])
+def test_commercial_roles_have_distinct_safe_geometry(tmp_path, platform):
+    import numpy as np
+    from photostory.subtitles import title_context, make_title_text
+    from photostory.music import MusicTimeline
+    c = Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), PLATFORM=platform,
+        MODE='music', MUSIC=dict(grid='seconds', length=9, captions='title',
+            text_roles={0:'headline',1:'statement',2:'label'}),
+        SECTIONS=['Brand'], SCRIPT=[(0,[('Make the next step clear','让下一步清晰可见')],
+            [('p0',3,'still',{})]) for _ in range(3)], LOOK='cinema',
+        LAYOUT=dict(header=0,overlay_subs=True), TITLE_SHADOW=0, TITLE_GLOW=0))
+    timeline=MusicTimeline(c)
+    assert [s['text_role'] for s in timeline.subs] == ['headline','statement','label']
+    original=(c.SUB_Y0,c.SUB_H,c.ZH_SIZE)
+    contexts=[title_context(c,s['text_role']) for s in timeline.subs]
+    assert contexts[0].ZH_SIZE > contexts[1].ZH_SIZE > contexts[2].ZH_SIZE
+    assert len({cc.SUB_Y0 for cc in contexts}) == 3
+    for cc in contexts:
+        assert c.SAFE[1] <= cc.SUB_Y0 < cc.SUB_Y0+cc.SUB_H <= c.SAFE[3]
+        rgba=make_title_text(cc,'Make the next step clear','让下一步清晰可见')
+        ys,xs=np.nonzero(rgba[:,:,3]>200)
+        assert len(xs)>0
+        assert xs.min() >= c.SAFE[0] and xs.max() < c.SAFE[2]
+        assert ys.min()>0 and ys.max()<cc.SUB_H-1
+    assert (c.SUB_Y0,c.SUB_H,c.ZH_SIZE)==original
+
+
+@pytest.mark.parametrize('roles', [{0:'unknown'},{2:'headline'},{'0':'label'},{0:[]},[]])
+def test_invalid_music_role_reports_authored_setting(tmp_path, roles):
+    from photostory.music import MusicTimeline
+    c=Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), MODE='music',
+        MUSIC=dict(grid='seconds',length=3,text_roles=roles),SECTIONS=['A'],
+        SCRIPT=[(0,[('Hello','你好')],[('p0',3,'still',{})])]))
+    with pytest.raises(ValueError,match='MUSIC.text_roles'):
+        MusicTimeline(c)

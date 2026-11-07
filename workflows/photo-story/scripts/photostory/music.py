@@ -311,6 +311,12 @@ class MusicTimeline:
             sh["tail"] = self.shots[k + 1]["trd"] if k + 1 < len(self.shots) else max(0.0, self.total - sh["end"])
         # ---- on-screen text: each item's lines share the item's span
         style = cfg["captions"]
+        roles = cfg.get("text_roles", {})
+        from .subtitles import TEXT_ROLES
+        if not isinstance(roles, dict) or any(type(i) is not int or i < 0 or i >= len(script)
+                                             or not isinstance(role, str) or role not in TEXT_ROLES
+                                             for i, role in roles.items()):
+            raise ValueError("MUSIC.text_roles must map zero-based SCRIPT item indices to headline, statement or label")
         if style:
             process_label = (getattr(C.spec, "LAYOUT", {}) or {}).get("caption_style") == "label" and style != "title"
             for i, (sec, chunks, _) in enumerate(script):
@@ -325,7 +331,8 @@ class MusicTimeline:
                     if process_label:
                         st, end = a + k * part, a + (k + 1) * part
                     self.subs.append(dict(en=tidy_punct(en), zh=tidy_punct(zh), start=st, end=end,
-                                          sec=sec, style="title" if style == "title" else "subs"))
+                                          sec=sec, text_role=roles.get(i),
+                                          style="title" if style == "title" or i in roles else "subs"))
 
     def section_at(self, gt):
         return max(i for i in range(len(self.sec_bounds) - 1) if self.sec_bounds[i] <= gt)

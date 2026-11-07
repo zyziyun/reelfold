@@ -44,6 +44,14 @@ reserved process-caption band. Check text contrast and action clearance on actua
 that override. Do not apply full-bleed crops blindly to portrait evidence. Compare rendered picture occupancy,
 identity readability and CTA emphasis at phone size; production notes describing a treatment are not proof
 that it rendered. `TEXTFX` belongs to the separate story-vlog postpass, not the automatic music renderer.
+For music films, `MUSIC.text_roles={0: "label", 2: "headline", 3: "statement", 7: "headline"}`
+assigns typography to zero-based `SCRIPT` item indices (all text chunks in that item). Use only indices that
+exist. These opt-in roles reuse measured bold Latin/CJK text, safe-area fitting and native title fades:
+`headline` is large in the upper-middle area, `statement` medium lower down, `label` compact near the bottom.
+Unspecified items retain the global caption style; `captions=False` still hides all cue text. Check placement
+against the actual subject: roles do not track subjects or guarantee contrast. They do not add diagrams or
+claim that a service is visually demonstrated. Review beginning/middle/end frames and actual playback.
+
 
 Contained videos using the label caption style sit adjacent to the reserved caption band. Check that the picture
 and label form one readable group on each canvas. In music mode, label-style step captions cover their

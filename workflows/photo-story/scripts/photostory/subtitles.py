@@ -1,5 +1,6 @@
 """Text layers: bilingual subtitles (**highlight**, balanced no-orphan wrapping), picture labels,
 running header with section progress, chapter cards. All return float32 RGBA arrays."""
+from copy import copy
 import math
 import re
 
@@ -105,7 +106,12 @@ def make_process_label(C, en, zh):
 
 def _sub_lines(C, d, en, zh, k, maxw, title=False):
     """Font sizes scaled by k -> (fe, fz, le, lz, LE, LZ, G, total height)."""
-    if title:      # music mode: 中文 serif first, English italic below
+    if title and getattr(C, "TEXT_ROLE", None):
+        zs = C.ZH_SIZE * k
+        es = zs * (0.78 if zh else 1)
+        fz = font("cjk-bold", zs)
+        fe = font_for(en, es, "sans-bold", "cjk-bold")
+    elif title:      # music mode: 中文 serif first, English italic below
         zs, es = C.ZH_SIZE * k, C.ZH_SIZE * k * (0.62 if zh else 0.9)   # English alone reads at near full size
         fz = font_for(zh, zs, "cjk-serif", "cjk-serif")
         fe = font_for(en, es, "serif-italic", "cjk")
@@ -144,7 +150,7 @@ def _make_sub_fit(C, en, zh, title=False):
     # 中文 first in a title, and when the narrator speaks Chinese (the English is then the translation under it)
     # Keep the scenic title default, but never override an authored brand colour.
     explicit_en = "sub_en" in (getattr(C.spec, "PALETTE", {}) or {})
-    en_colour = (214, 198, 168) if title and not explicit_en else C.pal["sub_en"]
+    en_colour = (214, 198, 168) if title and not explicit_en and not getattr(C, "TEXT_ROLE", None) else C.pal["sub_en"]
     order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, en_colour, LE)] \
         if title or getattr(C, "ZH_LEAD", False) else [(le, fe, C.pal["sub_en"], LE), (lz, fz, C.pal["sub_zh"], LZ)]
     for j, (lines, f, col, lh) in enumerate(order):
@@ -175,6 +181,27 @@ def _glow_pill(lay, r, alpha):
     out = Image.new("RGBA", lay.size, (0, 0, 0, 0))
     out.putalpha(sh)
     out.alpha_composite(lay)
+    return out
+
+
+# Reuse the measured caption renderer and platform safe area for commercial copy.
+TEXT_ROLES = {"headline": (.09, .34, .30), "statement": (.065, .24, .58),
+              "label": (.045, .16, .76)}
+
+
+def title_context(C, role=None):
+    if role is None:
+        return C
+    if role not in TEXT_ROLES:
+        raise ValueError(f"Unknown music text role: {role!r}")
+    size, band, top = TEXT_ROLES[role]
+    out = copy(C)
+    x0, y0, x1, y1 = C.SAFE
+    out.SUB_H = min(round(C.H * band), y1 - y0)
+    out.SUB_Y0 = max(y0, min(round(C.H * top), y1 - out.SUB_H))
+    out.CAP = (x0, out.SUB_Y0, x1, out.SUB_Y0 + out.SUB_H)
+    out.ZH_SIZE = min(C.W * .12, C.H * size)
+    out.TEXT_ROLE = role
     return out
 
 
