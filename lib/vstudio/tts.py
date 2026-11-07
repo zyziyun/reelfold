@@ -653,6 +653,9 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
         from . import kokoro_lexicon
         if kokoro_lexicon.mentions(text):     # a line naming a curated name: its take follows the lexicon's version
             mkey = f"{mkey}#names{kokoro_lexicon.VERSION}"
+    if engine in ("qwen", "kokoro"):
+        from .speech_chunks import VERSION as chunk_version
+        mkey = f"{mkey}#chunks{chunk_version}"
     key = cache_key(text, engine, voice, speed, instructions, mkey)
     cpath = os.path.join(_cache_dir(), f"{key}.wav")
     if not (cache and _has_audio(cpath)):

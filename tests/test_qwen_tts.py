@@ -298,3 +298,38 @@ def test_qwen_language_reaches_child_and_separates_cache(here, monkeypatch, tmp_
     assert en != fr
     assert tts.synth("Bonjour", engine="qwen", language="French") == fr
     assert [c["cmd"][c["cmd"].index("--lang") + 1] for c in calls] == ["english", "french"]
+
+
+@pytest.mark.parametrize('text', [
+    'Hello. Next we explain Tool Calling.',
+    'Bonjour. Voici la version 3.14.',
+    'Привет. Это второй пример.',
+    '价格是 3.14 元。Next: USB-C and GPT-4o.',
+])
+def test_local_speech_packing_preserves_sentence_spacing(text):
+    from vstudio import kokoro_g2p
+    assert QS.pieces(text) == [text]
+    assert kokoro_g2p.chunks(text, len, limit=120) == [text]
+
+
+@pytest.mark.parametrize('text', ['这是没有标点的长句' * 40, 'a sentence without punctuation ' * 20])
+def test_qwen_run_on_stays_in_model_window_without_losing_text(text):
+    parts = QS.pieces(text)
+    assert len(parts) > 1
+    assert all(len(p) <= QS.MAX_PIECE for p in parts)
+    assert ''.join(''.join(parts).split()) == ''.join(text.split())
+    if text.isascii():
+        assert [w for p in parts for w in p.split()] == text.split()
+
+
+@pytest.mark.parametrize('engine,voice', [('qwen', 'vivian'), ('kokoro', 'af_heart')])
+def test_local_speech_cache_tracks_chunker_revision(tmp_path, monkeypatch, engine, voice):
+    from vstudio import speech_chunks
+    monkeypatch.setattr(tts, '_cache_dir', lambda: str(tmp_path))
+    monkeypatch.setattr(tts, '_has_audio', lambda _: True)
+    monkeypatch.setattr(tts, 'qwen_model', lambda _: 'test-model')
+    monkeypatch.setattr(tts, 'kokoro_model', lambda _: 'test-model')
+    before = tts.synth('Hello. Next sentence.', engine=engine, voice=voice)
+    monkeypatch.setattr(speech_chunks, 'VERSION', speech_chunks.VERSION + 1)
+    after = tts.synth('Hello. Next sentence.', engine=engine, voice=voice)
+    assert before != after

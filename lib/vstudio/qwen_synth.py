@@ -26,8 +26,6 @@ ZH_SPEAKERS = ("serena", "vivian", "uncle_fu", "dylan", "eric")
 MAX_TRIES = 3
 MAX_PIECE = 120                       # characters per generate call (a sentence or two)
 GAP_S = 0.12                          # pause between the pieces of a long line
-_SENT = re.compile(r"(?<=[。！？!?；;])|(?<=[.])\s+")
-_CLAUSE = re.compile(r"(?<=[，、：,:])")
 _CJK = re.compile(r"[㐀-鿿]")
 _SYLLABIC = re.compile(r"[㐀-鿿\u3040-\u30ff\uac00-\ud7af\u1100-\u11ff]")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
@@ -53,18 +51,8 @@ def language_for(text, language=None):
 
 def pieces(text, limit=MAX_PIECE):
     """``text`` in pieces of at most ``limit`` characters, cut at sentence ends, else at clause marks."""
-    text = " ".join(str(text).split())
-    out, cur = [], ""
-    for s in (p for p in _SENT.split(text) if p and p.strip()):
-        parts = [s] if len(s) <= limit else [c for c in _CLAUSE.split(s) if c]
-        for p in parts:
-            if cur and len(cur) + len(p) > limit:
-                out.append(cur.strip())
-                cur = ""
-            cur += p
-    if cur.strip():
-        out.append(cur.strip())
-    return out
+    from .speech_chunks import chunks
+    return chunks(" ".join(str(text).split()), len, limit)
 
 
 def expected_seconds(text):
