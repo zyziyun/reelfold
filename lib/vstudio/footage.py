@@ -217,7 +217,11 @@ def context(paths, sheet_dir, ids=None, max_clips=24, echo=None, shots=True, eve
     left out (the facts line stays). With ``shots`` each facts dict also carries ``moments`` (vstudio.shots).
     ``every`` controls periodic sampling when shot sheets are disabled (or unavailable); tiles remain capped at 20."""
     vids = [p for p in paths if is_video(p)][:max_clips]
-    ids = list(ids or [os.path.splitext(os.path.basename(p))[0] for p in vids])
+    from .source_identity import names
+    aliases = names(vids)
+    ids = list(ids)[:len(vids)] if ids is not None else [os.path.splitext(aliases[os.path.abspath(p)])[0] for p in vids]
+    if len(ids) != len(vids) or len({str(i).casefold() for i in ids}) != len(ids):
+        raise ValueError("Footage IDs must be unique and match the source count")
     lines, images, all_facts = [], [], []
 
     def one(k):

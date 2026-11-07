@@ -192,7 +192,9 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
     vids = [p for v in ctx.inputs.values() for p in (v if isinstance(v, list) else [v]) if footage.is_video(p)]
     vids = list(dict.fromkeys(vids))
     work = os.path.dirname(path)
-    ids = [os.path.splitext(os.path.basename(p))[0] for p in vids]
+    from vstudio.source_identity import stage
+    video_sources = stage(vids, os.path.join(work, "source_videos")) if vids else {}
+    ids = [os.path.splitext(os.path.basename(video_sources[os.path.abspath(p)]))[0] for p in vids]
     ftext, imgs, facts = footage.context(vids, os.path.join(work, "draft_sheets"), ids=ids,
                                           temporal=purpose_kind in ("product", "company")) if vids else ("", [], [])
     from . import photo_inputs
@@ -353,6 +355,11 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         media["images"] = ["source_photos", "frames", "../inputs"]
         media.setdefault("videos", "../inputs")
         text = _set_global(text, "MEDIA", media)
+    if video_sources:
+        media = _spec_value(text, "MEDIA")
+        media = dict(media) if isinstance(media, dict) else {}
+        media["videos"] = "source_videos"
+        text = _set_global(text, "MEDIA", media)
     if purpose_kind in ("product", "company"):
         # Product identity is evidence. Scenic grading/grain and floating film
         # chapters are inappropriate defaults for the supplied product itself.
@@ -448,7 +455,7 @@ def music_bed(ctx, work, request, target, music_mode):
         for src in (v if isinstance(v, list) else [v]):
             if isinstance(src, str) and src.lower().endswith(_AUDIO_EXT) and os.path.isfile(src):
                 linked = os.path.join(os.path.dirname(work), "inputs", os.path.basename(src))
-                return (os.path.join("..", "inputs", os.path.basename(src)) if os.path.exists(linked)
+                return (os.path.join("..", "inputs", os.path.basename(src)) if os.path.exists(linked) and os.path.samefile(src, linked)
                         else os.path.abspath(src))
     if not (music_mode or _wants_music(request)):
         return None

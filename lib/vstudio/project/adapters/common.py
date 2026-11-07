@@ -118,17 +118,10 @@ def prepare(env):
     links the item's inputs into ``inputs/`` so the workflow configs can use short relative paths."""
     d = env.item_path("inputs")
     os.makedirs(d, exist_ok=True)
-    linked = []
-    for k, v in (env.params.get("_inputs") or {}).items():
-        for src in (v if isinstance(v, list) else [v]):
-            if isinstance(src, str) and os.path.isfile(src):
-                dst = os.path.join(d, os.path.basename(src))
-                if not os.path.exists(dst):
-                    try:
-                        os.symlink(src, dst)
-                    except OSError:
-                        shutil.copy2(src, dst)
-                linked.append(dst)
+    from vstudio.source_identity import stage
+    sources = [src for v in (env.params.get("_inputs") or {}).values()
+               for src in (v if isinstance(v, list) else [v]) if isinstance(src, str) and os.path.isfile(src)]
+    linked = list(stage(sources, d).values())
     return dict(item_dir=env.item_dir, inputs=linked, files=[])
 
 

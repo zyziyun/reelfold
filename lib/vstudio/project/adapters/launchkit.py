@@ -62,7 +62,7 @@ def _inputs(ctx):
 def _rel(ctx, p):
     """A file she gave -> the path the config uses: inputs/<name> (prepare links it there), else absolute."""
     linked = os.path.join(ctx.item_dir, "inputs", os.path.basename(p))
-    return f"inputs/{os.path.basename(p)}" if os.path.exists(linked) else os.path.abspath(p)
+    return f"inputs/{os.path.basename(p)}" if os.path.exists(linked) and os.path.samefile(p, linked) else os.path.abspath(p)
 
 
 def request_settings(req, brief=""):
