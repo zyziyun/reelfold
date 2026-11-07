@@ -53,7 +53,12 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
   A video may explicitly use fit="contain" to preserve its full source; this does not create a new portrait edit.
-  For short music-mode process labels on full-frame footage, inspect each shot for readable empty space.
+  For short music-mode process labels, prefer full-size footage with per-shot labels when the supplied
+  aspect ratio already suits the target or a crop keeps the complete relevant action visible. Do not shrink
+  an already portrait source into a small inset merely to reserve a fixed caption band. Keep labels brief
+  (a few words); a label is not a sentence describing the entire action. Choose contain only when retaining
+  source context requires it and the actual subject stays readable at phone size. Inspect each shot for
+  readable empty space before choosing the label position.
   Use existing shot options label="Empty cans · 空罐细节", label_at="upper" when the upper safe area is clear;
   omit label_at for the lower position. Set MUSIC captions=False to avoid duplicating these labels in a
   fixed caption band. Labels are strings, not bilingual tuples. Check beginning/middle/end at phone size;

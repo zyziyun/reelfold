@@ -271,6 +271,10 @@ remain relative to the displayed source, rather than the fitted crop.
 Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zoom`, `span=(0, 1)` (panL / panR / up / down travel the whole width or height: a wide map or a shop front read edge to edge; default (0.15, 0.85)), `label="..."`, `tr=<transition>`, `trd=seconds`.
 
 For music-only process/product films, per-shot `label="Empty cans · 空罐细节"` and
+For short music-mode process labels, prefer full-size footage when its aspect ratio suits the target
+or a verified crop retains the complete action. Do not turn an already portrait source into a small inset
+just to make room for a caption band. Use a few-word label rather than a sentence describing the whole action.
+Choose `contain` when source context requires it and check that the subject remains readable at phone size.
 `label_at="upper"` can use verified empty space above the subject; omit `label_at` for lower placement.
 Use strings for labels. Set `MUSIC captions=False` when these labels replace the same global text,
 and retain `LAYOUT caption_style="label"` for phone-readable process text. Inspect all chosen
