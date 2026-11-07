@@ -47,8 +47,14 @@ async function buildPython() {
   // wheels only, except the few pure-Python packages PyPI has no wheel for (runtime.lock.json pip.sdist: built from
   // their hash-pinned sdist)
   const sdist = lock.pip.sdist?.length ? [`--no-binary=${lock.pip.sdist.join(',')}`] : [];
+  // Resolve wheels for the supported deployment target, not the build machine's newer OS.
+  // pip requires --target with --platform; --no-deps below also permits our pure-Python sdists.
+  const platformArgs = isMac ? [
+    '--platform', `macosx_${T.macosMin.replaceAll('.', '_')}_${target.endsWith('arm64') ? 'arm64' : 'x86_64'}`,
+    '--target', path.join(OUT, 'python', 'lib', `python${lock.python.version.split('.').slice(0, 2).join('.')}`, 'site-packages'),
+  ] : [];
   run(py, ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-warn-script-location', '--no-deps',
-    '--require-hashes', '--only-binary=:all:', ...sdist, '--no-compile', '-r', req],
+    '--require-hashes', '--only-binary=:all:', ...sdist, ...platformArgs, '--no-compile', '-r', req],
   { env: { ...process.env, PIP_CACHE_DIR: path.join(CACHE, 'pip'), PYTHONNOUSERSITE: '1' } });
   // licence inventory before pip itself goes
   const inv = run(py, ['-c', INVENTORY_PY, path.join(OUT, 'licenses', 'python-packages')], { capture: true, quiet: true });
@@ -240,6 +246,8 @@ async function buildVstudio() {
 
 // ------------------------------------------------------------------ checks
 async function verify() {
+  // Fail before downloading voice models or signing an unusable deployment.
+  if (isMac) run(pyExe(), [path.join(ROOT, 'scripts', 'appstore', 'appstore_lint.py'), OUT, '--only', 'macos']);
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== 'PATH'));
   const sysPath = Object.entries(process.env).find(([k]) => k.toUpperCase() === 'PATH')?.[1] ?? '';
   Object.assign(env, { PYTHONPATH: path.join(OUT, 'vstudio', 'lib'), PYTHONNOUSERSITE: '1', PYTHONDONTWRITEBYTECODE: '1',
@@ -251,7 +259,7 @@ async function verify() {
     `import shutil; ff = m.ffmpeg_bin(); assert ff.startswith(${JSON.stringify(path.join(OUT, 'ffmpeg'))}), ff; print('ok', ff, '${asr}')`], { env });
   if (target === 'darwin-arm64') {
     // This older audited wheel is tested against our current NumPy ABI, not just imported.
-    run(pyExe(), ['-c', 'import mediapipe as mp, numpy as np; assert mp.__version__ == "0.10.21"; ' +
+    run(pyExe(), ['-c', 'import mediapipe as mp, numpy as np; assert mp.__version__ == "0.10.14"; ' +
       'a = np.zeros((2, 3, 3), dtype=np.uint8); im = mp.Image(image_format=mp.ImageFormat.SRGB, data=a); ' +
       'assert np.array_equal(im.numpy_view(), a); print("telemetry-free vision SDK / NumPy buffer ok")'], { env });
   }

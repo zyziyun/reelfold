@@ -164,8 +164,8 @@ def check_telemetry(root, log):
             version = next((line.split(":", 1)[1].strip() for line in data.decode("utf-8", "replace").splitlines()
                             if line.startswith("Version:")), "unknown")
             versions.append(version)
-            if version != "0.10.21":
-                problems.append((p, [f"MediaPipe {version} is not the audited telemetry-free 0.10.21 wheel"]))
+            if version not in {"0.10.14", "0.10.21"}:
+                problems.append((p, [f"MediaPipe {version} is not an audited telemetry-free wheel (0.10.14 or 0.10.21)"]))
         if binary:
             n += 1
             hits = [s.decode() for s in TELEMETRY_MARKERS if s in data.lower()]

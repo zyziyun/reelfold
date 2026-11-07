@@ -31,7 +31,7 @@ attrs==26.1.0 \
 babel==2.18.0 \
     --hash=sha256:b80b99a14bd085fcacfa15c9165f651fbb3406e66cc603abf11c5750937c992d \
     --hash=sha256:e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 blis==1.3.3 \
     --hash=sha256:034d4560ff3cc43e8aa37e188451b0440e3261d989bb8a42ceee865607715ecd \
     --hash=sha256:1e647341f958421a86b028a2efe16ce19c67dba2a05f79e8f7e80b1ff45328aa \
@@ -288,6 +288,7 @@ cffi==2.1.1 \
     --hash=sha256:fb92203a88b3d3053034db775110081c49d28be6551923805e039924093761e4 \
     --hash=sha256:fcd22650c908d7b7da162bbfaab594a1227a15d1643a98c68b122ac642fa2264
     # via
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   miniaudio
     #   sounddevice
     #   soundfile
@@ -634,7 +635,7 @@ cymem==2.0.13 \
     #   thinc
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl \
     --hash=sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 filelock==4.0.12 \
     --hash=sha256:5f17ee83ecee8a6f3e389c75822fb70a1c2f0506b99438a6dffa1d56793588c8 \
     --hash=sha256:cf42711a7ac791818b299fab0332a088c65aeeefa36290de98db92c434303b0c
@@ -704,7 +705,7 @@ fonttools==4.66.1 \
     --hash=sha256:f08ab7f8461c37ecfdd29ad97fb0c0780b50501bd664bb0f46b6e83ed2b9d2a7 \
     --hash=sha256:fdf4afd75c643e60ef4a96fe64fc8a9def27d2a542112332371a9e5066885f9a
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   matplotlib
 fsspec==2026.9.0 \
     --hash=sha256:0f08147951c8cb31d844c3547d631053b127863b60be04cf06e121333ee0e2fe \
@@ -746,7 +747,9 @@ httpcore2==2.13.1 \
 httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
-    # via weasel
+    # via
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
+    #   weasel
 httpx2==2.13.1 \
     --hash=sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4 \
     --hash=sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa
@@ -898,7 +901,7 @@ jiter==0.17.0 \
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 jsonschema-specifications==2025.9.1 \
     --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
     --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
@@ -1300,24 +1303,28 @@ mdurl==0.1.2 \
     --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \
     --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba
     # via markdown-it-py
-mediapipe==0.10.21 \
-    --hash=sha256:05cf8b57130c723f12ecb8273fea79038e86775925659cdfe61674627b9da65e \
-    --hash=sha256:05dc4a9e593655a79558d05d6227d31018c2537a4bd3362b51e230cf22aecfe3 \
-    --hash=sha256:0dcf57fca3a93474e627d8bfdb364a03973879b755b58e19f287d15dc81c980b \
-    --hash=sha256:1861f24bd64fbec87364e4d1ea1c4a648d94a8cafbd2def249039c03bd63c0be \
-    --hash=sha256:6080934c25cbef89a01578abd3d501ba2b6d55bcd324bc64443c765436c2549d \
-    --hash=sha256:7bb52891a64bd855774d6c69f03cbdc7d297980fbefc454343d2da6e78d49c2e \
-    --hash=sha256:956eb1ebc275c629e61b085b2cab89c3a5b9e93bad1bb107348d98dafb5a4bb5 \
-    --hash=sha256:96bf0dafa9851c74b1f930090193f23c257ccf4bb1bdebbd2ca3a02397011c0e \
-    --hash=sha256:a65508f8c0e28a73f519c8a717f95949b9d5b2fb3bf4a632b181cdb71224d62e \
-    --hash=sha256:b4946abad54d62812ce4c543187373a4872985fd66cd43fe7437f4b95d53d9ec \
-    --hash=sha256:b7cf0756f38f81b6d1cbc77bf78aeba53e4c99270a400388fdecabc3350264d8 \
-    --hash=sha256:b838d2fc85e7b17e7dd3ceabf2d5b832f6834438c8065506cd2d4ef0aa9f83cc \
-    --hash=sha256:c259cd99cdeb00f9a4b90ffc80fa03071661d322e332411eb6349bb0ae7c35b3 \
-    --hash=sha256:c9ad3adcf2b606f0ebde89afce29da8852f1c93f4fcb7f8dc93d72313625aa6d \
-    --hash=sha256:d07b5e69308411161286ea4e48be2ea3e9ab62745143fcb0cb4acced0517e341 \
-    --hash=sha256:fabb8c4703b982dfbc918e939d340202db5d74603f7948c98eeef56166a6cac4
-    # via -r packaging/requirements/darwin-arm64.in
+mediapipe==0.10.14 \
+    --hash=sha256:1061d499d341e7f11dd7f18d5bee747e862db8ef47665ff777323282225d4315 \
+    --hash=sha256:10c670ea5c556ddae4ca941e511970278ce5632f9e24234368c6e91132c04e31 \
+    --hash=sha256:113e264c38616ff23ff261b70cbcad2a2ae34b8335d055787b10bc09b2175adf \
+    --hash=sha256:1166935be26df23f6c6f6369dd7a79f0337ce882364acb986a377c4951bf7c34 \
+    --hash=sha256:1b7687d3b63590bcc601ad195b923b80a1b2d6be5cdf43711edc661cecd3dd47 \
+    --hash=sha256:255e46a9f29b9739b10997d2c48657bdb0823a5d7052c0246522bcfd73873477 \
+    --hash=sha256:3e30ed2f39f925924de58adeec6a8e61ba6beb6959325dc0d8a1aa487a74377b \
+    --hash=sha256:419a2591be13cd92b74d4ca19bfcc146b114f4d5feb41dd1cbe838dcbc63cd75 \
+    --hash=sha256:4737fce6107bd21e420a6b2aad2c721fbc4cc318f1258b68f0665f10225bde1d \
+    --hash=sha256:5c97e32cbb9e9d72b78a33f011257b3cdb55b60fef70a8a864c5d2a4b6652425 \
+    --hash=sha256:8da20a8d16c8b4d9b71ea1ee8ded50200fb17bf93ef1cea9a343ff71b0d71525 \
+    --hash=sha256:8e6cad0c9606930dcb1b09bc5f92b4b935e00813ac0b2e525dd2dbce191125c0 \
+    --hash=sha256:9b1e72d754cd9e1b4b88d80ec9ead2f1cbe8424b7f883d3bda53341b982a9f8b \
+    --hash=sha256:a807328339e7356fda0bb14df12fedbf1d33bdf81649c5f8666b0026b1cc30b4 \
+    --hash=sha256:aa2298c1886716cde6bd7ce96aba1505d67d52edaba856f6c2e1ab905de52b0d \
+    --hash=sha256:aecd2fdf603f741a43beb61d8686ce1c3a72c88e3880053e62d33c712c3df6e6 \
+    --hash=sha256:db59b272235689769dec1ed7c745d419f5d8a249f41e2b0c6e1b4dbe8ea073e2 \
+    --hash=sha256:e4c7a8ef124870ac181242dec7052ea781fde28b484bdf2033b8c1a295c67b1f \
+    --hash=sha256:e5f8fdf512da074c225219f4e09723f612cdd3449c4793693fd360dc817c9261 \
+    --hash=sha256:ebb8350e860c8e00b7c84d71e15090fc3ac4cc9d4249892f85fb35011590e372
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 miniaudio==1.71 \
     --hash=sha256:06222d80b057ca4beccb6f97a134c2c2bf646ef7890e1759cfc09db7eecec44d \
     --hash=sha256:12bc33e7e61072b4b541c14e10ef76119d5643e6bbb98e2dec0c0738889438fb \
@@ -1354,7 +1361,7 @@ miniaudio==1.71 \
 misaki==0.9.4 \
     --hash=sha256:3960fa3e6de179a90ee8e628446a4a4f6b8c730b6e3410999cf396189f4d9c40 \
     --hash=sha256:90e2eeb169786c014c429e5058d2ea6bcd02d651f2a24450ba6c9ffc0f8da15a
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 mlx==0.32.3 \
     --hash=sha256:0512049c81fded99aa6af2d039ae1fccf113ff1a5f2df937a596578aabd46869 \
     --hash=sha256:097856504e6cf5944b9aaa7c2e1d5be0693428abd9175429cae3893e7ec2f681 \
@@ -1405,13 +1412,13 @@ mlx==0.32.3 \
     --hash=sha256:f348705a72fa236f310c2cbb9c393d3b620a942c9b34ac641fd0f098bdc5be44 \
     --hash=sha256:f5716b51fea3d06352d4d8c851fb6c5141b1a7de5a5164d44de5a6d368d84a7e
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   mlx-audio
     #   mlx-whisper
 mlx-audio==0.5.8 \
     --hash=sha256:55a7378a4d27dddeba2d989f71f255ce70498b3f1c27928a8b1fb0baf3577d9e \
     --hash=sha256:cf2eaef3d5d965d3a0a5c98ab68d4867db51daace190a77b3b9576577a7d2eab
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 mlx-metal==0.32.3 \
     --hash=sha256:34ae9b83ad2f0ccdd3e5d48ec35176e7119f57069eef187122916dc941a4ae1f \
     --hash=sha256:fdba88ed9131448cf163be2c7ad6374746d8818205f28657aa91b6c69050f691 \
@@ -1419,7 +1426,7 @@ mlx-metal==0.32.3 \
     # via mlx
 mlx-whisper==0.4.3 \
     --hash=sha256:6b82b6597a994643a3e5496c7bc229a672e5ca308458455bfe276e76ae024489
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 more-itertools==11.1.0 \
     --hash=sha256:48e8f4d9e7e5878571ecf6f2b4e57634f93cd474cc8cfbd2376f2d11b396e30d \
     --hash=sha256:4b65538ae22f6fed0ce4874efd317463a7489796a0939fa66824dd542125a192
@@ -1596,8 +1603,8 @@ numpy==2.5.3 \
     --hash=sha256:fc36dc566135b5eceec4cf89758fcb719266a019ef07dae1754ae7c9f617ef3e \
     --hash=sha256:ffdc76bfcae6b255dff75202c5e7feaf95b40246bc0a17944facc1fecf9f79ab
     # via
-    #   --override packaging/requirements/darwin-arm64.overrides.txt
-    #   -r packaging/requirements/darwin-arm64.in
+    #   --override apps/desk/packaging/requirements/darwin-arm64.overrides.txt
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   blis
     #   contourpy
     #   matplotlib
@@ -1635,11 +1642,11 @@ onnxruntime==1.31.0 \
     --hash=sha256:e51d10d2e2e1e5bbf9b126a0cd9853d3e6c4e21424518dd50160b91471be33dc \
     --hash=sha256:e85c1632c0a8cf488bd8f1039f5320877b864c8f9ebd4122fb8bb909f83b7096 \
     --hash=sha256:e93d7c5fad20afa697ac16f376fd0306ed180f9a376e86106cc0b7d84f53ef87
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 openai==3.24.0 \
     --hash=sha256:1e7463f7d78773ab2ce4fe85710481aa5bd5ffefd54c8de4b067506cd2d42895 \
     --hash=sha256:b59703a3e3b5df78b269e90049d383a1dda58c90104cc4be59db21078db4b7a4
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 opencv-contrib-python==5.0.0.93 \
     --hash=sha256:29b916da864002a921c79b6df4cfb2dcf79870f166ddf3ce1179b558bc7313d7 \
     --hash=sha256:3ebb8e0506573f36f54038116321a086c97aeda8ef154198931f3ea18b435cc7 \
@@ -1754,7 +1761,7 @@ pillow==12.3.0 \
     --hash=sha256:fe3cca2e4e8a592be0f269a1ca4835c25199d9f3ce815c8491048f785b0a0198 \
     --hash=sha256:ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   matplotlib
 preshed==3.0.13 \
     --hash=sha256:04d8f13f2986e5d11af5ac51f55ce3106c70c41b483d20ea392e6180bdd0f870 \
@@ -1982,7 +1989,7 @@ pypinyin==0.55.0 \
     --hash=sha256:b5711b3a0c6f76e67408ec6b2e3c4987a3a806b7c528076e7c7b86fcf0eaa66b \
     --hash=sha256:d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   misaki
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
@@ -2063,7 +2070,7 @@ pyyaml==6.0.3 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   huggingface-hub
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
@@ -2203,7 +2210,7 @@ regex==2026.9.29 \
     --hash=sha256:fdd88ed5e20b1bcdd234421e454962c971aa44b653bdb7f1ea9ef683e90fb649 \
     --hash=sha256:fe3fa1dd453ed5c7f5ea23a26218329790ed7197a99b90e94330e313959a7f52
     # via
-    #   -r packaging/requirements/darwin-arm64.in
+    #   -r apps/desk/packaging/requirements/darwin-arm64.in
     #   misaki
     #   tiktoken
 requests==2.34.2 \
@@ -2348,65 +2355,6 @@ rpds-py==2026.9.1 \
     # via
     #   jsonschema
     #   referencing
-sentencepiece==0.2.2 \
-    --hash=sha256:046b15ea22d8042e2e173561d464ec3b64a9c2081324df70ebce7bf7ebb3e497 \
-    --hash=sha256:0e2aae42960392d6dcb9a72d8e1e65a97294c965071b43c7b3429a42f350250e \
-    --hash=sha256:1120e0791540615e650b2e9bea835bf38a7362455d8ab62dee7968219c2d79a0 \
-    --hash=sha256:1402d8ee36f0d851cea8eee4dbb85fea14643b7503cf4d00d102eec0fe3ca719 \
-    --hash=sha256:1416b92f2f010333786fe6306ed2631121d5ea492219b0841e967b6765e64107 \
-    --hash=sha256:16c84ddef8d3084a8af37208acd365b08092ca089080f1a71fbfdd911adda9b3 \
-    --hash=sha256:1edb10e520e4bddf74d85b0f5ae74cc2d60c2b448885080bfb618bc2b3a49f6b \
-    --hash=sha256:201a8e0f55501a76e08dbf2c54bc45f4642b379271e89c667d517bfbc2191f2a \
-    --hash=sha256:252908153eeec06c3ca3a32077e64a49d572e3d89881475b4e0f02d99d9fcc7c \
-    --hash=sha256:38111ed1f79268f399c505028023d5eaaf0ab4e5eafceb709468b0d3323e7838 \
-    --hash=sha256:3ab3f1ae98970b5590e2209341522718900ba19bcc2c207ffaa6bd417ad960c5 \
-    --hash=sha256:3d2b5e824b5622038dc7b490897efe05ebbbb9e7350fc142f3ecc8789ef9bdf6 \
-    --hash=sha256:3ec27c152a1f1b24bc9168b55a5880f3c16e2334e697da6f55a1046a22405a3d \
-    --hash=sha256:3f5851441ab1ef8634963a5100b733a8bbeefe623e0c5c005b1f1f3880e574cf \
-    --hash=sha256:3fd9ce2ab4460c713cfdeb4aca693ca6732a11538e05fb332d5af42e3d7fde25 \
-    --hash=sha256:44284adc6fbe9d5bdd480541431a3d93f674fa44736714d3ad4bcee8283ace7d \
-    --hash=sha256:443ac618c7a2a1377cf5c82581fbb849591d14e656d5e5a3e4682d4e36a34e4e \
-    --hash=sha256:46ba07b543add034de0ff47ac5f907e9a06682f91d85121a972764628933be6b \
-    --hash=sha256:4f0603267cd15b92b68c2c0e852a441507614b70dc7773659baa6b8c214a91fd \
-    --hash=sha256:524e2a85c028a0d2f9935191fa751e5ef9d9bcc39616f70ab14b28d0369c9936 \
-    --hash=sha256:54a83df9260a89c1734256e620fe1f1a6bfedd7547139d4dc1384efac11a3a85 \
-    --hash=sha256:59d6588712101ccfcae9b03692be3aaae1514c2078666d7b05f15ba3a702e41b \
-    --hash=sha256:63250cfab8b80a1ef82a614eb2b3cadfec2c405f870cedc139d08e2f063eb708 \
-    --hash=sha256:64b656f025355cf8c51abe9fbe3848540756c6d7ca5e6791b1afa664bc24c7cb \
-    --hash=sha256:65d84ec36888de4a848eee5f910e67fbc79b064685ef1e10a502e14520ead9c9 \
-    --hash=sha256:69e9dc8078e128286ed3b975e37c837ba96e215a50c3ef9f3f8b7ab9e5a832a0 \
-    --hash=sha256:6dd76f3e5c8b2eb8a3a3efee787bbf5b9a66e52a048fe09cab85eca33fec6790 \
-    --hash=sha256:70d4ca6f4d06df7f0ccab6fe4f49c8a712c8c8b6847b4f0af9a0e1dbb0e0337e \
-    --hash=sha256:72b7825b331b1b7e7c45be2e674b3e3c65af608fa376bad2d851b20aaf0cdc78 \
-    --hash=sha256:741b4b367140e9b5c36b5a14c72179f2c946d991ea9a7c031a2a1ee6ad097b99 \
-    --hash=sha256:74f0ee601047c0c12a783088b51be4e6214a62ecd9e02278c477433cd16e0ed9 \
-    --hash=sha256:76ff5814db72e7462dece042d7593cdf102b8ec82c2b1cc201a2add34ee3050d \
-    --hash=sha256:77c3ce990b23441e5ecfa5bce181fd6f408b564aeb6d7e1d1e7de9c5612501c8 \
-    --hash=sha256:79bac5a251f23a7341e28fda9ce0d5319edf45328239ce037c0682936f137906 \
-    --hash=sha256:7c6e7bf684dc12145bfa685d3060beaea55139134ba848289bee514ed42e7383 \
-    --hash=sha256:7fc14c1585139fa6b68775e616a6b90cf622ebf219f9558c0aeaf5d253ee6c9b \
-    --hash=sha256:89625fb43765cccaa1443b9adb61f283e5fe4cb1536728205d06bada730caa53 \
-    --hash=sha256:8b2db2056c97224e122054fd794543cde5d24b7cae28424f6e3eb79bbe08e42b \
-    --hash=sha256:8d44b20234905ff022b7d535f79d1f823ad7670c9851cc4f03cdc34787cdb3ab \
-    --hash=sha256:8eed98514bffe5ecac37f493f91869c351fbb05629328bfdbc08502c6c094dc0 \
-    --hash=sha256:8f1f61592e7cabd45d49ce8cc0ef42ca655c091e037153754fb3fa59725b5914 \
-    --hash=sha256:b23fe17779834d3c27aaf2edac9486d04cca1a7deb8f5facda35150ac6263a91 \
-    --hash=sha256:bc7b0b1da20f856bfac5f84b2673fe534b167e41980b27442ca8f78c2b7eb77e \
-    --hash=sha256:c62bd361cec1f5b556eb8210264ecfff37486cd990c3386cc00310f26c54090a \
-    --hash=sha256:c76c9b3324efd79029eeb0fd2ced1964bdbeca7d45e030b46fa3ef3cf74f8032 \
-    --hash=sha256:c798f0b327bac10dc95cdac77b9a197ab2bd7dd1e60ebd7586a12d918d4be711 \
-    --hash=sha256:c8a168b040bc61681293f79a949b5d911c8e25086f4260285b8d97ab5f1195da \
-    --hash=sha256:caad9566e2ef0e5640d36032c69b0edc7ac6028277b93d93815898804fac450c \
-    --hash=sha256:cbce24284f51f71d10a42b7b9c964dcb9048b28f1c8e5db40bcbcb6f428cba6a \
-    --hash=sha256:cd810878180a52950e5a61f25ada5248a453bbdbafe474f89514135fbc1f633d \
-    --hash=sha256:d254c98ca6387655400b3959c33c83efd807f5edeb608e3aca45800ceaa77151 \
-    --hash=sha256:d795c4ac689a57f9d4ba2288126ec7901d389ad5827d2f8b8533c883974fe563 \
-    --hash=sha256:df88b0c34f2fa909d322f7b06b1398e1e81af4b2f42a7b8e3556f928b25d1811 \
-    --hash=sha256:eb8da9d9a9b418422c21a07fd19b9d9228692b7a7468a45eec6b11642d3c808b \
-    --hash=sha256:f7c06c751c19d923435a54bff4f7e66e728fad160e8da28254f133abc9725820 \
-    --hash=sha256:fa9f5ef0e2a82233dd0b8b32ea3f5710e0c44afbc07ed3620219f32601e56090 \
-    --hash=sha256:fd523c4992041faa5c2b3cde62253d11a96c30d73a34afe48a486e8e2254cd1c
-    # via mediapipe
 setuptools==84.0.0 \
     --hash=sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670 \
     --hash=sha256:f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73
@@ -2449,7 +2397,7 @@ soundfile==0.14.0 \
     --hash=sha256:d828d35a059626da52f1415b5faee610aeab393319cb3fc4a9aef47b619fc14c \
     --hash=sha256:e090704718e124e7c844695236f1fce8d18a5e761eaf7c82dfcd124620805f98 \
     --hash=sha256:e85724a90bc99a6e8062c0b4ddf725f53b2a3b70afd4da875e9d2cfc4e92f377
-    # via -r packaging/requirements/darwin-arm64.in
+    # via -r apps/desk/packaging/requirements/darwin-arm64.in
 spacy==3.8.16 \
     --hash=sha256:024ce6408ea00c7f8c6387a6de65bb67aad40c51c9d63705303c5cb9a8ef51b0 \
     --hash=sha256:04fd0206c9f33a0542a40049211528742b5492ef5f971d06b151b9cc49b9237b \

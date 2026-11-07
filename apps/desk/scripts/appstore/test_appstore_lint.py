@@ -402,6 +402,14 @@ class VisionTelemetryTest(unittest.TestCase):
     def test_audited_wheel_without_uploader(self):
         self.assertEqual(L.check_telemetry(self.root, lambda _: None), [])
 
+    def test_compatible_audited_wheel_still_rejects_uploader(self):
+        with open(self.meta, 'w') as f:
+            f.write('Version: 0.10.14\n')
+        self.assertEqual(L.check_telemetry(self.root, lambda _: None), [])
+        with open(self.lib, 'ab') as f:
+            f.write(b'portable_clearcut_uploader')
+        self.assertIn('metrics uploader', str(L.check_telemetry(self.root, lambda _: None)))
+
     def test_new_unreviewed_sdk_and_hidden_native_uploader_fail(self):
         with open(self.meta, 'w') as f:
             f.write('Version: 0.10.35\n')
