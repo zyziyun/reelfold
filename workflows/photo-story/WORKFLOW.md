@@ -66,7 +66,10 @@ These sheets do not establish frame-accurate or continuous-playback acceptance.
 
    Review each requested aspect ratio at phone size before approving its layout:
    - **Information:** the object, tool and interaction must remain understandable. A detail can crop the
-     object only after context is established; the closing view must communicate the result.
+     object only after context is established; the closing view must communicate the result. Judge a detail
+     close-up by whether its feature/action and identity are readable, not by whether every peripheral edge
+     remains visible. A requested whole-product hero must show the intended silhouette. Without source
+     evidence, do not claim that a missing feature was removed by the edit or can be recovered by widening.
    - **Composition:** compare a single view with any proposed overview/detail pair. Keep a second pane
      only when it adds readable information. Inspect actual magnification, not just crop coordinates.
      Neither repeated wide panes nor an undersized picture surrounded by accidental matte is a pass.

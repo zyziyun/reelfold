@@ -21,6 +21,12 @@ def review(pay, context, lang=None, complete=None):
         'When overview and detail panes repeat the same source, assess whether the detail reveals useful information '
         'that is not readable in the overview. Flag redundant panes, undersized overviews and detail crops that lose '
         'the relevant action or product identity. A split layout is not automatically an improvement. '
+        'Judge cropping against the requested shot purpose, not a blanket whole-object rule. A detail close-up '
+        'may omit peripheral silhouette if its intended feature, action and identity remain readable. A requested '
+        'whole-product or establishing view must preserve the necessary outline and context. Do not infer that '
+        'a missing feature exists outside the crop without source evidence; distinguish missing source coverage '
+        'from damage introduced by editing. An intentional close-up does not excuse an unreadable feature, '
+        'cut-off interaction, caption collision or weak use of the canvas. '
         'Return JSON {frames:[{index:0, verdict:"pass|fix|unknown", evidence:"specific observation"}], '
         'summary:"concise assessment and corrections"}. Include exactly one entry for every zero-based image index. '
         'Use fix for visible defects and unknown where evidence is insufficient. Do not invent unseen detail. '
@@ -79,7 +85,9 @@ def repair(project, pay, decision, complete=None):
     instruction = (
         'Automatic layout review found defects in the current rendered samples. Fix the observed defects in the '
         'current spec, retaining the intended story, language, factual wording and original media. Do not invent '
-        'new source content or switch to paid generation. Keep complete subjects and actions; choose better '
+        'new source content or switch to paid generation. Preserve the intended shot scale and all context '
+        'needed to understand the subject and action; do not widen a purposeful detail close-up merely to show '
+        'the entire object. Whole-product views still require their complete intended silhouette. Choose better '
         'source intervals only when the available source frames justify them. This is a repair, not a new film. '
         'The appended review images show the current output in the indexed order below. The source images '
         'earlier in this request are different evidence. The result will be rendered and reviewed again.\n' +
