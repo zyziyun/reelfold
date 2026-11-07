@@ -19,6 +19,19 @@ MAC = sys.platform == "darwin" and shutil.which("cc") and shutil.which("nm") and
 
 
 class MacOSMinimumTest(unittest.TestCase):
+    @unittest.skipUnless(MAC, 'requires macOS command line tools')
+    def test_actual_helper_name_with_parentheses(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, 'Contents'))
+            with open(os.path.join(root, 'Contents', 'Info.plist'), 'wb') as fh:
+                plistlib.dump({'LSMinimumSystemVersion': '14.0'}, fh)
+            source = os.path.join(root, 'main.c')
+            with open(source, 'w') as fh:
+                fh.write('int main(void) { return 0; }')
+            binary = os.path.join(root, 'Reelfold Helper (Renderer)')
+            subprocess.run(['cc', '-mmacosx-version-min=14.0', source, '-o', binary], check=True, capture_output=True)
+            self.assertEqual(L.check_macos_minimum(root, lambda _: None), [])
+
     def test_reads_deployment_target_not_sdk_and_checks_all_slices(self):
         text = '''Load command 1
 cmd LC_BUILD_VERSION

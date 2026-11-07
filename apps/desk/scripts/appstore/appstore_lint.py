@@ -35,6 +35,7 @@ import re
 import struct
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -497,7 +498,12 @@ def check_macos_minimum(root, log):
     files = [p for p in walk_files(root) if is_macho(p)]
 
     def one(p):
-        result = subprocess.run(["otool", "-l", p], capture_output=True, text=True)
+        # cctools interprets a trailing '(Renderer)' as archive(member), even in an argv
+        # path. Inspect the same bytes through a neutral symlink; never rename signed code.
+        with tempfile.TemporaryDirectory(prefix="reelfold-macho-") as temp:
+            alias = os.path.join(temp, "binary")
+            os.symlink(os.path.abspath(p), alias)
+            result = subprocess.run(["otool", "-l", alias], capture_output=True, text=True)
         if result.returncode:
             return p, [f"otool failed: {result.stderr.strip()}"]
         versions = macos_versions(result.stdout)
