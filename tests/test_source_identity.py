@@ -72,3 +72,27 @@ def test_story_planner_and_renderer_bind_the_same_source(tmp_path, monkeypatch):
     media = PS._spec_value(dest.read_text(), 'MEDIA')
     for cid, source in zip(captured, paths):
         assert os.path.samefile(dest.parent/media['videos']/(cid+'.mp4'), source)
+
+
+@pytest.mark.parametrize('requested,expected', [('second', 'second'), ('basename', 'ambiguous-source'), ('foreign', 'unknown-source')])
+def test_shot_swap_never_guesses_between_same_named_sources(tmp_path, monkeypatch, requested, expected):
+    from vstudio.project import outputs as O
+    paths = sources(tmp_path)
+    mapping = dict(shots=[dict(start=0, end=1)], sources=[dict(path=p, duration=5) for p in paths])
+    monkeypatch.setattr(O, 'shot_map', lambda _: mapping)
+    source = {'second': paths[1], 'basename': 'clip.mp4', 'foreign': str(tmp_path/'other'/'clip.mp4')}[requested]
+    if expected == 'second':
+        result = O._shot_swap({}, {}, dict(shot=0, source=source, t=0), {})
+        assert result['swap']['source'] == paths[1]
+    else:
+        with pytest.raises(O.OutputError) as error:
+            O._shot_swap({}, {}, dict(shot=0, source=source, t=0), {})
+        assert error.value.info['code'] == expected
+
+
+def test_shot_swap_still_accepts_unique_filename(tmp_path, monkeypatch):
+    from vstudio.project import outputs as O
+    path = sources(tmp_path)[0]
+    monkeypatch.setattr(O, 'shot_map', lambda _: dict(shots=[dict(start=0, end=1)], sources=[dict(path=path, duration=5)]))
+    result = O._shot_swap({}, {}, dict(shot=0, source='clip.mp4', t=1), {})
+    assert result['swap'] == dict(source=path, t=1)

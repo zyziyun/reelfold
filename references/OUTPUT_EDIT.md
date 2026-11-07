@@ -329,7 +329,10 @@ the copy it came with stays as `post_original`).
 
 On such an output `show` adds `imported {clip, original, platform, sources, shots [{i, start, end, source, t, score,
 swap}], coverage}` and caps `imported, sources, shots, shot_swap, languages`; the AI gets the shots with their
-alternatives. Framing of another aspect follows the subject; a version WIDER than the file (a 16:9 YouTube cut of a
+alternatives. A `shot_swap` source may be an exact linked path or a unique bare filename.
+When linked videos share a filename, use the full path; an ambiguous name fails without changing the shot.
+An unlinked path is never silently replaced by a linked file with the same name.
+Framing of another aspect follows the subject; a version WIDER than the file (a 16:9 YouTube cut of a
 vertical 小红书 video) or in another language is rebuilt shot by shot from the full source frame when at least 60 %
 of it is matched (stage `canvas` op `sources`); swapped shots go through a `splice` stage before the canvas.
 

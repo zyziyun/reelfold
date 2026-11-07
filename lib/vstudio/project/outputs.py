@@ -1883,7 +1883,14 @@ def _shot_swap(rec, st, op, value):
     srcs = {x["path"]: x for x in m.get("sources") or []}
     src = op.get("source")
     if src:
-        hit = [p for p in srcs if p == src or os.path.basename(p) == os.path.basename(str(src))]
+        # An explicit linked path wins even when another camera used the same filename.
+        # Only a bare filename may use shorthand, and it must identify one source.
+        requested = str(src)
+        hit = [requested] if requested in srcs else [p for p in srcs
+            if requested == os.path.basename(requested) and os.path.basename(p) == requested]
+        if len(hit) > 1:
+            raise _err("ambiguous-source", f"{src} matches multiple linked videos; choose its full source path",
+                       f"{src} 对应多个关联视频，请选择完整的素材路径", source=src, matches=hit)
         if not hit:
             raise _err("unknown-source", f"{src} is not footage linked to this clip", f"{src} 不是这个片段关联的素材",
                        source=src, known=[os.path.basename(p) for p in srcs][:30])
