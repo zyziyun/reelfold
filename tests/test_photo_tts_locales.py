@@ -74,3 +74,26 @@ def test_chinese_fallback_and_literal_override():
 def test_english_pronunciation_word_boundaries_unchanged():
     spoken,display=PT.narration_texts([('API CAPITable','')],{'API':'A P I'},'en')
     assert spoken==['A P I CAPITable'] and display==['API CAPITable']
+
+
+@pytest.mark.parametrize('engine,voice,expected', [
+    ('system', 'test-voice', 'Visit pyoo jet.'),
+    ('qwen', 'test-voice', 'Visit pyoo jet.'),
+    ('kokoro', 'af_heart', 'Visit Puget.'),
+])
+def test_pronunciation_lexicon_only_overrides_its_own_engine(tmp_path, monkeypatch, engine, voice, expected):
+    spec = SimpleNamespace(TTS=dict(language='en', engine=engine, voice=voice),
+                           SAY_TTS={'Puget': 'pyoo jet'}, SCRIPT=[(0, [('Visit Puget.', '')], [])])
+    monkeypatch.setattr(PT, 'load_spec', lambda _: spec)
+    monkeypatch.setattr(PT, 'Ctx', lambda s: s)
+    monkeypatch.setattr(PT, 'tts_dir', lambda _: str(tmp_path))
+    monkeypatch.setattr(PT.vtts, 'prefs', lambda: {})
+    monkeypatch.setattr(sys, 'argv', ['tts.py', 'spec.py'])
+    requests = []
+    def synth(text, **kw):
+        requests.append(text)
+        sf.write(kw['out'], np.full(4800, .1), 48000)
+    monkeypatch.setattr(PT.vtts, 'synth', synth)
+    monkeypatch.setattr(PT.asr, 'transcribe', lambda *a, **kw: {'words': [{'w': expected, 't': 0, 'te': .1}]})
+    PT.main()
+    assert requests == [expected]

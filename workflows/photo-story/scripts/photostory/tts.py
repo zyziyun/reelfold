@@ -157,7 +157,7 @@ def main():
     style = (a.style or cfg.get("style") or "").strip() or None if engine == "qwen" else None
     print(f"voice: {engine} {voice} ({cfg['language']})" + (f" style: {style}" if style else ""), flush=True)
     say_tts = dict(getattr(spec, "SAY_TTS", {}) or {})          # SAY_TTS: the drafter's respellings
-    if local:   # a curated name (vstudio.kokoro_lexicon) is said from its phonemes, never from an older respelling
+    if engine == "kokoro":   # only Kokoro consumes this phoneme lexicon; other engines need their respellings
         from vstudio import kokoro_lexicon
         say_tts = {k: v for k, v in say_tts.items() if not kokoro_lexicon.known(k)}
     say = dict(getattr(spec, "SAY", {}) or {}, **say_tts)
