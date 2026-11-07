@@ -282,6 +282,7 @@ def draft_spec(ctx, cp, path, template=None, instruction=None, complete=None):
         ("Footage (clip id: facts; one contact sheet per clip is attached, tiles labelled with the clip's "
          f"seconds). {footage.MOMENTS_NOTE}\n{ftext}") if ftext else "",
         guide,
+        _framing_note(facts, plats, cur),
         _cut_note(ctx.params),
         f"Current spec (change only what the instruction asks):\n{cur}" if cur else "",
         f"Instruction from the creator: {instruction}" if instruction else "",
@@ -886,6 +887,50 @@ def _canvas(name):
         return int(p.w), int(p.h)
     except (KeyError, ValueError):
         return None
+
+
+def _framing_note(facts, platforms, current=""):
+    """Aspect-ratio consequences, not a guess at where the subject is."""
+    import json
+    sources = {f["id"]: (f.get("w"), f.get("h")) for f in facts if f.get("id")}
+    shapes = [(key, w, h) for key, (w, h) in sources.items() if w and h]
+    # Include proposed regions on repair, so a small crop cannot masquerade as
+    # a substantial increase in subject size. Parse data only; never execute it.
+    for unit in (_spec_value(current, "SCRIPT") or []):
+        if not isinstance(unit, (list, tuple)) or len(unit) != 3 or not isinstance(unit[2], (list, tuple)):
+            continue
+        for shot in unit[2]:
+            if not isinstance(shot, (list, tuple)) or not shot:
+                continue
+            opts = shot[3] if len(shot) > 3 and isinstance(shot[3], dict) else {}
+            region = opts.get("source_region")
+            if isinstance(region, (list, tuple)) and len(region) == 4:
+                shapes.append((f"current region {shot[0]}", region[2], region[3]))
+    rows = []
+    for platform in platforms:
+        canvas = _canvas(platform)
+        if not canvas:
+            continue
+        tw, th = canvas
+        for key, w, h in shapes:
+            if not all(isinstance(n, (int, float)) and 0 < n < float("inf") for n in (w, h)):
+                continue
+            scale = min(tw / w, th / h)
+            cover = max(tw / w, th / h)
+            rows.append(dict(platform=platform, canvas=[tw, th], source=key,
+                source_size=[w, h], contain_size=[round(w * scale), round(h * scale)],
+                contain_canvas_percent=round(100 * w * h * scale ** 2 / (tw * th), 1),
+                cover_visible_source_size=[round(tw / cover), round(th / cover)]))
+    if not rows:
+        return ""
+    return ("Framing geometry before titles/caption reservations (contain occupancy is an upper bound, "
+            "not subject coverage):\n" + json.dumps(rows) +
+            "\nUse actual source frames to choose a crop that preserves the relevant interaction and result. "
+            "For a process close-up this need not retain every peripheral part of the machine or hand. "
+            "Do not confuse preserving meaningful action with preserving every source pixel. "
+            "Compare the proposed region's aspect ratio to the canvas: a slightly narrower landscape region "
+            "still leaves large portrait mattes. Cover dimensions describe how much source remains visible, "
+            "not where a safe crop is located. Verify position and movement; never crop just to meet an occupancy quota.")
 
 
 def more_platforms(env):
