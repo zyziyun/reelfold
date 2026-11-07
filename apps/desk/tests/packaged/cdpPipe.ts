@@ -21,11 +21,14 @@ export interface PipedApp {
   proc: ChildProcess;
   /** ws://127.0.0.1:<port>/ for chromium.connectOverCDP */
   endpoint: string;
+  diagnostics(): string;
   stop(): void;
 }
 
 export async function spawnWithCdpPipe(exe: string, args: string[], env: NodeJS.ProcessEnv): Promise<PipedApp> {
-  const proc = spawn(exe, [...args, '--remote-debugging-pipe'], { env, stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  const proc = spawn(exe, [...args, '--remote-debugging-pipe'], { env, stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+  let stderr = '';
+  proc.stderr?.on('data', (data: Buffer) => { stderr = (stderr + data.toString()).slice(-8192); });
   const toApp = proc.stdio[3] as Writable;
   const fromApp = proc.stdio[4] as Readable;
   toApp.on('error', () => undefined); // the app quit
@@ -54,5 +57,7 @@ export async function spawnWithCdpPipe(exe: string, args: string[], env: NodeJS.
     ws.on('close', () => (client = null));
   });
   proc.once('exit', () => wss.close());
-  return { proc, endpoint: `ws://127.0.0.1:${wss.address().port}/`, stop: () => wss.close() };
+  return { proc, endpoint: `ws://127.0.0.1:${wss.address().port}/`,
+    diagnostics: () => `exit=${proc.exitCode}, signal=${proc.signalCode}\n${stderr}`,
+    stop: () => wss.close() };
 }

@@ -5,7 +5,7 @@
 // the app's test switches). Driven over CDP like tests/packaged/packaged.spec.ts (fuses: no Node inspector), but through
 // --remote-debugging-pipe: the store build has no network.server entitlement, so the sandbox refuses a debugging port.
 import { chromium, expect, test, type Browser, type Page } from '@playwright/test';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,13 +28,11 @@ async function expectNoUpsell(page: Page) {
   await expect(page.locator('[data-testid="lite-card"] a, [data-testid="lite-card"] button, [data-testid="lite-ai"] a, [data-testid="lite-ai"] button')).toHaveCount(0);
 }
 
-/** The container exists after the app's first launch: start it once (it quits when the window is closed). */
-async function ensureContainer() {
-  if (fs.existsSync(CONTAINER)) return;
-  const p = spawn(EXE, ['--use-mock-keychain'], { stdio: 'ignore', env: { HOME: os.homedir(), PATH: '/usr/bin:/bin' } });
-  for (let i = 0; i < 60 && !fs.existsSync(CONTAINER); i++) await new Promise((r) => setTimeout(r, 500));
-  p.kill('SIGTERM');
-  await new Promise((r) => setTimeout(r, 2000));
+/** Never bootstrap a container by launching the user's default profile. */
+function requireContainer() {
+  if (!fs.existsSync(CONTAINER)) {
+    throw new Error('MAS test container is absent; initialize it on an isolated test account first');
+  }
 }
 
 interface App {
@@ -42,43 +40,58 @@ interface App {
   browser: Browser;
   page: Page;
   userData: string;
+  tempDir: string;
   close(): Promise<void>;
 }
 
 async function launch(extra: Record<string, string> = {}): Promise<App> {
-  await ensureContainer();
+  requireContainer();
   fs.mkdirSync(CTMP, { recursive: true });
-  const userData = fs.mkdtempSync(path.join(CTMP, 'mas-test-'));
+  const tempDir = fs.mkdtempSync(path.join(CTMP, 'm-'));
+  const userData = path.join(tempDir, 'profile');
+  fs.mkdirSync(userData);
   // a scrubbed environment: nothing from this shell may point the app elsewhere
-  const env = { HOME: os.homedir(), PATH: '/usr/bin:/bin', TMPDIR: CTMP + '/', DESK_USER_DATA: userData, VSTUDIO_HOME: path.join(userData, 'vstudio-home'), DESK_SHARED_CACHE: path.join(userData, 'cache'), DESK_HF_HUB: '', DESK_HIDE_WINDOW: '1', DESK_SKIP_FIRST_RUN: '1', DESK_DISABLE_UPDATES: '1', ...extra };
+  const env = { HOME: os.homedir(), PATH: '/usr/bin:/bin', TMPDIR: tempDir + '/', DESK_USER_DATA: userData, VSTUDIO_HOME: path.join(userData, 'vstudio-home'), DESK_SHARED_CACHE: path.join(userData, 'cache'), DESK_HF_HUB: '', DESK_HIDE_WINDOW: '1', DESK_SKIP_FIRST_RUN: '1', DESK_DISABLE_UPDATES: '1', ...extra };
   const piped = await spawnWithCdpPipe(EXE, ['--use-mock-keychain'], env);
   const proc = piped.proc;
-  // ONE connection: the pipe is one CDP session for the app's lifetime, so a retried connect would receive the answers
-  // and targets of the abandoned one. Chromium reads the pipe from early in its start-up; the timeout covers a cold start.
-  const browser: Browser | null = await chromium.connectOverCDP(piped.endpoint, { timeout: 90000 }).catch(() => null);
-  if (!browser) {
-    proc.kill();
-    throw new Error('the sandboxed app did not open a CDP endpoint (Console: look for "Sandbox" / secinit crashes)');
-  }
-  let page: Page | undefined;
-  for (let i = 0; i < 120 && !page; i++) {
-    page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith('app://desk/'));
-    if (!page) await new Promise((r) => setTimeout(r, 500));
-  }
-  if (!page) throw new Error('no app://desk/ window');
+  let browser: Browser | null = null;
   const close = async () => {
-    await browser!.close().catch(() => undefined);
-    const exited = new Promise((r) => proc.once('exit', r));
-    proc.kill('SIGTERM');
-    await Promise.race([exited, new Promise((r) => setTimeout(r, 10000))]);
-    if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
-    // the MAS Chromium keeps its single-instance socket in <container>/tmp/S; a killed instance (a quit that waits on a
-    // dialog, e.g. "downloads are still running") leaves it behind and the next launch would quit at once
-    for (let i = 0; i < 40 && fs.existsSync(path.join(CTMP, 'S')); i++) await new Promise((r) => setTimeout(r, 250));
-    fs.rmSync(path.join(CTMP, 'S'), { recursive: true, force: true });
-    fs.rmSync(userData, { recursive: true, force: true });
+    await browser?.close().catch(() => undefined);
+    if (proc.exitCode === null && proc.signalCode === null) {
+      const exited = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+      proc.kill('SIGTERM');
+      await Promise.race([exited, new Promise((r) => setTimeout(r, 10000))]);
+      if (proc.exitCode === null && proc.signalCode === null) {
+        proc.kill('SIGKILL');
+        await exited;
+      }
+    }
+    piped.stop();
+    // Only remove this test's directory. macOS may reset TMPDIR to CTMP;
+    // its shared Chromium lock must never be removed by the harness.
+    fs.rmSync(tempDir, { recursive: true, force: true });
   };
-  return { proc, browser, page, userData, close };
+  let page: Page | undefined;
+  try {
+    // One connection only: retrying could consume an abandoned CDP session's replies.
+    browser = await chromium.connectOverCDP(piped.endpoint, { timeout: 90000 });
+    for (let i = 0; i < 120 && !page; i++) {
+      page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith('app://desk/'));
+      if (!page) await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!page) throw new Error('no app://desk/ window');
+  } catch (error) {
+    const diagnostic = piped.diagnostics();
+    await close();
+    throw new Error(`Sandboxed app startup failed: ${diagnostic}`, { cause: error });
+  }
+  return { proc, browser, page, userData, tempDir, close };
+}
+
+/** Inspect only sockets owned by the test processes, not stale/shared directory entries. */
+function sockets(pids: string[]): string[] {
+  const result = spawnSync('lsof', ['-nP', '-a', '-U', '-p', pids.join(','), '-Fn'], { encoding: 'utf8' });
+  return [...new Set(result.stdout.split('\n').filter((line) => line.startsWith('n/')).map((line) => line.slice(1)))];
 }
 
 function entitlements(file: string): string {
@@ -143,7 +156,7 @@ test('the real engine runs sandboxed from the bundle; Lite AI, downloads and upd
     expect(pids.length, 'the engine runs as a child').toBeGreaterThan(1);
     const listening = spawnSync('lsof', ['-nP', '-a', '-iTCP', '-sTCP:LISTEN', '-p', pids.join(',')], { encoding: 'utf8' }).stdout.trim();
     expect(listening, 'listening TCP sockets').toBe('');
-    const socks = fs.readdirSync(CTMP).filter((f) => /^rf-(engine|html)-[0-9a-f]{8}\.sock$/.test(f));
+    const socks = sockets(pids).map((file) => path.basename(file));
     expect(socks.some((f) => f.startsWith('rf-engine-')), socks.join(', ')).toBe(true);
     expect(socks.some((f) => f.startsWith('rf-html-')), socks.join(', ')).toBe(true);
     // the profile is in the container
@@ -196,14 +209,11 @@ test('Home exposes the recorder and its permission controls without an AI key', 
 });
 
 test('AI sharing permission service listens privately inside the sandbox', async () => {
-  await ensureContainer();
-  fs.mkdirSync(CTMP, { recursive: true });
-  const before = new Set(fs.readdirSync(CTMP));
   const app = await launch();
   try {
-    const fresh = fs.readdirSync(CTMP).filter((f) => !before.has(f) && /^rf-consent-[a-f0-9]+\.sock$/.test(f));
+    const fresh = sockets([String(app.proc.pid)]).filter((file) => /^rf-consent-[a-f0-9]+\.sock$/.test(path.basename(file)));
     expect(fresh).toHaveLength(1);
-    const socket = fs.statSync(path.join(CTMP, fresh[0]));
+    const socket = fs.statSync(fresh[0]);
     expect(socket.isSocket()).toBe(true);
     expect(socket.mode & 0o777).toBe(0o600);
   } finally { await app.close(); }
