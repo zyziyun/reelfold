@@ -7,7 +7,7 @@ import re
 
 PATTERNS = {
     "product": r"电商|带货|商品展示|产品演示|商品演示|产品广告|产品短片|e-?commerce|shopping ad|\bproduct[- ](?:design[- ])?(?:ad\b|commercial|spot\b|showcase|demonstration\b|demo\b|video|film)",
-    "company": r"企业宣传|公司宣传|品牌形象片|工业(?:流程|生产)?(?:短片|视频|宣传片)|生产流程(?:短片|视频)|\b(?:industrial|manufacturing)(?:[- ]process)?[- ](?:film|video)\b|corporate (?:brand )?(?:film|video)|company (?:brand )?(?:film|video)|brand film",
+    "company": r"企业宣传|公司宣传|品牌形象片|工业(?:流程|生产)?(?:短片|视频|宣传片)|生产流程(?:短片|视频)|\b(?:industrial|manufacturing)(?:[- ]process)?[- ](?:film|video)\b|\b(?:corporate|company)(?:[- ]brand)?[- ](?:film|video|introduction|intro|profile|promo(?:tion)?)\b|\benterprise[- ](?:introduction|intro|profile|promo(?:tion)?)\b|brand film",
     "sketch": r"段子|小品|情景喜剧|搞笑(?:短片|短剧|段子)|comedy(?:\s+(?:sketch|skit|film|video))?|\bskit\b|\bsketch\b",
 }
 

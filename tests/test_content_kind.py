@@ -35,6 +35,16 @@ from vstudio.content_kind import detect
     ("不要制作工业流程短片，保留采访", None),
     ("Discuss industrial processes in this interview", None),
     ("Explain manufacturing in this lecture", None),
+    ("Create an 18-second enterprise company introduction from stock clips", "company"),
+    ("Make a company-profile video", "company"),
+    ("Create a corporate intro", "company"),
+    ("Make an enterprise promo", "company"),
+    ("Create a company promotion", "company"),
+    ("Not a company introduction; retain the interview", None),
+    ("Avoid a generic enterprise promo; use my original speech", None),
+    ("Discuss enterprise software in this lecture", None),
+    ("Explain company profitability", None),
+    ("Discuss corporate videography careers", None),
 ])
 def test_purpose_negation(prompt, expected):
     assert detect(prompt) == expected
