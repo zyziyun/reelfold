@@ -256,3 +256,34 @@ def test_event_evidence_is_bounded_and_coalesces_nearby_alarms(tmp_path, monkeyp
     assert [row['peak_t'] for row in evidence] == [2., 4.]
     assert len(calls) == 2
     assert all(c['max_frames'] == 19 and c['label_precision'] == 3 for c in calls)
+
+
+def test_source_evidence_maps_speed_without_waiving_failure(tmp_path, monkeypatch):
+    from vstudio import media
+    calls = []
+    def sheet(src, out, **kw):
+        calls.append((src, kw))
+        return out, [kw['start'], kw['start'] + kw['every']]
+    monkeypatch.setattr(media, 'contact_sheet', sheet)
+    report = dict(ok=False, events=[dict(t=4,peak_t=4,kind='blink')])
+    shot = dict(kind='video',src='source.mp4',t0=2,t1=8,source_time_origin=2,
+                src_in=10,speed=2,join_s=0)
+    evidence = FL.source_evidence(report,[shot],tmp_path/'qc.json')
+    assert evidence[0]['source_peak_t'] == 14
+    assert calls[0][1]['start'] == pytest.approx(13.4)
+    assert calls[0][1]['every'] == pytest.approx(1.2/18)
+    assert not report['ok']
+    assert 'source_evidence' not in report
+
+
+def test_source_evidence_skips_blends_ambiguous_and_legacy_maps(tmp_path, monkeypatch):
+    from vstudio import media
+    monkeypatch.setattr(media,'contact_sheet',lambda *a, **k: pytest.fail('ambiguous mapping'))
+    report = dict(events=[dict(t=4,kind='blink')])
+    shot = dict(kind='video',src='source.mp4',t0=2,t1=8,source_time_origin=2,
+                src_in=10,speed=1,join_s=0)
+    assert not FL.source_evidence(report,[shot,shot],tmp_path/'qc.json')
+    assert not FL.source_evidence(report,[dict(shot,join_s=2)],tmp_path/'qc.json')
+    assert not FL.source_evidence(report,[dict(shot,t1=4.2)],tmp_path/'qc.json')
+    legacy = dict(shot); legacy.pop('source_time_origin')
+    assert not FL.source_evidence(report,[legacy],tmp_path/'qc.json')

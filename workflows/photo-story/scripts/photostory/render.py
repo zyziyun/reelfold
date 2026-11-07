@@ -245,8 +245,9 @@ def main():
     out = a.out or (os.path.join(C.cache_dir, "preview.mp4") if a.preview else C.path(getattr(C.spec, "OUT", "out/story.mp4")))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     mix_audio(C, T, t_from, end_t, vid_tmp, out)
+    source_shots = []
     if not a.preview and not t_from:
-        write_edl(C, T, out)
+        source_shots = write_edl(C, T, out)
     # Keep the completed master's timing data even if subsequent visual QC
     # requires review. A QC failure must not leave an otherwise usable master
     # without the cues needed to inspect, re-export or repair it.
@@ -262,7 +263,7 @@ def main():
             qc = {"qc": getattr(C.spec, "QC", None) or {}}
             cuts = [float(sh["start"]) - t_from for sh in T.shots[1:]
                     if sh.get("tr") == "cut" and t_from < float(sh["start"]) < end_t]
-            flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc), cuts=cuts)
+            flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc), cuts=cuts, source_shots=source_shots)
         except flicker.FlickerError as e:
             sys.exit(f"!! render failed - {e}")
 
@@ -285,7 +286,7 @@ def write_edl(C, T, out):
         off = float(sh.get("off", 0.0) or 0.0)
         sp = float(sh.get("speed", 1.0) or 1.0)
         rows.append(dict(i=k, t0=round(t0, 3), t1=round(t1, 3), src=os.path.realpath(src) if src else None,
-                         kind=kind, name=arg, src_in=round(off, 3) if kind == "video" else None,
+                         kind=kind, name=arg, source_time_origin=float(sh["start"]), src_in=round(off, 3) if kind == "video" else None,
                          src_out=round(off + (t1 - t0) * sp, 3) if kind == "video" else None, speed=sp,
                          join=None if k == 0 else ("dissolve" if sh.get("tr") == "fade" else sh.get("tr")),
                          join_s=round(float(sh.get("trd") or 0), 3), label=sh.get("label"),
@@ -293,6 +294,7 @@ def write_edl(C, T, out):
     with open(os.path.splitext(out)[0] + ".edl.json", "w", encoding="utf-8") as f:
         json.dump(dict(version=1, builder="photo-story", duration=round(T.total, 3), shots=rows), f,
                   ensure_ascii=False, indent=1)
+    return rows
 
 
 TITLE_HOLD = (0.6, 5.2)    # cinema title card: on screen between these times (eased in and out)

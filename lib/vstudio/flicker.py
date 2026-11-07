@@ -346,7 +346,46 @@ def event_evidence(path, report, report_path, max_events=6):
     return evidence
 
 
-def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=()):
+def source_evidence(report, shots, report_path, max_events=6):
+    """Source comparisons for unambiguous video spans; never waive output QC."""
+    import os
+    from . import media
+    folder = os.path.splitext(str(report_path))[0] + "-source-frames"
+    result = []
+    for event in report.get("events", [])[:max_events]:
+        peak = float(event.get("peak_t", event["t"]))
+        radius = .3 if event["kind"] == "blink" else .6
+        candidates = [s for s in shots if s.get("kind") == "video" and s.get("src")
+                      and s.get("source_time_origin") is not None
+                      and s["t0"] <= peak - radius and peak + radius < s["t1"]]
+        if len(candidates) != 1:
+            continue
+        shot = candidates[0]
+        # EDL boundaries are dissolve midpoints. Do not present a blended
+        # interval as a single-source comparison.
+        if peak - radius < shot["t0"] + float(shot.get("join_s") or 0):
+            continue
+        following = [s for s in shots if abs(s["t0"] - shot["t1"]) < .002]
+        if any(peak + radius >= shot["t1"] - float(s.get("join_s") or 0) for s in following):
+            continue
+        speed = float(shot.get("speed") or 1)
+        if not np.isfinite(speed) or speed <= 0:
+            continue
+        t = float(shot["src_in"]) + (peak - shot["source_time_origin"]) * speed
+        start = t - radius * speed
+        if start < 0:
+            continue
+        os.makedirs(folder, exist_ok=True)
+        sheet = os.path.join(folder, f"event-{len(result)+1:02d}.jpg")
+        _, times = media.contact_sheet(shot["src"], sheet, start=start,
+            every=2 * radius * speed / 18, max_frames=19, cols=7, thumb_w=192, label_precision=3)
+        result.append(dict(file=os.path.abspath(sheet), source=shot["src"], output_peak_t=peak,
+            source_peak_t=t, source_sample_times=times, kind=event["kind"],
+            purpose="Mapped original frames; compare source motion and output. Not a QC exemption."))
+    return result
+
+
+def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=(), source_shots=()):
     """Analyze ``path``; write the report next to it (``<out>.flicker.json``); raise FlickerError when it flickers
     and ``mode`` is "fail". Returns the report (None when mode is "off")."""
     mode = mode or mode_for()
@@ -357,6 +396,8 @@ def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=())
     if not rep["ok"]:
         try:
             rep["evidence"] = event_evidence(path, rep, rp)
+            if source_shots:
+                rep["source_evidence"] = source_evidence(rep, source_shots, rp)
         except Exception as exc:  # diagnostics must not replace the actual QC failure
             rep["evidence_error"] = str(exc)[:300]
     try:
