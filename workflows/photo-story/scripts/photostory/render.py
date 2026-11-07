@@ -246,6 +246,15 @@ def main():
     mix_audio(C, T, t_from, end_t, vid_tmp, out)
     if not a.preview and not t_from:
         write_edl(C, T, out)
+    # Keep the completed master's timing data even if subsequent visual QC
+    # requires review. A QC failure must not leave an otherwise usable master
+    # without the cues needed to inspect, re-export or repair it.
+    if a.clean_master:
+        cues = [C.export_cue(s, t_from).to_dict()
+                for s in T.subs if s["end"] > t_from and s["start"] < end_t]
+        cp_ = os.path.splitext(out)[0] + ".cues.json"
+        json.dump(cues, open(cp_, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        print("cues:", cp_, f"({len(cues)})  ->  python3 -m vstudio.export {out} --platforms ... --cues {cp_}")
     if not a.preview:
         from vstudio import flicker
         try:
@@ -255,12 +264,6 @@ def main():
             flicker.check(out, flicker.profile_for(qc), flicker.mode_for(qc), cuts=cuts)
         except flicker.FlickerError as e:
             sys.exit(f"!! render failed - {e}")
-    if a.clean_master:
-        cues = [C.export_cue(s, t_from).to_dict()
-                for s in T.subs if s["end"] > t_from and s["start"] < end_t]
-        cp_ = os.path.splitext(out)[0] + ".cues.json"
-        json.dump(cues, open(cp_, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        print("cues:", cp_, f"({len(cues)})  ->  python3 -m vstudio.export {out} --platforms ... --cues {cp_}")
 
 
 def write_edl(C, T, out):

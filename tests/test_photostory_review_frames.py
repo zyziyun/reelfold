@@ -5,6 +5,46 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "wor
 from photostory.render import review_frames
 
 
+def test_clean_master_keeps_cues_when_visual_qc_rejects_render(tmp_path, monkeypatch):
+    import json
+    import pytest
+    from PIL import Image
+    from photostory import render
+    from vstudio import flicker, media
+    Image.new('RGB', (640, 480), '#408080').save(tmp_path / 'photo.jpg')
+    spec = tmp_path / 'spec.py'
+    spec.write_text('''
+CANVAS = (640, 480)
+FPS = 30
+MODE = 'music'
+TITLE_EN = 'Review'
+TITLE_ZH = 'Review'
+TITLE_CARD = False
+CHAPTER_CARD = 0
+MEDIA = dict(images=['.'])
+MUSIC = dict(grid='seconds', length=2, tail=0, captions='all')
+SECTIONS = ['Start']
+SECTIONS_EN = ['Start']
+SCRIPT = [(0, [('Preserved words', '')], [('photo', 2, 'still', dict(tr='cut'))])]
+GRADE_LOOK = None
+COLOR_MATCH = 0
+PRESERVE_COLOUR = True
+''')
+    target = tmp_path / 'out/story.mp4'
+    def reject(path, *args, **kwargs):
+        assert media.probe(path)['duration'] > 1.9
+        raise flicker.FlickerError(dict(ok=False, limits=flicker.LIMITS['calm'],
+            events=[dict(kind='blink', t=1, level=20)]))
+    # Inject only QC's rejection; composition, audio mix, EDL and cues are real.
+    monkeypatch.setattr(flicker, 'check', reject)
+    monkeypatch.setattr(sys, 'argv', ['render', str(spec), '--clean-master', '--out', str(target)])
+    with pytest.raises(SystemExit, match='render failed'):
+        render.main()
+    assert target.with_suffix('.edl.json').is_file()
+    cues = json.loads(target.with_suffix('.cues.json').read_text())
+    assert cues and 'Preserved words' in json.dumps(cues)
+
+
 def test_every_shot_including_short_final_shot_has_endpoint_evidence():
     shots = [dict(start=0, end=8.5), dict(start=8.5, end=19), dict(start=19, end=20)]
     frames = review_frames(shots, 20, 30)
