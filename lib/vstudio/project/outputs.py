@@ -382,7 +382,10 @@ def resolve(d, output):
             master = cm["master"]
             cues = _cues_of_job(o["_rows"], o["_params"])
             rec["captions_on"] = bool(o["_params"].get("captions", True))
-            rec["baseline_effects"] = (((o.get("_rows") or {}).get("finish") or {}).get("out") or {}).get("effects") or []
+            finish = (((o.get("_rows") or {}).get("finish") or {}).get("out") or {})
+            per_target = finish.get("effects_by_target")
+            rec["baseline_effects"] = (per_target.get(rec["platform"], []) if per_target is not None
+                                       else finish.get("effects") or [])
         else:
             rec["reason"] = msg("no-master", "the recipe kept no clean master for this output: edits go on top of "
                                 "the finished file", "这个成片没有保留干净母版：在成片上叠加编辑")

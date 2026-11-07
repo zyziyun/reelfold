@@ -14,6 +14,7 @@ SCHEMA = {"type": "object", "required": ["beats"], "properties": {"beats": {
                    "evidence_from": {"type": "integer"},
                    "kind": {"enum": ["contrast", "chain", "takeaway", "insert", "source-outline"]}, "title": {"type": "string"},
                    "source_box": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                   "panel": {"type": "string"},
                    "items": {"type": "array", "items": {"type": "string"}},
                    "evidence": {"type": "string"}, "asset": {"type": "string"},
                    "detail_regions": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
@@ -24,7 +25,37 @@ def _plain(text):
     return re.sub(r"[\s【】]", "", str(text or "")).lower()
 
 
-def validate(doc, cues, duration, materials=None, source=None):
+def canvas_context(profile, source_size, mode, captions=True):
+    """Offer only static fit margins, never guessed empty areas inside the source."""
+    from vstudio import platform
+    w, h = profile.size
+    sw, sh = source_size
+    safe = platform.safe_box(profile)
+    result = dict(target=profile.key, size=[w, h], safe=list(safe), panels={})
+    if mode not in ("letterbox", "pad-blur"):
+        return result
+    scale = min(w/sw, h/sh)
+    top, bottom = (h-sh*scale)/2, (h+sh*scale)/2
+    x0, y0, x1, y1 = safe
+    gap = max(8, round(min(w, h)*.02))
+    regions = [("top", y0, top-gap), ("bottom", bottom+gap, y1)]
+    blocked = platform.keepouts(profile)
+    if captions:
+        blocked.append(platform.caption_box(profile))
+    for name, a, b in regions:
+        # Exclude full horizontal bands rather than squeeze around UI or subtitles.
+        for _, c, _, d in blocked:
+            if a < d and b > c:
+                if c-a >= b-d:
+                    b = min(b, c-gap)
+                else:
+                    a = max(a, d+gap)
+        if b-a >= h*.12 and x1-x0 >= w*.6:
+            result["panels"][name] = [x0/w, a/h, (x1-x0)/w, (b-a)/h]
+    return result
+
+
+def validate(doc, cues, duration, materials=None, source=None, canvas=None):
     """Validate every proposed beat; invalid plans fail visibly, never count as applied."""
     if not isinstance(doc, dict) or not isinstance(doc.get("beats"), list):
         raise ValueError("spoken finishing: the visual plan has no beats array")
@@ -113,6 +144,12 @@ def validate(doc, cues, duration, materials=None, source=None):
                 raise ValueError("spoken finishing: a card introduces a number absent from its source")
             effects.append(dict(id=f"spoken-{i + 1}", effect="explanation-card", start=start, end=stop,
                                 params=dict(title=title, items=items, kind=kind)))
+        if b.get("panel") is not None:
+            panels = (canvas or {}).get("panels", {})
+            if kind not in ("contrast", "chain", "takeaway") or not isinstance(b["panel"], str) or b["panel"] not in panels:
+                raise ValueError("spoken finishing: panel must name an available output margin for a card")
+            effects[-1]["params"]["panel_box"] = panels[b["panel"]]
+            effects[-1]["params"]["panel_aspect"] = canvas["size"][0]/canvas["size"][1]
         end = stop
     if sum(e["end"] - e["start"] for e in effects if e["effect"] == "explanation-card") > duration * 0.4:
         raise ValueError("spoken finishing: graphics cover too much of the speaker's story")
@@ -224,7 +261,7 @@ def _review_detail(effect, beat, call):
 
 
 def plan(cues, duration, title="", complete=None, materials=None, images=None, material_context="", source_context="",
-         source=None):
+         source=None, canvas=None):
     from vstudio import llm
     system = (
         "You edit spoken videos: lessons, interviews, demos and personal or expert stories. "
@@ -318,21 +355,30 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
             "Local validation checks the region throughout the selected interval and rejects visible changes. "
             "This is not tracking. Prefer this additive emphasis over a duplicate summary card when the source "
             "already explains the point. If uncertain, omit the outline.")
+    if canvas:
+        system += (
+            " Plan for the specified OUTPUT CANVAS. Available panels are verified fit margins outside "
+            "the source picture and reserved caption/UI bands. A card may set panel to an available name "
+            "to add an explanation while preserving the source. Do not invent panel names or coordinates. "
+            "Prefer a margin panel when source text must remain visible, but do not repeat existing notes "
+            "just to fill space. Without a suitable panel, omit a card that would hide necessary source content.")
+        prompt += "\nOUTPUT CANVAS:\n" + json.dumps(canvas)
     call = complete or llm.complete
     repairs = []
     for attempt in range(2):
         result = call("edit", system, prompt, schema=SCHEMA, max_tokens=3500, **({"images": images} if images else {}))
         doc = (result or {}).get("json")
         try:
-            effects = validate(doc, cues, duration, materials, source=source)
+            effects = validate(doc, cues, duration, materials, source=source, canvas=canvas)
             # Use the real typography layout before accepting a plan. A high-resolution
             # export must not hide overflow by shrinking below readable phone scale.
             from vstudio.project import outfx
             for effect in effects:
                 if effect["effect"] != "explanation-card":
                     continue
-                for w, h in ((640, 360), (360, 640), (450, 600)):
-                    layer = outfx.make_layer(effect, w, h, (w * .07, h * .07, w * .92, h * .9))
+                for w, h in ([canvas["size"]] if canvas else ((640, 360), (360, 640), (450, 600))):
+                    safe = canvas["safe"] if canvas else (w * .07, h * .07, w * .92, h * .9)
+                    layer = outfx.make_layer(effect, w, h, safe)
                     try:
                         layer.setup()
                     except ValueError as error:
@@ -368,6 +414,7 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
                 doc["beats"][i]["detail_regions"] = regions
                 detail_reviews.extend(reviews)
         return dict(version=1, effects=effects, beats=doc["beats"], detail_reviews=detail_reviews,
+                    canvas=canvas,
                     source_visual_context=source_context,
                     provider=(result or {}).get("provider"),
                     model=(result or {}).get("model"), duration=duration, repairs=repairs,

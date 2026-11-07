@@ -905,6 +905,13 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
         fx = [dict(e, start=e["start"] - start, end=e["end"] - start) for e in effects
               if e["end"] > start and (dur is None or e["start"] < start + dur)]
         if overlay:
+            for effect in fx:
+                panel = effect.get("params", {}).get("panel_box")
+                if effect["effect"] == "explanation-card" and panel is not None:
+                    _, y, _, h = panel
+                    bounds = overlay.bounds(effect["start"], effect["end"])
+                    if bounds and y*prof.h < bounds[1] and (y+h)*prof.h > bounds[0]:
+                        raise ValueError("Explanation panel overlaps rendered captions; revise the layout")
             fx = [dict(e, _caption_band=overlay.bounds(e["start"], e["end"]))
                   if e["effect"] == "media-insert" and e.get("params", {}).get("detail_regions") else e for e in fx]
         draw_effects = spoken.overlay(fx, prof.w, prof.h, P.safe_box(prof))
@@ -1143,10 +1150,16 @@ def export(master, targets, out_dir="exports", cues=None, covers=None, post=None
         kw["cover_ab"] = parse_covers(kw["cover_ab"])[1] or None
     from .batch.livestatus import heartbeat
     done = []
+    effects_by_target = kw.pop("effects_by_target", None)
 
     def one(prof):
         print(f"[export] {prof.key} {prof.w}x{prof.h}", file=sys.stderr)
-        e = export_one(master, prof, out_dir, cues=cues, covers=covers, post=post, **kw)
+        options = dict(kw)
+        if effects_by_target is not None:
+            if prof.key not in effects_by_target:
+                raise ValueError(f"No editorial plan for {prof.key}; run finishing again")
+            options["effects"] = effects_by_target[prof.key]
+        e = export_one(master, prof, out_dir, cues=cues, covers=covers, post=post, **options)
         done.append(prof.key)
         heartbeat("export", progress=len(done) / max(1, len(profs)), message=prof.key, force=True)
         return e

@@ -332,7 +332,17 @@ information. Enlarging a whole existing note card below its original, or enlargi
 merely repeats the burned subtitle, does not by itself satisfy a strong-edit brief. Prefer a
 speech-grounded explanation where it adds understanding; retain existing notes when they already
 explain the point. Do not invent a diagram or cover essential source text to fill empty space.
-The explanation-card renderer replaces the picture by default. An explicit `panel_box` can
-confine it to a verified empty output-canvas region; automatic spoken planning does not yet choose
-these regions. Do not describe a plan as an additive panel unless it was actually rendered and inspected. Keep an unaccepted layout in review rather than presenting technical render success
-as editorial acceptance.
+The explanation-card renderer replaces the picture by default. For an explicitly selected
+letterbox or blurred-fit layout, automatic finishing can choose a named top/bottom margin
+outside the source picture and reserved platform/caption bands. It receives the native canvas
+and validates text at that size; it cannot guess empty regions inside the source or in a moving
+crop. Each platform has its own plan in `finish/editorial-plan.json`; exports and subsequent
+edits retain that platform's effects. Changing platforms, layout or captions reruns finishing.
+An automatically placed panel is bound to its planned aspect; changing aspect requires
+replanning rather than stretching its coordinates over the picture. Export also checks actual
+rendered caption bounds and rejects a conflicting panel.
+
+This does not make padding the default adaptation or make every spare margin worth filling.
+A relevant, nonredundant explanation and final phone-size motion review are still required.
+Keep an unaccepted layout in review rather than presenting technical render success as
+editorial acceptance. User-authored `panel_box` regions still need source-content inspection.

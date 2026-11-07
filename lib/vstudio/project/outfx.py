@@ -127,6 +127,7 @@ SPECS = {
         what_zh="按原话编排的对比、因果链或结论卡；保留原声，不伪造证据",
         params=dict(title=_str("", "标题", True),
                     panel_box={"type": "array", "default": None, "x-zh": "已核对空白区域 [left,top,width,height]，归一化画布坐标"},
+                    panel_aspect={"type": "number", "default": None, "x-zh": "面板已验证的画幅比例"},
                     kind=_str("takeaway", "图解形式", enum=("contrast", "chain", "takeaway")),
                     items={"type": "array", "items": {"type": "string"}, "default": [], "x-zh": "观点"}),
         sample=dict(title="副业带来的变化", kind="chain", items=["走进新圈子", "交流更深入", "思路更开阔"])),
@@ -724,13 +725,17 @@ class ExplanationCard(Layer):
 
     def setup(self):
         if self.p.get("panel_box") is not None:
+            aspect = self.p.get("panel_aspect")
+            if aspect is not None and (not isinstance(aspect, (int, float)) or
+                                       not math.isfinite(aspect) or abs(aspect-self.W/self.H) > .001):
+                raise ValueError("explanation-card: output aspect changed; replan the reserved panel")
             x, y, w, h = _panel_box(self.p["panel_box"])
             x0, y0 = round(x*self.W), round(y*self.H)
             x1, y1 = round((x+w)*self.W), round((y+h)*self.H)
             if x1-x0 < 160 or y1-y0 < 120:
                 raise ValueError("explanation-card: panel is too small; enlarge it or shorten the layout")
             self.panel_rect = (x0, y0, x1, y1)
-            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k != "panel_box"})
+            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k not in ("panel_box", "panel_aspect")})
             self.panel = ExplanationCard(inst, x1-x0, y1-y0)
             # Typography is judged at the final canvas scale, not the smaller panel.
             self.panel.readable_short = min(self.W, self.H)

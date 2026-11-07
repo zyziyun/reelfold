@@ -413,16 +413,34 @@ def run_finish(ctx):
     kwargs["source_context"] = source_text
     kwargs["source"] = master
     material_files = source_images + material_files
-    result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "", **kwargs)
+    from vstudio import media, platform
+    info = media.probe(master)
+    profiles = platform.parse_targets(_export_targets(ctx.job, ctx.params, c),
+                                      master_aspect=info["display_w"]/info["display_h"])
+    plans = {}
+    for profile in profiles:
+        canvas = spoken.canvas_context(profile, (info["display_w"], info["display_h"]),
+                                       ctx.params.get("layout") or "pad-blur",
+                                       captions=bool(ctx.params.get("captions", True)))
+        plans[profile.key] = spoken.plan(cues, c["duration"], ctx.params.get("title") or "",
+                                         canvas=canvas, **kwargs)
+    if plans:
+        result = dict(next(iter(plans.values())), targets=plans,
+                      effects_by_target={k: v["effects"] for k, v in plans.items()})
+    else:
+        result = spoken.plan(cues, c["duration"], ctx.params.get("title") or "", **kwargs)
     dest = write_json(ctx.path("editorial-plan.json"), result)
-    ctx.log(f"spoken finishing: {len(result['effects'])} source-grounded visual beats")
-    return dict(plan=dest, effects=result["effects"], files=[dest, *material_files])
+    count = sum(len(p["effects"]) for p in plans.values()) if plans else len(result["effects"])
+    ctx.log(f"spoken finishing: {count} source-grounded visual beats across {max(1, len(plans))} target plans")
+    return dict(plan=dest, effects=result["effects"], effects_by_target=result.get("effects_by_target"),
+                files=[dest, *material_files])
 
 
 def _finish_params(job, spec):
     from vstudio import llm
     route = llm.route("edit")
-    return dict(_keyp("finishing", "title", "caption_overrides", "subtitles", "subtitle_lang")(job, spec),
+    return dict(_keyp("finishing", "title", "caption_overrides", "subtitles", "subtitle_lang",
+                          "platforms", "layout", "captions", "preserve_source_aspect")(job, spec),
                 provider=route.provider, model=route.model,
                 materials=_material_signatures(job, spec))
 
@@ -436,6 +454,21 @@ def _material_signatures(job, spec):
     from vstudio import supporting_media
     from vstudio.project.outputs import file_sig
     return [(p, file_sig(p)) for p in supporting_media.paths(job, spec)]
+
+
+def _export_targets(job, p, c):
+    targets = _plats(job)
+    if p.get("preserve_source_aspect"):
+        from vstudio import media, platform
+        info = media.probe(c["master"])
+        aspect = info["display_w"] / info["display_h"]
+        targets = [f"{x.split(':')[0]}:{platform.best_orientation(x.split(':')[0], aspect)}" for x in targets]
+        for target in targets:
+            profile = platform.parse_targets([target])[0]
+            if abs(math.log(profile.w / profile.h / aspect)) > 0.1:
+                raise ValueError(f"{target}: this platform has no matching source aspect; make a real reframed "
+                                 "version or choose a platform that supports the original shape")
+    return targets
 
 
 def run_export(ctx):
@@ -464,23 +497,13 @@ def run_export(ctx):
     covers = p.get("cover")
     if isinstance(covers, dict):                      # `job edit --op cover`: {t, text, file}
         covers = [covers["file"]] if covers.get("file") else None
-    targets = _plats(ctx.job)
-    if p.get("preserve_source_aspect"):
-        from vstudio import media, platform
-        info = media.probe(c["master"])
-        aspect = info["display_w"] / info["display_h"]
-        targets = [f"{x.split(':')[0]}:{platform.best_orientation(x.split(':')[0], aspect)}" for x in targets]
-        for target in targets:
-            profile = platform.parse_targets([target])[0]
-            if abs(math.log(profile.w / profile.h / aspect)) > 0.1:
-                raise ValueError(f"{target}: this platform has no matching source aspect; make a real reframed "
-                                 "version or choose a platform that supports the original shape")
-        ctx.log(f"retaining source aspect: {', '.join(targets)}")
+    targets = _export_targets(ctx.job, p, c)
     man = X.export(c["master"], targets, out_dir=ctx.path("exports"),
                    cues=cues_path, covers=covers, post=post,
                    mode=p.get("layout") or "pad-blur", preset=p.get("preset") or "medium",
                    captions=bool(p.get("captions", True)), cover_canvas=p.get("cover_canvas") or "platform",
                    effects=(ctx.inputs.get("finish") or {}).get("effects"),
+                   effects_by_target=(ctx.inputs.get("finish") or {}).get("effects_by_target"),
                    watermark=p.get("watermark") if p.get("watermark") is not None else ctx.spec.get("watermark"),
                    **({"crop_bottom": float(p.get("crop_bottom", 0.28))} if p.get("layout") == "band" else {}))
     files = [ctx.path("exports", e["file"]) for e in man["exports"]]
@@ -994,7 +1017,7 @@ def speech_stages(copy=False):
               cost=lambda j, s: 0.02 if proofread_opts(s)["provider"] != "none" else 0.0),
         Stage("finish", "cpu", run_finish, deps=("compose", "proofread"),
               enabled=lambda j, s: _p(j).get("finishing") == "editorial" or _has_materials(j, s),
-              params=_finish_params, version=3,
+              params=_finish_params, version=4,
               units=lambda j, s: 1.0, retries=0),
         Stage("export", _export_resource, run_export, deps=exp_deps,
               params=_export_params,
