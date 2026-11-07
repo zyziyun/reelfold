@@ -165,7 +165,8 @@ def test_contained_label_and_subject_stay_adjacent(band):
 @pytest.mark.parametrize('mode,captions,reserved', [
     ('music', False, False), ('music', 'all', True), ('narration', False, True),
 ])
-def test_contained_video_reserves_only_active_music_captions(tmp_path, mode, captions, reserved):
+@pytest.mark.parametrize('region', [False, True])
+def test_contained_video_reserves_only_active_music_captions(tmp_path, mode, captions, reserved, region):
     """Disabling music captions must not leave a phantom band in portrait footage."""
     src = str(tmp_path/'portrait.mp4')
     media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=red:s=180x320:r=30:d=1',
@@ -176,6 +177,8 @@ def test_contained_video_reserves_only_active_music_captions(tmp_path, mode, cap
         FPS=30, SUB_Y0=210, SUB_H=40, HDR=0, overlay_subs=True,
         pal={'paper':(240,235,225)}, find_video=lambda n:src, vid_dirs=[str(tmp_path)])
     sh = dict(start=0, end=.2, tail=0, off=0, speed=1, motion='still', fit='contain')
+    if region:
+        sh['source_region'] = [0, 0, 180, 320]
     out = prep_video(C, sh, 'portrait')
     raw = subprocess.check_output([media.ffmpeg_bin(), '-v', 'error', '-i', out,
         '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-'])
@@ -184,4 +187,7 @@ def test_contained_video_reserves_only_active_music_captions(tmp_path, mode, cap
     if reserved:
         assert not red[210:250].any()
     else:
-        assert red.mean() > .95
+        # Region layouts retain their documented small perimeter margin,
+        # but the disabled caption band must contain picture, not a matte gap.
+        assert red[210:250, 20:-20].all()
+        assert red.mean() > (.85 if region else .95)

@@ -115,12 +115,14 @@ def prep_video(C, sh, name):
     layout = getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}
     caption_safe = bool(layout.get("video_caption_safe") and getattr(C, "overlay_subs", False) and C.SUB_H > 0)
     from .music import captions_enabled
-    caption_safe = caption_safe and captions_enabled(C)
+    captions_active = captions_enabled(C)
+    caption_safe = caption_safe and captions_active
     caption_adjacent = layout.get("caption_style") == "label"
     look = repr((caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
                  C.pal["paper"], need, "fitted-video-zoom-v1", (caption_adjacent, "caption-adjacent-v1"),
+                 (captions_active, "region-active-captions-v1"),
                  "content-detail-heights-v1" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
     out = os.path.join(C.cache_dir, f"v_{tag}_{C.BOX_W}x{C.BOX_H}_{off}_{speed}_{need:.1f}{lk}_sdr2.mp4")
@@ -163,7 +165,8 @@ def prep_video(C, sh, name):
                 if sh.get("detail_regions") is not None or sh.get("fit") != "contain":
                     raise ValueError("source_region requires fit=contain without detail_regions")
                 geo = CK.region_geometry(geo, (w, h), sh["source_region"],
-                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H) if C.SUB_H > 0 else None,
+                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H)
+                    if C.SUB_H > 0 and captions_active else None,
                     caption_adjacent=caption_adjacent)
             if caption_safe and sh.get("source_region") is None and sh.get("detail_regions") is None:
                 geo = CK.region_geometry(geo, (w, h), [0, 0, w, h],
