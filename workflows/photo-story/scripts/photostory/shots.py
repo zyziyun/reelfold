@@ -118,7 +118,7 @@ def prep_video(C, sh, name):
     captions_active = captions_enabled(C)
     caption_safe = caption_safe and captions_active
     caption_adjacent = layout.get("caption_style") == "label"
-    look = repr((caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
+    look = repr((sh.get("_video_box"), caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
                  C.pal["paper"], need, "fitted-video-zoom-v1", (caption_adjacent, "caption-adjacent-v1"),
@@ -169,9 +169,12 @@ def prep_video(C, sh, name):
                     if C.SUB_H > 0 and captions_active else None,
                     caption_adjacent=caption_adjacent)
             if caption_safe and sh.get("source_region") is None and sh.get("detail_regions") is None:
-                geo = CK.region_geometry(geo, (w, h), [0, 0, w, h],
-                    caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H),
-                    caption_adjacent=caption_adjacent)
+                if sh.get("_video_box"):
+                    geo["main"] = sh["_video_box"]
+                else:
+                    geo = CK.region_geometry(geo, (w, h), [0, 0, w, h],
+                        caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H),
+                        caption_adjacent=caption_adjacent)
             if sh.get("detail_regions") is not None:
                 geo = CK.detail_geometry(geo, (w, h), sh["detail_regions"],
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H))

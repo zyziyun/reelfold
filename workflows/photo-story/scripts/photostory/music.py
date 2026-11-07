@@ -284,6 +284,8 @@ class MusicTimeline:
             sh.setdefault("tr", cfg["tr"])
             if "trd" not in sh:     # the bed's own slow default for the default transition, the type's own otherwise
                 sh["trd"] = trd0 if sh["tr"] == cfg["tr"] else TRD.get(sh["tr"], 0.4)
+            if sh["tr"] == "cut":
+                sh["trd"] = 0
             self.shots.append(sh)
             c += n
         self.shots[0]["start"] = 0.0

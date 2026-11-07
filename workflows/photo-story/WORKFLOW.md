@@ -416,6 +416,13 @@ arbitrary multilingual translation maps are not provided by this spec mode.
 
 For product/company music edits, `LAYOUT.video_caption_safe=True` fits complete `fit="contain"` video shots into the larger area outside the caption band. The planner enables this by default. This keeps process labels off the footage. Inspect subject size at phone resolution and adjust the label band or supply a verified `source_region` if the product is too small. An explicit `False` retains an authored overlay layout.
 
+On landscape canvases without a header, a portrait `contain` video with process labels can use
+the available height beside a bounded caption column. This is per shot: wide shots keep their
+existing layout. It preserves the complete source and reuses the measured label renderer.
+It applies to hard cuts, not blended transitions, title-style text or authored region/detail crops.
+Set `LAYOUT.video_caption_side=False` to retain the full-width caption band. Check the action and
+caption at phone size; a larger source rectangle alone does not prove the scene is readable.
+
 Layout previews default to `--stills auto`: the first, middle and last output frame of every shot, including short closing shots, plus a readable frame before the ending fade. Frame-index filenames preserve distinct frames around rapid cuts. Explicit comma-separated seconds remain available. These samples support checking crops, captions and transitions; they do not establish continuous visual or audio quality.
 
 ### Flicker review profile

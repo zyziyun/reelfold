@@ -191,3 +191,41 @@ def test_contained_video_reserves_only_active_music_captions(tmp_path, mode, cap
         # but the disabled caption band must contain picture, not a matte gap.
         assert red[210:250, 20:-20].all()
         assert red.mean() > (.85 if region else .95)
+
+
+def test_side_label_video_preserves_full_source_without_changing_wide_shots(tmp_path):
+    from photostory.layouts import plan
+    src = str(tmp_path/'narrow.mp4')
+    media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i',
+               'color=red:s=100x200:r=30:d=1,drawbox=x=50:y=0:w=50:h=200:color=blue:t=fill',
+               '-c:v', 'libx264', '-pix_fmt', 'yuv420p', src])
+    C = SimpleNamespace(MODE='music', spec=SimpleNamespace(
+        LAYOUT=dict(video_caption_safe=True, caption_style='label'), MUSIC=dict(captions='all')),
+        VCROP={}, VEQ={}, VEQ_FILTER='', cache_dir=str(tmp_path), BOX_W=320, BOX_H=180,
+        W=320, H=180, SAFE=(10,10,310,170), CAP=(10,120,310,150), FPS=30,
+        SUB_Y0=120, SUB_H=30, HDR=0, overlay_subs=True,
+        pal={'paper':(240,235,225)}, find_video=lambda n:src if n == 'narrow' else None, vid_dirs=[str(tmp_path)])
+    shot = dict(src='vnarrow', start=0, end=.2, tail=0, off=0, speed=1, fit='contain')
+    wide = dict(shot, fit='cover', start=.2, end=.4)
+    timeline = SimpleNamespace(shots=[shot,wide], subs=[])
+    plan(C,timeline)
+    x,y,w,h = shot['_video_box']
+    assert h == 160 and w == 80
+    assert shot['_caption_context'].CAP[2] < x
+    assert C.CAP == (10,120,310,150) and '_video_box' not in wide
+    out = prep_video(C,shot,'narrow')
+    raw = subprocess.check_output([media.ffmpeg_bin(), '-v', 'error', '-i', out,
+        '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-'])
+    frame = np.frombuffer(raw,dtype=np.uint8).reshape(180,320,3)
+    assert frame[y+5,x+5,0] > 220 and frame[y+h-5,x+w-5,2] > 220
+    assert np.all(frame[120:150,10:shot['_caption_context'].CAP[2]] > 200)
+    # The old reserved-band cache must not be reused for the new geometry.
+    old = dict(shot); old.pop('_video_box')
+    assert prep_video(C,old,'narrow') != out
+    for change in ('disabled','title','transition'):
+        fresh = dict(old); fresh.pop('_caption_context')
+        C.spec.LAYOUT['video_caption_side'] = change != 'disabled'
+        fresh['trd'] = .4 if change == 'transition' else 0
+        cues = [dict(start=0,end=.2,style='title')] if change == 'title' else []
+        plan(C,SimpleNamespace(shots=[fresh],subs=cues))
+        assert '_video_box' not in fresh

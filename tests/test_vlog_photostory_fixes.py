@@ -504,3 +504,18 @@ def test_process_labels_cover_each_step_without_title_gaps(tmp_path, label, styl
         assert spans == [(0,2),(2,4),(4,6)]
     else:
         assert all(a > start and b < end for (a,b),(start,end) in zip(spans,[(0,2),(2,4),(4,6)]))
+
+
+@pytest.mark.parametrize('options', [{}, {'trd': .8}])
+def test_music_default_cut_has_no_blended_tail(tmp_path, options):
+    from photostory.ctx import Ctx
+    from photostory.music import MusicTimeline
+    spec = types.SimpleNamespace(__file__=str(tmp_path/'spec.py'), SECTIONS=['Process'],
+        SCRIPT=[(0,[('First','')],[('p0',2,'still',{})]),
+                (0,[('Second','')],[('p1',2,'still',options)])],
+        BGM=None,MUSIC=dict(grid='seconds',length=4,tail=0,captions='all',tr='cut'),
+        MODE='music',CANVAS=(320,180))
+    timeline = MusicTimeline(Ctx(spec))
+    assert timeline.shots[1]['trd'] == 0
+    assert timeline.shots[0]['tail'] == 0
+    assert timeline.shots[1]['start'] == 2

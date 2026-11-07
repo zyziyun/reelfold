@@ -63,9 +63,10 @@ def prepare(spec_path, platform=None, mode=None):
 def finish(C, T):
     """Per-shot decisions that need the shots' pictures: a dissolve that would ghost two framings of one subject
     becomes a cut (photostory/dissolves.py), and each shot's colour LUT (photostory/grade.py)."""
-    from photostory import dissolves, grade
+    from photostory import dissolves, grade, layouts
     dissolves.plan(C, T)
     grade.plan(C, T)
+    layouts.plan(C, T)
 
 
 def review_frames(shots, total, fps, end_fade=0):
@@ -124,6 +125,9 @@ def main():
     chapters = {s: make_chapter(C, s) for s in range(1, len(C.SECTIONS))}
     for s in T.subs:
         s["_lay"] = (make_title_text if s.get("style") == "title" else make_sub)(C, s["en"], s["zh"])
+        s["_shot_layers"] = {i: make_sub(sh["_caption_context"], s["en"], s["zh"])
+                             for i, sh in enumerate(T.shots) if "_caption_context" in sh
+                             and s.get("style") != "title" and s["start"] < sh["end"] and s["end"] > sh["start"]}
     for sh in T.shots:
         if "label" in sh and not sh["src"].startswith("split:") and C.shown(sh["label"]):
             sh["_lab"] = make_label(C, sh["label"])       # a label with nothing in this version's language: none
@@ -205,7 +209,7 @@ def main():
                 if ba > 0:
                     paste_rgba(frame, backdrop, 0, C.H - backdrop.shape[0], ba)
             for s in cue:
-                paste_rgba(frame, s["_lay"], 0, C.SUB_Y0, cue_alpha(s, gt))
+                paste_rgba(frame, s["_shot_layers"].get(k, s["_lay"]), 0, C.SUB_Y0, cue_alpha(s, gt))
             if gt > total - end_fade:
                 frame *= max(0, (total - gt) / end_fade)
             img = np.clip(frame, 0, 255).astype(np.uint8)
@@ -218,6 +222,8 @@ def main():
                 samples.append(dict(file=os.path.basename(p), sha=hashlib.sha1(pathlib.Path(p).read_bytes()).hexdigest()[:16],
                                     frame=fi, time=gt, shot_index=k, source=sh["src"],
                                     shot_start=sh["start"], shot_end=sh["end"],
+                                    source_box=sh.get("_video_box"),
+                                    caption_box=list(sh.get("_caption_context", C).CAP),
                                     closing_fade=bool(end_fade > 0 and gt > total - end_fade)))
                 continue
             enc.stdin.write(img.tobytes())
