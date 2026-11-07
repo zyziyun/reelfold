@@ -237,7 +237,8 @@ test('time to post: overdue banner, one notification, click -> the form fills it
   // Draft copy, help, hidden notices and editable live regions are not receipts.
   await app.evaluate(async ({ webContents }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
-    await wc.executeJavaScript(`document.body.insertAdjacentHTML('beforeend',
+    await wc.executeJavaScript(`history.pushState({}, '', '?next=/publish/success&unpublished=true');
+      document.body.insertAdjacentHTML('beforeend',
       '<p>发布成功</p><div role="status" contenteditable="true">发布成功</div>' +
       '<div role="alert" hidden>发布成功</div><div style="opacity:0"><div role="status">发布成功</div></div>' +
       '<div role="status">发布成功后请查看内容管理</div>')`);

@@ -875,3 +875,22 @@ it('ignores an unchanged receipt from before the current upload', () => {
   expect(freshPostedSignal({ url: 'https://creator.example/publish/success', text: '', links: [] },
     { url: 'https://creator.example/upload', text: '' }, success).posted).toBe(true);
 });
+
+it('requires an actual Xiaohongshu completion URL, not a redirect or partial flag', () => {
+  const success = by.xiaohongshu.success!;
+  for (const url of [
+    'https://creator.xiaohongshu.com/login?next=/publish/success',
+    'https://creator.xiaohongshu.com/publish/publish?next=/publish/success',
+    'https://creator.xiaohongshu.com/publish/publish?unpublished=true',
+    'https://creator.xiaohongshu.com/publish/publish?published=trueish',
+    'https://creator.xiaohongshu.com/publish/publish#published=true',
+    'https://creator.xiaohongshu.com/publish/success-guide',
+    'https://example.com/publish/success',
+    'https://creator.xiaohongshu.com.example.com/publish/success',
+  ]) expect(postedSignal(url, '', [], success).posted, url).toBe(false);
+  for (const url of [
+    'https://creator.xiaohongshu.com/publish/success?x=1',
+    'https://creator.xiaohongshu.com/publish/publish?published=true',
+    'https://creator.xiaohongshu.com/publish/publish?source=upload&published=true&x=1',
+  ]) expect(postedSignal(url, '', [], success).posted, url).toBe(true);
+});

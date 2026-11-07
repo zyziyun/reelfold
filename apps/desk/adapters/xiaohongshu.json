@@ -86,8 +86,8 @@
   },
   "success": {
     "urls": [
-      "/publish/success",
-      "published=true"
+      "^https://creator\\.xiaohongshu\\.com/publish/success(?:[?#]|$)",
+      "^https://creator\\.xiaohongshu\\.com/publish/publish\\?(?:[^&#]*&)*published=true(?:&|$)"
     ],
     "texts": [
       "发布成功",
