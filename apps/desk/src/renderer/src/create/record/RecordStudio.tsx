@@ -760,7 +760,13 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
           )}
           {(finishing.error || err || rec.error) && (
             <div className="rs-err" data-testid="rec-error">
-              {finishing.error ?? err ?? rec.error}
+              {rec.state === 'save-error' ? <>
+                <p role="alert">{t(/ENOSPC|no space left|disk full/i.test(finishing.error ?? err ?? rec.error ?? '') ? 'rec.saveDiskFull' : 'rec.saveHelp')}</p>
+                <details>
+                  <summary>{t('c.details')}</summary>
+                  <div>{finishing.error ?? err ?? rec.error}</div>
+                </details>
+              </> : finishing.error ?? err ?? rec.error}
             </div>
           )}
         </div>

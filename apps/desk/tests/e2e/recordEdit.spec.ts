@@ -468,6 +468,8 @@ test.describe('recording save recovery', () => {
     await retry.click();
     await expect(retry).toBeEnabled();
     await expect(page.getByTestId('rec-finish-note')).toContainText('Saving failed; try again.');
+    await expect(page.getByTestId('rec-error').getByRole('alert')).toContainText('Storage is full');
+    await expect(page.getByTestId('rec-error').locator('details')).not.toHaveAttribute('open', '');
     await expect(page.getByTestId('editor')).toHaveCount(0);
     const root = path.join(tmp, 'vhome-chunk-retry', 'recordings');
     const names = fs.readdirSync(root);
@@ -505,6 +507,12 @@ test.describe('recording save recovery', () => {
     const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
     await expect(retry).toBeEnabled();
     await expect(page.getByTestId('rec-finish-note')).toContainText('Saving failed; try again.');
+    await expect(page.getByTestId('rec-error').getByRole('alert')).toContainText('Keep this page open');
+    const details = page.getByTestId('rec-error').locator('details');
+    await expect(details).not.toHaveAttribute('open', '');
+    await details.locator('summary').click();
+    await expect(details.locator('div')).toContainText('SyntaxError');
+    await details.locator('summary').click();
     await expect(page.getByTestId('rec-pause')).toBeDisabled();
     await expect(page.getByText('Recording stopped. Saving failed; try again.', { exact: false }).first()).toBeVisible();
     expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(true);
