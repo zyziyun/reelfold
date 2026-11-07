@@ -267,3 +267,13 @@ def test_detail_video_removes_disabled_caption_gap_and_invalidates_cache(tmp_pat
     # Both the complete overview and the verified enlarged detail survive.
     assert ((disabled[:,:,0]>220)&(disabled[:,:,2]<30)).any()
     assert blue.sum() > ((active[:,:,2]>220)&(active[:,:,0]<30)).sum()
+
+
+def test_layout_motion_interpolation_runs_after_each_panel_is_scaled():
+    from vstudio.clipkit import source_layout_graph
+    geo = dict(main=(0,0,320,180), details=[dict(source=(0,0,200,100), box=(320,0,160,90))])
+    graph, _ = source_layout_graph(geo, 'source', 'ground', post_scale='minterpolate=fps=30')
+    main = next(g for g in graph if '[overview]' in g and 'scale=' in g)
+    detail = next(g for g in graph if '[detail0]' in g and 'scale=' in g)
+    assert main.index('scale=') < main.index('minterpolate=') < main.index('pad=')
+    assert detail.index('crop=') < detail.index('scale=') < detail.index('minterpolate=')

@@ -123,7 +123,7 @@ def prep_video(C, sh, name):
     look = repr((sh.get("_video_box"), caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,
                  sh.get("fit"), sh.get("detail_regions"), sh.get("source_region"), C.SUB_Y0, C.SUB_H, C.HDR, C.FPS,
-                 matte_colour, need, "fitted-video-ground-v2", (caption_adjacent, "caption-adjacent-v1"),
+                 matte_colour, need, "fitted-video-scaled-retime-v3", (caption_adjacent, "caption-adjacent-v1"),
                  (captions_active, "region-active-captions-v1"),
                  "active-caption-detail-heights-v2" if sh.get("detail_regions") is not None else None))
     lk = "_" + hashlib.sha1(look.encode()).hexdigest()[:12]
@@ -182,12 +182,13 @@ def prep_video(C, sh, name):
                     caption_band=(C.SUB_Y0 - C.HDR, C.SUB_Y0 - C.HDR + C.SUB_H)
                     if C.SUB_H > 0 and captions_active else None)
             matte = "0x" + "".join(f"{int(v):02x}" for v in matte_colour)
-            timing = hdr + "setpts=PTS-STARTPTS," + FF.retime(info["fps"], speed, C.FPS)
+            timing = hdr + "setpts=PTS-STARTPTS"
             if name in C.VEQ or sh.get("grade"):
                 timing += "," + (FF.lgpl_graph(sh["grade"]) if isinstance(sh.get("grade"), (str, dict)) else C.VEQ_FILTER)
             graph = [f"[0:v]{timing}[timed]",
                      f"color=c={matte}:s={C.BOX_W}x{C.BOX_H}:r={C.FPS}:d={need / speed}[ground]"]
-            layers, last = CK.source_layout_graph(geo, "timed", "ground", matte=matte)
+            layers, last = CK.source_layout_graph(geo, "timed", "ground", matte=matte,
+                post_scale=FF.retime(info["fps"], speed, C.FPS))
             graph += layers + [f"[{last}]format=yuv420p[laidout]"]
             filters = vmedia.filter_complex_args(";".join(graph)) + ["-map", "[laidout]"]
         subprocess.run([vmedia.ffmpeg_bin(), "-v", "error", "-y", "-ss", str(off), "-t", f"{need:.2f}", "-i", src,

@@ -375,8 +375,8 @@ def region_geometry(geo, src_wh, region, caption_band=None, *, caption_adjacent=
     return dict(geo, source_region=rect, main=((W - w) // 2, y, w, h), header=None)
 
 
-def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2"):
-    """Shared overview/detail graph; caller supplies timing, background and output encoding."""
+def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2", post_scale="null"):
+    """Shared overview/detail graph; post_scale runs on each resized picture, before padding/overlay."""
     x, y, w, h = geo["main"]
     details = geo.get("details") or []
     g = []
@@ -388,13 +388,13 @@ def source_layout_graph(geo, source, background, sp="null", matte="0xeeeae2"):
     if details:
         g.append(f"[{source}]split={len(details) + 1}[overview]" + "".join(f"[detail{j}]" for j in range(len(details))))
         main_input = "overview"
-    g += [f"[{main_input}]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
+    g += [f"[{main_input}]{sp},scale={w}:{h}:force_original_aspect_ratio=decrease,{post_scale},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:"
          f"color={matte},setsar=1[m]", f"[{background}][m]overlay={x}:{y}:shortest=1[b0]"]
     last = "b0"
     for j, detail in enumerate(details):
         sx, sy, sw, sh = detail["source"]
         dx, dy, dw, dh = detail["box"]
-        g.append(f"[detail{j}]{sp},crop={sw}:{sh}:{sx}:{sy}:exact=1,scale={dw}:{dh},setsar=1[d{j}]")
+        g.append(f"[detail{j}]{sp},crop={sw}:{sh}:{sx}:{sy}:exact=1,scale={dw}:{dh},{post_scale},setsar=1[d{j}]")
         g.append(f"[{last}][d{j}]overlay={dx}:{dy}:shortest=1[bd{j}]")
         last = f"bd{j}"
     return g, last
