@@ -53,6 +53,9 @@ def validate(doc, cues, duration, materials=None, source=None):
             if not isinstance(items, list) or not 1 <= len(items) <= 3 or any(
                     not isinstance(t, str) or not 1 <= len(t) <= 54 for t in items):
                 raise ValueError("spoken finishing: a card needs 1–3 short readable statements")
+            labels = [re.sub(r"\s+", " ", t.strip()).rstrip("。.!！?？;；,，").casefold() for t in items]
+            if len(set(labels)) != len(labels):
+                raise ValueError("spoken finishing: visual items repeat the same statement; use distinct supported points")
             if kind == "contrast" and len(items) != 2:
                 raise ValueError("spoken finishing: a contrast needs exactly two sides")
             if kind == "chain" and len(items) < 2:
@@ -235,7 +238,11 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
         "Prior context must belong to the SAME argument, not an unrelated earlier topic. "
         "Use it to retain the subject, condition or qualification that makes the displayed idea accurate. "
         "The display still spans 2–5 seconds; supporting context does not extend the graphic. "
-        "Contrast has 2 items; chain has 2–3. "
+        "Contrast has 2 items; chain has 2–3. Each item must add a distinct supported point. "
+        "Do not split a subtitle into several boxes merely to create animation. A graphic should expose "
+        "a relationship, comparison or useful synthesis that is harder to follow in speech alone. "
+        "Do not copy a complete existing note card into a second panel. Extra animation and filled space "
+        "are not evidence of added explanatory value. "
         "The renderer draws arrows between chain items: use chain ONLY for an explicitly stated cause "
         "and consequence or ordered procedural steps. A conditional, concession or hypothetical "
         "(if, even if, unless, despite) is not a causal chain. Keep that condition together with its "

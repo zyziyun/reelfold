@@ -307,8 +307,9 @@ For verified document/code details, a `media-insert` effect can set
 `detail_regions: [[x, y, width, height]]` (one or two rectangles in the decoded,
 rotation-corrected source pixels). Portrait outputs preserve an overview and enlarge
 those regions using the shared course layout; landscape retains the whole source.
-This is an explicit output-edit option, not automatic region selection by the spoken
-planner. Inspect the original at sufficient resolution before specifying coordinates;
+The spoken planner can select these regions for supplied still-image assets with verified
+dimensions and `contain` fit; output editing can also specify them explicitly. Moving video
+regions are not automatically selected. Inspect the original at sufficient resolution before specifying coordinates;
 contact-sheet tile coordinates are not source coordinates. Select the single relevant
 line or detail and allow enough time to understand it. Regions are fixed, not tracked:
 do not use them for moving targets or changing slides. Invalid bounds stop rendering.
@@ -316,3 +317,22 @@ Detail inserts reserve the rendered subtitle area throughout their interval. Che
 remaining detail size as well as overlap: avoiding subtitles alone does not prove that
 a dense diagram or code excerpt is readable. Text burned into source images still
 requires visual inspection.
+
+
+### Explanatory value and portrait acceptance
+
+A visual beat must reveal a supported comparison, relationship, sequence or useful synthesis.
+Do not turn consecutive subtitle fragments into boxes just to increase the effect count.
+Repeated item labels are rejected and receive the normal single plan-repair attempt; this
+exact-text guard does not verify semantic novelty or factual support. Review those separately.
+
+When adapting a finished horizontal source, preserving all source pixels is necessary but
+not sufficient. Review at phone size for excessive empty space, a small presenter, and repeated
+information. Enlarging a whole existing note card below its original, or enlarging a line that
+merely repeats the burned subtitle, does not by itself satisfy a strong-edit brief. Prefer a
+speech-grounded explanation where it adds understanding; retain existing notes when they already
+explain the point. Do not invent a diagram or cover essential source text to fill empty space.
+The current full-frame explanation-card renderer replaces the picture; it is not an additive
+portrait information panel. Do not describe a plan as such a panel unless it was actually rendered
+and inspected. Keep an unaccepted layout in review rather than presenting technical render success
+as editorial acceptance.

@@ -250,7 +250,8 @@ def test_future_number_is_not_available_to_context_card():
 
 
 DENSE = dict(kind='chain', title='比较不同方案时需要同时考虑输入条件以及输出结果之间的差异',
-             items=['这是一个用于检查手机上文字是否清晰的说明句子需要保留足够的字号让观众能够看清每个关键步骤和限定条件。'] * 3)
+             items=[lead + '用于检查手机上文字是否清晰的说明句子需要保留足够的字号让观众能够看清每个关键步骤和限定条件。'
+                    for lead in ('输入条件', '输出结果', '操作步骤')])
 
 
 @pytest.mark.parametrize('size', [(360, 640), (1080, 1920)])
@@ -315,3 +316,26 @@ def test_reading_budget_rejects_repeatedly_unreadable_plan():
     dense = dict(BEAT, kind="takeaway", title="保留限制", items=["即使网络断开，我依然能继续编辑草稿"])
     with pytest.raises(ValueError, match="still invalid.*reading time"):
         spoken.plan(CUES, 12, complete=lambda *a, **k: dict(json=dict(beats=[dense])))
+
+
+@pytest.mark.parametrize("items", [["New circle", "new circle!"], ["新圈子", "新圈子。"]])
+def test_rejects_duplicate_graphic_items(items):
+    with pytest.raises(ValueError, match="repeat the same statement"):
+        spoken.validate({"beats": [dict(BEAT, items=items)]}, CUES, 12)
+
+
+def test_duplicate_graphic_items_repair_with_distinct_source_points():
+    calls = []
+    def model(task, system, prompt, **kwargs):
+        calls.append(prompt)
+        beat = dict(BEAT, items=["新圈子", "新圈子！"]) if len(calls) == 1 else BEAT
+        return {"json": {"beats": [beat]}}
+    result = spoken.plan(CUES, 12, complete=model)
+    assert len(calls) == 2
+    assert "repeat the same statement" in calls[1]
+    assert result["effects"][0]["params"]["items"] == BEAT["items"]
+
+
+def test_symbol_distinctions_are_not_duplicate_labels():
+    effect = spoken.validate({"beats": [dict(BEAT, kind="contrast", items=["C++", "C#"])]}, CUES, 12)[0]
+    assert effect["params"]["items"] == ["C++", "C#"]
