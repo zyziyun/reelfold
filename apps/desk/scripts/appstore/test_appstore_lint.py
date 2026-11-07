@@ -18,6 +18,49 @@ DENY = L.load_denylist()
 MAC = sys.platform == "darwin" and shutil.which("cc") and shutil.which("nm") and shutil.which("codesign")
 
 
+class MacOSMinimumTest(unittest.TestCase):
+    def test_reads_deployment_target_not_sdk_and_checks_all_slices(self):
+        text = '''Load command 1
+cmd LC_BUILD_VERSION
+platform 1
+minos 14.0
+sdk 26.5
+Load command 2
+cmd LC_VERSION_MIN_MACOSX
+version 26.2
+sdk 26.5
+Load command 3
+cmd LC_BUILD_VERSION
+platform 2
+minos 17.0
+sdk 26.5
+'''
+        self.assertEqual(L.macos_versions(text), ['14.0', '26.2'])
+
+    def test_rejects_newer_library_even_when_build_host_can_load_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, 'Contents'))
+            with open(os.path.join(root, 'Contents', 'Info.plist'), 'wb') as fh:
+                plistlib.dump({'LSMinimumSystemVersion': '14.0'}, fh)
+            binary = os.path.join(root, 'libmlx.dylib')
+            with open(binary, 'wb') as fh:
+                fh.write(b'\xcf\xfa\xed\xfe')
+            for minimum, expected in [('26.2', True), ('14.0.0', False), ('13.3', False)]:
+                result = subprocess.CompletedProcess([], 0, f'Load command 1\ncmd LC_BUILD_VERSION\nplatform 1\nminos {minimum}\nsdk 26.5', '')
+                with mock.patch.object(L.subprocess, 'run', return_value=result):
+                    problems = L.check_macos_minimum(root, lambda _: None)
+                self.assertEqual(bool(problems), expected)
+                if expected:
+                    self.assertIn('requires macOS 26.2', str(problems))
+                    self.assertIn('declares 14.0', str(problems))
+            with mock.patch.object(L.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', 'bad binary')):
+                self.assertIn('otool failed', str(L.check_macos_minimum(root, lambda _: None)))
+
+    def test_unknown_minimum_is_not_a_success(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertIn('missing valid minimum', str(L.check_macos_minimum(root, lambda _: None)))
+
+
 class DenylistTest(unittest.TestCase):
     def test_the_rejection_list_is_in_the_data_file(self):
         names = {p for p, _ in DENY}

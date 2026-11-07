@@ -6,6 +6,8 @@
     python3 scripts/appstore/appstore_lint.py build/runtime/darwin-arm64   # the engine runtime alone
 
 Checks (each failure names the file and the reason; exit 1 if any):
+  macos         every native library's deployment target must fit LSMinimumSystemVersion (or the runtime lock's
+                macosMin when checking a runtime folder). A build succeeding on a newer host is insufficient.
   symbols       every Mach-O's undefined symbols (`nm -m -u`) against denylist.txt (Tcl/Tk, the Accelerate BLAS names
                 Apple listed, Electron's private API) and the Accelerate rule: a BLAS / LAPACK-shaped import from
                 Accelerate must be a new-LAPACK entry point ($NEWLAPACK) or a documented legacy one (cblas_* /
@@ -456,6 +458,60 @@ def check_asar(root, log):
                  f"`files`)"])] if extra else []
 
 
+def macos_versions(text):
+    """Read deployment targets, not SDK versions, from all otool architecture slices."""
+    versions = []
+    for block in re.split(r"Load command \d+", text):
+        if re.search(r"cmd LC_BUILD_VERSION\b", block):
+            if not re.search(r"platform (?:1|MACOS)\b", block):
+                continue
+            match = re.search(r"\bminos (\d+(?:\.\d+)*)", block)
+        elif re.search(r"cmd LC_VERSION_MIN_MACOSX\b", block):
+            match = re.search(r"\bversion (\d+(?:\.\d+)*)", block)
+        else:
+            continue
+        if match:
+            versions.append(match.group(1))
+    return versions
+
+
+def check_macos_minimum(root, log):
+    """Reject dependencies that cannot load on the advertised minimum macOS."""
+    info = os.path.join(root, "Contents", "Info.plist")
+    try:
+        if os.path.isfile(info):
+            with open(info, "rb") as fh:
+                minimum = plistlib.load(fh).get("LSMinimumSystemVersion")
+        else:
+            with open(os.path.join(DESK, "packaging", "runtime.lock.json"), encoding="utf-8") as fh:
+                target = json.load(fh)["targets"].get(os.path.basename(os.path.normpath(root)), {})
+                minimum = target.get("macosMin")
+        if not minimum or not re.fullmatch(r"\d+(?:\.\d+){0,2}", minimum):
+            return [(root, ["missing valid minimum macOS version for native dependency validation"])]
+    except (OSError, ValueError, plistlib.InvalidFileException) as e:
+        return [(root, [f"cannot read minimum macOS version: {e}"])]
+
+    def version(value):
+        return tuple((list(map(int, value.split('.'))) + [0, 0])[:3])
+
+    files = [p for p in walk_files(root) if is_macho(p)]
+
+    def one(p):
+        result = subprocess.run(["otool", "-l", p], capture_output=True, text=True)
+        if result.returncode:
+            return p, [f"otool failed: {result.stderr.strip()}"]
+        versions = macos_versions(result.stdout)
+        if not versions:
+            return p, ["no macOS deployment target found in native binary"]
+        newer = sorted({v for v in versions if version(v) > version(minimum)}, key=version)
+        return p, [f"requires macOS {', '.join(newer)}; app/runtime declares {minimum}"] if newer else []
+
+    with ThreadPoolExecutor(max_workers=min(os.cpu_count() or 4, 8)) as ex:
+        problems = [(p, errors) for p, errors in ex.map(one, files) if errors]
+    log(f"[macos] {len(files)} native files checked against macOS {minimum}")
+    return problems
+
+
 # ---------------------------------------------------------------------------------------------------------------- main
 def rel(p, root):
     try:
@@ -465,9 +521,11 @@ def rel(p, root):
 
 
 def lint(root, unsigned=False, mac_dir=os.path.join(DESK, "packaging", "mac"), checks=None, log=print):
-    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry"}
+    checks = checks or {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry", "macos"}
     deny = load_denylist()
     problems = []
+    if "macos" in checks:
+        problems += check_macos_minimum(root, log)
     if "symbols" in checks:
         problems += check_symbols(root, deny, log)
     if "telemetry" in checks:
@@ -492,14 +550,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="App Store lint for the Mac App Store (Lite) build")
     ap.add_argument("path", help="Reelfold.app or a runtime folder")
     ap.add_argument("--unsigned", action="store_true", help="check packaging/mac/entitlements.mas*.plist, not signatures")
-    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar,bundle,telemetry")
+    ap.add_argument("--only", default="", help="comma list of checks: symbols,strings,entitlements,quarantine,asar,bundle,telemetry,macos")
     ap.add_argument("--entitlements-dir", default=os.path.join(DESK, "packaging", "mac"))
     a = ap.parse_args(argv)
     if not os.path.exists(a.path):
         print(f"[appstore-lint] no such path: {a.path}")
         return 2
     checks = {c for c in a.only.split(",") if c} or None
-    if checks and checks - {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry"}:
+    if checks and checks - {"symbols", "strings", "entitlements", "quarantine", "asar", "bundle", "telemetry", "macos"}:
         ap.error("unknown check name in --only")
     problems = lint(a.path, unsigned=a.unsigned, mac_dir=a.entitlements_dir, checks=checks)
     if not problems:
