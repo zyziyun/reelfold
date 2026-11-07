@@ -858,6 +858,7 @@ export class EngineClient {
   updatePost(
     id: string,
     body: {
+      expected_token?: string;
       account?: string | null;
       at?: string;
       state?: CalendarPost['state'];

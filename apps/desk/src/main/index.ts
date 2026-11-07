@@ -715,7 +715,8 @@ function startScheduler() {
       tray?.update(due);
     },
     markPosted: async (p, url, via, result) => {
-      await needClient().updatePost(p.id, { ...(p.account ? { account: p.account } : {}), state: result ? apiDeliveryState(result) : 'posted', via, ...(result ? { api_result: result } : {}), ...(url ? { url } : {}) });
+      if (!p.update_token) throw new Error('Reload the calendar before saving the upload result');
+      await needClient().updatePost(p.id, { expected_token: p.update_token, ...(p.account ? { account: p.account } : {}), state: result ? apiDeliveryState(result) : 'posted', via, ...(result ? { api_result: result } : {}), ...(url ? { url } : {}) });
       win?.webContents.send('publish:posted', { postId: p.id, url, result });
     },
     api: {

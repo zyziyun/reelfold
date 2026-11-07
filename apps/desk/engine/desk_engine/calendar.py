@@ -16,6 +16,7 @@ slot_clash | title_too_long, platform, ...}] plus ``title_limit`` / ``title_leng
 """
 import datetime as dt
 import hashlib
+import json
 import os
 import re
 import threading
@@ -45,6 +46,12 @@ FALLBACK_LIMITS = {"xiaohongshu": 1000, "douyin": 1000, "tiktok": 4000, "youtube
                    "bilibili": 2000, "wechat-channels": 1000, "x": 280, "instagram": 2200, "facebook": 63206,
                    "linkedin": 3000, "threads": 500, "pinterest": 500, "kuaishou": 500, "weibo": 2000, "zhihu": 300,
                    "snapchat": 160, "dailymotion": 3000, "kwai": 500, "reddit": 40000}
+
+
+def update_token(row):
+    """Opaque precondition for asynchronous writes, computed from persisted data."""
+    return hashlib.sha256(json.dumps(row, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def video_path(value, clip):
@@ -262,6 +269,7 @@ class Calendar:
         out = []
         for r in rows:
             r = dict(r)
+            token = update_token(r)
             clip = self._clips(cache, r["item"]).get(r["clip"]) or {}
             title = clip.get("title") or r.get("title") or r["clip"]      # one title per clip: the clip's own
             own = r.get("caption")
@@ -283,7 +291,7 @@ class Calendar:
                 if clash:
                     warn.append(dict(kind="slot_clash", platform=pf, at=r["at"], other=clash[0]))
             tn, tlim = title_limit(r["platform"], r.get("platform_title") or title)
-            r.update(status=STATUS.get(r.get("state"), "draft"), enabled=r.get("enabled", True) is not False,
+            r.update(update_token=token, status=STATUS.get(r.get("state"), "draft"), enabled=r.get("enabled", True) is not False,
                      title_limit=tlim, title_length=tn, title_custom=bool(r.get("platform_title")),
                      caption=text, caption_custom=isinstance(own, str), length=n, limit=lim, warnings=warn,
                      project=names.get(r["item"]), duration=clip.get("duration"),
@@ -466,6 +474,9 @@ class Calendar:
             row = next((r for r in rows if r["id"] == pid), None)
             if row is None:
                 raise KeyError(f"no post {pid}")
+            if "expected_token" in b:
+                need(isinstance(b["expected_token"], str) and b["expected_token"] == update_token(row),
+                     "This post changed while publishing. Its current settings were preserved.")
             before = dict(row)
             if b.get("remove"):
                 rows = [r for r in rows if r["id"] != pid]

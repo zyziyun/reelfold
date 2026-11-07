@@ -1012,6 +1012,8 @@ export interface InboxDoc {
 // ---------------------------------------------------------------- calendar
 /** One clip on one platform at one time (the board groups a clip's rows of one day into one card). */
 export interface CalendarPost {
+  /** Opaque engine precondition for an asynchronous calendar write. */
+  update_token?: string;
   /** Publishing session/channel label, scoped to this post's platform. */
   account?: string | null;
   /** Explicit finished file for this post; null/unset uses platform defaults. */

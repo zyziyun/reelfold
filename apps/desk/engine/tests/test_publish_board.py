@@ -166,6 +166,31 @@ class Board(unittest.TestCase):
         self.cal.update(p["id"], dict(state="posted", via="api", api_result=public))
         self.assertIn("posted_at", self.posts()[0])
 
+    def test_upload_commit_checks_snapshot_inside_calendar_write(self):
+        for patch in (dict(account="other"), dict(at="2026-10-08T20:00"),
+                      dict(platform="xiaohongshu"), dict(caption="new draft"), dict(enabled=False)):
+            with self.subTest(patch=patch):
+                post = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
+                snapshot = next(p for p in self.posts() if p["id"] == post["id"])
+                self.cal.update(post["id"], patch)
+                saved = self.cal._rows()
+                result = dict(url="https://youtu.be/example", privacy="public", publishAt=None,
+                              lockedPrivate=False, warnings=[], uploadStatus="processed")
+                with self.assertRaisesRegex(BadRequest, "changed while publishing"):
+                    self.cal.update(post["id"], dict(expected_token=snapshot["update_token"],
+                                                    state="posted", api_result=result))
+                self.assertEqual(self.cal._rows(), saved)
+        # The token survives reload and permits a matching commit (including account resolution).
+        fresh = next(p for p in self.posts() if p["id"] == post["id"])
+        restarted = Calendar(os.path.join(self.root, "desk"), self.h, self.o)
+        restarted.update(post["id"], dict(expected_token=fresh["update_token"], account="resolved",
+                                          state="posted", api_result=result))
+        row = next(p for p in self.posts() if p["id"] == post["id"])
+        self.assertEqual(row["state"], "posted")
+        self.assertEqual(row["account"], "resolved")
+        self.assertNotEqual(row["update_token"], fresh["update_token"])
+        self.assertNotIn("update_token", restarted._rows()[-1])
+
     def test_delayed_receipts_cannot_overwrite_newer_platform_evidence(self):
         p = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
         initial = dict(url="https://youtu.be/example", privacy="public", publishAt=None,
