@@ -15,7 +15,7 @@ import { saveCapture } from '../../src/main/publish/capture';
 import { sessionLoginState } from '../../src/shared/channels';
 import { partitionFor, validateIpc } from '../../src/shared/ipc';
 import { parseAdapter } from '../../src/shared/publish/adapterSchema';
-import { copyForPost, duePosts, localDate, pickFile, postedSignal, titleLength, upcomingPosts } from '../../src/shared/publish/postNow';
+import { copyForPost, freshPostedSignal, duePosts, localDate, pickFile, postedSignal, titleLength, upcomingPosts } from '../../src/shared/publish/postNow';
 import { findJs, parseSelector, selectorError } from '../../src/shared/publish/selectors';
 import type { CalendarPost } from '../../src/shared/v04';
 
@@ -863,4 +863,15 @@ it('does not treat publishing instructions as a completion message', () => {
     expect(postedSignal(url, text, [], by.xiaohongshu.success!).posted).toBe(false);
   }
   expect(postedSignal(url, '发布成功！', [], by.xiaohongshu.success!).posted).toBe(true);
+});
+
+
+it('ignores an unchanged receipt from before the current upload', () => {
+  const success = { urls: ['/publish/success'], texts: ['发布成功', '笔记发布成功'] };
+  const baseline = { url: 'https://creator.example/publish/success', text: '发布成功' };
+  expect(freshPostedSignal({ ...baseline, links: [] }, baseline, success).posted).toBe(false);
+  expect(freshPostedSignal({ ...baseline, text: ' 发布成功！ ', links: [] }, baseline, success).posted).toBe(false);
+  expect(freshPostedSignal({ ...baseline, text: '发布成功\n笔记发布成功', links: [] }, baseline, success).posted).toBe(true);
+  expect(freshPostedSignal({ url: 'https://creator.example/publish/success', text: '', links: [] },
+    { url: 'https://creator.example/upload', text: '' }, success).posted).toBe(true);
 });

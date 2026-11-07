@@ -62,6 +62,7 @@ test.beforeAll(async () => {
       if (u.hostname !== 'creator.xiaohongshu.com') return new Response('offline in tests', { status: 404 });
       const file = u.pathname.endsWith('_common.js') ? '_common.js' : 'xiaohongshu.html';
       let body = fsm.readFileSync(pathm.join(mocks, file), 'utf8');
+      if (file === 'xiaohongshu.html') body += '<div role="status">笔记发布成功</div>';
       if (file === '_common.js' && (globalThis as unknown as { __holdUploadForm?: boolean }).__holdUploadForm) body = body.replace(', 300)', ', 60000)');
       return new Response(body, { headers: { 'content-type': file.endsWith('.js') ? 'text/javascript' : 'text/html; charset=utf-8' } });
     });

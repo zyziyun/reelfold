@@ -12,7 +12,7 @@ import { adapterFor, type Adapter } from '../../shared/publish/adapterSchema';
 import { apiOnly } from '../../shared/publish/apiPlatforms';
 import { postAccount } from '../../shared/publish/account';
 import { planFill } from '../../shared/publish/fillPlan';
-import { copyForPost, pickFile, postedSignal } from '../../shared/publish/postNow';
+import { copyForPost, pickFile, freshPostedSignal, receiptLines } from '../../shared/publish/postNow';
 import type { CalendarPost } from '../../shared/v04';
 import type { PublishBrowser } from './browser';
 import { runFill, type StepResult } from './cdpFill';
@@ -38,23 +38,38 @@ export interface PostFillDeps {
 /** What the success check reads in the platform page (isolated world): the text and the links, nothing typed. */
 const SUCCESS_JS = `(${successSnapshot.toString()})()`;
 
+type ReceiptSnapshot = { url: string; text: string; links: string[] };
+async function readReceipt(wc: WebContents): Promise<ReceiptSnapshot> {
+  const page = await wc.executeJavaScriptInIsolatedWorld(1002, [{ code: SUCCESS_JS }]);
+  return { ...page, url: wc.getURL() };
+}
+
 const watchers = new Map<number, () => void>();
 
 /** Watch one platform page until it shows the adapter's success signal (or 45 minutes pass / the page closes). */
-export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: string | null) => void, opts: { timeoutMs?: number; pollMs?: number } = {}): () => void {
+export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: string | null) => void, opts: { timeoutMs?: number; pollMs?: number; baseline?: ReceiptSnapshot } = {}): () => void {
   watchers.get(wc.id)?.();
   if (!adapter.success) return () => undefined;
   let done = false;
+  let baseline = opts.baseline;
+  let checking = false;
   const check = async () => {
-    if (done || wc.isDestroyed()) return;
-    let page = { text: '', links: [] as string[] };
+    if (done || checking || wc.isDestroyed()) return;
+    checking = true;
+    let page: ReceiptSnapshot;
     try {
-      page = (await wc.executeJavaScriptInIsolatedWorld(1002, [{ code: SUCCESS_JS }])) as typeof page;
+      page = await readReceipt(wc);
     } catch {
-      /* navigating */
+      return; // A navigation/read failure is not evidence that an old receipt disappeared.
+    } finally {
+      checking = false;
     }
     if (done || wc.isDestroyed()) return;
-    const sig = postedSignal(wc.getURL(), page.text, page.links, adapter.success);
+    if (!baseline) { baseline = page; return; }
+    const sig = freshPostedSignal(page, baseline, adapter.success);
+    // Once an old signal disappears, a later occurrence may describe this upload.
+    baseline = { url: baseline.url === page.url ? baseline.url : '',
+      text: receiptLines(baseline.text).filter(line => receiptLines(page.text).includes(line)).join('\n'), links: [] };
     if (sig.posted) {
       stop();
       onPosted(sig.url);
@@ -74,6 +89,7 @@ export function watchPosted(wc: WebContents, adapter: Adapter, onPosted: (url: s
       wc.removeListener('did-navigate', nav);
       wc.removeListener('did-navigate-in-page', nav);
     }
+    wc.removeListener('destroyed', stop);
     watchers.delete(wc.id);
   };
   wc.once('destroyed', stop);
@@ -122,6 +138,9 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
   if (!onUploadPage(wc.getURL(), adapter)) return { ok: false, reason: 'page-failed', detail: wc.getURL(), adapterId: adapter.id, account };
 
   await deps.control?.checkpoint();
+  watchers.get(wc.id)?.();
+  let baseline: ReceiptSnapshot | undefined;
+  try { baseline = await readReceipt(wc); } catch { /* first successful watch read establishes baseline */ }
   const steps = planFill(adapter, { videoPath: file.path, coverPath: cover, copy });
   const dbg = wc.debugger;
   let attachedHere = false;
@@ -149,7 +168,7 @@ export async function fillScheduledPost(deps: PostFillDeps, req: { postId: strin
         return deps.client.updatePost(post.id, { state: 'posted', via: 'assisted', ...(url ? { url } : {}) })
           .then(() => deps.onPosted?.(post.id, url));
       }).catch((e) => deps.log?.(`[publish] could not mark ${post.id} posted: ${(e as Error).message}`));
-    });
+    }, { baseline });
   }
   return { ok: true, postId: post.id, adapterId: adapter.id, account, results, video: file.path, cover };
 }

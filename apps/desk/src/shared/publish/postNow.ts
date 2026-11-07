@@ -83,7 +83,7 @@ export function postedSignal(
   if (!success) return { posted: false, url: null };
   const any = (pats: string[], s: string) => pats.some((p) => new RegExp(p).test(s));
   // Match a complete status line, not instructions such as 'after 发布成功, ...'.
-  const status = pageText.split(/\r?\n/).map(line => line.trim().replace(/[!！。]+$/, ''));
+  const status = receiptLines(pageText);
   const posted = any(success.urls, url) || status.some(line => line !== '' &&
     success.texts.some(pattern => new RegExp(`^(?:${pattern})$`).test(line)));
   if (!posted) return { posted: false, url: null };
@@ -94,6 +94,21 @@ export function postedSignal(
     if (found) found = re.exec(found)![0];
   }
   return { posted: true, url: found && found.startsWith('https://') ? found : null };
+}
+
+export function receiptLines(text: string): string[] {
+  return text.split(/\r?\n/).map(line => line.trim().replace(/[!！。]+$/, '')).filter(Boolean);
+}
+
+/** Ignore receipts already visible before this upload; the watcher retains them until they disappear. */
+export function freshPostedSignal(
+  page: { url: string; text: string; links: string[] },
+  baseline: { url: string; text: string },
+  success: Parameters<typeof postedSignal>[3],
+): ReturnType<typeof postedSignal> {
+  const oldLines = new Set(receiptLines(baseline.text));
+  return postedSignal(page.url === baseline.url ? '' : page.url,
+    receiptLines(page.text).filter(line => !oldLines.has(line)).join('\n'), page.links, success);
 }
 
 /** A title's length counted the platform's way: 小红书 counts CJK / full-width as 1 and latin letters, digits and
