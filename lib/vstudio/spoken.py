@@ -93,7 +93,9 @@ def validate(doc, cues, duration, materials=None, source=None, canvas=None):
                 raise ValueError("spoken finishing: a chain needs at least two steps")
         # The on-screen duration is not the length of the supporting argument.
         # Permit nearby prior context, but never borrow a later conclusion.
-        ea = b.get("evidence_from", a)
+        ea = b.get("evidence_from")
+        if ea is None:  # Strict structured output represents absent optional fields as null.
+            ea = a
         if type(ea) is not int or not 0 <= ea <= a or b.get("evidence_to", z) != z:
             raise ValueError("spoken finishing: evidence must begin at or before the display and end with it")
         evidence_start = float(cues[ea]["start"])
@@ -112,8 +114,12 @@ def validate(doc, cues, duration, materials=None, source=None, canvas=None):
         elif kind == "insert":
             asset_id = b.get("asset")
             asset = assets.get(asset_id) if isinstance(asset_id, str) else None
-            offset = b.get("offset", 0)
-            fit = b.get("fit", "contain")
+            offset = b.get("offset")
+            if offset is None:
+                offset = 0
+            fit = b.get("fit")
+            if fit is None:
+                fit = "contain"
             if asset is None:
                 raise ValueError("spoken finishing: insert must name an available visual asset ID")
             if type(offset) not in (int, float) or not math.isfinite(offset) or offset < 0:

@@ -275,3 +275,11 @@ def test_source_context_is_evidence_not_an_insert_asset():
     with pytest.raises(ValueError, match='available visual asset ID'):
         spoken.plan(CUES, 10, source_context='Existing caption and note panel',
                     images=['source-sheet.jpg'], complete=model)
+
+
+def test_strict_optional_nulls_use_insert_defaults():
+    assets = [dict(id='p0001', kind='image', path='/unused.png')]
+    beat = dict(BEAT, evidence_from=None, offset=None, fit=None)
+    result = spoken.validate(dict(beats=[beat]), CUES, 10, assets)
+    assert result == spoken.validate(dict(beats=[BEAT]), CUES, 10, assets)
+    assert result[0]['params'] == dict(file='/unused.png', offset=0, fit='contain')

@@ -339,3 +339,15 @@ def test_duplicate_graphic_items_repair_with_distinct_source_points():
 def test_symbol_distinctions_are_not_duplicate_labels():
     effect = spoken.validate({"beats": [dict(BEAT, kind="contrast", items=["C++", "C#"])]}, CUES, 12)[0]
     assert effect["params"]["items"] == ["C++", "C#"]
+
+
+def test_strict_optional_nulls_do_not_spend_the_repair_attempt():
+    calls = []
+    beat = dict(BEAT, evidence_from=None, panel=None, source_box=None,
+                asset=None, offset=None, fit=None, detail_regions=None)
+    def model(*args, **kwargs):
+        calls.append(args)
+        return dict(json=dict(beats=[beat]))
+    result = spoken.plan(CUES, 12, complete=model)
+    assert len(calls) == 1
+    assert result['effects'] == spoken.validate(dict(beats=[BEAT]), CUES, 12)
