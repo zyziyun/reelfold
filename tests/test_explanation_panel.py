@@ -30,3 +30,18 @@ def test_invalid_panel_fails_instead_of_falling_back_to_fullframe(box):
         outfx.validate('explanation-card',dict(title='x',items=['y'],panel_box=box))
     with pytest.raises(ValueError,match='panel_box'):
         outfx.validate('explanation-card',dict(panel_box=box),partial=True)
+
+
+@pytest.mark.parametrize('size', [(1080,1920), (2160,3840)])
+def test_tiny_panel_cannot_hide_unreadable_type_in_high_resolution(size):
+    layer=outfx.make_layer(dict(effect='explanation-card',params=dict(
+        title='要点',kind='takeaway',items=['保留选择'],panel_box=[.05,.65,.2,.1])),*size)
+    with pytest.raises(ValueError,match='text does not fit'):
+        layer.setup()
+
+
+def test_enlarging_panel_keeps_the_same_copy_readable():
+    layer=outfx.make_layer(dict(effect='explanation-card',params=dict(
+        title='要点',kind='takeaway',items=['保留选择'],panel_box=[.05,.6,.9,.3])),1080,1920)
+    layer.setup()
+    assert layer.panel.texts[0].height >= 48

@@ -732,6 +732,8 @@ class ExplanationCard(Layer):
             self.panel_rect = (x0, y0, x1, y1)
             inst = dict(self.inst, params={k: v for k, v in self.p.items() if k != "panel_box"})
             self.panel = ExplanationCard(inst, x1-x0, y1-y0)
+            # Typography is judged at the final canvas scale, not the smaller panel.
+            self.panel.readable_short = min(self.W, self.H)
             self.panel.setup()
             return
         self.background = Image.new("RGB", (self.W, self.H), (244, 241, 233))
@@ -742,7 +744,8 @@ class ExplanationCard(Layer):
         self.top = int(y0 + (y1 - y0) * 0.1)
         self.bottom = int(min(y1, self.H * 0.75))   # captions retain their own bottom safe band
         self.short = min(self.W, self.H)
-        self.heading = D.text_layer(self.p["title"], D.load_font("cjk-bold", max(20, int(self.short * 0.085))),
+        minimum = max(16, round(getattr(self, "readable_short", self.short) * 16 / 360))
+        self.heading = D.text_layer(self.p["title"], D.load_font("cjk-bold", max(20, minimum, int(self.short * 0.085))),
                                     fill=(35, 42, 40, 255), max_w=self.right - self.left, align="left",
                                     pad=0, stroke=0, shadow_alpha=0, word_aware=True)
         self.items = list(self.p.get("items") or [])[:3]
@@ -762,7 +765,6 @@ class ExplanationCard(Layer):
         for i, text in enumerate(self.items):
             bx, by = (self.left + i * (bw + gap), y) if horizontal else (self.left, y + i * (bh + gap))
             pad = int(self.short * 0.025)
-            minimum = max(16, round(self.short * 16 / 360))
             size = max(minimum, int(self.short * (0.1 if n == 1 else 0.07)))
             while True:
                 txt = D.text_layer(text, D.load_font("cjk-bold", size), fill=(35, 42, 40, 255),
