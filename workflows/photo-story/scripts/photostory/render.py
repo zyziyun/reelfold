@@ -31,7 +31,7 @@ from vstudio import platform as vplat
 from vstudio.config import persona
 
 from photostory import overlays as ov
-from photostory import audiomix
+from photostory import audiomix, speechclean
 from photostory.ctx import Ctx, check_profile, load_spec
 from photostory.looks import film_look
 from photostory.shots import build, parse_src
@@ -286,7 +286,9 @@ def write_edl(C, T, out):
         off = float(sh.get("off", 0.0) or 0.0)
         sp = float(sh.get("speed", 1.0) or 1.0)
         rows.append(dict(i=k, t0=round(t0, 3), t1=round(t1, 3), src=os.path.realpath(src) if src else None,
-                         kind=kind, name=arg, source_time_origin=float(sh["start"]), src_in=round(off, 3) if kind == "video" else None,
+                         kind=kind, name=arg, source_time_origin=(float(sh["start"])
+                             if kind == "video" and speechclean.options(C, sh) is None else None),
+                         src_in=round(off, 3) if kind == "video" else None,
                          src_out=round(off + (t1 - t0) * sp, 3) if kind == "video" else None, speed=sp,
                          join=None if k == 0 else ("dissolve" if sh.get("tr") == "fade" else sh.get("tr")),
                          join_s=round(float(sh.get("trd") or 0), 3), label=sh.get("label"),

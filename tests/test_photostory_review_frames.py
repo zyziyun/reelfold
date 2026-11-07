@@ -161,3 +161,19 @@ PRESERVE_COLOUR = True
     assert (dest / 'st_frame_00000033.jpg').read_bytes() == saved
     assert (dest / 'review-frames.json').read_bytes() == saved_manifest
     assert not list(dest.glob('.review-*'))
+
+
+def test_edl_does_not_claim_linear_original_mapping_after_speech_cleanup(tmp_path):
+    from types import SimpleNamespace
+    from photostory.render import write_edl
+    source = tmp_path / 'source.mp4'
+    source.write_bytes(b'not decoded by EDL writer')
+    ctx = SimpleNamespace(find_video=lambda _:str(source),spec=SimpleNamespace(CLEANUP='gentle'))
+    base = dict(src='vsource',start=0,end=4,tr='cut',trd=0,off=10,speed=1.2)
+    for opts, expected in ((dict(audio='keep'),None), (dict(audio='keep',cleanup=False),0),
+                           (dict(audio='mute'),0), (dict(cleanup='tight'),None)):
+        timeline = SimpleNamespace(total=4,shots=[dict(base,**opts)])
+        rows=write_edl(ctx,timeline,str(tmp_path/'result.mp4'))
+        assert rows[0]['source_time_origin'] == expected
+        assert rows[0]['src_in'] == 10
+        assert rows[0]['src'] == str(source)
