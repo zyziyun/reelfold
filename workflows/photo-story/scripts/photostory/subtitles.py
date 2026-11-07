@@ -201,16 +201,21 @@ def english_only(text):
 
 
 def make_label(C, text):
-    """Rounded dark tag with an accent tick, bottom-left of the picture. Cinema look: no box - small letter-spaced
-    type over a thin accent rule, on a soft shadow (a documentary place caption). English only on YouTube (C.SUBS)."""
+    """An informational plate or a quiet location caption, positioned by the shot.
+
+    Explicit caption_style=label reuses the wrapped process plate. Other cinema
+    captions keep their small letter-spaced documentary treatment and shadow.
+    """
     if hasattr(C, "shown"):
         text = C.shown(text)
+    if (getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}).get("caption_style") == "label":
+        # Reuse measured wrapping/contrast for informational text, but return only
+        # the plate so per-shot positioning does not include a fixed caption band.
+        plate = make_process_label(C, text, "")
+        ys, xs = np.nonzero(plate[:, :, 3])
+        return plate[ys.min():ys.max() + 1, xs.min():xs.max() + 1] if len(xs) else plate[:1, :1]
     if getattr(C, "cinema", False):
         size = max(12, C.b(34))
-        # A process label carries the message, unlike a quiet location credit.
-        # Keep it readable at phone size when reusing per-shot placement.
-        if (getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}).get("caption_style") == "label":
-            size = max(size, C.t(60))
         f = font_for(text, size, "sans", "cjk")
         tr = 0.14 if not has_cjk_text(text) else 0.08
         txt = text.upper() if not has_cjk_text(text) else text

@@ -51,3 +51,22 @@ def test_lower_shot_labels_avoid_only_visible_caption_bands(tmp_path, platform, 
         assert c.LAB_BOT <= c.SUB_Y0 - c.HDR
     else:
         assert c.LAB_BOT == c.BOX_H - c.SUB_H
+
+
+@pytest.mark.parametrize('text', ['Nozzle lift', 'Inspect the equipment before starting the next process', '喷嘴抬升'])
+@pytest.mark.parametrize('platform', ['tiktok', 'youtube'])
+def test_informational_shot_label_is_a_bounded_readable_plate(tmp_path, text, platform):
+    import numpy as np
+    from photostory.subtitles import make_label
+    c = Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), PLATFORM=platform,
+        MODE='music', MUSIC=dict(captions=False), LOOK='cinema', SUBS='both',
+        LAYOUT=dict(caption_style='label', sub=.18)))
+    # Keep the text under test independent of platform translation policy.
+    c.shown = lambda value: value
+    plate = make_label(c, text)
+    assert 1 < plate.shape[1] <= c.CAP[2] - c.CAP[0]
+    assert 1 < plate.shape[0] <= c.SUB_H
+    # Dark opaque backing keeps white text readable over bright moving sources.
+    opaque_dark = (plate[:,:,3] > 204) & (plate[:,:,:3].max(axis=2) < 51)
+    assert opaque_dark.mean() > .4
+    assert np.any((plate[:,:,:3].min(axis=2) > 204) & (plate[:,:,3] > 204))
