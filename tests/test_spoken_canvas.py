@@ -93,6 +93,28 @@ def test_finish_routes_distinct_plans_to_real_target_exports(tmp_path, monkeypat
     for row in rows:
         record = outputs.resolve(str(tmp_path), row['id'])
         assert record['baseline_effects'] == finished['effects_by_target'][record['platform']]
+        assert record['framing_mode'] == 'letterbox'
+        if record['platform'] == 'tiktok:vertical':
+            from vstudio.project import outrender
+            doc = outputs.Doc(record)
+            state = doc.state()
+            target = outrender.targets_of(record, state)[0]
+            edit_plan = outrender.plan(record, doc, state, target, 'preview', watermark=False)
+            assert edit_plan['canvas']['mode'] == 'letterbox'
+            reframed = outrender.run_canvas(edit_plan['canvas'], str(tmp_path/'second-edit.mp4'),
+                                            'preview', edit_plan['canvas']['safe'])
+            cap = cv2.VideoCapture(reframed)
+            ok, frame = cap.read(); cap.release()
+            assert ok and np.max(frame[20, 20]) < 10
+            # A stale/foreign crop sidecar must not dictate this output's framing.
+            from pathlib import Path
+            crop_file = Path(row['file']).with_suffix('.crop.json')
+            crop = json.loads(crop_file.read_text())
+            for bad in (dict(crop, src='another-source.mp4'), dict(crop, target=[640, 360]),
+                        dict(crop, region=[0, 0, 100, 100])):
+                crop_file.write_text(json.dumps(bad))
+                assert 'framing_mode' not in outputs.resolve(str(tmp_path), row['id'])
+            crop_file.write_text(json.dumps(crop))
     overlapping = dict(effect, params=dict(effect['params'], panel_box=[0, 0, 1, 1]))
     with pytest.raises(ValueError, match='overlaps rendered captions'):
         export.export_one(str(source), platform.profile('tiktok', 'vertical', use_persona=False),

@@ -165,6 +165,8 @@ def plan(rec, doc, st, tg, quality, watermark=None):
                   safe=[round(x, 2) for x in _safe(tg)])
     if canvas["op"] == "reframe":
         canvas["fallback"] = framing_fallback(rec)
+        if tg["target"] == "primary" and rec.get("framing_mode") in ("letterbox", "pad-blur"):
+            canvas["mode"] = rec["framing_mode"]
         if source_stage:
             from vstudio import spoken
             canvas["source_regions"] = spoken.source_regions(source_effects, source_stage.get("spans"))
@@ -680,7 +682,7 @@ def run_canvas(spec, out, quality, safe):
                f"scale={spec['w']}:{spec['h']}:flags=lanczos,setsar=1", *_enc("inter", quality), out])
         return out
     from vstudio import reframe as R
-    pl = R.plan(spec["src"], spec["w"], spec["h"], mode="face", safe=tuple(safe),
+    pl = R.plan(spec["src"], spec["w"], spec["h"], mode=spec.get("mode") or "face", safe=tuple(safe),
                 fallback=spec.get("fallback") or "pad-blur")
     pl = R.preserve_regions(pl, spec.get("source_regions") or [])
     R.render(spec["src"], out, pl, encode_args=_enc("inter", quality))

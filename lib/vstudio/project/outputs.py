@@ -386,6 +386,13 @@ def resolve(d, output):
             per_target = finish.get("effects_by_target")
             rec["baseline_effects"] = (per_target.get(rec["platform"], []) if per_target is not None
                                        else finish.get("effects") or [])
+            framing = read_json(os.path.splitext(o["file"])[0] + ".crop.json", {})
+            if (isinstance(framing, dict) and framing.get("mode_used") in ("letterbox", "pad-blur")
+                    and framing.get("target") == [info["w"], info["h"]]
+                    and framing.get("src") == master and not framing.get("region")):
+                # Recover the actual export transform, not a possibly changed
+                # project default. Its fit margins may contain editorial panels.
+                rec["framing_mode"] = framing["mode_used"]
         else:
             rec["reason"] = msg("no-master", "the recipe kept no clean master for this output: edits go on top of "
                                 "the finished file", "这个成片没有保留干净母版：在成片上叠加编辑")
