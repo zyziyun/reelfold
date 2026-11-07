@@ -56,3 +56,21 @@ def test_system_voice_selection_uses_declared_language(tmp_path, monkeypatch):
     monkeypatch.setattr(system_voice, 'voices', lambda: [dict(id='French', name='French', lang='fr-FR')])
     monkeypatch.setattr(PT.vtts, 'zh_voice', lambda _: pytest.fail('Must not select a Chinese voice for French'))
     PT.main()
+
+
+@pytest.mark.parametrize('locale', ['zh', 'zh-CN', 'zh_TW'])
+def test_chinese_pronunciation_overrides_preserve_display_and_identifiers(locale):
+    original='先检查API，再导出MP4；保留CAPITable。'
+    spoken,display=PT.narration_texts([('fallback',original)],{'API':'A P I','MP4':'M P four'},locale)
+    assert spoken==['先检查A P I，再导出M P four；保留CAPITable。']
+    assert display==[original]
+
+
+def test_chinese_fallback_and_literal_override():
+    spoken,display=PT.narration_texts([('API','')],{'API':r'A \ P I'},'zh')
+    assert spoken==[r'A \ P I'] and display==['API']
+
+
+def test_english_pronunciation_word_boundaries_unchanged():
+    spoken,display=PT.narration_texts([('API CAPITable','')],{'API':'A P I'},'en')
+    assert spoken==['A P I CAPITable'] and display==['API CAPITable']

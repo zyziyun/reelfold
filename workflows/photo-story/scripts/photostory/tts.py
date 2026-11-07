@@ -48,17 +48,20 @@ OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "on
 
 def narration_texts(chunks, say, language):
     """The words the narrator speaks for one unit's (en, zh) cues: the 中文 when the narration is Chinese
-    (TTS language "zh"), else the English (SAY spoken forms applied to the English only)."""
+    (TTS language "zh"), else the primary slot; spoken overrides never change display text."""
     if str(language).lower().replace("_", "-").split("-")[0] == "zh":
         zh = [(z or e).replace("**", "") for e, z in chunks]
-        return zh, zh
+        return [spoken(text, say, cjk=True) for text in zh], zh
     return [spoken(en, say) for en, zh in chunks], [en.replace("**", "") for en, zh in chunks]
 
 
-def spoken(en, say):
+def spoken(en, say, cjk=False):
     s = en.replace("**", "")
+    # Chinese prose need not put spaces around Latin terms. Still protect
+    # larger Latin identifiers (API must not replace the middle of CAPITable).
+    boundary = r"A-Za-z0-9_" if cjk else r"\w"
     for k in sorted(say, key=len, reverse=True):
-        s = re.sub(rf"(?<![\w]){re.escape(k)}(?![\w])", say[k], s)
+        s = re.sub(rf"(?<![{boundary}]){re.escape(k)}(?![{boundary}])", lambda _: say[k], s)
     return s
 
 

@@ -320,7 +320,7 @@ Listen to the exported audio and compare those words with the intended reading. 
 without the expected words as hints can flag a mismatch; it cannot tell you by itself whether the speaker
 or the recognizer was wrong. Record timing/word accuracy separately from native-listener judgments of
 stress, pacing and naturalness. If a name needs a pronunciation override, change the synthesis text only
-(e.g. a photo-story `SAY_TTS` override) and listen again. Preserve the original spelling in captions.
+(e.g. a photo-story `SAY_TTS` override) and listen again. Preserve the original spelling in captions. Chinese photo-story narration also applies these overrides, including Latin terms adjacent to Chinese text: `SAY_TTS = {"API": "A P I"}` changes the spoken form of `检查API` while captions retain `检查API`. Larger Latin identifiers such as `CAPITable` remain intact. Overrides are voice-specific audition choices, not a guarantee of correct pronunciation.
 
 **The free voice in the desktop app (Apple silicon).** The app's runtime bundles Kokoro (mlx-audio + misaki, MIT /
 Apache-2.0); the weights (Kokoro-82M v1.0, Apache-2.0, ~330 MB with the voices `zf_xiaobei`, `af_heart`,
