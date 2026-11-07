@@ -156,6 +156,8 @@ def validate(doc, cues, duration, materials=None, source=None, canvas=None):
                 raise ValueError("spoken finishing: panel must name an available output margin for a card")
             effects[-1]["params"]["panel_box"] = panels[b["panel"]]
             effects[-1]["params"]["panel_aspect"] = canvas["size"][0]/canvas["size"][1]
+        if kind in ("contrast", "chain", "takeaway") and (canvas or {}).get("preserve_source") and b.get("panel") is None:
+            effects[-1]["params"]["preserve_source"] = True
         end = stop
     if sum(e["end"] - e["start"] for e in effects if e["effect"] == "explanation-card") > duration * 0.4:
         raise ValueError("spoken finishing: graphics cover too much of the speaker's story")
@@ -368,6 +370,10 @@ def plan(cues, duration, title="", complete=None, materials=None, images=None, m
             "to add an explanation while preserving the source. Do not invent panel names or coordinates. "
             "Prefer a margin panel when source text must remain visible, but do not repeat existing notes "
             "just to fill space. Without a suitable panel, omit a card that would hide necessary source content.")
+        if canvas.get("preserve_source"):
+            system += (" Source preservation is mandatory. Cards without a margin panel use a landscape "
+                       "side-by-side layout: the whole source on the left and a narrow diagram on the right. "
+                       "Keep labels short enough for that narrow column. Use a reserved margin on portrait canvases.")
         prompt += "\nOUTPUT CANVAS:\n" + json.dumps(canvas)
     call = complete or llm.complete
     repairs = []

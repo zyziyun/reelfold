@@ -127,6 +127,7 @@ SPECS = {
         what_zh="按原话编排的对比、因果链或结论卡；保留原声，不伪造证据",
         params=dict(title=_str("", "标题", True),
                     panel_box={"type": "array", "default": None, "x-zh": "已核对空白区域 [left,top,width,height]，归一化画布坐标"},
+                    preserve_source={"type": "boolean", "default": False, "x-zh": "分栏保留原画面"},
                     panel_aspect={"type": "number", "default": None, "x-zh": "面板已验证的画幅比例"},
                     kind=_str("takeaway", "图解形式", enum=("contrast", "chain", "takeaway")),
                     items={"type": "array", "items": {"type": "string"}, "default": [], "x-zh": "观点"}),
@@ -724,6 +725,22 @@ class ExplanationCard(Layer):
     """A short conceptual cutaway; staggered nodes, explicit links, no stock claims."""
 
     def setup(self):
+        if self.p.get("preserve_source") and self.p.get("panel_box") is None:
+            if self.W <= self.H:
+                raise ValueError("explanation-card: source-preserving split needs a landscape canvas or a reserved margin")
+            x0, y0, x1, y1 = self.safe
+            gap = round(self.W * .025)
+            source_w = round((x1-x0) * .58)
+            source_h = round(source_w*self.H/self.W)
+            self.source_rect = (round(x0), round((self.H-source_h)/2), source_w, source_h)
+            self.panel_rect = (round(x0)+source_w+gap, round(y0), round(x1), round(y1))
+            px, py, pr, pb = self.panel_rect
+            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k != "preserve_source"})
+            self.panel = ExplanationCard(inst, pr-px, pb-py)
+            self.panel.readable_short = min(self.W, self.H)
+            self.panel.reserved_panel = True
+            self.panel.setup()
+            return
         if self.p.get("panel_box") is not None:
             aspect = self.p.get("panel_aspect")
             if aspect is not None and (not isinstance(aspect, (int, float)) or
@@ -735,7 +752,7 @@ class ExplanationCard(Layer):
             if x1-x0 < 160 or y1-y0 < 120:
                 raise ValueError("explanation-card: panel is too small; enlarge it or shorten the layout")
             self.panel_rect = (x0, y0, x1, y1)
-            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k not in ("panel_box", "panel_aspect")})
+            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k not in ("panel_box", "panel_aspect", "preserve_source")})
             self.panel = ExplanationCard(inst, x1-x0, y1-y0)
             # Typography is judged at the final canvas scale, not the smaller panel.
             self.panel.readable_short = min(self.W, self.H)
@@ -790,7 +807,16 @@ class ExplanationCard(Layer):
             self.setup()
         if hasattr(self, "panel"):
             x0, y0, x1, y1 = self.panel_rect
-            self.panel.draw(img[y0:y1, x0:x1], t, dur)
+            if hasattr(self, "source_rect"):
+                import cv2
+                frame = np.full_like(img, (233, 241, 244))
+                sx, sy, sw, sh = self.source_rect
+                frame[sy:sy+sh, sx:sx+sw] = cv2.resize(img, (sw, sh), interpolation=cv2.INTER_AREA)
+                self.panel.draw(frame[y0:y1, x0:x1], t, dur)
+                opacity = ease_in_out(min(1, t / .45, (dur-t) / .45))
+                img[:] = np.clip(img.astype(np.float32)*(1-opacity)+frame*opacity, 0, 255).astype(np.uint8)
+            else:
+                self.panel.draw(img[y0:y1, x0:x1], t, dur)
             return
         frame = self.background.copy()
         dr = ImageDraw.Draw(frame)

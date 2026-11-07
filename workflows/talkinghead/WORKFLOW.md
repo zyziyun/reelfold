@@ -346,3 +346,11 @@ This does not make padding the default adaptation or make every spare margin wor
 A relevant, nonredundant explanation and final phone-size motion review are still required.
 Keep an unaccepted layout in review rather than presenting technical render success as
 editorial acceptance. User-authored `panel_box` regions still need source-content inspection.
+
+When `preserve_source_aspect` is enabled, editorial summary cards must also keep the
+source visible. Verified output margins can hold the graphic; otherwise landscape
+outputs use a source-and-diagram split. The shared renderer retains the full source
+frame, including baked subtitles, and returns to full size after the beat. Check the
+result at viewing size: preserving subtitle pixels does not establish readability.
+This applies to summary cards; supporting-footage replacements still need their own
+source-content review.

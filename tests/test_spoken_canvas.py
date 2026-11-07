@@ -120,3 +120,28 @@ def test_finish_routes_distinct_plans_to_real_target_exports(tmp_path, monkeypat
         export.export_one(str(source), platform.profile('tiktok', 'vertical', use_persona=False),
                           str(tmp_path/'overlap'), effects=[overlapping], cues=str(cues),
                           mode='letterbox', captions=True, watermark=False)
+
+
+def test_source_preserving_split_keeps_full_frame_and_is_seek_safe():
+    from vstudio.project import outfx
+    canvas = dict(size=[960, 540], safe=[48, 27, 912, 513], panels={}, preserve_source=True)
+    beat = dict(BEAT, panel=None)
+    effect = spoken.validate(dict(beats=[beat]), CUES, 8, canvas=canvas)[0]
+    assert effect['params']['preserve_source'] is True
+    layer = outfx.make_layer(effect, 960, 540, canvas['safe'])
+    layer.setup()
+    source = np.zeros((540, 960, 3), np.uint8)
+    source[:40, :40] = [0, 0, 255]
+    source[-40:, -40:] = [0, 255, 0]
+    source[480:500, 100:800] = 255  # burned subtitle-like band
+    frames = []
+    for t in (0, 1.5, .5, 1.5, 3):
+        frame = source.copy(); layer.draw(frame, t, 3); frames.append(frame)
+    assert np.array_equal(frames[0], source) and np.array_equal(frames[-1], source)
+    assert np.array_equal(frames[1], frames[3])
+    x, y, w, h = layer.source_rect
+    expected = cv2.resize(source, (w, h), interpolation=cv2.INTER_AREA)
+    assert np.array_equal(frames[1][y:y+h, x:x+w], expected)
+    assert np.max(frames[1][y:y+20, x:x+20, 2]) == 255
+    assert np.max(frames[1][y+h-20:y+h, x+w-20:x+w, 1]) == 255
+    assert np.mean(frames[1][:, x+w+30:]) > 100

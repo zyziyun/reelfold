@@ -422,6 +422,7 @@ def run_finish(ctx):
         canvas = spoken.canvas_context(profile, (info["display_w"], info["display_h"]),
                                        ctx.params.get("layout") or "pad-blur",
                                        captions=bool(ctx.params.get("captions", True)))
+        canvas["preserve_source"] = bool(ctx.params.get("preserve_source_aspect"))
         plans[profile.key] = spoken.plan(cues, c["duration"], ctx.params.get("title") or "",
                                          canvas=canvas, **kwargs)
     if plans:
@@ -1017,7 +1018,7 @@ def speech_stages(copy=False):
               cost=lambda j, s: 0.02 if proofread_opts(s)["provider"] != "none" else 0.0),
         Stage("finish", "cpu", run_finish, deps=("compose", "proofread"),
               enabled=lambda j, s: _p(j).get("finishing") == "editorial" or _has_materials(j, s),
-              params=_finish_params, version=4,
+              params=_finish_params, version=5,
               units=lambda j, s: 1.0, retries=0),
         Stage("export", _export_resource, run_export, deps=exp_deps,
               params=_export_params,
