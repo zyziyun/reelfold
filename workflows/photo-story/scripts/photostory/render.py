@@ -240,7 +240,8 @@ def main():
                     os.unlink(os.path.join(sdir, name))
             return
     enc.stdin.close()
-    enc.wait()
+    if enc.wait() != 0:
+        raise RuntimeError(f"Video encoder failed (exit {enc.returncode}); audio mix was not started")
     out = a.out or (os.path.join(C.cache_dir, "preview.mp4") if a.preview else C.path(getattr(C.spec, "OUT", "out/story.mp4")))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     mix_audio(C, T, t_from, end_t, vid_tmp, out)
@@ -349,10 +350,23 @@ def mix_audio(C, T, t0, t1, vid, out):
                           fade_in=2.0, fade_out=3.5, music_start=t0)
         else:
             audio.loudnorm_2pass(vo, mix, lufs=lufs, tp=C.TP)
+        mux_master(vid, mix, out, abr, t1 - t0, C.FPS)
+    print("output:", out)
+
+
+def mux_master(vid, mix, out, abr, duration, fps):
+    """Replace a previous master only after successful mux and stream/duration checks."""
+    parent = os.path.dirname(os.path.abspath(out))
+    with tempfile.TemporaryDirectory(prefix=".mux-", dir=parent) as staging:
+        candidate = os.path.join(staging, "master" + (os.path.splitext(out)[1] or ".mp4"))
         media.run(["ffmpeg", "-y", "-i", vid, "-i", mix, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
                    "-c:a", "aac", "-b:a", str(abr), "-ar", str(audio.SR), "-ac", "2",
-                   "-movflags", "+faststart", "-shortest", out])
-    print("output:", out)
+                   "-movflags", "+faststart", "-shortest", candidate])
+        info = media.probe(candidate)
+        if (not info.get("has_video") or not info.get("has_audio") or
+                abs(float(info.get("duration") or 0) - duration) > max(.1, 2 / fps)):
+            raise RuntimeError("Audio/video mux is incomplete; the previous master was preserved")
+        os.replace(candidate, out)
 
 
 if __name__ == "__main__":

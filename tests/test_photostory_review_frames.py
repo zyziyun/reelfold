@@ -5,6 +5,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "wor
 from photostory.render import review_frames
 
 
+def test_mux_preserves_previous_master_until_candidate_is_complete(tmp_path):
+    import subprocess
+    import pytest
+    from photostory.render import mux_master
+    from vstudio import media
+    video, wav, short = (tmp_path / n for n in ('picture.mp4', 'sound.wav', 'short.wav'))
+    media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'color=teal:s=160x90:r=30:d=2',
+               '-c:v', 'libx264', str(video)])
+    for path, duration in ((wav, 2), (short, .2)):
+        media.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', f'sine=frequency=440:duration={duration}', str(path)])
+    dest = tmp_path / 'story.mp4'
+    mux_master(str(video), str(wav), str(dest), '192k', 2, 30)
+    previous = dest.read_bytes()
+    info = media.probe(str(dest))
+    assert info['has_video'] and info['has_audio'] and abs(info['duration'] - 2) < .1
+    with pytest.raises(RuntimeError, match='incomplete'):
+        mux_master(str(video), str(short), str(dest), '192k', 2, 30)
+    assert dest.read_bytes() == previous
+    broken = tmp_path / 'broken.mp4'
+    broken.write_bytes(b'not a video')
+    with pytest.raises((RuntimeError, subprocess.CalledProcessError)):
+        mux_master(str(broken), str(wav), str(dest), '192k', 2, 30)
+    assert dest.read_bytes() == previous
+    assert not list(tmp_path.glob('.mux-*'))
+
+
 def test_clean_master_keeps_cues_when_visual_qc_rejects_render(tmp_path, monkeypatch):
     import json
     import pytest
