@@ -766,6 +766,8 @@ test.describe('record -> edit -> pickup', () => {
     // the "um" was cut automatically: a marker in the transcript + the card that brings it back
     await expect(page.getByTestId('auto-clean-card')).toBeVisible();
     await expect(page.getByTestId('cut-marker').first()).toContainText('um');
+    // Raw camera footage has no burned captions. Lack of a style-editable track is not evidence of them.
+    await expect(page.getByTestId('ci-caps-burned')).toHaveText('There is no caption track whose style can be edited here.');
     await shot(page, 'R2-lands-in-editor');
   });
 

@@ -144,7 +144,7 @@ test('second-pass edit: trim, pop word (精确编辑 drawer), 让 AI 改 (chat),
   await expect(page.getByTestId('chat-panel')).toBeVisible(); // chat-first: the AI column is the default
   // the clip's info sits above the chat: flattened captions are explained, no dead controls
   await expect(page.getByTestId('clip-info')).toBeVisible();
-  await expect(page.getByTestId('ci-caps-burned')).toContainText(/part of the picture|已经在画面里/);
+  await expect(page.getByTestId('ci-caps-burned')).toContainText(/no caption track|没有可调整样式/);
   await page.getByTestId('toggle-precise').click(); // trim and effects live in the optional drawer
   await expect(page.getByTestId('etab-captions')).toHaveCount(0);
   await page.getByTestId('etab-trim').click();

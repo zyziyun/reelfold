@@ -100,6 +100,7 @@ const POS = ['bottom', 'middle', 'top'] as const;
 
 export function CaptionLooks({ doc, edit }: { doc: OutputDoc; edit: EditFn }) {
   const can = doc.caps.caption_style !== false && (!!doc.caps.captions_ours || doc.captions.some((c) => c.added));
+  // Capability absence does not establish that source pixels contain burned captions.
   if (!can) return <p className="ci-note" data-testid="ci-caps-burned">{t('ci.capsBurned')}</p>;
   const s = (doc.caption_style ?? {}) as Record<string, unknown>;
   const look = lookOf(s);
