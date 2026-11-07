@@ -23,6 +23,7 @@ import wave
 
 SPEAKERS = ("serena", "vivian", "uncle_fu", "dylan", "eric", "ryan", "aiden", "ono_anna", "sohee")
 ZH_SPEAKERS = ("serena", "vivian", "uncle_fu", "dylan", "eric")
+VERSION = 2                           # invalidate takes accepted before retry validation
 MAX_TRIES = 3
 MAX_PIECE = 120                       # characters per generate call (a sentence or two)
 GAP_S = 0.12                          # pause between the pieces of a long line
@@ -150,16 +151,16 @@ def synth(text, model, voice="serena", instruct=None, lang=None, seed=7, log=Non
         best = None
         for t in range(MAX_TRIES):
             a = trim_silence(_take(m, p, voice, instruct, lang, seed + 1000 * t + i), sr)
-            ok = plausible(len(a) / sr, p)
-            if best is None or ok:
-                best = a
+            ok = bool(a.size and np.isfinite(a).all() and np.any(a) and plausible(len(a) / sr, p))
             if ok:
+                best = a
                 break
             if log:
                 log(f"qwen: piece {i + 1} took {len(a) / sr:.1f}s for {len(p)} chars (about "
-                    f"{expected_seconds(p):.1f}s expected): new take")
+                    f"{expected_seconds(p):.1f}s expected): rejected attempt {t + 1}/{MAX_TRIES}")
         if best is None or not best.size:
-            raise SystemExit("qwen produced no audio")
+            raise SystemExit(f"qwen: piece {i + 1} failed audio validation after {MAX_TRIES} attempts; "
+                             "try generating the voice again")
         out.append(best)
     gap = np.zeros(int(GAP_S * sr), dtype=np.float32)
     joined = out[0] if len(out) == 1 else np.concatenate([x for a in out for x in (a, gap)][:-1])

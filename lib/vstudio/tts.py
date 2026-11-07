@@ -656,6 +656,9 @@ def synth(text, engine="openai", voice=None, speed=1.0, instructions=None, out=N
     if engine in ("qwen", "kokoro"):
         from .speech_chunks import VERSION as chunk_version
         mkey = f"{mkey}#chunks{chunk_version}"
+    if engine == "qwen":
+        from .qwen_synth import VERSION as qwen_version
+        mkey = f"{mkey}#takes{qwen_version}"
     key = cache_key(text, engine, voice, speed, instructions, mkey)
     cpath = os.path.join(_cache_dir(), f"{key}.wav")
     if not (cache and _has_audio(cpath)):

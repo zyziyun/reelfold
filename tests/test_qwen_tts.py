@@ -333,3 +333,55 @@ def test_local_speech_cache_tracks_chunker_revision(tmp_path, monkeypatch, engin
     monkeypatch.setattr(speech_chunks, 'VERSION', speech_chunks.VERSION + 1)
     after = tts.synth('Hello. Next sentence.', engine=engine, voice=voice)
     assert before != after
+
+
+@pytest.mark.parametrize('duration,level', [(0.1, 0.2), (60, 0.2), (4, 0), (4, float('nan'))])
+def test_exhausted_invalid_takes_fail_instead_of_returning_audio(monkeypatch, duration, level):
+    import numpy as np
+    from types import SimpleNamespace
+    calls = []
+    def take(*args):
+        calls.append(args[-1])
+        return np.full(int(duration * 100), level, dtype=np.float32)
+    monkeypatch.setattr(QS, '_take', take)
+    model = SimpleNamespace(sample_rate=100, generate=lambda: None)
+    with pytest.raises(SystemExit, match='piece 1.*3 attempts'):
+        QS.synth('Connect the camera and check the microphone before recording your video.', model, voice='ryan')
+    assert calls == [7, 1007, 2007]
+
+
+def test_invalid_first_take_retries_and_returns_only_valid_audio(monkeypatch):
+    import numpy as np
+    from types import SimpleNamespace
+    calls = []
+    def take(*args):
+        calls.append(args[-1])
+        return np.full(10 if len(calls) == 1 else 400, .2, dtype=np.float32)
+    monkeypatch.setattr(QS, '_take', take)
+    model = SimpleNamespace(sample_rate=100, generate=lambda: None)
+    audio, sr = QS.synth('Connect the camera and check the microphone before recording your video.', model, voice='ryan')
+    assert sr == 100 and len(audio) == 400
+    assert calls == [7, 1007]
+
+
+def test_qwen_cache_tracks_take_validation_revision(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts, '_cache_dir', lambda: str(tmp_path))
+    monkeypatch.setattr(tts, '_has_audio', lambda _: True)
+    monkeypatch.setattr(tts, 'qwen_model', lambda _: 'test-model')
+    before = tts.synth('Hello. Next sentence.', engine='qwen', voice='ryan')
+    monkeypatch.setattr(QS, 'VERSION', QS.VERSION + 1)
+    after = tts.synth('Hello. Next sentence.', engine='qwen', voice='ryan')
+    assert before != after
+
+
+def test_failed_later_piece_does_not_write_partial_take(tmp_path, monkeypatch):
+    import numpy as np
+    from types import SimpleNamespace
+    model = SimpleNamespace(sample_rate=100, generate=lambda: None)
+    monkeypatch.setattr(QS, 'load', lambda _: model)
+    monkeypatch.setattr(QS, 'pieces', lambda _: ['first', 'second'])
+    monkeypatch.setattr(QS, '_take', lambda m, p, *args: np.ones(100, dtype=np.float32) * .2 if p == 'first' else np.zeros(100, dtype=np.float32))
+    out = tmp_path / 'take.wav'
+    with pytest.raises(SystemExit, match='piece 2'):
+        QS.main(['--model', 'local-test', '--out', str(out), '--text', 'two pieces'])
+    assert not out.exists()
