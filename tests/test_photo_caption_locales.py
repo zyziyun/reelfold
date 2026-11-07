@@ -70,3 +70,17 @@ def test_informational_shot_label_is_a_bounded_readable_plate(tmp_path, text, pl
     opaque_dark = (plate[:,:,3] > 204) & (plate[:,:,:3].max(axis=2) < 51)
     assert opaque_dark.mean() > .4
     assert np.any((plate[:,:,:3].min(axis=2) > 204) & (plate[:,:,3] > 204))
+
+
+@pytest.mark.parametrize('palette,expected', [({}, (214,198,168)),
+    ({'sub_en': '#f8f9fa'}, (248,249,250)), ({'sub_en': (70,180,230)}, (70,180,230))])
+def test_music_title_respects_authored_colour(tmp_path, palette, expected):
+    import numpy as np
+    from photostory.subtitles import make_title_text
+    c = Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'), PLATFORM='youtube',
+        MODE='music', MUSIC=dict(captions='title'), LOOK='cinema', PALETTE=palette,
+        TITLE_SHADOW=0, TITLE_GLOW=0))
+    rendered = make_title_text(c, 'Northline', '')
+    solid = rendered[:,:,3] > 250
+    assert solid.any()
+    assert np.any(np.all(rendered[:,:,:3][solid] == np.array(expected), axis=1))

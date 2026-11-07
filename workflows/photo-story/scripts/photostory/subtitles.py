@@ -142,7 +142,10 @@ def _make_sub_fit(C, en, zh, title=False):
     stroke = 0 if title or cine else max(1, round(2 * C.S + 0.3))
     y = (lay.height - tot) // 2
     # 中文 first in a title, and when the narrator speaks Chinese (the English is then the translation under it)
-    order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, (214, 198, 168) if title else C.pal["sub_en"], LE)] \
+    # Keep the scenic title default, but never override an authored brand colour.
+    explicit_en = "sub_en" in (getattr(C.spec, "PALETTE", {}) or {})
+    en_colour = (214, 198, 168) if title and not explicit_en else C.pal["sub_en"]
+    order = [(lz, fz, C.pal["sub_zh"], LZ), (le, fe, en_colour, LE)] \
         if title or getattr(C, "ZH_LEAD", False) else [(le, fe, C.pal["sub_en"], LE), (lz, fz, C.pal["sub_zh"], LZ)]
     for j, (lines, f, col, lh) in enumerate(order):
         if j == 1:

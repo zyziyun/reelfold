@@ -35,6 +35,16 @@ identity and inspect labels against the actual machinery/people at phone size. T
 layout, not a sample-specific title, source path or timestamp. Match the first label to the action visible now;
 cover/post text must disclose stock reference footage where appropriate.
 
+A company brand introduction is not necessarily a process study. Plan the audience question, supplied
+identity/promise, services and CTA with distinct visual hierarchy. The label default is a starting point for
+process explanations, not a requirement to put every brand statement in the same lower-third plate.
+Explicitly author supported layout and music caption choices when the brief needs commercial typography:
+`MUSIC.captions="title"` uses native title emphasis/fades, and `LAYOUT.video_caption_safe=False` removes the
+reserved process-caption band. Check text contrast and action clearance on actual frames before accepting
+that override. Do not apply full-bleed crops blindly to portrait evidence. Compare rendered picture occupancy,
+identity readability and CTA emphasis at phone size; production notes describing a treatment are not proof
+that it rendered. `TEXTFX` belongs to the separate story-vlog postpass, not the automatic music renderer.
+
 Contained videos using the label caption style sit adjacent to the reserved caption band. Check that the picture
 and label form one readable group on each canvas. In music mode, label-style step captions cover their
 complete item span; decorative `MUSIC.captions="title"` keeps its title timing. For horizontal process footage in a portrait film, establish
