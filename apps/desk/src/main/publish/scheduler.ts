@@ -8,6 +8,7 @@
 // Posts that came due while the app was closed show as overdue on launch (Publish / Home banner). No electron
 // import: the clock, the calendar and the notifier are injected (tests drive it with a fake clock).
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { UploadOutcomeUnknown } from './outcome';
 import path from 'node:path';
 import { apiDeliveryState, type YtPublishResult } from '../../shared/publish/apiPlatforms';
@@ -25,6 +26,8 @@ export interface ApiAttempt {
   /** The upload receipt is durable independently of the local calendar update. */
   calendarSynced?: boolean;
   resolvedAccount?: string;
+  /** Publishing content captured before sending bytes, retained across restart. */
+  contentFingerprint?: string;
   result?: YtPublishResult;
   source?: 'manual' | 'scheduled';
   lastCheck?: number;
@@ -77,6 +80,16 @@ function requestFingerprint(post: CalendarPost): string {
   return JSON.stringify(fields.map(key => post[key] ?? null));
 }
 
+// Account and scheduling are checked separately because the platform can resolve
+// an implicit account or return its normalized scheduled time.
+function contentFingerprint(post: CalendarPost): string {
+  return createHash('sha256').update(requestFingerprint({ ...post, at: '', account: null })).digest('hex');
+}
+
+function receiptMatches(post: CalendarPost, receipt: ApiAttempt): boolean {
+  return !receipt.contentFingerprint || receipt.contentFingerprint === contentFingerprint(post);
+}
+
 const MAX_TRIES = 3;
 const RETRY_MS = 10 * 60_000;
 
@@ -103,7 +116,8 @@ export class PublishScheduler {
       if (!record(s) || (s.notified !== undefined && (!record(s.notified) || Object.values(s.notified).some((at) => typeof at !== 'string'))) ||
         (s.api !== undefined && (!record(s.api) || Object.values(s.api).some((a) =>
         !record(a) || typeof a.at !== 'string' || !['uploading', 'done', 'failed', 'unverified'].includes(a.status) ||
-        !Number.isInteger(a.tries) || a.tries < 1 || !Number.isFinite(a.lastTry))))) {
+        !Number.isInteger(a.tries) || a.tries < 1 || !Number.isFinite(a.lastTry) ||
+        (a.contentFingerprint !== undefined && (typeof a.contentFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(a.contentFingerprint))))))) {
         throw new Error('Invalid upload receipt journal');
       }
       return { notified: s.notified ?? {}, api: s.api ?? {} };
@@ -289,8 +303,8 @@ export class PublishScheduler {
       return { ok: false, error: 'No interrupted upload is available to continue.' };
     }
     if (this.uploading.has(p.id)) return { ok: false, error: 'This upload is already running.' };
-    if (previous.at !== p.at || (previous.account ?? null) !== (p.account ?? null) || p.state === 'posted') {
-      return { ok: false, error: 'This post changed since uploading. Restore its original account and time before continuing.' };
+    if (!receiptMatches(p, previous) || previous.at !== p.at || (previous.account ?? null) !== (p.account ?? null) || p.state === 'posted') {
+      return { ok: false, error: 'This post changed since uploading. Restore its original content, account and time before continuing.' };
     }
     previous.lastCheck = this.deps.now().getTime();
     if (!this.write()) return { ok: false, error: 'Could not save upload history. No upload was resumed.' };
@@ -325,13 +339,13 @@ export class PublishScheduler {
     if (prev?.status === 'unverified') return { ok: false, unverified: true, error: prev.detail ?? 'Upload outcome unconfirmed. Check YouTube Studio before uploading again.' };
     if (prev?.status === 'uploading') return { ok: false, error: 'This post has an upload in progress or awaiting verification. Check the platform before uploading again.' };
     if (prev?.status === 'done') {
-      if (prev.at !== p.at || (prev.account ?? null) !== (p.account ?? null)) {
-        return { ok: false, error: 'This post was already uploaded. Edit its time or account on the platform, or create a separate post.' };
+      if (!receiptMatches(p, prev) || prev.at !== p.at || (prev.account ?? null) !== (p.account ?? null)) {
+        return { ok: false, error: 'This post was already uploaded. Edit it on the platform, or create a separate post for different content.' };
       }
       if (!prev.calendarSynced) await this.syncReceipt(p, prev);
       return { ok: true, url: prev.url ?? prev.result?.url ?? null, account: prev.resolvedAccount, result: prev.result };
     }
-    const rec: ApiAttempt = { at: p.at, account: p.account, source, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
+    const rec: ApiAttempt = { contentFingerprint: contentFingerprint(p), at: p.at, account: p.account, source, status: 'uploading', tries: (prev?.at === p.at && (prev.account ?? null) === (p.account ?? null) ? prev.tries : 0) + 1, lastTry: this.deps.now().getTime() };
     this.state.api[p.id] = rec;
     if (!this.write()) {
       if (prev) this.state.api[p.id] = prev;
@@ -368,7 +382,7 @@ export class PublishScheduler {
   private async refreshOnce(p: CalendarPost, read: (previous: YtPublishResult) => Promise<YtPublishResult>): Promise<YtPublishResult> {
     if (!this.stateReadable || p.via !== 'api' || !p.api_result) throw new Error('No confirmed API upload to check');
     const old = this.state.api[p.id];
-    if (old && (old.status !== 'done' || ![old.account ?? null, old.resolvedAccount ?? null].includes(p.account ?? null))) throw new Error('Upload account does not match its receipt');
+    if (old && (!receiptMatches(p, old) || old.status !== 'done' || ![old.account ?? null, old.resolvedAccount ?? null].includes(p.account ?? null))) throw new Error('Upload content or account does not match its receipt');
     const receipt: ApiAttempt = old ?? { at: p.at, account: p.account, status: 'done', tries: 1, lastTry: 0, result: p.api_result };
     receipt.lastCheck = this.deps.now().getTime();
     this.state.api[p.id] = receipt;
@@ -400,7 +414,7 @@ export class PublishScheduler {
       // A remote success remains durable, but must not overwrite a newer calendar
       // decision made while uploading or waiting for another receipt to sync.
       const current = (await this.deps.load()).find(row => row.id === p.id);
-      if (this.state.api[p.id] !== receipt || !current || current.at !== receipt.at ||
+      if (this.state.api[p.id] !== receipt || !current || !receiptMatches(current, receipt) || current.at !== receipt.at ||
           ![receipt.account ?? null, receipt.resolvedAccount ?? receipt.account ?? null].includes(current.account ?? null) ||
           current.platform !== p.platform || current.item !== p.item || current.clip !== p.clip ||
           (current.state === 'posted' && current.via === 'manual')) return;

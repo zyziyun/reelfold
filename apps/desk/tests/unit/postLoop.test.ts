@@ -49,6 +49,47 @@ describe('scheduler', () => {
     return { s, notified, posted };
   };
 
+  it.each(['video_path', 'caption', 'title', 'platform'])('keeps an old upload off changed %s after restart', async field => {
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube', account: 'main', caption: 'original' });
+    const file = path.join(tmp(), 'scheduler.json');
+    const mark = vi.fn(async () => undefined);
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    const { s } = mk([p], clock, { stateFile: file, markPosted: mark });
+    const original = { ...p };
+    await s.upload(p, async () => {
+      Object.assign(p, { [field]: field === 'platform' ? 'youtube-shorts' : 'changed' });
+      return { ok: true, url: 'https://youtu.be/old' };
+    });
+    expect(mark).not.toHaveBeenCalled();
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).api.y1.status).toBe('done');
+    const publish = vi.fn();
+    const restarted = mk([p], clock, { stateFile: file, markPosted: mark,
+      api: { wants: () => true, publish } }).s;
+    await restarted.tick();
+    expect(mark).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect((await restarted.upload(p, publish)).ok).toBe(false);
+    Object.assign(p, original);
+    if (field === 'video_path') delete p.video_path;
+    await restarted.tick();
+    expect(mark).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not resume an interrupted upload with changed content', async () => {
+    const p = post('y1', '2026-10-07T20:00', { platform: 'youtube', caption: 'original' });
+    const file = path.join(tmp(), 'scheduler.json');
+    const clock = { t: new Date(2026, 9, 7, 19, 30) };
+    await mk([p], clock, { stateFile: file }).s.upload(p, async () => {
+      throw new UploadOutcomeUnknown('connection lost');
+    });
+    p.caption = 'new draft';
+    const recover = vi.fn();
+    const s = mk([p], clock, { stateFile: file }).s;
+    expect((await s.recoverUpload(p, recover)).ok).toBe(false);
+    expect(recover).not.toHaveBeenCalled();
+    expect(s.apiState(p.id)?.status).toBe('unverified');
+  });
+
   it.each(['auto off', 'disabled', 'deleted', 'rescheduled', 'account changed', 'posted', 'window expired'])('rechecks queued uploads after an awaited upload: %s', async (change) => {
     const clock = { t: new Date(2026, 9, 7, 19, 30) };
     let rows = ['first', 'second'].map(id => post(id, '2026-10-07T20:00', { platform: 'youtube', account: 'main' }));
