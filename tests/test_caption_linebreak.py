@@ -19,6 +19,26 @@ ZH = "我们用这个模型做了一个非常长的测试，然后把结果发�
 MIX = "今天我们用Claude Code和HyperFrames做了一个讲解视频，整个流程只用了十分钟，而且export也很快"
 
 
+@pytest.mark.parametrize('text', [
+    'このキャラクターをチェックしてください。',
+    'ちょっと待って、ゆっくり説明します。',
+    'スーパーでコーヒーを買いました。',
+    '日々の出来事を少しずつ紹介します。',
+    'このチ**ェック**をもう一度確認します。',
+])
+def test_japanese_caption_continuations_stay_with_previous_character(text):
+    forbidden = set('ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー々〻ゝゞヽヾ')
+    plain = S.strip_markup(text)
+    for width in (5, 6, 7, 8, 12):
+        lines = S.balanced_wrap(text, width, word_aware=False)
+        assert ''.join(S.strip_markup(line) for line in lines) == plain
+        assert all(S.strip_markup(line)[0] not in forbidden for line in lines)
+        assert all(S.text_width(S.strip_markup(line)) <= width for line in lines)
+        chunks = S.caption_chunks(text, width, max_lines=2)
+        assert ''.join(S.strip_markup(chunk) for chunk in chunks) == plain
+        assert all(S.strip_markup(chunk)[0] not in forbidden for chunk in chunks)
+
+
 def test_thai_caption_chunks_use_dictionary_words_without_inserting_spaces():
     text = 'การตัดต่อวิดีโอช่วยให้ผู้สร้างสามารถเล่าเรื่องราวที่น่าสนใจและแบ่งปันความรู้กับผู้ชมได้อย่างชัดเจน'
     for width in (8, 12, 20):

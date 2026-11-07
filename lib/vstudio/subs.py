@@ -174,7 +174,10 @@ _OPEN = set("“‘（《「『【〈〔｛([{｢")
 # 避头尾 (kinsoku): marks that may never START a line (closing punctuation plus dashes, the middle dot and the tilde,
 # which are glued to the token before them but are not a preferred break) and marks that may never END one.
 # Half-width ' and " are left out: the same glyph opens and closes, so it cannot be judged from the character alone.
-NO_LINE_START = _CLOSE | set("—–·・~～‥")
+# JLREQ §3.1.7: small kana, iteration marks and prolonged sound marks
+# stay with the preceding character (https://www.w3.org/TR/jlreq/#characters_not_starting_a_line).
+_KANA_CONTINUATION = set("ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー々〻ゝゞヽヾ")
+NO_LINE_START = _CLOSE | set("—–·・~～‥") | _KANA_CONTINUATION
 NO_LINE_END = set(_OPEN)
 
 
