@@ -276,6 +276,29 @@ test('time to post: overdue banner, one notification, click -> the form fills it
   await expect(page.getByTestId('due-banner')).toHaveCount(0);
 });
 
+test('keyboard publish survives a full-document success redirect', async () => {
+  const future = new Date(Date.now() + 2 * 86400_000);
+  const r = await api<{ ids: string[] }>('/api/calendar/many', { posts: [{ item, clip: 'B_自媒体', platform: 'xiaohongshu', at: at(future) }] });
+  const id = r.ids[0];
+  await hash(`#/publish/post/${id}?go=1`);
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'filled', { timeout: 60000 });
+  await app.evaluate(async ({ webContents }) => {
+    const wc = webContents.getAllWebContents().find(w => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    await wc.executeJavaScript(`(() => {
+      const button = document.querySelector('.x9a1-red');
+      button.onclick = () => { location.href = 'https://creator.xiaohongshu.com/publish/success'; };
+      button.focus();
+    })()`);
+    wc.focus();
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+    wc.sendInputEvent({ type: 'char', keyCode: '\r' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+  });
+  await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('https://creator.xiaohongshu.com/'))?.getURL())).toBe('https://creator.xiaohongshu.com/publish/success');
+  await expect.poll(async () => (await rows()).find(row => row.id === id), { timeout: 15000 }).toMatchObject({ state: 'posted', via: 'assisted' });
+  await expect(page.getByTestId('post-now')).toHaveAttribute('data-phase', 'posted');
+});
+
 test('a signed-out account: the fill stops and asks her to sign in (no fake success)', async () => {
   const due = new Date(Date.now() - 60_000);
   await app.evaluate(async ({ session }) => {
