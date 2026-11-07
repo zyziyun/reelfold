@@ -97,3 +97,32 @@ def test_pronunciation_lexicon_only_overrides_its_own_engine(tmp_path, monkeypat
     monkeypatch.setattr(PT.asr, 'transcribe', lambda *a, **kw: {'words': [{'w': expected, 't': 0, 'te': .1}]})
     PT.main()
     assert requests == [expected]
+
+
+@pytest.mark.parametrize('language,chunks,expected', [
+    ('zh-CN', [('Check API.', '检查API。')], '检查A P I。'),
+    ('fr-FR', [('Vérifiez API.', '')], 'Vérifiez A P I.'),
+])
+def test_voice_sample_matches_selected_language_voice_and_overrides(tmp_path, monkeypatch, language, chunks, expected):
+    spec = SimpleNamespace(TTS=dict(language=language, engine='system', voice='selected'),
+                           SAY_TTS={'API': 'A P I'}, SCRIPT=[(0, chunks, [])])
+    monkeypatch.setattr(PT, 'load_spec', lambda _: spec)
+    monkeypatch.setattr(PT, 'Ctx', lambda s: s)
+    monkeypatch.setattr(PT, 'tts_dir', lambda _: str(tmp_path))
+    monkeypatch.setattr(PT.vtts, 'prefs', lambda: {})
+    monkeypatch.setattr(sys, 'argv', ['tts.py', 'spec.py', '--sample'])
+    calls = []
+    def synth(text, **kw):
+        calls.append((text, kw['voice']))
+        sf.write(kw['out'], np.full(4800, .1), 48000)
+    monkeypatch.setattr(PT.vtts, 'synth', synth)
+    PT.main()
+    assert calls == [(expected, 'selected')]
+    spec.TTS.update(sample_voices=['first', 'second'], sample_line='API')
+    calls.clear()
+    PT.main()
+    assert calls == [('A P I', 'first'), ('A P I', 'second')]
+    monkeypatch.setattr(sys, 'argv', ['tts.py', 'spec.py', '--sample', '--voice', 'override'])
+    calls.clear()
+    PT.main()
+    assert calls == [('A P I', 'override')]

@@ -322,6 +322,8 @@ or the recognizer was wrong. Record timing/word accuracy separately from native-
 stress, pacing and naturalness. If a name needs a pronunciation override, change the synthesis text only
 (e.g. a photo-story `SAY_TTS` override) and listen again. Preserve the original spelling in captions. Chinese photo-story narration also applies these overrides, including Latin terms adjacent to Chinese text: `SAY_TTS = {"API": "A P I"}` changes the spoken form of `检查API` while captions retain `检查API`. Larger Latin identifiers such as `CAPITable` remain intact. Overrides are voice-specific audition choices, not a guarantee of correct pronunciation.
 
+Photo-story `tts.py spec.py --sample` auditions the resolved voice and narration language with the same spoken overrides as the full take. To compare speakers, set `TTS.sample_voices` to names supported by the chosen engine; `--voice` or `--speaker` auditions that one voice. `TTS.sample_line` can provide a short target-language test sentence.
+
 **The free voice in the desktop app (Apple silicon).** The app's runtime bundles Kokoro (mlx-audio + misaki, MIT /
 Apache-2.0); the weights (Kokoro-82M v1.0, Apache-2.0, ~330 MB with the voices `zf_xiaobei`, `af_heart`,
 `am_michael`, `bf_emma`) are not in the installer: they are the optional first-run download `tts-kokoro`

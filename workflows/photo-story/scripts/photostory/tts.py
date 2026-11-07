@@ -38,7 +38,7 @@ from photostory.timeline import tts_dir
 DEFAULTS = dict(voice="marin", model="gpt-4o-mini-tts", tries=3, good=0.93, use_say=False,
                 instructions="Voice: a warm, articulate narrator telling a friend a story. Tone: curious, gently "
                              "enthusiastic, never salesy. Pacing: calm and clear, slightly slower than conversation.",
-                sample_voices=["marin", "coral", "nova"], language="en")
+                sample_voices=None, language="en")
 
 # Share the same multilingual matching units as the caption timing pass.
 norm = asr.alignment_tokens
@@ -184,14 +184,18 @@ def main():
 
     if a.sample:
         os.makedirs(os.path.join(out, "samples"), exist_ok=True)
-        line = cfg.get("sample_line") or " ".join(en.replace("**", "") for en, _ in spec.SCRIPT[0][1])
+        sample = cfg.get("sample_line")
+        chunks = [(sample, sample)] if sample else spec.SCRIPT[0][1]
+        texts, disp = narration_texts(chunks, say, cfg["language"])
+        line = ("" if cfg["language"].split("-")[0] == "zh" else " ").join(
+            texts if (cfg["use_say"] or local) else disp)
         if clone:
             p = os.path.join(out, "samples", "clone.wav")
             x, sr = synth(line, voice, p, seed=0)
             sf.write(p, x, sr)
             print("sample", p)
             return
-        for v in cfg["sample_voices"]:
+        for v in ([voice] if a.voice or a.speaker else cfg.get("sample_voices") or [voice]):
             synth(line, v, os.path.join(out, "samples", f"{v}.wav"))
             print("sample", v)
         return
