@@ -344,12 +344,13 @@ def kinsoku_violations(lines):
     return out
 
 
-def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True, language=None):
+def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True, language=None, keep_words=False):
     """Wrap into the FEWEST lines that fit ``max_width``, then balance them (similar lengths, breaks
     preferred after punctuation, never a one-character orphan line, latin words never split).
     word_aware: CJK breaks avoid splitting a word (jieba segmentation when installed: "前端组件|库"
     rather than "前端组|件库") and prefer breaks after particles (的/了/吧...), before conjunctions /
     prepositions (和/在/把...) and at CJK<->latin changes.
+    keep_words: keep fitting CJK words intact even when this needs extra lines (graphic cards).
     language: a declared language code; English noun phrases that fit on a line
     remain intact using the speech runtime's installed parser.
 
@@ -398,6 +399,16 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
     from .textbreak import phrase_spans
     plain = strip_markup(text)
     phrases = [(a, b) for a, b in phrase_spans(plain, language) if measure(plain[a:b]) <= max_width]
+    # A readable word must not be split merely to balance line lengths. Protect
+    # only words that fit, so narrow layouts can still wrap an oversized token.
+    if word_aware and keep_words and any(_cjk(c) for c in plain):
+        bounds = _word_bounds(plain)
+        start = 0
+        for end in sorted(bounds or []):
+            word = plain[start:end]
+            if any(_cjk(c) for c in word) and measure(word) <= max_width:
+                phrases.append((start, end))
+            start = end
     blocked, offset = set(), 0
     for j, (token, _) in enumerate(toks, 1):
         offset += len(token)

@@ -236,3 +236,21 @@ def test_question_card_reading_time_keeps_bounds_and_shared_estimate():
     assert reading_time("word " * 100) == 6
     assert reading_time("word " * 100, hi=float("inf")) > 6
     assert reading_time("이 영상에서는 화면을 공유합니다", hi=100) == S.reading_time("이 영상에서는 화면을 공유합니다", hi=100)
+
+
+def test_short_chinese_words_remain_whole_in_narrow_graphic(monkeypatch):
+    from vstudio import subs
+    # Deterministic segmentation: production uses the runtime's existing jieba.
+    monkeypatch.setattr(subs, '_word_bounds', lambda text: {2, 4, 6})
+    assert subs.balanced_wrap('解答学员问题', 3, keep_words=True) == ['解答', '学员', '问题']
+    marked = subs.balanced_wrap('解答【学员】问题', 3, keep_words=True)
+    assert [subs.strip_markup(line) for line in marked] == ['解答', '学员', '问题']
+    assert ''.join(subs.strip_markup(line) for line in marked) == '解答学员问题'
+
+
+def test_oversized_chinese_word_can_still_wrap(monkeypatch):
+    from vstudio import subs
+    monkeypatch.setattr(subs, '_word_bounds', lambda text: {4})
+    lines = subs.balanced_wrap('计算机系', 2, keep_words=True)
+    assert ''.join(lines) == '计算机系'
+    assert all(subs.text_width(line) <= 2 for line in lines)

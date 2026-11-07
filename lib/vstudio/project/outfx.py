@@ -747,7 +747,7 @@ class ExplanationCard(Layer):
         minimum = max(16, round(getattr(self, "readable_short", self.short) * 16 / 360))
         self.heading = D.text_layer(self.p["title"], D.load_font("cjk-bold", max(20, minimum, int(self.short * 0.085))),
                                     fill=(35, 42, 40, 255), max_w=self.right - self.left, align="left",
-                                    pad=0, stroke=0, shadow_alpha=0, word_aware=True)
+                                    pad=0, stroke=0, shadow_alpha=0, word_aware=True, keep_words=True)
         self.items = list(self.p.get("items") or [])[:3]
         if not self.items:
             raise ValueError("explanation-card: at least one statement is required")
@@ -768,7 +768,7 @@ class ExplanationCard(Layer):
             size = max(minimum, int(self.short * (0.1 if n == 1 else 0.07)))
             while True:
                 txt = D.text_layer(text, D.load_font("cjk-bold", size), fill=(35, 42, 40, 255),
-                                   max_w=max(20, bw - 2 * pad), align="left", pad=0, stroke=0, shadow_alpha=0, word_aware=True)
+                                   max_w=max(20, bw - 2 * pad), align="left", pad=0, stroke=0, shadow_alpha=0, word_aware=True, keep_words=True)
                 if txt.height <= bh - 2 * pad or size <= minimum:
                     break
                 size -= 1
