@@ -245,12 +245,17 @@ YouTube Shorts are square or taller and at most three minutes for new uploads: h
 
 TikTok Direct Post requires current creator-info, explicit privacy selection, user-selected interaction settings, app review and confidential client credentials. A desktop app must not embed a confidential client secret; a compliant confidential component is still needed before this adapter can be marked available. See https://developers.tiktok.com/docs/en/content-sharing-guidelines and https://developers.tiktok.com/docs/en/content-posting-api-get-started . Autopilot must honor each platform’s required choices.
 
-### TikTok integration status (2026-11-07)
+### TikTok integration status (2026-11-08)
 
 The desktop build currently marks TikTok as `api-later`: no TikTok OAuth or Content Posting API implementation is
 wired into its publishing scheduler. Developer approval is a separate prerequisite, not a switch that enables
 this build. Browser sign-in does not grant API scopes. Until an integration is implemented and validated, use
 assisted upload and confirm publication on TikTok.
+
+An isolated Content Posting transport now implements inbox initialization, bounded file chunks and status
+queries. It is not exposed by the UI or scheduler. Login Kit, encrypted session recovery, creator consent and
+real-account acceptance remain required before enabling the adapter. Ambiguous upload responses must be
+reconciled with the existing publish ID rather than automatically creating another upload.
 
 The official [Direct Post guide](https://developers.tiktok.com/docs/en/content-posting-api-get-started) restricts
 unaudited clients to private viewing. The [Upload guide](https://developers.tiktok.com/docs/en/content-posting-api-get-started-upload-content)
