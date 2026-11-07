@@ -757,7 +757,7 @@ describe('success after her click', () => {
     const s = by.xiaohongshu.success!;
     expect(postedSignal('https://creator.xiaohongshu.com/publish/publish', '上传视频', [], s)).toEqual({ posted: false, url: null });
     expect(postedSignal('https://creator.xiaohongshu.com/publish/success?x=1', '', ['https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a?xsec=1'], s)).toEqual({ posted: true, url: 'https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a' });
-    expect(postedSignal('https://creator.xiaohongshu.com/publish/publish', '发布成功 去看看', [], s)).toEqual({ posted: true, url: null });
+    expect(postedSignal('https://creator.xiaohongshu.com/publish/publish', '发布成功\n去看看', [], s)).toEqual({ posted: true, url: null });
     expect(postedSignal('https://x', '发布成功', [], null)).toEqual({ posted: false, url: null });
     expect(postedSignal('https://creator.douyin.com/creator-micro/content/manage', '发布成功', ['https://www.douyin.com/video/7412345678901234567'], by.douyin.success!).url).toBe('https://www.douyin.com/video/7412345678901234567');
   });
@@ -854,4 +854,13 @@ describe('publication requires a completion signal', () => {
   ])('does not mark a post delivered just by visiting %s management', (platform, url) => {
     expect(postedSignal(url, '内容管理', [], by[platform].success!)).toEqual({posted: false, url: null});
   });
+});
+
+
+it('does not treat publishing instructions as a completion message', () => {
+  const url = 'https://creator.xiaohongshu.com/publish/publish';
+  for (const text of ['发布成功后可以在内容管理查看', '如何发布成功', '尚未发布成功']) {
+    expect(postedSignal(url, text, [], by.xiaohongshu.success!).posted).toBe(false);
+  }
+  expect(postedSignal(url, '发布成功！', [], by.xiaohongshu.success!).posted).toBe(true);
 });

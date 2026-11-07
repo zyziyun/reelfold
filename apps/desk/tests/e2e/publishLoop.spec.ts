@@ -233,10 +233,25 @@ test('time to post: overdue banner, one notification, click -> the form fills it
   });
   fs.writeFileSync(path.join(SHOTS, 'post-now-platform-view.png'), Buffer.from(shot, 'base64'));
 
+  // Draft copy, help, hidden notices and editable live regions are not receipts.
+  await app.evaluate(async ({ webContents }) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
+    await wc.executeJavaScript(`document.body.insertAdjacentHTML('beforeend',
+      '<p>发布成功</p><div role="status" contenteditable="true">发布成功</div>' +
+      '<div role="alert" hidden>发布成功</div><div style="opacity:0"><div role="status">发布成功</div></div>' +
+      '<div role="status">发布成功后请查看内容管理</div>')`);
+  });
+  await page.waitForTimeout(2300); // exercise the actual two-second completion watcher
+  expect((await rows()).find((x) => x.id === id)?.state).toBe('filled');
+
   // she presses 发布 herself; the page says 发布成功 -> posted
   await app.evaluate(async ({ webContents }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('https://creator.xiaohongshu.com/'))!;
-    await wc.executeJavaScript(`document.querySelector('.x9a1-red').click()`);
+    // No success URL: require the visible platform status, not the draft above.
+    await wc.executeJavaScript(`document.querySelector('.x9a1-red').onclick = () => {
+      window.__clicked = true;
+      document.body.insertAdjacentHTML('beforeend', '<div role="status">发布成功！</div>');
+    }; document.querySelector('.x9a1-red').click()`);
   });
   await expect(pn).toHaveAttribute('data-phase', 'posted', { timeout: 15000 });
   await expect.poll(async () => (await rows()).find((x) => x.id === id)).toMatchObject({ state: 'posted', via: 'assisted' });

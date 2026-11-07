@@ -1,3 +1,4 @@
+import { successSnapshot } from '../../shared/publish/successSnapshot';
 import type { FillControl } from './fillControl';
 // "Time to post" for one 发布 board row: open the platform's upload page in the account's own session, set the
 // rendered file made for that platform, type the title / text / tags, outline the Publish button - and then watch
@@ -35,7 +36,7 @@ export interface PostFillDeps {
 }
 
 /** What the success check reads in the platform page (isolated world): the text and the links, nothing typed. */
-const SUCCESS_JS = `(() => ({ text: (document.body && document.body.innerText || '').slice(0, 20000), links: [...document.querySelectorAll('a[href]')].slice(0, 400).map((a) => a.href) }))()`;
+const SUCCESS_JS = `(${successSnapshot.toString()})()`;
 
 const watchers = new Map<number, () => void>();
 

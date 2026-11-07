@@ -82,7 +82,10 @@ export function postedSignal(
 ): { posted: boolean; url: string | null } {
   if (!success) return { posted: false, url: null };
   const any = (pats: string[], s: string) => pats.some((p) => new RegExp(p).test(s));
-  const posted = any(success.urls, url) || (pageText !== '' && any(success.texts, pageText));
+  // Match a complete status line, not instructions such as 'after 发布成功, ...'.
+  const status = pageText.split(/\r?\n/).map(line => line.trim().replace(/[!！。]+$/, ''));
+  const posted = any(success.urls, url) || status.some(line => line !== '' &&
+    success.texts.some(pattern => new RegExp(`^(?:${pattern})$`).test(line)));
   if (!posted) return { posted: false, url: null };
   let found: string | null = null;
   if (success.postUrl) {
