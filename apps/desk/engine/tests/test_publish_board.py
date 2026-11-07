@@ -143,8 +143,10 @@ class Board(unittest.TestCase):
         for patch in (dict(uploadStatus="bad"), dict(checkedAt="yesterday"), dict(checkedAt="2026-10-08"), dict(id="../bad")):
             with self.assertRaises(BadRequest):
                 self.cal.update(p["id"], dict(state="uploaded", api_result=dict(checked, **patch)))
-        self.cal.update(p["id"], dict(state="scheduled", api_result=result))
-        self.cal.update(p["id"], dict(state="scheduled", api_result=dict(result, uploadStatus="uploaded")))
+        refreshed = dict(result, checkedAt="2026-10-08T12:01:00Z")
+        self.cal.update(p["id"], dict(state="scheduled", api_result=refreshed))
+        self.cal.update(p["id"], dict(state="scheduled", api_result=dict(refreshed, uploadStatus="uploaded",
+                                                                                checkedAt="2026-10-08T12:02:00Z")))
         self.assertEqual(self.posts()[0]["state"], "scheduled")  # Accepted schedule, processing still pending.
         self.cal.update(p["id"], dict(state="posted", via="manual"))
         with self.assertRaises(BadRequest):
@@ -163,6 +165,27 @@ class Board(unittest.TestCase):
         public = {**result, "privacy": "public", "publishAt": None}
         self.cal.update(p["id"], dict(state="posted", via="api", api_result=public))
         self.assertIn("posted_at", self.posts()[0])
+
+    def test_delayed_receipts_cannot_overwrite_newer_platform_evidence(self):
+        p = self.cal.add(dict(item=self.item, clip=A, platform="youtube", at="2026-10-07T20:00"))
+        initial = dict(url="https://youtu.be/example", privacy="public", publishAt=None,
+                       lockedPrivate=False, warnings=[], uploadStatus="uploaded")
+        current = dict(initial, uploadStatus="processed", checkedAt="2026-10-08T12:00:00Z")
+        self.cal.update(p["id"], dict(state="posted", api_result=current))
+        saved = self.cal._rows()
+        for stale in (initial, dict(initial, checkedAt="2026-10-08T11:59:00Z"),
+                      dict(initial, checkedAt="2026-10-08T12:00:00Z")):
+            with self.assertRaisesRegex(BadRequest, "newer platform response"):
+                self.cal.update(p["id"], dict(state="uploaded", api_result=stale))
+            self.assertEqual(self.cal._rows(), saved)
+        # Retrying the same receipt is idempotent; later platform removal is real.
+        self.cal.update(p["id"], dict(state="posted", api_result=current))
+        removed = dict(current, uploadStatus="deleted", checkedAt="2026-10-08T20:01:00+08:00")
+        self.cal.update(p["id"], dict(state="uploaded", api_result=removed))
+        restarted = Calendar(os.path.join(self.root, "desk"), self.h, self.o)._rows()[0]
+        self.assertEqual(restarted["api_result"], removed)
+        self.assertEqual(restarted["state"], "uploaded")
+        self.assertNotIn("posted_at", restarted)
 
     def test_private_unknown_and_invalid_platform_receipts(self):
         for privacy in ("private", "unlisted", "unknown"):

@@ -483,6 +483,15 @@ class Calendar:
                          "Manual publication confirmation takes precedence over an old API response.")
                     result = api_result(b["api_result"])
                     need(b.get("state") == api_state(result), "state must match the platform response")
+                    previous = row.get("api_result") or {}
+                    if previous.get("checkedAt"):
+                        # Compare inside the write lock: an older upload receipt or
+                        # delayed status check must not replace newer platform evidence.
+                        need(result.get("checkedAt"), "A newer platform response is already saved.")
+                        old_time = dt.datetime.fromisoformat(previous["checkedAt"].replace("Z", "+00:00"))
+                        new_time = dt.datetime.fromisoformat(result["checkedAt"].replace("Z", "+00:00"))
+                        need(new_time > old_time or (new_time == old_time and result == previous),
+                             "A newer platform response is already saved.")
                     row["api_result"] = result
                 if "account" in b:
                     need(row.get("state") != "posted" or b["account"] == row.get("account"), "a published post cannot change its account")
