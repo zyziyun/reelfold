@@ -114,9 +114,8 @@ def prep_video(C, sh, name):
     # crop / zoom / grade are part of the cache key (editing VCROP re-renders the clip)
     layout = getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}
     caption_safe = bool(layout.get("video_caption_safe") and getattr(C, "overlay_subs", False) and C.SUB_H > 0)
-    if getattr(C, "MODE", None) == "music":
-        from .music import config as music_config
-        caption_safe = caption_safe and bool(music_config(C)["captions"])
+    from .music import captions_enabled
+    caption_safe = caption_safe and captions_enabled(C)
     caption_adjacent = layout.get("caption_style") == "label"
     look = repr((caption_safe, C.VCROP.get(name), sh.get("c"), sh.get("z"), name in C.VEQ, sh.get("grade"),
                  C.VEQ_FILTER if (name in C.VEQ or sh.get("grade") is True) else None,

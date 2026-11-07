@@ -34,3 +34,20 @@ def test_legacy_youtube_language_policy_unchanged(tmp_path):
     c=Ctx(SimpleNamespace(__file__=str(tmp_path/'spec.py'),PLATFORM='youtube',TTS={'language':'zh'},SUBS='both'))
     assert c.SUBS=='en'
     assert c.export_cue(dict(start=0,end=1,en='English',zh='中文')).to_dict()==dict(start=0,end=1,text='中文',alt='English')
+
+
+@pytest.mark.parametrize('platform', [None, 'tiktok', 'youtube'])
+@pytest.mark.parametrize('mode,captions', [('music', False), ('music', 'all'), ('narration', False)])
+def test_lower_shot_labels_avoid_only_visible_caption_bands(tmp_path, platform, mode, captions):
+    cfg = dict(__file__=str(tmp_path/'spec.py'), MODE=mode, MUSIC=dict(captions=captions),
+               LOOK='cinema', CANVAS=(360,640), LAYOUT=dict(caption_y=.5, sub=.15))
+    if platform:
+        cfg['PLATFORM'] = platform
+        cfg.pop('CANVAS')
+    c = Ctx(SimpleNamespace(**cfg))
+    if mode == 'music' and captions is False:
+        assert c.LAB_BOT == min(c.BOX_H, c.SAFE[3] - c.HDR)
+    elif platform:
+        assert c.LAB_BOT <= c.SUB_Y0 - c.HDR
+    else:
+        assert c.LAB_BOT == c.BOX_H - c.SUB_H

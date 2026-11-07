@@ -46,6 +46,11 @@ def config(C):
     return cfg
 
 
+def captions_enabled(C):
+    """Whether cue text is rendered; music's explicit opt-out does not mute narration subtitles."""
+    return getattr(C, "MODE", None) != "music" or bool(config(C)["captions"])
+
+
 def bgm_path(C):
     p = C.path(getattr(C.spec, "BGM", None))
     if not p or not os.path.exists(p):

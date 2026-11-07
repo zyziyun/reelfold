@@ -204,10 +204,13 @@ class Ctx:
             self.SUB_Y0 = sy0 + (sy1 - sy0 - self.SUB_H) // 2
             self.CAP = (sx0, self.SUB_Y0, divide - gap, self.SUB_Y0 + self.SUB_H)
             self.PHOTO_BOX = (divide, sy0, sx1, sy1)
-        # lowest box row (box coords) that is not covered by overlaid subtitles / below the safe area
-        self.LAB_BOT = self.BOX_H - (self.SUB_H if self.overlay_subs and self.prof is None else 0)
+        self.MODE = str(g("MODE", "narration")).lower()
+        from .music import captions_enabled
+        caption_overlay = self.overlay_subs and captions_enabled(self)
+        # lowest box row (box coords) that is not covered by active subtitles / below the safe area
+        self.LAB_BOT = self.BOX_H - (self.SUB_H if caption_overlay and self.prof is None else 0)
         if self.prof is not None:
-            self.LAB_BOT = min(self.BOX_H, self.SAFE[3] - self.HDR, (self.SUB_Y0 - self.HDR) if self.overlay_subs
+            self.LAB_BOT = min(self.BOX_H, self.SAFE[3] - self.HDR, (self.SUB_Y0 - self.HDR) if caption_overlay
                                else self.BOX_H)
         self.ZH_SIZE = self.t(66)                                        # 中文 subtitle size (EN = 56/66 of it)
         if self.prof is not None:
@@ -218,7 +221,6 @@ class Ctx:
         loud = self.prof.loudness if self.prof is not None else {}
         self.LUFS = float(loud.get("lufs", (P.get("audio") or {}).get("loudness_lufs", -14)))
         self.TP = float(loud.get("tp", -1.5))
-        self.MODE = str(g("MODE", "narration")).lower()
         # a Chinese narration (TTS language zh), or a Chinese version narrated in English because no good Chinese
         # voice is set up (SUB_LEAD = "zh"): its 中文 subtitle leads, the English sits under it
         voice_cfg = {**dict(g("TTS", {}) or {}), **dict(g("VOICE", {}) or {})}
