@@ -2,11 +2,13 @@
 // OS keychain, like the AI API keys in secrets.ts). Only ciphertext is written, to <userData>/publish-api.json;
 // nothing here ever goes to the renderer, a log or the engine. No keychain (Linux without a keyring) = refused.
 import fs from 'node:fs';
+import type { TikTokAttempt } from './tiktokInbox';
 import path from 'node:path';
 import type { CaptionArtifact, YtPublishResult } from '../../../shared/publish/apiPlatforms';
 import type { Crypto } from '../../secrets';
 
 export interface ApiSecret {
+  tiktokAttempt?: TikTokAttempt;
   captionTracks?: CaptionArtifact[];
   /** Resumable URI stays encrypted alongside credentials, never in the scheduler journal. */
   uploadSession?: { file?: string; sha256?: string; url: string; size: number; account: string; privacy: string; publishAt: string | null; followups: boolean };

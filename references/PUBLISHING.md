@@ -253,8 +253,10 @@ this build. Browser sign-in does not grant API scopes. Until an integration is i
 assisted upload and confirm publication on TikTok.
 
 An isolated Content Posting transport now implements inbox initialization, bounded file chunks and status
-queries. It is not exposed by the UI or scheduler. Login Kit, encrypted session recovery, creator consent and
-real-account acceptance remain required before enabling the adapter. Ambiguous upload responses must be
+queries. An encrypted inbox coordinator persists initialization intent before contacting TikTok and checks
+the original account, file digest and confirmed remote chunk boundary before resuming. It is not exposed by
+the UI or scheduler. Login Kit, creator consent, scheduler wiring and real-account acceptance remain required
+before enabling the adapter. Ambiguous upload responses must be
 reconciled with the existing publish ID rather than automatically creating another upload.
 
 The official [Direct Post guide](https://developers.tiktok.com/docs/en/content-posting-api-get-started) restricts
