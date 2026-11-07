@@ -734,6 +734,7 @@ class ExplanationCard(Layer):
             self.panel = ExplanationCard(inst, x1-x0, y1-y0)
             # Typography is judged at the final canvas scale, not the smaller panel.
             self.panel.readable_short = min(self.W, self.H)
+            self.panel.reserved_panel = True
             self.panel.setup()
             return
         self.background = Image.new("RGB", (self.W, self.H), (244, 241, 233))
@@ -742,7 +743,9 @@ class ExplanationCard(Layer):
         x0, y0, x1, y1 = self.safe
         self.left, self.right = int(x0), int(x1)
         self.top = int(y0 + (y1 - y0) * 0.1)
-        self.bottom = int(min(y1, self.H * 0.75))   # captions retain their own bottom safe band
+        # A reserved panel is already separated from source/caption regions by
+        # its caller. Only full-frame cards need an internal caption allowance.
+        self.bottom = int(y1 if getattr(self, "reserved_panel", False) else min(y1, self.H * 0.75))
         self.short = min(self.W, self.H)
         minimum = max(16, round(getattr(self, "readable_short", self.short) * 16 / 360))
         self.heading = D.text_layer(self.p["title"], D.load_font("cjk-bold", max(20, minimum, int(self.short * 0.085))),

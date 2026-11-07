@@ -45,3 +45,19 @@ def test_enlarging_panel_keeps_the_same_copy_readable():
         title='要点',kind='takeaway',items=['保留选择'],panel_box=[.05,.6,.9,.3])),1080,1920)
     layer.setup()
     assert layer.panel.texts[0].height >= 48
+
+
+def test_reserved_shallow_panel_uses_its_height_without_shrinking_type():
+    layer = outfx.make_layer(dict(effect='explanation-card', params=dict(
+        title='先保存，再导出', kind='chain', items=['保存草稿', '导出视频'],
+        panel_box=[.06, .12, .82, 250/1920])), 1080, 1920)
+    layer.setup()
+    assert all(t.height >= 48 for t in layer.panel.texts)
+    base = np.full((1920, 1080, 3), 90, np.uint8)
+    frame = base.copy()
+    layer.draw(frame, 1.5, 4)
+    x0, y0, x1, y1 = layer.panel_rect
+    outside = np.ones(base.shape[:2], bool)
+    outside[y0:y1, x0:x1] = False
+    assert np.array_equal(frame[outside], base[outside])
+    assert not np.array_equal(frame[y0:y1, x0:x1], base[y0:y1, x0:x1])
