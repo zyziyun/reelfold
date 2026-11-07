@@ -28,6 +28,10 @@ picture's own frame-to-frame activity around it (busy water spray or a fast dron
 DJI test films the clean ones scored at most 7.6 (flash), 16.5 (one quarter), 4.5 (blink); the flawed ones (white
 flash hits, a light-leak transition, subtitle blinks, a timeline box popping) 7.7 to 178.
 
+Luma excursions are also bounded by the mean excursion of their constituent cells. This avoids creating a
+false regional flash by averaging a moving bright edge before measuring its activity; actual local blinks
+and exposure flashes remain tested. Chroma retains its whole-picture transient check.
+
 Limits per profile (``LIMITS``): calm (films, vlogs, stories) and energetic (beat reels, a little more room for
 fast cuts). A render recipe calls ``check`` on its final file; ``qc.flicker`` in the persona or the recipe config
 (``"fail"`` | ``"warn"`` | ``"off"``) decides whether a flicker stops the render.
@@ -148,6 +152,27 @@ def _events(series, fps, limit, kind, start, merge=0.3):
     return out
 
 
+def _spatial_scores(F, fps, near=.35, far=.6):
+    """Cross-check aggregate excursions against the cells that comprise them.
+
+    Averaging brightness before measuring activity loses moving-edge activity:
+    a bright object crossing a quadrant can look like a stationary flash. Bound
+    the aggregate score by the mean cell score, without introducing a blanket
+    motion exemption. Chunk with full temporal halos to bound median workspace.
+    """
+    n, g, _ = F.shape
+    full, quads, bands = np.zeros(n), np.zeros((n, 4)), np.zeros((n, 4))
+    halo = max(int(round(far * fps)), int(round(.5 * fps))) + 2
+    for start in range(0, n, 2048):
+        end = min(n, start + 2048)
+        lo, hi = max(0, start - halo), min(n, end + halo)
+        cells = score(F[lo:hi], fps, near, far)[start-lo:end-lo]
+        full[start:end] = cells.mean((1, 2))
+        quads[start:end] = cells.reshape(-1, 2, g//2, 2, g//2).mean((2, 4)).reshape(-1, 4)
+        bands[start:end] = cells.reshape(-1, 4, g//4, g).mean((2, 3))
+    return full, quads, bands
+
+
 def measure(F, fps, profile="calm", C=None):
     """Measurements of a luma grid (see the module doc) [+ ``C`` (n, 2) mean chroma per frame: a colour flash -
     a warm light leak, a tinted dip - is a transient of the picture's colour cast] -> report dict."""
@@ -166,9 +191,11 @@ def measure(F, fps, profile="calm", C=None):
     g = F.shape[1]
     quads = F.reshape(n, 2, g // 2, 2, g // 2).mean((2, 4)).reshape(n, 4)
     bands = F.reshape(n, 4, g // 4, g).mean((2, 3))
-    fl = score(full, fps)[s0:s1]
-    fq = score(quads, fps).max(1)[s0:s1]
-    bl = score(bands, fps, 0.1, 0.3).max(1)[s0:s1]
+    cell_full, cell_quads, _ = _spatial_scores(F, fps)
+    _, _, cell_bands = _spatial_scores(F, fps, .1, .3)
+    fl = np.minimum(score(full, fps), cell_full)[s0:s1]
+    fq = np.minimum(score(quads, fps), cell_quads).max(1)[s0:s1]
+    bl = np.minimum(score(bands, fps, 0.1, 0.3), cell_bands).max(1)[s0:s1]
     rep.update(flash=round(float(fl.max()), 1), flash_region=round(float(fq.max()), 1), blink=round(float(bl.max()), 1))
     ev = (_events(fl, fps, lim["flash"], "flash", s0) + _events(fq, fps, lim["flash_region"], "flash_region", s0)
           + _events(bl, fps, lim["blink"], "blink", s0))

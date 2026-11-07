@@ -14,6 +14,48 @@ from vstudio import flicker as FL
 FPS = 30
 
 
+def _passing_object():
+    frames = np.full((240, 80, 80), 50, dtype=np.uint8)
+    for i, frame in enumerate(frames):
+        x = round((i - 60) * 1.2) - 40
+        frame[:, max(0, x):max(0, min(80, x + 40))] = 200
+    return frames
+
+
+def test_moving_edge_is_not_a_quadrant_flash_but_overlaid_flash_is():
+    frames = _passing_object().astype(np.float32)
+    grid = frames.reshape(240, 8, 10, 8, 10).mean((2, 4))
+    assert FL.measure(grid, FPS)['ok']
+    for level in (0, 250):
+        flashed = grid.copy()
+        flashed[110:116] = level
+        report = FL.measure(flashed, FPS)
+        assert not report['ok']
+        assert any(e['kind'] == 'flash' for e in report['events'])
+
+
+@pytest.mark.skipif(not shutil.which('ffmpeg'), reason='needs ffmpeg')
+def test_encoded_moving_object_passes_flicker_check(tmp_path):
+    path = tmp_path / 'moving-object.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo',
+                    '-pixel_format', 'gray', '-video_size', '80x80', '-framerate', '30',
+                    '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(path)],
+                   input=_passing_object().tobytes(), check=True)
+    assert FL.check(str(path), mode='fail', log=None)['ok']
+
+
+def test_spatial_score_chunks_match_full_context_at_boundaries():
+    rng = np.random.default_rng(20)
+    grid = rng.uniform(30, 130, (4200, 8, 8)).astype(np.float32)
+    grid[2044:2052] = 240
+    for near, far in ((.35, .6), (.1, .3)):
+        cells = FL.score(grid, FPS, near, far)
+        full, quads, bands = FL._spatial_scores(grid, FPS, near, far)
+        np.testing.assert_allclose(full, cells.mean((1, 2)))
+        np.testing.assert_allclose(quads, cells.reshape(-1, 2, 4, 2, 4).mean((2, 4)).reshape(-1, 4))
+        np.testing.assert_allclose(bands, cells.reshape(-1, 4, 2, 8).mean((2, 3)))
+
+
 def _grid(levels):
     """(n,) mean levels -> an (n, 8, 8) luma grid with a little texture."""
     r = np.random.default_rng(1)
