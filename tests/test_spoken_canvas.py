@@ -147,3 +147,28 @@ def test_source_preserving_split_keeps_full_frame_and_is_seek_safe():
     assert np.max(frames[1][y:y+20, x:x+20, 2]) == 255
     assert np.max(frames[1][y+h-20:y+h, x+w-20:x+w, 1]) == 255
     assert np.mean(frames[1][:, x+w+30:]) > 100
+
+
+def test_real_export_passes_caption_bounds_to_split(tmp_path, monkeypatch):
+    from vstudio.project import outfx
+    monkeypatch.setenv('VSTUDIO_DEFAULT_PERSONA', '1')
+    source = tmp_path/'source.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                    'color=c=blue:s=320x180:r=10:d=8', '-c:v', 'libx264', str(source)], check=True)
+    cues = tmp_path/'cues.json'; cues.write_text(json.dumps(CUES))
+    prof = platform.profile('youtube', 'horizontal', use_persona=False)
+    canvas = dict(spoken.canvas_context(prof, (320,180), 'letterbox'), preserve_source=True)
+    effect = spoken.validate(dict(beats=[dict(BEAT, panel=None)]), CUES, 8, canvas=canvas)[0]
+    seen = []
+    setup = outfx.ExplanationCard.setup
+    def capture(layer):
+        setup(layer)
+        if hasattr(layer, 'source_rect'):
+            seen.append((layer.inst.get('_caption_band'), layer.panel_rect))
+    monkeypatch.setattr(outfx.ExplanationCard, 'setup', capture)
+    dest = tmp_path/'export'; dest.mkdir()
+    export.export_one(str(source), prof, str(dest), cues=str(cues), captions=True,
+                      effects=[effect], watermark=False, encoder='libx264', preset='ultrafast')
+    assert seen
+    for band, rect in seen:
+        assert band and (rect[3] <= band[0] or rect[1] >= band[1])

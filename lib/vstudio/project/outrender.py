@@ -1115,7 +1115,8 @@ def _frame_pass(src, out, audio_wav, vis, tg, fps, quality, final_encode, beat):
     caps = Captions(vis, W, H, tg.get("profile"), band_rect=bot_rect, mask_rect=cap_mask_rect) if vis["captions"] else None
     if caps:
         for a, b, layer in layers:
-            if isinstance(layer, FX.MediaInsert) and layer.p.get("detail_regions"):
+            if ((isinstance(layer, FX.MediaInsert) and layer.p.get("detail_regions"))
+                    or (isinstance(layer, FX.ExplanationCard) and layer.p.get("preserve_source"))):
                 layer.inst["_caption_band"] = caps.bounds(a, b)
     title = vis["title"]
     title_arr = title_y = None

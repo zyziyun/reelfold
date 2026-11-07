@@ -913,7 +913,8 @@ def export_one(master, prof, out_dir, cues=None, covers=None, post=None, mode="f
                     if bounds and y*prof.h < bounds[1] and (y+h)*prof.h > bounds[0]:
                         raise ValueError("Explanation panel overlaps rendered captions; revise the layout")
             fx = [dict(e, _caption_band=overlay.bounds(e["start"], e["end"]))
-                  if e["effect"] == "media-insert" and e.get("params", {}).get("detail_regions") else e for e in fx]
+                  if (e["effect"] == "media-insert" and e.get("params", {}).get("detail_regions"))
+                  or (e["effect"] == "explanation-card" and e.get("params", {}).get("preserve_source")) else e for e in fx]
         draw_effects = spoken.overlay(fx, prof.w, prof.h, P.safe_box(prof))
         draw_captions = overlay
 

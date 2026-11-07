@@ -730,9 +730,15 @@ class ExplanationCard(Layer):
                 raise ValueError("explanation-card: source-preserving split needs a landscape canvas or a reserved margin")
             x0, y0, x1, y1 = self.safe
             gap = round(self.W * .025)
-            source_w = round((x1-x0) * .58)
+            band = self.inst.get("_caption_band")
+            if band is not None:
+                above, below = (y0, min(y1, band[0]-gap)), (max(y0, band[1]+gap), y1)
+                y0, y1 = max((above, below), key=lambda region: region[1]-region[0])
+                if y1-y0 < 120:
+                    raise ValueError("explanation-card: captions leave no room for a source-preserving split")
+            source_w = round(min((x1-x0) * .58, (y1-y0)*self.W/self.H))
             source_h = round(source_w*self.H/self.W)
-            self.source_rect = (round(x0), round((self.H-source_h)/2), source_w, source_h)
+            self.source_rect = (round(x0), round((y0+y1-source_h)/2), source_w, source_h)
             self.panel_rect = (round(x0)+source_w+gap, round(y0), round(x1), round(y1))
             px, py, pr, pb = self.panel_rect
             inst = dict(self.inst, params={k: v for k, v in self.p.items() if k != "preserve_source"})

@@ -61,3 +61,14 @@ def test_reserved_shallow_panel_uses_its_height_without_shrinking_type():
     outside[y0:y1, x0:x1] = False
     assert np.array_equal(frame[outside], base[outside])
     assert not np.array_equal(frame[y0:y1, x0:x1], base[y0:y1, x0:x1])
+
+
+@pytest.mark.parametrize('band', [(420, 500), (250, 300), (40, 120)])
+def test_split_uses_actual_caption_band(band):
+    layer = outfx.make_layer(dict(effect='explanation-card', _caption_band=band,
+        params=dict(title='步骤', kind='chain', items=['保存', '同步'], preserve_source=True)), 960, 540)
+    layer.setup()
+    for rect in (layer.panel_rect, (layer.source_rect[0], layer.source_rect[1],
+                                  layer.source_rect[0]+layer.source_rect[2],
+                                  layer.source_rect[1]+layer.source_rect[3])):
+        assert rect[3] <= band[0] or rect[1] >= band[1]
