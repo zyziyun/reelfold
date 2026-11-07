@@ -135,10 +135,12 @@ def test_source_preserving_split_keeps_full_frame_and_is_seek_safe():
     source[-40:, -40:] = [0, 255, 0]
     source[480:500, 100:800] = 255  # burned subtitle-like band
     frames = []
-    for t in (0, 1.5, .5, 1.5, 3):
+    for t in (0, 1.5, .2, 1.5, 3):
         frame = source.copy(); layer.draw(frame, t, 3); frames.append(frame)
     assert np.array_equal(frames[0], source) and np.array_equal(frames[-1], source)
     assert np.array_equal(frames[1], frames[3])
+    # The opaque corner remains present mid-transition, not two translucent copies.
+    assert np.any(np.all(frames[2] == [0, 0, 255], axis=2))
     x, y, w, h = layer.source_rect
     expected = cv2.resize(source, (w, h), interpolation=cv2.INTER_AREA)
     assert np.array_equal(frames[1][y:y+h, x:x+w], expected)

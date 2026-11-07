@@ -810,11 +810,16 @@ class ExplanationCard(Layer):
             if hasattr(self, "source_rect"):
                 import cv2
                 frame = np.full_like(img, (233, 241, 244))
-                sx, sy, sw, sh = self.source_rect
-                frame[sy:sy+sh, sx:sx+sw] = cv2.resize(img, (sw, sh), interpolation=cv2.INTER_AREA)
                 self.panel.draw(frame[y0:y1, x0:x1], t, dur)
-                opacity = ease_in_out(min(1, t / .45, (dur-t) / .45))
-                img[:] = np.clip(img.astype(np.float32)*(1-opacity)+frame*opacity, 0, 255).astype(np.uint8)
+                progress = ease_in_out(min(1, t / .45, (dur-t) / .45))
+                sx, sy, sw, _ = self.source_rect
+                # Move one opaque source picture instead of dissolving two
+                # scales of its burned text over each other.
+                sx, sy = round(sx*progress), round(sy*progress)
+                sw = round(self.W + (sw-self.W)*progress)
+                sh = round(sw*self.H/self.W)
+                frame[sy:sy+sh, sx:sx+sw] = cv2.resize(img, (sw, sh), interpolation=cv2.INTER_AREA)
+                img[:] = frame
             else:
                 self.panel.draw(img[y0:y1, x0:x1], t, dur)
             return
