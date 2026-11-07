@@ -332,7 +332,7 @@ information. Enlarging a whole existing note card below its original, or enlargi
 merely repeats the burned subtitle, does not by itself satisfy a strong-edit brief. Prefer a
 speech-grounded explanation where it adds understanding; retain existing notes when they already
 explain the point. Do not invent a diagram or cover essential source text to fill empty space.
-The current full-frame explanation-card renderer replaces the picture; it is not an additive
-portrait information panel. Do not describe a plan as such a panel unless it was actually rendered
-and inspected. Keep an unaccepted layout in review rather than presenting technical render success
+The explanation-card renderer replaces the picture by default. An explicit `panel_box` can
+confine it to a verified empty output-canvas region; automatic spoken planning does not yet choose
+these regions. Do not describe a plan as an additive panel unless it was actually rendered and inspected. Keep an unaccepted layout in review rather than presenting technical render success
 as editorial acceptance.

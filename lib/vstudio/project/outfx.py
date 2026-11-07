@@ -126,6 +126,7 @@ SPECS = {
         zh="观点图解", en="Argument card", kind="fullframe", stage="frame", default_dur=4.0,
         what_zh="按原话编排的对比、因果链或结论卡；保留原声，不伪造证据",
         params=dict(title=_str("", "标题", True),
+                    panel_box={"type": "array", "default": None, "x-zh": "已核对空白区域 [left,top,width,height]，归一化画布坐标"},
                     kind=_str("takeaway", "图解形式", enum=("contrast", "chain", "takeaway")),
                     items={"type": "array", "items": {"type": "string"}, "default": [], "x-zh": "观点"}),
         sample=dict(title="副业带来的变化", kind="chain", items=["走进新圈子", "交流更深入", "思路更开阔"])),
@@ -389,6 +390,8 @@ def validate(eid, params, partial=False):
     if k == "media-insert" and (params or {}).get("detail_regions") is not None:
         from vstudio.clipkit import detail_rectangles
         detail_rectangles(params["detail_regions"])
+    if k == "explanation-card" and (params or {}).get("panel_box") is not None:
+        _panel_box(params["panel_box"])
     clean, warns = ({} if partial else {p: d.get("default") for p, d in spec.items()}), []
     for p, v in (params or {}).items():
         if p not in spec and lang_variant(p, spec):
@@ -705,10 +708,32 @@ class Notes(ImageLayer):
         return _shadow(im, self.u)
 
 
+def _panel_box(box):
+    """Explicit output-canvas region; never silently clamp over source content."""
+    if (not isinstance(box, (list, tuple)) or len(box) != 4
+            or any(type(v) not in (int, float) or not math.isfinite(v) for v in box)):
+        raise ValueError("explanation-card: panel_box needs four finite numbers")
+    x, y, w, h = box
+    if x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > 1 or y + h > 1:
+        raise ValueError("explanation-card: panel_box is outside the output canvas")
+    return x, y, w, h
+
+
 class ExplanationCard(Layer):
     """A short conceptual cutaway; staggered nodes, explicit links, no stock claims."""
 
     def setup(self):
+        if self.p.get("panel_box") is not None:
+            x, y, w, h = _panel_box(self.p["panel_box"])
+            x0, y0 = round(x*self.W), round(y*self.H)
+            x1, y1 = round((x+w)*self.W), round((y+h)*self.H)
+            if x1-x0 < 160 or y1-y0 < 120:
+                raise ValueError("explanation-card: panel is too small; enlarge it or shorten the layout")
+            self.panel_rect = (x0, y0, x1, y1)
+            inst = dict(self.inst, params={k: v for k, v in self.p.items() if k != "panel_box"})
+            self.panel = ExplanationCard(inst, x1-x0, y1-y0)
+            self.panel.setup()
+            return
         self.background = Image.new("RGB", (self.W, self.H), (244, 241, 233))
         look = TH.resolve("editorial") if TH.is_classic() else TH.current()
         self.accent = TH.rgba(look, "accent")
@@ -751,8 +776,12 @@ class ExplanationCard(Layer):
             self.texts.append(txt)
 
     def draw(self, img, t, dur):
-        if not hasattr(self, "background"):
+        if not hasattr(self, "background") and not hasattr(self, "panel"):
             self.setup()
+        if hasattr(self, "panel"):
+            x0, y0, x1, y1 = self.panel_rect
+            self.panel.draw(img[y0:y1, x0:x1], t, dur)
+            return
         frame = self.background.copy()
         dr = ImageDraw.Draw(frame)
         dr.rectangle((self.left, self.top - int(self.short * 0.025), self.left + int(self.short * 0.07), self.top),

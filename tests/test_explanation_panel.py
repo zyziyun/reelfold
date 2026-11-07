@@ -1,0 +1,32 @@
+"""An explicit information panel must never paint outside its reserved region."""
+import numpy as np
+import pytest
+from vstudio.project import outfx
+
+
+@pytest.mark.parametrize('size', [(360,640), (720,1280), (640,360)])
+def test_panel_preserves_source_pixels_and_is_seek_safe(size):
+    w,h=size
+    box=[.05,.6,.9,.35] if h>w else [.5,.05,.45,.9]
+    params,warnings=outfx.validate('explanation-card',dict(title='条件',kind='takeaway',items=['仍有选择'],panel_box=box))
+    assert not warnings
+    layer=outfx.make_layer(dict(effect='explanation-card',params=params),w,h)
+    rng=np.random.default_rng(1);base=rng.integers(0,256,(h,w,3),dtype=np.uint8)
+    x,y,bw,bh=box;x0,y0,x1,y1=round(x*w),round(y*h),round((x+bw)*w),round((y+bh)*h)
+    outside=np.ones((h,w),bool);outside[y0:y1,x0:x1]=False
+    frames=[]
+    for t in (0,1.5,.4,1.5,3):
+        frame=base.copy();layer.draw(frame,t,3);frames.append(frame)
+        assert np.array_equal(frame[outside],base[outside])
+    assert np.array_equal(frames[0],base)
+    assert np.array_equal(frames[-1],base)
+    assert np.array_equal(frames[1],frames[3])
+    assert not np.array_equal(frames[1],base)
+
+
+@pytest.mark.parametrize('box', [[0,0,2,1],[0,0,float('nan'),1],[0,0,0,1],[True,0,.5,.5],[0,0,.5]])
+def test_invalid_panel_fails_instead_of_falling_back_to_fullframe(box):
+    with pytest.raises(ValueError,match='panel_box'):
+        outfx.validate('explanation-card',dict(title='x',items=['y'],panel_box=box))
+    with pytest.raises(ValueError,match='panel_box'):
+        outfx.validate('explanation-card',dict(panel_box=box),partial=True)

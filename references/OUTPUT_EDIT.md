@@ -395,3 +395,17 @@ whole insert, including translated lines. The layout stays fixed while cues chan
 If subtitles leave no usable area, rendering stops rather than hiding the detail.
 Burned text already inside a source image is not detected by this reservation.
 The spoken planner does not automatically select these regions yet.
+
+
+### Explanation panel in verified free space
+
+`explanation-card` accepts optional `panel_box: [left, top, width, height]`, normalized
+to the final output canvas. It reuses the card's typography and animation inside that region
+and leaves every outside pixel unchanged. Without the parameter, existing full-frame behavior
+is unchanged. For example, `[0.05, 0.62, 0.9, 0.28]` is a lower panel only if that area is
+actually free in the selected version. Inspect the complete interval and platform keep-outs
+before choosing it; the renderer does not detect faces, subtitles or empty space for this option.
+Invalid or too-small regions fail rather than falling back to a full-frame card. Text must fit
+at the renderer's minimum size. Recheck at phone size and after changing aspect ratio.
+This explicit output-edit capability does not automatically recompose the source or make a
+repeated caption into an explanatory graphic.
