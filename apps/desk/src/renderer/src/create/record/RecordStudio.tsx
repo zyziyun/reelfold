@@ -754,7 +754,7 @@ export function RecordStudio({ sid, eid, shot }: { sid?: string; eid?: string; s
                 {learning ? t('learning.useRecording') : eid && shot ? t('rec.finishShot', { no: shot }) : t('rec.finish')}
               </button>
               <div className="rs-note" data-testid="rec-finish-note">
-                {stage === 'editing' ? t('rec.preparing') : stage === 'working' ? t('rec.working', { n: using?.n ?? 1 }) : stage === 'models' ? t('rec.waitModels') : !using ? t('rec.finishNeedTake') : <FinishNote />}
+                {stage === 'editing' ? t('rec.preparing') : stage === 'working' ? t('rec.working', { n: using?.n ?? 1 }) : stage === 'models' ? t('rec.waitModels') : rec.state === 'save-error' ? t('rec.saveFailed') : rec.state === 'stopping' ? t('rec.saving') : live ? t('rec.saveTake') : !using ? t('rec.finishNeedTake') : <FinishNote />}
               </div>
             </>
           )}

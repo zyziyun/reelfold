@@ -467,6 +467,7 @@ test.describe('recording save recovery', () => {
     await expect(page.getByTestId('rec-pause')).toBeDisabled();
     await retry.click();
     await expect(retry).toBeEnabled();
+    await expect(page.getByTestId('rec-finish-note')).toContainText('Saving failed; try again.');
     await expect(page.getByTestId('editor')).toHaveCount(0);
     const root = path.join(tmp, 'vhome-chunk-retry', 'recordings');
     const names = fs.readdirSync(root);
@@ -503,6 +504,7 @@ test.describe('recording save recovery', () => {
     await page.getByTestId('create-rec-stop').click();
     const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
     await expect(retry).toBeEnabled();
+    await expect(page.getByTestId('rec-finish-note')).toContainText('Saving failed; try again.');
     await expect(page.getByTestId('rec-pause')).toBeDisabled();
     await expect(page.getByText('Recording stopped. Saving failed; try again.', { exact: false }).first()).toBeVisible();
     expect(fs.existsSync(path.join(take, 'recording.lock'))).toBe(true);
@@ -561,6 +563,7 @@ test.describe('recording startup lifecycle', () => {
     await page.getByTestId('create-rec-start').click();
     const retry = page.getByRole('button', { name: 'Try saving again', exact: true });
     await expect(retry).toBeEnabled();
+    await expect(page.getByTestId('rec-finish-note')).toContainText('Saving failed; try again.');
     await app.evaluate(() => {
       (globalThis as unknown as { partialFixture: { fail: boolean } }).partialFixture.fail = false;
     });
