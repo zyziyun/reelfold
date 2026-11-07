@@ -124,3 +124,27 @@ def test_a_waiting_checkpoint_shows_its_previews(tmp_path, clips):
     assert waiting and all(p["checkpoint"] == "cover" and os.path.isfile(p["path"]) for p in waiting)
     assert ps.index(waiting[0]) > max(i for i, p in enumerate(ps) if p["state"] == "done")
     json.dumps(ps)                                                     # what the desk serves as is
+
+
+@pytest.mark.parametrize('state', ['running', 'failed', 'done'])
+def test_photo_story_exposes_only_current_flicker_evidence(tmp_path, state):
+    p = Project.create(str(tmp_path / 'photo'), recipe='photo-story', inputs={}, params={})
+    p.plan()
+    folder = tmp_path / 'photo' / 'items' / 'main' / 'out' / 'story.flicker-frames'
+    folder.mkdir(parents=True, exist_ok=True)
+    old, fresh = folder / 'event-01.jpg', folder / 'event-02.jpg'
+    old.write_bytes(b'old evidence')
+    fresh.write_bytes(b'new evidence')
+    started = time.time() - 5
+    os.utime(old, (started - 100, started - 100))
+    st = Store(p.state_dir)
+    try:
+        st.set_stage('main', 'render', state=state, started=started)
+    finally:
+        st.close()
+    pieces = p.pieces()['items'][0]['pieces']
+    evidence = [x for x in pieces if x['stage'] == 'render']
+    assert [x['path'] for x in evidence] == [str(fresh)]
+    assert evidence[0]['label']['en'] == 'Flicker review frames'
+    assert evidence[0]['kind'] == 'images'
+    assert not M.validate(p.manifest)

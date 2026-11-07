@@ -80,6 +80,10 @@
      "type": "string",
      "description": "template ({item_dir}, {stage_dir}, ...) or an output key: out:<key>"
     },
+    "current_run": {
+     "type": "boolean",
+     "description": "Only expose files written since this stage started, including after failure or completion"
+    },
     "label": {
      "$ref": "#/$defs/label"
     }

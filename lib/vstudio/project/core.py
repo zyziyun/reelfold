@@ -1100,6 +1100,19 @@ def _preview_paths(m, job, stage, row, pv, state_dir):
             return []
         import glob as G
         cands = sorted(G.glob(p)) if any(ch in p for ch in "*?[") else [p]
+    if pv.get("current_run"):
+        paths = [c for c in cands if isinstance(c, str) and os.path.isfile(c)]
+        started = row.get("started")
+        if not started:
+            return []
+        fresh = []
+        for path in paths:
+            try:
+                if os.path.getmtime(path) >= started:
+                    fresh.append(path)
+            except OSError:
+                pass
+        return fresh
     return [c for c in cands if isinstance(c, str) and os.path.exists(c)]
 
 

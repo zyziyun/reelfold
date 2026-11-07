@@ -125,6 +125,11 @@ stages:
       files: ["{item_dir}/out/story.mp4"]
     produces: [out/story.mp4]
     preview: {kind: video, path: "{item_dir}/out/story.mp4"}
+    wip:
+      kind: images
+      path: "{item_dir}/out/story.flicker-frames/event-*.jpg"
+      current_run: true
+      label: {en: "Flicker review frames", zh: "闪烁复核画面", fr: "Images à examiner : scintillement"}
   - id: cover
     resource: cpu
     deps: [stills]
