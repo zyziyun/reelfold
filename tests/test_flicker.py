@@ -128,6 +128,15 @@ def test_check_raises_on_a_rendered_flash(tmp_path):
         FL.check(str(out), mode="fail", log=None)
     assert "flash" in str(e.value)
     assert (tmp_path / "flash.flicker.json").exists()
+    from PIL import Image
+    evidence = e.value.report["evidence"]
+    assert evidence
+    for row in evidence:
+        with Image.open(row["file"]) as sheet:
+            assert sheet.width > 192
+        assert min(row["sample_times"]) <= row["peak_t"] <= max(row["sample_times"])
+        assert len(row["sample_times"]) >= 15
+    assert e.value.report["ok"] is False
     assert FL.check(str(out), mode="warn", log=None)["ok"] is False
 
 
@@ -220,3 +229,30 @@ def test_flash_near_end_is_not_hidden_by_a_closing_fade_exemption(duration):
     report = FL.measure(_grid(y), FPS)
     assert not report['ok']
     assert any(e['kind'] == 'flash' and e['t'] >= duration - 1.6 for e in report['events'])
+
+
+def test_evidence_failure_preserves_qc_failure(tmp_path, monkeypatch):
+    report = FL.measure(_grid(np.r_[np.full(100, 60.), np.full(6, 230.), np.full(100, 60.)]), FPS)
+    monkeypatch.setattr(FL, "analyze", lambda *args: report)
+    def broken(*args):
+        raise OSError("evidence disk unavailable")
+    monkeypatch.setattr(FL, "event_evidence", broken)
+    with pytest.raises(FL.FlickerError) as error:
+        FL.check(str(tmp_path / "video.mp4"), mode="fail", log=None)
+    assert error.value.report["evidence_error"] == "evidence disk unavailable"
+    assert not error.value.report["ok"]
+
+
+def test_event_evidence_is_bounded_and_coalesces_nearby_alarms(tmp_path, monkeypatch):
+    from vstudio import media
+    calls = []
+    def sheet(src, out, **kwargs):
+        calls.append(kwargs)
+        return out, [kwargs['start']]
+    monkeypatch.setattr(media, 'contact_sheet', sheet)
+    events = [dict(kind='blink', t=t, level=20-i) for i, t in enumerate([2., 2.1, 4., 6., 8.])]
+    report = dict(fps=30, limits=FL.LIMITS['calm'], events=events)
+    evidence = FL.event_evidence('video.mp4', report, tmp_path / 'qc.json', max_events=2)
+    assert [row['peak_t'] for row in evidence] == [2., 4.]
+    assert len(calls) == 2
+    assert all(c['max_frames'] == 19 and c['label_precision'] == 3 for c in calls)

@@ -423,3 +423,9 @@ For an intentionally fast beat reel, set `QC = dict(flicker_profile="energetic")
 Choose this from the intended style before rendering, not to suppress a failed check.
 A detected event can originate in the source: compare its time against the source
 interval before changing transitions or removing meaningful action.
+
+Failed flicker checks save adjacent-frame sheets beside the JSON report in
+`<output>.flicker-frames/`; `evidence` lists each sheet and sample times. Inspect
+these sequences before repair, alongside the matching source interval. They
+show short events missed by sparse layout samples, but do not replace playback
+or prove the cause of an alarm. Missing diagnostic frames do not waive QC.

@@ -314,6 +314,38 @@ def _persona():
         return {}
 
 
+def event_evidence(path, report, report_path, max_events=6):
+    """Bounded frame sequences around the strongest alarms, for inspection only.
+
+    Reuse the media contact-sheet decoder. Adjacent frames retain short blinks
+    that a sparse whole-film sheet would miss. Never change the QC decision.
+    """
+    import os
+    from . import media
+    fps = float(report["fps"])
+    folder = os.path.splitext(str(report_path))[0] + "-frames"
+    os.makedirs(folder, exist_ok=True)
+    evidence, selected = [], []
+    ranked = sorted(report.get("events", []),
+                    key=lambda e: e["level"] / report["limits"][e["kind"]], reverse=True)
+    for event in ranked:
+        peak = float(event.get("peak_t", event["t"]))
+        if any(abs(peak - previous) < .3 for previous in selected):
+            continue
+        selected.append(peak)
+        radius = .3 if event["kind"] == "blink" else .6
+        start = max(0, round(peak * fps) - round(radius * fps)) / fps
+        count = 2 * round(radius * fps) + 1
+        sheet = os.path.join(folder, f"event-{len(selected):02d}.jpg")
+        _, times = media.contact_sheet(str(path), sheet, every=1 / fps, start=start,
+                                       max_frames=count, cols=7, thumb_w=192, label_precision=3)
+        evidence.append(dict(file=os.path.abspath(sheet), peak_t=peak, kind=event["kind"],
+                             sample_times=times, purpose="Adjacent frames; inspect motion before repair"))
+        if len(selected) >= max_events:
+            break
+    return evidence
+
+
 def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=()):
     """Analyze ``path``; write the report next to it (``<out>.flicker.json``); raise FlickerError when it flickers
     and ``mode`` is "fail". Returns the report (None when mode is "off")."""
@@ -322,6 +354,11 @@ def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=())
         return None
     rep = add_cut_context(analyze(path, profile), cuts)
     rp = report_path or (str(path).rsplit(".", 1)[0] + ".flicker.json")
+    if not rep["ok"]:
+        try:
+            rep["evidence"] = event_evidence(path, rep, rp)
+        except Exception as exc:  # diagnostics must not replace the actual QC failure
+            rep["evidence_error"] = str(exc)[:300]
     try:
         with open(rp, "w") as f:
             json.dump(rep, f, indent=1)
@@ -329,6 +366,8 @@ def check(path, profile="calm", mode=None, report_path=None, log=print, cuts=())
         pass
     if log:
         log(f"flicker QC ({profile}): {describe(rep)}")
+        for evidence in rep.get("evidence", []):
+            log(f"flicker review frames: {evidence['file']}")
     if not rep["ok"] and mode == "fail":
         raise FlickerError(rep)
     return rep

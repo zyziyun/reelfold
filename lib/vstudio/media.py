@@ -436,7 +436,7 @@ def grab_frame(src, t, out, vf=None, preroll=25.0, quality=None):
 SEEK_SHEET_MIN_EVERY = 2.0      # tiles at least this far apart: seek to each instead of decoding the whole clip
 
 
-def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label=True, start=None):
+def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label=True, start=None, label_precision=1):
     """Labelled grid of stills, one every ``every`` s (first at every/2) -> JPEG/PNG ``out``.
 
     One decode pass (fps filter), then PIL composes the grid with a time label under each cell
@@ -488,7 +488,7 @@ def contact_sheet(src, out, every=5.0, cols=6, thumb_w=320, max_frames=48, label
         x, y = (i % cols) * tw, (i // cols) * (th + lab)
         sheet.paste(im, (x, y))
         if label and i < len(ts):
-            d.text((x + 6, y + th + 3), f"{ts[i]:.1f}s", font=fnt, fill="white")
+            d.text((x + 6, y + th + 3), f"{ts[i]:.{label_precision}f}s", font=fnt, fill="white")
     sheet.save(out, quality=88) if out.lower().endswith((".jpg", ".jpeg")) else sheet.save(out)
     return out, ts[:len(thumbs)]
 
