@@ -57,7 +57,7 @@ def _persona_subs():
 
 
 # ------------------------------------------------------------------ markup
-_HI = re.compile(r"【([^】]*)】|\*\*(.+?)\*\*")
+_HI = re.compile(r"【([^】]*)】|\*\*(.+?)\*\*", re.S)
 
 
 CUE_FADE = 0.0       # spoken captions switch at the cue boundary for legibility
@@ -358,7 +358,8 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
     remain intact using the speech runtime's installed parser.
 
     Args: measure(str) -> width (default ``text_width``: CJK 1, latin 0.5; pass a PIL textlength for
-    pixel wrapping); max_lines caps the line count (lines may then overflow). Markup is preserved on
+    pixel wrapping); max_lines caps automatic lines (lines may then overflow), but
+    explicit line breaks are preserved even when they exceed that cap. Markup is preserved on
     every line (a highlight spanning a break is closed and reopened).
     Returns [line, ...]. From photo-story ``subtitles.bwrap`` + call-clips ``wrap_sub`` (balanced, no orphan).
     """
@@ -367,6 +368,23 @@ def balanced_wrap(text, max_width, measure=None, max_lines=None, word_aware=True
     toks = _tokens(text)
     if not toks:
         return []
+    # Hard line breaks are authored layout, not a token for PIL.textlength.
+    # Re-render token groups so highlights spanning a break close/reopen safely.
+    if any("\n" in token or "\r" in token for token, _ in toks):
+        groups = [[]]
+        normalized = _tokens(text.replace("\r\n", "\n").replace("\r", "\n"))
+        for token in normalized:
+            if token[0] == "\n":
+                groups.append([])
+            else:
+                groups[-1].append(token)
+        lines = []
+        for i, group in enumerate(groups):
+            remaining = None if max_lines is None else max(1, max_lines - len(lines) - (len(groups) - i - 1))
+            paragraph = _render(_trim(group), style)
+            lines.extend(balanced_wrap(paragraph, max_width, measure, remaining,
+                                       word_aware, language, keep_words) or [""])
+        return lines
     widths = [measure(t) for t, _ in toks]
     total = measure(strip_markup(text).strip())
     if total <= max_width:

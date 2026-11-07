@@ -274,3 +274,23 @@ def test_oversized_chinese_word_can_still_wrap(monkeypatch):
     lines = subs.balanced_wrap('计算机系', 2, keep_words=True)
     assert ''.join(lines) == '计算机系'
     assert all(subs.text_width(line) <= 2 for line in lines)
+
+@pytest.mark.parametrize('text, expected', [
+    ('Northline\nFor small teams', ['Northline', 'For small teams']),
+    ('Northline\r\nFor small teams', ['Northline', 'For small teams']),
+    ('**Northline\nWorkflow** studio', ['**Northline**', '**Workflow** studio']),
+    ('【观察\n流程】', ['【观察】', '【流程】']),
+    ('First\n\nLast', ['First', '', 'Last']),
+])
+def test_explicit_lines_never_reach_single_line_pixel_measurement(text, expected):
+    from PIL import Image, ImageDraw, ImageFont
+    d = ImageDraw.Draw(Image.new('RGB', (10,10)))
+    face = ImageFont.load_default()
+    assert S.balanced_wrap(text, 1000, measure=lambda t: d.textlength(t, font=face)) == expected
+
+
+def test_authored_lines_take_precedence_over_automatic_line_cap():
+    assert S.balanced_wrap('one\ntwo\nthree', 100, max_lines=2) == ['one', 'two', 'three']
+    lines = S.balanced_wrap('several words need wrapping\nEnd', 7)
+    assert lines[-1] == 'End'
+    assert ''.join(lines[:-1]).replace(' ', '') == 'severalwordsneedwrapping'
