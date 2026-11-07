@@ -759,7 +759,7 @@ describe('success after her click', () => {
     expect(postedSignal('https://creator.xiaohongshu.com/publish/success?x=1', '', ['https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a?xsec=1'], s)).toEqual({ posted: true, url: 'https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a' });
     expect(postedSignal('https://creator.xiaohongshu.com/publish/publish', '发布成功 去看看', [], s)).toEqual({ posted: true, url: null });
     expect(postedSignal('https://x', '发布成功', [], null)).toEqual({ posted: false, url: null });
-    expect(postedSignal('https://creator.douyin.com/creator-micro/content/manage', '', ['https://www.douyin.com/video/7412345678901234567'], by.douyin.success!).url).toBe('https://www.douyin.com/video/7412345678901234567');
+    expect(postedSignal('https://creator.douyin.com/creator-micro/content/manage', '发布成功', ['https://www.douyin.com/video/7412345678901234567'], by.douyin.success!).url).toBe('https://www.douyin.com/video/7412345678901234567');
   });
 });
 
@@ -842,4 +842,16 @@ it('an explicit horizontal video wins for Xiaohongshu; a missing choice never fa
  expect(pickFile(files, 'xiaohongshu', '/wide.mp4')?.path).toBe('/wide.mp4');
  expect(pickFile(files, 'xiaohongshu', '/removed.mp4')).toBeNull();
  expect(pickFile(files, 'xiaohongshu', null)?.path).toBe('/vertical.mp4');
+});
+
+
+describe('publication requires a completion signal', () => {
+  it.each([
+    ['xiaohongshu', 'https://creator.xiaohongshu.com/new/note-manager'],
+    ['xiaohongshu', 'https://creator.xiaohongshu.com/creator/notemanage'],
+    ['douyin', 'https://creator.douyin.com/creator-micro/content/manage'],
+    ['douyin', 'https://creator.douyin.com/content/manage'],
+  ])('does not mark a post delivered just by visiting %s management', (platform, url) => {
+    expect(postedSignal(url, '内容管理', [], by[platform].success!)).toEqual({posted: false, url: null});
+  });
 });

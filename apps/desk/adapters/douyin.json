@@ -49,7 +49,7 @@
     "domains": ["douyin.com", "*.douyin.com"]
   },
   "success": {
-    "urls": ["/creator-micro/content/manage", "/content/manage"],
+    "urls": [],
     "texts": ["发布成功"],
     "postUrl": "https://www\\.douyin\\.com/video/\\d{8,24}"
   },

@@ -87,8 +87,6 @@
   "success": {
     "urls": [
       "/publish/success",
-      "/new/note-manager",
-      "/creator/notemanage",
       "published=true"
     ],
     "texts": [
