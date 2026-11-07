@@ -207,6 +207,10 @@ def make_label(C, text):
         text = C.shown(text)
     if getattr(C, "cinema", False):
         size = max(12, C.b(34))
+        # A process label carries the message, unlike a quiet location credit.
+        # Keep it readable at phone size when reusing per-shot placement.
+        if (getattr(getattr(C, "spec", None), "LAYOUT", {}) or {}).get("caption_style") == "label":
+            size = max(size, C.t(60))
         f = font_for(text, size, "sans", "cjk")
         tr = 0.14 if not has_cjk_text(text) else 0.08
         txt = text.upper() if not has_cjk_text(text) else text

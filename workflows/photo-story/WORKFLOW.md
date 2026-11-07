@@ -270,6 +270,15 @@ remain relative to the displayed source, rather than the fitted crop.
 
 Photo motions: `in out panL panR up down still flip`; options `c=(cx,cy)`, `z=zoom`, `span=(0, 1)` (panL / panR / up / down travel the whole width or height: a wide map or a shop front read edge to edge; default (0.15, 0.85)), `label="..."`, `tr=<transition>`, `trd=seconds`.
 
+For music-only process/product films, per-shot `label="Empty cans · 空罐细节"` and
+`label_at="upper"` can use verified empty space above the subject; omit `label_at` for lower placement.
+Use strings for labels. Set `MUSIC captions=False` when these labels replace the same global text,
+and retain `LAYOUT caption_style="label"` for phone-readable process text. Inspect all chosen
+intervals at beginning/middle/end: upper/lower placement is authored, not automatic subject detection.
+`video_caption_safe` reserves space for contained/region layouts, not cover-cropped video.
+If neither label position is clear, change the shot or use a verified source-region layout.
+This treatment does not replace complete subtitles in a narrated film.
+
 ### Overlays (any shot)
 `fx=("sketch","develop","shimmer","dust","prick")`, `hl=(cx,cy,rx,ry)` red-pen circle (`hl_t`),
 `tri=((x,y),(x,y),(x,y))` composition triangle (`tri_label`), `loupe=[(x,y),...]` travelling magnifier (`loupe_mag`),

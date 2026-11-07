@@ -53,6 +53,14 @@ GUIDE = """Notes for this spec (they override the template where they differ):
   Do not request object rotation, parallax or new product angles from a flat photo.
   Existing video action already supplies movement; never turn it into a zooming still.
   A video may explicitly use fit="contain" to preserve its full source; this does not create a new portrait edit.
+  For short music-mode process labels on full-frame footage, inspect each shot for readable empty space.
+  Use existing shot options label="Empty cans · 空罐细节", label_at="upper" when the upper safe area is clear;
+  omit label_at for the lower position. Set MUSIC captions=False to avoid duplicating these labels in a
+  fixed caption band. Labels are strings, not bilingual tuples. Check beginning/middle/end at phone size;
+  if neither position stays clear, choose another shot or use a verified region layout below.
+  LAYOUT video_caption_safe only reserves space for contained/region layouts; it does not detect subjects
+  or move captions on cover-cropped video. Never treat that flag as proof that full-frame labels avoid action.
+  Do not disable spoken subtitles to use this short-label treatment; narration still needs complete timed cues.
   To show a complete product larger without repeating the overview, a video can use fit="contain" with
   source_region=[x,y,width,height] in displayed source pixels. Verify that rectangle contains the entire
   intended subject throughout the interval; the renderer fits it once outside the caption band. Do not
