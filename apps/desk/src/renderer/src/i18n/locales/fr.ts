@@ -1756,6 +1756,8 @@ const channelsFr: Record<keyof typeof channelsEn, string> = {
   'ch.removeTitle': 'Retirer {name} ?',
   'ch.removeBody': 'Le compte quitte la liste. Se déconnecter efface aussi sa connexion dans le navigateur intégré ; rien ne change sur la plateforme.',
   'ch.signOut': 'Se déconnecter aussi dans le navigateur intégré',
+  'ch.loading': 'Chargement des comptes de publication…',
+  'ch.loadFailed': 'Impossible d’actualiser les comptes de publication. Réessayez.',
   'ch.empty': 'Aucun compte de publication',
   'ch.emptyHint': 'Ajoutez les plateformes où vous publiez. Une plateforme peut avoir plusieurs comptes.',
   'ch.slotHint': 'Choisissez un compte et cliquez sur Se connecter : la page de la plateforme s’ouvre ici.',

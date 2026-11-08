@@ -57,28 +57,58 @@ export function inUse<T extends { adapterId: string }>(channels: T[], adapters: 
 /** Adapters + channels, refreshed when the built-in browser reports a page (the login state may have changed). */
 export function useChannels() {
   const [adapters, setAdapters] = useState<Adapter[]>([]);
-  const [channels, setChannels] = useState<ChannelMsg[]>([]);
+  const [channels, updateChannels] = useState<ChannelMsg[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const generation = useRef(0);
+  const setChannels = useCallback((value: ChannelMsg[]) => {
+    generation.current++;
+    updateChannels(value);
+    setError('');
+    setLoading(false);
+  }, []);
   const reload = useCallback(async () => {
-    const [a, c] = await Promise.all([window.desk.publish.adapters(), window.desk.publish.channels()]);
-    setAdapters(a.adapters);
-    setChannels(c);
+    const request = ++generation.current;
+    setLoading(true);
+    setError('');
+    try {
+      const [a, c] = await Promise.all([window.desk.publish.adapters(), window.desk.publish.channels()]);
+      if (request !== generation.current) return;
+      setAdapters(a.adapters);
+      updateChannels(c);
+    } catch (e) {
+      if (request === generation.current) setError(errText(e));
+    } finally {
+      if (request === generation.current) setLoading(false);
+    }
   }, []);
   useEffect(() => {
-    void reload().catch(() => undefined);
+    void reload();
     let tmr: ReturnType<typeof setTimeout> | null = null;
     const off = window.desk.on('publish:state', () => {
       if (tmr) clearTimeout(tmr);
-      tmr = setTimeout(() => void reload().catch(() => undefined), 3500); // after the page-signal check in main
+      tmr = setTimeout(() => void reload(), 3500);
     });
-    // main saw a login state change (session cookie set / gone, a login page): at once
-    const offLogin = window.desk.on('publish:channels', () => void reload().catch(() => undefined));
+    const offLogin = window.desk.on('publish:channels', () => void reload());
     return () => {
+      // Invalidate all reads, including those started after this effect.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      generation.current++;
       off();
       offLogin();
       if (tmr) clearTimeout(tmr);
     };
   }, [reload]);
-  return { adapters, channels, setChannels, reload };
+  return { adapters, channels, setChannels, reload, error, loading };
+}
+
+export function ChannelLoadFeedback({ error, loading, reload }: Pick<ReturnType<typeof useChannels>, 'error' | 'loading' | 'reload'>) {
+  if (!error) return loading ? <div role="status" aria-busy="true">{t('ch.loading')}</div> : null;
+  return <div className="card col" role="alert" data-testid="channel-load-error">
+    <span>{t('ch.loadFailed')}</span>
+    <details><summary>{t('c.details')}</summary><div>{error}</div></details>
+    <button className="btn" onClick={() => void reload()}>{t('c.retry')}</button>
+  </div>;
 }
 
 /** Adapters in the shared platform order (English / global, Chinese, other); inside a group the platforms with a
@@ -96,7 +126,8 @@ export function useConnectedPlatforms(): string[] {
 
 export function Channels() {
   const ui = useUi();
-  const { adapters, channels, setChannels } = useChannels();
+  const channelState = useChannels();
+  const { adapters, channels, setChannels, error, loading } = channelState;
   const [sel, setSel] = useState<{ adapterId: string; account: string } | null>(null);
   const [bstate, setBstate] = useState<PublishStateMsg | null>(null);
   const [editing, setEditing] = useState<ChannelMsg | null>(null);
@@ -187,7 +218,8 @@ export function Channels() {
         </div>
         <div className="pubg" style={{ gridTemplateColumns: 'minmax(340px, 420px) 1fr' }}>
           <aside className="col" style={{ gap: 10 }} data-testid="channel-list">
-            {!channels.length && <Empty title={t('ch.empty')} hint={t('ch.emptyHint')} />}
+            <ChannelLoadFeedback {...channelState} />
+            {!loading && !error && !channels.length && <Empty title={t('ch.empty')} hint={t('ch.emptyHint')} />}
             {sortAdapters(adapters, channels)
               .map((a) => {
               const mine = channels.filter((c) => c.adapterId === a.id);

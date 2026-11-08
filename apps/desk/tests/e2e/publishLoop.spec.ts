@@ -523,3 +523,41 @@ test('clearing one duration setting preserves the other bound', async () => {
   await expect.poll(limits).toEqual({});
   await expect(page.getByTestId('video-length-reset-xiaohongshu')).toHaveCount(0);
 });
+
+
+test('account loading errors stay visible and retry preserves existing accounts', async () => {
+  const saved = await page.evaluate(() => window.desk.publish.channels());
+  await app.evaluate(({ ipcMain }, accounts) => {
+    ipcMain.removeHandler('publish:channels');
+    ipcMain.handle('publish:channels', () => {
+      if (!(globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable) throw new Error('Test account storage unavailable');
+      return accounts;
+    });
+  }, saved);
+  try {
+    await hash('#/settings/general');
+    await hash('#/settings/accounts');
+    const error = page.getByTestId('channel-load-error');
+    await expect(error).toBeVisible();
+    await expect(page.getByText('No publishing accounts yet', { exact: true })).toHaveCount(0);
+    await app.evaluate(() => { (globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable = true; });
+    await error.getByRole('button', { name: 'Try again', exact: true }).click();
+    await expect(error).toHaveCount(0);
+    await expect(page.getByTestId('settings-channel')).toHaveCount(saved.length);
+    await app.evaluate(({ webContents }) => {
+      (globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable = false;
+      for (const wc of webContents.getAllWebContents()) if (wc.getType() === 'window') wc.send('publish:channels', {});
+    });
+    await expect(error).toBeVisible();
+    await expect(page.getByTestId('settings-channel')).toHaveCount(saved.length);
+    await hash('#/publish/accounts');
+    await expect(error).toBeVisible();
+    await expect(page.getByText('No publishing accounts yet', { exact: true })).toHaveCount(0);
+    await app.evaluate(() => { (globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable = true; });
+    await error.getByRole('button', { name: 'Try again', exact: true }).click();
+    await expect(error).toHaveCount(0);
+    await expect(page.getByTestId('channel-row')).toHaveCount(saved.length);
+  } finally {
+    await app.evaluate(() => { (globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable = true; });
+  }
+});

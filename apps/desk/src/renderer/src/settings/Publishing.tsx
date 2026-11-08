@@ -10,7 +10,7 @@ import { CAPS } from '../../../shared/edition';
 import type { ApiStatusMsg } from '../../../shared/publish/apiPlatforms';
 import { fmtAgo, t } from '../i18n';
 import { href } from '../lib/router';
-import { inUse, useChannels, useChosenPlatforms } from '../v4/Channels';
+import { ChannelLoadFeedback, inUse, useChannels, useChosenPlatforms } from '../v4/Channels';
 import { errText } from '../v4/msg';
 import { PlatformIcon } from '../v4/PlatformIcon';
 import { useUi } from '../v4/ui';
@@ -22,7 +22,8 @@ import { YT_ADAPTER, YtClientChoice, YtConnectSheet, usePublishingApi, ApiStatus
 
 export function PublishingSection(ctx: Partial<SettingsCtx>) {
   const ui = useUi();
-  const { adapters, channels } = useChannels();
+  const channelState = useChannels();
+  const { adapters, channels, error, loading } = channelState;
   const chosen = useChosenPlatforms();
   const mine = inUse(channels, adapters, chosen);
   const others = channels.filter((c) => !mine.includes(c));
@@ -75,7 +76,8 @@ export function PublishingSection(ctx: Partial<SettingsCtx>) {
     <Page title={t('set.channels')} lead={t('s2.pub.lead')} testId="settings-channels">
       <Group title={mine.length ? <span data-testid="settings-signed-count">{t('pl.set.signedIn', { n: signed, total: mine.length })}</span> : undefined}>
         <div className="s2-card">
-          {!channels.length && <div className="s2-row s2-rhint">{t('s2.pub.none')}</div>}
+          <ChannelLoadFeedback {...channelState} />
+          {!loading && !error && !channels.length && <div className="s2-row s2-rhint">{t('s2.pub.none')}</div>}
           {mine.map((c) => row(c, false))}
           {others.map((c) => row(c, true))}
           <a className="s2-row s2-addrow" href={href({ name: 'channels' })} data-testid="open-channels">
