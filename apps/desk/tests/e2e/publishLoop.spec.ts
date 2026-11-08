@@ -561,3 +561,25 @@ test('account loading errors stay visible and retry preserves existing accounts'
     await app.evaluate(() => { (globalThis as unknown as { accountsAvailable: boolean }).accountsAvailable = true; });
   }
 });
+
+test('publishing packages wait for the current edit render', async () => {
+  const hist = await api<{ items: { id: string; dir: string }[] }>('/api/history');
+  const owner = hist.items.find(i => i.dir === work)!.id;
+  const clip = 'B_自媒体';
+  const created = await api<{ ids: string[] }>('/api/calendar/many', { posts: [
+    { item: owner, clip, platform: 'youtube', at: at(new Date(Date.now() + 86400_000)) },
+  ] });
+  const postId = created.ids[0];
+  const original = await page.evaluate(id => window.desk.publish.postPackage(id), postId);
+  expect(fs.existsSync(original.video)).toBe(true);
+  const endpoint = `/api/outputs/${owner}/${encodeURIComponent(clip)}`;
+  const edited = await api<{ ok: boolean }>(`${endpoint}/edit`, { ops: [{ op: 'speed', value: 1.25 }] });
+  expect(edited.ok).toBe(true);
+  await expect.poll(async () => (await api<{ clips: { id: string; edited_stale?: boolean }[] }>(`/api/outputs/${owner}`)).clips.find(c => c.id === clip)?.edited_stale).toBe(true);
+  await expect(page.evaluate(id => window.desk.publish.postPackage(id), postId)).rejects.toThrow(/still being updated/);
+  await api(`${endpoint}/render`, { quality: 'final', targets: 'primary' });
+  await expect.poll(async () => (await api<{ clips: { id: string; edited_stale?: boolean }[] }>(`/api/outputs/${owner}`)).clips.find(c => c.id === clip)?.edited_stale, { timeout: 60000 }).not.toBe(true);
+  const updated = await page.evaluate(id => window.desk.publish.postPackage(id), postId);
+  expect(updated.video).not.toBe(original.video);
+  expect(fs.existsSync(updated.video)).toBe(true);
+});
