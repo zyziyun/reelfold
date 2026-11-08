@@ -48,6 +48,9 @@ export function pickFile(files: ClipFile[], platform: string, selected?: string 
   // An unavailable explicit choice must never silently upload a different version.
   if (selected) return files.find(f => f.path === selected) ?? null;
   if (!files.length) return null;
+  // A sibling variant must not win just because it precedes the exact target.
+  const exact = files.find(f => f.platform === platform);
+  if (exact) return exact;
   const [base, orient = ''] = platform.split(':');
   const own = files.find((f) => f.platform && (f.platform === base || f.platform === platform || f.platform.startsWith(`${base}-`) || f.platform.startsWith(`${base}:`)));
   if (own) return own;

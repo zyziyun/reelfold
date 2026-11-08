@@ -957,3 +957,18 @@ describe('delayed assisted upload receipts', () => {
     expect(matchesAssistedUpload({ ...filled, title: 'New title', cover: '/cover.png' }, original, 'main')).toBe(true);
   });
 });
+
+it.each([false, true])('prefers the exact publishing destination regardless of file order (%s)', reverse => {
+  const files = [
+    { path: '/short.mp4', aspect: '9:16', platform: 'youtube-shorts' },
+    { path: '/long.mp4', aspect: '16:9', platform: 'youtube' },
+    { path: '/xhs-normal.mp4', aspect: '3:4', platform: 'xiaohongshu' },
+    { path: '/xhs-full.mp4', aspect: '9:16', platform: 'xiaohongshu:full' },
+  ];
+  if (reverse) files.reverse();
+  expect(pickFile(files, 'youtube')?.path).toBe('/long.mp4');
+  expect(pickFile(files, 'youtube-shorts')?.path).toBe('/short.mp4');
+  expect(pickFile(files, 'xiaohongshu:full')?.path).toBe('/xhs-full.mp4');
+  expect(pickFile(files, 'xiaohongshu')?.path).toBe('/xhs-normal.mp4');
+  expect(pickFile(files, 'youtube', '/short.mp4')?.path).toBe('/short.mp4');
+});
