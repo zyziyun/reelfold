@@ -295,11 +295,14 @@ def write_edl(C, T, out):
         t1 = T.total if k == n - 1 else T.shots[k + 1]["start"] + (T.shots[k + 1].get("trd") or 0) / 2
         off = float(sh.get("off", 0.0) or 0.0)
         sp = float(sh.get("speed", 1.0) or 1.0)
+        linear = kind == "video" and speechclean.options(C, sh) is None
+        # EDL spans begin at the join midpoint, while source playback begins at
+        # sh.start. Re-edits must use the source frame visible at that midpoint.
+        source_in = off + (t0 - float(sh["start"])) * sp if linear else off
         rows.append(dict(i=k, t0=round(t0, 3), t1=round(t1, 3), src=os.path.realpath(src) if src else None,
-                         kind=kind, name=arg, source_time_origin=(float(sh["start"])
-                             if kind == "video" and speechclean.options(C, sh) is None else None),
-                         src_in=round(off, 3) if kind == "video" else None,
-                         src_out=round(off + (t1 - t0) * sp, 3) if kind == "video" else None, speed=sp,
+                         kind=kind, name=arg, source_time_origin=t0 if linear else None,
+                         src_in=round(source_in, 3) if kind == "video" else None,
+                         src_out=round(source_in + (t1 - t0) * sp, 3) if kind == "video" else None, speed=sp,
                          join=None if k == 0 else ("dissolve" if sh.get("tr") == "fade" else sh.get("tr")),
                          join_s=round(float(sh.get("trd") or 0), 3), label=sh.get("label"),
                          label_at=sh.get("label_at"), brain=sh.get("brain")))

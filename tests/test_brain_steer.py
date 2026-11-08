@@ -275,7 +275,8 @@ def test_build_vlog_joins_per_segment_and_writes_its_edit_list(tmp_path):
     assert edl["shots"][1]["t1"] == edl["shots"][2]["t0"]
 
 
-def test_build_fun_and_photo_story_edit_lists(tmp_path, monkeypatch):
+@pytest.mark.parametrize("speed", [0.5, 1.0, 2.0])
+def test_build_fun_and_photo_story_edit_lists(tmp_path, monkeypatch, speed):
     sys.path.insert(0, os.path.join(ROOT, "workflows/vlog/scripts"))
     import build_fun
     tl = [dict(t0=0.0, t1=1.1, src="/x/a.mp4", kind="video", role="hook", nb=2, src_span=(3.0, 4.1)),
@@ -297,9 +298,15 @@ def test_build_fun_and_photo_story_edit_lists(tmp_path, monkeypatch):
     class Tl:
         total = 10.0
         shots = [dict(src="va", start=0.0, end=5.0, off=3.0, tr=None, trd=0, brain="C1.S1"),
-                 dict(src="vb", start=5.0, end=10.0, off=2.0, tr="fade", trd=1.0, label="X", label_at="upper")]
+                 dict(src="vb", start=5.0, end=10.0, off=2.0, speed=speed, tr="fade", trd=1.0, label="X", label_at="upper")]
     monkeypatch.setattr(PR, "parse_src", lambda C_, src: ("video", src[1:]))
     PR.write_edl(C(), Tl(), str(tmp_path / "story.mp4"))
     d = json.load(open(tmp_path / "story.edl.json"))
     assert [s["join"] for s in d["shots"]] == [None, "dissolve"] and d["shots"][1]["t0"] == 5.5
     assert d["shots"][0]["src_in"] == 3.0 and d["shots"][1]["label_at"] == "upper"
+    # At the dissolve midpoint (5.5), the second source has already played 0.5s.
+    second = d["shots"][1]
+    assert second["src_in"] == 2 + 0.5 * speed
+    assert second["src_out"] == 2 + 5 * speed
+    assert second["source_time_origin"] == 5.5
+    assert second["src_in"] + (8.0 - second["source_time_origin"]) * second["speed"] == 2 + 3 * speed
